@@ -5,7 +5,7 @@
 
 """Sub-module with utilities for parsing and loading configurations."""
 
-
+import collections
 import gymnasium as gym
 import importlib
 import inspect
@@ -55,9 +55,27 @@ def load_cfg_from_registry(task_name: str, entry_point_key: str) -> dict | objec
     cfg_entry_point = gym.spec(task_name.split(":")[-1]).kwargs.get(entry_point_key)
     # check if entry point exists
     if cfg_entry_point is None:
+        # get existing agents and algorithms
+        agents = collections.defaultdict(list)
+        for k in gym.spec(task_name.split(":")[-1]).kwargs:
+            if k.endswith("_cfg_entry_point") and k != "env_cfg_entry_point":
+                spec = (
+                    k.replace("_cfg_entry_point", "")
+                    .replace("rl_games", "rl-games")
+                    .replace("rsl_rl", "rsl-rl")
+                    .split("_")
+                )
+                agent = spec[0].replace("-", "_")
+                algorithms = [item.upper() for item in (spec[1:] if len(spec) > 1 else ["PPO"])]
+                agents[agent].extend(algorithms)
+        msg = "\nExisting RL library (and algorithms) config entry points: "
+        for agent, algorithms in agents.items():
+            msg += f"\n  |-- {agent}: {', '.join(algorithms)}"
+        # raise error
         raise ValueError(
             f"Could not find configuration for the environment: '{task_name}'."
-            f" Please check that the gym registry has the entry point: '{entry_point_key}'."
+            f"\nPlease check that the gym registry has the entry point: '{entry_point_key}'."
+            f"{msg if agents else ''}"
         )
     # parse the default config file
     if isinstance(cfg_entry_point, str) and cfg_entry_point.endswith(".yaml"):

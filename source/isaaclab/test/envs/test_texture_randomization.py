@@ -20,6 +20,7 @@ simulation_app = app_launcher.app
 import math
 import torch
 import unittest
+from unittest.mock import patch
 
 import omni.usd
 
@@ -128,6 +129,36 @@ class EventCfg:
 
 
 @configclass
+class EventCfgFallback:
+    """Configuration for events that tests the fallback mechanism."""
+
+    # Test fallback when /visuals pattern doesn't match
+    test_fallback_texture_randomizer = EventTerm(
+        func=mdp.randomize_visual_texture_material,
+        mode="reset",
+        params={
+            "asset_cfg": SceneEntityCfg("robot", body_names=["slider"]),
+            "texture_paths": [
+                f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Bamboo_Planks/Bamboo_Planks_BaseColor.png",
+                f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Cherry/Cherry_BaseColor.png",
+            ],
+            "event_name": "test_fallback_texture_randomizer",
+            "texture_rotation": (0.0, 0.0),
+        },
+    )
+
+    reset_cart_position = EventTerm(
+        func=mdp.reset_joints_by_offset,
+        mode="reset",
+        params={
+            "asset_cfg": SceneEntityCfg("robot", joint_names=["slider_to_cart"]),
+            "position_range": (-1.0, 1.0),
+            "velocity_range": (-0.1, 0.1),
+        },
+    )
+
+
+@configclass
 class CartpoleEnvCfg(ManagerBasedEnvCfg):
     """Configuration for the cartpole environment."""
 
@@ -144,6 +175,29 @@ class CartpoleEnvCfg(ManagerBasedEnvCfg):
         # viewer settings
         self.viewer.eye = [4.5, 0.0, 6.0]
         self.viewer.lookat = [0.0, 0.0, 2.0]
+        # step settings
+        self.decimation = 4  # env step every 4 sim steps: 200Hz / 4 = 50Hz
+        # simulation settings
+        self.sim.dt = 0.005  # sim step every 5ms: 200Hz
+
+
+@configclass
+class CartpoleEnvCfgFallback(ManagerBasedEnvCfg):
+    """Configuration for the cartpole environment that tests fallback mechanism."""
+
+    # Scene settings
+    scene = CartpoleSceneCfg(env_spacing=2.5)
+
+    # Basic settings
+    actions = ActionsCfg()
+    observations = ObservationsCfg()
+    events = EventCfgFallback()
+
+    def __post_init__(self):
+        """Post initialization."""
+        # viewer settings
+        self.viewer.eye = (4.5, 0.0, 6.0)
+        self.viewer.lookat = (0.0, 0.0, 2.0)
         # step settings
         self.decimation = 4  # env step every 4 sim steps: 200Hz / 4 = 50Hz
         # simulation settings
@@ -185,6 +239,46 @@ class TestTextureRandomization(unittest.TestCase):
                         env.step(joint_efforts)
 
                 env.close()
+
+    def test_texture_randomization_fallback(self):
+        """Test texture randomization fallback mechanism when /visuals pattern doesn't match."""
+
+        def mock_find_matching_prim_paths(pattern):
+            """Mock function that simulates a case where /visuals pattern doesn't match."""
+            # If the pattern contains '/visuals', return empty list to trigger fallback
+            if pattern.endswith("/visuals"):
+                return []
+            return None
+
+        for device in ["cpu", "cuda"]:
+            with self.subTest(device=device):
+                # create a new stage
+                omni.usd.get_context().new_stage()
+
+                # set the arguments - use fallback config
+                env_cfg = CartpoleEnvCfgFallback()
+                env_cfg.scene.num_envs = 16
+                env_cfg.scene.replicate_physics = False
+                env_cfg.sim.device = device
+
+                with patch.object(
+                    mdp.events.sim_utils, "find_matching_prim_paths", side_effect=mock_find_matching_prim_paths
+                ):
+                    # This should trigger the fallback mechanism and log the fallback message
+                    env = ManagerBasedEnv(cfg=env_cfg)
+
+                    # simulate physics
+                    with torch.inference_mode():
+                        for count in range(20):  # shorter test for fallback
+                            # reset every few steps to check nothing breaks
+                            if count % 10 == 0:
+                                env.reset()
+                            # sample random actions
+                            joint_efforts = torch.randn_like(env.action_manager.action)
+                            # step the environment
+                            env.step(joint_efforts)
+
+                    env.close()
 
     def test_texture_randomization_failure_replicate_physics(self):
         """Test texture randomization failure when replicate physics is set to True."""

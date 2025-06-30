@@ -9,6 +9,7 @@
 
 import argparse
 import sys
+from distutils.util import strtobool
 
 from isaaclab.app import AppLauncher
 
@@ -26,7 +27,17 @@ parser.add_argument(
 parser.add_argument("--checkpoint", type=str, default=None, help="Path to model checkpoint.")
 parser.add_argument("--sigma", type=str, default=None, help="The policy's initial standard deviation.")
 parser.add_argument("--max_iterations", type=int, default=None, help="RL Policy training iterations.")
-
+parser.add_argument("--wandb-project-name", type=str, default=None, help="the wandb's project name")
+parser.add_argument("--wandb-entity", type=str, default=None, help="the entity (team) of wandb's project")
+parser.add_argument("--wandb-name", type=str, default=None, help="the name of wandb's run")
+parser.add_argument(
+    "--track",
+    type=lambda x: bool(strtobool(x)),
+    default=False,
+    nargs="?",
+    const=True,
+    help="if toggled, this experiment will be tracked with Weights and Biases",
+)
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
@@ -109,7 +120,8 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     env_cfg.seed = agent_cfg["params"]["seed"]
 
     # specify directory for logging experiments
-    log_root_path = os.path.join("logs", "rl_games", agent_cfg["params"]["config"]["name"])
+    config_name = agent_cfg["params"]["config"]["name"]
+    log_root_path = os.path.join("logs", "rl_games", config_name)
     log_root_path = os.path.abspath(log_root_path)
     print(f"[INFO] Logging experiment in directory: {log_root_path}")
     # specify directory for logging runs
@@ -118,6 +130,8 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     # logging directory path: <train_dir>/<full_experiment_name>
     agent_cfg["params"]["config"]["train_dir"] = log_root_path
     agent_cfg["params"]["config"]["full_experiment_name"] = log_dir
+    wandb_project = config_name if args_cli.wandb_project_name is None else args_cli.wandb_project_name
+    experiment_name = log_dir if args_cli.wandb_name is None else args_cli.wandb_name
 
     # dump the configuration into log-directory
     dump_yaml(os.path.join(log_root_path, log_dir, "params", "env.yaml"), env_cfg)
@@ -168,6 +182,24 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     # reset the agent and env
     runner.reset()
     # train the agent
+
+    global_rank = int(os.getenv("RANK", "0"))
+    if args_cli.track and global_rank == 0:
+        if args_cli.wandb_entity is None:
+            raise ValueError("Weights and Biases entity must be specified for tracking.")
+        import wandb
+
+        wandb.init(
+            project=wandb_project,
+            entity=args_cli.wandb_entity,
+            name=experiment_name,
+            sync_tensorboard=True,
+            monitor_gym=True,
+            save_code=True,
+        )
+        wandb.config.update({"env_cfg": env_cfg.to_dict()})
+        wandb.config.update({"agent_cfg": agent_cfg})
+
     if args_cli.checkpoint is not None:
         runner.run({"train": True, "play": False, "sigma": train_sigma, "checkpoint": resume_path})
     else:

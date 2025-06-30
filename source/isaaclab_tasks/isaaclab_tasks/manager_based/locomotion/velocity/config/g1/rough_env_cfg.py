@@ -127,6 +127,7 @@ class G1RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
                 "yaw": (0.0, 0.0),
             },
         }
+        self.events.base_com = None
 
         # Rewards
         self.rewards.lin_vel_z_l2.weight = 0.0

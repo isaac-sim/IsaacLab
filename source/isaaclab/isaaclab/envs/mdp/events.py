@@ -1156,6 +1156,8 @@ def reset_scene_to_default(env: ManagerBasedEnv, env_ids: torch.Tensor):
         default_joint_pos = articulation_asset.data.default_joint_pos[env_ids].clone()
         default_joint_vel = articulation_asset.data.default_joint_vel[env_ids].clone()
         # set into the physics simulation
+        articulation_asset.set_joint_position_target(default_joint_pos, env_ids=env_ids)
+        articulation_asset.set_joint_velocity_target(default_joint_vel, env_ids=env_ids)
         articulation_asset.write_joint_state_to_sim(default_joint_pos, default_joint_vel, env_ids=env_ids)
     # deformable objects
     for deformable_object in env.scene.deformable_objects.values():
@@ -1229,8 +1231,25 @@ class randomize_visual_texture_material(ManagerTermBase):
             body_names_regex = ".*"
 
         # create the affected prim path
-        # TODO: Remove the hard-coded "/visuals" part.
-        prim_path = f"{asset.cfg.prim_path}/{body_names_regex}/visuals"
+        # Check if the pattern with '/visuals' yields results when matching `body_names_regex`.
+        # If not, fall back to a broader pattern without '/visuals'.
+        asset_main_prim_path = asset.cfg.prim_path
+        # Try the pattern with '/visuals' first for the generic case
+        pattern_with_visuals = f"{asset_main_prim_path}/{body_names_regex}/visuals"
+        # Use sim_utils to check if any prims currently match this pattern
+        matching_prims = sim_utils.find_matching_prim_paths(pattern_with_visuals)
+        if matching_prims:
+            # If matches are found, use the pattern with /visuals
+            prim_path = pattern_with_visuals
+        else:
+            # If no matches found, fall back to the broader pattern without /visuals
+            # This pattern (e.g., /World/envs/env_.*/Table/.*) should match visual prims
+            # whether they end in /visuals or have other structures.
+            prim_path = f"{asset_main_prim_path}/.*"
+            carb.log_info(
+                f"Pattern '{pattern_with_visuals}' found no prims. Falling back to '{prim_path}' for texture"
+                " randomization."
+            )
 
         # Create the omni-graph node for the randomization term
         def rep_texture_randomization():
@@ -1240,7 +1259,6 @@ class randomize_visual_texture_material(ManagerTermBase):
                 rep.randomizer.texture(
                     textures=texture_paths, project_uvw=True, texture_rotate=rep.distribution.uniform(*texture_rotation)
                 )
-
             return prims_group.node
 
         # Register the event to the replicator
