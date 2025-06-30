@@ -75,7 +75,7 @@ def test_scale_unscale_transform(device, size):
 @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
 @pytest.mark.parametrize("size", ((5, 4, 3), (10, 2)))
 def test_saturate(device, size):
-    "Test saturate."
+    "Test saturate of a tensor of differed shapes and device."
 
     num_elements = math.prod(size)
     input = torch.tensor(range(num_elements), device=device, dtype=torch.float32).reshape(size)
@@ -97,7 +97,7 @@ def test_saturate(device, size):
 @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
 @pytest.mark.parametrize("size", ((5, 4, 3), (10, 2)))
 def test_normalize(device, size):
-    """Test normalize."""
+    """Test normalize of a tensor along its last dimension and check the norm of that dimension is close to 1.0."""
 
     num_elements = math.prod(size)
     input = torch.tensor(range(num_elements), device=device, dtype=torch.float32).reshape(size)
@@ -359,7 +359,7 @@ def test_convention_converter(device):
 @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
 @pytest.mark.parametrize("size", ((10, 4), (5, 3, 4)))
 def test_convert_quat(device, size):
-    """Test convert_quat."""
+    """Test convert_quat from xyzw to wxyz and back to xyzw and verify the correct rolling of the tensor. Also check the correct exceptions are raised for bad inputs for the quaternion and the 'to'."""
 
     quat = torch.zeros(size, device=device)
     quat[..., 0] = 1.0
@@ -389,12 +389,12 @@ def test_convert_quat(device, size):
 
 
 @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
-def test_quat_conjugate_and_inv(device):
-    """Test quat_conjugate and quat_inv."""
+def test_quat_conjugate(device):
+    """Test quat_conjugate by checking the sign of the imaginary part changes but the magnitudes stay the same."""
 
     quat = math_utils.random_orientation(1000, device=device)
 
-    value = math_utils.quat_inv(quat)
+    value = math_utils.quat_conjugate(quat)
     expected_real = quat[..., 0]
     expected_imag = -quat[..., 1:]
     torch.testing.assert_close(expected_real, value[..., 0])
@@ -609,7 +609,7 @@ def test_pose_inv():
 
 @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
 def test_quat_to_and_from_angle_axis(device):
-    """Test axis_angle_from_quat quat_from_angle_axis."""
+    """Test that axis_angle_from_quat against scipy and that quat_from_angle_axis are the inverse of each other."""
     n = 1024
     q_rand = math_utils.quat_unique(math_utils.random_orientation(num=n, device=device))
     rot_vec_value = math_utils.axis_angle_from_quat(q_rand)
@@ -691,7 +691,7 @@ def test_quat_box_minus_and_quat_box_plus(device):
 @pytest.mark.parametrize("t12_inputs", ["True", "False"])
 @pytest.mark.parametrize("q12_inputs", ["True", "False"])
 def test_combine_frame_transforms(device, t12_inputs, q12_inputs):
-    """Test combine_frame_transforms."""
+    """Test combine_frame_transforms such that inputs for delta translation and delta rotation can be None or specified."""
     n = 1024
     t01 = torch.zeros((n, 3), device=device)
     t01.uniform_(-1000.0, 1000.0)
@@ -728,7 +728,7 @@ def test_combine_frame_transforms(device, t12_inputs, q12_inputs):
 @pytest.mark.parametrize("t02_inputs", ["True", "False"])
 @pytest.mark.parametrize("q02_inputs", ["True", "False"])
 def test_subtract_frame_transforms(device, t02_inputs, q02_inputs):
-    """Test combine_frame_transforms."""
+    """Test subtract_frame_transforms with specified and unspecified inputs for t02 and q02. Verify that it is the inverse operation to combine_frame_transforms."""
     n = 1024
     t01 = torch.zeros((n, 3), device=device)
     t01.uniform_(-1000.0, 1000.0)
@@ -763,7 +763,7 @@ def test_subtract_frame_transforms(device, t02_inputs, q02_inputs):
 @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
 @pytest.mark.parametrize("rot_error_type", ("quat", "axis_angle"))
 def test_compute_pose_error(device, rot_error_type):
-    """Test compute_pose_error."""
+    """Test compute_pose_error for different rot_error_type."""
     n = 1000
     t01 = torch.zeros((n, 3), device=device)
     t01.uniform_(-1000.0, 1000.0)
@@ -902,7 +902,7 @@ def test_matrix_from_quat(device):
     "convention", ("XYZ", "XZY", "YXZ", "YZX", "ZXY", "ZYX", "ZYZ", "YZY", "XYX", "XZX", "ZXZ", "YXY")
 )
 def test_matrix_from_euler(device, euler_angles, convention):
-    """Test matrix_from_euler."""
+    """Test matrix_from_euler against scipy for different permutations of the X,Y,Z euler angle conventions."""
 
     num_envs = 1024
     angles = torch.tensor(euler_angles, device=device).unsqueeze(0).repeat((num_envs, 1))
