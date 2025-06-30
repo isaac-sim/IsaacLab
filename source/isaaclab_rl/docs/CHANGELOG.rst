@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.1.7 (2025-06-30)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Call :meth:`eval` during :meth:`forward`` RSL-RL OnnxPolicyExporter
+
+
 0.1.6 (2025-06-26)
 ~~~~~~~~~~~~~~~~~~
 
