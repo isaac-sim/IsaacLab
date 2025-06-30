@@ -39,7 +39,7 @@ gradients back to each process after each training step.
 The key components in this setup are:
 
 * **Torchrun**: Handles process spawning, communication, and gradient synchronization.
-* **RL Framework**: The reinforcement learning framework that runs the actual training algorithm.
+* **RL Library**: The reinforcement learning library that runs the actual training algorithm.
 * **Isaac Lab**: Provides the simulation environment that each process instantiates independently.
 
 Under the hood, Torchrun uses the `DistributedDataParallel <https://docs.pytorch.org/docs/2.7/notes/ddp.html#internal-design>`_
