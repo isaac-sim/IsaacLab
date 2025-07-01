@@ -62,9 +62,6 @@ class PbtAlgoObserver(AlgoObserver):
         self.pbt_change_min = pbt_params['change_min']
         self.pbt_change_max = pbt_params['change_max']
 
-
-        self.dbg_mode = pbt_params['dbg_mode']
-
         self.policy_idx = pbt_params['policy_idx']
         self.pbt_num_policies = pbt_params['num_policies']
         self.algo = None
@@ -73,8 +70,6 @@ class PbtAlgoObserver(AlgoObserver):
 
         self.pbt_iteration = -1  # dummy value, stands for "not initialized"
         self.pbt_interval_steps = pbt_params['interval_steps']
-        self.pbt_start_after_steps = pbt_params['start_after']
-
         self.initial_env_frames = -1  # env frames at the beginning of the experiment, can be > 0 if we resume
 
         self.pbt_episodes_to_avg = 4096
@@ -212,22 +207,6 @@ class PbtAlgoObserver(AlgoObserver):
             print(f'Policy {self.policy_idx}: Not enough episodes finished, wait for more data...')
             return
 
-        sec_since_experiment_start = time.time() - self.experiment_start
-        pbt_start_after_sec = 1 if self.dbg_mode else 30
-        if sec_since_experiment_start < pbt_start_after_sec:
-            print(f'Policy {self.policy_idx}: Not enough time passed since experiment start {sec_since_experiment_start}')
-            return
-
-        if env_frames - self.initial_env_frames < self.pbt_start_after_steps:
-            # print(f'Policy {self.policy_idx}: Not enough experience collected to start PBT {env_frames} 
-                #   {self.initial_env_frames} {self.pbt_start_after_steps}')
-            print(
-                f"Policy {self.policy_idx}: Not enough experience to start PBT {env_frames/1e6:.1f} M frames  "
-                f"collected {self.initial_env_frames/1e6:.1f} M frames, "
-                f"need {self.pbt_start_after_steps/1e6:.1f} M frames."
-            )
-            return
-
         print(f'Policy {self.policy_idx}: New pbt iteration {iteration}!')
         self.pbt_iteration = iteration
 
@@ -285,12 +264,12 @@ class PbtAlgoObserver(AlgoObserver):
         print(f'Policy {self.policy_idx}: PBT {best_policies=}, {worst_policies=}')
         print(f'Policy {self.policy_idx}: PBT {best_objectives=}, {worst_objectives=}')
 
-        if self.policy_idx not in worst_policies and not self.dbg_mode:
+        if self.policy_idx not in worst_policies:
             # don't touch the policies that are doing okay
             print(f'Current policy {self.policy_idx} is doing well, not among the {worst_policies=}')
             return
 
-        if len(objectives_filtered) <= max(2, self.pbt_num_policies // 2) and not self.dbg_mode:
+        if len(objectives_filtered) <= max(2, self.pbt_num_policies // 2):
             print(f'Policy {self.policy_idx}: Not enough data to start PBT, {objectives_filtered}')
             return
 

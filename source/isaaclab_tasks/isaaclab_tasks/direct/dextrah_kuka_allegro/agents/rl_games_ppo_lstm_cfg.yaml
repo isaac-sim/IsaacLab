@@ -135,32 +135,27 @@ pbt:
   num_policies: 8  # total number of policies in the population, the total number of learners. Override through CLI!
   workspace: "pbt_workspace"  # suffix of the workspace dir name inside train_dir, used to distinguish different PBT runs with the same experiment name. Recommended to specify a unique name
 
-  # special mode that enables PBT features for debugging even if only one policy is present. Never enable in actual experiments
-  dbg_mode: False
-
   # PBT hyperparams
   interval_steps: 10000000  # Interval in env steps between PBT iterations (checkpointing, mutation, etc.)
-  start_after: 10000000  # Start PBT after this many env frames are collected
-
   # Fraction of the underperforming policies whose weights are to be replaced by better performing policies
   # This is rounded up, i.e. for 8 policies and fraction 0.3 we replace ceil(0.3*8)=3 worst policies
-  replace_fraction: 0.3
+  replace_fraction: 0.4
 
   # Replace an underperforming policy only if its reward is lower by at least this fraction of standard deviation
   # within the population.
-  replace_threshold_frac_std: 0.5
+  replace_threshold_frac_std: 1.0
 
   # Replace an underperforming policy only if its reward is lower by at least this fraction of the absolute value
   # of the objective of a better policy
-  replace_threshold_frac_absolute: 0.05
+  replace_threshold_frac_absolute: 0.1
 
   # Probability to mutate a certain parameter
-  mutation_rate: 0.15
+  mutation_rate: 0.25
 
   # min and max values for the mutation of a parameter
   # The mutation is performed by multiplying or dividing (randomly) the parameter value by a value sampled from [change_min, change_max]
   change_min: 1.1
-  change_max: 1.5
+  change_max: 2.0
 
   mutation:
 
