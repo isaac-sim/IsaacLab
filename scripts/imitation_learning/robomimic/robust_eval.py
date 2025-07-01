@@ -282,7 +282,7 @@ def main() -> None:
                 for model in model_checkpoints:
                     # Skip early checkpoints
                     model_epoch = int(model.split(".")[0].split("_")[-1])
-                    if model_epoch <= args_cli.start_epoch:
+                    if model_epoch < args_cli.start_epoch:
                         continue
 
                     model_path = os.path.join(args_cli.input_dir, model)
