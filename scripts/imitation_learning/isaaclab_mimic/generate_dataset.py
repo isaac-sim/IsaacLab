@@ -26,7 +26,7 @@ parser.add_argument(
     "--output_file",
     type=str,
     default="./datasets/output_dataset.hdf5",
-    help="File path to export recorded and generated episodes.",
+    help="File path to export recorded and generated episodes. Format determined by extension: .hdf5 or .lerobot",
 )
 parser.add_argument(
     "--pause_subtask",
@@ -63,6 +63,7 @@ import random
 import torch
 
 import omni
+import omni.log
 
 from isaaclab.envs import ManagerBasedRLMimicEnv
 
@@ -75,6 +76,14 @@ from isaaclab_mimic.datagen.utils import get_env_name_from_dataset, setup_output
 
 import isaaclab_tasks  # noqa: F401
 
+# Import dataset handlers
+from isaaclab.utils.datasets import HDF5DatasetFileHandler
+try:
+    from isaaclab.utils.datasets import LeRobotDatasetFileHandler
+    LEROBOT_AVAILABLE = True
+except ImportError:
+    LEROBOT_AVAILABLE = False
+
 
 def main():
     num_envs = args_cli.num_envs
@@ -86,6 +95,24 @@ def main():
         task_name = args_cli.task.split(":")[-1]
     env_name = task_name or get_env_name_from_dataset(args_cli.input_file)
 
+    # Configure dataset format based on file extension
+    use_lerobot_format = args_cli.output_file.endswith('.lerobot')
+    
+    if use_lerobot_format:
+        if not LEROBOT_AVAILABLE:
+            omni.log.error("LeRobot format requested but dependencies not available.")
+            omni.log.error("Please install: pip install datasets opencv-python imageio[ffmpeg]")
+            exit(1)
+        
+        omni.log.info(f"Generating dataset in LeRobot format: {args_cli.output_file}")
+        omni.log.info("LeRobot format benefits:")
+        omni.log.info("  • Compatible with HuggingFace LeRobot ecosystem")
+        omni.log.info("  • Efficient video compression with MP4")
+        omni.log.info("  • Standardized naming conventions")
+        omni.log.info("  • Easy sharing via HuggingFace Hub")
+    else:
+        omni.log.info(f"Generating dataset in HDF5 format: {args_cli.output_file}")
+
     # Configure environment
     env_cfg, success_term = setup_env_config(
         env_name=env_name,
@@ -96,13 +123,19 @@ def main():
         generation_num_trials=args_cli.generation_num_trials,
     )
 
+    # Set dataset file handler based on format
+    if use_lerobot_format:
+        env_cfg.recorders.dataset_file_handler_class_type = LeRobotDatasetFileHandler
+    else:
+        env_cfg.recorders.dataset_file_handler_class_type = HDF5DatasetFileHandler
+
     # create environment
     env = gym.make(env_name, cfg=env_cfg).unwrapped
 
     if not isinstance(env, ManagerBasedRLMimicEnv):
         raise ValueError("The environment should be derived from ManagerBasedRLMimicEnv")
 
-    # check if the mimic API from this environment contains decprecated signatures
+    # check if the mimic API from this environment contains deprecated signatures
     if "action_noise_dict" not in inspect.signature(env.target_eef_pose_to_action).parameters:
         omni.log.warn(
             f'The "noise" parameter in the "{env_name}" environment\'s mimic API "target_eef_pose_to_action", '
