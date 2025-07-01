@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.X.0 (2025-06-29)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added MangerBasedRLEnv support for composite gym observation spaces.
+* A test for the composite gym observation spaces in ManagerBasedRLEnv is added to ensure that the observation spaces
+  are correctly configured base on the clip.
+
+
 0.40.11 (2025-06-27)
 ~~~~~~~~~~~~~~~~~~~~
 
