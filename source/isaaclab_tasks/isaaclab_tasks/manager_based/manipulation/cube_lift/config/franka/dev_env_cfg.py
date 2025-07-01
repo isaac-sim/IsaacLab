@@ -14,7 +14,7 @@ from isaaclab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
 from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
 from isaaclab_tasks.manager_based.manipulation.cube_lift import mdp
 from isaaclab_tasks.manager_based.manipulation.cube_lift.lift_env_cfg import CubeEnvCfg
-
+from isaaclab_assets.glassware.glassware_objects import Chem_Assets
 ##
 # Pre-defined configs
 ##
@@ -52,72 +52,15 @@ class FrankaDevEnvCfg(CubeEnvCfg):
         # Set the body name for the end effector
         self.commands.object_pose.body_name = "panda_hand"
 
-
-        cube_properties = RigidBodyPropertiesCfg(
-            rigid_body_enabled=True,
-            max_linear_velocity=1000.0,
-            max_angular_velocity=1000.0,
-            max_depenetration_velocity=100.0,
-            enable_gyroscopic_forces=True,
-        )
-
+        glassware = Chem_Assets()
         # Set each stacking cube deterministically
-        self.scene.object = RigidObjectCfg(
-            prim_path="{ENV_REGEX_NS}/Object",
-            init_state=RigidObjectCfg.InitialStateCfg(pos=[0.4, 0.0, 0.0203], rot=[1, 0, 0, 0]),
-            spawn=UsdFileCfg(
-                usd_path="/workspace/isaaclab/source/isaaclab_assets/data/Props/glassware/vial_rack.usd",
-                scale=(0.75, 0.75, 1.5),
-                rigid_props=cube_properties,
-                semantic_tags=[("class", "object")],
-            ),
-        )
-
-        self.scene.flask = RigidObjectCfg(
-            prim_path="{ENV_REGEX_NS}/flask",
-            init_state=RigidObjectCfg.InitialStateCfg(pos=[0.65, 0.4, 0.05],rot=[1, 0, 0, 0]),
-            spawn=UsdFileCfg(
-                usd_path="/workspace/isaaclab/source/isaaclab_assets/data/Props/glassware/conical_flask.usd",
-                scale=(1, 1, 1),
-                rigid_props=cube_properties,
-                visible=True,
-                copy_from_source = False,
-                semantic_tags=[("class", "flask")],
-            ),
-        ) 
-
-        self.scene.vial = RigidObjectCfg(
-            prim_path="{ENV_REGEX_NS}/vial",
-            init_state=RigidObjectCfg.InitialStateCfg(pos=[0.65, 0.3, 0.05],rot=[0, 0, 1, 0]),
-            spawn=UsdFileCfg(
-                usd_path="/workspace/isaaclab/source/isaaclab_assets/data/Props/glassware/sample_vial_20ml.usd",
-                scale=(1, 1, 1),
-                rigid_props=cube_properties,
-                visible=True,
-                copy_from_source = False,
-                semantic_tags=[("class", "vial")],
-            ),
-        ) 
-        self.scene.beaker = RigidObjectCfg(
-            prim_path="{ENV_REGEX_NS}/beaker",
-            init_state=RigidObjectCfg.InitialStateCfg(pos=[0.65, 0.2, 0.05],rot=[0, 0, 1, 0]),
-            spawn=UsdFileCfg(
-                usd_path="/workspace/isaaclab/source/isaaclab_assets/data/Props/glassware/beaker_500ml.usd",
-                scale=(0.5, 0.5, 0.5),
-                rigid_props=cube_properties,
-                semantic_tags=[("class", "beaker")],
-            ),
-        ) 
-        self.scene.stirplate = RigidObjectCfg(
-            prim_path="{ENV_REGEX_NS}/stirplate",
-            init_state=RigidObjectCfg.InitialStateCfg(pos=[0.40, -0.3, 0.05],rot=[0.707, 0, 0, -0.707]),
-            spawn=UsdFileCfg(
-                usd_path="/workspace/isaaclab/source/isaaclab_assets/data/Props/lab_equipment/mag_hotplate.usd",
-                scale=(0.8, 0.8, 0.8),
-                rigid_props=cube_properties,
-                semantic_tags=[("class", "stirplate")],
-            ),
-        ) 
+        self.scene.object = glassware.beaker(pos=[0.4, 0.0, 0.0203],name="Object")
+        #### everything else leave default
+        # self.scene.flask = glassware.flask()
+        # self.scene.vial = glassware.vial()
+        # self.scene.beaker = glassware.beaker()
+        self.scene.stirplate = glassware.stirplate()
+        self.scene.random = glassware.random_object()
 
         # Listens to the required transforms
         marker_cfg = FRAME_MARKER_CFG.copy()

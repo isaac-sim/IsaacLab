@@ -50,7 +50,7 @@ def object_reached_goal(
     # distance of the end-effector to the object: (num_envs,)
     distance = torch.norm(des_pos_w - object.data.root_pos_w[:, :3], dim=1)
    # print(f"For DEBUG : DISTANCE TO GOAL : {distance}")
-    if(distance.item() < threshold):
-        loghelper.logsubtask(LogType.FINISH)
+    # if(distance.item() < threshold):
+    #     loghelper.logsubtask(LogType.FINISH)
       
     return distance < threshold

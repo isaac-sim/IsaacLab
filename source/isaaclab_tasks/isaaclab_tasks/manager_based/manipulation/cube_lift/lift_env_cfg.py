@@ -202,6 +202,16 @@ class EventCfg:
             "asset_cfg": SceneEntityCfg("object", body_names="Object"),
         },
     )
+    #randomises the scale of the object 
+    randomise_object__scale = EventTerm(
+        func=mdp.randomize_rigid_body_scale,
+        mode="prestartup",
+        params={
+            "scale_range": {"x": (0.2, 0.7), "y": (0.2, 0.6), "z": (0.2, 0.5)},
+            "asset_cfg": SceneEntityCfg("object", body_names="Object"),
+        },
+    )
+
 
 
 @configclass
@@ -284,7 +294,7 @@ class CubeEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the lifting environment."""
     loghelper = LoggingHelper()
     # Scene settings
-    scene: ObjectTableSceneCfg = ObjectTableSceneCfg(num_envs=4096, env_spacing=2.5)
+    scene: ObjectTableSceneCfg = ObjectTableSceneCfg(num_envs=4096, env_spacing=2.5, replicate_physics=False)
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
@@ -301,6 +311,7 @@ class CubeEnvCfg(ManagerBasedRLEnvCfg):
         """Post initialization."""
         print("debug cfg : ", self.observations.policy.actions)
         # general settings
+        
         self.decimation = 2
         self.episode_length_s = 60
         # simulation settings

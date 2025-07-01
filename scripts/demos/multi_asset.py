@@ -102,16 +102,22 @@ class MultiObjectSceneCfg(InteractiveSceneCfg):
     dome_light = AssetBaseCfg(
         prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
     )
-
+    cube_properties = sim_utils.RigidBodyPropertiesCfg(
+        rigid_body_enabled=True,
+        max_linear_velocity=1000.0,
+        max_angular_velocity=1000.0,
+        max_depenetration_velocity=100.0,
+        enable_gyroscopic_forces=True,
+    )
     # rigid object
     object: RigidObjectCfg = RigidObjectCfg(
         prim_path="/World/envs/env_.*/Object",
         spawn=sim_utils.MultiAssetSpawnerCfg(
             assets_cfg=[
-                sim_utils.ConeCfg(
-                    radius=0.3,
-                    height=0.6,
-                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 0.0), metallic=0.2),
+                sim_utils.UsdFileCfg(
+                    usd_path="/workspace/isaaclab/source/isaaclab_assets/data/Props/glassware/beaker.usd",
+                    scale=(1, 1, 1),
+                    rigid_props=cube_properties,
                 ),
                 sim_utils.CuboidCfg(
                     size=(0.3, 0.3, 0.3),
@@ -133,50 +139,50 @@ class MultiObjectSceneCfg(InteractiveSceneCfg):
     )
 
     # object collection
-    object_collection: RigidObjectCollectionCfg = RigidObjectCollectionCfg(
-        rigid_objects={
-            "object_A": RigidObjectCfg(
-                prim_path="/World/envs/env_.*/Object_A",
-                spawn=sim_utils.SphereCfg(
-                    radius=0.1,
-                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0), metallic=0.2),
-                    rigid_props=sim_utils.RigidBodyPropertiesCfg(
-                        solver_position_iteration_count=4, solver_velocity_iteration_count=0
-                    ),
-                    mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-                    collision_props=sim_utils.CollisionPropertiesCfg(),
-                ),
-                init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, -0.5, 2.0)),
-            ),
-            "object_B": RigidObjectCfg(
-                prim_path="/World/envs/env_.*/Object_B",
-                spawn=sim_utils.CuboidCfg(
-                    size=(0.1, 0.1, 0.1),
-                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0), metallic=0.2),
-                    rigid_props=sim_utils.RigidBodyPropertiesCfg(
-                        solver_position_iteration_count=4, solver_velocity_iteration_count=0
-                    ),
-                    mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-                    collision_props=sim_utils.CollisionPropertiesCfg(),
-                ),
-                init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.5, 2.0)),
-            ),
-            "object_C": RigidObjectCfg(
-                prim_path="/World/envs/env_.*/Object_C",
-                spawn=sim_utils.ConeCfg(
-                    radius=0.1,
-                    height=0.3,
-                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0), metallic=0.2),
-                    rigid_props=sim_utils.RigidBodyPropertiesCfg(
-                        solver_position_iteration_count=4, solver_velocity_iteration_count=0
-                    ),
-                    mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-                    collision_props=sim_utils.CollisionPropertiesCfg(),
-                ),
-                init_state=RigidObjectCfg.InitialStateCfg(pos=(0.5, 0.0, 2.0)),
-            ),
-        }
-    )
+    # object_collection: RigidObjectCollectionCfg = RigidObjectCollectionCfg(
+    #     rigid_objects={
+    #         "object_A": RigidObjectCfg(
+    #             prim_path="/World/envs/env_.*/Object_A",
+    #             spawn=sim_utils.SphereCfg(
+    #                 radius=0.1,
+    #                 visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0), metallic=0.2),
+    #                 rigid_props=sim_utils.RigidBodyPropertiesCfg(
+    #                     solver_position_iteration_count=4, solver_velocity_iteration_count=0
+    #                 ),
+    #                 mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+    #                 collision_props=sim_utils.CollisionPropertiesCfg(),
+    #             ),
+    #             init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, -0.5, 2.0)),
+    #         ),
+    #         "object_B": RigidObjectCfg(
+    #             prim_path="/World/envs/env_.*/Object_B",
+    #             spawn=sim_utils.CuboidCfg(
+    #                 size=(0.1, 0.1, 0.1),
+    #                 visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0), metallic=0.2),
+    #                 rigid_props=sim_utils.RigidBodyPropertiesCfg(
+    #                     solver_position_iteration_count=4, solver_velocity_iteration_count=0
+    #                 ),
+    #                 mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+    #                 collision_props=sim_utils.CollisionPropertiesCfg(),
+    #             ),
+    #             init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.5, 2.0)),
+    #         ),
+    #         "object_C": RigidObjectCfg(
+    #             prim_path="/World/envs/env_.*/Object_C",
+    #             spawn=sim_utils.ConeCfg(
+    #                 radius=0.1,
+    #                 height=0.3,
+    #                 visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0), metallic=0.2),
+    #                 rigid_props=sim_utils.RigidBodyPropertiesCfg(
+    #                     solver_position_iteration_count=4, solver_velocity_iteration_count=0
+    #                 ),
+    #                 mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+    #                 collision_props=sim_utils.CollisionPropertiesCfg(),
+    #             ),
+    #             init_state=RigidObjectCfg.InitialStateCfg(pos=(0.5, 0.0, 2.0)),
+    #         ),
+    #     }
+    # )
 
     # articulation
     robot: ArticulationCfg = ArticulationCfg(
@@ -225,7 +231,7 @@ def run_simulator(sim: SimulationContext, scene: InteractiveScene):
     # Extract scene entities
     # note: we only do this here for readability.
     rigid_object: RigidObject = scene["object"]
-    rigid_object_collection: RigidObjectCollection = scene["object_collection"]
+    #rigid_object_collection: RigidObjectCollection = scene["object_collection"]
     robot: Articulation = scene["robot"]
     # Define simulation stepping
     sim_dt = sim.get_physics_dt()
@@ -243,10 +249,10 @@ def run_simulator(sim: SimulationContext, scene: InteractiveScene):
             rigid_object.write_root_pose_to_sim(root_state[:, :7])
             rigid_object.write_root_velocity_to_sim(root_state[:, 7:])
             # object collection
-            object_state = rigid_object_collection.data.default_object_state.clone()
-            object_state[..., :3] += scene.env_origins.unsqueeze(1)
-            rigid_object_collection.write_object_link_pose_to_sim(object_state[..., :7])
-            rigid_object_collection.write_object_com_velocity_to_sim(object_state[..., 7:])
+            #object_state = rigid_object_collection.data.default_object_state.clone()
+            #object_state[..., :3] += scene.env_origins.unsqueeze(1)
+           # rigid_object_collection.write_object_link_pose_to_sim(object_state[..., :7])
+            #rigid_object_collection.write_object_com_velocity_to_sim(object_state[..., 7:])
             # robot
             # -- root state
             root_state = robot.data.default_root_state.clone()

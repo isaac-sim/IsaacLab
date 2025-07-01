@@ -68,11 +68,11 @@ def randomize_rigid_body_scale(
         parser will parse the individual asset properties separately.
     """
     # check if sim is running
-    if env.sim.is_playing():
-        raise RuntimeError(
-            "Randomizing scale while simulation is running leads to unpredictable behaviors."
-            " Please ensure that the event term is called before the simulation starts by using the 'usd' mode."
-        )
+    # if env.sim.is_playing():
+    #     raise RuntimeError(
+    #         "Randomizing scale while simulation is running leads to unpredictable behaviors."
+    #         " Please ensure that the event term is called before the simulation starts by using the 'usd' mode."
+    #     )
 
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
@@ -107,6 +107,11 @@ def randomize_rigid_body_scale(
     # convert to list for the for loop
     rand_samples = rand_samples.tolist()
 
+    ### Lauras nasty fixer
+    for s in range(len(rand_samples)):
+        rand_samples[s]=[rand_samples[s][0], rand_samples[s][0], rand_samples[s][0]]
+
+    print("Random Samples : ", rand_samples)
     # apply the randomization to the parent if no relative child path is provided
     # this might be useful if user wants to randomize a particular mesh in the prim hierarchy
     if relative_child_path is None:
@@ -128,7 +133,7 @@ def randomize_rigid_body_scale(
             has_scale_attr = scale_spec is not None
             if not has_scale_attr:
                 scale_spec = Sdf.AttributeSpec(prim_spec, prim_path + ".xformOp:scale", Sdf.ValueTypeNames.Double3)
-
+            
             # set the new scale
             scale_spec.default = Gf.Vec3f(*rand_samples[i])
 
