@@ -293,12 +293,12 @@ To install the robomimic framework, use the following commands:
 Training an agent
 ^^^^^^^^^^^^^^^^^
 
-Using the generated data, we can now train a visuomotor BC agent for ``Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-v0``:
+Using the generated data, we can now train a visuomotor BC agent for ``Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos-v0``:
 
 .. code:: bash
 
     ./isaaclab.sh -p scripts/imitation_learning/robomimic/train.py \
-    --task Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-v0 --algo bc \
+    --task Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos-v0 --algo bc \
     --dataset ./datasets/mimic_cosmos_dataset.hdf5 \
     --name bc_rnn_image_franka_stack_mimic_cosmos
 
@@ -379,8 +379,8 @@ Example usage for the cube stacking task:
 .. code:: bash
 
     ./isaaclab.sh -p scripts/imitation_learning/robomimic/robust_eval.py \
-    --task Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-v0 \
-    --input_dir logs/robomimic/Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-v0/bc_rnn_image_franka_stack_mimic_cosmos/*/models \
+    --task Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos-v0 \
+    --input_dir logs/robomimic/Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos-v0/bc_rnn_image_franka_stack_mimic_cosmos/*/models \
     --log_dir robust_results/bc_rnn_image_franka_stack_mimic_cosmos \
     --log_file result \
     --enable_cameras \
