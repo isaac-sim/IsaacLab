@@ -385,7 +385,7 @@ Installation
 
 .. attention::
 
-   For 50 series GPUs, please use the latest PyTorch nightly build instead of PyTorch 2.5.1, which comes with Isaac Sim:
+   For 50 series (Blackwell) GPUs, please use PyTorch >=2.7 (`release notes <https://pytorch.org/get-started/previous-versions/#v270>`__) instead of PyTorch 2.5.1, which comes with Isaac Sim:
 
    .. tab-set::
       :sync-group: os
@@ -395,14 +395,14 @@ Installation
 
          .. code:: bash
 
-            ./isaaclab.sh -p -m pip install --upgrade --pre torch torchvision --index-url https://download.pytorch.org/whl/nightly/cu128
+            ./isaaclab.sh -p -m pip install --upgrade torch==2.7.1 torchvision --index-url https://download.pytorch.org/whl/nightly/cu128
 
       .. tab-item:: :icon:`fa-brands fa-windows` Windows
          :sync: windows
 
          .. code:: batch
 
-            isaaclab.bat -p -m pip install --upgrade --pre torch torchvision --index-url https://download.pytorch.org/whl/nightly/cu128
+            isaaclab.bat -p -m pip install --upgrade torch==2.7.1 torchvision --index-url https://download.pytorch.org/whl/nightly/cu128
 
 Verifying the Isaac Lab installation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
