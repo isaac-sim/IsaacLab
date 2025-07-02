@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.40.12 (2025-06-30)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added write to file on close to :class:`~isaaclab.manager.RecorderManager`.
+
+
 0.40.11 (2025-06-27)
 ~~~~~~~~~~~~~~~~~~~~
 
