@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.10.41 (2025-07-01)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the rendering settings used for the Mimic-Cosmos pipeline.
+
+
 0.10.40 (2025-06-26)
 ~~~~~~~~~~~~~~~~~~~~
 

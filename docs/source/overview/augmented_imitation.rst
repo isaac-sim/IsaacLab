@@ -24,7 +24,7 @@ In the following example, we will show you how to use Isaac Lab Mimic to generat
     --device cpu --enable_cameras --headless --num_envs 10 --generation_num_trials 1000 \
     --input_file ./datasets/annotated_dataset.hdf5 --output_file ./datasets/mimic_dataset_1k.hdf5 \
     --task Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos-Mimic-v0 \
-    --rendering_mode balanced
+    --rendering_mode performance
 
 The number of demonstrations can be increased or decreased, 1000 demonstrations have been shown to provide good training results for this task.
 
@@ -386,7 +386,7 @@ Example usage for the cube stacking task:
     --enable_cameras \
     --seeds 0 \
     --num_rollouts 15 \
-    --rendering_mode balanced
+    --rendering_mode performance
 
 We use the above script to compare models trained with 1000 Mimic-generated demonstrations, 2000 Mimic-generated demonstrations and 2000 Cosmos-Mimic-generated demonstrations (1000 original mimic + 1000 Cosmos augmented) respectively. We use the same seeds (0, 1000 and 5000) for all three models and provide the metrics (averaged across best checkpoints for each seed) below:
 
