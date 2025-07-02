@@ -112,6 +112,19 @@ This guide explains how to record an animation and video in Isaac Lab.
     record_animation
     record_video
 
+
+Dynamically Modifying Environment Parameters With CurriculumTerm
+----------------------------------------------------------------
+
+This guide explains how to dynamically modify environment parameters during training in Isaac Lab.
+It covers the use of curriculum utilities to change environment parameters at runtime.
+
+.. toctree::
+    :maxdepth: 1
+
+    curriculums
+
+
 Mastering Omniverse
 -------------------
 
