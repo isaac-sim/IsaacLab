@@ -419,44 +419,6 @@ def _run_contact_sensor_test(
                     scene_cfg = ContactSensorSceneCfg(num_envs=1, env_spacing=1.0, lazy_sensor_update=False)
                     scene_cfg.terrain = terrain
                     scene_cfg.shape = shape_cfg
-                    scene_cfg.contact_sensor = ContactSensorCfg(
-                        prim_path=shape_cfg.prim_path,
-                        track_pose=True,
-                        debug_vis=False,
-                        update_period=0.0,
-                        track_air_time=True,
-                        history_length=3,
-                    )
-                    scene = InteractiveScene(scene_cfg)
-
-                    # Check that contact processing is enabled
-                    assert not carb_settings_iface.get("/physics/disableContactProcessing")
-
-                    # Play the simulator
-                    sim.reset()
-
-                    _test_sensor_contact(
-                        scene["shape"],
-                        scene["contact_sensor"],
-                        ContactTestMode.IN_CONTACT,
-                        sim,
-                        scene,
-                        sim_dt,
-                        durations,
-                    )
-                    _test_sensor_contact(
-                        scene["shape"],
-                        scene["contact_sensor"],
-                        ContactTestMode.NON_CONTACT,
-                        sim,
-                        scene,
-                        sim_dt,
-                        durations,
-                    )
-
-                    scene_cfg = ContactSensorSceneCfg(num_envs=1, env_spacing=1.0, lazy_sensor_update=False)
-                    scene_cfg.terrain = terrain
-                    scene_cfg.shape = shape_cfg
                     test_contact_position = False
                     if (type(shape_cfg.spawn) is sim_utils.SphereCfg) and (terrain.terrain_type == "plane"):
                         test_contact_position = True
@@ -465,7 +427,7 @@ def _run_contact_sensor_test(
 
                     if track_contact_points:
                         if terrain.terrain_type == "plane":
-                            filter_prim_paths_expr = [terrain.prim_path + "/GroundPlane/CollisionPlane"]
+                            filter_prim_paths_expr = [terrain.prim_path + "/terrain/GroundPlane/CollisionPlane"]
                         elif terrain.terrain_type == "generator":
                             filter_prim_paths_expr = [terrain.prim_path + "/terrain/mesh"]
                     else:
@@ -596,7 +558,7 @@ def _test_sensor_contact(
         expected_last_reset_contact_time = 2 * sim_dt
 
 
-def _test_contact_position(self, shape: RigidObject, sensor: ContactSensor, mode: ContactTestMode) -> None:
+def _test_contact_position(shape: RigidObject, sensor: ContactSensor, mode: ContactTestMode) -> None:
     """Test for the contact positions (only implemented for sphere and flat terrain)
     checks that the contact position is radius distance away from the root of the object
     Args:
@@ -607,7 +569,7 @@ def _test_contact_position(self, shape: RigidObject, sensor: ContactSensor, mode
     if sensor.cfg.track_contact_points:
         # check shape of the contact_pos_w tensor
         num_bodies = sensor.num_bodies
-        self.assertEqual(sensor._data.contact_pos_w.shape, (sensor.num_instances / num_bodies, num_bodies, 1, 3))
+        assert sensor._data.contact_pos_w.shape == (sensor.num_instances / num_bodies, num_bodies, 1, 3)
         # check contact positions
         if mode == ContactTestMode.IN_CONTACT:
             contact_position = sensor._data.pos_w + torch.tensor(

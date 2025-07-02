@@ -283,7 +283,9 @@ class ContactSensor(SensorBase):
         # create a rigid prim view for the sensor
         self._body_physx_view = self._physics_sim_view.create_rigid_body_view(body_names_glob)
         self._contact_physx_view = self._physics_sim_view.create_rigid_contact_view(
-            body_names_glob, filter_patterns=filter_prim_paths_glob
+            body_names_glob,
+            filter_patterns=filter_prim_paths_glob,
+            max_contact_data_count=self.cfg.max_contact_data_count_per_prim * len(body_names),
         )
         # resolve the true count of bodies
         self._num_bodies = self.body_physx_view.count // self._num_envs
@@ -369,7 +371,7 @@ class ContactSensor(SensorBase):
         # obtain contact points
         if self.cfg.track_contact_points:
             _, buffer_contact_points, _, _, buffer_count, buffer_start_indices = (
-                self.contact_physx_view.get_contact_data(dt=self._dt)
+                self.contact_physx_view.get_contact_data(dt=self._sim_physics_dt)
             )
             # unpack the contact points: see RigidContactView.get_contact_data() documentation for details:
             # https://docs.omniverse.nvidia.com/kit/docs/omni_physics/107.3/extensions/runtime/source/omni.physics.tensors/docs/api/python.html#omni.physics.tensors.impl.api.RigidContactView.get_net_contact_forces
