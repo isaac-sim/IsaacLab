@@ -17,6 +17,7 @@ from isaaclab.managers.action_manager import ActionTerm
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
+    from isaaclab.envs.utils.io_descriptors import GenericActionIODescriptor
 
     from . import actions_cfg
 
@@ -122,6 +123,25 @@ class JointAction(ActionTerm):
     @property
     def processed_actions(self) -> torch.Tensor:
         return self._processed_actions
+
+    @property
+    def IO_descriptor(self) -> GenericActionIODescriptor:
+        super().IO_descriptor
+        self._IO_descriptor.shape = (self.action_dim,)
+        self._IO_descriptor.dtype = str(self.raw_actions.dtype)
+        self._IO_descriptor.action_type = "JointAction"
+        self._IO_descriptor.joint_names = self._joint_names
+        self._IO_descriptor.scale = self._scale
+        # This seems to be always [4xNum_joints] IDK why. Need to check.
+        if isinstance(self._offset, torch.Tensor):
+            self._IO_descriptor.offset = self._offset[0].detach().cpu().numpy().tolist()
+        else:
+            self._IO_descriptor.offset = self._offset
+        if self.cfg.clip is not None:
+            self._IO_descriptor.clip = self._clip
+        else:
+            self._IO_descriptor.clip = None
+        return self._IO_descriptor
 
     """
     Operations.
