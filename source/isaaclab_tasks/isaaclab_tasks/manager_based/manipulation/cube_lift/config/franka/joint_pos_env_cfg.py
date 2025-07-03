@@ -13,7 +13,7 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 from isaaclab_tasks.manager_based.manipulation.cube_lift import mdp
 from isaaclab_tasks.manager_based.manipulation.cube_lift.lift_env_cfg import CubeEnvCfg
-
+from isaaclab_assets.glassware.glassware_objects import Chem_Assets
 ##
 # Pre-defined configs
 ##
@@ -50,27 +50,11 @@ class FrankaCubeEnvCfg(CubeEnvCfg):
         # Set Cube as object
 
         #what if its now a vial rack  ?
-
-        self.scene.object = RigidObjectCfg(
-            prim_path="{ENV_REGEX_NS}/Object",
-            init_state=RigidObjectCfg.InitialStateCfg(pos=[0.5, 0, 0.02],rot=[1, 0, 0, 0]) ,#rot=[0, 0, 1, 0])
-            spawn=UsdFileCfg(
-                usd_path=f"/workspace/isaaclab/source/isaaclab_assets/data/Props/glassware/vial_rack.usd",
-                #usd_path=f"/workspace/isaaclab/source/isaaclab_assets/data/Props/glassware/test_cube.usd",
-                #usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
-                #usd_path = f"/workspace/isaaclab/source/isaaclab_assets/data/Props/glassware/glass_conical.usd",
-                #usd_path = f"/workspace/isaaclab/source/isaaclab_assets/data/Props/glassware/glass_sample_vial.usd",
-                scale=(0.8, 0.8, 2.0),
-                rigid_props=RigidBodyPropertiesCfg(
-                    solver_position_iteration_count=16,
-                    solver_velocity_iteration_count=1,
-                    max_angular_velocity=1000.0,
-                    max_linear_velocity=1000.0,
-                    max_depenetration_velocity=5.0,
-                    disable_gravity=False,
-                ),
-            ),
-        )
+        glassware = Chem_Assets()
+        # Set each stacking cube deterministically
+        self.scene.object = glassware.beaker(pos=[0.4, 0.0, 0.0203],name="Object")
+        
+        
 
         # Listens to the required transforms
         marker_cfg = FRAME_MARKER_CFG.copy()

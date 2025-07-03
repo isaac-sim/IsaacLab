@@ -52,9 +52,9 @@ def reach_object(
     ee_w = ee_frame.data.target_pos_w[..., 0, :]
     # Distance of the end-effector to the object: (num_envs,)
     object_ee_distance = torch.norm(cube_pos_w - ee_w, dim=1)
- #   if object_ee_distance.item() < std :
-        #print(f"Observed Object Reached : {object_ee_distance.item()}")
-       # loghelper.logsubtask(LogType.APPR)
+    # if object_ee_distance.item() < std :
+    #     print(f"Observed Object Reached : {object_ee_distance.item()}")
+    #    # loghelper.logsubtask(LogType.APPR)
     # if object_ee_distance[0] < std:
     #     print(f"Reached object, dist  :{object_ee_distance.item()}")
     return object_ee_distance < std
@@ -86,8 +86,40 @@ def object_grasped(
     grasped = torch.logical_and(
         grasped, torch.abs(robot.data.joint_pos[:, -2] - gripper_open_val.to(env.device)) > gripper_threshold
     )
-    # if grasped[0]:
-    #    # print(f"Observed Object grasped : {grasped.item()}")
+   # if grasped[0]:
+     #   print(f"Observed Object grasped : {grasped.item()}")
+    #     loghelper.logsubtask(LogType.GRASP)
+    return grasped
+
+def object_released(
+    env: ManagerBasedRLEnv,
+    robot_cfg: SceneEntityCfg,
+    ee_frame_cfg: SceneEntityCfg,
+    object_cfg: SceneEntityCfg,
+    diff_threshold: float = 0.06,
+    gripper_open_val: torch.tensor = torch.tensor([0.04]),
+    gripper_threshold: float = 0.035,
+    loghelper : LoggingHelper = LoggingHelper()
+) -> torch.Tensor:
+    """Check if an object is grasped by the specified robot."""
+
+    robot: Articulation = env.scene[robot_cfg.name]
+    ee_frame: FrameTransformer = env.scene[ee_frame_cfg.name]
+    object: RigidObject = env.scene[object_cfg.name]
+
+    object_pos = object.data.root_pos_w
+    end_effector_pos = ee_frame.data.target_pos_w[:, 0, :]
+    pose_diff = torch.linalg.vector_norm(object_pos - end_effector_pos, dim=1)
+
+    grasped = torch.logical_and(
+        pose_diff < diff_threshold,
+        torch.abs(robot.data.joint_pos[:, -1]) > gripper_threshold,
+    )
+    grasped = torch.logical_and(
+        grasped, torch.abs(robot.data.joint_pos[:, -2] ) > gripper_threshold
+    )
+    #if grasped[0]:
+     #   print(f"Observed Object grasped : {grasped.item()}")
     #     loghelper.logsubtask(LogType.GRASP)
     return grasped
 
@@ -99,8 +131,8 @@ def is_object_lifted(
 ):
     #return true when object z coord above a threshold value 
     object = env.scene[obj_cfg.name]
-    # if object.data.root_pos_w[:, 2].item() > threshold : 
-    #     #print(f"Observed Object Lifted : {object.data.root_pos_w[:, 2].item()}")
+   # if object.data.root_pos_w[:, 2].item() > threshold : 
+    #    print(f"Observed Object Lifted : {object.data.root_pos_w[:, 2].item()}")
     #     loghelper.logsubtask(LogType.LIFT)
  
     return object.data.root_pos_w[:, 2] > threshold
@@ -154,8 +186,15 @@ def object_near_goal(
     des_pos_w, _ = combine_frame_transforms(robot.data.root_state_w[:, :3], robot.data.root_state_w[:, 3:7], des_pos_b)
     # distance of the end-effector to the object: (num_envs,)
     distance = torch.norm(des_pos_w - object.data.root_pos_w[:, :3], dim=1)
-    # if distance.item() < threshold:
-    #  #   print(f"Observed Object at goal : {object.data.root_pos_w[:, 2].item()}")
+   # if distance.item() < threshold:
+    #   print(f"Observed Object at goal : {object.data.root_pos_w[:, 2].item()}")
     #     loghelper.logsubtask(LogType.GOAL)
     return distance < threshold
 
+def robot_pose(
+    env: ManagerBasedRLEnv,
+    robot_cfg: SceneEntityCfg = SceneEntityCfg("robot")
+):
+    robot: Articulation = env.scene[robot_cfg.name]
+ #   print(robot.data.joint_pos)
+    return torch.tensor([0.04])

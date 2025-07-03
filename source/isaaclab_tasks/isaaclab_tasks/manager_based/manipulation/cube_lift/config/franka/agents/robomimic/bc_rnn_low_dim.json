@@ -2,7 +2,7 @@
     "algo_name": "bc",
     "experiment": {
         "name": "bc",
-        "validate": true,
+        "validate": false,
         "logging": {
             "terminal_output_to_txt": true,
             "log_tb": true
@@ -39,8 +39,8 @@
         "hdf5_cache_mode": "low_dim",
         "hdf5_use_swmr": true,
         "hdf5_normalize_obs": false,
-        "hdf5_filter_key": "train",
-        "hdf5_validation_filter_key": "valid",
+        "hdf5_filter_key": null,
+        "hdf5_validation_filter_key": null,
         "seq_length": 10,
         "dataset_keys": [
             "actions",
@@ -51,7 +51,7 @@
         "goal_mode": null,
         "cuda": true,
         "batch_size": 100,
-        "num_epochs": 8000,
+        "num_epochs": 5000,
         "seed": 101
     },
     "algo": {
@@ -106,11 +106,8 @@
                     "object_to_target",
                     "joint_pos",
                     "joint_vel",
-                    "actions",
-                    "appr",
-                    "grasp",
-                    "lift",
-                    "appr_goal"
+                    "actions"
+                
                 ],
                 "rgb": [],
                 "depth": [],

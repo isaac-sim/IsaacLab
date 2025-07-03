@@ -6,9 +6,9 @@
 from isaaclab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
 from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
 from isaaclab.utils import configclass
-
+from isaaclab.assets import RigidObjectCfg, ArticulationCfg
 from . import joint_pos_env_cfg
-
+import math 
 ##
 # Pre-defined configs
 ##
@@ -23,7 +23,23 @@ class FrankaCubeEnvCfg(joint_pos_env_cfg.FrankaCubeEnvCfg):
         print("This is the base environment")
         # Set Franka as robot
         # We switch here to a stiffer PD controller for IK tracking to be better.
-        self.scene.robot = FRANKA_PANDA_HIGH_PD_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot = FRANKA_PANDA_HIGH_PD_CFG.replace(
+            prim_path="{ENV_REGEX_NS}/Robot",
+            init_state=ArticulationCfg.InitialStateCfg(
+                joint_pos={
+                    
+                    "panda_joint1":  0.405,
+                    "panda_joint2": 0.35,   
+                    "panda_joint3":  -0.22,
+                    "panda_joint4": -3.0,  
+                    "panda_joint5":  -2.85,
+                    "panda_joint6":  math.pi / 2,  #  +90° → keeps hand level
+                    "panda_joint7":  0.9,
+                    "panda_finger_joint1": 0.04,   # open gripper
+                    "panda_finger_joint2": 0.04,
+                }
+            ),
+        )
 
         # Set actions for the specific robot type (franka)
         self.actions.arm_action = DifferentialInverseKinematicsActionCfg(

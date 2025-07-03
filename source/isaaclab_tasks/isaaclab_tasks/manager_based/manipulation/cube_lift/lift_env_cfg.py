@@ -94,7 +94,18 @@ class CommandsCfg:
         debug_vis=True,
         ranges=mdp.UniformPoseCommandCfg.Ranges(
           #  pos_x=(0.3,0.3), pos_y=(-0.28, -0.28), pos_z=(0.1, 0.1), roll=(0.0, 0.0), pitch=(0.0, 0.0), yaw=(0.0, 0.0)
-            pos_x=(0.4,0.4), pos_y=(-0.25, -0.25), pos_z=(0.5, 0.5), roll=(0.0, 0.0), pitch=(0.0, 0.0), yaw=(0.0, 0.0)
+            pos_x=(0.4,0.4), pos_y=(-0.3, -0.3), pos_z=(0.08, 0.08), roll=(0.0, 0.0), pitch=(0.0, 0.0), yaw=(0.0, 0.0)
+        ),
+    )
+
+    midpoint_pose = mdp.UniformPoseCommandCfg(
+        asset_name="robot",
+        body_name="panda_hand", 
+        resampling_time_range=(10.0, 10.0),
+        debug_vis=True,
+        ranges=mdp.UniformPoseCommandCfg.Ranges(
+          #  pos_x=(0.3,0.3), pos_y=(-0.28, -0.28), pos_z=(0.1, 0.1), roll=(0.0, 0.0), pitch=(0.0, 0.0), yaw=(0.0, 0.0)
+            pos_x=(0,0), pos_y=(-0.25, -0.25), pos_z=(0.4, 0.4), roll=(0.0, 0.0), pitch=(0.0, 0.0), yaw=(0.0, 0.0)
         ),
     )
 
@@ -125,6 +136,7 @@ class ObservationsCfg():
         eef_pos = ObsTerm(func=mdp.ee_frame_pos)
         eef_quat = ObsTerm(func=mdp.ee_frame_quat)
         gripper_pos = ObsTerm(func=mdp.gripper_pos)
+        #robot_pose=ObsTerm(func=mdp.robot_pose)
         
         def __post_init__(self):
             self.enable_corruption = False
@@ -169,11 +181,18 @@ class ObservationsCfg():
         appr_goal = ObsTerm(
             func=mdp.object_near_goal,
             params={ 
-                "threshold": 0.04, 
+                "threshold": 0.05, 
                 "command_name": "object_pose",
-                
             },
         )
+        # release_object = ObsTerm(
+        #     func=mdp.object_released,
+        #     params={
+        #         "robot_cfg": SceneEntityCfg("robot"),
+        #         "ee_frame_cfg": SceneEntityCfg("ee_frame"),
+        #         "object_cfg": SceneEntityCfg("object"),
+        #     },
+        # )
      
 
         def __post_init__(self):
@@ -207,7 +226,7 @@ class EventCfg:
         func=mdp.randomize_rigid_body_scale,
         mode="prestartup",
         params={
-            "scale_range": {"x": (0.2, 0.7), "y": (0.2, 0.6), "z": (0.2, 0.5)},
+            "scale_range": {"x": (0.5, 0.7), "y": (0.2, 0.6), "z": (0.2, 0.5)},
             "asset_cfg": SceneEntityCfg("object", body_names="Object"),
         },
     )
@@ -250,7 +269,7 @@ class RewardsCfg:
 class TerminationsCfg:
     """Termination terms for the MDP."""
     def set_loghelper(self, loghelper: LoggingHelper):    
-        self.success.params["loghelper"] = loghelper
+        #self.success.params["loghelper"] = loghelper
         self.time_out.params["loghelper"] = loghelper
         self.object_dropping.params["loghelper"] = loghelper
         #self.loghelper = loghelper

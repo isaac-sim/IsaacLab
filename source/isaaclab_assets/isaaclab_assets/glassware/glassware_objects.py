@@ -57,7 +57,7 @@ class Chem_Assets:
                 ),
             )
 
-        def stirplate(self,pos=[0.40, -0.3, 0.05],rot=[0.707, 0, 0, -0.707], name="Stirplate")-> RigidObjectCfg:
+        def stirplate(self,pos=[0.50, -0.3, 0.05],rot=[0.707, 0, 0, -0.707], name="Stirplate")-> RigidObjectCfg:
             return RigidObjectCfg(
                 prim_path="{ENV_REGEX_NS}/" + name ,
                 init_state=RigidObjectCfg.InitialStateCfg(pos=pos,rot=rot),

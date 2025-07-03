@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab.assets import RigidObjectCfg
+from isaaclab.assets import RigidObjectCfg, ArticulationCfg
 from isaaclab.sensors import FrameTransformerCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
 from isaaclab.sim.schemas.schemas_cfg import RigidBodyPropertiesCfg
@@ -15,6 +15,9 @@ from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsA
 from isaaclab_tasks.manager_based.manipulation.cube_lift import mdp
 from isaaclab_tasks.manager_based.manipulation.cube_lift.lift_env_cfg import CubeEnvCfg
 from isaaclab_assets.glassware.glassware_objects import Chem_Assets
+
+
+import math
 ##
 # Pre-defined configs
 ##
@@ -32,7 +35,23 @@ class FrankaDevEnvCfg(CubeEnvCfg):
 
         # Set Franka as robot
         # We switch here to a stiffer PD controller for IK tracking to be better.
-        self.scene.robot = FRANKA_PANDA_HIGH_PD_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot = FRANKA_PANDA_HIGH_PD_CFG.replace(
+            prim_path="{ENV_REGEX_NS}/Robot",
+            init_state=ArticulationCfg.InitialStateCfg(
+                joint_pos={
+                    
+                    "panda_joint1":  0.405,
+                    "panda_joint2": 0.35,   
+                    "panda_joint3":  -0.22,
+                    "panda_joint4": -3.0,  
+                    "panda_joint5":  -2.85,
+                    "panda_joint6":  math.pi / 2,  #  +90° → keeps hand level
+                    "panda_joint7":  0.9,
+                    "panda_finger_joint1": 0.04,   # open gripper
+                    "panda_finger_joint2": 0.04,
+                }
+            ),
+        )
 
         # Set actions for the specific robot type (franka)
         self.actions.arm_action = DifferentialInverseKinematicsActionCfg(
@@ -51,6 +70,7 @@ class FrankaDevEnvCfg(CubeEnvCfg):
         )
         # Set the body name for the end effector
         self.commands.object_pose.body_name = "panda_hand"
+        self.commands.object_pose.body_name = "panda_hand"
 
         glassware = Chem_Assets()
         # Set each stacking cube deterministically
@@ -59,8 +79,8 @@ class FrankaDevEnvCfg(CubeEnvCfg):
         # self.scene.flask = glassware.flask()
         # self.scene.vial = glassware.vial()
         # self.scene.beaker = glassware.beaker()
-        self.scene.stirplate = glassware.stirplate()
-        self.scene.random = glassware.random_object()
+        #self.scene.stirplate = glassware.stirplate()
+        #self.scene.random = glassware.random_object()
 
         # Listens to the required transforms
         marker_cfg = FRAME_MARKER_CFG.copy()
@@ -76,6 +96,7 @@ class FrankaDevEnvCfg(CubeEnvCfg):
                     name="end_effector",
                     offset=OffsetCfg(
                         pos=[0.0, 0.0, 0.1034],
+                        
                     ),
                 ),
             ],

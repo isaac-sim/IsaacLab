@@ -6,11 +6,11 @@
 from isaaclab.envs.mimic_env_cfg import MimicEnvCfg, SubTaskConfig
 from isaaclab.utils import configclass
 
-from isaaclab_tasks.manager_based.manipulation.cube_lift.config.franka.ik_rel_env_cfg import FrankaCubeEnvCfg
+from isaaclab_tasks.manager_based.manipulation.cube_lift.config.franka.dev_ik_rel_env_cfg import FrankaDevEnvCfg
 
 
 @configclass
-class CubeMimicEnvCfg(FrankaCubeEnvCfg, MimicEnvCfg):
+class CubeMimicEnvCfg(FrankaDevEnvCfg, MimicEnvCfg):
     """
     Isaac Lab Mimic environment config class for Franka Cube Stack IK Rel env.
     """
@@ -23,7 +23,7 @@ class CubeMimicEnvCfg(FrankaCubeEnvCfg, MimicEnvCfg):
         # # https://stackoverflow.com/questions/59986413/achieving-multiple-inheritance-using-python-dataclasses
 
         # Override the existing values
-        self.datagen_config.name = "cube_ik_rel_task_D0"
+        self.datagen_config.name = "beaker_rand_scale_D0"
         self.datagen_config.generation_guarantee = True
         self.datagen_config.generation_keep_failed = True
         self.datagen_config.generation_num_trials = 10
@@ -45,7 +45,7 @@ class CubeMimicEnvCfg(FrankaCubeEnvCfg, MimicEnvCfg):
                 subtask_term_signal="appr",
                 # Specifies time offsets for data generation when splitting a trajectory into
                 # subtask segments. Random offsets are added to the termination boundary.
-                subtask_term_offset_range=(10, 10),
+                subtask_term_offset_range=(0, 0),
                 # Selection strategy for the source subtask segment during data generation
                 selection_strategy="nearest_neighbor_object",
                 # Optional parameters for the selection strategy function
@@ -67,7 +67,7 @@ class CubeMimicEnvCfg(FrankaCubeEnvCfg, MimicEnvCfg):
                 # Corresponding key for the binary indicator in "datagen_info" for completion
                 subtask_term_signal="grasp",
                 # Time offsets for data generation when splitting a trajectory
-                subtask_term_offset_range=(10, 10),
+                subtask_term_offset_range=(0, 0),
                 # Selection strategy for source subtask segment
                 selection_strategy="nearest_neighbor_object",
                 # Optional parameters for the selection strategy function
@@ -128,4 +128,27 @@ class CubeMimicEnvCfg(FrankaCubeEnvCfg, MimicEnvCfg):
                 apply_noise_during_interpolation=False,
             )
         )
+        # subtask_configs.append(
+        #     SubTaskConfig(
+        #         # Each subtask involves manipulation with respect to a single object frame.
+        #         object_ref="object",
+        #         # End of final subtask does not need to be detected
+        #         # LOL YOU DO
+        #         subtask_term_signal="release_object",
+        #         # No time offsets for the final subtask
+        #         subtask_term_offset_range=(0, 0),
+        #         # Selection strategy for source subtask segment
+        #         selection_strategy="nearest_neighbor_object",
+        #         # Optional parameters for the selection strategy function
+        #         selection_strategy_kwargs={"nn_k": 3},
+        #         # Amount of action noise to apply during this subtask
+        #         action_noise=0.03,
+        #         # Number of interpolation steps to bridge to this subtask segment
+        #         num_interpolation_steps=5,
+        #         # Additional fixed steps for the robot to reach the necessary pose
+        #         num_fixed_steps=0,
+        #         # If True, apply action noise during the interpolation phase and execution
+        #         apply_noise_during_interpolation=False,
+        #     )
+        # )
         self.subtask_configs["franka"] = subtask_configs
