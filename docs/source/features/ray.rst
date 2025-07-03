@@ -46,7 +46,7 @@ specifying the ``--num_workers`` argument for resource-wrapped jobs, or ``--num_
 for tuning jobs, which is especially critical for parallel aggregate
 job processing on local/virtual multi-GPU machines. Tuning jobs assume homogeneous node resource composition for nodes with GPUs.
 
-The two following files contain the core functionality of the Ray integration.
+The three following files contain the core functionality of the Ray integration.
 
 .. dropdown:: scripts/reinforcement_learning/ray/wrap_resources.py
   :icon: code
@@ -62,6 +62,12 @@ The two following files contain the core functionality of the Ray integration.
     :language: python
     :emphasize-lines: 18-53
 
+.. dropdown:: scripts/reinforcement_learning/ray/task_runner.py
+  :icon: code
+
+  .. literalinclude:: ../../../scripts/reinforcement_learning/ray/task_runner.py
+    :language: python
+    :emphasize-lines: 9-55
 
 The following script can be used to submit aggregate
 jobs to one or more Ray cluster(s), which can be used for
@@ -73,7 +79,7 @@ resource requirements.
 
   .. literalinclude:: ../../../scripts/reinforcement_learning/ray/submit_job.py
     :language: python
-    :emphasize-lines: 12-53
+    :emphasize-lines: 13-59
 
 The following script can be used to extract KubeRay cluster information for aggregate job submission.
 
@@ -150,6 +156,15 @@ Submitting resource-wrapped individual jobs instead of automatic tuning runs is 
   .. literalinclude:: ../../../scripts/reinforcement_learning/ray/wrap_resources.py
     :language: python
     :emphasize-lines: 14-66
+
+Supports specifying per-task resources and setting ``py_modules`` and ``pip`` packages for each run.
+
+.. dropdown:: scripts/reinforcement_learning/ray/task_runner.py
+  :icon: code
+
+  .. literalinclude:: ../../../scripts/reinforcement_learning/ray/task_runner.py
+    :language: python
+    :emphasize-lines: 9-55
 
 Transferring files from the running container can be done as follows.
 
