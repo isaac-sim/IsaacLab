@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.40.12 (2025-07-03)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed unittest tests that are floating inside pytests for articulation and rendering
+
+
 0.40.11 (2025-06-27)
 ~~~~~~~~~~~~~~~~~~~~
 
