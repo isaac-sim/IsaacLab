@@ -1,5 +1,13 @@
 Changelog
 ---------
+0.41.0 (2025-07-03)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the possibility to import a terrain from a mesh. For that, a new terrain type name ``mesh`` and a new attribute named ``mesh_path`` were added to 
+the :class:`~isaaclab.terrains.terrains_importer_cfg.TerrainImporterCfg`
 
 0.40.11 (2025-06-27)
 ~~~~~~~~~~~~~~~~~~~~
