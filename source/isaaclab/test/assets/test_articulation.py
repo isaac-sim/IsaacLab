@@ -1576,21 +1576,20 @@ def test_body_incoming_joint_wrench_b_single_joint(sim, num_articulations, devic
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_setting_articulation_root_prim_path(sim, device):
     """Test that the articulation root prim path can be set explicitly."""
-    with build_simulation_context(device=device, add_ground_plane=False, auto_add_lighting=True) as sim:
-        sim._app_control_on_stop_handle = None
-        # Create articulation
-        articulation_cfg = generate_articulation_cfg(articulation_type="humanoid")
-        print(articulation_cfg.spawn.usd_path)
-        articulation_cfg.articulation_root_prim_path = "/torso"
-        articulation, _ = generate_articulation(articulation_cfg, 1, device)
+    sim._app_control_on_stop_handle = None
+    # Create articulation
+    articulation_cfg = generate_articulation_cfg(articulation_type="humanoid")
+    print(articulation_cfg.spawn.usd_path)
+    articulation_cfg.articulation_root_prim_path = "/torso"
+    articulation, _ = generate_articulation(articulation_cfg, 1, device)
 
-        # Check that boundedness of articulation is correct
-        assert ctypes.c_long.from_address(id(articulation)).value == 1
+    # Check that boundedness of articulation is correct
+    assert ctypes.c_long.from_address(id(articulation)).value == 1
 
-        # Play sim
-        sim.reset()
-        # Check if articulation is initialized
-        assert articulation._is_initialized
+    # Play sim
+    sim.reset()
+    # Check if articulation is initialized
+    assert articulation._is_initialized
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
