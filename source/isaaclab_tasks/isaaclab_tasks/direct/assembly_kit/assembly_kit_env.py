@@ -517,8 +517,7 @@ class AssemblyKitEnv(DirectRLEnv):
         self.actions = actions.clone()
 
     def _apply_action(self) -> None:
-        # self.robot.set_joint_effort_target(self.actions, joint_ids=self.joint_ids)
-        self.robot.set_joint_position_target(self.actions, joint_ids=self.joint_ids)
+        self.robot.set_joint_effort_target(self.actions, joint_ids=self.joint_ids)
 
     def _get_observations(self) -> dict:
         """Collects state or pixel observations for the policy.
