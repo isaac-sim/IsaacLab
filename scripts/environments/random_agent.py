@@ -6,7 +6,10 @@
 """Script to an environment with random action agent."""
 
 """Launch Isaac Sim Simulator first."""
-
+'''
+./isaaclab.bat -p scripts/environments/random_agent.py --enable_cameras --num_envs=1 --task=Isaac-Lift-Cube-Franka-IK-Abs-v0 --headless
+./isaaclab.sh -p scripts/environments/random_agent.py --enable_cameras --num_envs=1 --task=Isaac-Lift-Cube-Franka-IK-Abs-v0 --headless
+'''
 import argparse
 
 from isaaclab.app import AppLauncher
