@@ -286,8 +286,18 @@ class DextrahEnvCfg(ManagerBasedEnvCfg):
         self.sim.physx.bounce_threshold_velocity = 0.01
         self.sim.physx.gpu_max_rigid_patch_count = 4 * 5 * 2**15
         
-        for term in self.curriculum.__dict__.values():
+        to_remove = []
+        for key, term in self.curriculum.__dict__.items():
             if term.func is mdp.modify_term_cfg:
                 cfg_address = term.params['address'].replace("_manager.cfg", "s")
-                cfg_variable = cfg_get(self, cfg_address)
+                try:
+                    cfg_variable = cfg_get(self, cfg_address)
+                except KeyError and AttributeError:
+                    print(f"Warning: Could not find curriculum variable at {cfg_address}. This term is disabled.")
+                    to_remove.append(key)
+                    continue
+                
                 term.params["modify_params"]["iv"] = cfg_variable
+
+        for attr in to_remove:
+            delattr(self.curriculum, attr)

@@ -1,9 +1,8 @@
-import math
 import os
 import random
 import shutil
 import time
-from collections import deque
+from pprint import pprint
 from os.path import join
 from typing import List
 
@@ -55,7 +54,6 @@ class PbtAlgoObserver(AlgoObserver):
         self.global_rank = params["args_cli"]["global_rank"]    
         
         pbt_params = params['pbt']
-        self.pbt_replace_fraction = pbt_params['replace_fraction']
         self.pbt_replace_threshold_frac_std = pbt_params['replace_threshold_frac_std']
         self.pbt_replace_threshold_frac_absolute = pbt_params['replace_threshold_frac_absolute']
         self.pbt_mutation_rate = pbt_params['mutation_rate']
@@ -70,13 +68,8 @@ class PbtAlgoObserver(AlgoObserver):
 
         self.pbt_iteration = -1  # dummy value, stands for "not initialized"
         self.pbt_interval_steps = pbt_params['interval_steps']
-        self.initial_env_frames = -1  # env frames at the beginning of the experiment, can be > 0 if we resume
-
-        self.pbt_episodes_to_avg = 4096
-        self.last_target_objectives = deque([], maxlen=4096)
 
         self.curr_target_objective_value = _UNINITIALIZED_VALUE
-        self.target_objective_known = False  # switch to true when we have enough data to calculate target objective
 
         self.experiment_start = time.time()
         self.with_wandb = params['wandb_activate']
@@ -145,31 +138,20 @@ class PbtAlgoObserver(AlgoObserver):
 
     def process_infos(self, infos, done_indices):
         if "true_objective" not in infos and 'Curriculum/adr' in infos['episode']:
-            infos['true_objective'] = infos['episode']['Curriculum/adr']
-        if "true_objective" in infos and isinstance(infos["true_objective"], torch.Tensor):
-            infos['true_objective'] =  int(infos["true_objective"].float().mean())
-        if self.global_rank != 0:
-            return
-        
-        if 'true_objective' in infos:
-            for done_idx in done_indices:
-                true_objective_value = infos['true_objective']
-                self.last_target_objectives.append(true_objective_value)
+            # case for curriculum
+            if isinstance(infos['episode']['Curriculum/adr'], torch.Tensor):
+                infos['true_objective'] = infos['episode']['Curriculum/adr'].float().mean().item()
+            else:
+                infos['true_objective'] = infos['episode']['Curriculum/adr']
+        elif "true_objective" in infos and isinstance(infos["true_objective"], torch.Tensor):
+            # case for direct
+            infos['true_objective'] =  infos["true_objective"].float().mean().item()
 
-            self.target_objective_known = len(self.last_target_objectives) >= self.last_target_objectives.maxlen
-            if self.target_objective_known:
-                self.curr_target_objective_value = self.last_target_objectives
+        if 'true_objective' in infos and isinstance(infos['true_objective'], (int, float)):
+            self.curr_target_objective_value = infos['true_objective']
         else:
-            # environment does not specify "true objective", use regular reward
-            self.target_objective_known = self.algo.game_rewards.current_size >= self.algo.games_to_track
-            if self.target_objective_known:
+            if self.algo.game_rewards.current_size >= self.algo.games_to_track:
                 self.curr_target_objective_value = float(self.algo.mean_rewards)
-
-    def _targ_objective_value(self):
-        if isinstance(self.curr_target_objective_value, float):
-            return self.curr_target_objective_value
-        else:
-            return float(np.mean(self.curr_target_objective_value))
 
     def after_steps(self):
                         
@@ -191,21 +173,15 @@ class PbtAlgoObserver(AlgoObserver):
                               
         if self.pbt_iteration == -1:
             self.pbt_iteration = self.algo.frame // self.pbt_interval_steps
-            self.initial_env_frames = self.algo.frame
             print(f'Policy {self.policy_idx}: PBT init. Env frames: {self.algo.frame}, pbt_iteration: {self.pbt_iteration}')
-
-        env_frames = self.algo.frame
-        iteration = env_frames // self.pbt_interval_steps
-        print(f'Policy {self.policy_idx}: Env frames {env_frames/1e6:.1f}M, \
-            iteration {iteration}, PBT iteration {self.pbt_iteration}')
+        iteration = self.algo.frame // self.pbt_interval_steps
+        frame_left = (self.pbt_iteration + 1) * self.pbt_interval_steps - self.algo.frame
+        print(
+            f'Policy {self.policy_idx}, frames {self.algo.frame}, frames_left {frame_left}, it {iteration}, PBT it {self.pbt_iteration}')
 
         if iteration <= self.pbt_iteration:
             return
 
-        if not self.target_objective_known:
-            # not enough data yet to calcuate avg true_objective
-            print(f'Policy {self.policy_idx}: Not enough episodes finished, wait for more data...')
-            return
 
         print(f'Policy {self.policy_idx}: New pbt iteration {iteration}!')
         self.pbt_iteration = iteration
@@ -227,7 +203,15 @@ class PbtAlgoObserver(AlgoObserver):
         except Exception as exc:
             print(f'Policy {self.policy_idx}: Exception {exc} during cleanup!')
 
-        print(f'Current policy {self.policy_idx} and {checkpoints=}')
+        # make a shallow copy with params removed
+        checkpoints_sumry = {}
+        for idx, ckpt in checkpoints.items():
+            if ckpt is None:
+                checkpoints_sumry[idx] = None
+            else:
+                checkpoints_sumry[idx] = {k: v for k, v in ckpt.items() if k != 'params'}
+        print(f"Current policy {self.policy_idx}, checkpoints (params hidden):")
+        pprint(checkpoints_sumry, width=120)
 
         policies = list(range(self.pbt_num_policies))
         target_objectives = []
@@ -237,17 +221,48 @@ class PbtAlgoObserver(AlgoObserver):
             else:
                 target_objectives.append(checkpoints[p]['true_objective'])
 
-        policies_sorted = sorted(zip(target_objectives, policies), reverse=True)
-        objectives = [objective for objective, p in policies_sorted]
-        best_objective = objectives[0]
-        policies_sorted = [p for objective, p in policies_sorted]
-        best_policy = policies_sorted[0]
+        initialized = [(obj, p) for obj, p in zip(target_objectives, policies) if obj > _UNINITIALIZED_VALUE]
+        if not initialized:
+            print("No policies initialized; skipping PBT iteration.")
+            return
+        initialized_objectives, initialized_policies = zip(*initialized)
 
-        print(f'Policy {self.policy_idx}:  target_objectives={target_objectives}, policy_idx_objective={target_objectives[self.policy_idx]}')
+        # 1) Stats
+        mean_obj = float(np.mean(initialized_objectives))
+        std_obj  = float(np.std(initialized_objectives))
+        upper_cut = mean_obj + self.pbt_replace_threshold_frac_std * std_obj
+        lower_cut = mean_obj - self.pbt_replace_threshold_frac_std * std_obj
+        absolute_cut = self.pbt_replace_threshold_frac_absolute * abs(max(initialized_objectives))
 
+        # 2) Leaders & laggards
+        leaders = [
+            p for obj, p in zip(initialized_objectives, initialized_policies) if obj > upper_cut and obj > absolute_cut
+        ]
+        laggards = [
+            p for obj, p in zip(initialized_objectives, initialized_policies) if obj < lower_cut
+        ]
+
+        print(f"mean={mean_obj:.4f}, std={std_obj:.4f}, upper={upper_cut:.4f}, lower={lower_cut:.4f}")
+        print(f"Leaders: {leaders}")
+        print(f"Laggards: {laggards}")
+
+        # 3) Best‐policy summary
+        best_policy    = max(zip(initialized_objectives, initialized_policies), key=lambda x: x[0])[1]
+        best_objective = max(initialized_objectives)
         self._maybe_save_best_policy(best_objective, best_policy, checkpoints[best_policy])
 
-        objectives_filtered = [o for o in objectives if o > _UNINITIALIZED_VALUE]
+        # 4) Only replace if *this* policy is a laggard
+        if self.policy_idx not in laggards:
+            print(f"Policy {self.policy_idx} is within the normal band; no weight replacement.")
+            return
+        
+        # 5) If there are any leaders, pick one at random; else simply mutate with no replacement
+        if leaders:
+            replacement_policy_candidate = random.choice(leaders)
+            print(f"Replacing policy {self.policy_idx} with random leader {replacement_policy_candidate}.")
+        else:
+            print("No leader exceeds thresholds; mutating in place.")
+            replacement_policy_candidate = self.policy_idx
 
         try:
             self._pbt_summaries(self.params, best_objective)
@@ -255,83 +270,22 @@ class PbtAlgoObserver(AlgoObserver):
             print(f'Policy {self.policy_idx}: Exception {exc} when writing summaries!')
             return
 
-        replace_fraction = self.pbt_replace_fraction
-        replace_number = math.ceil(replace_fraction * self.pbt_num_policies)
-
-        best_policies, best_objectives = policies_sorted[:replace_number], objectives[:replace_number]
-        worst_policies, worst_objectives = policies_sorted[replace_number:], objectives[replace_number:]
-
-        print(f'Policy {self.policy_idx}: PBT {best_policies=}, {worst_policies=}')
-        print(f'Policy {self.policy_idx}: PBT {best_objectives=}, {worst_objectives=}')
-
-        if self.policy_idx not in worst_policies:
-            # don't touch the policies that are doing okay
-            print(f'Current policy {self.policy_idx} is doing well, not among the {worst_policies=}')
-            return
-
-        if len(objectives_filtered) <= max(2, self.pbt_num_policies // 2):
-            print(f'Policy {self.policy_idx}: Not enough data to start PBT, {objectives_filtered}')
-            return
-
-        print(f'Current policy {self.policy_idx} is among the {worst_policies=}, consider replacing weights')
-        print(f'Policy {self.policy_idx} objective: {self._targ_objective_value()}, {best_objective=} ({best_policy=}).')
-
-        replacement_policy_candidate = random.choice(best_policies)
-        candidate_objective = checkpoints[replacement_policy_candidate]['true_objective']
-        targ_objective_value = self._targ_objective_value()
-        objective_delta = candidate_objective - targ_objective_value
-
-        num_outliers = int(math.floor(0.2 * len(objectives_filtered)))
-        print(f'Policy {self.policy_idx} num outliers: {num_outliers}')
-        
-        print(f'Policy {self.policy_idx} is going to be replaced by {replacement_policy_candidate}')
-
-        if len(objectives_filtered) > num_outliers:
-            objectives_filtered_sorted = sorted(objectives_filtered)
-
-            # remove worst policies from the std calculation, this will allow us to keep improving even if 1-2 policies
-            # crashed and can't keep improving. Otherwise, std value will be too large.
-            objectives_std = np.std(objectives_filtered_sorted[num_outliers:])
-        else:
-            objectives_std = np.std(objectives_filtered)
-
-        objective_threshold = self.pbt_replace_threshold_frac_std * objectives_std
-
-        absolute_threshold = self.pbt_replace_threshold_frac_absolute * abs(candidate_objective)
-
-        if objective_delta > objective_threshold and objective_delta > absolute_threshold:
-            # replace this policy with a candidate
-            replacement_policy = replacement_policy_candidate
-            print(f'Replacing underperforming policy {self.policy_idx} with {replacement_policy}')
-        else:
-            print(f'Policy {self.policy_idx}: Difference in objective value ({candidate_objective} vs {targ_objective_value}) is not sufficient to justify replacement,'
-                  f'{objective_delta=}, {objectives_std=}, {objective_threshold=}, {absolute_threshold=}')
-
-            # replacing with "self": keep the weights but mutate the hyperparameters
-            replacement_policy = self.policy_idx
-
         # Decided to replace the policy weights!
-        new_params = checkpoints[replacement_policy]['params']
+        new_params = checkpoints[replacement_policy_candidate]['params']
         new_params = mutate(new_params, self.params_to_mutate, self.pbt_mutation_rate, self.pbt_change_min, self.pbt_change_max)
 
-        restart_from_checkpoint = os.path.abspath(checkpoints[replacement_policy]['checkpoint'])
+        restart_from_checkpoint = os.path.abspath(checkpoints[replacement_policy_candidate]['checkpoint'])
         experiment_name = checkpoints[self.policy_idx]['experiment_name']
 
-        try:
-            self._pbt_summaries(new_params, best_objective)
-        except Exception as exc:
-            print(f'Policy {self.policy_idx}: Exception {exc} when writing summaries!')
-            return
-
         print(f'Policy {self.policy_idx}: Preparing to restart the process with mutated parameters!')
-        
+
         self.restart_flag[0] = 1
                 
         self.restart_params = dict()
         self.restart_params['new_params'] = new_params
         self.restart_params['restart_from_checkpoint'] = restart_from_checkpoint
         self.restart_params['experiment_name'] = experiment_name
-               
+
         # self._restart_with_new_params(new_params, restart_from_checkpoint, experiment_name)
 
     def _save_pbt_checkpoint(self):
@@ -351,7 +305,7 @@ class PbtAlgoObserver(AlgoObserver):
 
         pbt_checkpoint = {
             'iteration': self.pbt_iteration,
-            'true_objective': self._targ_objective_value(),
+            'true_objective': self.curr_target_objective_value,
             'frame': self.algo.frame,
             'params': self.params,
             'checkpoint': os.path.abspath(checkpoint_file),
@@ -612,7 +566,6 @@ class PbtAlgoObserver(AlgoObserver):
             wandb.run.finish()
 
 
-
         def _find_free_port(max_tries: int = 20) -> int:
             """
             Return an OS-allocated free TCP port.
@@ -632,8 +585,9 @@ class PbtAlgoObserver(AlgoObserver):
             # Fallback: choose a random high port (still extremely unlikely to collide)
             return random.randint(20000, 65000)
 
-        isaac_sim_path = '/workspace/isaaclab/_isaac_sim'
-                
+        # Get the directory of the current file
+        thisfile_dir = os.path.dirname(os.path.abspath(__file__))
+        isaac_sim_path = os.path.abspath(os.path.join(thisfile_dir, "../../../../_isaac_sim"))
         # ---------------------------------------------------------------------
         # Build the torch.distributed command
         # ---------------------------------------------------------------------

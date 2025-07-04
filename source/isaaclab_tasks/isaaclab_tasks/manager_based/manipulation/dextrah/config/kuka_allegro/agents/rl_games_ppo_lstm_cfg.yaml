@@ -144,7 +144,7 @@ pbt:
 
   # Replace an underperforming policy only if its reward is lower by at least this fraction of standard deviation
   # within the population.
-  replace_threshold_frac_std: 1.0
+  replace_threshold_frac_std: 0.1
 
   # Replace an underperforming policy only if its reward is lower by at least this fraction of the absolute value
   # of the objective of a better policy
