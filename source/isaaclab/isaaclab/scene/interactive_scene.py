@@ -146,7 +146,9 @@ class InteractiveScene:
                 prim_paths=self.env_prim_paths,
                 replicate_physics=False,
                 copy_from_source=True,
-                enable_env_ids=self.cfg.filter_collisions,  # this won't do anything because we are not replicating physics
+                enable_env_ids=(
+                    self.cfg.filter_collisions if self.device != "cpu" else False
+                ),  # this won't do anything because we are not replicating physics
             )
             self._default_env_origins = torch.tensor(env_origins, device=self.device, dtype=torch.float32)
         else:
@@ -168,7 +170,7 @@ class InteractiveScene:
                     prim_paths=self.env_prim_paths,
                     base_env_path=self.env_ns,
                     root_path=self.env_regex_ns.replace(".*", ""),
-                    enable_env_ids=self.cfg.filter_collisions,
+                    enable_env_ids=self.cfg.filter_collisions if self.device != "cpu" else False,
                 )
 
             # since env_ids is only applicable when replicating physics, we have to fallback to the previous method
@@ -202,17 +204,22 @@ class InteractiveScene:
             prim_paths=self.env_prim_paths,
             replicate_physics=self.cfg.replicate_physics,
             copy_from_source=copy_from_source,
-            enable_env_ids=self.cfg.filter_collisions,  # this automatically filters collisions between environments
+            enable_env_ids=(
+                self.cfg.filter_collisions if self.device != "cpu" else False
+            ),  # this automatically filters collisions between environments
         )
 
         # since env_ids is only applicable when replicating physics, we have to fallback to the previous method
         # to filter collisions if replicate_physics is not enabled
         # additionally, env_ids is only supported in GPU simulation
         if (not self.cfg.replicate_physics and self.cfg.filter_collisions) or self.device == "cpu":
-            omni.log.warn(
-                "Collision filtering can only be automatically enabled when replicate_physics=True and GPU simulation."
-                " Please call scene.filter_collisions(global_prim_paths) to filter collisions across environments."
-            )
+            # if scene is specified through cfg, this is already taken care of
+            if not self._is_scene_setup_from_cfg():
+                omni.log.warn(
+                    "Collision filtering can only be automatically enabled when replicate_physics=True and using GPU"
+                    " simulation. Please call scene.filter_collisions(global_prim_paths) to filter collisions across"
+                    " environments."
+                )
 
         # in case of heterogeneous cloning, the env origins is specified at init
         if self._default_env_origins is None:
@@ -234,6 +241,10 @@ class InteractiveScene:
         else:
             # remove duplicates in paths
             global_prim_paths = list(set(global_prim_paths))
+
+        # if "/World/collisions" already exists in the stage, we don't filter again
+        if self.stage.GetPrimAtPath("/World/collisions"):
+            return
 
         # set global prim paths list if not previously defined
         if len(self._global_prim_paths) < 1:
