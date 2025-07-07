@@ -57,9 +57,9 @@ class RayCasterCfg(SensorBaseCfg):
 
     ray_alignment: Literal["base", "yaw", "world"] = "yaw"
     """Specify in what frame the rays are projected onto the ground. Default is `world`.
-        * `base` if the rays' starting positions and directions track the full root orientation.
-        * `yaw` if the rays' starting positions and directions only track yaw orientation. This is useful for ray-casting height maps, where only yaw rotation is needed.
-        * `world` if rays' starting positions and directions are not rotated. This is useful in combination with the grid map package.
+        * `base` if the rays' starting positions and directions track the full root position and orientation.
+        * `yaw` if the rays' starting positions and directions track root position and only yaw component of orientation. This is useful for ray-casting height maps.
+        * `world` if rays' starting positions and directions are always fixed. This is useful in combination with the grid map package.
     """
 
     pattern_cfg: PatternBaseCfg = MISSING
