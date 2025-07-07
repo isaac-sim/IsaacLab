@@ -17,7 +17,7 @@ class FixedAssetCfg:
     diameter: float = 0.0
     height: float = 0.0
     base_height: float = 0.0  # Used to compute held asset CoM.
-    friction: float = 0.75
+    static_friction: float = 0.75
     mass: float = 0.05
 
 
@@ -26,7 +26,7 @@ class HeldAssetCfg:
     usd_path: str = ""
     diameter: float = 0.0  # Used for gripper width.
     height: float = 0.0
-    friction: float = 0.75
+    static_friction: float = 0.75
     mass: float = 0.05
 
 
@@ -34,7 +34,7 @@ class HeldAssetCfg:
 class RobotCfg:
     robot_usd: str = ""
     franka_fingerpad_length: float = 0.017608
-    friction: float = 0.75
+    static_friction: float = 0.75
 
 
 @configclass
@@ -348,7 +348,7 @@ class NutM16(HeldAssetCfg):
     diameter = 0.024
     height = 0.01
     mass = 0.03
-    friction = 0.01  # Additive with the nut means friction is (-0.25 + 0.75)/2 = 0.25
+    static_friction = 0.01  # Additive with the nut means friction is (-0.25 + 0.75)/2 = 0.25
 
 
 @configclass

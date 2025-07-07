@@ -189,10 +189,44 @@ class ArticulationData:
     is used.
     """
 
-    default_joint_friction_coeff: torch.Tensor = None
-    """Default joint friction coefficient of all joints. Shape is (num_instances, num_joints).
+    default_joint_max_actuator_velocity: torch.Tensor = None
+    """Default joint maximum velocity of all joints. Shape is (num_instances, num_joints).
+    This quantity is configured through the actuator model's :attr:`isaaclab.actuators.ActuatorBaseCfg.max_actuator_velocity`
+    parameter. If the parameter's value is None, the value parsed from the USD schema, at the time of initialization,
+    is used.
+    """
 
-    This quantity is configured through the actuator model's :attr:`isaaclab.actuators.ActuatorBaseCfg.friction`
+    default_joint_speed_effort_gradient: torch.Tensor = None
+    """Default joint speed effort gradient of all joints. Shape is (num_instances, num_joints).
+    This quantity is configured through the actuator model's :attr:`isaaclab.actuators.ActuatorBaseCfg.speed_effort_gradient`
+    parameter. If the parameter's value is None, the value parsed from the USD schema, at the time of initialization,
+    is used.
+    """
+
+    default_joint_velocity_dependent_resistance: torch.Tensor = None
+    """Default joint velocity dependent resistance of all joints. Shape is (num_instances, num_joints).
+    This quantity is configured through the actuator model's :attr:`isaaclab.actuators.ActuatorBaseCfg.velocity_dependent_resistance`
+    parameter. If the parameter's value is None, the value parsed from the USD schema, at the time of initialization,
+    is used.
+    """
+
+    default_joint_static_friction_coeff: torch.Tensor = None
+    """Default joint static friction coefficient of all joints. Shape is (num_instances, num_joints).
+    This quantity is configured through the actuator model's :attr:`isaaclab.actuators.ActuatorBaseCfg.static_friction`
+    parameter. If the parameter's value is None, the value parsed from the USD schema, at the time of initialization,
+    is used.
+    """
+
+    default_joint_dynamic_friction_coeff: torch.Tensor = None
+    """Default joint dynamic friction coefficient of all joints. Shape is (num_instances, num_joints).
+    This quantity is configured through the actuator model's :attr:`isaaclab.actuators.ActuatorBaseCfg.dynamic_friction`
+    parameter. If the parameter's value is None, the value parsed from the USD schema, at the time of initialization,
+    is used.
+    """
+
+    default_joint_viscous_friction_coeff: torch.Tensor = None
+    """Default joint viscous friction coefficient of all joints. Shape is (num_instances, num_joints).
+    This quantity is configured through the actuator model's :attr:`isaaclab.actuators.ActuatorBaseCfg.viscous_friction`
     parameter. If the parameter's value is None, the value parsed from the USD schema, at the time of initialization,
     is used.
     """
@@ -329,8 +363,23 @@ class ArticulationData:
     joint_armature: torch.Tensor = None
     """Joint armature provided to the simulation. Shape is (num_instances, num_joints)."""
 
-    joint_friction_coeff: torch.Tensor = None
-    """Joint friction coefficient provided to the simulation. Shape is (num_instances, num_joints)."""
+    joint_max_actuator_velocity: torch.Tensor = None
+    """Joint maximum velocity provided to the simulation. Shape is (num_instances, num_joints)."""
+
+    joint_speed_effort_gradient: torch.Tensor = None
+    """Joint speed effort gradient provided to the simulation. Shape is (num_instances, num_joints)."""
+
+    joint_velocity_dependent_resistance: torch.Tensor = None
+    """Joint velocity dependent resistance provided to the simulation. Shape is (num_instances, num_joints)."""
+
+    joint_static_friction_coeff: torch.Tensor = None
+    """Joint static friction coefficient provided to the simulation. Shape is (num_instances, num_joints)."""
+
+    joint_dynamic_friction_coeff: torch.Tensor = None
+    """Joint dynamic friction coefficient provided to the simulation. Shape is (num_instances, num_joints)."""
+
+    joint_viscous_friction_coeff: torch.Tensor = None
+    """Joint viscous friction coefficient provided to the simulation. Shape is (num_instances, num_joints)."""
 
     joint_pos_limits: torch.Tensor = None
     """Joint position limits provided to the simulation. Shape is (num_instances, num_joints, 2).
@@ -1076,6 +1125,24 @@ class ArticulationData:
             " `joint_vel_limits` instead."
         )
         return self.joint_vel_limits
+    
+    @property
+    def joint_friction_coeff(self) -> torch.Tensor:
+        """Deprecated property. Please use :attr:`joint_static_friction_coeff` instead."""
+        omni.log.warn(
+            "The `joint_friction` property will be deprecated in a future release. Please use"
+            " `joint_static_friction_coeff` instead."
+        )
+        return self.joint_static_friction_coeff
+
+    @property
+    def default_joint_friction_coeff(self) -> torch.Tensor:
+        """Deprecated property. Please use :attr:`default_joint_static_friction_coeff` instead."""
+        omni.log.warn(
+            "The `default_joint_friction` property will be deprecated in a future release. Please use"
+            " `default_joint_static_friction_coeff` instead."
+        )
+        return self.default_joint_static_friction_coeff
 
     @property
     def joint_friction(self) -> torch.Tensor:
