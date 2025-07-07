@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.40.12 (2025-06-27)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed hanging quat_rotate calls to point to quat_apply in :class:`~isaaclab.assets.articulation.ArticulationData` and
+  :class:`~isaaclab.assets.articulation.RigidObjectCollectionData`
+
+
 0.40.11 (2025-06-27)
 ~~~~~~~~~~~~~~~~~~~~
 
