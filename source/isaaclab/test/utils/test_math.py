@@ -593,6 +593,35 @@ def test_quat_apply_inverse(device):
     torch.testing.assert_close(scipy_result.to(device=device), apply_result, atol=2e-4, rtol=2e-4)
 
 
+@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+def test_quat_inv(device):
+    """Test for quat_inv method.
+
+    For random unit and non-unit quaternions q, the Hamilton products
+    q ⊗ q⁻¹ and q⁻¹ ⊗ q must both equal the identity quaternion (1,0,0,0)
+    within numerical precision.
+    """
+    num = 2048
+
+    # -------- non-unit sample (average ‖q‖ ≈ 10) --------
+    q_nonunit = torch.randn(num, 4, device=device) * 5.0
+
+    # -------- unit sample (‖q‖ = 1) --------
+    q_unit = torch.randn(num, 4, device=device)
+    q_unit = q_unit / q_unit.norm(dim=-1, keepdim=True)
+
+    identity = torch.tensor([1.0, 0.0, 0.0, 0.0], device=device)
+
+    for q in (q_nonunit, q_unit):
+        q_inv = math_utils.quat_inv(q)
+
+        id_batch = identity.expand_as(q)
+
+        # left and right products must both be identity
+        torch.testing.assert_close(math_utils.quat_mul(q, q_inv), id_batch, atol=1e-4, rtol=1e-4)
+        torch.testing.assert_close(math_utils.quat_mul(q_inv, q), id_batch, atol=1e-4, rtol=1e-4)
+
+
 def test_quat_apply_benchmarks():
     """Test for quat_apply and quat_apply_inverse methods compared to old methods using torch.bmm and torch.einsum.
     The new implementation uses :meth:`torch.einsum` instead of `torch.bmm` which allows
@@ -847,3 +876,57 @@ def test_interpolate_rotations():
 
         # Assert that the result is almost equal to the expected quaternion
         np.testing.assert_array_almost_equal(result_axis_angle.cpu(), expected, decimal=DECIMAL_PRECISION)
+
+
+def test_euler_xyz_from_quat():
+    """Test euler_xyz_from_quat function.
+
+    This test checks the output from the :meth:`~isaaclab.utils.math_utils.euler_xyz_from_quat` function
+    against the expected output for various quaternions.
+    The test includes quaternions representing different rotations around the x, y, and z axes.
+    The test is performed for both the default output range (-π, π] and the wrapped output range [0, 2π).
+    """
+    quats = [
+        torch.Tensor([[1.0, 0.0, 0.0, 0.0]]),  # 0° around x, y, z
+        torch.Tensor([
+            [0.9238795, 0.3826834, 0.0, 0.0],  # 45° around x
+            [0.9238795, 0.0, -0.3826834, 0.0],  # -45° around y
+            [0.9238795, 0.0, 0.0, -0.3826834],  # -45° around z
+        ]),
+        torch.Tensor([
+            [0.7071068, -0.7071068, 0.0, 0.0],  # -90° around x
+            [0.7071068, 0.0, 0.0, -0.7071068],  # -90° around z
+        ]),
+        torch.Tensor([
+            [0.3826834, -0.9238795, 0.0, 0.0],  # -135° around x
+            [0.3826834, 0.0, 0.0, -0.9238795],  # -135° around y
+        ]),
+    ]
+
+    expected_euler_angles = [
+        torch.Tensor([[0.0, 0.0, 0.0]]),  # identity
+        torch.Tensor([
+            [torch.pi / 4, 0.0, 0.0],  # 45° about x
+            [0.0, -torch.pi / 4, 0.0],  # -45° about y
+            [0.0, 0.0, -torch.pi / 4],  # -45° about z
+        ]),
+        torch.Tensor([
+            [-torch.pi / 2, 0.0, 0.0],  # -90° about x
+            [0.0, 0.0, -torch.pi / 2],  # -90° about z
+        ]),
+        torch.Tensor([
+            [-3 * torch.pi / 4, 0.0, 0.0],  # -135° about x
+            [0.0, 0.0, -3 * torch.pi / 4],  # -135° about y
+        ]),
+    ]
+
+    # Test 1: default no-wrap range from (-π, π]
+    for quat, expected in zip(quats, expected_euler_angles):
+        output = torch.stack(math_utils.euler_xyz_from_quat(quat), dim=-1)
+        torch.testing.assert_close(output, expected)
+
+    # Test 2: wrap to [0, 2π)
+    for quat, expected in zip(quats, expected_euler_angles):
+        wrapped = expected % (2 * torch.pi)
+        output = torch.stack(math_utils.euler_xyz_from_quat(quat, wrap_to_2pi=True), dim=-1)
+        torch.testing.assert_close(output, wrapped)

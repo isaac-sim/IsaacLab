@@ -67,6 +67,11 @@ datasets
 # Tests
 tests/
 
+<<<<<<< HEAD
 #nv shadercache
 *.bin
 *.toc
+=======
+# Docker history
+.isaac-lab-docker-history
+>>>>>>> upstream/main
