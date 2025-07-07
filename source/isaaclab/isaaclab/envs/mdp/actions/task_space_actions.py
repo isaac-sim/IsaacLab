@@ -886,6 +886,7 @@ class OperationalSpaceControllerAction(ActionTerm):
                 )
             else:
                 self._processed_actions[:, self._pose_abs_idx : self._pose_abs_idx + 3] *= self._position_scale
+
             if self._clip_orientation is not None:
                 normed_quat = math_utils.normalize(
                     self.processed_actions[:, self._pose_abs_idx + 3 : self._pose_abs_idx + 7] * self._orientation_scale
@@ -897,6 +898,7 @@ class OperationalSpaceControllerAction(ActionTerm):
                 )
             else:
                 self._processed_actions[:, self._pose_abs_idx + 3 : self._pose_abs_idx + 7] *= self._orientation_scale
+
         if self._pose_rel_idx is not None:
             if self._clip_position is not None:
                 self._processed_actions[:, self._pose_rel_idx : self._pose_rel_idx + 3] = torch.clamp(
@@ -906,6 +908,7 @@ class OperationalSpaceControllerAction(ActionTerm):
                 )
             else:
                 self._processed_actions[:, self._pose_rel_idx : self._pose_rel_idx + 3] *= self._position_scale
+
             if self._clip_orientation is not None:
                 rpy = (
                     self.processed_actions[:, self._pose_rel_idx + 3 : self._pose_rel_idx + 6] * self._orientation_scale
@@ -914,6 +917,7 @@ class OperationalSpaceControllerAction(ActionTerm):
                 self.processed_actions[:, self._pose_rel_idx + 3 : self._pose_rel_idx + 6] = rpy_clamped
             else:
                 self._processed_actions[:, self._pose_rel_idx + 3 : self._pose_rel_idx + 6] *= self._orientation_scale
+
         if self._wrench_abs_idx is not None:
             if self.cfg.clip_wrench is not None:
                 self._processed_actions[:, self._wrench_abs_idx : self._wrench_abs_idx + 6] = torch.clamp(
@@ -923,6 +927,7 @@ class OperationalSpaceControllerAction(ActionTerm):
                 )
             else:
                 self._processed_actions[:, self._wrench_abs_idx : self._wrench_abs_idx + 6] *= self._wrench_scale
+
         if self._damping_ratio_idx is not None:
             self._processed_actions[
                 :, self._damping_ratio_idx : self._damping_ratio_idx + 6

@@ -36,7 +36,11 @@ class JointActionCfg(ActionTermCfg):
     """Whether to preserve the order of the joint names in the action output. Defaults to False."""
 
     clip: dict[str, tuple] | None = None
-    """Clip range for the action (dict of regex expressions). Defaults to None."""
+    """Clip range for the action (dict of regex expressions). Defaults to None.
+    
+    Dictionary keys should be regex expressions of joint names and values should be tuples of
+    (lower, upper) bounds.
+    """
 
 
 @configclass
@@ -131,7 +135,11 @@ class JointPositionToLimitsActionCfg(ActionTermCfg):
     """
 
     clip: dict[str, tuple] | None = None
-    """Clip range for the action (dict of regex expressions). Defaults to None."""
+    """Clip range for the action (dict of regex expressions). Defaults to None.
+    
+    Dictionary keys should be regex expressions of joint names and values should be tuples of
+    (lower, upper) bounds.
+    """
 
 
 @configclass
@@ -228,6 +236,7 @@ class NonHolonomicActionCfg(ActionTermCfg):
     """Clip range for the action (dict of regex expressions).
 
     The expected keys are "v", and "yaw". Defaults to None for no clipping.
+    Values should be tuples of (lower, upper) bounds.
     """
 
 
@@ -346,13 +355,22 @@ class OperationalSpaceControllerActionCfg(ActionTermCfg):
     """The configuration for the operational space controller."""
 
     position_scale: float = 1.0
-    """Scale factor for the position targets. Defaults to 1.0."""
+    """Scale factor for the position targets. Defaults to 1.0.
+    
+    Note: The scaling is applied before the clipping of the position targets.
+    """
 
     orientation_scale: float = 1.0
-    """Scale factor for the orientation (quad for ``pose_abs`` or axis-angle for ``pose_rel``). Defaults to 1.0."""
+    """Scale factor for the orientation (quad for ``pose_abs`` or axis-angle for ``pose_rel``). Defaults to 1.0.
+    
+    Note: The scaling is applied before the clipping of the orientation targets.
+    """
 
     wrench_scale: float = 1.0
-    """Scale factor for the wrench targets. Defaults to 1.0."""
+    """Scale factor for the wrench targets. Defaults to 1.0.
+    
+    Note: The scaling is applied before the clipping of the wrench targets.
+    """
 
     stiffness_scale: float = 1.0
     """Scale factor for the stiffness commands. Defaults to 1.0."""
@@ -377,6 +395,8 @@ class OperationalSpaceControllerActionCfg(ActionTermCfg):
     this limits the reachable range of the end-effector in the world frame. When using the controller in ``"rel"`` mode
     this limits the maximum velocity of the end-effector in the task frame. This must match the number of active axes
     in :attr:`controller_cfg.motion_control_axes_task`.
+    
+    Note: The clipping is applied after the scale factor is applied.
 
     Example:
     ..code-block:: python
@@ -392,7 +412,9 @@ class OperationalSpaceControllerActionCfg(ActionTermCfg):
     The expected format is a list of tuples, each containing two values. When using the controller in ``"abs"`` mode
     this limits the reachable range of the end-effector in the world frame. When using the controller in ``"rel"`` mode
     this limits the maximum velocity of the end-effector in the task frame. This must match the number of active axes
-    in :attr:`controller_cfg.motion_control_axes_task`.
+    in :attr:`controller_cfg.motion_control_axes_task`. Angles are given in the following order: (roll, pitch, yaw).
+
+    Note: The clipping is applied after the scale factor is applied.
 
     Example:
     ..code-block:: python
@@ -407,6 +429,8 @@ class OperationalSpaceControllerActionCfg(ActionTermCfg):
 
     The expected format is a list of tuples, each containing two values. This effectively limits
     the maximum force and torque that can be commanded in the task frame.
+
+    Note: The clipping is applied after the scale factor is applied.
 
     Example:
     ..code-block:: python
