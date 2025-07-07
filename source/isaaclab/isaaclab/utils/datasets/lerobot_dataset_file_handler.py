@@ -308,7 +308,7 @@ class LeRobotDatasetFileHandler(DatasetFileHandlerBase):
         
         # Add annotation features
         features.update(self._extract_annotation_features(env))
-        
+
         return features
 
     def _extract_action_features(self, env) -> Dict[str, Dict]:
@@ -408,35 +408,33 @@ class LeRobotDatasetFileHandler(DatasetFileHandlerBase):
             
             value = obs_sample[group_name][obs_key]
             if isinstance(value, torch.Tensor):
-                print(f"Processing state observation: {group_name}.{obs_key}")
                 state_observations.append((obs_key, value))
             else:
                 raise ValueError(f"State observation {group_name}.{obs_key} is not a tensor")
         
         # Create combined state feature if we have state observations
-        if state_observations:
-            if len(state_observations) == 1:
-                # Single state observation
-                key, value = state_observations[0]
-                features["observation.state"] = self._analyze_tensor_feature(value, env)
-            else:
-                # Multiple state observations - combine their features
-                total_dim = 0
-                for key, value in state_observations:
-                    # Calculate the flattened dimension for this state observation
-                    if value.ndim > 0:
-                        dim = value.shape[1] if value.ndim > 1 else 1
-                    else:
-                        dim = 1
-                    total_dim += dim
-                
-                # Create combined state feature
-                features["observation.state"] = {
-                    "dtype": "float32",
-                    "shape": (total_dim,),
-                    "names": None
-                }
-                print(f"Combined {len(state_observations)} state observations into single 'observation.state' feature with {total_dim} dimensions")
+        if len(state_observations) == 1:
+            # Single state observation
+            key, value = state_observations[0]
+            features["observation.state"] = self._analyze_tensor_feature(value, env)
+        else:
+            # Multiple state observations - combine their features
+            total_dim = 0
+            for key, value in state_observations:
+                # Calculate the flattened dimension for this state observation
+                if value.ndim > 0:
+                    dim = value.shape[1] if value.ndim > 1 else 1
+                else:
+                    dim = 1
+                total_dim += dim
+            
+            # Create combined state feature
+            features["observation.state"] = {
+                "dtype": "float32",
+                "shape": (total_dim,),
+                "names": None
+            }
+            print(f"Combined {len(state_observations)} state observations into single 'observation.state' feature with {total_dim} dimensions")
         
         return features
 
@@ -595,8 +593,6 @@ class LeRobotDatasetFileHandler(DatasetFileHandlerBase):
                 # Add annotation data
                 frame_data["annotation.human.action.task_description"] = np.array([0], dtype=np.int64)
                 
-                print(f"Frame data: {frame_data}")
-
                 # Add frame to the dataset
                 self._dataset.add_frame(frame_data, task)
                 
@@ -627,34 +623,20 @@ class LeRobotDatasetFileHandler(DatasetFileHandlerBase):
         observation_keys_to_record = self._config.observation_keys_to_record
         state_observation_keys = self._config.state_observation_keys
         
-        # Track state observations to combine them
-        state_observations = []
-        
-        # Collect all unique observation keys that need to be extracted
-        all_obs_keys = set()
-        for group_name, obs_key in observation_keys_to_record:
-            all_obs_keys.add(obs_key)
-        for group_name, obs_key in state_observation_keys:
-            all_obs_keys.add(obs_key)
-        
         # Extract observations from the correct groups
         for group_name, obs_key in observation_keys_to_record + state_observation_keys:
-            if group_name in obs_dict and obs_key in obs_dict[group_name]:
+            if obs_key in obs_dict:
                 try:
-                    value = obs_dict[group_name][obs_key]
-                    if value.ndim > 0 and frame_idx < value.shape[0]:
-                        # Extract the frame from the batch dimension
-                        frame_obs[obs_key] = value[frame_idx]
-                    else:
-                        # Handle 0D tensors or tensors without batch dimension
-                        frame_obs[obs_key] = value
+                    value = obs_dict[obs_key]
+                    # Extract the frame from the batch dimension
+                    frame_obs[obs_key] = value[frame_idx]
+
                 except Exception as e:
-                    print(f"Error extracting observation for key '{obs_key}' from group '{group_name}' at frame {frame_idx}: {e}")
+                    print(f"Error extracting observation for key '{obs_key}' at frame {frame_idx}: {e}")
                     print(f"Value shape: {value.shape}")
-                    # Skip this observation if there's an error
-                    continue
+                    raise Exception(f"Error extracting observation for key '{obs_key}' at frame {frame_idx}: {e}")
             else:
-                print(f"Warning: Observation key '{obs_key}' not found in group '{group_name}' in episode data")
+                print(f"Warning: Observation key '{obs_key}' not found in episode data")
         
         return frame_obs
 
@@ -720,28 +702,26 @@ class LeRobotDatasetFileHandler(DatasetFileHandlerBase):
         for group_name, obs_key in observation_keys_to_record:
             if obs_key in obs_dict:
                 try:
-                    print(f"Processing observation: {group_name}.{obs_key}")
                     feature_name = f"observation.{obs_key}"
                     processed_value = self._process_observation_term(obs_key, obs_dict[obs_key])
                     frame_data[feature_name] = processed_value
                 except Exception as e:
-                    print(f"Error processing observation '{group_name}.{obs_key}': {e}")
+                    print(f"Error processing observation '{obs_key}': {e}")
                     continue
             else:
-                print(f"Warning: Observation key '{obs_key}' not found in frame data for group '{group_name}'")
+                print(f"Warning: Observation key '{obs_key}' not found in frame data'")
         
         # Process state observations
         for group_name, obs_key in state_observation_keys:
             if obs_key in obs_dict:
                 try:
-                    print(f"Processing state observation: {group_name}.{obs_key}")
                     processed_value = self._process_observation_term(obs_key, obs_dict[obs_key])
                     state_observations.append(processed_value)
                 except Exception as e:
                     print(f"Error processing state observation '{group_name}.{obs_key}': {e}")
                     continue
             else:
-                print(f"Warning: State observation key '{obs_key}' not found in frame data for group '{group_name}'")
+                print(f"Warning: State observation key '{obs_key}' not found in frame data'")
         
         # Combine state observations into a single "observation.state" feature
         if state_observations:

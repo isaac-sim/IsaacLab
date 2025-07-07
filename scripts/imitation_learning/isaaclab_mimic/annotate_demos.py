@@ -68,7 +68,7 @@ from isaaclab.envs import ManagerBasedRLMimicEnv
 from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
 from isaaclab.managers import RecorderTerm, RecorderTermCfg, TerminationTermCfg
 from isaaclab.utils import configclass
-from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
+from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler, LeRobotDatasetFileHandler
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
@@ -156,6 +156,13 @@ def main():
     dataset_file_handler.open(args_cli.input_file)
     env_name = dataset_file_handler.get_env_name()
     episode_count = dataset_file_handler.get_num_episodes()
+     # Configure dataset format based on file extension
+    use_lerobot_format = args_cli.output_file.endswith('.lerobot')
+    
+    if use_lerobot_format:
+        print(f"Recording dataset in LeRobot format: {args_cli.output_file}")
+    else:
+        print(f"Recording dataset in HDF5 format: {args_cli.dataset_file}")
 
     if episode_count == 0:
         print("No episodes found in the dataset.")
@@ -207,6 +214,12 @@ def main():
     if not args_cli.auto:
         # disable subtask term signals recorder term if in manual mode
         env_cfg.recorders.record_pre_step_subtask_term_signals = None
+    
+    # Set dataset file handler based on format
+    if use_lerobot_format:
+        env_cfg.recorders.dataset_file_handler_class_type = LeRobotDatasetFileHandler
+    else:
+        env_cfg.recorders.dataset_file_handler_class_type = HDF5DatasetFileHandler
 
     env_cfg.recorders.dataset_export_dir_path = output_dir
     env_cfg.recorders.dataset_filename = output_file_name
