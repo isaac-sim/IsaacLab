@@ -234,18 +234,27 @@ class LeRobotDatasetFileHandler(DatasetFileHandlerBase):
         # Initialize environment name
         self._env_name = env_name or "isaac_lab_env"
         
-        # Get configuration from environment if available
-        if env is not None and hasattr(env, 'cfg') and hasattr(env.cfg, 'lerobot_dataset'):
-            env_config = env.cfg.lerobot_dataset
+        # Get configuration from environment's recorder manager if available
+        if env is not None and hasattr(env, 'cfg') and hasattr(env.cfg, 'recorders'):
+            recorder_config = env.cfg.recorders
             
-            # Store the merged configuration
-            self._config = env_config
+            # Check if this is a RecorderManagerBaseCfg with LeRobot configuration
+            if hasattr(recorder_config, 'observation_keys_to_record') and hasattr(recorder_config, 'state_observation_keys'):
+                # Store the configuration from recorder manager
+                self._config = recorder_config
+            else:
+                # Error out if configuration does not exist
+                raise ValueError(
+                    "LeRobot dataset configuration not found in recorder manager. "
+                    "The recorder manager must have 'observation_keys_to_record' and 'state_observation_keys' "
+                    "attributes. Please ensure the recorder manager is properly configured with LeRobot dataset settings."
+                )
         else:
-            # Error out if configuration does not exist
+            # Error out if environment or recorder configuration does not exist
             raise ValueError(
-                "LeRobot dataset configuration not found. "
-                "The environment must have a 'lerobot_dataset' configuration in env.cfg. "
-                "Please ensure the environment is properly configured with LeRobotDatasetCfg."
+                "Environment or recorder configuration not found. "
+                "The environment must have a 'recorders' configuration with LeRobot dataset settings. "
+                "Please ensure the environment is properly configured."
             )
         
         # Extract features from environment
@@ -333,13 +342,21 @@ class LeRobotDatasetFileHandler(DatasetFileHandlerBase):
         # Get the lists of observation keys to record from configuration
         observation_keys_to_record = self._config.observation_keys_to_record
         state_observation_keys = self._config.state_observation_keys
+
+        print(f"observation_keys_to_record: {observation_keys_to_record}")
+        print(f"state_observation_keys: {state_observation_keys}")
         
-        # Validate configuration - ensure at least some observations are configured
-        if not observation_keys_to_record or not state_observation_keys:
+        # Validate configuration - ensure both observation types are configured
+        if not observation_keys_to_record:
             raise ValueError(
-                "LeRobotDatasetCfg must have at least one observation configured. "
-                "Please set either observation_keys_to_record or state_observation_keys (or both). "
-                "Format: [('group_name', 'observation_key'), ...]"
+                "RecorderManagerBaseCfg must have observation_keys_to_record configured. "
+                "Please set observation_keys_to_record with format: [('group_name', 'observation_key'), ...]"
+            )
+        
+        if not state_observation_keys:
+            raise ValueError(
+                "RecorderManagerBaseCfg must have state_observation_keys configured. "
+                "Please set state_observation_keys with format: [('group_name', 'observation_key'), ...]"
             )
         
         # Track state observations to combine them
@@ -555,7 +572,7 @@ class LeRobotDatasetFileHandler(DatasetFileHandlerBase):
         num_frames = actions_tensor.shape[0]
 
         # Generate task description
-        task = self._config.task_description
+        task = self._config.task_description or "Isaac Lab task"
         
         # Add frames one by one to the LeRobot dataset
         for frame_idx in range(num_frames):

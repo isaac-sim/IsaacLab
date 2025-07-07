@@ -180,8 +180,6 @@ class PinkInverseKinematicsAction(ActionTerm):
             controlled_frame_in_base_link_frame
         )
 
-        print("controlled_frame_in_base_link_frame_pos", controlled_frame_in_base_link_frame_pos)
-
         # Loop through each task and set the target
         for env_index, ik_controller in enumerate(self._ik_controllers):
             for task_index, task in enumerate(ik_controller.cfg.variable_input_tasks):

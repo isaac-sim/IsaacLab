@@ -60,10 +60,10 @@ class TestLeRobotDatasetFileHandler:
         assert LEROBOT_AVAILABLE, "LeRobot dependencies should be available for testing"
         
         # Create handler with required configuration
-        from isaaclab.envs.manager_based_env_cfg import LeRobotDatasetCfg
-        config = LeRobotDatasetCfg()
+        from isaaclab.managers import RecorderManagerBaseCfg
+        config = RecorderManagerBaseCfg()
         config.observation_keys_to_record = [("policy", "joint_pos")]
-        config.state_observation_keys = []
+        config.state_observation_keys = [("policy", "joint_vel")]
         
         handler = LeRobotDatasetFileHandler(config=config)
         assert handler is not None
@@ -73,10 +73,10 @@ class TestLeRobotDatasetFileHandler:
         dataset_file_path = os.path.join(temp_dir, f"{uuid.uuid4()}.lerobot")
         
         # Create handler with required configuration
-        from isaaclab.envs.manager_based_env_cfg import LeRobotDatasetCfg
-        config = LeRobotDatasetCfg()
+        from isaaclab.managers import RecorderManagerBaseCfg
+        config = RecorderManagerBaseCfg()
         config.observation_keys_to_record = [("policy", "joint_pos")]
-        config.state_observation_keys = []
+        config.state_observation_keys = [("policy", "joint_vel")]
         
         handler = LeRobotDatasetFileHandler(config=config)
         
@@ -98,8 +98,8 @@ class TestLeRobotDatasetFileHandler:
         dataset_file_path = os.path.join(temp_dir, f"{uuid.uuid4()}.lerobot")
         
         # Create handler with required configuration
-        from isaaclab.envs.manager_based_env_cfg import LeRobotDatasetCfg
-        config = LeRobotDatasetCfg()
+        from isaaclab.managers import RecorderManagerBaseCfg
+        config = RecorderManagerBaseCfg()
         config.observation_keys_to_record = [("policy", "joint_pos"), ("policy", "camera_rgb")]
         config.state_observation_keys = []
         
@@ -125,8 +125,8 @@ class TestLeRobotDatasetFileHandler:
         dataset_file_path = os.path.join(temp_dir, f"{uuid.uuid4()}.lerobot")
         
         # Create handler with state observation configuration
-        from isaaclab.envs.manager_based_env_cfg import LeRobotDatasetCfg
-        config = LeRobotDatasetCfg()
+        from isaaclab.managers import RecorderManagerBaseCfg
+        config = RecorderManagerBaseCfg()
         config.state_observation_keys = [("policy", "joint_pos"), ("policy", "joint_vel")]
         config.observation_keys_to_record = [("policy", "camera_rgb")]
         
@@ -164,8 +164,8 @@ class TestLeRobotDatasetFileHandler:
         dataset_file_path = os.path.join(temp_dir, f"{uuid.uuid4()}.lerobot")
         
         # Create handler with required configuration
-        from isaaclab.envs.manager_based_env_cfg import LeRobotDatasetCfg
-        config = LeRobotDatasetCfg()
+        from isaaclab.managers import RecorderManagerBaseCfg
+        config = RecorderManagerBaseCfg()
         config.observation_keys_to_record = [("policy", "joint_pos")]
         config.state_observation_keys = []
         
@@ -189,8 +189,8 @@ class TestLeRobotDatasetFileHandler:
         dataset_file_path = os.path.join(temp_dir, f"{uuid.uuid4()}.lerobot")
         
         # Test with both observation_keys_to_record and state_observation_keys empty (should cause an error)
-        from isaaclab.envs.manager_based_env_cfg import LeRobotDatasetCfg
-        config = LeRobotDatasetCfg()
+        from isaaclab.managers import RecorderManagerBaseCfg
+        config = RecorderManagerBaseCfg()
         config.observation_keys_to_record = []  # Empty list
         config.state_observation_keys = []  # Empty list
         
@@ -215,7 +215,7 @@ class TestLeRobotDatasetFileHandler:
             handler.create(dataset_file_path, "test_env_name", env=mock_env)
         
         # Test with only observation_keys_to_record set (should work)
-        config = LeRobotDatasetCfg()
+        config = RecorderManagerBaseCfg()
         config.observation_keys_to_record = [("policy", "joint_pos")]
         config.state_observation_keys = []  # Empty list should work if other is set
         
@@ -226,7 +226,7 @@ class TestLeRobotDatasetFileHandler:
         handler.close()
         
         # Test with only state_observation_keys set (should work)
-        config = LeRobotDatasetCfg()
+        config = RecorderManagerBaseCfg()
         config.observation_keys_to_record = []  # Empty list
         config.state_observation_keys = [("policy", "joint_pos")]  # Should work if other is set
         
@@ -242,8 +242,8 @@ class TestLeRobotDatasetFileHandler:
         dataset_file_path = os.path.join(temp_dir, f"{uuid.uuid4()}.lerobot")
         
         # Create handler with multi-group observation configuration
-        from isaaclab.envs.manager_based_env_cfg import LeRobotDatasetCfg
-        config = LeRobotDatasetCfg()
+        from isaaclab.managers import RecorderManagerBaseCfg
+        config = RecorderManagerBaseCfg()
         config.observation_keys_to_record = [
             ("policy", "joint_pos"), 
             ("policy", "camera_rgb"), 

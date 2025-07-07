@@ -36,38 +36,60 @@ https://github.com/huggingface/lerobot/issues/1398
 
 ## Configuration System
 
-### LeRobotDatasetCfg Structure
+### RecorderManagerBaseCfg Structure
+
+The LeRobot dataset configuration is now integrated into the `RecorderManagerBaseCfg` class:
 
 ```python
 @configclass
-class LeRobotDatasetCfg:
-    # Regular observations saved as "observation.{key}"
-    observation_keys_to_record: List[tuple[str, str]] = MISSING
+class RecorderManagerBaseCfg:
+    # Standard recorder configuration
+    dataset_file_handler_class_type: type = HDF5DatasetFileHandler
+    dataset_export_dir_path: str = "/tmp/isaaclab/logs"
+    dataset_filename: str = "dataset"
+    dataset_export_mode: DatasetExportMode = DatasetExportMode.EXPORT_ALL
+    export_in_record_pre_reset: bool = True
     
-    # State observations combined into "observation.state"
-    state_observation_keys: List[tuple[str, str]] = MISSING
+    # LeRobot dataset specific configuration
+    observation_keys_to_record: Optional[List[tuple[str, str]]] = None
+    """List of (group_name, observation_key) tuples to record as regular observations.
     
-    # Task description for all episodes
-    task_description: str = MISSING
+    These will be saved as "observation.{obs_key}" in the LeRobot format.
+    Example: [("policy", "joint_pos"), ("policy", "camera_rgb"), ("critic", "joint_vel")]
+    """
+
+    state_observation_keys: Optional[List[tuple[str, str]]] = None
+    """List of (group_name, observation_key) tuples that should be treated as state observations.
+    
+    These will be combined and saved as "observation.state" in the LeRobot format.
+    Example: [("policy", "joint_pos"), ("policy", "joint_vel")]
+    """
+
+    task_description: Optional[str] = None
+    """Task description for the LeRobot dataset.
+    
+    This description will be used for all episodes in the dataset.
+    Example: "Stack the red cube on top of the blue cube"
+    """
 ```
 
 ### Configuration Patterns
 
 #### Basic Configuration
 ```python
-env.cfg.lerobot_dataset.observation_keys_to_record = [
+env.cfg.recorders.observation_keys_to_record = [
     ("policy", "joint_pos"), 
     ("policy", "camera_rgb")
 ]
-env.cfg.lerobot_dataset.state_observation_keys = [
+env.cfg.recorders.state_observation_keys = [
     ("policy", "joint_vel")
 ]
-env.cfg.lerobot_dataset.task_description = "Stack the red cube on top of the blue cube"
+env.cfg.recorders.task_description = "Stack the red cube on top of the blue cube"
 ```
 
 #### Multi-Group Observations
 ```python
-env.cfg.lerobot_dataset.observation_keys_to_record = [
+env.cfg.recorders.observation_keys_to_record = [
     ("policy", "joint_pos"),      # From policy group
     ("policy", "camera_rgb"),     # From policy group
     ("critic", "joint_vel")       # From critic group
@@ -76,7 +98,7 @@ env.cfg.lerobot_dataset.observation_keys_to_record = [
 
 #### Video/Image Support
 ```python
-env.cfg.lerobot_dataset.observation_keys_to_record = [
+env.cfg.recorders.observation_keys_to_record = [
     ("policy", "camera_rgb")      # Automatically detected as video
 ]
 # Handles [B, H, W, C] format and converts to [C, H, W] for LeRobot
@@ -177,10 +199,9 @@ The handler integrates seamlessly with Isaac Lab's manager-based environments:
 
 ```python
 # In environment configuration
-env_cfg.lerobot_dataset = LeRobotDatasetCfg()
-env_cfg.lerobot_dataset.observation_keys_to_record = [("policy", "camera_rgb")]
-env_cfg.lerobot_dataset.state_observation_keys = [("policy", "joint_pos")]
-env_cfg.lerobot_dataset.task_description = "Custom task"
+env_cfg.recorders.observation_keys_to_record = [("policy", "camera_rgb")]
+env_cfg.recorders.state_observation_keys = [("policy", "joint_pos")]
+env_cfg.recorders.task_description = "Custom task"
 
 # In recorder configuration
 env_cfg.recorders.dataset_file_handler_class_type = LeRobotDatasetFileHandler
@@ -232,10 +253,16 @@ dataset.lerobot/
 ### Configuration Validation
 ```python
 # Validate that required configuration exists
-if not observation_keys_to_record or not state_observation_keys:
+if not observation_keys_to_record:
     raise ValueError(
-        "LeRobotDatasetCfg must have at least one observation configured. "
-        "Please set either observation_keys_to_record or state_observation_keys (or both)."
+        "RecorderManagerBaseCfg must have observation_keys_to_record configured. "
+        "Please set observation_keys_to_record with format: [('group_name', 'observation_key'), ...]"
+    )
+
+if not state_observation_keys:
+    raise ValueError(
+        "RecorderManagerBaseCfg must have state_observation_keys configured. "
+        "Please set state_observation_keys with format: [('group_name', 'observation_key'), ...]"
     )
 
 # Validate observation groups and keys

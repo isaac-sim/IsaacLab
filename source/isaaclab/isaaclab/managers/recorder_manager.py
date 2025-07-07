@@ -11,7 +11,7 @@ import os
 import torch
 from collections.abc import Sequence
 from prettytable import PrettyTable
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, List
 
 from isaaclab.utils import configclass
 from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
@@ -49,6 +49,28 @@ class RecorderManagerBaseCfg:
 
     export_in_record_pre_reset: bool = True
     """Whether to export episodes in the record_pre_reset call."""
+
+    # LeRobot dataset specific configuration
+    observation_keys_to_record: List[tuple[str, str]] = None
+    """List of (group_name, observation_key) tuples to record as regular observations.
+    
+    These will be saved as "observation.{obs_key}" in the LeRobot format.
+    Example: [("policy", "joint_pos"), ("policy", "camera_rgb"), ("critic", "joint_vel")]
+    """
+
+    state_observation_keys: List[tuple[str, str]] = None
+    """List of (group_name, observation_key) tuples that should be treated as state observations.
+    
+    These will be combined and saved as "observation.state" in the LeRobot format.
+    Example: [("policy", "joint_pos"), ("policy", "joint_vel")]
+    """
+
+    task_description: str = None
+    """Task description for the LeRobot dataset.
+    
+    This description will be used for all episodes in the dataset.
+    Example: "Stack the red cube on top of the blue cube"
+    """
 
 
 class RecorderTerm(ManagerTermBase):
@@ -475,6 +497,9 @@ class RecorderManager(ManagerBase):
                 "dataset_export_dir_path",
                 "dataset_export_mode",
                 "export_in_record_pre_reset",
+                "observation_keys_to_record",
+                "state_observation_keys",
+                "task_description",
             ]:
                 continue
             # check if term config is None

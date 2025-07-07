@@ -36,27 +36,6 @@ class DefaultEventManagerCfg:
 
 
 @configclass
-class LeRobotDatasetCfg:
-    """Configuration for LeRobot dataset recording.
-    
-    This configuration specifies which observation keys should be recorded to the LeRobot dataset.
-    """
-    
-    # List of (group_name, observation_key) tuples to record as regular observations
-    # e.g., [("policy", "joint_pos"), ("policy", "camera_rgb"), ("critic", "joint_vel")]
-    # These will be saved as "observation.{obs_key}" in the LeRobot format
-    observation_keys_to_record: List[tuple[str, str]] = MISSING
-    
-    # List of (group_name, observation_key) tuples that should be treated as state observations
-    # e.g., [("policy", "joint_pos"), ("policy", "joint_vel")]
-    # These will be saved as "observation.state" in the LeRobot format
-    state_observation_keys: List[tuple[str, str]] = MISSING
-    
-    # Custom task description generator function name
-    task_description: str = MISSING
-
-
-@configclass
 class ManagerBasedEnvCfg:
     """Base configuration of the environment."""
 
@@ -143,10 +122,3 @@ class ManagerBasedEnvCfg:
 
     xr: XrCfg | None = None
     """Configuration for viewing and interacting with the environment through an XR device."""
-
-    # LeRobot dataset configuration
-    lerobot_dataset: LeRobotDatasetCfg | None = None
-    """Configuration for LeRobot dataset recording. Defaults to LeRobotDatasetCfg().
-    
-    This configuration specifies which observation keys should be recorded to the LeRobot dataset.
-    """

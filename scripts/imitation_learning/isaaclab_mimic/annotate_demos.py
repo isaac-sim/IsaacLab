@@ -188,8 +188,22 @@ def main():
     # Disable all termination terms
     env_cfg.terminations = None
 
+    # Store existing LeRobot configuration if present
+    existing_observation_keys = getattr(env_cfg.recorders, 'observation_keys_to_record', None) if hasattr(env_cfg, 'recorders') and env_cfg.recorders is not None else None
+    existing_state_keys = getattr(env_cfg.recorders, 'state_observation_keys', None) if hasattr(env_cfg, 'recorders') and env_cfg.recorders is not None else None
+    existing_task_description = getattr(env_cfg.recorders, 'task_description', None) if hasattr(env_cfg, 'recorders') and env_cfg.recorders is not None else None
+    
     # Set up recorder terms for mimic annotations
-    env_cfg.recorders: MimicRecorderManagerCfg = MimicRecorderManagerCfg()
+    env_cfg.recorders = MimicRecorderManagerCfg()
+    
+    # Restore LeRobot configuration if it existed
+    if existing_observation_keys is not None:
+        env_cfg.recorders.observation_keys_to_record = existing_observation_keys
+    if existing_state_keys is not None:
+        env_cfg.recorders.state_observation_keys = existing_state_keys
+    if existing_task_description is not None:
+        env_cfg.recorders.task_description = existing_task_description
+    
     if not args_cli.auto:
         # disable subtask term signals recorder term if in manual mode
         env_cfg.recorders.record_pre_step_subtask_term_signals = None

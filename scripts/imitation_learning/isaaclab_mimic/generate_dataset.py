@@ -123,11 +123,24 @@ def main():
         generation_num_trials=args_cli.generation_num_trials,
     )
 
+    # Store existing LeRobot configuration if present
+    existing_observation_keys = getattr(env_cfg.recorders, 'observation_keys_to_record', None) if hasattr(env_cfg, 'recorders') and env_cfg.recorders is not None else None
+    existing_state_keys = getattr(env_cfg.recorders, 'state_observation_keys', None) if hasattr(env_cfg, 'recorders') and env_cfg.recorders is not None else None
+    existing_task_description = getattr(env_cfg.recorders, 'task_description', None) if hasattr(env_cfg, 'recorders') and env_cfg.recorders is not None else None
+
     # Set dataset file handler based on format
     if use_lerobot_format:
         env_cfg.recorders.dataset_file_handler_class_type = LeRobotDatasetFileHandler
     else:
         env_cfg.recorders.dataset_file_handler_class_type = HDF5DatasetFileHandler
+
+    # Restore LeRobot configuration if it existed
+    if existing_observation_keys is not None:
+        env_cfg.recorders.observation_keys_to_record = existing_observation_keys
+    if existing_state_keys is not None:
+        env_cfg.recorders.state_observation_keys = existing_state_keys
+    if existing_task_description is not None:
+        env_cfg.recorders.task_description = existing_task_description
 
     # create environment
     env = gym.make(env_name, cfg=env_cfg).unwrapped

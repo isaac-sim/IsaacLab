@@ -92,28 +92,26 @@ LeRobot uses standardized naming conventions for observations:
 
 ## Configuration Options
 
-The LeRobot dataset handler supports flexible configuration through the `LeRobotDatasetCfg`:
+The LeRobot dataset handler supports flexible configuration through the `RecorderManagerBaseCfg`:
 
 ```python
-from isaaclab.envs.manager_based_env_cfg import LeRobotDatasetCfg
+from isaaclab.managers import RecorderManagerBaseCfg
 
 # Configure which observations to record
-env_cfg.lerobot_dataset = LeRobotDatasetCfg()
-
-# Regular observations (saved as "observation.{key}") - REQUIRED
-env_cfg.lerobot_dataset.observation_keys_to_record = [
+env_cfg.recorders.observation_keys_to_record = [
     "policy/camera_rgb",
     "policy/end_effector_pos",
     "policy/gripper_state"
 ]
 
 # State observations (combined into "observation.state") - REQUIRED
-env_cfg.lerobot_dataset.state_observation_keys = [
+env_cfg.recorders.state_observation_keys = [
     "policy/joint_pos",
-    "policy/joint_vel",
-    "policy/joint_torque"
+    "policy/joint_vel"
 ]
 
+# Task description for the dataset
+env_cfg.recorders.task_description = "Stack the red cube on top of the blue cube"
 ```
 
 **Important**: At least one of `observation_keys_to_record` or `state_observation_keys` must be configured with at least one observation. If both are empty, an error will be raised. If you don't want to record any state observations, use an empty list `[]` for `state_observation_keys` but ensure `observation_keys_to_record` has at least one entry.

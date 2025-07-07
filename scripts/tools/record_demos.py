@@ -258,7 +258,23 @@ def main():
     else:
         omni.log.info(f"Recording dataset in HDF5 format: {args_cli.dataset_file}")
 
+    # Store existing LeRobot configuration if present
+    existing_observation_keys = getattr(env_cfg.recorders, 'observation_keys_to_record', None) if hasattr(env_cfg, 'recorders') and env_cfg.recorders is not None else None
+    existing_state_keys = getattr(env_cfg.recorders, 'state_observation_keys', None) if hasattr(env_cfg, 'recorders') and env_cfg.recorders is not None else None
+    existing_task_description = getattr(env_cfg.recorders, 'task_description', None) if hasattr(env_cfg, 'recorders') and env_cfg.recorders is not None else None
+    
+    # Create new recorder configuration
     env_cfg.recorders = ActionStateRecorderManagerCfg()
+    
+    # Restore LeRobot configuration if it existed
+    if existing_observation_keys is not None:
+        env_cfg.recorders.observation_keys_to_record = existing_observation_keys
+    if existing_state_keys is not None:
+        env_cfg.recorders.state_observation_keys = existing_state_keys
+    if existing_task_description is not None:
+        env_cfg.recorders.task_description = existing_task_description
+    
+    # Set recorder configuration
     env_cfg.recorders.dataset_export_dir_path = output_dir
     env_cfg.recorders.dataset_filename = output_file_name
     env_cfg.recorders.dataset_export_mode = DatasetExportMode.EXPORT_SUCCEEDED_ONLY

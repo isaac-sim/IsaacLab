@@ -12,7 +12,6 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg
 from isaaclab.controllers.pink_ik_cfg import PinkIKControllerCfg
 from isaaclab.envs.mdp.actions.pink_actions_cfg import PinkInverseKinematicsActionCfg
-from isaaclab.envs.manager_based_env_cfg import LeRobotDatasetCfg
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
@@ -194,17 +193,14 @@ class SO100CubeStackPinkIKAbsVisuomotorEnvCfg(stack_joint_pos_env_cfg.SO100CubeS
         self.image_obs_list = ["table_cam"]
         # self.image_obs_list = ["table_cam", "wrist_cam"]
         
-        # Configure LeRobot dataset recording
-        self.lerobot_dataset = LeRobotDatasetCfg(
-            # Record specific observation keys that are useful for training
-            observation_keys_to_record=[
-                ["policy", "table_cam"]
-            ],
-            # State observations that should be combined into "observation.state"
-            state_observation_keys=[
-                ["policy", "joint_pos"] 
-            ],
-            # Task description for the dataset
-            task_description="Stack the red cube on top of the blue cube",
-        )
+        # Configure LeRobot dataset recording in recorder manager
+        self.recorders.observation_keys_to_record = [
+            ("policy", "table_cam")
+        ]
+        # State observations that should be combined into "observation.state"
+        self.recorders.state_observation_keys = [
+            ("policy", "joint_pos") 
+        ]
+        # Task description for the dataset
+        self.recorders.task_description = "Stack the red cube on top of the blue cube"
         
