@@ -156,7 +156,7 @@ class CubeMimicEnv(ManagerBasedRLMimicEnv):
 
         signals = dict()
         subtask_terms = self.obs_buf["subtask_terms"]
-        signals["appr"] = subtask_terms["appr"][env_ids]
+     #   signals["appr"] = subtask_terms["appr"][env_ids]
         signals["grasp"] = subtask_terms["grasp"][env_ids]
         signals["lift"] = subtask_terms["lift"][env_ids]
         signals["appr_goal"] = subtask_terms["appr_goal"][env_ids]

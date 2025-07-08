@@ -69,6 +69,18 @@ class Chem_Assets:
                 ),
             ) 
         
+        def centre_beaker(self,pos=[0.4, 0.35, 0.0203],rot=[1, 0, 0, 0], name="Center_Beaker")-> RigidObjectCfg:
+            return RigidObjectCfg(
+                prim_path="{ENV_REGEX_NS}/" + name,
+                init_state=RigidObjectCfg.InitialStateCfg(pos = pos,rot=rot ),
+                spawn=UsdFileCfg(
+                    usd_path="/workspace/isaaclab/source/isaaclab_assets/data/Props/glassware/center_beaker.usd",
+                    scale=(1.0, 1.0, 1.0),
+                    rigid_props=self.cube_properties,
+                    semantic_tags=[("class", name)],
+                ),
+            )
+
         def random_object(self,pos=[0.65, 0.3, 0.05],rot=[0, 0, 1, 0], name="random")-> RigidObjectCfg:
             return RigidObjectCfg(
                 prim_path="{ENV_REGEX_NS}/" + name ,

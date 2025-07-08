@@ -48,12 +48,6 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
     # target object: will be populated by agent env cfg
     object: RigidObjectCfg | DeformableObjectCfg = MISSING
     
-    
-   
-
-   # glassware = RigidObjectCollectionCfg(rigid_objects={"vial" : vial, "flask" : flask})
-
-
     # Table
     table = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/Table",
@@ -74,14 +68,9 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
         spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), intensity=3000.0),
     )
 
-    
-    
-    
-
 ##
 # MDP settings
 ##
-
 
 @configclass
 class CommandsCfg:
@@ -132,7 +121,7 @@ class ObservationsCfg():
         object_position = ObsTerm(func=mdp.object_position_in_robot_root_frame)
         target_object_position = ObsTerm(func=mdp.generated_commands, params={"command_name": "object_pose"})
         actions = ObsTerm(func=mdp.last_action)
-        object_to_target = ObsTerm(func=mdp.object_reached_goal)
+        object_to_target = ObsTerm(func=mdp.position_command_error)
         eef_pos = ObsTerm(func=mdp.ee_frame_pos)
         eef_quat = ObsTerm(func=mdp.ee_frame_quat)
         gripper_pos = ObsTerm(func=mdp.gripper_pos)
@@ -147,21 +136,21 @@ class ObservationsCfg():
         """Observations for subtask group."""
         def set_loghelper(self, loghelper: LoggingHelper):
             # Inject the logger into any terms that need it
-            self.appr.params["loghelper"] = loghelper
+           # self.appr.params["loghelper"] = loghelper
             self.grasp.params["loghelper"] = loghelper
             self.lift.params["loghelper"] = loghelper
             self.appr_goal.params["loghelper"] = loghelper
            # self.loghelper = loghelper
 
 
-        appr = ObsTerm(
-            func=mdp.reach_object,
-            params={
-                "ee_frame_cfg": SceneEntityCfg("ee_frame"),
-                "object_cfg": SceneEntityCfg("object"),
-                "std" : 0.05
-            }
-        )
+        # appr = ObsTerm(
+        #     func=mdp.reach_object,
+        #     params={
+        #         "ee_frame_cfg": SceneEntityCfg("ee_frame"),
+        #         "object_cfg": SceneEntityCfg("object"),
+        #         "std" : 0.05
+        #     }
+        # )
         
         grasp = ObsTerm(
             func=mdp.object_grasped,
@@ -222,14 +211,14 @@ class EventCfg:
         },
     )
     #randomises the scale of the object 
-    randomise_object__scale = EventTerm(
-        func=mdp.randomize_rigid_body_scale,
-        mode="prestartup",
-        params={
-            "scale_range": {"x": (0.5, 0.7), "y": (0.2, 0.6), "z": (0.2, 0.5)},
-            "asset_cfg": SceneEntityCfg("object", body_names="Object"),
-        },
-    )
+    # randomise_object__scale = EventTerm(
+    #     func=mdp.randomize_rigid_body_scale,
+    #     mode="prestartup",
+    #     params={
+    #         "scale_range": {"x": (0.5, 0.7), "y": (0.2, 0.6), "z": (0.2, 0.5)},
+    #         "asset_cfg": SceneEntityCfg("object", body_names="Object"),
+    #     },
+    # )
 
 
 
@@ -241,7 +230,7 @@ class RewardsCfg:
 
     lifting_object = RewTerm(func=mdp.object_is_lifted, params={"minimal_height": 0.14}, weight=30.0)
 
-   # reaching_target = RewTerm(func=mdp.object_goal_distance, weight = 20.0)
+    reaching_target = RewTerm(func=mdp.position_command_error, weight = 20.0)
 
     object_goal_tracking = RewTerm(
         func=mdp.object_goal_distance,
@@ -313,7 +302,7 @@ class CubeEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the lifting environment."""
     loghelper = LoggingHelper()
     # Scene settings
-    scene: ObjectTableSceneCfg = ObjectTableSceneCfg(num_envs=4096, env_spacing=2.5, replicate_physics=False)
+    scene: ObjectTableSceneCfg = ObjectTableSceneCfg(num_envs=4096, env_spacing=2.5, replicate_physics=True)
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()

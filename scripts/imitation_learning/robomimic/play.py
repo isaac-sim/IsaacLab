@@ -185,7 +185,7 @@ def main():
     results = []
     for trial in range(args_cli.num_rollouts):
         print(f"[INFO] Starting trial {trial}")
-        print("policy : ", policy)
+        #print("policy : ", policy)
         loghelper.startEpoch(trial)
         terminated, traj = rollout(policy, env, success_term, args_cli.horizon, device)
         

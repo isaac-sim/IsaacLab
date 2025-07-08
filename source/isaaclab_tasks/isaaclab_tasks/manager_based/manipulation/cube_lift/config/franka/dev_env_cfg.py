@@ -74,7 +74,7 @@ class FrankaDevEnvCfg(CubeEnvCfg):
 
         glassware = Chem_Assets()
         # Set each stacking cube deterministically
-        self.scene.object = glassware.beaker(pos=[0.4, 0.0, 0.0203],name="Object")
+        self.scene.object = glassware.centre_beaker(pos=[0.4, 0.0, 0.0203],name="Object")
         #### everything else leave default
         # self.scene.flask = glassware.flask()
         # self.scene.vial = glassware.vial()

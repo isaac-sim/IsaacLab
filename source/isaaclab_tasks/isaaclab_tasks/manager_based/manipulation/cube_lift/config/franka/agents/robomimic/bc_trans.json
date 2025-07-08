@@ -7,7 +7,7 @@
             "terminal_output_to_txt": true,
             "log_tb": true,
             "log_wandb": true,
-            "wandb_proj_name": "bc_trans"
+            "wandb_proj_name": "bc-trans"
         },
         "save": {
             "enabled": true,
@@ -36,7 +36,7 @@
     },
     "train": {
         "data": null,
-        "output_dir": "../lift_bc_trns",
+        "output_dir": "../bc_trans",
         "num_data_workers": 1,
         "hdf5_cache_mode": "low_dim",
         "hdf5_use_swmr": true,
@@ -88,15 +88,21 @@
             "enabled": false
         },
         "rnn": {
+            "enabled": false
+        },
+        "transformer": {
             "enabled": true,
-            "horizon": 10,
-            "hidden_dim": 400,
-            "rnn_type": "LSTM",
-            "num_layers": 2,
-            "open_loop": false,
-            "kwargs": {
-                "bidirectional": false
-            }
+            "context_length": 10,
+            "embed_dim": 512,
+            "num_layers": 6,
+            "num_heads": 8,
+            "emb_dropout": 0.1,
+            "attn_dropout": 0.1,
+            "block_output_dropout": 0.1,
+            "sinusoidal_embedding": false,
+            "activation": "gelu",
+            "supervise_all_steps": false,
+            "nn_parameter_for_timesteps": true
         }
     },
     "observation": {
