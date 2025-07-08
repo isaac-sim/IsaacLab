@@ -2,10 +2,12 @@
     "algo_name": "bc",
     "experiment": {
         "name": "bc",
-        "validate": false,
+        "validate": true,
         "logging": {
             "terminal_output_to_txt": true,
-            "log_tb": true
+            "log_tb": true,
+            "log_wandb": true,
+            "wandb_proj_name": "bc-trans"
         },
         "save": {
             "enabled": true,
@@ -34,13 +36,13 @@
     },
     "train": {
         "data": null,
-        "output_dir": "../lift_vial_4000",
+        "output_dir": "../bc_trans",
         "num_data_workers": 1,
         "hdf5_cache_mode": "low_dim",
         "hdf5_use_swmr": true,
         "hdf5_normalize_obs": false,
-        "hdf5_filter_key": null,
-        "hdf5_validation_filter_key": null,
+        "hdf5_filter_key": "train",
+        "hdf5_validation_filter_key": "valid",
         "seq_length": 10,
         "dataset_keys": [
             "actions",
@@ -81,6 +83,9 @@
             "min_std": 0.0001,
             "std_activation": "softplus",
             "low_noise_eval": true
+        },
+         "vae": {
+            "enabled": false
         },
         "rnn": {
             "enabled": true,

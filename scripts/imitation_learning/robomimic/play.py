@@ -88,7 +88,7 @@ def rollout(policy, env, success_term, horizon, device):
     """
     policy.start_episode()
     obs_dict, _ = env.reset()
-    #print(f"obs dict : {obs_dict}")
+    print(f"obs dict : {obs_dict}")
     traj = dict(actions=[], obs=[], next_obs=[], sub_obs=[])
 
     for i in range(horizon):
@@ -98,7 +98,7 @@ def rollout(policy, env, success_term, horizon, device):
        
         for ob in obs:
             obs[ob] = torch.squeeze(obs[ob])
-            #print(f"found observation : {obs[ob]}")
+           # print(f"found observation : {obs[ob]}")
         
         for subob in sub_obs:
             sub_obs[subob] = torch.squeeze(sub_obs[subob])
@@ -180,13 +180,15 @@ def main():
 
     # Load policy
     policy, _ = FileUtils.policy_from_checkpoint(ckpt_path=args_cli.checkpoint, device=device, verbose=True)
-    
+    print("[INFO] policy : ", policy)
     # Run policy
     results = []
     for trial in range(args_cli.num_rollouts):
         print(f"[INFO] Starting trial {trial}")
+        print("policy : ", policy)
         loghelper.startEpoch(trial)
         terminated, traj = rollout(policy, env, success_term, args_cli.horizon, device)
+        
         results.append(terminated)
         print(f"[INFO] Trial {trial}: {terminated}\n")
         loghelper.stopEpoch(trial)

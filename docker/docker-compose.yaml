@@ -102,9 +102,9 @@ services:
     entrypoint: bash
     stdin_open: true
     tty: true
-    devices:
-      - /dev/hidraw3:/dev/hidraw3
-      - /dev/hidraw4:/dev/hidraw4
+    #devices:
+     # - /dev/hidraw3:/dev/hidraw3
+      #- /dev/hidraw4:/dev/hidraw4
       # /dev/hidraw5:/dev/hidraw5
 
   # This service adds a ROS2 Humble
@@ -132,10 +132,10 @@ services:
     entrypoint: bash
     stdin_open: true
     tty: true
-    devices:
-      - /dev/hidraw4:/dev/hidraw4
-      - /dev/hidraw3:/dev/hidraw3
-     # - /dev/hidraw4:/dev/hidraw4
+    #devices:
+      #- /dev/hidraw4:/dev/hidraw4
+     #\ - /dev/hidraw3:/dev/hidraw3
+    # - /dev/hidraw4:/dev/hidraw4
       #- /dev/hidraw5:/dev/hidraw5
     
 
