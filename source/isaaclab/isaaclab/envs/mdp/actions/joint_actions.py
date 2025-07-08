@@ -137,7 +137,8 @@ class JointAction(ActionTerm):
             self._IO_descriptor.offset = self._offset[0].detach().cpu().numpy().tolist()
         else:
             self._IO_descriptor.offset = self._offset
-        if self.cfg.clip is not None:
+        #FIXME: This is not correct. Add list support.
+        if self.cfg.clip is not None: 
             self._IO_descriptor.clip = self._clip
         else:
             self._IO_descriptor.clip = None
