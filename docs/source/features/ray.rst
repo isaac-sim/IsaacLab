@@ -67,7 +67,7 @@ The three following files contain the core functionality of the Ray integration.
 
   .. literalinclude:: ../../../scripts/reinforcement_learning/ray/task_runner.py
     :language: python
-    :emphasize-lines: 9-55
+    :emphasize-lines: 13-59
 
 The following script can be used to submit aggregate
 jobs to one or more Ray cluster(s), which can be used for
@@ -79,7 +79,7 @@ resource requirements.
 
   .. literalinclude:: ../../../scripts/reinforcement_learning/ray/submit_job.py
     :language: python
-    :emphasize-lines: 13-59
+    :emphasize-lines: 13-61
 
 The following script can be used to extract KubeRay cluster information for aggregate job submission.
 
