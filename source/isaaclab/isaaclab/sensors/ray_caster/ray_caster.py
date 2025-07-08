@@ -256,6 +256,7 @@ class RayCaster(SensorBase):
             ray_directions_w = self.ray_directions[env_ids]
         elif self.cfg.ray_alignment == "yaw" or self.cfg.attach_yaw_only:
             if self.cfg.attach_yaw_only:
+                self.cfg.ray_alignment = "yaw"
                 omni.log.warn(
                     "The `attach_yaw_only` property will be deprecated in a future release. Please use"
                     " `ray_alignment='yaw'` instead."

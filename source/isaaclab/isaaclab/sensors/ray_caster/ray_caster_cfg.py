@@ -44,7 +44,7 @@ class RayCasterCfg(SensorBaseCfg):
     offset: OffsetCfg = OffsetCfg()
     """The offset pose of the sensor's frame from the sensor's parent frame. Defaults to identity."""
 
-    attach_yaw_only: bool = MISSING
+    attach_yaw_only: bool = False
     """Whether the rays' starting positions and directions only track the yaw orientation.
 
     This is useful for ray-casting height maps, where only yaw rotation is needed.
