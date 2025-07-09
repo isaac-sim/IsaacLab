@@ -42,6 +42,10 @@ class MeshPyramidStairsTerrainCfg(SubTerrainBaseCfg):
     """The width of the steps (in m)."""
     platform_width: float = 1.0
     """The width of the square platform at the center of the terrain. Defaults to 1.0."""
+    platform_height: float = -1.0
+    """The height of the platform.  Defaults to -1.0.
+
+    If the value is negative, the height is the same as the object height."""
     holes: bool = False
     """If True, the terrain will have holes in the steps. Defaults to False.
 
