@@ -334,6 +334,8 @@ class ObservationManager(ManagerBase):
                 if update_history:
                     circular_buffer.append(obs)
                 elif circular_buffer._buffer is None:
+                    # because circular buffer only exits after the simulation steps,
+                    # this guards history buffer from corruption by external calls before simulation start
                     circular_buffer = CircularBuffer(
                         max_len=circular_buffer.max_length,
                         batch_size=circular_buffer.batch_size,
