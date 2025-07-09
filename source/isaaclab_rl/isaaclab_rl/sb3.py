@@ -332,6 +332,7 @@ class Sb3VecEnvWrapper(VecEnv):
                         for proc in procs:
                             obs = proc(obs)
                         return obs
+
                     # add processor to the dictionary
                     if len(processors) > 0:
                         self.observation_processors[obs_key] = chained_processor
