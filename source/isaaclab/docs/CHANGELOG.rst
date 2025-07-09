@@ -1,13 +1,23 @@
 Changelog
 ---------
 
-0.40.12 (2025-07-03)
+0.40.13 (2025-07-03)
 ~~~~~~~~~~~~~~~~~~~~
 
 Fixed
 ^^^^^
 
 * Fixed unittest tests that are floating inside pytests for articulation and rendering
+
+
+0.40.12 (2025-07-03)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated gymnasium to v1.2.0. This update includes fixes for a memory leak that appears when recording
+  videos with the ``--video`` flag.
 
 
 0.40.11 (2025-06-27)
