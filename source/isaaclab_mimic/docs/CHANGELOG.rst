@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+1.0.10 (2025-07-08)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated generate dataset script to cancel remaining async tasks before closing the simulation app.
+
+
 1.0.9 (2025-05-20)
 ~~~~~~~~~~~~~~~~~~
 
