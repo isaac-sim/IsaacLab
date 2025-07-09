@@ -25,7 +25,7 @@ Modifying Reward Weights
 ------------------------
 
 The function :func:`modify_reward_weight` updates the weight of a reward term after a specified number of simulation
-steps. You pass this directly as the `func` in a `CurriculumTermCfg`.
+steps. This can be passed directly as the `func` in a `CurriculumTermCfg`.
 
 .. literalinclude:: ../../../source/isaaclab/isaaclab/envs/mdp/curriculums.py
    :language: python
