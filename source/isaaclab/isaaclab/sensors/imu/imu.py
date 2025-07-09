@@ -96,7 +96,11 @@ class Imu(SensorBase):
         if env_ids is None:
             env_ids = slice(None)
         # reset accumulative data buffers
+        self._data.pos_w[env_ids] = 0.0
         self._data.quat_w[env_ids] = 0.0
+        self._data.quat_w[env_ids, 0] = 1.0
+        self._data.projected_gravity_b[env_ids] = 0.0
+        self._data.projected_gravity_b[env_ids, 2] = -1.0
         self._data.lin_vel_b[env_ids] = 0.0
         self._data.ang_vel_b[env_ids] = 0.0
         self._data.lin_acc_b[env_ids] = 0.0
@@ -135,22 +139,24 @@ class Imu(SensorBase):
         else:
             raise RuntimeError(f"Failed to find a RigidBodyAPI for the prim paths: {self.cfg.prim_path}")
 
+        # Get world gravity
+        gravity = self._physics_sim_view.get_gravity()
+        gravity_dir = torch.tensor((gravity[0], gravity[1], gravity[2]), device=self.device)
+        gravity_dir = math_utils.normalize(gravity_dir.unsqueeze(0)).squeeze(0)
+        self.GRAVITY_VEC_W = gravity_dir.repeat(self.num_instances, 1)
+
         # Create internal buffers
         self._initialize_buffers_impl()
 
     def _update_buffers_impl(self, env_ids: Sequence[int]):
         """Fills the buffers of the sensor data."""
-        # check if self._dt is set (this is set in the update function)
-        if not hasattr(self, "_dt"):
-            raise RuntimeError(
-                "The update function must be called before the data buffers are accessed the first time."
-            )
+
         # default to all sensors
         if len(env_ids) == self._num_envs:
             env_ids = slice(None)
         # obtain the poses of the sensors
         pos_w, quat_w = self._view.get_transforms()[env_ids].split([3, 4], dim=-1)
-        quat_w = math_utils.convert_quat(quat_w, to="wxyz")
+        quat_w = quat_w.roll(1, dims=-1)
 
         # store the poses
         self._data.pos_w[env_ids] = pos_w + math_utils.quat_apply(quat_w, self._offset_pos_b[env_ids])
@@ -170,12 +176,19 @@ class Imu(SensorBase):
         # numerical derivative
         lin_acc_w = (lin_vel_w - self._prev_lin_vel_w[env_ids]) / self._dt + self._gravity_bias_w[env_ids]
         ang_acc_w = (ang_vel_w - self._prev_ang_vel_w[env_ids]) / self._dt
-        # store the velocities
-        self._data.lin_vel_b[env_ids] = math_utils.quat_apply_inverse(self._data.quat_w[env_ids], lin_vel_w)
-        self._data.ang_vel_b[env_ids] = math_utils.quat_apply_inverse(self._data.quat_w[env_ids], ang_vel_w)
+        # stack data in world frame and batch rotate
+        dynamics_data = torch.stack((lin_vel_w, ang_vel_w, lin_acc_w, ang_acc_w, self.GRAVITY_VEC_W[env_ids]), dim=0)
+        dynamics_data_rot = math_utils.quat_apply_inverse(self._data.quat_w[env_ids].repeat(5, 1), dynamics_data).chunk(
+            5, dim=0
+        )
+        # store the velocities.
+        self._data.lin_vel_b[env_ids] = dynamics_data_rot[0]
+        self._data.ang_vel_b[env_ids] = dynamics_data_rot[1]
         # store the accelerations
-        self._data.lin_acc_b[env_ids] = math_utils.quat_apply_inverse(self._data.quat_w[env_ids], lin_acc_w)
-        self._data.ang_acc_b[env_ids] = math_utils.quat_apply_inverse(self._data.quat_w[env_ids], ang_acc_w)
+        self._data.lin_acc_b[env_ids] = dynamics_data_rot[2]
+        self._data.ang_acc_b[env_ids] = dynamics_data_rot[3]
+        # store projected gravity
+        self._data.projected_gravity_b[env_ids] = dynamics_data_rot[4]
 
         self._prev_lin_vel_w[env_ids] = lin_vel_w
         self._prev_ang_vel_w[env_ids] = ang_vel_w
@@ -186,6 +199,7 @@ class Imu(SensorBase):
         self._data.pos_w = torch.zeros(self._view.count, 3, device=self._device)
         self._data.quat_w = torch.zeros(self._view.count, 4, device=self._device)
         self._data.quat_w[:, 0] = 1.0
+        self._data.projected_gravity_b = torch.zeros(self._view.count, 3, device=self._device)
         self._data.lin_vel_b = torch.zeros_like(self._data.pos_w)
         self._data.ang_vel_b = torch.zeros_like(self._data.pos_w)
         self._data.lin_acc_b = torch.zeros_like(self._data.pos_w)
