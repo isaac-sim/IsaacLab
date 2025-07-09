@@ -112,7 +112,7 @@ syntax. It otherwise behaves identically to :class:`modify_env_param`.
    range_override = CurriculumTermCfg(
        func=mdp.modify_term_cfg,
        params={
-           "address": "commands.object_pose.ranges.pos_x",  # "s." is implicit
+           "address": "commands.object_pose.ranges.pos_x",
            "modify_fn": override_command_range,
            "modify_params": {
                "value": (-0.75, -0.25),
