@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.42.22 (2025-06-25)
+0.42.23 (2025-06-25)
 ~~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -12,7 +12,7 @@ Added
   env instance
 
 
-0.42.21 (2025-07-11)
+0.42.22 (2025-07-11)
 ~~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -22,7 +22,7 @@ Fixed
 restricting the resetting joint indices be that user defined joint indices.
 
 
-0.42.20 (2025-07-11)
+0.42.21 (2025-07-11)
 ~~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -32,7 +32,7 @@ Fixed
   env_ids are passed.
 
 
-0.42.19 (2025-07-09)
+0.42.20 (2025-07-09)
 ~~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -49,7 +49,7 @@ Fixed
   buffer on recording.
 
 
-0.42.18 (2025-07-10)
+0.42.19 (2025-07-10)
 ~~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -78,6 +78,15 @@ Changed
 ^^^^^^^
 
 * Changed the implementation of :func:`~isaaclab.utils.math.copysign` to better reflect the documented functionality.
+
+
+0.42.18 (2025-07-09)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed texture and color randomization to use new replicator functional APIs.
 
 
 0.42.17 (2025-07-08)
@@ -119,7 +128,7 @@ Fixed
 * Fixed unittest tests that are floating inside pytests for articulation and rendering
 
 
-0.42.13 (2025-07-03)
+0.42.13 (2025-07-07)
 ~~~~~~~~~~~~~~~~~~~~
 
 Changed
