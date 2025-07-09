@@ -53,14 +53,14 @@ The three following files contain the core functionality of the Ray integration.
 
   .. literalinclude:: ../../../scripts/reinforcement_learning/ray/wrap_resources.py
     :language: python
-    :emphasize-lines: 14-66
+    :emphasize-lines: 12-65
 
 .. dropdown:: scripts/reinforcement_learning/ray/tuner.py
   :icon: code
 
   .. literalinclude:: ../../../scripts/reinforcement_learning/ray/tuner.py
     :language: python
-    :emphasize-lines: 18-53
+    :emphasize-lines: 18-54
 
 .. dropdown:: scripts/reinforcement_learning/ray/task_runner.py
   :icon: code
@@ -97,7 +97,7 @@ The following script can be used to easily create clusters on Google GKE.
 
   .. literalinclude:: ../../../scripts/reinforcement_learning/ray/launch.py
     :language: python
-    :emphasize-lines: 16-37
+    :emphasize-lines: 15-36
 
 Docker-based Local Quickstart
 -----------------------------
@@ -155,7 +155,7 @@ Submitting resource-wrapped individual jobs instead of automatic tuning runs is 
 
   .. literalinclude:: ../../../scripts/reinforcement_learning/ray/wrap_resources.py
     :language: python
-    :emphasize-lines: 14-66
+    :emphasize-lines: 12-65
 
 Supports specifying per-task resources and setting ``py_modules`` and ``pip`` packages for each run.
 
@@ -164,7 +164,7 @@ Supports specifying per-task resources and setting ``py_modules`` and ``pip`` pa
 
   .. literalinclude:: ../../../scripts/reinforcement_learning/ray/task_runner.py
     :language: python
-    :emphasize-lines: 9-55
+    :emphasize-lines: 13-59
 
 Transferring files from the running container can be done as follows.
 
@@ -305,7 +305,7 @@ where instructions are included in the following creation file.
 
   .. literalinclude:: ../../../scripts/reinforcement_learning/ray/launch.py
     :language: python
-    :emphasize-lines: 15-37
+    :emphasize-lines: 15-36
 
 For other cloud services, the ``kuberay.yaml.ninja`` will be similar to that of
 Google's.
@@ -362,7 +362,7 @@ Dispatching Steps Shared Between KubeRay and Pure Ray Part II
 
   .. literalinclude:: ../../../scripts/reinforcement_learning/ray/submit_job.py
     :language: python
-    :emphasize-lines: 12-53
+    :emphasize-lines: 13-61
 
 3.) For tuning jobs, specify the tuning job / hyperparameter sweep as a :class:`JobCfg` .
 The included :class:`JobCfg` only supports the ``rl_games`` workflow due to differences in
