@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.1.0" />
-    <meta name="docbuild:last-update" content="Jul 08, 2025"/>
+    <meta name="docbuild:last-update" content="Jul 09, 2025"/>
   </head>
   
   
@@ -819,6 +819,21 @@
     <span class="k">return</span> <span class="n">asset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">quat_w</span></div>
 
 
+<div class="viewcode-block" id="imu_projected_gravity"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.observations.imu_projected_gravity">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">imu_projected_gravity</span><span class="p">(</span><span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span><span class="p">,</span> <span class="n">asset_cfg</span><span class="p">:</span> <span class="n">SceneEntityCfg</span> <span class="o">=</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;imu&quot;</span><span class="p">))</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Imu sensor orientation w.r.t the env.scene.origin.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        env: The environment.</span>
+<span class="sd">        asset_cfg: The SceneEntity associated with an Imu sensor.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        Gravity projected on imu_frame, shape of torch.tensor is (num_env,3).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">asset</span><span class="p">:</span> <span class="n">Imu</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">scene</span><span class="p">[</span><span class="n">asset_cfg</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">asset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">projected_gravity_b</span></div>
+
+
 <div class="viewcode-block" id="imu_ang_vel"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.observations.imu_ang_vel">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">imu_ang_vel</span><span class="p">(</span><span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span><span class="p">,</span> <span class="n">asset_cfg</span><span class="p">:</span> <span class="n">SceneEntityCfg</span> <span class="o">=</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;imu&quot;</span><span class="p">))</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Imu sensor angular velocity w.r.t. environment origin expressed in the sensor frame.</span>
 
@@ -1209,7 +1224,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jul 08, 2025.
+  Last updated on Jul 09, 2025.
   <br/>
 </p>
   </div>

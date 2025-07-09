@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.1.0" />
-    <meta name="docbuild:last-update" content="Jul 08, 2025"/>
+    <meta name="docbuild:last-update" content="Jul 09, 2025"/>
   </head>
   
   
@@ -477,7 +477,7 @@
       
       
       
-      <li><a href="https://github.com/isaac-sim/IsaacLab/edit/main/source/api/lab/isaaclab.envs.mdp.rst" target="_blank"
+      <li><a href="https://github.com/isaac-sim/IsaacLab/edit/main/docs/source/api/lab/isaaclab.envs.mdp.rst" target="_blank"
    class="btn btn-sm btn-source-edit-button dropdown-item"
    title="Suggest edit"
    data-bs-placement="left" data-bs-toggle="tooltip"
@@ -630,6 +630,7 @@
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.mdp.observations.height_scan"><code class="docutils literal notranslate"><span class="pre">height_scan()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.mdp.observations.body_incoming_wrench"><code class="docutils literal notranslate"><span class="pre">body_incoming_wrench()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.mdp.observations.imu_orientation"><code class="docutils literal notranslate"><span class="pre">imu_orientation()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.mdp.observations.imu_projected_gravity"><code class="docutils literal notranslate"><span class="pre">imu_projected_gravity()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.mdp.observations.imu_ang_vel"><code class="docutils literal notranslate"><span class="pre">imu_ang_vel()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.mdp.observations.imu_lin_acc"><code class="docutils literal notranslate"><span class="pre">imu_lin_acc()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.mdp.observations.image"><code class="docutils literal notranslate"><span class="pre">image()</span></code></a></li>
@@ -1054,25 +1055,28 @@ the observation introduced by the function.</p>
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.observations.imu_orientation" title="isaaclab.envs.mdp.observations.imu_orientation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">imu_orientation</span></code></a>(env[, asset_cfg])</p></td>
 <td><p>Imu sensor orientation in the simulation world frame.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.observations.imu_ang_vel" title="isaaclab.envs.mdp.observations.imu_ang_vel"><code class="xref py py-obj docutils literal notranslate"><span class="pre">imu_ang_vel</span></code></a>(env[, asset_cfg])</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.observations.imu_projected_gravity" title="isaaclab.envs.mdp.observations.imu_projected_gravity"><code class="xref py py-obj docutils literal notranslate"><span class="pre">imu_projected_gravity</span></code></a>(env[, asset_cfg])</p></td>
+<td><p>Imu sensor orientation w.r.t the env.scene.origin.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.observations.imu_ang_vel" title="isaaclab.envs.mdp.observations.imu_ang_vel"><code class="xref py py-obj docutils literal notranslate"><span class="pre">imu_ang_vel</span></code></a>(env[, asset_cfg])</p></td>
 <td><p>Imu sensor angular velocity w.r.t.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.observations.imu_lin_acc" title="isaaclab.envs.mdp.observations.imu_lin_acc"><code class="xref py py-obj docutils literal notranslate"><span class="pre">imu_lin_acc</span></code></a>(env[, asset_cfg])</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.observations.imu_lin_acc" title="isaaclab.envs.mdp.observations.imu_lin_acc"><code class="xref py py-obj docutils literal notranslate"><span class="pre">imu_lin_acc</span></code></a>(env[, asset_cfg])</p></td>
 <td><p>Imu sensor linear acceleration w.r.t.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.observations.image" title="isaaclab.envs.mdp.observations.image"><code class="xref py py-obj docutils literal notranslate"><span class="pre">image</span></code></a>(env[, sensor_cfg, data_type, ...])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.observations.image" title="isaaclab.envs.mdp.observations.image"><code class="xref py py-obj docutils literal notranslate"><span class="pre">image</span></code></a>(env[, sensor_cfg, data_type, ...])</p></td>
 <td><p>Images of a specific datatype from the camera sensor.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.observations.last_action" title="isaaclab.envs.mdp.observations.last_action"><code class="xref py py-obj docutils literal notranslate"><span class="pre">last_action</span></code></a>(env[, action_name])</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.observations.last_action" title="isaaclab.envs.mdp.observations.last_action"><code class="xref py py-obj docutils literal notranslate"><span class="pre">last_action</span></code></a>(env[, action_name])</p></td>
 <td><p>The last input action to the environment.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.observations.generated_commands" title="isaaclab.envs.mdp.observations.generated_commands"><code class="xref py py-obj docutils literal notranslate"><span class="pre">generated_commands</span></code></a>(env, command_name)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.observations.generated_commands" title="isaaclab.envs.mdp.observations.generated_commands"><code class="xref py py-obj docutils literal notranslate"><span class="pre">generated_commands</span></code></a>(env, command_name)</p></td>
 <td><p>The generated command from command term in the command manager with the given name.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.observations.current_time_s" title="isaaclab.envs.mdp.observations.current_time_s"><code class="xref py py-obj docutils literal notranslate"><span class="pre">current_time_s</span></code></a>(env)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.observations.current_time_s" title="isaaclab.envs.mdp.observations.current_time_s"><code class="xref py py-obj docutils literal notranslate"><span class="pre">current_time_s</span></code></a>(env)</p></td>
 <td><p>The current time in the episode (in seconds).</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.observations.remaining_time_s" title="isaaclab.envs.mdp.observations.remaining_time_s"><code class="xref py py-obj docutils literal notranslate"><span class="pre">remaining_time_s</span></code></a>(env)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.observations.remaining_time_s" title="isaaclab.envs.mdp.observations.remaining_time_s"><code class="xref py py-obj docutils literal notranslate"><span class="pre">remaining_time_s</span></code></a>(env)</p></td>
 <td><p>The maximum time remaining in the episode (in seconds).</p></td>
 </tr>
 </tbody>
@@ -1262,6 +1266,23 @@ the same orientation.</p>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><p>Orientation in the world frame in (w, x, y, z) quaternion form. Shape is (num_envs, 4).</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="isaaclab.envs.mdp.observations.imu_projected_gravity">
+<span class="sig-prename descclassname"><span class="pre">isaaclab.envs.mdp.observations.</span></span><span class="sig-name descname"><span class="pre">imu_projected_gravity</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="isaaclab.envs.html#isaaclab.envs.ManagerBasedEnv" title="isaaclab.envs.ManagerBasedEnv"><span class="pre">ManagerBasedEnv</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">asset_cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="isaaclab.managers.html#isaaclab.managers.SceneEntityCfg" title="isaaclab.managers.SceneEntityCfg"><span class="pre">SceneEntityCfg</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">SceneEntityCfg(name='imu',</span> <span class="pre">joint_names=None,</span> <span class="pre">joint_ids=slice(None,</span> <span class="pre">None,</span> <span class="pre">None),</span> <span class="pre">fixed_tendon_names=None,</span> <span class="pre">fixed_tendon_ids=slice(None,</span> <span class="pre">None,</span> <span class="pre">None),</span> <span class="pre">body_names=None,</span> <span class="pre">body_ids=slice(None,</span> <span class="pre">None,</span> <span class="pre">None),</span> <span class="pre">object_collection_names=None,</span> <span class="pre">object_collection_ids=slice(None,</span> <span class="pre">None,</span> <span class="pre">None),</span> <span class="pre">preserve_order=False)</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">torch.Tensor</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab/envs/mdp/observations.html#imu_projected_gravity"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.envs.mdp.observations.imu_projected_gravity" title="Permalink to this definition">#</a></dt>
+<dd><p>Imu sensor orientation w.r.t the env.scene.origin.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>env</strong> – The environment.</p></li>
+<li><p><strong>asset_cfg</strong> – The SceneEntity associated with an Imu sensor.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Gravity projected on imu_frame, shape of torch.tensor is (num_env,3).</p>
 </dd>
 </dl>
 </dd></dl>
@@ -4451,6 +4472,7 @@ the curriculum introduced by the function.</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.mdp.observations.height_scan"><code class="docutils literal notranslate"><span class="pre">height_scan()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.mdp.observations.body_incoming_wrench"><code class="docutils literal notranslate"><span class="pre">body_incoming_wrench()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.mdp.observations.imu_orientation"><code class="docutils literal notranslate"><span class="pre">imu_orientation()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.mdp.observations.imu_projected_gravity"><code class="docutils literal notranslate"><span class="pre">imu_projected_gravity()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.mdp.observations.imu_ang_vel"><code class="docutils literal notranslate"><span class="pre">imu_ang_vel()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.mdp.observations.imu_lin_acc"><code class="docutils literal notranslate"><span class="pre">imu_lin_acc()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.mdp.observations.image"><code class="docutils literal notranslate"><span class="pre">image()</span></code></a></li>
@@ -4823,7 +4845,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jul 08, 2025.
+  Last updated on Jul 09, 2025.
   <br/>
 </p>
   </div>
