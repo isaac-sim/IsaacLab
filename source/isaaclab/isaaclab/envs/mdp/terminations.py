@@ -78,24 +78,16 @@ Joint terminations.
 
 
 def joint_pos_out_of_limit(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
-    """
-    Return a boolean tensor of shape `[num_envs]`:
-    `True` if *any* of the (optionally selected) joints in an env are
-    outside their soft joint‑position limits.
-    """
+    """Terminate when the asset's joint positions are outside of the soft joint limits."""
+    # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
+    if asset_cfg.joint_ids is None:
+        asset_cfg.joint_ids = slice(None)
 
-    # Per‑env‑per‑joint mask of violations
-    joint_pos   = asset.data.joint_pos # [N_envs, N_joints]
-    joint_lower = asset.data.soft_joint_pos_limits[..., 0]
-    joint_upper = asset.data.soft_joint_pos_limits[..., 1]
-    violations  = (joint_pos < joint_lower) | (joint_pos > joint_upper)
-
-    joint_ids = asset_cfg.joint_ids if asset_cfg.joint_ids is not None else slice(None)
-
-    # Reduce over *selected* joints → [N_envs]
-    return torch.any(violations[:, joint_ids], dim=1)
-
+    limits = asset.data.soft_joint_pos_limits[:, asset_cfg.joint_ids]
+    out_of_upper_limits = torch.any(asset.data.joint_pos[:, asset_cfg.joint_ids] > limits[..., 1], dim=1)
+    out_of_lower_limits = torch.any(asset.data.joint_pos[:, asset_cfg.joint_ids] < limits[..., 0], dim=1)
+    return torch.logical_or(out_of_upper_limits, out_of_lower_limits)
 
 def joint_pos_out_of_manual_limit(
     env: ManagerBasedRLEnv, bounds: tuple[float, float], asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
@@ -105,16 +97,14 @@ def joint_pos_out_of_manual_limit(
     Note:
         This function is similar to :func:`joint_pos_out_of_limit` but allows the user to specify the bounds manually.
     """
+    # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
-
-    joint_ids = asset_cfg.joint_ids if asset_cfg.joint_ids is not None else slice(None)
-    joint_pos = asset.data.joint_pos[:, joint_ids]  # [N_envs, N_selected]
-
-    violations = (joint_pos < bounds[0]) | (joint_pos > bounds[1])
-
-    # Reduce over joints → [N_envs]
-    return torch.any(violations, dim=1)
-
+    if asset_cfg.joint_ids is None:
+        asset_cfg.joint_ids = slice(None)
+    # compute any violations
+    out_of_upper_limits = torch.any(asset.data.joint_pos[:, asset_cfg.joint_ids] > bounds[1], dim=1)
+    out_of_lower_limits = torch.any(asset.data.joint_pos[:, asset_cfg.joint_ids] < bounds[0], dim=1)
+    return torch.logical_or(out_of_upper_limits, out_of_lower_limits)
 
 def joint_vel_out_of_limit(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """Terminate when the asset's joint velocities are outside of the soft joint limits."""
