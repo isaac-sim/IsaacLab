@@ -1141,7 +1141,7 @@ sensors and non-physics-related assets (lights).</p>
     <span class="n">height_scanner</span> <span class="o">=</span> <span class="n">RayCasterCfg</span><span class="p">(</span>
         <span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">{ENV_REGEX_NS}</span><span class="s2">/Robot_1/base&quot;</span><span class="p">,</span>
         <span class="n">offset</span><span class="o">=</span><span class="n">RayCasterCfg</span><span class="o">.</span><span class="n">OffsetCfg</span><span class="p">(</span><span class="n">pos</span><span class="o">=</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">20.0</span><span class="p">)),</span>
-        <span class="n">attach_yaw_only</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">ray_alignment</span><span class="o">=</span><span class="s2">&quot;yaw&quot;</span><span class="p">,</span>
         <span class="n">pattern_cfg</span><span class="o">=</span><span class="n">GridPatternCfg</span><span class="p">(</span><span class="n">resolution</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="p">[</span><span class="mf">1.6</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">]),</span>
         <span class="n">debug_vis</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
         <span class="n">mesh_prim_paths</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;/World/ground&quot;</span><span class="p">],</span>

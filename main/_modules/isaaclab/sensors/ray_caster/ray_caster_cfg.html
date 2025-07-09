@@ -556,6 +556,7 @@
 
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">MISSING</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Literal</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.markers</span><span class="w"> </span><span class="kn">import</span> <span class="n">VisualizationMarkersCfg</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.markers.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">RAY_CASTER_MARKER_CFG</span>
@@ -592,10 +593,22 @@
     <span class="n">offset</span><span class="p">:</span> <span class="n">OffsetCfg</span> <span class="o">=</span> <span class="n">OffsetCfg</span><span class="p">()</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The offset pose of the sensor&#39;s frame from the sensor&#39;s parent frame. Defaults to identity.&quot;&quot;&quot;</span>
 
-    <span class="n">attach_yaw_only</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="n">MISSING</span>
+    <span class="n">attach_yaw_only</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether the rays&#39; starting positions and directions only track the yaw orientation.</span>
 
 <span class="sd">    This is useful for ray-casting height maps, where only yaw rotation is needed.</span>
+
+<span class="sd">    .. warning::</span>
+
+<span class="sd">        This attribute is deprecated. Use :attr:`~isaaclab.sensors.ray_caster.ray_caster_cfg.ray_alignment` instead.</span>
+<span class="sd">        To get the same behavior, set `ray_alignment` to `&quot;yaw&quot;`.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">ray_alignment</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;base&quot;</span><span class="p">,</span> <span class="s2">&quot;yaw&quot;</span><span class="p">,</span> <span class="s2">&quot;world&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;yaw&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Specify in what frame the rays are projected onto the ground. Default is `world`.</span>
+<span class="sd">        * `base` if the rays&#39; starting positions and directions track the full root position and orientation.</span>
+<span class="sd">        * `yaw` if the rays&#39; starting positions and directions track root position and only yaw component of orientation. This is useful for ray-casting height maps.</span>
+<span class="sd">        * `world` if rays&#39; starting positions and directions are always fixed. This is useful in combination with the grid map package.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">pattern_cfg</span><span class="p">:</span> <span class="n">PatternBaseCfg</span> <span class="o">=</span> <span class="n">MISSING</span>
@@ -605,7 +618,13 @@
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Maximum distance (in meters) from the sensor to ray cast to. Defaults to 1e6.&quot;&quot;&quot;</span>
 
     <span class="n">drift_range</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">)</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The range of drift (in meters) to add to the ray starting positions (xyz). Defaults to (0.0, 0.0).</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The range of drift (in meters) to add to the ray starting positions (xyz) in world frame. Defaults to (0.0, 0.0).</span>
+
+<span class="sd">    For floating base robots, this is useful for simulating drift in the robot&#39;s pose estimation.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">ray_cast_drift_range</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;x&quot;</span><span class="p">:</span> <span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">),</span> <span class="s2">&quot;y&quot;</span><span class="p">:</span> <span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">),</span> <span class="s2">&quot;z&quot;</span><span class="p">:</span> <span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">)}</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The range of drift (in meters) to add to the projected ray points in local projection frame. Defaults to (0.0, 0.0) for x, y, and z drift.</span>
 
 <span class="sd">    For floating base robots, this is useful for simulating drift in the robot&#39;s pose estimation.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
