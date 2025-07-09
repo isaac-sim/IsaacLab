@@ -843,9 +843,8 @@ class Articulation(AssetBase):
         # set into internal buffers
         self._data.joint_friction_coeff[env_ids, joint_ids] = joint_friction_coeff
         # set into simulation
-        self.root_physx_view.set_dof_friction_coefficients(
-            self._data.joint_friction_coeff.cpu(), indices=physx_env_ids.cpu()
-        )
+        friction_props = self.root_physx_view.get_dof_friction_properties()
+        friction_props[physx_env_ids.cpu(), :, 0] = self._data.joint_friction_coeff.cpu()
 
     """
     Operations - Setters.
