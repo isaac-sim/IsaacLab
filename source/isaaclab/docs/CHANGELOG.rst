@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.40.15 (2025-07-08)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ability to set platform height independent of object height for trimesh terrains.
+
+
 0.40.14 (2025-07-01)
 ~~~~~~~~~~~~~~~~~~~~
 
@@ -36,6 +45,7 @@ Changed
 
 Added
 ^^^^^
+
 
 * Added unit test for :func:`~isaaclab.utils.math.quat_inv`.
 
