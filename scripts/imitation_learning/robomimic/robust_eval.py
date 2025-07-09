@@ -241,7 +241,7 @@ def main() -> None:
     env = gym.make(args_cli.task, cfg=env_cfg).unwrapped
 
     # Acquire device
-    device = TorchUtils.get_torch_device(try_to_use_cuda=True)
+    device = TorchUtils.get_torch_device(try_to_use_cuda=False)
 
     # Get model checkpoints
     model_checkpoints = [f.name for f in os.scandir(args_cli.input_dir) if f.is_file()]
