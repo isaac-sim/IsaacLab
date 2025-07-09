@@ -840,7 +840,9 @@ def repeated_objects_terrain(
     # generate obstacles (but keep platform clean)
     for index in range(len(object_centers)):
         # randomize the height of the object
-        ob_height = height + np.random.uniform(-cfg.max_height_noise, cfg.max_height_noise)
+        abs_height_noise = np.random.uniform(cfg.abs_height_noise[0], cfg.abs_height_noise[1])
+        rel_height_noise = np.random.uniform(cfg.rel_height_noise[0], cfg.rel_height_noise[1])
+        ob_height = height * rel_height_noise + abs_height_noise
         if ob_height > 0.0:
             object_mesh = object_func(center=object_centers[index], height=ob_height, **object_kwargs)
             meshes_list.append(object_mesh)

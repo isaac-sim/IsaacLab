@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.40.12 (2025-06-30)
+0.40.15 (2025-07-01)
 ~~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -32,6 +32,35 @@ Changed
 * Changed the implementation of :func:`~isaaclab.utils.math.copysign` to better reflect the documented functionality.
 * Changed the implementation of :func:`~isaaclab.utils.math.compute_pose_error` to better reflect the inverse of
   :func:`~isaaclab.utils.math.quat_box_minus`
+
+0.40.14 (2025-07-01)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`abs_height_noise` and :attr:`rel_height_noise` to give minimum and maximum absolute and relative noise to
+  :class:`isaaclab.terrrains.trimesh.MeshRepeatedObjectsTerrainCfg`
+* Added deprecation warnings to the existing :attr:`max_height_noise` but still functions.
+
+
+0.40.13 (2025-07-03)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed unittest tests that are floating inside pytests for articulation and rendering
+
+
+0.40.12 (2025-07-03)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated gymnasium to v1.2.0. This update includes fixes for a memory leak that appears when recording
+  videos with the ``--video`` flag.
 
 
 0.40.11 (2025-06-27)
