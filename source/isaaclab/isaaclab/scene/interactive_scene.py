@@ -13,6 +13,7 @@ import omni.usd
 from isaacsim.core.cloner import GridCloner
 from isaacsim.core.prims import XFormPrim
 from isaacsim.core.utils.stage import get_current_stage
+from isaacsim.core.version import get_version
 from pxr import PhysxSchema
 
 import isaaclab.sim as sim_utils
@@ -141,16 +142,31 @@ class InteractiveScene:
         # when replicate_physics=False, we assume heterogeneous environments and clone the xforms first.
         # this triggers per-object level cloning in the spawner.
         if not self.cfg.replicate_physics:
-            # clone the env xform
-            env_origins = self.cloner.clone(
-                source_prim_path=self.env_prim_paths[0],
-                prim_paths=self.env_prim_paths,
-                replicate_physics=False,
-                copy_from_source=True,
-                enable_env_ids=(
-                    self.cfg.filter_collisions if self.device != "cpu" else False
-                ),  # this won't do anything because we are not replicating physics
-            )
+            # check version of Isaac Sim to determine whether clone_in_fabric is valid
+            isaac_sim_version = float(".".join(get_version()[2]))
+            if isaac_sim_version < 5:
+                # clone the env xform
+                env_origins = self.cloner.clone(
+                    source_prim_path=self.env_prim_paths[0],
+                    prim_paths=self.env_prim_paths,
+                    replicate_physics=False,
+                    copy_from_source=True,
+                    enable_env_ids=(
+                        self.cfg.filter_collisions if self.device != "cpu" else False
+                    ),  # this won't do anything because we are not replicating physics
+                )
+            else:
+                # clone the env xform
+                env_origins = self.cloner.clone(
+                    source_prim_path=self.env_prim_paths[0],
+                    prim_paths=self.env_prim_paths,
+                    replicate_physics=False,
+                    copy_from_source=True,
+                    enable_env_ids=(
+                        self.cfg.filter_collisions if self.device != "cpu" else False
+                    ),  # this won't do anything because we are not replicating physics
+                    clone_in_fabric=self.cfg.clone_in_fabric,
+                )
             self._default_env_origins = torch.tensor(env_origins, device=self.device, dtype=torch.float32)
         else:
             # otherwise, environment origins will be initialized during cloning at the end of environment creation
@@ -166,13 +182,25 @@ class InteractiveScene:
             # replicate physics if we have more than one environment
             # this is done to make scene initialization faster at play time
             if self.cfg.replicate_physics and self.cfg.num_envs > 1:
-                self.cloner.replicate_physics(
-                    source_prim_path=self.env_prim_paths[0],
-                    prim_paths=self.env_prim_paths,
-                    base_env_path=self.env_ns,
-                    root_path=self.env_regex_ns.replace(".*", ""),
-                    enable_env_ids=self.cfg.filter_collisions if self.device != "cpu" else False,
-                )
+                # check version of Isaac Sim to determine whether clone_in_fabric is valid
+                isaac_sim_version = float(".".join(get_version()[2]))
+                if isaac_sim_version < 5:
+                    self.cloner.replicate_physics(
+                        source_prim_path=self.env_prim_paths[0],
+                        prim_paths=self.env_prim_paths,
+                        base_env_path=self.env_ns,
+                        root_path=self.env_regex_ns.replace(".*", ""),
+                        enable_env_ids=self.cfg.filter_collisions if self.device != "cpu" else False,
+                    )
+                else:
+                    self.cloner.replicate_physics(
+                        source_prim_path=self.env_prim_paths[0],
+                        prim_paths=self.env_prim_paths,
+                        base_env_path=self.env_ns,
+                        root_path=self.env_regex_ns.replace(".*", ""),
+                        enable_env_ids=self.cfg.filter_collisions if self.device != "cpu" else False,
+                        clone_in_fabric=self.cfg.clone_in_fabric,
+                    )
 
             # since env_ids is only applicable when replicating physics, we have to fallback to the previous method
             # to filter collisions if replicate_physics is not enabled
@@ -199,16 +227,31 @@ class InteractiveScene:
                 " This may adversely affect PhysX parsing. We recommend disabling this property."
             )
 
-        # clone the environment
-        env_origins = self.cloner.clone(
-            source_prim_path=self.env_prim_paths[0],
-            prim_paths=self.env_prim_paths,
-            replicate_physics=self.cfg.replicate_physics,
-            copy_from_source=copy_from_source,
-            enable_env_ids=(
-                self.cfg.filter_collisions if self.device != "cpu" else False
-            ),  # this automatically filters collisions between environments
-        )
+        # check version of Isaac Sim to determine whether clone_in_fabric is valid
+        isaac_sim_version = float(".".join(get_version()[2]))
+        if isaac_sim_version < 5:
+            # clone the environment
+            env_origins = self.cloner.clone(
+                source_prim_path=self.env_prim_paths[0],
+                prim_paths=self.env_prim_paths,
+                replicate_physics=self.cfg.replicate_physics,
+                copy_from_source=copy_from_source,
+                enable_env_ids=(
+                    self.cfg.filter_collisions if self.device != "cpu" else False
+                ),  # this automatically filters collisions between environments
+            )
+        else:
+            # clone the environment
+            env_origins = self.cloner.clone(
+                source_prim_path=self.env_prim_paths[0],
+                prim_paths=self.env_prim_paths,
+                replicate_physics=self.cfg.replicate_physics,
+                copy_from_source=copy_from_source,
+                enable_env_ids=(
+                    self.cfg.filter_collisions if self.device != "cpu" else False
+                ),  # this automatically filters collisions between environments
+                clone_in_fabric=self.cfg.clone_in_fabric,
+            )
 
         # since env_ids is only applicable when replicating physics, we have to fallback to the previous method
         # to filter collisions if replicate_physics is not enabled

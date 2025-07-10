@@ -54,6 +54,7 @@ def spawn_camera(
     cfg: sensors_cfg.PinholeCameraCfg | sensors_cfg.FisheyeCameraCfg,
     translation: tuple[float, float, float] | None = None,
     orientation: tuple[float, float, float, float] | None = None,
+    **kwargs,
 ) -> Usd.Prim:
     """Create a USD camera prim with given projection type.
 
@@ -73,6 +74,7 @@ def spawn_camera(
             this is set to the origin.
         orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None,
             in which case this is set to identity.
+        **kwargs: Additional keyword arguments, like ``clone_in_fabric``.
 
     Returns:
         The created prim.

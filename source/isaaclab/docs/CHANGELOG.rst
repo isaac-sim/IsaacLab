@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.42.23 (2025-06-25)
+0.42.24 (2025-06-25)
 ~~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -12,7 +12,7 @@ Added
   env instance
 
 
-0.42.22 (2025-07-11)
+0.42.23 (2025-07-11)
 ~~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -22,7 +22,7 @@ Fixed
 restricting the resetting joint indices be that user defined joint indices.
 
 
-0.42.21 (2025-07-11)
+0.42.22 (2025-07-11)
 ~~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -32,7 +32,7 @@ Fixed
   env_ids are passed.
 
 
-0.42.20 (2025-07-09)
+0.42.21 (2025-07-09)
 ~~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -49,7 +49,7 @@ Fixed
   buffer on recording.
 
 
-0.42.19 (2025-07-10)
+0.42.20 (2025-07-10)
 ~~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -80,7 +80,17 @@ Changed
 * Changed the implementation of :func:`~isaaclab.utils.math.copysign` to better reflect the documented functionality.
 
 
-0.42.18 (2025-07-09)
+0.42.19 (2025-07-09)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Added clone_in_fabric config flag to :class:`~isaaclab.scene.interactive_scene_cfg.InteractiveSceneCfg`
+* Enable clone_in_fabric for envs which work with limited benchmark_non_rl.py script
+
+
+0.42.18 (2025-07-07)
 ~~~~~~~~~~~~~~~~~~~~
 
 Changed

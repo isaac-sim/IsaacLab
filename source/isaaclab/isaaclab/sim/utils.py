@@ -292,8 +292,24 @@ def clone(func: Callable) -> Callable:
         # clone asset using cloner API
         if len(prim_paths) > 1:
             cloner = Cloner(stage=stage)
-            # clone the prim
-            cloner.clone(prim_paths[0], prim_paths[1:], replicate_physics=False, copy_from_source=cfg.copy_from_source)
+            # check version of Isaac Sim to determine whether clone_in_fabric is valid
+            isaac_sim_version = float(".".join(get_version()[2]))
+            if isaac_sim_version < 5:
+                # clone the prim
+                cloner.clone(
+                    prim_paths[0], prim_paths[1:], replicate_physics=False, copy_from_source=cfg.copy_from_source
+                )
+            else:
+                # clone the prim
+                clone_in_fabric = kwargs.get("clone_in_fabric", False)
+                replicate_physics = kwargs.get("replicate_physics", False)
+                cloner.clone(
+                    prim_paths[0],
+                    prim_paths[1:],
+                    replicate_physics=replicate_physics,
+                    copy_from_source=cfg.copy_from_source,
+                    clone_in_fabric=clone_in_fabric,
+                )
         # return the source prim
         return prim
 

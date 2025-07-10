@@ -39,6 +39,7 @@ def spawn_from_usd(
     cfg: from_files_cfg.UsdFileCfg,
     translation: tuple[float, float, float] | None = None,
     orientation: tuple[float, float, float, float] | None = None,
+    **kwargs,
 ) -> Usd.Prim:
     """Spawn an asset from a USD file and override the settings with the given config.
 
@@ -62,6 +63,7 @@ def spawn_from_usd(
             case the translation specified in the USD file is used.
         orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None,
             in which case the orientation specified in the USD file is used.
+        **kwargs: Additional keyword arguments, like ``clone_in_fabric``.
 
     Returns:
         The prim of the spawned asset.
@@ -79,6 +81,7 @@ def spawn_from_urdf(
     cfg: from_files_cfg.UrdfFileCfg,
     translation: tuple[float, float, float] | None = None,
     orientation: tuple[float, float, float, float] | None = None,
+    **kwargs,
 ) -> Usd.Prim:
     """Spawn an asset from a URDF file and override the settings with the given config.
 
@@ -102,6 +105,7 @@ def spawn_from_urdf(
             case the translation specified in the generated USD file is used.
         orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None,
             in which case the orientation specified in the generated USD file is used.
+        **kwargs: Additional keyword arguments, like ``clone_in_fabric``.
 
     Returns:
         The prim of the spawned asset.
@@ -120,6 +124,7 @@ def spawn_ground_plane(
     cfg: from_files_cfg.GroundPlaneCfg,
     translation: tuple[float, float, float] | None = None,
     orientation: tuple[float, float, float, float] | None = None,
+    **kwargs,
 ) -> Usd.Prim:
     """Spawns a ground plane into the scene.
 
@@ -138,6 +143,7 @@ def spawn_ground_plane(
             case the translation specified in the USD file is used.
         orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None,
             in which case the orientation specified in the USD file is used.
+        **kwargs: Additional keyword arguments, like ``clone_in_fabric``.
 
     Returns:
         The prim of the spawned asset.
@@ -225,6 +231,7 @@ def _spawn_from_usd_file(
     cfg: from_files_cfg.FileCfg,
     translation: tuple[float, float, float] | None = None,
     orientation: tuple[float, float, float, float] | None = None,
+    **kwargs,
 ) -> Usd.Prim:
     """Spawn an asset from a USD file and override the settings with the given config.
 
@@ -241,6 +248,7 @@ def _spawn_from_usd_file(
             case the translation specified in the generated USD file is used.
         orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None,
             in which case the orientation specified in the generated USD file is used.
+        **kwargs: Additional keyword arguments, like ``clone_in_fabric``.
 
     Returns:
         The prim of the spawned asset.
