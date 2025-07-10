@@ -205,7 +205,6 @@ def main():
     """Main function."""
     # setup base environment
     env_cfg = QuadrupedEnvCfg()
-    env_cfg.sim.create_stage_in_memory = True
     env = ManagerBasedEnv(cfg=env_cfg)
 
     # load level policy

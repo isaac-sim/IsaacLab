@@ -20,6 +20,7 @@ import omni.usd
 import pytest
 import usdrt
 from isaacsim.core.cloner import GridCloner
+from isaacsim.core.version import get_version
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim.simulation_context import SimulationCfg, SimulationContext
@@ -48,12 +49,17 @@ Tests
 def test_stage_in_memory_with_shapes(sim):
     """Test spawning of shapes with stage in memory."""
 
+    # skip test if stage in memory is not supported
+    isaac_sim_version = float(".".join(get_version()[2]))
+    if isaac_sim_version < 5:
+        pytest.skip("Stage in memory is not supported in this version of Isaac Sim")
+
     # define parameters
     num_clones = 10
 
     # grab stage in memory and set as current stage via the with statement
     stage_in_memory = sim.get_initial_stage()
-    with stage_utils.use_stage(stage_in_memory):
+    with sim_utils.use_stage(stage_in_memory):
         # create cloned cone stage
         for i in range(num_clones):
             prim_utils.create_prim(f"/World/env_{i}", "Xform", translation=(i, i, 0))
@@ -90,7 +96,7 @@ def test_stage_in_memory_with_shapes(sim):
 
         # verify prims do not exist in context stage
         context_stage = omni.usd.get_context().get_stage()
-        with stage_utils.use_stage(context_stage):
+        with sim_utils.use_stage(context_stage):
             prims = prim_utils.find_matching_prim_paths(prim_path_regex)
             assert len(prims) != num_clones
 
@@ -108,6 +114,11 @@ def test_stage_in_memory_with_shapes(sim):
 def test_stage_in_memory_with_usds(sim):
     """Test spawning of USDs with stage in memory."""
 
+    # skip test if stage in memory is not supported
+    isaac_sim_version = float(".".join(get_version()[2]))
+    if isaac_sim_version < 5:
+        pytest.skip("Stage in memory is not supported in this version of Isaac Sim")
+
     # define parameters
     num_clones = 10
     usd_paths = [
@@ -117,7 +128,7 @@ def test_stage_in_memory_with_usds(sim):
 
     # grab stage in memory and set as current stage via the with statement
     stage_in_memory = sim.get_initial_stage()
-    with stage_utils.use_stage(stage_in_memory):
+    with sim_utils.use_stage(stage_in_memory):
         # create cloned robot stage
         for i in range(num_clones):
             prim_utils.create_prim(f"/World/env_{i}", "Xform", translation=(i, i, 0))
@@ -151,7 +162,7 @@ def test_stage_in_memory_with_usds(sim):
 
         # verify prims do not exist in context stage
         context_stage = omni.usd.get_context().get_stage()
-        with stage_utils.use_stage(context_stage):
+        with sim_utils.use_stage(context_stage):
             prims = prim_utils.find_matching_prim_paths(prim_path_regex)
             assert len(prims) != num_clones
 
@@ -169,13 +180,18 @@ def test_stage_in_memory_with_usds(sim):
 def test_stage_in_memory_with_clone_in_fabric(sim):
     """Test cloning in fabric with stage in memory."""
 
+    # skip test if stage in memory is not supported
+    isaac_sim_version = float(".".join(get_version()[2]))
+    if isaac_sim_version < 5:
+        pytest.skip("Stage in memory is not supported in this version of Isaac Sim")
+
     # define parameters
     usd_path = f"{ISAACLAB_NUCLEUS_DIR}/Robots/ANYbotics/ANYmal-C/anymal_c.usd"
     num_clones = 100
 
     # grab stage in memory and set as current stage via the with statement
     stage_in_memory = sim.get_initial_stage()
-    with stage_utils.use_stage(stage_in_memory):
+    with sim_utils.use_stage(stage_in_memory):
         # set up paths
         base_env_path = "/World/envs"
         source_prim_path = f"{base_env_path}/env_0"
@@ -202,7 +218,7 @@ def test_stage_in_memory_with_clone_in_fabric(sim):
 
         # verify prims do not exist in context stage
         context_stage = omni.usd.get_context().get_stage()
-        with stage_utils.use_stage(context_stage):
+        with sim_utils.use_stage(context_stage):
             prims = prim_utils.find_matching_prim_paths(prim_path_regex)
             assert len(prims) != num_clones
 
@@ -213,7 +229,7 @@ def test_stage_in_memory_with_clone_in_fabric(sim):
     assert not sim_utils.is_current_stage_in_memory()
 
     # verify prims now exist in fabric stage using usdrt apis
-    stage_id = stage_utils.get_current_stage_id()
+    stage_id = sim_utils.get_current_stage_id()
     usdrt_stage = usdrt.Usd.Stage.Attach(stage_id)
     for i in range(num_clones):
         prim = usdrt_stage.GetPrimAtPath(f"/World/envs/env_{i}/Robot")

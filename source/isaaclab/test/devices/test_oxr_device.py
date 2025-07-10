@@ -17,6 +17,7 @@ HEADLESS = True
 app_launcher = AppLauncher(headless=HEADLESS)
 simulation_app = app_launcher.app
 
+import importlib
 import numpy as np
 
 import carb
@@ -119,8 +120,9 @@ def mock_xrcore(mocker):
     head_mock.get_virtual_world_pose.return_value = pose_matrix_mock
 
     # Patch the modules
-    mocker.patch("isaaclab.devices.openxr.openxr_device.XRCore", xr_core_mock)
-    mocker.patch("isaaclab.devices.openxr.openxr_device.XRPoseValidityFlags", xr_pose_validity_flags_mock)
+    device_mod = importlib.import_module("isaaclab.devices.openxr.openxr_device")
+    mocker.patch.object(device_mod, "XRCore", xr_core_mock)
+    mocker.patch.object(device_mod, "XRPoseValidityFlags", xr_pose_validity_flags_mock)
 
     return {
         "XRCore": xr_core_mock,

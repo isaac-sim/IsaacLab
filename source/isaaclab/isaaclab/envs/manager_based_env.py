@@ -8,15 +8,16 @@ import torch
 from collections.abc import Sequence
 from typing import Any
 
-import isaacsim.core.utils.stage as stage_utils
 import isaacsim.core.utils.torch as torch_utils
 import omni.log
+import omni.physx
 from isaacsim.core.simulation_manager import SimulationManager
+from isaacsim.core.version import get_version
 
 from isaaclab.managers import ActionManager, EventManager, ObservationManager, RecorderManager
 from isaaclab.scene import InteractiveScene
 from isaaclab.sim import SimulationContext
-from isaaclab.sim.utils import attach_stage_to_usd_context
+from isaaclab.sim.utils import attach_stage_to_usd_context, use_stage
 from isaaclab.ui.widgets import ManagerLiveVisualizer
 from isaaclab.utils.timer import Timer
 
@@ -129,8 +130,8 @@ class ManagerBasedEnv:
 
         # generate scene
         with Timer("[INFO]: Time taken for scene creation", "scene_creation"):
-            # get stage handle and set stage context
-            with stage_utils.use_stage(self.sim.get_initial_stage()):
+            # set the stage context for scene creation steps which use the stage
+            with use_stage(self.sim.get_initial_stage()):
                 self.scene = InteractiveScene(self.cfg.scene)
                 attach_stage_to_usd_context()
         print("[INFO]: Scene manager: ", self.scene)
@@ -159,7 +160,10 @@ class ManagerBasedEnv:
         if builtins.ISAAC_LAUNCHED_FROM_TERMINAL is False:
             print("[INFO]: Starting the simulation. This may take a few seconds. Please wait...")
             with Timer("[INFO]: Time taken for simulation start", "simulation_start"):
-                self.sim.reset()
+                # since the reset can trigger callbacks which use the stage,
+                # we need to set the stage context here
+                with use_stage(self.sim.get_initial_stage()):
+                    self.sim.reset()
                 # update scene to pre populate data buffers for assets and sensors.
                 # this is needed for the observation manager to get valid tensors for initialization.
                 # this shouldn't cause an issue since later on, users do a reset over all the environments so the lazy buffers would be reset.
@@ -457,9 +461,18 @@ class ManagerBasedEnv:
             del self.event_manager
             del self.recorder_manager
             del self.scene
+
             # clear callbacks and instance
+            if float(".".join(get_version()[2])) >= 5:
+                if self.cfg.sim.create_stage_in_memory:
+                    # detach physx stage
+                    omni.physx.get_physx_simulation_interface().detach_stage()
+                    self.sim.stop()
+                    self.sim.clear()
+
             self.sim.clear_all_callbacks()
             self.sim.clear_instance()
+
             # destroy the window
             if self._window is not None:
                 self._window = None

@@ -12,7 +12,7 @@ import omni.kit.commands
 import omni.log
 from pxr import Sdf, Usd
 
-from isaaclab.sim.utils import attach_stage_to_usd_context, clone, is_current_stage_in_memory
+from isaaclab.sim.utils import attach_stage_to_usd_context, clone
 from isaaclab.utils import to_camel_case
 
 if TYPE_CHECKING:
@@ -90,12 +90,7 @@ def spawn_camera(
     if cfg.lock_camera:
         # early attach stage to usd context if stage is in memory
         # since stage in memory is not supported by the "ChangePropertyCommand" kit command
-        if is_current_stage_in_memory():
-            omni.log.warn(
-                "Attaching stage in memory to USD context early to support an operation which doesn't support stage in"
-                " memory."
-            )
-            attach_stage_to_usd_context()
+        attach_stage_to_usd_context(attaching_early=True)
 
         omni.kit.commands.execute(
             "ChangePropertyCommand",

@@ -36,13 +36,11 @@ simulation_app = app_launcher.app
 import torch
 
 import isaacsim.core.utils.prims as prim_utils
-import isaacsim.core.utils.stage as stage_utils
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.assets import DeformableObject, DeformableObjectCfg
 from isaaclab.sim import SimulationContext
-from isaaclab.sim.utils import attach_stage_to_usd_context
 
 
 def design_scene():
@@ -148,14 +146,12 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, Deformab
 def main():
     """Main function."""
     # Load kit helper
-    sim_cfg = sim_utils.SimulationCfg(device=args_cli.device, create_stage_in_memory=True)
+    sim_cfg = sim_utils.SimulationCfg(device=args_cli.device)
     sim = SimulationContext(sim_cfg)
     # Set main camera
     sim.set_camera_view(eye=[3.0, 0.0, 1.0], target=[0.0, 0.0, 0.5])
-    # Create scene with stage in memory and then attach to USD context
-    with stage_utils.use_stage(sim.get_initial_stage()):
-        scene_entities, scene_origins = design_scene()
-        attach_stage_to_usd_context()
+    # Design scene
+    scene_entities, scene_origins = design_scene()
     scene_origins = torch.tensor(scene_origins, device=sim.device)
     # Play the simulator
     sim.reset()

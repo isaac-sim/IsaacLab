@@ -31,6 +31,7 @@ import torch
 import carb
 import omni.usd
 import pytest
+from isaacsim.core.version import get_version
 
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.envs.utils.spaces import sample_space
@@ -59,10 +60,34 @@ def setup_environment():
     return registered_tasks
 
 
+# note, running an env test without stage in memory then
+# running an env test with stage in memory causes IsaacLab to hang.
+# so, here we run all envs with stage in memory first, then run
+# all envs without stage in memory.
+@pytest.mark.order(1)
+@pytest.mark.parametrize("num_envs, device", [(32, "cuda"), (1, "cuda")])
+@pytest.mark.parametrize("task_name", setup_environment())
+def test_environments_with_stage_in_memory(task_name, num_envs, device):
+    # run environments with stage in memory
+    _run_environments(task_name, device, num_envs, num_steps=100, create_stage_in_memory=True)
+
+
+@pytest.mark.order(2)
 @pytest.mark.parametrize("num_envs, device", [(32, "cuda"), (1, "cuda")])
 @pytest.mark.parametrize("task_name", setup_environment())
 def test_environments(task_name, num_envs, device):
+    # run environments without stage in memory
+    _run_environments(task_name, device, num_envs, num_steps=100, create_stage_in_memory=False)
+
+
+def _run_environments(task_name, device, num_envs, num_steps, create_stage_in_memory):
     """Run all environments and check environments return valid signals."""
+
+    # skip test if stage in memory is not supported
+    isaac_sim_version = float(".".join(get_version()[2]))
+    if isaac_sim_version < 5 and create_stage_in_memory:
+        pytest.skip("Stage in memory is not supported in this version of Isaac Sim")
+
     # skip these environments as they cannot be run with 32 environments within reasonable VRAM
     if num_envs == 32 and task_name in [
         "Isaac-Stack-Cube-Franka-IK-Rel-Blueprint-v0",
@@ -76,26 +101,33 @@ def test_environments(task_name, num_envs, device):
     if task_name in ["Isaac-AutoMate-Assembly-Direct-v0", "Isaac-AutoMate-Disassembly-Direct-v0"]:
         return
     # skipping this test for now as it requires torch 2.6 or newer
+
     if task_name == "Isaac-Cartpole-RGB-TheiaTiny-v0":
         return
     # TODO: why is this failing in Isaac Sim 5.0??? but the environment itself can run.
     if task_name == "Isaac-Lift-Teddy-Bear-Franka-IK-Abs-v0":
         return
     print(f">>> Running test for environment: {task_name}")
-    _check_random_actions(task_name, device, num_envs, num_steps=100)
+    _check_random_actions(task_name, device, num_envs, num_steps=100, create_stage_in_memory=create_stage_in_memory)
     print(f">>> Closing environment: {task_name}")
     print("-" * 80)
 
 
-def _check_random_actions(task_name: str, device: str, num_envs: int, num_steps: int = 1000):
+def _check_random_actions(
+    task_name: str, device: str, num_envs: int, num_steps: int = 1000, create_stage_in_memory: bool = False
+):
     """Run random actions and check environments returned signals are valid."""
-    # create a new stage
-    omni.usd.get_context().new_stage()
+
+    if not create_stage_in_memory:
+        # create a new context stage
+        omni.usd.get_context().new_stage()
+
     # reset the rtx sensors carb setting to False
     carb.settings.get_settings().set_bool("/isaaclab/render/rtx_sensors", False)
     try:
         # parse configuration
         env_cfg: ManagerBasedRLEnvCfg = parse_env_cfg(task_name, device=device, num_envs=num_envs)
+        env_cfg.sim.create_stage_in_memory = create_stage_in_memory
 
         # skip test if the environment is a multi-agent task
         if hasattr(env_cfg, "possible_agents"):

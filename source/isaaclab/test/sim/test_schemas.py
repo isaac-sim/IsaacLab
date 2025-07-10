@@ -109,6 +109,8 @@ def test_modify_properties_on_articulation_instanced_usd(setup_simulation):
     sim, arti_cfg, rigid_cfg, collision_cfg, mass_cfg, joint_cfg = setup_simulation
     # spawn asset to the stage
     asset_usd_file = f"{ISAAC_NUCLEUS_DIR}/Robots/ANYbotics/anymal_c/anymal_c.usd"
+    if "4.5" in ISAAC_NUCLEUS_DIR:
+        asset_usd_file = asset_usd_file.replace("http", "https").replace("production", "staging").replace("4.5", "5.0")
     prim_utils.create_prim("/World/asset_instanced", usd_path=asset_usd_file, translation=(0.0, 0.0, 0.62))
 
     # set properties on the asset and check all properties are set
@@ -132,6 +134,8 @@ def test_modify_properties_on_articulation_usd(setup_simulation):
     sim, arti_cfg, rigid_cfg, collision_cfg, mass_cfg, joint_cfg = setup_simulation
     # spawn asset to the stage
     asset_usd_file = f"{ISAAC_NUCLEUS_DIR}/Robots/FrankaRobotics/FrankaPanda/franka.usd"
+    if "4.5" in ISAAC_NUCLEUS_DIR:
+        asset_usd_file = asset_usd_file.replace("http", "https").replace("production", "staging").replace("4.5", "5.0")
     prim_utils.create_prim("/World/asset", usd_path=asset_usd_file, translation=(0.0, 0.0, 0.62))
 
     # set properties on the asset and check all properties are set

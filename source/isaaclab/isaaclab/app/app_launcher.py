@@ -362,16 +362,6 @@ class AppLauncher:
             ),
         )
         # special flag for backwards compatibility
-        arg_group.add_argument(
-            "--use_isaacsim_45",
-            type=bool,
-            default=False,
-            help=(
-                "Uses previously version of Isaac Sim 4.5. This will reference the Isaac Sim 4.5 compatible app files"
-                " and will result in some features being unavailable. For full feature set, please update to Isaac Sim"
-                " 5.0."
-            ),
-        )
 
         # Corresponding to the beginning of the function,
         # if we have removed -h/--help handling, we add it back.
@@ -714,7 +704,8 @@ class AppLauncher:
         kit_app_exp_path = os.environ["EXP_PATH"]
         isaaclab_app_exp_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), *[".."] * 4, "apps")
         # For Isaac Sim 4.5 compatibility, we use the 4.5 app files in a different folder
-        if launcher_args.get("use_isaacsim_45", False):
+        # if launcher_args.get("use_isaacsim_45", False):
+        if self.is_isaac_sim_version_4_5():
             isaaclab_app_exp_path = os.path.join(isaaclab_app_exp_path, "isaacsim_4_5")
 
         if self._sim_experience_file == "":
@@ -770,7 +761,7 @@ class AppLauncher:
         if recording_enabled:
             if self._headless:
                 raise ValueError("Animation recording is not supported in headless mode.")
-            if launcher_args.get("use_isaacsim_45", False):
+            if self.is_isaac_sim_version_4_5():
                 raise RuntimeError(
                     "Animation recording is not supported in Isaac Sim 4.5. Please update to Isaac Sim 5.0."
                 )
@@ -890,6 +881,8 @@ class AppLauncher:
 
         # parse preset file
         repo_path = os.path.join(carb.tokens.get_tokens_interface().resolve("${app}"), "..")
+        if self.is_isaac_sim_version_4_5():
+            repo_path = os.path.join(repo_path, "..")
         preset_filename = os.path.join(repo_path, f"apps/rendering_modes/{rendering_mode}.kit")
         with open(preset_filename) as file:
             preset_dict = toml.load(file)
@@ -934,6 +927,30 @@ class AppLauncher:
         self._app.close()
         # raise the error for keyboard interrupt
         raise KeyboardInterrupt
+
+    def is_isaac_sim_version_4_5(self) -> bool:
+        if not hasattr(self, "_is_sim_ver_4_5"):
+            # 1) Try to read the VERSION file (for manual / binary installs)
+            version_path = os.path.abspath(os.path.join(os.path.dirname(isaacsim.__file__), "../../VERSION"))
+            if os.path.isfile(version_path):
+                with open(version_path) as f:
+                    ver = f.readline().strip()
+                    if ver.startswith("4.5"):
+                        self._is_sim_ver_4_5 = True
+                        return True
+
+            # 2) Fall back to metadata (for pip installs)
+            from importlib.metadata import version as pkg_version
+
+            try:
+                ver = pkg_version("isaacsim")
+                if ver.startswith("4.5"):
+                    self._is_sim_ver_4_5 = True
+                else:
+                    self._is_sim_ver_4_5 = False
+            except Exception:
+                self._is_sim_ver_4_5 = False
+        return self._is_sim_ver_4_5
 
     def _hide_play_button(self, flag):
         """Hide/Unhide the play button in the toolbar.

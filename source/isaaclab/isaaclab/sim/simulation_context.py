@@ -31,6 +31,8 @@ from isaacsim.core.utils.viewports import set_camera_view
 from isaacsim.core.version import get_version
 from pxr import Gf, PhysxSchema, Usd, UsdPhysics
 
+from isaaclab.sim.utils import create_new_stage_in_memory, use_stage
+
 from .simulation_cfg import SimulationCfg
 from .spawners import DomeLightCfg, GroundPlaneCfg
 from .utils import bind_physics_material
@@ -131,7 +133,7 @@ class SimulationContext(_SimulationContext):
 
         # create stage in memory if requested
         if self.cfg.create_stage_in_memory:
-            self._initial_stage = stage_utils.create_new_stage_in_memory()
+            self._initial_stage = create_new_stage_in_memory()
         else:
             self._initial_stage = omni.usd.get_context().get_stage()
 
@@ -241,14 +243,18 @@ class SimulationContext(_SimulationContext):
             self._app_control_on_stop_handle = None
         self._disable_app_control_on_stop_handle = False
 
+        # flag for skipping prim deletion callback
+        # when stage in memory is attached
+        self._skip_next_prim_deletion_callback_fn = False
+
         # flatten out the simulation dictionary
         sim_params = self.cfg.to_dict()
         if sim_params is not None:
             if "physx" in sim_params:
                 physx_params = sim_params.pop("physx")
                 sim_params.update(physx_params)
-        # create a simulation context to control the simulator
 
+        # add warning about enabling stabilization for large step sizes
         if not self.cfg.physx.enable_stabilization and (self.cfg.dt > 0.0333):
             omni.log.warn(
                 "Large simulation step size (> 0.0333 seconds) is not recommended without enabling stabilization."
@@ -256,16 +262,29 @@ class SimulationContext(_SimulationContext):
                 " simulation step size if you run into physics issues."
             )
 
-        super().__init__(
-            stage_units_in_meters=1.0,
-            physics_dt=self.cfg.dt,
-            rendering_dt=self.cfg.dt * self.cfg.render_interval,
-            backend="torch",
-            sim_params=sim_params,
-            physics_prim_path=self.cfg.physics_prim_path,
-            device=self.cfg.device,
-            stage=self._initial_stage,
-        )
+        # create a simulation context to control the simulator
+        if float(".".join(self._isaacsim_version[2])) < 5:
+            # stage arg is not supported before isaac sim 5.0
+            super().__init__(
+                stage_units_in_meters=1.0,
+                physics_dt=self.cfg.dt,
+                rendering_dt=self.cfg.dt * self.cfg.render_interval,
+                backend="torch",
+                sim_params=sim_params,
+                physics_prim_path=self.cfg.physics_prim_path,
+                device=self.cfg.device,
+            )
+        else:
+            super().__init__(
+                stage_units_in_meters=1.0,
+                physics_dt=self.cfg.dt,
+                rendering_dt=self.cfg.dt * self.cfg.render_interval,
+                backend="torch",
+                sim_params=sim_params,
+                physics_prim_path=self.cfg.physics_prim_path,
+                device=self.cfg.device,
+                stage=self._initial_stage,
+            )
 
     def _apply_physics_settings(self):
         """Sets various carb physics settings."""
@@ -676,7 +695,7 @@ class SimulationContext(_SimulationContext):
 
     def _init_stage(self, *args, **kwargs) -> Usd.Stage:
         _ = super()._init_stage(*args, **kwargs)
-        with stage_utils.use_stage(self.get_initial_stage()):
+        with use_stage(self.get_initial_stage()):
             # a stage update here is needed for the case when physics_dt != rendering_dt, otherwise the app crashes
             # when in headless mode
             self.set_setting("/app/player/playSimulations", False)

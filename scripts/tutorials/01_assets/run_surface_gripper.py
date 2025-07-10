@@ -36,12 +36,10 @@ simulation_app = app_launcher.app
 import torch
 
 import isaacsim.core.utils.prims as prim_utils
-import isaacsim.core.utils.stage as stage_utils
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation, SurfaceGripper, SurfaceGripperCfg
 from isaaclab.sim import SimulationContext
-from isaaclab.sim.utils import attach_stage_to_usd_context
 
 ##
 # Pre-defined configs
@@ -168,10 +166,7 @@ def main():
     # Set main camera
     sim.set_camera_view([2.75, 7.5, 10.0], [2.75, 0.0, 0.0])
     # Design scene
-    # Create scene with stage in memory and then attach to USD context
-    with stage_utils.use_stage(sim.get_initial_stage()):
-        scene_entities, scene_origins = design_scene()
-        attach_stage_to_usd_context()
+    scene_entities, scene_origins = design_scene()
     scene_origins = torch.tensor(scene_origins, device=sim.device)
     # Play the simulator
     sim.reset()

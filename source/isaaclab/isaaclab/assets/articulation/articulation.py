@@ -1361,6 +1361,21 @@ class Articulation(AssetBase):
         if self._root_physx_view._backend is None:
             raise RuntimeError(f"Failed to create articulation at: {root_prim_path_expr}. Please check PhysX logs.")
 
+        if int(get_version()[2]) < 5:
+            omni.log.warn(
+                "Spatial tendons are not supported in Isaac Sim < 5.0: patching spatial-tendon getter"
+                " and setter to use dummy value"
+            )
+            self._root_physx_view.max_spatial_tendons = 0
+            self._root_physx_view.get_spatial_tendon_stiffnesses = lambda: torch.empty(0, device=self.device)
+            self._root_physx_view.get_spatial_tendon_dampings = lambda: torch.empty(0, device=self.device)
+            self._root_physx_view.get_spatial_tendon_limit_stiffnesses = lambda: torch.empty(0, device=self.device)
+            self._root_physx_view.get_spatial_tendon_offsets = lambda: torch.empty(0, device=self.device)
+            self._root_physx_view.set_spatial_tendon_properties = lambda *args, **kwargs: omni.log.warn(
+                "Spatial tendons are not supported in Isaac Sim < 5.0: Calling"
+                " set_spatial_tendon_properties has no effect"
+            )
+
         # log information about the articulation
         omni.log.info(f"Articulation initialized at: {self.cfg.prim_path} with root '{root_prim_path_expr}'.")
         omni.log.info(f"Is fixed root: {self.is_fixed_base}")
@@ -1578,14 +1593,6 @@ class Articulation(AssetBase):
         self._spatial_tendon_names = list()
         # parse fixed tendons properties if they exist
         if self.num_fixed_tendons > 0 or self.num_spatial_tendons > 0:
-            # for spatial tendons, check if we are using isaac sim 5.0
-            if self.num_spatial_tendons > 0:
-                isaac_sim_version = get_version()
-                # checks for Isaac Sim v5.0 as spatial tendons are only available since 5.0
-                if int(isaac_sim_version[2]) < 5:
-                    raise RuntimeError(
-                        "Spatial tendons are not available in Isaac Sim 4.5. Please update to Isaac Sim 5.0."
-                    )
 
             joint_paths = self.root_physx_view.dof_paths[0]
 

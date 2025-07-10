@@ -32,7 +32,7 @@ from pxr import Gf, PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics, Vt
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim.spawners import SpawnerCfg
-from isaaclab.sim.utils import attach_stage_to_usd_context, is_current_stage_in_memory
+from isaaclab.sim.utils import attach_stage_to_usd_context
 from isaaclab.utils.configclass import configclass
 from isaaclab.utils.math import convert_quat
 
@@ -400,12 +400,7 @@ class VisualizationMarkers:
             if child_prim.IsA(UsdGeom.Gprim):
                 # early attach stage to usd context if stage is in memory
                 # since stage in memory is not supported by the "ChangePropertyCommand" kit command
-                if is_current_stage_in_memory():
-                    omni.log.warn(
-                        "Attaching stage in memory to USD context early to support omni kit command during stage"
-                        " creation."
-                    )
-                    attach_stage_to_usd_context()
+                attach_stage_to_usd_context(attaching_early=True)
 
                 # invisible to secondary rays such as depth images
                 omni.kit.commands.execute(

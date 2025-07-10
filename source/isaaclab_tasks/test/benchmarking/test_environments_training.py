@@ -92,7 +92,7 @@ def test_train_environments(workflow, task_spec, config_path, mode, num_gpus, kp
     env_config = utils.get_env_config(env_configs, mode, workflow, task)
 
     # Skip if config not found
-    if not env_config:
+    if env_config is None:
         pytest.skip(f"No config found for task {task} in {mode} mode")
 
     job_name = f"{workflow}:{task}"

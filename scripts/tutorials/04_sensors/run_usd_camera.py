@@ -66,7 +66,6 @@ import random
 import torch
 
 import isaacsim.core.utils.prims as prim_utils
-import isaacsim.core.utils.stage as stage_utils
 import omni.replicator.core as rep
 
 import isaaclab.sim as sim_utils
@@ -75,7 +74,6 @@ from isaaclab.markers import VisualizationMarkers
 from isaaclab.markers.config import RAY_CASTER_MARKER_CFG
 from isaaclab.sensors.camera import Camera, CameraCfg
 from isaaclab.sensors.camera.utils import create_pointcloud_from_depth
-from isaaclab.sim.utils import attach_stage_to_usd_context
 from isaaclab.utils import convert_dict_to_backend
 
 
@@ -270,14 +268,12 @@ def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
 def main():
     """Main function."""
     # Load simulation context
-    sim_cfg = sim_utils.SimulationCfg(device=args_cli.device, create_stage_in_memory=True)
+    sim_cfg = sim_utils.SimulationCfg(device=args_cli.device)
     sim = sim_utils.SimulationContext(sim_cfg)
     # Set main camera
     sim.set_camera_view([2.5, 2.5, 2.5], [0.0, 0.0, 0.0])
-    # Create scene with stage in memory and then attach to USD context
-    with stage_utils.use_stage(sim.get_initial_stage()):
-        scene_entities = design_scene()
-        attach_stage_to_usd_context()
+    # Design scene
+    scene_entities = design_scene()
     # Play simulator
     sim.reset()
     # Now we are ready!

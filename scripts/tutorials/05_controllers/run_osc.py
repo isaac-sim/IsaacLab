@@ -38,8 +38,6 @@ simulation_app = app_launcher.app
 
 import torch
 
-import isaacsim.core.utils.stage as stage_utils
-
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation, AssetBaseCfg
 from isaaclab.controllers import OperationalSpaceController, OperationalSpaceControllerCfg
@@ -47,7 +45,6 @@ from isaaclab.markers import VisualizationMarkers
 from isaaclab.markers.config import FRAME_MARKER_CFG
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg
-from isaaclab.sim.utils import attach_stage_to_usd_context
 from isaaclab.utils import configclass
 from isaaclab.utils.math import (
     combine_frame_transforms,
@@ -465,16 +462,13 @@ def convert_to_task_frame(osc: OperationalSpaceController, command: torch.tensor
 def main():
     """Main function."""
     # Load kit helper
-    sim_cfg = sim_utils.SimulationCfg(dt=0.01, device=args_cli.device, create_stage_in_memory=True)
+    sim_cfg = sim_utils.SimulationCfg(dt=0.01, device=args_cli.device)
     sim = sim_utils.SimulationContext(sim_cfg)
     # Set main camera
     sim.set_camera_view([2.5, 2.5, 2.5], [0.0, 0.0, 0.0])
     # Design scene
     scene_cfg = SceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0)
-    # Create scene with stage in memory and then attach to USD context
-    with stage_utils.use_stage(sim.get_initial_stage()):
-        scene = InteractiveScene(scene_cfg)
-        attach_stage_to_usd_context()
+    scene = InteractiveScene(scene_cfg)
     # Play the simulator
     sim.reset()
     # Now we are ready!

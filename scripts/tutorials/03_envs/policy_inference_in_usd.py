@@ -70,7 +70,6 @@ def main():
     env_cfg.sim.device = args_cli.device
     if args_cli.device == "cpu":
         env_cfg.sim.use_fabric = False
-    env_cfg.sim.create_stage_in_memory = True
 
     # create environment
     env = ManagerBasedRLEnv(cfg=env_cfg)

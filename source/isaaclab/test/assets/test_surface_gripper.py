@@ -20,6 +20,7 @@ import torch
 
 import isaacsim.core.utils.prims as prim_utils
 import pytest
+from isaacsim.core.version import get_version
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
@@ -171,6 +172,9 @@ def test_initialization(sim, num_articulations, device, add_ground_plane) -> Non
         device: The device to run the test on.
         add_ground_plane: Whether to add a ground plane to the simulation.
     """
+    isaac_sim_version = get_version()
+    if int(isaac_sim_version[2]) < 5:
+        return
     surface_gripper_cfg, articulation_cfg = generate_surface_gripper_cfgs(kinematic_enabled=False)
     surface_gripper, articulation, _ = generate_surface_gripper(
         surface_gripper_cfg, articulation_cfg, num_articulations, device
@@ -202,6 +206,9 @@ def test_initialization(sim, num_articulations, device, add_ground_plane) -> Non
 @pytest.mark.parametrize("add_ground_plane", [True])
 def test_raise_error_if_not_cpu(sim, device, add_ground_plane) -> None:
     """Test that the SurfaceGripper raises an error if the device is not CPU."""
+    isaac_sim_version = get_version()
+    if int(isaac_sim_version[2]) < 5:
+        return
     num_articulations = 1
     surface_gripper_cfg, articulation_cfg = generate_surface_gripper_cfgs(kinematic_enabled=False)
     surface_gripper, articulation, translations = generate_surface_gripper(

@@ -21,6 +21,7 @@ from pxr import UsdPhysics
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 import isaaclab.utils.string as string_utils
+from isaaclab.sim import SimulationContext
 
 from ..asset_base import AssetBase
 from .rigid_object_collection_data import RigidObjectCollectionData
@@ -92,23 +93,40 @@ class RigidObjectCollection(AssetBase):
         # stores object names
         self._object_names_list = []
 
-        # note: Use weakref on all callbacks to ensure that this object can be deleted when its destructor is called.
+        # register simulator callbacks (with weakref safety to avoid crashes on deletion)
+        def safe_callback(callback_name, event, obj_ref):
+            """Safely invoke a callback on a weakly-referenced object, ignoring ReferenceError if deleted."""
+            try:
+                obj = obj_ref
+                getattr(obj, callback_name)(event)
+            except ReferenceError:
+                # Object has been deleted; ignore.
+                pass
+
+        # note: use weakref on callbacks to ensure that this object can be deleted when its destructor is called.
         # add callbacks for stage play/stop
-        # The order is set to 10 which is arbitrary but should be lower priority than the default order of 0
+        obj_ref = weakref.proxy(self)
         timeline_event_stream = omni.timeline.get_timeline_interface().get_timeline_event_stream()
+
+        # the order is set to 10 which is arbitrary but should be lower priority than the default order of 0
+        # register timeline PLAY event callback (lower priority with order=10)
         self._initialize_handle = timeline_event_stream.create_subscription_to_pop_by_type(
             int(omni.timeline.TimelineEventType.PLAY),
-            lambda event, obj=weakref.proxy(self): obj._initialize_callback(event),
+            lambda event, obj_ref=obj_ref: safe_callback("_initialize_callback", event, obj_ref),
             order=10,
         )
+        # register timeline STOP event callback (lower priority with order=10)
         self._invalidate_initialize_handle = timeline_event_stream.create_subscription_to_pop_by_type(
             int(omni.timeline.TimelineEventType.STOP),
-            lambda event, obj=weakref.proxy(self): obj._invalidate_initialize_callback(event),
+            lambda event, obj_ref=obj_ref: safe_callback("_invalidate_initialize_callback", event, obj_ref),
             order=10,
         )
+        # register prim deletion callback
         self._prim_deletion_callback_id = SimulationManager.register_callback(
-            self._on_prim_deletion, event=IsaacEvents.PRIM_DELETION
+            lambda event, obj_ref=obj_ref: safe_callback("_on_prim_deletion", event, obj_ref),
+            event=IsaacEvents.PRIM_DELETION,
         )
+
         self._debug_vis_handle = None
 
     """
@@ -711,6 +729,9 @@ class RigidObjectCollection(AssetBase):
         Note:
             This function is called when the prim is deleted.
         """
+        # skip callback if required
+        if getattr(SimulationContext.instance(), "_skip_next_prim_deletion_callback_fn", False):
+            return
         if prim_path == "/":
             self._clear_callbacks()
             return

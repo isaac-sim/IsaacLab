@@ -341,7 +341,7 @@ class SimulationCfg:
     """Render settings. Default is RenderCfg()."""
 
     create_stage_in_memory: bool = False
-    """If stage is first created in memory and then attached to usd context for simulation and rendering.
+    """If stage is first created in memory. Default is False.
 
     Creating the stage in memory can reduce start-up time.
     """

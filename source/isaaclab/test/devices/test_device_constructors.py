@@ -12,6 +12,7 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
+import importlib
 import torch
 
 import pytest
@@ -104,9 +105,10 @@ def test_se2keyboard_constructors(mock_environment, mocker):
         v_y_sensitivity=0.5,
         omega_z_sensitivity=1.2,
     )
+    device_mod = importlib.import_module("isaaclab.devices.keyboard.se2_keyboard")
     mocker.patch.dict("sys.modules", {"carb": mock_environment["carb"], "omni": mock_environment["omni"]})
-    mocker.patch("isaaclab.devices.keyboard.se2_keyboard.carb", mock_environment["carb"])
-    mocker.patch("isaaclab.devices.keyboard.se2_keyboard.omni", mock_environment["omni"])
+    mocker.patch.object(device_mod, "carb", mock_environment["carb"])
+    mocker.patch.object(device_mod, "omni", mock_environment["omni"])
 
     keyboard = Se2Keyboard(config)
 
@@ -128,9 +130,10 @@ def test_se3keyboard_constructors(mock_environment, mocker):
         pos_sensitivity=0.5,
         rot_sensitivity=0.9,
     )
+    device_mod = importlib.import_module("isaaclab.devices.keyboard.se3_keyboard")
     mocker.patch.dict("sys.modules", {"carb": mock_environment["carb"], "omni": mock_environment["omni"]})
-    mocker.patch("isaaclab.devices.keyboard.se3_keyboard.carb", mock_environment["carb"])
-    mocker.patch("isaaclab.devices.keyboard.se3_keyboard.omni", mock_environment["omni"])
+    mocker.patch.object(device_mod, "carb", mock_environment["carb"])
+    mocker.patch.object(device_mod, "omni", mock_environment["omni"])
 
     keyboard = Se3Keyboard(config)
 
@@ -158,9 +161,10 @@ def test_se2gamepad_constructors(mock_environment, mocker):
         omega_z_sensitivity=1.2,
         dead_zone=0.02,
     )
+    device_mod = importlib.import_module("isaaclab.devices.gamepad.se2_gamepad")
     mocker.patch.dict("sys.modules", {"carb": mock_environment["carb"], "omni": mock_environment["omni"]})
-    mocker.patch("isaaclab.devices.gamepad.se2_gamepad.carb", mock_environment["carb"])
-    mocker.patch("isaaclab.devices.gamepad.se2_gamepad.omni", mock_environment["omni"])
+    mocker.patch.object(device_mod, "carb", mock_environment["carb"])
+    mocker.patch.object(device_mod, "omni", mock_environment["omni"])
 
     gamepad = Se2Gamepad(config)
 
@@ -184,9 +188,10 @@ def test_se3gamepad_constructors(mock_environment, mocker):
         rot_sensitivity=1.7,
         dead_zone=0.02,
     )
+    device_mod = importlib.import_module("isaaclab.devices.gamepad.se3_gamepad")
     mocker.patch.dict("sys.modules", {"carb": mock_environment["carb"], "omni": mock_environment["omni"]})
-    mocker.patch("isaaclab.devices.gamepad.se3_gamepad.carb", mock_environment["carb"])
-    mocker.patch("isaaclab.devices.gamepad.se3_gamepad.omni", mock_environment["omni"])
+    mocker.patch.object(device_mod, "carb", mock_environment["carb"])
+    mocker.patch.object(device_mod, "omni", mock_environment["omni"])
 
     gamepad = Se3Gamepad(config)
 
@@ -214,8 +219,9 @@ def test_se2spacemouse_constructors(mock_environment, mocker):
         v_y_sensitivity=0.5,
         omega_z_sensitivity=1.2,
     )
+    device_mod = importlib.import_module("isaaclab.devices.spacemouse.se2_spacemouse")
     mocker.patch.dict("sys.modules", {"hid": mock_environment["hid"]})
-    mocker.patch("isaaclab.devices.spacemouse.se2_spacemouse.hid", mock_environment["hid"])
+    mocker.patch.object(device_mod, "hid", mock_environment["hid"])
 
     spacemouse = Se2SpaceMouse(config)
 
@@ -238,8 +244,9 @@ def test_se3spacemouse_constructors(mock_environment, mocker):
         pos_sensitivity=0.5,
         rot_sensitivity=0.9,
     )
+    device_mod = importlib.import_module("isaaclab.devices.spacemouse.se3_spacemouse")
     mocker.patch.dict("sys.modules", {"hid": mock_environment["hid"]})
-    mocker.patch("isaaclab.devices.spacemouse.se3_spacemouse.hid", mock_environment["hid"])
+    mocker.patch.object(device_mod, "hid", mock_environment["hid"])
 
     spacemouse = Se3SpaceMouse(config)
 
@@ -274,6 +281,7 @@ def test_openxr_constructors(mock_environment, mocker):
     mock_head_retargeter = mocker.MagicMock()
     retargeters = [mock_controller_retargeter, mock_head_retargeter]
 
+    device_mod = importlib.import_module("isaaclab.devices.openxr.openxr_device")
     mocker.patch.dict(
         "sys.modules",
         {
@@ -282,12 +290,9 @@ def test_openxr_constructors(mock_environment, mocker):
             "isaacsim.core.prims": mocker.MagicMock(),
         },
     )
-    mocker.patch("isaaclab.devices.openxr.openxr_device.XRCore", mock_environment["omni"].kit.xr.core.XRCore)
-    mocker.patch(
-        "isaaclab.devices.openxr.openxr_device.XRPoseValidityFlags",
-        mock_environment["omni"].kit.xr.core.XRPoseValidityFlags,
-    )
-    mock_single_xform = mocker.patch("isaaclab.devices.openxr.openxr_device.SingleXFormPrim")
+    mocker.patch.object(device_mod, "XRCore", mock_environment["omni"].kit.xr.core.XRCore)
+    mocker.patch.object(device_mod, "XRPoseValidityFlags", mock_environment["omni"].kit.xr.core.XRPoseValidityFlags)
+    mock_single_xform = mocker.patch.object(device_mod, "SingleXFormPrim")
 
     # Configure the mock to return a string for prim_path
     mock_instance = mock_single_xform.return_value
@@ -330,9 +335,10 @@ def test_create_teleop_device_basic(mock_environment, mocker):
     devices_cfg = {"test_keyboard": keyboard_cfg}
 
     # Mock Se3Keyboard class
+    device_mod = importlib.import_module("isaaclab.devices.keyboard.se3_keyboard")
     mocker.patch.dict("sys.modules", {"carb": mock_environment["carb"], "omni": mock_environment["omni"]})
-    mocker.patch("isaaclab.devices.keyboard.se3_keyboard.carb", mock_environment["carb"])
-    mocker.patch("isaaclab.devices.keyboard.se3_keyboard.omni", mock_environment["omni"])
+    mocker.patch.object(device_mod, "carb", mock_environment["carb"])
+    mocker.patch.object(device_mod, "omni", mock_environment["omni"])
 
     # Create the device using the factory
     device = create_teleop_device("test_keyboard", devices_cfg)
@@ -358,6 +364,7 @@ def test_create_teleop_device_with_callbacks(mock_environment, mocker):
     callbacks = {"button_a": button_a_callback, "button_b": button_b_callback}
 
     # Mock OpenXRDevice class and dependencies
+    device_mod = importlib.import_module("isaaclab.devices.openxr.openxr_device")
     mocker.patch.dict(
         "sys.modules",
         {
@@ -366,12 +373,9 @@ def test_create_teleop_device_with_callbacks(mock_environment, mocker):
             "isaacsim.core.prims": mocker.MagicMock(),
         },
     )
-    mocker.patch("isaaclab.devices.openxr.openxr_device.XRCore", mock_environment["omni"].kit.xr.core.XRCore)
-    mocker.patch(
-        "isaaclab.devices.openxr.openxr_device.XRPoseValidityFlags",
-        mock_environment["omni"].kit.xr.core.XRPoseValidityFlags,
-    )
-    mock_single_xform = mocker.patch("isaaclab.devices.openxr.openxr_device.SingleXFormPrim")
+    mocker.patch.object(device_mod, "XRCore", mock_environment["omni"].kit.xr.core.XRCore)
+    mocker.patch.object(device_mod, "XRPoseValidityFlags", mock_environment["omni"].kit.xr.core.XRPoseValidityFlags)
+    mock_single_xform = mocker.patch.object(device_mod, "SingleXFormPrim")
 
     # Configure the mock to return a string for prim_path
     mock_instance = mock_single_xform.return_value
@@ -403,6 +407,7 @@ def test_create_teleop_device_with_retargeters(mock_environment, mocker):
     devices_cfg = {"test_xr": device_cfg}
 
     # Mock OpenXRDevice class and dependencies
+    device_mod = importlib.import_module("isaaclab.devices.openxr.openxr_device")
     mocker.patch.dict(
         "sys.modules",
         {
@@ -411,20 +416,18 @@ def test_create_teleop_device_with_retargeters(mock_environment, mocker):
             "isaacsim.core.prims": mocker.MagicMock(),
         },
     )
-    mocker.patch("isaaclab.devices.openxr.openxr_device.XRCore", mock_environment["omni"].kit.xr.core.XRCore)
-    mocker.patch(
-        "isaaclab.devices.openxr.openxr_device.XRPoseValidityFlags",
-        mock_environment["omni"].kit.xr.core.XRPoseValidityFlags,
-    )
-    mock_single_xform = mocker.patch("isaaclab.devices.openxr.openxr_device.SingleXFormPrim")
+    mocker.patch.object(device_mod, "XRCore", mock_environment["omni"].kit.xr.core.XRCore)
+    mocker.patch.object(device_mod, "XRPoseValidityFlags", mock_environment["omni"].kit.xr.core.XRPoseValidityFlags)
+    mock_single_xform = mocker.patch.object(device_mod, "SingleXFormPrim")
 
     # Configure the mock to return a string for prim_path
     mock_instance = mock_single_xform.return_value
     mock_instance.prim_path = "/XRAnchor"
 
     # Mock retargeter classes
-    mocker.patch("isaaclab.devices.openxr.retargeters.Se3AbsRetargeter")
-    mocker.patch("isaaclab.devices.openxr.retargeters.GripperRetargeter")
+    retargeter_mod = importlib.import_module("isaaclab.devices.openxr.retargeters")
+    mocker.patch.object(retargeter_mod, "Se3AbsRetargeter")
+    mocker.patch.object(retargeter_mod, "GripperRetargeter")
 
     # Create the device using the factory
     device = create_teleop_device("test_xr", devices_cfg)

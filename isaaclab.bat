@@ -38,6 +38,33 @@ if not exist "%isaac_path%" (
 )
 goto :eof
 
+rem -----------------------------------------------------------------------
+rem Returns success (exit code 0) if Isaac Sim's version starts with "4.5"
+rem -----------------------------------------------------------------------
+:is_isaacsim_version_4_5
+    rem make sure we have %python_exe%
+    call :extract_python_exe
+
+    rem 1) try to locate the VERSION file via the kit install
+    for /f "delims=" %%V in ('!python_exe! -c "import isaacsim,os;print(os.path.abspath(os.path.join(os.path.dirname(isaacsim.__file__), os.pardir, os.pardir, 'VERSION')))"') do set "VERSION_PATH=%%V"
+    if exist "!VERSION_PATH!" (
+        for /f "usebackq delims=" %%L in ("!VERSION_PATH!") do set "ISAACSIM_VER=%%L"
+    ) else (
+        rem 2) fallback to importlib.metadata if no VERSION file
+        for /f "delims=" %%L in ('!python_exe! -c "from importlib.metadata import version;print(version(''isaacsim''))"') do set "ISAACSIM_VER=%%L"
+    )
+
+    rem Clean up the version string (remove any trailing whitespace or newlines)
+    set "ISAACSIM_VER=!ISAACSIM_VER: =!"
+
+    rem Use string comparison instead of findstr for more reliable matching
+    if "!ISAACSIM_VER:~0,3!"=="4.5" (
+        exit /b 0
+    ) else (
+        exit /b 1
+    )
+    goto :eof
+
 rem extract the python from isaacsim
 :extract_python_exe
 rem check if using conda
@@ -132,6 +159,30 @@ if %errorlevel% equ 0 (
 ) else (
     echo [INFO] Creating conda environment named '%env_name%'...
     echo [INFO] Installing dependencies from %ISAACLAB_PATH%\environment.yml
+    rem ————————————————————————————————
+    rem patch Python version if needed, but back up first
+    rem ————————————————————————————————
+    copy "%ISAACLAB_PATH%environment.yml" "%ISAACLAB_PATH%environment.yml.bak" >nul
+    call :is_isaacsim_version_4_5
+    if !ERRORLEVEL! EQU 0 (
+        echo [INFO] Detected Isaac Sim 4.5 --^> forcing python=3.10
+        rem Use findstr to replace the python version line
+        (
+            for /f "delims=" %%L in ('type "%ISAACLAB_PATH%environment.yml"') do (
+                set "line=%%L"
+                set "line=!line: =!"
+                if "!line:~0,15!"=="-python=3.11" (
+                    echo   - python=3.10
+                ) else (
+                    echo %%L
+                )
+            )
+        ) > "%ISAACLAB_PATH%environment.yml.tmp"
+        rem Replace the original file with the modified version
+        move /y "%ISAACLAB_PATH%environment.yml.tmp" "%ISAACLAB_PATH%environment.yml" >nul
+    ) else (
+        echo [INFO] Isaac Sim ^>=5.0, installing python=3.11
+    )
     call conda env create -y --file %ISAACLAB_PATH%\environment.yml -n %env_name%
 )
 rem cache current paths for later
