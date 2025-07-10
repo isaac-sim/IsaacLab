@@ -226,7 +226,7 @@ class ObservationManager(ManagerBase):
         return self._group_obs_concatenate
 
     @property
-    def get_IO_descriptors(self):
+    def get_IO_descriptors(self, group_names_to_export: list[str] = ["policy"]):
         """Get the IO descriptors for the observation manager.
 
         Returns:
@@ -276,6 +276,9 @@ class ObservationManager(ManagerBase):
                     # Check if v is a tuple and convert to list
                     if isinstance(v, tuple):
                         v = list(v)
+                    # Check if v is a tensor and convert to list
+                    if isinstance(v, torch.Tensor):
+                        v = v.detach().cpu().numpy().tolist()
                     if k in ["scale", "clip", "history_length", "flatten_history_dim"]:
                         formatted_item["overloads"][k] = v
                     elif k in ["modifiers", "description", "units"]:
@@ -283,6 +286,7 @@ class ObservationManager(ManagerBase):
                     else:
                         formatted_item[k] = v
                 formatted_data[group_name].append(formatted_item)
+        formatted_data = {k: v for k, v in formatted_data.items() if k in group_names_to_export}
         return formatted_data
 
     """

@@ -49,8 +49,9 @@ def main():
     env.reset()
 
     outs = env.unwrapped.get_IO_descriptors
-    out = outs["observations"]
+    out_observations = outs["observations"]
     out_actions = outs["actions"]
+    out_articulations = outs["articulations"]
     # Make a yaml file with the output
     import yaml
 
@@ -60,15 +61,25 @@ def main():
     with open(f"{name}_IO_descriptors.yaml", "w") as f:
         yaml.safe_dump(outs, f)
 
-    for k, v in out_actions.items():
-        print(f"--- Action term: {k} ---")
-        for k1, v1 in v.items():
+    for k in out_actions:
+        print(f"--- Action term: {k['name']} ---")
+        k.pop("name")
+        for k1, v1 in k.items():
             print(f"{k1}: {v1}")
 
-    for k, v in out.items():
-        print(f"--- Obs term: {k} ---")
-        for k1, v1 in v.items():
+    for obs_group_name, obs_group in out_observations.items():
+        print(f"--- Obs group: {obs_group_name} ---")
+        for k in obs_group:
+            print(f"--- Obs term: {k['name']} ---")
+            k.pop("name")
+            for k1, v1 in k.items():
+                print(f"{k1}: {v1}")
+
+    for articulation_name, articulation_data in out_articulations.items():
+        print(f"--- Articulation: {articulation_name} ---")
+        for k1, v1 in articulation_data.items():
             print(f"{k1}: {v1}")
+
     env.step(torch.zeros(env.action_space.shape, device=env.unwrapped.device))
     env.close()
 
