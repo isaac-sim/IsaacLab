@@ -271,7 +271,7 @@ class ActionManager(ManagerBase):
         return has_debug_vis
 
     @property
-    def get_IO_descriptors(self) -> dict[str, dict[str, Any]]:
+    def get_IO_descriptors(self) -> list[dict[str, Any]]:
         """Get the IO descriptors for the action manager.
 
         Returns:
@@ -286,10 +286,10 @@ class ActionManager(ManagerBase):
             except Exception as e:
                 print(f"Error getting IO descriptor for term '{term_name}': {e}")
 
-        formatted_data = {}
+        formatted_data = []
         for item in data:
             name = item.pop("name")
-            formatted_item = {"extras": item.pop("extras")}
+            formatted_item = {"name": name, "extras": item.pop("extras")}
             for k, v in item.items():
                 # Check if v is a tuple and convert to list
                 if isinstance(v, tuple):
@@ -298,7 +298,7 @@ class ActionManager(ManagerBase):
                     formatted_item["extras"][k] = v
                 else:
                     formatted_item[k] = v
-            formatted_data[name] = formatted_item
+            formatted_data.append(formatted_item)
 
         return formatted_data
 
