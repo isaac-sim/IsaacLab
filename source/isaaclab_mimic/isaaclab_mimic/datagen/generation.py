@@ -182,7 +182,13 @@ def setup_env_config(
     env_cfg.observations.policy.concatenate_terms = False
 
     # Setup recorders
+    existing_observation_keys = getattr(env_cfg.recorders, 'observation_keys_to_record', None) if hasattr(env_cfg, 'recorders') and env_cfg.recorders is not None else None
+    existing_state_keys = getattr(env_cfg.recorders, 'state_observation_keys', None) if hasattr(env_cfg, 'recorders') and env_cfg.recorders is not None else None
+    existing_task_description = getattr(env_cfg.recorders, 'task_description', None) if hasattr(env_cfg, 'recorders') and env_cfg.recorders is not None else None
     env_cfg.recorders = ActionStateRecorderManagerCfg()
+    env_cfg.recorders.observation_keys_to_record = existing_observation_keys
+    env_cfg.recorders.state_observation_keys = existing_state_keys
+    env_cfg.recorders.task_description = existing_task_description
     env_cfg.recorders.dataset_export_dir_path = output_dir
     env_cfg.recorders.dataset_filename = output_file_name
 
