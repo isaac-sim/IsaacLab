@@ -23,6 +23,7 @@ from .manager_based_env_cfg import ManagerBasedEnvCfg
 from .ui import ViewportCameraController
 from .utils.io_descriptors import export_articulations_data
 
+
 class ManagerBasedEnv:
     """The base environment encapsulates the simulation scene and the environment managers for the manager-based workflow.
 
