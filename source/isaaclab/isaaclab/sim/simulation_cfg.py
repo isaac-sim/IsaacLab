@@ -92,7 +92,7 @@ class PhysxCfg:
 
     .. note::
 
-        Setting this flag to True should only be done if the simulation steps are very large (less than 30Hz).
+        We recommend setting this flag to true only when the simulation step size is large (i.e., less than 30 Hz or more than 0.0333 seconds).
 
     .. warn::
     
