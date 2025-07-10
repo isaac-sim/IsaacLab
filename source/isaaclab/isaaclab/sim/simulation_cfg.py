@@ -93,7 +93,10 @@ class PhysxCfg:
     .. note::
 
         Setting this flag to True should only be done if the simulation steps are very large (less than 30Hz).
-        Enabling this flag can lead to incorrect forces being read from the contact sensor.
+
+    .. warn::
+    
+        Enabling this flag may lead to incorrect contact forces report from the contact sensor.
     """
 
     enable_enhanced_determinism: bool = False
