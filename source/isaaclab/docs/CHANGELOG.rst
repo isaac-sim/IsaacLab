@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.40.15 (2025-07-08)
+0.40.16 (2025-07-08)
 ~~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -9,6 +9,15 @@ Fixed
 
 * Fixed hanging quat_rotate calls to point to quat_apply in :class:`~isaaclab.assets.articulation.ArticulationData` and
   :class:`~isaaclab.assets.articulation.RigidObjectCollectionData`
+
+
+0.40.15 (2025-07-08)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ability to set platform height independent of object height for trimesh terrains.
 
 
 0.40.14 (2025-07-01)
@@ -46,6 +55,7 @@ Changed
 
 Added
 ^^^^^
+
 
 * Added unit test for :func:`~isaaclab.utils.math.quat_inv`.
 
