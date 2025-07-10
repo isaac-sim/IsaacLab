@@ -682,8 +682,8 @@
 <span class="sd">    Returns:</span>
 <span class="sd">        The output tensor.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">mag_torch</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">mag</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">other</span><span class="o">.</span><span class="n">device</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">float</span><span class="p">)</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="n">other</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
-    <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">mag_torch</span><span class="p">)</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">sign</span><span class="p">(</span><span class="n">other</span><span class="p">)</span>
+    <span class="n">mag_torch</span> <span class="o">=</span> <span class="nb">abs</span><span class="p">(</span><span class="n">mag</span><span class="p">)</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">ones_like</span><span class="p">(</span><span class="n">other</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">copysign</span><span class="p">(</span><span class="n">mag_torch</span><span class="p">,</span> <span class="n">other</span><span class="p">)</span>
 
 
 <span class="sd">&quot;&quot;&quot;</span>
@@ -799,7 +799,7 @@
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">shape</span> <span class="o">=</span> <span class="n">q</span><span class="o">.</span><span class="n">shape</span>
     <span class="n">q</span> <span class="o">=</span> <span class="n">q</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span>
-    <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">((</span><span class="n">q</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">1</span><span class="p">],</span> <span class="o">-</span><span class="n">q</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">:]),</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">shape</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">((</span><span class="n">q</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">1</span><span class="p">],</span> <span class="o">-</span><span class="n">q</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">:]),</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">shape</span><span class="p">)</span>
 
 
 <span class="nd">@torch</span><span class="o">.</span><span class="n">jit</span><span class="o">.</span><span class="n">script</span>
@@ -950,7 +950,7 @@
 
 <div class="viewcode-block" id="matrix_from_euler"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.utils.html#isaaclab.utils.math.matrix_from_euler">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">matrix_from_euler</span><span class="p">(</span><span class="n">euler_angles</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">convention</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Convert rotations given as Euler angles in radians to rotation matrices.</span>
+<span class="sd">    Convert rotations given as Euler angles (intrinsic) in radians to rotation matrices.</span>
 
 <span class="sd">    Args:</span>
 <span class="sd">        euler_angles: Euler angles in radians. Shape is (..., 3).</span>
@@ -985,7 +985,7 @@
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Convert rotations given as quaternions to Euler angles in radians.</span>
 
 <span class="sd">    Note:</span>
-<span class="sd">        The euler angles are assumed in XYZ convention.</span>
+<span class="sd">        The euler angles are assumed in XYZ extrinsic convention.</span>
 
 <span class="sd">    Args:</span>
 <span class="sd">        quat: The quaternion orientation in (w, x, y, z). Shape is (N, 4).</span>

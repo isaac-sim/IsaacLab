@@ -1999,7 +1999,7 @@ Shape is (num_samples,)</p></li>
 <td><p>Convert rotations given as rotation matrices to quaternions.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.utils.math.matrix_from_euler" title="isaaclab.utils.math.matrix_from_euler"><code class="xref py py-obj docutils literal notranslate"><span class="pre">matrix_from_euler</span></code></a>(euler_angles, convention)</p></td>
-<td><p>Convert rotations given as Euler angles in radians to rotation matrices.</p></td>
+<td><p>Convert rotations given as Euler angles (intrinsic) in radians to rotation matrices.</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.math.euler_xyz_from_quat" title="isaaclab.utils.math.euler_xyz_from_quat"><code class="xref py py-obj docutils literal notranslate"><span class="pre">euler_xyz_from_quat</span></code></a></p></td>
 <td><p>Convert rotations given as quaternions to Euler angles in radians.</p></td>
@@ -2393,7 +2393,7 @@ then the input is in ‘wxyz’ format, and vice-versa.</p>
 <dl class="py function">
 <dt class="sig sig-object py" id="isaaclab.utils.math.matrix_from_euler">
 <span class="sig-prename descclassname"><span class="pre">isaaclab.utils.math.</span></span><span class="sig-name descname"><span class="pre">matrix_from_euler</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">euler_angles</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">torch.Tensor</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">convention</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">torch.Tensor</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab/utils/math.html#matrix_from_euler"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.utils.math.matrix_from_euler" title="Permalink to this definition">#</a></dt>
-<dd><p>Convert rotations given as Euler angles in radians to rotation matrices.</p>
+<dd><p>Convert rotations given as Euler angles (intrinsic) in radians to rotation matrices.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
@@ -2419,7 +2419,7 @@ then y, then z.</p></li>
 <dd><p>Convert rotations given as quaternions to Euler angles in radians.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>The euler angles are assumed in XYZ convention.</p>
+<p>The euler angles are assumed in XYZ extrinsic convention.</p>
 </div>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
