@@ -138,8 +138,8 @@ class JointAction(ActionTerm):
         else:
             self._IO_descriptor.offset = self._offset
         #FIXME: This is not correct. Add list support.
-        if self.cfg.clip is not None: 
-            self._IO_descriptor.clip = self._clip
+        if isinstance(self._clip, torch.Tensor):
+            self._IO_descriptor.clip = self._clip[0].detach().cpu().numpy().tolist()
         else:
             self._IO_descriptor.clip = None
         return self._IO_descriptor
