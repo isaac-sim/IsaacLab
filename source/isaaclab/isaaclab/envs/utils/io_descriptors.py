@@ -30,6 +30,7 @@ class GenericActionIODescriptor:
     dtype: str = None
     action_type: str = None
     extras: dict[str, Any] = {}
+    export: bool = True
 
 
 @configclass

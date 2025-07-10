@@ -53,6 +53,7 @@ class ActionTerm(ManagerTermBase):
         # parse config to obtain asset to which the term is applied
         self._asset: AssetBase = self._env.scene[self.cfg.asset_name]
         self._IO_descriptor = GenericActionIODescriptor()
+        self._export_IO_descriptor = True
 
         # add handle for debug visualization (this is set to a valid handle inside set_debug_vis)
         self._debug_vis_handle = None
@@ -100,7 +101,13 @@ class ActionTerm(ManagerTermBase):
         self._IO_descriptor.name = re.sub(r"([a-z])([A-Z])", r"\1_\2", self.__class__.__name__).lower()
         self._IO_descriptor.full_path = f"{self.__class__.__module__}.{self.__class__.__name__}"
         self._IO_descriptor.description = " ".join(self.__class__.__doc__.split())
+        self._IO_descriptor.export = self.export_IO_descriptor
         return self._IO_descriptor
+
+    @property
+    def export_IO_descriptor(self) -> bool:
+        """Whether to export the IO descriptor for the action term."""
+        return self._export_IO_descriptor
 
     """
     Operations.
@@ -290,6 +297,9 @@ class ActionManager(ManagerBase):
         for item in data:
             name = item.pop("name")
             formatted_item = {"name": name, "extras": item.pop("extras")}
+            print(item["export"])
+            if not item.pop("export"):
+                continue
             for k, v in item.items():
                 # Check if v is a tuple and convert to list
                 if isinstance(v, tuple):
