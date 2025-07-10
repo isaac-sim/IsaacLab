@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.1.0" />
-    <meta name="docbuild:last-update" content="Jul 09, 2025"/>
+    <meta name="docbuild:last-update" content="Jul 10, 2025"/>
   </head>
   
   
@@ -955,7 +955,7 @@
             <span class="n">vel</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">root_com_vel_w</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
             <span class="c1"># adjust linear velocity to link from center of mass</span>
             <span class="n">vel</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span> <span class="o">+=</span> <span class="n">torch</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">cross</span><span class="p">(</span>
-                <span class="n">vel</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:],</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">quat_rotate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">root_link_quat_w</span><span class="p">,</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">body_com_pos_b</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]),</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span>
+                <span class="n">vel</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:],</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">quat_apply</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">root_link_quat_w</span><span class="p">,</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">body_com_pos_b</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]),</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span>
             <span class="p">)</span>
             <span class="c1"># set the buffer data and timestamp</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_root_link_vel_w</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">vel</span>
@@ -1071,7 +1071,7 @@
             <span class="n">velocities</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">body_com_vel_w</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
             <span class="c1"># adjust linear velocity to link from center of mass</span>
             <span class="n">velocities</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span> <span class="o">+=</span> <span class="n">torch</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">cross</span><span class="p">(</span>
-                <span class="n">velocities</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">:],</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">quat_rotate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">body_link_quat_w</span><span class="p">,</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">body_com_pos_b</span><span class="p">),</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span>
+                <span class="n">velocities</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">:],</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">quat_apply</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">body_link_quat_w</span><span class="p">,</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">body_com_pos_b</span><span class="p">),</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span>
             <span class="p">)</span>
             <span class="c1"># set the buffer data and timestamp</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_body_link_vel_w</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">velocities</span>
@@ -1666,7 +1666,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jul 09, 2025.
+  Last updated on Jul 10, 2025.
   <br/>
 </p>
   </div>

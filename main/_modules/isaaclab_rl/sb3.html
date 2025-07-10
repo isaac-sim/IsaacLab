@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.1.0" />
-    <meta name="docbuild:last-update" content="Jul 09, 2025"/>
+    <meta name="docbuild:last-update" content="Jul 10, 2025"/>
   </head>
   
   
@@ -574,6 +574,7 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">warnings</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
 
+<span class="kn">from</span><span class="w"> </span><span class="nn">stable_baselines3.common.preprocessing</span><span class="w"> </span><span class="kn">import</span> <span class="n">is_image_space</span><span class="p">,</span> <span class="n">is_image_space_channels_first</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">stable_baselines3.common.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">constant_fn</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">stable_baselines3.common.vec_env.base_vec_env</span><span class="w"> </span><span class="kn">import</span> <span class="n">VecEnv</span><span class="p">,</span> <span class="n">VecEnvObs</span><span class="p">,</span> <span class="n">VecEnvStepReturn</span>
 
@@ -705,17 +706,8 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">num_envs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">unwrapped</span><span class="o">.</span><span class="n">num_envs</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">sim_device</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">unwrapped</span><span class="o">.</span><span class="n">device</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">render_mode</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">unwrapped</span><span class="o">.</span><span class="n">render_mode</span>
-
-        <span class="c1"># obtain gym spaces</span>
-        <span class="c1"># note: stable-baselines3 does not like when we have unbounded action space so</span>
-        <span class="c1">#   we set it to some high value here. Maybe this is not general but something to think about.</span>
-        <span class="n">observation_space</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">unwrapped</span><span class="o">.</span><span class="n">single_observation_space</span><span class="p">[</span><span class="s2">&quot;policy&quot;</span><span class="p">]</span>
-        <span class="n">action_space</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">unwrapped</span><span class="o">.</span><span class="n">single_action_space</span>
-        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">action_space</span><span class="p">,</span> <span class="n">gym</span><span class="o">.</span><span class="n">spaces</span><span class="o">.</span><span class="n">Box</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">action_space</span><span class="o">.</span><span class="n">is_bounded</span><span class="p">(</span><span class="s2">&quot;both&quot;</span><span class="p">):</span>
-            <span class="n">action_space</span> <span class="o">=</span> <span class="n">gym</span><span class="o">.</span><span class="n">spaces</span><span class="o">.</span><span class="n">Box</span><span class="p">(</span><span class="n">low</span><span class="o">=-</span><span class="mi">100</span><span class="p">,</span> <span class="n">high</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="n">action_space</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
-
-        <span class="c1"># initialize vec-env</span>
-        <span class="n">VecEnv</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="n">observation_space</span><span class="p">,</span> <span class="n">action_space</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">observation_processors</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_process_spaces</span><span class="p">()</span>
         <span class="c1"># add buffer for logging episodic information</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_ep_rew_buf</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_envs</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_ep_len_buf</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_envs</span><span class="p">)</span></div>
@@ -852,6 +844,58 @@
 <span class="sd">    Helper functions.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
+    <span class="k">def</span><span class="w"> </span><span class="nf">_process_spaces</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># process observation space</span>
+        <span class="n">observation_space</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">unwrapped</span><span class="o">.</span><span class="n">single_observation_space</span><span class="p">[</span><span class="s2">&quot;policy&quot;</span><span class="p">]</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">observation_space</span><span class="p">,</span> <span class="n">gym</span><span class="o">.</span><span class="n">spaces</span><span class="o">.</span><span class="n">Dict</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">obs_key</span><span class="p">,</span> <span class="n">obs_space</span> <span class="ow">in</span> <span class="n">observation_space</span><span class="o">.</span><span class="n">spaces</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="n">processors</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">callable</span><span class="p">[[</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="p">[]</span>
+                <span class="c1"># assume normalized, if not, it won&#39;t pass is_image_space, which check [0-255].</span>
+                <span class="c1"># for scale like image space that has right shape but not scaled, we will scale it later</span>
+                <span class="k">if</span> <span class="n">is_image_space</span><span class="p">(</span><span class="n">obs_space</span><span class="p">,</span> <span class="n">check_channels</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">normalized_image</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+                    <span class="n">actually_normalized</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">obs_space</span><span class="o">.</span><span class="n">low</span> <span class="o">==</span> <span class="o">-</span><span class="mf">1.0</span><span class="p">)</span> <span class="ow">and</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">obs_space</span><span class="o">.</span><span class="n">high</span> <span class="o">==</span> <span class="mf">1.0</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="ow">not</span> <span class="n">actually_normalized</span><span class="p">:</span>
+                        <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">obs_space</span><span class="o">.</span><span class="n">low</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">)</span> <span class="ow">or</span> <span class="n">np</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">obs_space</span><span class="o">.</span><span class="n">high</span> <span class="o">!=</span> <span class="mi">255</span><span class="p">):</span>
+                            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                                <span class="s2">&quot;Your image observation is not normalized in environment, and will not be&quot;</span>
+                                <span class="s2">&quot;normalized by sb3 if its min is not 0 and max is not 255.&quot;</span>
+                            <span class="p">)</span>
+                        <span class="c1"># sb3 will handle normalization and transpose, but sb3 expects uint8 images</span>
+                        <span class="k">if</span> <span class="n">obs_space</span><span class="o">.</span><span class="n">dtype</span> <span class="o">!=</span> <span class="n">np</span><span class="o">.</span><span class="n">uint8</span><span class="p">:</span>
+                            <span class="n">processors</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="k">lambda</span> <span class="n">obs</span><span class="p">:</span> <span class="n">obs</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">uint8</span><span class="p">))</span>
+                        <span class="n">observation_space</span><span class="o">.</span><span class="n">spaces</span><span class="p">[</span><span class="n">obs_key</span><span class="p">]</span> <span class="o">=</span> <span class="n">gym</span><span class="o">.</span><span class="n">spaces</span><span class="o">.</span><span class="n">Box</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">255</span><span class="p">,</span> <span class="n">obs_space</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">uint8</span><span class="p">)</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="c1"># sb3 will NOT handle the normalization, while sb3 will transpose, its transpose applies to all</span>
+                        <span class="c1"># image terms and maybe non-ideal, more, if we can do it in torch on gpu, it will be faster then</span>
+                        <span class="c1"># sb3 transpose it in numpy with cpu.</span>
+                        <span class="k">if</span> <span class="ow">not</span> <span class="n">is_image_space_channels_first</span><span class="p">(</span><span class="n">obs_space</span><span class="p">):</span>
+
+                            <span class="k">def</span><span class="w"> </span><span class="nf">tranp</span><span class="p">(</span><span class="n">img</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+                                <span class="k">return</span> <span class="n">img</span><span class="o">.</span><span class="n">permute</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">img</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span> <span class="o">==</span> <span class="mi">3</span> <span class="k">else</span> <span class="n">img</span><span class="o">.</span><span class="n">permute</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+
+                            <span class="n">processors</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">tranp</span><span class="p">)</span>
+                            <span class="n">h</span><span class="p">,</span> <span class="n">w</span><span class="p">,</span> <span class="n">c</span> <span class="o">=</span> <span class="n">obs_space</span><span class="o">.</span><span class="n">shape</span>
+                            <span class="n">observation_space</span><span class="o">.</span><span class="n">spaces</span><span class="p">[</span><span class="n">obs_key</span><span class="p">]</span> <span class="o">=</span> <span class="n">gym</span><span class="o">.</span><span class="n">spaces</span><span class="o">.</span><span class="n">Box</span><span class="p">(</span><span class="o">-</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="n">h</span><span class="p">,</span> <span class="n">w</span><span class="p">),</span> <span class="n">obs_space</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+
+                    <span class="k">def</span><span class="w"> </span><span class="nf">chained_processor</span><span class="p">(</span><span class="n">obs</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">procs</span><span class="o">=</span><span class="n">processors</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+                        <span class="k">for</span> <span class="n">proc</span> <span class="ow">in</span> <span class="n">procs</span><span class="p">:</span>
+                            <span class="n">obs</span> <span class="o">=</span> <span class="n">proc</span><span class="p">(</span><span class="n">obs</span><span class="p">)</span>
+                        <span class="k">return</span> <span class="n">obs</span>
+
+                    <span class="c1"># add processor to the dictionary</span>
+                    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">processors</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">observation_processors</span><span class="p">[</span><span class="n">obs_key</span><span class="p">]</span> <span class="o">=</span> <span class="n">chained_processor</span>
+
+        <span class="c1"># obtain gym spaces</span>
+        <span class="c1"># note: stable-baselines3 does not like when we have unbounded action space so</span>
+        <span class="c1">#   we set it to some high value here. Maybe this is not general but something to think about.</span>
+        <span class="n">action_space</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">unwrapped</span><span class="o">.</span><span class="n">single_action_space</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">action_space</span><span class="p">,</span> <span class="n">gym</span><span class="o">.</span><span class="n">spaces</span><span class="o">.</span><span class="n">Box</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">action_space</span><span class="o">.</span><span class="n">is_bounded</span><span class="p">(</span><span class="s2">&quot;both&quot;</span><span class="p">):</span>
+            <span class="n">action_space</span> <span class="o">=</span> <span class="n">gym</span><span class="o">.</span><span class="n">spaces</span><span class="o">.</span><span class="n">Box</span><span class="p">(</span><span class="n">low</span><span class="o">=-</span><span class="mi">100</span><span class="p">,</span> <span class="n">high</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="n">action_space</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+
+        <span class="c1"># initialize vec-env</span>
+        <span class="n">VecEnv</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="n">observation_space</span><span class="p">,</span> <span class="n">action_space</span><span class="p">)</span>
+
     <span class="k">def</span><span class="w"> </span><span class="nf">_process_obs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">obs_dict</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">]:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Convert observations into NumPy data type.&quot;&quot;&quot;</span>
         <span class="c1"># Sb3 doesn&#39;t support asymmetric observation spaces, so we only use &quot;policy&quot;</span>
@@ -859,7 +903,9 @@
         <span class="c1"># note: ManagerBasedRLEnv uses torch backend (by default).</span>
         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">obs</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
             <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">obs</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-                <span class="n">obs</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">()</span>
+                <span class="k">if</span> <span class="n">key</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">observation_processors</span><span class="p">:</span>
+                    <span class="n">obs</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">observation_processors</span><span class="p">[</span><span class="n">key</span><span class="p">](</span><span class="n">value</span><span class="p">)</span>
+                <span class="n">obs</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">obs</span><span class="p">[</span><span class="n">key</span><span class="p">]</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">()</span>
         <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">obs</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">):</span>
             <span class="n">obs</span> <span class="o">=</span> <span class="n">obs</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">()</span>
         <span class="k">else</span><span class="p">:</span>
@@ -980,7 +1026,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jul 09, 2025.
+  Last updated on Jul 10, 2025.
   <br/>
 </p>
   </div>
