@@ -25,7 +25,7 @@ Modifying Reward Weights
 ------------------------
 
 The function :func:`modify_reward_weight` updates the weight of a reward term after a specified number of simulation
-steps. This can be passed directly as the `func` in a `CurriculumTermCfg`.
+steps. This can be passed directly as the ``func`` in a ``CurriculumTermCfg``.
 
 .. literalinclude:: ../../../source/isaaclab/isaaclab/envs/mdp/curriculums.py
    :language: python
@@ -54,7 +54,7 @@ Dynamically Modifying Environment Parameters
 
 The class :class:`modify_env_param` is a :class:`~isaaclab.managers.ManagerTermBase` subclass that lets you target any
 dotted attribute path in the environment and apply a user-supplied function to compute a new value at runtime. It
-handles nested attributes, dictionary keys, list or tuple indexing, and respects a `NO_CHANGE` sentinel if no update
+handles nested attributes, dictionary keys, list or tuple indexing, and respects a ``NO_CHANGE`` sentinel if no update
 is desired.
 
 .. literalinclude:: ../../../source/isaaclab/isaaclab/envs/mdp/curriculums.py
