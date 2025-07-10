@@ -244,3 +244,11 @@ def export_articulations_data(env: ManagerBasedEnv):
             articulation.data.default_joint_armature[0].detach().cpu().numpy().tolist()
         )
     return articulation_joint_data
+
+
+def export_scene_data(env: ManagerBasedEnv):
+    scene_data = {}
+    scene_data["physics_dt"] = env.physics_dt
+    scene_data["dt"] = env.step_dt
+    scene_data["decimation"] = env.cfg.decimation
+    return scene_data
