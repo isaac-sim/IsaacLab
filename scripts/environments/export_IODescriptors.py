@@ -52,6 +52,7 @@ def main():
     out_observations = outs["observations"]
     out_actions = outs["actions"]
     out_articulations = outs["articulations"]
+    out_scene = outs["scene"]
     # Make a yaml file with the output
     import yaml
 
@@ -79,6 +80,9 @@ def main():
         print(f"--- Articulation: {articulation_name} ---")
         for k1, v1 in articulation_data.items():
             print(f"{k1}: {v1}")
+
+    for k1, v1 in out_scene.items():
+        print(f"{k1}: {v1}")
 
     env.step(torch.zeros(env.action_space.shape, device=env.unwrapped.device))
     env.close()
