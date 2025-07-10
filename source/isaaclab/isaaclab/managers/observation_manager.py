@@ -233,9 +233,10 @@ class ObservationManager(ManagerBase):
             A dictionary with keys as the group names and values as the IO descriptors.
         """
 
-        data = []
+        group_data = {}
 
         for group_name in self._group_obs_term_names:
+            group_data[group_name] = []
             # check ig group name is valid
             if group_name not in self._group_obs_term_names:
                 raise ValueError(
@@ -261,26 +262,27 @@ class ObservationManager(ManagerBase):
                         if k in ["modifiers", "clip", "scale", "history_length", "flatten_history_dim"]:
                             overloads[k] = v
                     desc.update(overloads)
-                    data.append(desc)
+                    group_data[group_name].append(desc)
                 except Exception as e:
                     print(f"Error getting IO descriptor for term '{term_name}' in group '{group_name}': {e}")
         # Format the data for YAML export
         formatted_data = {}
-        for item in data:
-            name = item.pop("name")
-            formatted_item = {"overloads": {}, "extras": item.pop("extras")}
-            for k, v in item.items():
-                # Check if v is a tuple and convert to list
-                if isinstance(v, tuple):
-                    v = list(v)
-                if k in ["scale", "clip", "history_length", "flatten_history_dim"]:
-                    formatted_item["overloads"][k] = v
-                elif k in ["modifiers", "description", "units"]:
-                    formatted_item["extras"][k] = v
-                else:
-                    formatted_item[k] = v
-            formatted_data[name] = formatted_item
-
+        for group_name, data in group_data.items():
+            formatted_data[group_name] = []
+            for item in data:
+                name = item.pop("name")
+                formatted_item = {"name": name, "overloads": {}, "extras": item.pop("extras")}
+                for k, v in item.items():
+                    # Check if v is a tuple and convert to list
+                    if isinstance(v, tuple):
+                        v = list(v)
+                    if k in ["scale", "clip", "history_length", "flatten_history_dim"]:
+                        formatted_item["overloads"][k] = v
+                    elif k in ["modifiers", "description", "units"]:
+                        formatted_item["extras"][k] = v
+                    else:
+                        formatted_item[k] = v
+                formatted_data[group_name].append(formatted_item)
         return formatted_data
 
     """

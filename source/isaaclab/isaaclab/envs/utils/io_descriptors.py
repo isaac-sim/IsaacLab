@@ -192,10 +192,39 @@ def record_joint_names(output: torch.Tensor, descriptor: GenericIODescriptor, **
         joint_ids = list(range(len(asset.joint_names)))
     descriptor.joint_names = [asset.joint_names[i] for i in joint_ids]
 
-
 def record_body_names(output: torch.Tensor, descriptor: GenericIODescriptor, **kwargs):
     asset: Articulation = kwargs["env"].scene[kwargs["asset_cfg"].name]
     body_ids = kwargs["asset_cfg"].body_ids
     if body_ids == slice(None, None, None):
         body_ids = list(range(len(asset.body_names)))
     descriptor.body_names = [asset.body_names[i] for i in body_ids]
+
+def record_joint_pos_offsets(output: torch.Tensor, descriptor: GenericIODescriptor, **kwargs):
+    asset: Articulation = kwargs["env"].scene[kwargs["asset_cfg"].name]
+    ids = kwargs["asset_cfg"].joint_ids
+    # Get the offsets of the joints for the first robot in the scene.
+    # This assumes that all robots have the same joint offsets.
+    descriptor.joint_pos_offsets = asset.data.default_joint_pos[:, ids][0]
+
+def record_joint_vel_offsets(output: torch.Tensor, descriptor: GenericIODescriptor, **kwargs):
+    asset: Articulation = kwargs["env"].scene[kwargs["asset_cfg"].name]
+    ids = kwargs["asset_cfg"].joint_ids
+    # Get the offsets of the joints for the first robot in the scene.
+    # This assumes that all robots have the same joint offsets.
+    descriptor.joint_vel_offsets = asset.data.default_joint_vel[:, ids][0]
+
+
+def export_articulations_data(env: ManagerBasedEnv):
+    articulation_joint_data = {}
+    for articulation_name, articulation in env.scene.articulations.items():
+        articulation_joint_data[articulation_name] = {}
+        articulation_joint_data[articulation_name]["joint_names"] = articulation.joint_names
+        articulation_joint_data[articulation_name]["default_joint_pos"] = articulation.data.default_joint_pos[0].detach().cpu().numpy().tolist()
+        articulation_joint_data[articulation_name]["default_joint_vel"] = articulation.data.default_joint_vel[0].detach().cpu().numpy().tolist()
+        articulation_joint_data[articulation_name]["default_joint_pos_limits"] = articulation.data.default_joint_pos_limits[0].detach().cpu().numpy().tolist()
+        articulation_joint_data[articulation_name]["default_joint_damping"] = articulation.data.default_joint_damping[0].detach().cpu().numpy().tolist()
+        articulation_joint_data[articulation_name]["default_joint_stiffness"] = articulation.data.default_joint_stiffness[0].detach().cpu().numpy().tolist()
+        articulation_joint_data[articulation_name]["default_joint_friction"] = articulation.data.default_joint_friction[0].detach().cpu().numpy().tolist()
+        articulation_joint_data[articulation_name]["default_joint_armature"] = articulation.data.default_joint_armature[0].detach().cpu().numpy().tolist()
+    return articulation_joint_data
+    
