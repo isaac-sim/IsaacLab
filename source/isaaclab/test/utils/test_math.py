@@ -776,9 +776,9 @@ def test_compute_pose_error(device, rot_error_type):
 
     torch.testing.assert_close(t02 - t01, diff_pos)
     if rot_error_type == "axis_angle":
-        torch.testing.assert_close(math_utils.quat_box_minus(q01, q02), diff_rot)
+        torch.testing.assert_close(math_utils.quat_box_minus(q02, q01), diff_rot)
     else:
-        axis_angle = math_utils.quat_box_minus(q01, q02)
+        axis_angle = math_utils.quat_box_minus(q02, q01)
         axis = math_utils.normalize(axis_angle)
         angle = torch.norm(axis_angle, dim=-1)
 

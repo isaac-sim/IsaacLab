@@ -928,8 +928,14 @@ def compute_pose_error(
     Raises:
         ValueError: Invalid rotation error type.
     """
-    # Compute quaternion error (i.e., quat_box_minus)
-    quat_error = quat_mul(q01, quat_conjugate(q02))
+    # Compute quaternion error (i.e., difference quaternion)
+    # Reference: https://personal.utdallas.edu/~sxb027100/dock/quaternion.html
+    # q_current_norm = q_current * q_current_conj
+    source_quat_norm = quat_mul(q01, quat_conjugate(q01))[:, 0]
+    # q_current_inv = q_current_conj / q_current_norm
+    source_quat_inv = quat_conjugate(q01) / source_quat_norm.unsqueeze(-1)
+    # q_error = q_target * q_current_inv
+    quat_error = quat_mul(q02, source_quat_inv)
 
     # Compute position error
     pos_error = t02 - t01
