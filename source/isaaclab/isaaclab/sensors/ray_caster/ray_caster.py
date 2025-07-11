@@ -110,11 +110,14 @@ class RayCaster(SensorBase):
         # resolve None
         if env_ids is None:
             env_ids = slice(None)
+            num_envs_ids = self._view.count
+        else:
+            num_envs_ids = len(env_ids)
         # resample the drift
-        r = torch.empty(len(env_ids), 3, device=self.device)
+        r = torch.empty(num_envs_ids, 3, device=self.device)
         self.drift[env_ids] = r.uniform_(*self.cfg.drift_range)
         # resample the height drift
-        r = torch.empty(len(env_ids), device=self.device)
+        r = torch.empty(num_envs_ids, device=self.device)
         self.ray_cast_drift[env_ids, 0] = r.uniform_(*self.cfg.ray_cast_drift_range["x"])
         self.ray_cast_drift[env_ids, 1] = r.uniform_(*self.cfg.ray_cast_drift_range["y"])
         self.ray_cast_drift[env_ids, 2] = r.uniform_(*self.cfg.ray_cast_drift_range["z"])

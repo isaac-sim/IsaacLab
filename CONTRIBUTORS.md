@@ -98,6 +98,7 @@ Guidelines for modifications:
 * Ori Gadot
 * Oyindamola Omotuyi
 * Özhan Özen
+* Patrick Yin
 * Peter Du
 * Pulkit Goyal
 * Qian Wan
