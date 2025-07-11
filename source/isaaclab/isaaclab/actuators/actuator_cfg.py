@@ -140,19 +140,34 @@ class ActuatorBaseCfg:
     If None, the armature is set to the value from the USD joint prim.
     """
 
-    friction: dict[str, float] | float | None = None
-    r"""The friction coefficient of the joints in the group. Defaults to None.
+    max_actuator_velocity: dict[str, float] | float | None = None
+    """The maximum velocity of the actuator joints. Defaults to None.
+    If None, the maximum velocity is set to the value from the USD joint prim.
+    """
 
-    The joint friction is a unitless quantity. It relates the magnitude of the spatial force transmitted
-    from the parent body to the child body to the maximal friction force that may be applied by the solver
-    to resist the joint motion.
+    speed_effort_gradient: dict[str, float] | float | None = None
+    """The speed effort gradient of the actuator joints. Defaults to None.
+    If None, the speed effort gradient is set to the value from the USD joint prim.
+    """
 
-    Mathematically, this means that: :math:`F_{resist} \leq \mu F_{spatial}`, where :math:`F_{resist}`
-    is the resisting force applied by the solver and :math:`F_{spatial}` is the spatial force
-    transmitted from the parent body to the child body. The simulated friction effect is therefore
-    similar to static and Coulomb friction.
+    velocity_dependent_resistance: dict[str, float] | float | None = None
+    """The velocity dependent resistance of the actuator joints. Defaults to None.
+    If None, the velocity dependent resistance is set to the value from the USD joint prim.
+    """
 
-    If None, the joint friction is set to the value from the USD joint prim.
+    static_friction: dict[str, float] | float | None = None
+    r"""The static friction coefficient of the joints in the group. Defaults to None.
+    The joint static friction is a unitless quantity. It relates the magnitude of the spatial force transmitted from the parent body to the child body. The simulated staticfriction effect is therefore
+    similar to static and Coulomb static friction.
+    If None, the joint static friction is set to the value from the USD joint prim.
+    """
+
+    dynamic_friction: dict[str, float] | float | None = None
+    """The dynamic friction coefficient of the joints in the group. Defaults to None.
+    """
+
+    viscous_friction: dict[str, float] | float | None = None
+    """The viscous friction coefficient of the joints in the group. Defaults to None.
     """
 
 

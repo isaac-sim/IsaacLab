@@ -85,8 +85,20 @@ class ActuatorBase(ABC):
     armature: torch.Tensor
     """The armature of the actuator joints. Shape is (num_envs, num_joints)."""
 
-    friction: torch.Tensor
-    """The joint friction of the actuator joints. Shape is (num_envs, num_joints)."""
+    max_actuator_velocity: torch.Tensor
+    """The maximum actuator velocity of the actuator joints. Shape is (num_envs, num_joints)."""
+
+    speed_effort_gradient: torch.Tensor
+    """The speed effort gradient of the actuator joints. Shape is (num_envs, num_joints)."""
+
+    velocity_dependent_resistance: torch.Tensor
+    """The velocity dependent resistance of the actuator joints. Shape is (num_envs, num_joints)."""
+
+    static_friction: torch.Tensor
+    """The joint static friction of the actuator joints. Shape is (num_envs, num_joints)."""
+
+    dynamic_friction: torch.Tensor
+    """The joint dynamic friction of the actuator joints. Shape is (num_envs, num_joints)."""
 
     _DEFAULT_MAX_EFFORT_SIM: ClassVar[float] = 1.0e9
     """The default maximum effort for the actuator joints in the simulation. Defaults to 1.0e9.
@@ -105,9 +117,14 @@ class ActuatorBase(ABC):
         stiffness: torch.Tensor | float = 0.0,
         damping: torch.Tensor | float = 0.0,
         armature: torch.Tensor | float = 0.0,
-        friction: torch.Tensor | float = 0.0,
+        static_friction: torch.Tensor | float = 0.0,
+        dynamic_friction: torch.Tensor | float = 0.0,
+        viscous_friction: torch.Tensor | float = 0.0,
         effort_limit: torch.Tensor | float = torch.inf,
         velocity_limit: torch.Tensor | float = torch.inf,
+        max_actuator_velocity: torch.Tensor | float = torch.inf,
+        speed_effort_gradient: torch.Tensor | float = 0.0,
+        velocity_dependent_resistance: torch.Tensor | float = 0.0,
     ):
         """Initialize the actuator.
 
@@ -131,11 +148,20 @@ class ActuatorBase(ABC):
                 If a tensor, then the shape is (num_envs, num_joints).
             armature: The default joint armature. Defaults to 0.0.
                 If a tensor, then the shape is (num_envs, num_joints).
-            friction: The default joint friction. Defaults to 0.0.
+            static_friction: The default joint static friction. Defaults to 0.0.
                 If a tensor, then the shape is (num_envs, num_joints).
+            dynamic_friction: The default joint dynamic friction. Defaults to 0.0.
+                If a tensor, then the shape is (num_envs, num_joints).
+            viscous_friction: The default joint viscous friction. Defaults to 0.0.
             effort_limit: The default effort limit. Defaults to infinity.
                 If a tensor, then the shape is (num_envs, num_joints).
             velocity_limit: The default velocity limit. Defaults to infinity.
+                If a tensor, then the shape is (num_envs, num_joints).
+            max_actuator_velocity: The default maximum velocity. Defaults to infinity.
+                If a tensor, then the shape is (num_envs, num_joints).
+            speed_effort_gradient: The default speed effort gradient. Defaults to 0.0.
+                If a tensor, then the shape is (num_envs, num_joints).
+            velocity_dependent_resistance: The default velocity dependent resistance. Defaults to 0.0.
                 If a tensor, then the shape is (num_envs, num_joints).
         """
         # save parameters
@@ -155,7 +181,14 @@ class ActuatorBase(ABC):
         self.damping = self._parse_joint_parameter(self.cfg.damping, damping)
         # parse joint armature and friction
         self.armature = self._parse_joint_parameter(self.cfg.armature, armature)
-        self.friction = self._parse_joint_parameter(self.cfg.friction, friction)
+        self.max_actuator_velocity = self._parse_joint_parameter(self.cfg.max_actuator_velocity, max_actuator_velocity)
+        self.speed_effort_gradient = self._parse_joint_parameter(self.cfg.speed_effort_gradient, speed_effort_gradient)
+        self.velocity_dependent_resistance = self._parse_joint_parameter(
+            self.cfg.velocity_dependent_resistance, velocity_dependent_resistance
+        )
+        self.static_friction = self._parse_joint_parameter(self.cfg.static_friction, static_friction)
+        self.dynamic_friction = self._parse_joint_parameter(self.cfg.dynamic_friction, dynamic_friction)
+        self.viscous_friction = self._parse_joint_parameter(self.cfg.viscous_friction, viscous_friction)
         # parse joint limits
         # -- velocity
         self.velocity_limit_sim = self._parse_joint_parameter(self.cfg.velocity_limit_sim, velocity_limit)

@@ -62,7 +62,7 @@ ALLEGRO_HAND_CFG = ArticulationCfg(
             velocity_limit=100.0,
             stiffness=3.0,
             damping=0.1,
-            friction=0.01,
+            static_friction=0.01,
         ),
     },
     soft_joint_pos_limit_factor=1.0,
