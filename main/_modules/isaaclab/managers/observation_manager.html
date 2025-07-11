@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.1.0" />
-    <meta name="docbuild:last-update" content="Jul 10, 2025"/>
+    <meta name="docbuild:last-update" content="Jul 11, 2025"/>
   </head>
   
   
@@ -794,11 +794,16 @@
         <span class="c1"># nothing to log here</span>
         <span class="k">return</span> <span class="p">{}</span></div>
 
-<div class="viewcode-block" id="ObservationManager.compute"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.managers.html#isaaclab.managers.ObservationManager.compute">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">compute</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]]:</span>
+<div class="viewcode-block" id="ObservationManager.compute"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.managers.html#isaaclab.managers.ObservationManager.compute">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">compute</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">update_history</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]]:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Compute the observations per group for all groups.</span>
 
 <span class="sd">        The method computes the observations for all the groups handled by the observation manager.</span>
 <span class="sd">        Please check the :meth:`compute_group` on the processing of observations per group.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            update_history: The boolean indicator without return obs should be appended to observation history.</span>
+<span class="sd">                Default to False, in which case calling compute_group does not modify history. This input is no-ops</span>
+<span class="sd">                if the group&#39;s history_length == 0.</span>
 
 <span class="sd">        Returns:</span>
 <span class="sd">            A dictionary with keys as the group names and values as the computed observations.</span>
@@ -809,14 +814,14 @@
         <span class="n">obs_buffer</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
         <span class="c1"># iterate over all the terms in each group</span>
         <span class="k">for</span> <span class="n">group_name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_group_obs_term_names</span><span class="p">:</span>
-            <span class="n">obs_buffer</span><span class="p">[</span><span class="n">group_name</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">compute_group</span><span class="p">(</span><span class="n">group_name</span><span class="p">)</span>
+            <span class="n">obs_buffer</span><span class="p">[</span><span class="n">group_name</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">compute_group</span><span class="p">(</span><span class="n">group_name</span><span class="p">,</span> <span class="n">update_history</span><span class="o">=</span><span class="n">update_history</span><span class="p">)</span>
         <span class="c1"># otherwise return a dict with observations of all groups</span>
 
         <span class="c1"># Cache the observations.</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_obs_buffer</span> <span class="o">=</span> <span class="n">obs_buffer</span>
         <span class="k">return</span> <span class="n">obs_buffer</span></div>
 
-<div class="viewcode-block" id="ObservationManager.compute_group"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.managers.html#isaaclab.managers.ObservationManager.compute_group">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">compute_group</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">group_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
+<div class="viewcode-block" id="ObservationManager.compute_group"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.managers.html#isaaclab.managers.ObservationManager.compute_group">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">compute_group</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">group_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">update_history</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Computes the observations for a given group.</span>
 
 <span class="sd">        The observations for a given group are computed by calling the registered functions for each</span>
@@ -839,6 +844,9 @@
 <span class="sd">        Args:</span>
 <span class="sd">            group_name: The name of the group for which to compute the observations. Defaults to None,</span>
 <span class="sd">                in which case observations for all the groups are computed and returned.</span>
+<span class="sd">            update_history: The boolean indicator without return obs should be appended to observation group&#39;s history.</span>
+<span class="sd">                Default to False, in which case calling compute_group does not modify history. This input is no-ops</span>
+<span class="sd">                if the group&#39;s history_length == 0.</span>
 
 <span class="sd">        Returns:</span>
 <span class="sd">            Depending on the group&#39;s configuration, the tensors for individual observation terms are</span>
@@ -879,13 +887,23 @@
                 <span class="n">obs</span> <span class="o">=</span> <span class="n">obs</span><span class="o">.</span><span class="n">mul_</span><span class="p">(</span><span class="n">term_cfg</span><span class="o">.</span><span class="n">scale</span><span class="p">)</span>
             <span class="c1"># Update the history buffer if observation term has history enabled</span>
             <span class="k">if</span> <span class="n">term_cfg</span><span class="o">.</span><span class="n">history_length</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">_group_obs_term_history_buffer</span><span class="p">[</span><span class="n">group_name</span><span class="p">][</span><span class="n">term_name</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">obs</span><span class="p">)</span>
-                <span class="k">if</span> <span class="n">term_cfg</span><span class="o">.</span><span class="n">flatten_history_dim</span><span class="p">:</span>
-                    <span class="n">group_obs</span><span class="p">[</span><span class="n">term_name</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_group_obs_term_history_buffer</span><span class="p">[</span><span class="n">group_name</span><span class="p">][</span><span class="n">term_name</span><span class="p">]</span><span class="o">.</span><span class="n">buffer</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span>
-                        <span class="bp">self</span><span class="o">.</span><span class="n">_env</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span>
+                <span class="n">circular_buffer</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_group_obs_term_history_buffer</span><span class="p">[</span><span class="n">group_name</span><span class="p">][</span><span class="n">term_name</span><span class="p">]</span>
+                <span class="k">if</span> <span class="n">update_history</span><span class="p">:</span>
+                    <span class="n">circular_buffer</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">obs</span><span class="p">)</span>
+                <span class="k">elif</span> <span class="n">circular_buffer</span><span class="o">.</span><span class="n">_buffer</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="c1"># because circular buffer only exits after the simulation steps,</span>
+                    <span class="c1"># this guards history buffer from corruption by external calls before simulation start</span>
+                    <span class="n">circular_buffer</span> <span class="o">=</span> <span class="n">CircularBuffer</span><span class="p">(</span>
+                        <span class="n">max_len</span><span class="o">=</span><span class="n">circular_buffer</span><span class="o">.</span><span class="n">max_length</span><span class="p">,</span>
+                        <span class="n">batch_size</span><span class="o">=</span><span class="n">circular_buffer</span><span class="o">.</span><span class="n">batch_size</span><span class="p">,</span>
+                        <span class="n">device</span><span class="o">=</span><span class="n">circular_buffer</span><span class="o">.</span><span class="n">device</span><span class="p">,</span>
                     <span class="p">)</span>
+                    <span class="n">circular_buffer</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">obs</span><span class="p">)</span>
+
+                <span class="k">if</span> <span class="n">term_cfg</span><span class="o">.</span><span class="n">flatten_history_dim</span><span class="p">:</span>
+                    <span class="n">group_obs</span><span class="p">[</span><span class="n">term_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">circular_buffer</span><span class="o">.</span><span class="n">buffer</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_env</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
                 <span class="k">else</span><span class="p">:</span>
-                    <span class="n">group_obs</span><span class="p">[</span><span class="n">term_name</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_group_obs_term_history_buffer</span><span class="p">[</span><span class="n">group_name</span><span class="p">][</span><span class="n">term_name</span><span class="p">]</span><span class="o">.</span><span class="n">buffer</span>
+                    <span class="n">group_obs</span><span class="p">[</span><span class="n">term_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">circular_buffer</span><span class="o">.</span><span class="n">buffer</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="n">group_obs</span><span class="p">[</span><span class="n">term_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">obs</span>
 
@@ -1159,7 +1177,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jul 10, 2025.
+  Last updated on Jul 11, 2025.
   <br/>
 </p>
   </div>
