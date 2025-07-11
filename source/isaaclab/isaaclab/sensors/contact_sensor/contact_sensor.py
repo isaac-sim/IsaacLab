@@ -389,13 +389,13 @@ class ContactSensor(SensorBase):
             else:
                 self._contact_position_aggregate_buffer[:] = float("nan")
 
-            for i in range(self._num_bodies * self._num_envs):
-                for j in range(self.contact_physx_view.filter_count):
-                    start_index_ij = buffer_start_indices[i, j]
-                    count_ij = buffer_count[i, j]
-                    self._contact_position_aggregate_buffer[i, j, :] = torch.mean(
-                        buffer_contact_points[start_index_ij : (start_index_ij + count_ij), :], dim=0
-                    )
+            # for i in range(self._num_bodies * self._num_envs):
+            #     for j in range(self.contact_physx_view.filter_count):
+            #         start_index_ij = buffer_start_indices[i, j]
+            #         count_ij = buffer_count[i, j]
+            #         self._contact_position_aggregate_buffer[i, j, :] = torch.mean(
+            #             buffer_contact_points[start_index_ij : (start_index_ij + count_ij), :], dim=0
+            #         )
             # reshape from [num_env*num_bodies, num_filter_shapes, 3] to [num_env, num_bodies, num_filter_shapes, 3]
             self._data.contact_pos_w[env_ids] = self._contact_position_aggregate_buffer.view(
                 -1, self._num_bodies, self.contact_physx_view.filter_count, 3
