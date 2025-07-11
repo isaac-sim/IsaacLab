@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.40.20 (2025-07-11)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :meth:`isaaclab.envs.mdp.events.reset_joints_by_scale`, :meth:`isaaclab.envs.mdp.events.reset_joints_by_offsets`
+restricting the resetting joint indices be that user defined joint indices.
+
+
 0.40.19 (2025-07-11)
 ~~~~~~~~~~~~~~~~~~~~
 
