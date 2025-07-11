@@ -345,6 +345,7 @@ class RayCasterCamera(RayCaster):
         """Create buffers for storing data."""
         # prepare drift
         self.drift = torch.zeros(self._view.count, 3, device=self.device)
+        self.ray_cast_drift = torch.zeros(self._view.count, 3, device=self.device)
         # create the data object
         # -- pose of the cameras
         self._data.pos_w = torch.zeros((self._view.count, 3), device=self._device)
