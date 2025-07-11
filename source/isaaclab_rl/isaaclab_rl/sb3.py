@@ -25,6 +25,7 @@ import torch.nn as nn  # noqa: F401
 import warnings
 from typing import Any
 
+from stable_baselines3.common.preprocessing import is_image_space, is_image_space_channels_first
 from stable_baselines3.common.utils import constant_fn
 from stable_baselines3.common.vec_env.base_vec_env import VecEnv, VecEnvObs, VecEnvStepReturn
 
@@ -156,17 +157,8 @@ class Sb3VecEnvWrapper(VecEnv):
         self.num_envs = self.unwrapped.num_envs
         self.sim_device = self.unwrapped.device
         self.render_mode = self.unwrapped.render_mode
-
-        # obtain gym spaces
-        # note: stable-baselines3 does not like when we have unbounded action space so
-        #   we set it to some high value here. Maybe this is not general but something to think about.
-        observation_space = self.unwrapped.single_observation_space["policy"]
-        action_space = self.unwrapped.single_action_space
-        if isinstance(action_space, gym.spaces.Box) and not action_space.is_bounded("both"):
-            action_space = gym.spaces.Box(low=-100, high=100, shape=action_space.shape)
-
-        # initialize vec-env
-        VecEnv.__init__(self, self.num_envs, observation_space, action_space)
+        self.observation_processors = {}
+        self._process_spaces()
         # add buffer for logging episodic information
         self._ep_rew_buf = np.zeros(self.num_envs)
         self._ep_len_buf = np.zeros(self.num_envs)
@@ -303,6 +295,58 @@ class Sb3VecEnvWrapper(VecEnv):
     Helper functions.
     """
 
+    def _process_spaces(self):
+        # process observation space
+        observation_space = self.unwrapped.single_observation_space["policy"]
+        if isinstance(observation_space, gym.spaces.Dict):
+            for obs_key, obs_space in observation_space.spaces.items():
+                processors: list[callable[[torch.Tensor], Any]] = []
+                # assume normalized, if not, it won't pass is_image_space, which check [0-255].
+                # for scale like image space that has right shape but not scaled, we will scale it later
+                if is_image_space(obs_space, check_channels=True, normalized_image=True):
+                    actually_normalized = np.all(obs_space.low == -1.0) and np.all(obs_space.high == 1.0)
+                    if not actually_normalized:
+                        if np.any(obs_space.low != 0) or np.any(obs_space.high != 255):
+                            raise ValueError(
+                                "Your image observation is not normalized in environment, and will not be"
+                                "normalized by sb3 if its min is not 0 and max is not 255."
+                            )
+                        # sb3 will handle normalization and transpose, but sb3 expects uint8 images
+                        if obs_space.dtype != np.uint8:
+                            processors.append(lambda obs: obs.to(torch.uint8))
+                        observation_space.spaces[obs_key] = gym.spaces.Box(0, 255, obs_space.shape, np.uint8)
+                    else:
+                        # sb3 will NOT handle the normalization, while sb3 will transpose, its transpose applies to all
+                        # image terms and maybe non-ideal, more, if we can do it in torch on gpu, it will be faster then
+                        # sb3 transpose it in numpy with cpu.
+                        if not is_image_space_channels_first(obs_space):
+
+                            def tranp(img: torch.Tensor) -> torch.Tensor:
+                                return img.permute(2, 0, 1) if len(img.shape) == 3 else img.permute(0, 3, 1, 2)
+
+                            processors.append(tranp)
+                            h, w, c = obs_space.shape
+                            observation_space.spaces[obs_key] = gym.spaces.Box(-1.0, 1.0, (c, h, w), obs_space.dtype)
+
+                    def chained_processor(obs: torch.Tensor, procs=processors) -> Any:
+                        for proc in procs:
+                            obs = proc(obs)
+                        return obs
+
+                    # add processor to the dictionary
+                    if len(processors) > 0:
+                        self.observation_processors[obs_key] = chained_processor
+
+        # obtain gym spaces
+        # note: stable-baselines3 does not like when we have unbounded action space so
+        #   we set it to some high value here. Maybe this is not general but something to think about.
+        action_space = self.unwrapped.single_action_space
+        if isinstance(action_space, gym.spaces.Box) and not action_space.is_bounded("both"):
+            action_space = gym.spaces.Box(low=-100, high=100, shape=action_space.shape)
+
+        # initialize vec-env
+        VecEnv.__init__(self, self.num_envs, observation_space, action_space)
+
     def _process_obs(self, obs_dict: torch.Tensor | dict[str, torch.Tensor]) -> np.ndarray | dict[str, np.ndarray]:
         """Convert observations into NumPy data type."""
         # Sb3 doesn't support asymmetric observation spaces, so we only use "policy"
@@ -310,7 +354,9 @@ class Sb3VecEnvWrapper(VecEnv):
         # note: ManagerBasedRLEnv uses torch backend (by default).
         if isinstance(obs, dict):
             for key, value in obs.items():
-                obs[key] = value.detach().cpu().numpy()
+                if key in self.observation_processors:
+                    obs[key] = self.observation_processors[key](value)
+                obs[key] = obs[key].detach().cpu().numpy()
         elif isinstance(obs, torch.Tensor):
             obs = obs.detach().cpu().numpy()
         else:
