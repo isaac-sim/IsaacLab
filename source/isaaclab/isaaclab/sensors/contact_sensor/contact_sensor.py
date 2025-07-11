@@ -285,7 +285,7 @@ class ContactSensor(SensorBase):
         self._contact_physx_view = self._physics_sim_view.create_rigid_contact_view(
             body_names_glob,
             filter_patterns=filter_prim_paths_glob,
-            max_contact_data_count=self.cfg.max_contact_data_count_per_prim * len(body_names),
+            max_contact_data_count=self.cfg.max_contact_data_count_per_prim * len(body_names) * self._num_envs,
         )
         # resolve the true count of bodies
         self._num_bodies = self.body_physx_view.count // self._num_envs
@@ -375,6 +375,20 @@ class ContactSensor(SensorBase):
             )
             # unpack the contact points: see RigidContactView.get_contact_data() documentation for details:
             # https://docs.omniverse.nvidia.com/kit/docs/omni_physics/107.3/extensions/runtime/source/omni.physics.tensors/docs/api/python.html#omni.physics.tensors.impl.api.RigidContactView.get_net_contact_forces
+            # buffer_count: (N_envs * N_bodies, N_filters), buffer_contact_points: (N_envs * N_bodies, 3)
+            counts, max_count = buffer_count.view(-1), int(buffer_count.max())
+            if max_count > 0:
+                rel = torch.arange(max_count, device=counts.device).unsqueeze(0).expand(counts.size(0), max_count)
+                # 1) pull out all points → (n_env*n_bodies, max_count, and mask out invalid slots (r ≥ counts[k])
+                pts = buffer_contact_points[buffer_start_indices.view(-1).unsqueeze(1) + rel]
+                pts = pts * (rel < counts.unsqueeze(1)).unsqueeze(2)
+                # zero out invalid rows # 2) sum & divide → (n_env*n_bodies*n_filter, 3) → reshape: (n_env*n_bodies, n_filter, 3)
+                self._contact_position_aggregate_buffer[:] = (pts.sum(dim=1) / counts.unsqueeze(1)).view(
+                    self._num_envs * self.num_bodies, self.contact_physx_view.filter_count, 3
+                )
+            else:
+                self._contact_position_aggregate_buffer[:] = float("nan")
+
             for i in range(self._num_bodies * self._num_envs):
                 for j in range(self.contact_physx_view.filter_count):
                     start_index_ij = buffer_start_indices[i, j]
