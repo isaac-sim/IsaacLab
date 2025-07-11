@@ -1,9 +1,10 @@
-import newton.core.articulation
+import newton.sim.articulation
 import warp as wp
 import newton.utils
+#from newton.utils.selection import ContactViewManager, ContactView
 from isaacsim.core.utils.stage import print_stage_prim_paths, get_current_stage
 from newton import Model, State, Control
-from newton.core import ModelBuilder
+from newton.sim import ModelBuilder
 import usdrt
 
 @wp.kernel(enable_backward=False)
@@ -19,6 +20,7 @@ def set_vec3d_array(
 
 class NewtonManager:
     _builder: ModelBuilder = None
+    #_contact_manager: ContactViewManager = None
     _model: Model = None
     _device: str = "cuda:0"
     _sim_dt: float = 1.0 / 600.0
@@ -28,15 +30,31 @@ class NewtonManager:
     _state_1: State = None
     _state_temp: State = None
     _control: Control = None
-    _use_cuda_graph = False
+    _use_cuda_graph: bool = False
     _graph = None
-    _up_axis = "Z"
+    _up_axis: str = "Z"
     _newton_stage_path = None
     _renderer = None
     _sim_time = 0.0
     _usdrt_stage = None
     _newton_index_attr = "newton:index"
     _env_offsets = None
+
+    @property
+    def model(self) -> Model:
+        return NewtonManager._model
+
+    @property
+    def state_0(self) -> State:
+        return NewtonManager._state_0
+
+    @property
+    def state_1(self) -> State:
+        return NewtonManager._state_1
+
+    @property
+    def control(self) -> Control:
+        return NewtonManager._control
 
     @classmethod
     def set_builder(cls, builder):
@@ -45,12 +63,12 @@ class NewtonManager:
     @classmethod
     def start_simulation(cls):
         NewtonManager._model = NewtonManager._builder.finalize(device=NewtonManager._device)
-        NewtonManager._model.ground = True    
+        #NewtonManager._contact_manager = ContactViewManager(NewtonManager._model)
         NewtonManager._state_0 = NewtonManager._model.state()
         NewtonManager._state_1 = NewtonManager._model.state()
         NewtonManager._state_temp = NewtonManager._model.state()
         NewtonManager._control = NewtonManager._model.control()
-        newton.core.articulation.eval_fk(NewtonManager._model, NewtonManager._model.joint_q, NewtonManager._model.joint_qd, NewtonManager._state_0, None)
+        newton.sim.articulation.eval_fk(NewtonManager._model, NewtonManager._model.joint_q, NewtonManager._model.joint_qd, NewtonManager._state_0, None)
         NewtonManager._usdrt_stage = get_current_stage(fabric=True)
         for i, prim_path in enumerate(NewtonManager._model.body_key):
             #print("Being added to fabric: ", prim_path)
@@ -65,6 +83,7 @@ class NewtonManager:
     def initialize_solver(cls):
         NewtonManager._solver = newton.solvers.MuJoCoSolver(NewtonManager._model)
         NewtonManager._use_cuda_graph = wp.get_device().is_cuda
+        #NewtonManager._contact_manager.finalize(NewtonManager._solver)
         if NewtonManager._use_cuda_graph:
             with wp.ScopedCapture() as capture:
                 NewtonManager.simulate()
@@ -77,8 +96,7 @@ class NewtonManager:
         state_temp_dict = NewtonManager._state_temp.__dict__ # <-- Is this still used?
         for i in range(NewtonManager._decimation):
             NewtonManager._state_0.clear_forces()
-            NewtonManager._solver.step(NewtonManager._model, NewtonManager._state_0, NewtonManager._state_1, NewtonManager._control, None, NewtonManager._sim_dt)
-
+            NewtonManager._solver.step(NewtonManager._state_0, NewtonManager._state_1, NewtonManager._control, None, NewtonManager._sim_dt)
             if i < NewtonManager._decimation - 1 or not NewtonManager._use_cuda_graph:
                 # we can just swap the state references
                 NewtonManager._state_0, NewtonManager._state_1 = NewtonManager._state_1, NewtonManager._state_0
@@ -91,6 +109,24 @@ class NewtonManager:
                         state_temp_dict[key].assign(value)
                         state_0_dict[key].assign(state_1_dict[key])
                         state_1_dict[key].assign(state_temp_dict[key])
+        #with wp.ScopedTimer("Contacts aggregation"):
+        #    contact = NewtonManager._model.contact()
+        #    contact.dist = NewtonManager._solver.mjw_data.contact.dist
+        #    contact.geom = NewtonManager._solver.mjw_data.contact.geom
+        #    contact.frame = NewtonManager._solver.mjw_data.contact.frame
+        #    contact.worldid = NewtonManager._solver.mjw_data.contact.worldid
+
+        #    n_contacts = NewtonManager._solver.mjw_data.ncon
+        #    NewtonManager._contact_manager.contact_reporter.select_aggregate(contact, n_contacts)
+
+    @classmethod
+    def set_device(cls, device: str) -> None:
+        """Sets the device to use for the Newton simulation.
+
+        Args:
+            device (str): The device to use for the Newton simulation.
+        """
+        NewtonManager._device = device
 
     @classmethod
     def set_device(cls, device: str) -> None:
@@ -134,8 +170,7 @@ class NewtonManager:
             NewtonManager._renderer.end_frame()
 
     @classmethod
-    def sync_fabric_transforms(cls):
-        
+    def sync_fabric_transforms(cls): 
         selection = NewtonManager._usdrt_stage.SelectPrims(
             require_attrs=[
                 (usdrt.Sdf.ValueTypeNames.Matrix4d, "omni:fabric:worldMatrix", usdrt.Usd.Access.ReadWrite),
@@ -167,9 +202,15 @@ class NewtonManager:
 
     @classmethod
     def forward_kinematics(cls, selection):
-        newton.core.articulation.eval_fk(
+        newton.sim.articulation.eval_fk(
             NewtonManager._model, NewtonManager._state_0.joint_q, NewtonManager._state_0.joint_qd, NewtonManager._state_0, selection.articulation_mask 
         )
 
+    #@classmethod
+    #def add_contact_view(cls, body_names_glob, filter_prim_paths_glob):
+    #    print(f"[INFO] Adding contact view for {body_names_glob} with filter {filter_prim_paths_glob}")
+    #    return ContactView(NewtonManager._contact_manager, body_names_glob, filter_prim_paths_glob)
 
-
+    #@classmethod
+    #def get_contact_view(cls):
+    #    return NewtonManager._contact_manager

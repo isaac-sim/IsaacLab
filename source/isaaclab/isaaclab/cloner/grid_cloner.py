@@ -7,7 +7,7 @@
 # disclosure or distribution of this material and related documentation
 # without an express license agreement from NVIDIA CORPORATION or
 # its affiliates is strictly prohibited.
-from typing import List, Union
+from typing import List
 
 import numpy as np
 import omni.usd
@@ -15,7 +15,7 @@ import torch
 from isaaclab.cloner import Cloner
 from pxr import Gf, Usd, UsdGeom
 from isaaclab.sim._impl.newton_manager import NewtonManager
-import warp as wp
+from isaaclab.cloner.utils import replicate_environment
 
 class GridCloner(Cloner):
     """This is a specialized Cloner class that will automatically generate clones in a grid fashion."""
@@ -157,17 +157,18 @@ class GridCloner(Cloner):
 
         positions, orientations = self.get_clone_transforms(num_clones, position_offsets, orientation_offsets)
         if replicate_physics:
-            import newton.utils.isaaclab
             stage = omni.usd.get_context().get_stage()
             clone_base_path = self._root_path if root_path is None else root_path
-            builder, stage_info = newton.utils.isaaclab.replicate_environment(
+            builder, stage_info = replicate_environment(
                 omni.usd.get_context().get_stage(),
                 source_prim_path,
                 clone_base_path + "{}",
                 num_clones,
                 (self._spacing, self._spacing, 0.0),
-                # USD importer args
+                # Hack to avoid ground collisions when spawning assets.
+                spawn_offset = (0,0,20),
                 collapse_fixed_joints=False,
+                joint_ordering="dfs"
             )
             NewtonManager.set_builder(builder)
 

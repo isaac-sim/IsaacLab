@@ -26,17 +26,17 @@ from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG  # isort: skip
 class EventCfg:
     """Configuration for randomization."""
 
-    physics_material = EventTerm(
-        func=mdp.randomize_rigid_body_material,
-        mode="startup",
-        params={
-            "asset_cfg": SceneEntityCfg("robot", body_names=".*"),
-            "static_friction_range": (0.8, 0.8),
-            "dynamic_friction_range": (0.6, 0.6),
-            "restitution_range": (0.0, 0.0),
-            "num_buckets": 64,
-        },
-    )
+    #physics_material = EventTerm(
+    #    func=mdp.randomize_rigid_body_material,
+    #    mode="startup",
+    #    params={
+    #        "asset_cfg": SceneEntityCfg("robot", body_names=".*"),
+    #        "static_friction_range": (0.8, 0.8),
+    #        "dynamic_friction_range": (0.6, 0.6),
+    #        "restitution_range": (0.0, 0.0),
+    #        "num_buckets": 64,
+    #    },
+    #)
 
     add_base_mass = EventTerm(
         func=mdp.randomize_rigid_body_mass,
@@ -93,9 +93,9 @@ class AnymalCFlatEnvCfg(DirectRLEnvCfg):
 
     # robot
     robot: ArticulationCfg = ANYMAL_C_CFG.replace(prim_path="/World/envs/env_.*/Robot")
-    contact_sensor: ContactSensorCfg = ContactSensorCfg(
-        prim_path="/World/envs/env_.*/Robot/.*", history_length=3, update_period=0.005, track_air_time=True
-    )
+    #contact_sensor: ContactSensorCfg = ContactSensorCfg(
+    #    prim_path="/World/envs/env_.*/Robot/.*", history_length=3, update_period=0.005, track_air_time=True
+    #)
 
     # reward scales
     lin_vel_reward_scale = 1.0

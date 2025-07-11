@@ -64,7 +64,7 @@ class ArticulationData:
         self.FORWARD_VEC_B = torch.tensor((1.0, 0.0, 0.0), device=self.device).repeat(root_newton_view.count, 1)
 
         # Initialize history for finite differencing
-        self._previous_joint_vel = wp.to_torch(self._root_newton_view.get_attribute("joint_qd", NewtonManager.get_state_0()))
+        self._previous_joint_vel = wp.to_torch(self._root_newton_view.get_dof_velocities(NewtonManager.get_state_0())).clone()
 
         # Initialize the lazy buffers.
         self._root_state_w = TimestampedBuffer()
@@ -377,10 +377,18 @@ class ArticulationData:
             # read data from simulation
             # Newton reads poses as [x, y, z, qx, qy, qz, qw] Isaac reads as [x, y, z, qw, qx, qy, qz]
             pose = wp.to_torch(self._root_newton_view.get_root_transforms(NewtonManager.get_state_0())).clone()
-            pose[:, 3:7] = math_utils.convert_quat(pose[:, 3:7], to="wxyz")
+            if self._root_newton_view.is_floating_base:
+                pose[:, 3:7] = math_utils.convert_quat(pose[:, 3:7], to="wxyz")
+            else:
+                pose = pose.squeeze(1)
+                pose[:, 3:7] = math_utils.convert_quat(pose[:, 3:7], to="wxyz")
             # Newton reads velocities as [wx, wy, wz, vx, vy, vz] Isaac reads as [vx, vy, vz, wx, wy, wz]
-            velocity = wp.to_torch(self._root_newton_view.get_root_velocities(NewtonManager.get_state_0())).clone()
-            velocity = torch.cat((velocity[:, 3:], velocity[:, :3]), dim=-1)
+            velocities = self._root_newton_view.get_root_velocities(NewtonManager.get_state_0())
+            if velocities is not None:
+                velocity = wp.to_torch(self._root_newton_view.get_root_velocities(NewtonManager.get_state_0()))
+                velocity = torch.cat((velocity[:, 3:], velocity[:, :3]), dim=-1)
+            else:
+                velocity = torch.zeros((pose.shape[0], 6), dtype=pose.dtype, device=self.device)
             # set the buffer data and timestamp
             self._root_state_w.data = torch.cat((pose, velocity), dim=-1)
             self._root_state_w.timestamp = self._sim_timestamp
@@ -399,7 +407,7 @@ class ArticulationData:
             pose = wp.to_torch(self._root_newton_view.get_root_transforms(NewtonManager.get_state_0())).clone()
             pose[:, 3:7] = math_utils.convert_quat(pose[:, 3:7], to="wxyz")
             # Newton reads velocities as [wx, wy, wz, vx, vy, vz] Isaac reads as [vx, vy, vz, wx, wy, wz]
-            velocity = wp.to_torch(self._root_newton_view.get_root_velocities(NewtonManager.get_state_0())).clone()
+            velocity = wp.to_torch(self._root_newton_view.get_root_velocities(NewtonManager.get_state_0()))
             velocity = torch.cat((velocity[:, 3:], velocity[:, :3]), dim=-1)
             # adjust linear velocity to link from center of mass
             velocity[:, :3] += torch.linalg.cross(
@@ -422,10 +430,10 @@ class ArticulationData:
         if self._root_com_state_w.timestamp < self._sim_timestamp:
             # read data from simulation (pose is of link)
             # Newton reads poses as [x, y, z, qx, qy, qz, qw] Isaac reads as [x, y, z, qw, qx, qy, qz]
-            pose = wp.to_torch(self._root_newton_view.get_root_transforms(NewtonManager.get_state_0())).clone()
+            pose = wp.to_torch(self._root_newton_view.get_root_transforms(NewtonManager.get_state_0()))
             pose[:, 3:7] = math_utils.convert_quat(pose[:, 3:7], to="wxyz")
             # Newton reads velocities as [wx, wy, wz, vx, vy, vz] Isaac reads as [vx, vy, vz, wx, wy, wz]
-            velocity = wp.to_torch(self._root_newton_view.get_root_velocities(NewtonManager.get_state_0())).clone()
+            velocity = wp.to_torch(self._root_newton_view.get_root_velocities(NewtonManager.get_state_0()))
             velocity = torch.cat((velocity[:, 3:], velocity[:, :3]), dim=-1)
             # adjust pose to center of mass
             pos, quat = math_utils.combine_frame_transforms(
@@ -544,7 +552,7 @@ class ArticulationData:
         """Joint positions of all joints. Shape is (num_instances, num_joints)."""
         if self._joint_pos.timestamp < self._sim_timestamp:
             # read data from simulation and set the buffer data and timestamp
-            self._joint_pos.data = wp.to_torch(self._root_newton_view.get_attribute("joint_q", NewtonManager.get_state_0()))
+            self._joint_pos.data = wp.to_torch(self._root_newton_view.get_dof_positions(NewtonManager.get_state_0()))
             self._joint_pos.timestamp = self._sim_timestamp
         return self._joint_pos.data
 
@@ -553,7 +561,7 @@ class ArticulationData:
         """Joint velocities of all joints. Shape is (num_instances, num_joints)."""
         if self._joint_vel.timestamp < self._sim_timestamp:
             # read data from simulation and set the buffer data and timestamp
-            self._joint_vel.data = wp.to_torch(self._root_newton_view.get_attribute("joint_qd", NewtonManager.get_state_0()))
+            self._joint_vel.data = wp.to_torch(self._root_newton_view.get_dof_velocities(NewtonManager.get_state_0()))
             self._joint_vel.timestamp = self._sim_timestamp
         return self._joint_vel.data
 

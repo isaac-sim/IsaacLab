@@ -22,7 +22,7 @@ Reference:
 from isaaclab_assets.sensors.velodyne import VELODYNE_VLP_16_RAYCASTER_CFG
 
 import isaaclab.sim as sim_utils
-from isaaclab.actuators import ActuatorNetLSTMCfg, DCMotorCfg
+from isaaclab.actuators import ActuatorNetLSTMCfg, DCMotorCfg, ActuatorNetMLPCfg
 from isaaclab.assets.articulation import ArticulationCfg
 from isaaclab.sensors import RayCasterCfg
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
@@ -51,6 +51,20 @@ ANYDRIVE_3_LSTM_ACTUATOR_CFG = ActuatorNetLSTMCfg(
 )
 """Configuration for ANYdrive 3.0 (used on ANYmal-C) with LSTM actuator model."""
 
+ANYDRIVE_4_MLP_ACTUATOR_CFG = ActuatorNetMLPCfg(
+    # values matched from legged gym
+    joint_names_expr=[".*HAA", ".*HFE", ".*KFE"],
+    network_file="/home/antoiner/Downloads/anydrive_4_mlp.jit",
+    saturation_effort=140.0,
+    effort_limit=80.0,  # see anydrive 3 above
+    velocity_limit=8.5,
+    input_idx=[0, 2, 4],
+    input_order="vel_pos",
+    vel_scale=0.2,
+    pos_scale=5.0,
+    torque_scale=60.0,
+)
+"""Configuration for ANYdrive 4.0 (used on ANYmal-D) with MLP actuator model.""" 
 
 ##
 # Configuration - Articulation.
@@ -154,8 +168,7 @@ ANYMAL_D_CFG = ArticulationCfg(
             ".*H_KFE": 0.8,  # both hind KFE
         },
     ),
-    #actuators={"legs": ANYDRIVE_3_SIMPLE_ACTUATOR_CFG},
-    actuators={"legs": ANYDRIVE_3_LSTM_ACTUATOR_CFG},
+    actuators={"legs": ANYDRIVE_3_SIMPLE_ACTUATOR_CFG},
     soft_joint_pos_limit_factor=0.95,
 )
 """Configuration of ANYmal-D robot using actuator-net.
