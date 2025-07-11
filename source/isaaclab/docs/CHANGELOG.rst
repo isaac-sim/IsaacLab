@@ -7,7 +7,7 @@ Changelog
 Added
 ^^^^^
 
-* Added input param `update_history` to :meth:`~isaaclab.managers.ObservationManager.compute`
+* Added input param ``update_history`` to :meth:`~isaaclab.managers.ObservationManager.compute`
   to control whether the history buffer should be updated.
 * Added unit test for :class:`~isaaclab.envs.ManagerBasedEnv`.
 
