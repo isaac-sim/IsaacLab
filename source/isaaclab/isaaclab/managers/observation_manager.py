@@ -251,6 +251,11 @@ class ObservationManager(ManagerBase):
         The method computes the observations for all the groups handled by the observation manager.
         Please check the :meth:`compute_group` on the processing of observations per group.
 
+        Args:
+            update_history: The boolean indicator without return obs should be appended to observation history.
+                Default to False, in which case calling compute_group does not modify history. This input is no-ops
+                if the group's history_length == 0.
+
         Returns:
             A dictionary with keys as the group names and values as the computed observations.
             The observations are either concatenated into a single tensor or returned as a dictionary
@@ -290,6 +295,9 @@ class ObservationManager(ManagerBase):
         Args:
             group_name: The name of the group for which to compute the observations. Defaults to None,
                 in which case observations for all the groups are computed and returned.
+            update_history: The boolean indicator without return obs should be appended to observation group's history.
+                Default to False, in which case calling compute_group does not modify history. This input is no-ops
+                if the group's history_length == 0.
 
         Returns:
             Depending on the group's configuration, the tensors for individual observation terms are
