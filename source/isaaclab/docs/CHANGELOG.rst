@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.40.19 (2025-07-11)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed missing attribute in :class:`~isaaclab.sensors.ray_caster.RayCasterCamera` class and its reset method when no
+  env_ids are passed.
+
+
 0.40.18 (2025-07-09)
 ~~~~~~~~~~~~~~~~~~~~
 

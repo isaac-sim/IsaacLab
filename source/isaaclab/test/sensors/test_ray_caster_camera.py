@@ -125,6 +125,16 @@ def test_camera_init(setup_sim):
         for im_data in camera.data.output.values():
             assert im_data.shape == (1, camera_cfg.pattern_cfg.height, camera_cfg.pattern_cfg.width, 1)
 
+    # check the camera reset
+    camera.reset()
+    assert torch.all(camera.frame == 0)
+    # Simulate physics
+    for _ in range(10):
+        sim.step()
+        camera.update(dt)
+    camera.reset(env_ids=[0])
+    assert camera.frame[0] == 0
+
 
 def test_camera_resolution(setup_sim):
     """Test camera resolution is correctly set."""
