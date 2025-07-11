@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.40.18 (2025-07-11)
+0.40.19 (2025-07-11)
 ~~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -9,6 +9,23 @@ Fixed
 
 * Fixed missing attribute in :class:`~isaaclab.sensors.ray_caster.RayCasterCamera` class and its reset method when no
   env_ids are passed.
+
+
+0.40.18 (2025-07-09)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added input param ``update_history`` to :meth:`~isaaclab.managers.ObservationManager.compute`
+  to control whether the history buffer should be updated.
+* Added unit test for :class:`~isaaclab.envs.ManagerBasedEnv`.
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab.envs.ManagerBasedEnv` and :class:`~isaaclab.envs.ManagerBasedRLEnv` to not update the history
+  buffer on recording.
 
 
 0.40.17 (2025-07-10)
