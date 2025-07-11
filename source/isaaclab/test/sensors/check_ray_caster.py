@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -123,7 +123,7 @@ def main():
         prim_path="/World/envs/env_.*/ball",
         mesh_prim_paths=["/World/ground"],
         pattern_cfg=patterns.GridPatternCfg(resolution=0.1, size=(1.6, 1.0)),
-        attach_yaw_only=True,
+        ray_alignment="yaw",
         debug_vis=not args_cli.headless,
     )
     ray_caster = RayCaster(cfg=ray_caster_cfg)

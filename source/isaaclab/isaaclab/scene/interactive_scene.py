@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -8,6 +8,7 @@ from collections.abc import Sequence
 from typing import Any
 
 import carb
+import omni.log
 import omni.usd
 from isaacsim.core.cloner import GridCloner
 from isaacsim.core.prims import XFormPrim
@@ -165,7 +166,8 @@ class InteractiveScene:
 
             # since env_ids is only applicable when replicating physics, we have to fallback to the previous method
             # to filter collisions if replicate_physics is not enabled
-            if not self.cfg.replicate_physics and self.cfg.filter_collisions:
+            # additionally, env_ids is only supported in GPU simulation
+            if (not self.cfg.replicate_physics and self.cfg.filter_collisions) or self.device == "cpu":
                 self.filter_collisions(self._global_prim_paths)
 
     def clone_environments(self, copy_from_source: bool = False):
@@ -198,9 +200,10 @@ class InteractiveScene:
 
         # since env_ids is only applicable when replicating physics, we have to fallback to the previous method
         # to filter collisions if replicate_physics is not enabled
-        if not self.cfg.replicate_physics and self.cfg.filter_collisions:
+        # additionally, env_ids is only supported in GPU simulation
+        if (not self.cfg.replicate_physics and self.cfg.filter_collisions) or self.device == "cpu":
             omni.log.warn(
-                "Collision filtering can only be automatically enabled when replicate_physics=True."
+                "Collision filtering can only be automatically enabled when replicate_physics=True and GPU simulation."
                 " Please call scene.filter_collisions(global_prim_paths) to filter collisions across environments."
             )
 
@@ -357,53 +360,11 @@ class InteractiveScene:
 
     @property
     def state(self) -> dict[str, dict[str, dict[str, torch.Tensor]]]:
-        """Returns the state of the scene entities.
+        """A dictionary of the state of the scene entities in the simulation world frame.
 
-        Returns:
-            A dictionary of the state of the scene entities.
+        Please refer to :meth:`get_state` for the format.
         """
         return self.get_state(is_relative=False)
-
-    def get_state(self, is_relative: bool = False) -> dict[str, dict[str, dict[str, torch.Tensor]]]:
-        """Returns the state of the scene entities.
-
-        Args:
-            is_relative: If set to True, the state is considered relative to the environment origins.
-
-        Returns:
-            A dictionary of the state of the scene entities.
-        """
-        state = dict()
-        # articulations
-        state["articulation"] = dict()
-        for asset_name, articulation in self._articulations.items():
-            asset_state = dict()
-            asset_state["root_pose"] = articulation.data.root_state_w[:, :7].clone()
-            if is_relative:
-                asset_state["root_pose"][:, :3] -= self.env_origins
-            asset_state["root_velocity"] = articulation.data.root_vel_w.clone()
-            asset_state["joint_position"] = articulation.data.joint_pos.clone()
-            asset_state["joint_velocity"] = articulation.data.joint_vel.clone()
-            state["articulation"][asset_name] = asset_state
-        # deformable objects
-        state["deformable_object"] = dict()
-        for asset_name, deformable_object in self._deformable_objects.items():
-            asset_state = dict()
-            asset_state["nodal_position"] = deformable_object.data.nodal_pos_w.clone()
-            if is_relative:
-                asset_state["nodal_position"][:, :3] -= self.env_origins
-            asset_state["nodal_velocity"] = deformable_object.data.nodal_vel_w.clone()
-            state["deformable_object"][asset_name] = asset_state
-        # rigid objects
-        state["rigid_object"] = dict()
-        for asset_name, rigid_object in self._rigid_objects.items():
-            asset_state = dict()
-            asset_state["root_pose"] = rigid_object.data.root_state_w[:, :7].clone()
-            if is_relative:
-                asset_state["root_pose"][:, :3] -= self.env_origins
-            asset_state["root_velocity"] = rigid_object.data.root_vel_w.clone()
-            state["rigid_object"][asset_name] = asset_state
-        return state
 
     """
     Operations.
@@ -428,58 +389,6 @@ class InteractiveScene:
         # -- sensors
         for sensor in self._sensors.values():
             sensor.reset(env_ids)
-
-    def reset_to(
-        self,
-        state: dict[str, dict[str, dict[str, torch.Tensor]]],
-        env_ids: Sequence[int] | None = None,
-        is_relative: bool = False,
-    ):
-        """Resets the scene entities to the given state.
-
-        Args:
-            state: The state to reset the scene entities to.
-            env_ids: The indices of the environments to reset.
-                Defaults to None (all instances).
-            is_relative: If set to True, the state is considered relative to the environment origins.
-        """
-        if env_ids is None:
-            env_ids = slice(None)
-        # articulations
-        for asset_name, articulation in self._articulations.items():
-            asset_state = state["articulation"][asset_name]
-            # root state
-            root_pose = asset_state["root_pose"].clone()
-            if is_relative:
-                root_pose[:, :3] += self.env_origins[env_ids]
-            root_velocity = asset_state["root_velocity"].clone()
-            articulation.write_root_pose_to_sim(root_pose, env_ids=env_ids)
-            articulation.write_root_velocity_to_sim(root_velocity, env_ids=env_ids)
-            # joint state
-            joint_position = asset_state["joint_position"].clone()
-            joint_velocity = asset_state["joint_velocity"].clone()
-            articulation.write_joint_state_to_sim(joint_position, joint_velocity, env_ids=env_ids)
-            articulation.set_joint_position_target(joint_position, env_ids=env_ids)
-            articulation.set_joint_velocity_target(joint_velocity, env_ids=env_ids)
-        # deformable objects
-        for asset_name, deformable_object in self._deformable_objects.items():
-            asset_state = state["deformable_object"][asset_name]
-            nodal_position = asset_state["nodal_position"].clone()
-            if is_relative:
-                nodal_position[:, :3] += self.env_origins[env_ids]
-            nodal_velocity = asset_state["nodal_velocity"].clone()
-            deformable_object.write_nodal_pos_to_sim(nodal_position, env_ids=env_ids)
-            deformable_object.write_nodal_velocity_to_sim(nodal_velocity, env_ids=env_ids)
-        # rigid objects
-        for asset_name, rigid_object in self._rigid_objects.items():
-            asset_state = state["rigid_object"][asset_name]
-            root_pose = asset_state["root_pose"].clone()
-            if is_relative:
-                root_pose[:, :3] += self.env_origins[env_ids]
-            root_velocity = asset_state["root_velocity"].clone()
-            rigid_object.write_root_pose_to_sim(root_pose, env_ids=env_ids)
-            rigid_object.write_root_velocity_to_sim(root_velocity, env_ids=env_ids)
-        self.write_data_to_sim()
 
     def write_data_to_sim(self):
         """Writes the data of the scene entities to the simulation."""
@@ -511,6 +420,152 @@ class InteractiveScene:
         # -- sensors
         for sensor in self._sensors.values():
             sensor.update(dt, force_recompute=not self.cfg.lazy_sensor_update)
+
+    """
+    Operations: Scene State.
+    """
+
+    def reset_to(
+        self,
+        state: dict[str, dict[str, dict[str, torch.Tensor]]],
+        env_ids: Sequence[int] | None = None,
+        is_relative: bool = False,
+    ):
+        """Resets the entities in the scene to the provided state.
+
+        Args:
+            state: The state to reset the scene entities to. Please refer to :meth:`get_state` for the format.
+            env_ids: The indices of the environments to reset. Defaults to None, in which case
+                all environment instances are reset.
+            is_relative: If set to True, the state is considered relative to the environment origins.
+                Defaults to False.
+        """
+        # resolve env_ids
+        if env_ids is None:
+            env_ids = slice(None)
+        # articulations
+        for asset_name, articulation in self._articulations.items():
+            asset_state = state["articulation"][asset_name]
+            # root state
+            root_pose = asset_state["root_pose"].clone()
+            if is_relative:
+                root_pose[:, :3] += self.env_origins[env_ids]
+            root_velocity = asset_state["root_velocity"].clone()
+            articulation.write_root_pose_to_sim(root_pose, env_ids=env_ids)
+            articulation.write_root_velocity_to_sim(root_velocity, env_ids=env_ids)
+            # joint state
+            joint_position = asset_state["joint_position"].clone()
+            joint_velocity = asset_state["joint_velocity"].clone()
+            articulation.write_joint_state_to_sim(joint_position, joint_velocity, env_ids=env_ids)
+            # FIXME: This is not generic as it assumes PD control over the joints.
+            #   This assumption does not hold for effort controlled joints.
+            articulation.set_joint_position_target(joint_position, env_ids=env_ids)
+            articulation.set_joint_velocity_target(joint_velocity, env_ids=env_ids)
+        # deformable objects
+        for asset_name, deformable_object in self._deformable_objects.items():
+            asset_state = state["deformable_object"][asset_name]
+            nodal_position = asset_state["nodal_position"].clone()
+            if is_relative:
+                nodal_position[:, :3] += self.env_origins[env_ids]
+            nodal_velocity = asset_state["nodal_velocity"].clone()
+            deformable_object.write_nodal_pos_to_sim(nodal_position, env_ids=env_ids)
+            deformable_object.write_nodal_velocity_to_sim(nodal_velocity, env_ids=env_ids)
+        # rigid objects
+        for asset_name, rigid_object in self._rigid_objects.items():
+            asset_state = state["rigid_object"][asset_name]
+            root_pose = asset_state["root_pose"].clone()
+            if is_relative:
+                root_pose[:, :3] += self.env_origins[env_ids]
+            root_velocity = asset_state["root_velocity"].clone()
+            rigid_object.write_root_pose_to_sim(root_pose, env_ids=env_ids)
+            rigid_object.write_root_velocity_to_sim(root_velocity, env_ids=env_ids)
+
+        # write data to simulation to make sure initial state is set
+        # this propagates the joint targets to the simulation
+        self.write_data_to_sim()
+
+    def get_state(self, is_relative: bool = False) -> dict[str, dict[str, dict[str, torch.Tensor]]]:
+        """Returns the state of the scene entities.
+
+        Based on the type of the entity, the state comprises of different components.
+
+        * For an articulation, the state comprises of the root pose, root velocity, and joint position and velocity.
+        * For a deformable object, the state comprises of the nodal position and velocity.
+        * For a rigid object, the state comprises of the root pose and root velocity.
+
+        The returned state is a dictionary with the following format:
+
+        .. code-block:: python
+
+            {
+                "articulation": {
+                    "entity_1_name": {
+                        "root_pose": torch.Tensor,
+                        "root_velocity": torch.Tensor,
+                        "joint_position": torch.Tensor,
+                        "joint_velocity": torch.Tensor,
+                    },
+                    "entity_2_name": {
+                        "root_pose": torch.Tensor,
+                        "root_velocity": torch.Tensor,
+                        "joint_position": torch.Tensor,
+                        "joint_velocity": torch.Tensor,
+                    },
+                },
+                "deformable_object": {
+                    "entity_3_name": {
+                        "nodal_position": torch.Tensor,
+                        "nodal_velocity": torch.Tensor,
+                    }
+                },
+                "rigid_object": {
+                    "entity_4_name": {
+                        "root_pose": torch.Tensor,
+                        "root_velocity": torch.Tensor,
+                    }
+                },
+            }
+
+        where ``entity_N_name`` is the name of the entity registered in the scene.
+
+        Args:
+            is_relative: If set to True, the state is considered relative to the environment origins.
+                Defaults to False.
+
+        Returns:
+            A dictionary of the state of the scene entities.
+        """
+        state = dict()
+        # articulations
+        state["articulation"] = dict()
+        for asset_name, articulation in self._articulations.items():
+            asset_state = dict()
+            asset_state["root_pose"] = articulation.data.root_pose_w.clone()
+            if is_relative:
+                asset_state["root_pose"][:, :3] -= self.env_origins
+            asset_state["root_velocity"] = articulation.data.root_vel_w.clone()
+            asset_state["joint_position"] = articulation.data.joint_pos.clone()
+            asset_state["joint_velocity"] = articulation.data.joint_vel.clone()
+            state["articulation"][asset_name] = asset_state
+        # deformable objects
+        state["deformable_object"] = dict()
+        for asset_name, deformable_object in self._deformable_objects.items():
+            asset_state = dict()
+            asset_state["nodal_position"] = deformable_object.data.nodal_pos_w.clone()
+            if is_relative:
+                asset_state["nodal_position"][:, :3] -= self.env_origins
+            asset_state["nodal_velocity"] = deformable_object.data.nodal_vel_w.clone()
+            state["deformable_object"][asset_name] = asset_state
+        # rigid objects
+        state["rigid_object"] = dict()
+        for asset_name, rigid_object in self._rigid_objects.items():
+            asset_state = dict()
+            asset_state["root_pose"] = rigid_object.data.root_pose_w.clone()
+            if is_relative:
+                asset_state["root_pose"][:, :3] -= self.env_origins
+            asset_state["root_velocity"] = rigid_object.data.root_vel_w.clone()
+            state["rigid_object"][asset_name] = asset_state
+        return state
 
     """
     Operations: Iteration.
@@ -569,7 +624,12 @@ class InteractiveScene:
     Internal methods.
     """
 
-    def _is_scene_setup_from_cfg(self):
+    def _is_scene_setup_from_cfg(self) -> bool:
+        """Check if scene entities are setup from the config or not.
+
+        Returns:
+            True if scene entities are setup from the config, False otherwise.
+        """
         return any(
             not (asset_name in InteractiveSceneCfg.__dataclass_fields__ or asset_cfg is None)
             for asset_name, asset_cfg in self.cfg.__dict__.items()

@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -7,6 +7,7 @@ from dataclasses import MISSING
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
+from isaaclab.devices.openxr import XrCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
@@ -177,6 +178,11 @@ class StackEnvCfg(ManagerBasedRLEnvCfg):
     events = None
     curriculum = None
 
+    xr: XrCfg = XrCfg(
+        anchor_pos=(-0.1, -0.5, -1.05),
+        anchor_rot=(0.866, 0, 0, -0.5),
+    )
+
     def __post_init__(self):
         """Post initialization."""
         # general settings
@@ -184,7 +190,7 @@ class StackEnvCfg(ManagerBasedRLEnvCfg):
         self.episode_length_s = 30.0
         # simulation settings
         self.sim.dt = 0.01  # 100Hz
-        self.sim.render_interval = self.decimation
+        self.sim.render_interval = 2
 
         self.sim.physx.bounce_threshold_velocity = 0.2
         self.sim.physx.bounce_threshold_velocity = 0.01

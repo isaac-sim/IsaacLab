@@ -27,7 +27,7 @@ Feature Comparison
      - Stable Baselines3
    * - Algorithms Included
      - PPO, SAC, A2C
-     - PPO
+     - PPO, Distillation
      - `Extensive List <https://skrl.readthedocs.io/en/latest/#agents>`__
      - `Extensive List <https://github.com/DLR-RM/stable-baselines3?tab=readme-ov-file#implemented-algorithms>`__
    * - Vectorized Training
@@ -37,7 +37,7 @@ Feature Comparison
      - No
    * - Distributed Training
      - Yes
-     - No
+     - Yes
      - Yes
      - No
    * - ML Frameworks Supported
@@ -71,17 +71,18 @@ Training Performance
 --------------------
 
 We performed training with each RL library on the same ``Isaac-Humanoid-v0`` environment
-with ``--headless`` on a single RTX 4090 GPU
+with ``--headless`` on a single RTX PRO 6000 GPU using 4096 environments
 and logged the total training time for 65.5M steps for each RL library.
+
 
 +--------------------+-----------------+
 | RL Library         | Time in seconds |
 +====================+=================+
-| RL-Games           | 203             |
+| RL-Games           | 207             |
 +--------------------+-----------------+
-| SKRL               | 204             |
+| SKRL               | 208             |
 +--------------------+-----------------+
-| RSL RL             | 207             |
+| RSL RL             | 199             |
 +--------------------+-----------------+
-| Stable-Baselines3  | 6320            |
+| Stable-Baselines3  | 322             |
 +--------------------+-----------------+

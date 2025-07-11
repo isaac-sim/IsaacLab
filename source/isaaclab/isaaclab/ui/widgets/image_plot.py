@@ -1,15 +1,20 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 import numpy as np
+from contextlib import suppress
 from matplotlib import cm
 from typing import TYPE_CHECKING, Optional
 
 import carb
 import omni
 import omni.log
+
+with suppress(ImportError):
+    # isaacsim.gui is not available when running in headless mode.
+    import isaacsim.gui.components.ui_utils
 
 from .ui_widget_wrapper import UIWidgetWrapper
 

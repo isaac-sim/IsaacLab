@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -12,6 +12,7 @@ configuring the environment instances, viewer settings, and simulation parameter
 from dataclasses import MISSING
 
 import isaaclab.envs.mdp as mdp
+from isaaclab.devices.openxr import XrCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import RecorderManagerBaseCfg as DefaultEmptyRecorderManagerCfg
 from isaaclab.scene import InteractiveSceneCfg
@@ -117,3 +118,6 @@ class ManagerBasedEnvCfg:
 
     wait_for_textures: bool = True
     """True to wait for assets to be loaded completely, False otherwise. Defaults to True."""
+
+    xr: XrCfg | None = None
+    """Configuration for viewing and interacting with the environment through an XR device."""

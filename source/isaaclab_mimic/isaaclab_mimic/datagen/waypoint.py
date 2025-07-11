@@ -1,4 +1,4 @@
-# Copyright (c) 2024-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2024-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: Apache-2.0
@@ -7,10 +7,13 @@
 A collection of classes used to represent waypoints and trajectories.
 """
 import asyncio
+import inspect
 import torch
 from copy import deepcopy
 
 import isaaclab.utils.math as PoseUtils
+from isaaclab.envs import ManagerBasedRLMimicEnv
+from isaaclab.managers import TerminationTermCfg
 
 
 class Waypoint:
@@ -18,7 +21,7 @@ class Waypoint:
     Represents a single desired 6-DoF waypoint, along with corresponding gripper actuation for this point.
     """
 
-    def __init__(self, eef_names, pose, gripper_action, noise=None):
+    def __init__(self, pose, gripper_action, noise=None):
         """
         Args:
             pose (torch.Tensor): 4x4 pose target for robot controller
@@ -26,7 +29,6 @@ class Waypoint:
             noise (float or None): action noise amplitude to apply during execution at this timestep
                 (for arm actions, not gripper actions)
         """
-        self.eef_names = eef_names
         self.pose = pose
         self.gripper_action = gripper_action
         self.noise = noise
@@ -54,7 +56,7 @@ class WaypointSequence:
             self.sequence = deepcopy(sequence)
 
     @classmethod
-    def from_poses(cls, eef_names, poses, gripper_actions, action_noise):
+    def from_poses(cls, poses, gripper_actions, action_noise):
         """
         Instantiate a WaypointSequence object given a sequence of poses,
         gripper actions, and action noise.
@@ -79,7 +81,6 @@ class WaypointSequence:
         # make WaypointSequence instance
         sequence = [
             Waypoint(
-                eef_names=eef_names,
                 pose=poses[t],
                 gripper_action=gripper_actions[t],
                 noise=action_noise[t, 0],
@@ -202,7 +203,6 @@ class WaypointTrajectory:
 
     def add_waypoint_sequence_for_target_pose(
         self,
-        eef_names,
         pose,
         gripper_action,
         num_steps,
@@ -254,7 +254,6 @@ class WaypointTrajectory:
 
         # add waypoint sequence for this set of poses
         sequence = WaypointSequence.from_poses(
-            eef_names=eef_names,
             poses=poses,
             gripper_actions=gripper_actions,
             action_noise=action_noise,
@@ -281,7 +280,6 @@ class WaypointTrajectory:
     def merge(
         self,
         other,
-        eef_names,
         num_steps_interp=None,
         num_steps_fixed=None,
         action_noise=0.0,
@@ -315,7 +313,6 @@ class WaypointTrajectory:
             if need_interp:
                 # interpolation segment
                 self.add_waypoint_sequence_for_target_pose(
-                    eef_names=eef_names,
                     pose=target_for_interpolation.pose,
                     gripper_action=target_for_interpolation.gripper_action,
                     num_steps=num_steps_interp,
@@ -329,7 +326,6 @@ class WaypointTrajectory:
                 # account for the fact that we pop'd the first element of @other in anticipation of an interpolation segment
                 num_steps_fixed_to_use = num_steps_fixed if need_interp else (num_steps_fixed + 1)
                 self.add_waypoint_sequence_for_target_pose(
-                    eef_names=eef_names,
                     pose=target_for_interpolation.pose,
                     gripper_action=target_for_interpolation.gripper_action,
                     num_steps=num_steps_fixed_to_use,
@@ -343,88 +339,88 @@ class WaypointTrajectory:
         # concatenate the trajectories
         self.waypoint_sequences += other.waypoint_sequences
 
+    def get_full_sequence(self):
+        """
+        Returns the full sequence of waypoints in the trajectory.
+
+        Returns:
+            sequence (WaypointSequence instance)
+        """
+        return WaypointSequence(sequence=[waypoint for seq in self.waypoint_sequences for waypoint in seq.sequence])
+
+
+class MultiWaypoint:
+    """
+    A collection of Waypoint objects for multiple end effectors in the environment.
+    """
+
+    def __init__(self, waypoints: dict[str, Waypoint]):
+        """
+        Args:
+            waypoints (dict): a dictionary of waypionts of end effectors
+        """
+        self.waypoints = waypoints
+
     async def execute(
         self,
-        env,
-        env_id,
-        success_term,
+        env: ManagerBasedRLMimicEnv,
+        success_term: TerminationTermCfg,
+        env_id: int = 0,
         env_action_queue: asyncio.Queue | None = None,
     ):
         """
-        Main function to execute the trajectory. Will use env_interface.target_eef_pose_to_action to
-        convert each target pose at each waypoint to an action command, and pass that along to
-        env.step.
+        Executes the multi-waypoint eef actions in the environment.
 
         Args:
-            env (Isaac Lab ManagerBasedEnv instance): environment to use for executing trajectory
-            env_id (int): environment index
-            success_term: success term to check if the task is successful
-            env_action_queue (asyncio.Queue): queue for sending actions to the environment
+            env: The environment to execute the multi-waypoint actions in.
+            success_term: The termination term to check for task success.
+            env_id: The environment ID to execute the multi-waypoint actions in.
+            env_action_queue: The asyncio queue to put the action into.
 
         Returns:
-            results (dict): dictionary with the following items for the executed trajectory:
-                states (list): simulator state at each timestep
-                observations (list): observation dictionary at each timestep
-                datagen_infos (list): datagen_info at each timestep
-                actions (list): action executed at each timestep
-                success (bool): whether the trajectory successfully solved the task or not
+            A dictionary containing the state, observation, action, and success of the multi-waypoint actions.
         """
+        # current state
+        state = env.scene.get_state(is_relative=True)
 
-        states = []
-        actions = []
-        observations = []
-        success = False
+        # construct action from target poses and gripper actions
+        target_eef_pose_dict = {eef_name: waypoint.pose for eef_name, waypoint in self.waypoints.items()}
+        gripper_action_dict = {eef_name: waypoint.gripper_action for eef_name, waypoint in self.waypoints.items()}
+        if "action_noise_dict" in inspect.signature(env.target_eef_pose_to_action).parameters:
+            action_noise_dict = {eef_name: waypoint.noise for eef_name, waypoint in self.waypoints.items()}
+            play_action = env.target_eef_pose_to_action(
+                target_eef_pose_dict=target_eef_pose_dict,
+                gripper_action_dict=gripper_action_dict,
+                action_noise_dict=action_noise_dict,
+                env_id=env_id,
+            )
+        else:
+            # calling user-defined env.target_eef_pose_to_action() with noise parameter is deprecated
+            # (replaced by action_noise_dict)
+            play_action = env.target_eef_pose_to_action(
+                target_eef_pose_dict=target_eef_pose_dict,
+                gripper_action_dict=gripper_action_dict,
+                noise=max([waypoint.noise for waypoint in self.waypoints.values()]),
+                env_id=env_id,
+            )
 
-        # iterate over waypoint sequences
-        for seq in self.waypoint_sequences:
+        if play_action.dim() == 1:
+            play_action = play_action.unsqueeze(0)  # Reshape with additional env dimension
 
-            # iterate over waypoints in each sequence
-            for j in range(len(seq)):
+        # step environment
+        if env_action_queue is None:
+            obs, _, _, _, _ = env.step(play_action)
+        else:
+            await env_action_queue.put((env_id, play_action[0]))
+            await env_action_queue.join()
+            obs = env.obs_buf
 
-                # current waypoint
-                waypoint = seq[j]
+        success = bool(success_term.func(env, **success_term.params)[env_id])
 
-                # current state and observation
-                obs = env.obs_buf
-                state = env.scene.get_state(is_relative=True)
-
-                # convert target pose and gripper action to env action
-                target_eef_pose_dict = {waypoint.eef_names[0]: waypoint.pose}
-                gripper_action_dict = {waypoint.eef_names[0]: waypoint.gripper_action}
-                play_action = env.target_eef_pose_to_action(
-                    target_eef_pose_dict=target_eef_pose_dict,
-                    gripper_action_dict=gripper_action_dict,
-                    noise=waypoint.noise,
-                    env_id=env_id,
-                )
-
-                # step environment
-                if not isinstance(play_action, torch.Tensor):
-                    play_action = torch.tensor(play_action)
-                if play_action.dim() == 1 and play_action.size(0) == 7:
-                    play_action = play_action.unsqueeze(0)  # Reshape to [1, 7]
-
-                if env_action_queue is None:
-                    obs, _, _, _, _ = env.step(play_action)
-                else:
-                    await env_action_queue.put((env_id, play_action[0]))
-                    await env_action_queue.join()
-                    obs = env.obs_buf
-
-                # collect data
-                states.append(state)
-                actions.append(play_action)
-                observations.append(obs)
-
-                cur_success_metric = bool(success_term.func(env, **success_term.params)[env_id])
-
-                # If the task success metric is True once during the execution, then the task is considered successful
-                success = success or cur_success_metric
-
-        results = dict(
-            states=states,
-            observations=observations,
-            actions=torch.stack(actions),
+        result = dict(
+            states=[state],
+            observations=[obs],
+            actions=[play_action],
             success=success,
         )
-        return results
+        return result

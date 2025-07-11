@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -16,7 +16,7 @@ import omni.log
 import omni.timeline
 
 import isaaclab.utils.string as string_utils
-from isaaclab.utils import string_to_callable
+from isaaclab.utils import class_to_dict, string_to_callable
 
 from .manager_term_cfg import ManagerTermBaseCfg
 from .scene_entity_cfg import SceneEntityCfg
@@ -79,6 +79,11 @@ class ManagerTermBase(ABC):
         """Device on which to perform computations."""
         return self._env.device
 
+    @property
+    def __name__(self) -> str:
+        """Return the name of the class or subclass."""
+        return self.__class__.__name__
+
     """
     Operations.
     """
@@ -91,6 +96,10 @@ class ManagerTermBase(ABC):
                 all environments are considered.
         """
         pass
+
+    def serialize(self) -> dict:
+        """General serialization call. Includes the configuration dict."""
+        return {"cfg": class_to_dict(self.cfg)}
 
     def __call__(self, *args) -> Any:
         """Returns the value of the term required by the manager.
@@ -112,7 +121,7 @@ class ManagerTermBase(ABC):
         Returns:
             The value of the term.
         """
-        raise NotImplementedError
+        raise NotImplementedError("The method '__call__' should be implemented by the subclass.")
 
 
 class ManagerBase(ABC):
@@ -136,32 +145,38 @@ class ManagerBase(ABC):
         self.cfg = copy.deepcopy(cfg)
         self._env = env
 
-        # parse config to create terms information
-        if self.cfg:
-            self._prepare_terms()
+        # flag for whether the scene entities have been resolved
+        # if sim is playing, we resolve the scene entities directly while preparing the terms
+        self._is_scene_entities_resolved = self._env.sim.is_playing()
 
         # if the simulation is not playing, we use callbacks to trigger the resolution of the scene
         # entities configuration. this is needed for cases where the manager is created after the
         # simulation, but before the simulation is playing.
+        # FIXME: Once Isaac Sim supports storing this information as USD schema, we can remove this
+        #   callback and resolve the scene entities directly inside `_prepare_terms`.
         if not self._env.sim.is_playing():
             # note: Use weakref on all callbacks to ensure that this object can be deleted when its destructor
             # is called
             # The order is set to 20 to allow asset/sensor initialization to complete before the scene entities
             # are resolved. Those have the order 10.
             timeline_event_stream = omni.timeline.get_timeline_interface().get_timeline_event_stream()
-            self._resolve_scene_entities_handle = timeline_event_stream.create_subscription_to_pop_by_type(
+            self._resolve_terms_handle = timeline_event_stream.create_subscription_to_pop_by_type(
                 int(omni.timeline.TimelineEventType.PLAY),
-                lambda event, obj=weakref.proxy(self): obj._resolve_scene_entities_callback(event),
+                lambda event, obj=weakref.proxy(self): obj._resolve_terms_callback(event),
                 order=20,
             )
         else:
-            self._resolve_scene_entities_handle = None
+            self._resolve_terms_handle = None
+
+        # parse config to create terms information
+        if self.cfg:
+            self._prepare_terms()
 
     def __del__(self):
         """Delete the manager."""
-        if self._resolve_scene_entities_handle:
-            self._resolve_scene_entities_handle.unsubscribe()
-            self._resolve_scene_entities_handle = None
+        if self._resolve_terms_handle:
+            self._resolve_terms_handle.unsubscribe()
+            self._resolve_terms_handle = None
 
     """
     Properties.
@@ -206,7 +221,7 @@ class ManagerBase(ABC):
         specified as regular expressions or a list of regular expressions. The search is
         performed on the active terms in the manager.
 
-        Please check the :meth:`isaaclab.utils.string_utils.resolve_matching_names` function for more
+        Please check the :meth:`~isaaclab.utils.string_utils.resolve_matching_names` function for more
         information on the name matching.
 
         Args:
@@ -249,12 +264,14 @@ class ManagerBase(ABC):
     Internal callbacks.
     """
 
-    def _resolve_scene_entities_callback(self, event):
-        """Resolve the scene entities configuration.
+    def _resolve_terms_callback(self, event):
+        """Resolve configurations of terms once the simulation starts.
 
-        This callback is called when the simulation starts. It is used to resolve the
-        scene entities configuration for the terms.
+        Please check the :meth:`_process_term_cfg_at_play` method for more information.
         """
+        # check if scene entities have been resolved
+        if self._is_scene_entities_resolved:
+            return
         # check if config is dict already
         if isinstance(self.cfg, dict):
             cfg_items = self.cfg.items()
@@ -266,17 +283,29 @@ class ManagerBase(ABC):
             # check for non config
             if term_cfg is None:
                 continue
-            # resolve the scene entity configuration
-            self._resolve_scene_entity_cfg(term_name, term_cfg)
+            # process attributes at runtime
+            # these properties are only resolvable once the simulation starts playing
+            self._process_term_cfg_at_play(term_name, term_cfg)
+
+        # set the flag
+        self._is_scene_entities_resolved = True
 
     """
-    Helper functions.
+    Internal functions.
     """
 
     def _resolve_common_term_cfg(self, term_name: str, term_cfg: ManagerTermBaseCfg, min_argc: int = 1):
-        """Resolve common term configuration.
+        """Resolve common attributes of the term configuration.
 
-        Usually, called by the :meth:`_prepare_terms` method to resolve common term configuration.
+        Usually, called by the :meth:`_prepare_terms` method to resolve common attributes of the term
+        configuration. These include:
+
+        * Resolving the term function and checking if it is callable.
+        * Checking if the term function's arguments are matched by the parameters.
+        * Resolving special attributes of the term configuration like ``asset_cfg``, ``sensor_cfg``, etc.
+        * Initializing the term if it is a class.
+
+        The last two steps are only possible once the simulation starts playing.
 
         By default, all term functions are expected to have at least one argument, which is the
         environment object. Some other managers may expect functions to take more arguments, for
@@ -303,29 +332,31 @@ class ManagerBase(ABC):
                 f" Received: '{type(term_cfg)}'."
             )
 
-        # iterate over all the entities and parse the joint and body names
-        if self._env.sim.is_playing():
-            self._resolve_scene_entity_cfg(term_name, term_cfg)
-
         # get the corresponding function or functional class
         if isinstance(term_cfg.func, str):
             term_cfg.func = string_to_callable(term_cfg.func)
+        # check if function is callable
+        if not callable(term_cfg.func):
+            raise AttributeError(f"The term '{term_name}' is not callable. Received: {term_cfg.func}")
 
-        # initialize the term if it is a class
+        # check if the term is a class of valid type
         if inspect.isclass(term_cfg.func):
             if not issubclass(term_cfg.func, ManagerTermBase):
                 raise TypeError(
                     f"Configuration for the term '{term_name}' is not of type ManagerTermBase."
                     f" Received: '{type(term_cfg.func)}'."
                 )
-            term_cfg.func = term_cfg.func(cfg=term_cfg, env=self._env)
+            func_static = term_cfg.func.__call__
+            min_argc += 1  # forward by 1 to account for 'self' argument
+        else:
+            func_static = term_cfg.func
         # check if function is callable
-        if not callable(term_cfg.func):
+        if not callable(func_static):
             raise AttributeError(f"The term '{term_name}' is not callable. Received: {term_cfg.func}")
 
-        # check if term's arguments are matched by params
+        # check statically if the term's arguments are matched by params
         term_params = list(term_cfg.params.keys())
-        args = inspect.signature(term_cfg.func).parameters
+        args = inspect.signature(func_static).parameters
         args_with_defaults = [arg for arg in args if args[arg].default is not inspect.Parameter.empty]
         args_without_defaults = [arg for arg in args if args[arg].default is inspect.Parameter.empty]
         args = args_without_defaults + args_with_defaults
@@ -338,8 +369,22 @@ class ManagerBase(ABC):
                     f" and optional parameters: {args_with_defaults}, but received: {term_params}."
                 )
 
-    def _resolve_scene_entity_cfg(self, term_name: str, term_cfg: ManagerTermBaseCfg):
-        """Resolve the scene entity configuration for the term.
+        # process attributes at runtime
+        # these properties are only resolvable once the simulation starts playing
+        if self._env.sim.is_playing():
+            self._process_term_cfg_at_play(term_name, term_cfg)
+
+    def _process_term_cfg_at_play(self, term_name: str, term_cfg: ManagerTermBaseCfg):
+        """Process the term configuration at runtime.
+
+        This function is called when the simulation starts playing. It is used to process the term
+        configuration at runtime. This includes:
+
+        * Resolving the scene entity configuration for the term.
+        * Initializing the term if it is a class.
+
+        Since the above steps rely on PhysX to parse over the simulation scene, they are deferred
+        until the simulation starts playing.
 
         Args:
             term_name: The name of the term.
@@ -362,3 +407,8 @@ class ManagerBase(ABC):
                 omni.log.info(msg)
             # store the entity
             term_cfg.params[key] = value
+
+        # initialize the term if it is a class
+        if inspect.isclass(term_cfg.func):
+            omni.log.info(f"Initializing term '{term_name}' with class '{term_cfg.func.__name__}'.")
+            term_cfg.func = term_cfg.func(cfg=term_cfg, env=self._env)

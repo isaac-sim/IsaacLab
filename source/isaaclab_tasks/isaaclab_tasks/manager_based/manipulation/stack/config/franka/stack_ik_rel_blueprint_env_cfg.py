@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -84,7 +84,9 @@ def image(
         if images.dtype == torch.uint8:
             images = images.float() / 255.0
         # Get total successful episodes
-        total_successes = sum(env.recorder_manager._exported_successful_episode_count.values())
+        total_successes = 0
+        if hasattr(env, "recorder_manager") and env.recorder_manager is not None:
+            total_successes = env.recorder_manager.exported_successful_episode_count
 
         for tile in range(images.shape[0]):
             tile_chw = torch.swapaxes(images[tile : tile + 1].unsqueeze(1), 1, -1).squeeze(-1)

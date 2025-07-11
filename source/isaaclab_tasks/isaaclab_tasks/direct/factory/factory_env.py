@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -157,7 +157,7 @@ class FactoryEnv(DirectRLEnv):
 
     def _setup_scene(self):
         """Initialize simulation scene."""
-        spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg(), translation=(0.0, 0.0, -0.4))
+        spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg(), translation=(0.0, 0.0, -1.05))
 
         # spawn a usd file of a table into the scene
         cfg = sim_utils.UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd")
@@ -173,6 +173,9 @@ class FactoryEnv(DirectRLEnv):
             self._large_gear_asset = Articulation(self.cfg_task.large_gear_cfg)
 
         self.scene.clone_environments(copy_from_source=False)
+        if self.device == "cpu":
+            # we need to explicitly filter collisions for CPU simulation
+            self.scene.filter_collisions()
 
         self.scene.articulations["robot"] = self._robot
         self.scene.articulations["fixed_asset"] = self._fixed_asset

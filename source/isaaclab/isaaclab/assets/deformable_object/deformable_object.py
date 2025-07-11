@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 
 import omni.log
 import omni.physics.tensors.impl.api as physx
+from isaacsim.core.simulation_manager import SimulationManager
 from pxr import PhysxSchema, UsdShade
 
 import isaaclab.sim as sim_utils
@@ -261,9 +262,8 @@ class DeformableObject(AssetBase):
     """
 
     def _initialize_impl(self):
-        # create simulation view
-        self._physics_sim_view = physx.create_simulation_view(self._backend)
-        self._physics_sim_view.set_subspace_roots("/")
+        # obtain global simulation view
+        self._physics_sim_view = SimulationManager.get_physics_sim_view()
         # obtain the first prim in the regex expression (all others are assumed to be a copy of this)
         template_prim = sim_utils.find_first_matching_prim(self.cfg.prim_path)
         if template_prim is None:
@@ -408,6 +408,4 @@ class DeformableObject(AssetBase):
         """Invalidates the scene elements."""
         # call parent
         super()._invalidate_initialize_callback(event)
-        # set all existing views to None to invalidate them
-        self._physics_sim_view = None
         self._root_physx_view = None

@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 
 import omni.log
 import omni.physics.tensors.impl.api as physx
+from isaacsim.core.simulation_manager import SimulationManager
 from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
@@ -156,10 +157,8 @@ class RigidObject(AssetBase):
             root_state: Root state in simulation frame. Shape is (len(env_ids), 13).
             env_ids: Environment indices. If None, then all indices are used.
         """
-
-        # set into simulation
-        self.write_root_pose_to_sim(root_state[:, :7], env_ids=env_ids)
-        self.write_root_velocity_to_sim(root_state[:, 7:], env_ids=env_ids)
+        self.write_root_link_pose_to_sim(root_state[:, :7], env_ids=env_ids)
+        self.write_root_com_velocity_to_sim(root_state[:, 7:], env_ids=env_ids)
 
     def write_root_com_state_to_sim(self, root_state: torch.Tensor, env_ids: Sequence[int] | None = None):
         """Set the root center of mass state over selected environment indices into the simulation.
@@ -171,7 +170,6 @@ class RigidObject(AssetBase):
             root_state: Root state in simulation frame. Shape is (len(env_ids), 13).
             env_ids: Environment indices. If None, then all indices are used.
         """
-        # set into simulation
         self.write_root_com_pose_to_sim(root_state[:, :7], env_ids=env_ids)
         self.write_root_com_velocity_to_sim(root_state[:, 7:], env_ids=env_ids)
 
@@ -185,7 +183,6 @@ class RigidObject(AssetBase):
             root_state: Root state in simulation frame. Shape is (len(env_ids), 13).
             env_ids: Environment indices. If None, then all indices are used.
         """
-        # set into simulation
         self.write_root_link_pose_to_sim(root_state[:, :7], env_ids=env_ids)
         self.write_root_link_velocity_to_sim(root_state[:, 7:], env_ids=env_ids)
 
@@ -195,22 +192,10 @@ class RigidObject(AssetBase):
         The root pose comprises of the cartesian position and quaternion orientation in (w, x, y, z).
 
         Args:
-            root_pose: Root poses in simulation frame. Shape is (len(env_ids), 7).
+            root_pose: Root link poses in simulation frame. Shape is (len(env_ids), 7).
             env_ids: Environment indices. If None, then all indices are used.
         """
-        # resolve all indices
-        physx_env_ids = env_ids
-        if env_ids is None:
-            env_ids = slice(None)
-            physx_env_ids = self._ALL_INDICES
-        # note: we need to do this here since tensors are not set into simulation until step.
-        # set into internal buffers
-        self._data.root_state_w[env_ids, :7] = root_pose.clone()
-        # convert root quaternion from wxyz to xyzw
-        root_poses_xyzw = self._data.root_state_w[:, :7].clone()
-        root_poses_xyzw[:, 3:] = math_utils.convert_quat(root_poses_xyzw[:, 3:], to="xyzw")
-        # set into simulation
-        self.root_physx_view.set_transforms(root_poses_xyzw, indices=physx_env_ids)
+        self.write_root_link_pose_to_sim(root_pose, env_ids=env_ids)
 
     def write_root_link_pose_to_sim(self, root_pose: torch.Tensor, env_ids: Sequence[int] | None = None):
         """Set the root link pose over selected environment indices into the simulation.
@@ -218,7 +203,7 @@ class RigidObject(AssetBase):
         The root pose comprises of the cartesian position and quaternion orientation in (w, x, y, z).
 
         Args:
-            root_pose: Root poses in simulation frame. Shape is (len(env_ids), 7).
+            root_pose: Root link poses in simulation frame. Shape is (len(env_ids), 7).
             env_ids: Environment indices. If None, then all indices are used.
         """
         # resolve all indices
@@ -226,12 +211,26 @@ class RigidObject(AssetBase):
         if env_ids is None:
             env_ids = slice(None)
             physx_env_ids = self._ALL_INDICES
+
         # note: we need to do this here since tensors are not set into simulation until step.
         # set into internal buffers
-        self._data.root_link_state_w[env_ids, :7] = root_pose.clone()
-        self._data.root_state_w[env_ids, :7] = self._data.root_link_state_w[env_ids, :7]
+        self._data.root_link_pose_w[env_ids] = root_pose.clone()
+        # update these buffers only if the user is using them. Otherwise this adds to overhead.
+        if self._data._root_link_state_w.data is not None:
+            self._data.root_link_state_w[env_ids, :7] = self._data.root_link_pose_w[env_ids]
+        if self._data._root_state_w.data is not None:
+            self._data.root_state_w[env_ids, :7] = self._data.root_link_pose_w[env_ids]
+        if self._data._root_com_state_w.data is not None:
+            expected_com_pos, expected_com_quat = math_utils.combine_frame_transforms(
+                self._data.root_link_pose_w[env_ids, :3],
+                self._data.root_link_pose_w[env_ids, 3:7],
+                self.data.body_com_pos_b[env_ids, 0, :],
+                self.data.body_com_quat_b[env_ids, 0, :],
+            )
+            self._data.root_com_state_w[env_ids, :3] = expected_com_pos
+            self._data.root_com_state_w[env_ids, 3:7] = expected_com_quat
         # convert root quaternion from wxyz to xyzw
-        root_poses_xyzw = self._data.root_link_state_w[:, :7].clone()
+        root_poses_xyzw = self._data.root_link_pose_w.clone()
         root_poses_xyzw[:, 3:] = math_utils.convert_quat(root_poses_xyzw[:, 3:], to="xyzw")
         # set into simulation
         self.root_physx_view.set_transforms(root_poses_xyzw, indices=physx_env_ids)
@@ -252,18 +251,26 @@ class RigidObject(AssetBase):
         else:
             local_env_ids = env_ids
 
-        com_pos = self.data.com_pos_b[local_env_ids, 0, :]
-        com_quat = self.data.com_quat_b[local_env_ids, 0, :]
+        # set into internal buffers
+        self._data.root_com_pose_w[local_env_ids] = root_pose.clone()
+        # update these buffers only if the user is using them. Otherwise this adds to overhead.
+        if self._data._root_com_state_w.data is not None:
+            self._data.root_com_state_w[local_env_ids, :7] = self._data.root_com_pose_w[local_env_ids]
 
+        # get CoM pose in link frame
+        com_pos_b = self.data.body_com_pos_b[local_env_ids, 0, :]
+        com_quat_b = self.data.body_com_quat_b[local_env_ids, 0, :]
+        # transform input CoM pose to link frame
         root_link_pos, root_link_quat = math_utils.combine_frame_transforms(
             root_pose[..., :3],
             root_pose[..., 3:7],
-            math_utils.quat_rotate(math_utils.quat_inv(com_quat), -com_pos),
-            math_utils.quat_inv(com_quat),
+            math_utils.quat_apply(math_utils.quat_inv(com_quat_b), -com_pos_b),
+            math_utils.quat_inv(com_quat_b),
         )
-
         root_link_pose = torch.cat((root_link_pos, root_link_quat), dim=-1)
-        self.write_root_link_pose_to_sim(root_pose=root_link_pose, env_ids=env_ids)
+
+        # write transformed pose in link frame to sim
+        self.write_root_link_pose_to_sim(root_link_pose, env_ids=env_ids)
 
     def write_root_velocity_to_sim(self, root_velocity: torch.Tensor, env_ids: Sequence[int] | None = None):
         """Set the root center of mass velocity over selected environment indices into the simulation.
@@ -275,17 +282,7 @@ class RigidObject(AssetBase):
             root_velocity: Root center of mass velocities in simulation world frame. Shape is (len(env_ids), 6).
             env_ids: Environment indices. If None, then all indices are used.
         """
-        # resolve all indices
-        physx_env_ids = env_ids
-        if env_ids is None:
-            env_ids = slice(None)
-            physx_env_ids = self._ALL_INDICES
-        # note: we need to do this here since tensors are not set into simulation until step.
-        # set into internal buffers
-        self._data.root_state_w[env_ids, 7:] = root_velocity.clone()
-        self._data.body_acc_w[env_ids] = 0.0
-        # set into simulation
-        self.root_physx_view.set_velocities(self._data.root_state_w[:, 7:], indices=physx_env_ids)
+        self.write_root_com_velocity_to_sim(root_velocity=root_velocity, env_ids=env_ids)
 
     def write_root_com_velocity_to_sim(self, root_velocity: torch.Tensor, env_ids: Sequence[int] | None = None):
         """Set the root center of mass velocity over selected environment indices into the simulation.
@@ -297,19 +294,26 @@ class RigidObject(AssetBase):
             root_velocity: Root center of mass velocities in simulation world frame. Shape is (len(env_ids), 6).
             env_ids: Environment indices. If None, then all indices are used.
         """
-
         # resolve all indices
         physx_env_ids = env_ids
         if env_ids is None:
             env_ids = slice(None)
             physx_env_ids = self._ALL_INDICES
+
         # note: we need to do this here since tensors are not set into simulation until step.
         # set into internal buffers
-        self._data.root_com_state_w[env_ids, 7:] = root_velocity.clone()
-        self._data.root_state_w[env_ids, 7:] = self._data.root_com_state_w[env_ids, 7:]
-        self._data.body_acc_w[env_ids] = 0.0
+        self._data.root_com_vel_w[env_ids] = root_velocity.clone()
+        # update these buffers only if the user is using them. Otherwise this adds to overhead.
+        if self._data._root_com_state_w.data is not None:
+            self._data.root_com_state_w[env_ids, 7:] = self._data.root_com_vel_w[env_ids]
+        if self._data._root_state_w.data is not None:
+            self._data.root_state_w[env_ids, 7:] = self._data.root_com_vel_w[env_ids]
+        if self._data._root_link_state_w.data is not None:
+            self._data.root_link_state_w[env_ids, 7:] = self._data.root_com_vel_w[env_ids]
+        # make the acceleration zero to prevent reporting old values
+        self._data.body_com_acc_w[env_ids] = 0.0
         # set into simulation
-        self.root_physx_view.set_velocities(self._data.root_com_state_w[:, 7:], indices=physx_env_ids)
+        self.root_physx_view.set_velocities(self._data.root_com_vel_w, indices=physx_env_ids)
 
     def write_root_link_velocity_to_sim(self, root_velocity: torch.Tensor, env_ids: Sequence[int] | None = None):
         """Set the root link velocity over selected environment indices into the simulation.
@@ -327,15 +331,23 @@ class RigidObject(AssetBase):
         else:
             local_env_ids = env_ids
 
+        # set into internal buffers
+        self._data.root_link_vel_w[local_env_ids] = root_velocity.clone()
+        # update these buffers only if the user is using them. Otherwise this adds to overhead.
+        if self._data._root_link_state_w.data is not None:
+            self._data.root_link_state_w[local_env_ids, 7:] = self._data.root_link_vel_w[local_env_ids]
+
+        # get CoM pose in link frame
+        quat = self.data.root_link_quat_w[local_env_ids]
+        com_pos_b = self.data.body_com_pos_b[local_env_ids, 0, :]
+        # transform input velocity to center of mass frame
         root_com_velocity = root_velocity.clone()
-        quat = self.data.root_link_state_w[local_env_ids, 3:7]
-        com_pos_b = self.data.com_pos_b[local_env_ids, 0, :]
-        # transform given velocity to center of mass
         root_com_velocity[:, :3] += torch.linalg.cross(
-            root_com_velocity[:, 3:], math_utils.quat_rotate(quat, com_pos_b), dim=-1
+            root_com_velocity[:, 3:], math_utils.quat_apply(quat, com_pos_b), dim=-1
         )
-        # write center of mass velocity to sim
-        self.write_root_com_velocity_to_sim(root_velocity=root_com_velocity, env_ids=env_ids)
+
+        # write transformed velocity in CoM frame to sim
+        self.write_root_com_velocity_to_sim(root_com_velocity, env_ids=env_ids)
 
     """
     Operations - Setters.
@@ -400,9 +412,8 @@ class RigidObject(AssetBase):
     """
 
     def _initialize_impl(self):
-        # create simulation view
-        self._physics_sim_view = physx.create_simulation_view(self._backend)
-        self._physics_sim_view.set_subspace_roots("/")
+        # obtain global simulation view
+        self._physics_sim_view = SimulationManager.get_physics_sim_view()
         # obtain the first prim in the regex expression (all others are assumed to be a copy of this)
         template_prim = sim_utils.find_first_matching_prim(self.cfg.prim_path)
         if template_prim is None:
@@ -501,5 +512,4 @@ class RigidObject(AssetBase):
         # call parent
         super()._invalidate_initialize_callback(event)
         # set all existing views to None to invalidate them
-        self._physics_sim_view = None
         self._root_physx_view = None

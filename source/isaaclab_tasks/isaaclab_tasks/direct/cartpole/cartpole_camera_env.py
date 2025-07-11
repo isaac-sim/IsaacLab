@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -58,7 +58,7 @@ class CartpoleRGBCameraEnvCfg(DirectRLEnvCfg):
     viewer = ViewerCfg(eye=(20.0, 20.0, 20.0))
 
     # scene
-    scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=1024, env_spacing=20.0, replicate_physics=True)
+    scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=512, env_spacing=20.0, replicate_physics=True)
 
     # reset
     max_cart_pos = 3.0  # the cart is reset if it exceeds that position [m]
@@ -123,6 +123,9 @@ class CartpoleCameraEnv(DirectRLEnv):
 
         # clone and replicate
         self.scene.clone_environments(copy_from_source=False)
+        if self.device == "cpu":
+            # we need to explicitly filter collisions for CPU simulation
+            self.scene.filter_collisions(global_prim_paths=[])
 
         # add articulation and sensors to scene
         self.scene.articulations["cartpole"] = self._cartpole

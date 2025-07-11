@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -58,9 +58,6 @@ class RslRlVecEnvWrapper(VecEnv):
         self.device = self.unwrapped.device
         self.max_episode_length = self.unwrapped.max_episode_length
 
-        # modify the action space to the clip range
-        self._modify_action_space()
-
         # obtain dimensions of the environment
         if hasattr(self.unwrapped, "action_manager"):
             self.num_actions = self.unwrapped.action_manager.total_action_dim
@@ -80,6 +77,9 @@ class RslRlVecEnvWrapper(VecEnv):
             self.num_privileged_obs = gym.spaces.flatdim(self.unwrapped.single_observation_space["critic"])
         else:
             self.num_privileged_obs = 0
+
+        # modify the action space to the clip range
+        self._modify_action_space()
 
         # reset at the start since the RSL-RL runner does not call reset
         self.env.reset()

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -141,7 +141,10 @@ setup_conda_env() {
         echo -e "[INFO] Conda environment named '${env_name}' already exists."
     else
         echo -e "[INFO] Creating conda environment named '${env_name}'..."
-        conda create -y --name ${env_name} python=3.10
+        echo -e "[INFO] Installing dependencies from ${ISAACLAB_PATH}/environment.yml"
+
+        # Create environment from YAML file with specified name
+        conda env create -y --file ${ISAACLAB_PATH}/environment.yml -n ${env_name}
     fi
 
     # cache current paths for later
@@ -208,10 +211,6 @@ setup_conda_env() {
             '' >> ${CONDA_PREFIX}/etc/conda/deactivate.d/unsetenv.sh
     fi
 
-    # install some extra dependencies
-    echo -e "[INFO] Installing extra dependencies (this might take a few minutes)..."
-    conda install -c conda-forge -y importlib_metadata &> /dev/null
-
     # deactivate the environment
     conda deactivate
     # add information to the user about alias
@@ -248,7 +247,7 @@ print_help () {
     echo -e "\t-f, --format         Run pre-commit to format the code and check lints."
     echo -e "\t-p, --python         Run the python executable provided by Isaac Sim or virtual environment (if active)."
     echo -e "\t-s, --sim            Run the simulator executable (isaac-sim.sh) provided by Isaac Sim."
-    echo -e "\t-t, --test           Run all python unittest tests."
+    echo -e "\t-t, --test           Run all python pytest tests."
     echo -e "\t-o, --docker         Run the docker container helper script (docker/container.sh)."
     echo -e "\t-v, --vscode         Generate the VSCode settings file from template."
     echo -e "\t-d, --docs           Build the documentation from source using sphinx."
@@ -391,7 +390,7 @@ while [[ $# -gt 0 ]]; do
             # run the python provided by isaacsim
             python_exe=$(extract_python_exe)
             shift # past argument
-            ${python_exe} ${ISAACLAB_PATH}/tools/run_all_tests.py $@
+            ${python_exe} -m pytest ${ISAACLAB_PATH}/tools $@
             # exit neatly
             break
             ;;

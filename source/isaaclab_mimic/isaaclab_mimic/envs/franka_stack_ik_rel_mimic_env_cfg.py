@@ -1,4 +1,4 @@
-# Copyright (c) 2024-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2024-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: Apache-2.0
@@ -30,6 +30,7 @@ class FrankaCubeStackIKRelMimicEnvCfg(FrankaCubeStackEnvCfg, MimicEnvCfg):
         self.datagen_config.generation_select_src_per_subtask = True
         self.datagen_config.generation_transform_first_robot_pose = False
         self.datagen_config.generation_interpolate_from_last_target_pose = True
+        self.datagen_config.generation_relative = True
         self.datagen_config.max_num_failures = 25
         self.datagen_config.seed = 1
 
@@ -57,6 +58,8 @@ class FrankaCubeStackIKRelMimicEnvCfg(FrankaCubeStackEnvCfg, MimicEnvCfg):
                 num_fixed_steps=0,
                 # If True, apply action noise during the interpolation phase and execution
                 apply_noise_during_interpolation=False,
+                description="Grasp red cube",
+                next_subtask_description="Stack red cube on top of blue cube",
             )
         )
         subtask_configs.append(
@@ -79,6 +82,7 @@ class FrankaCubeStackIKRelMimicEnvCfg(FrankaCubeStackEnvCfg, MimicEnvCfg):
                 num_fixed_steps=0,
                 # If True, apply action noise during the interpolation phase and execution
                 apply_noise_during_interpolation=False,
+                next_subtask_description="Grasp green cube",
             )
         )
         subtask_configs.append(
@@ -101,6 +105,7 @@ class FrankaCubeStackIKRelMimicEnvCfg(FrankaCubeStackEnvCfg, MimicEnvCfg):
                 num_fixed_steps=0,
                 # If True, apply action noise during the interpolation phase and execution
                 apply_noise_during_interpolation=False,
+                next_subtask_description="Stack green cube on top of red cube",
             )
         )
         subtask_configs.append(

@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -27,7 +27,7 @@ def add_rsl_rl_args(parser: argparse.ArgumentParser):
     )
     arg_group.add_argument("--run_name", type=str, default=None, help="Run name suffix to the log directory.")
     # -- load arguments
-    arg_group.add_argument("--resume", type=bool, default=None, help="Whether to resume from a checkpoint.")
+    arg_group.add_argument("--resume", action="store_true", default=False, help="Whether to resume from a checkpoint.")
     arg_group.add_argument("--load_run", type=str, default=None, help="Name of the run folder to resume from.")
     arg_group.add_argument("--checkpoint", type=str, default=None, help="Checkpoint file to resume from.")
     # -- logger arguments

@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -141,7 +141,6 @@ class DirectRLEnv(gym.Env):
         #   that must happen before the simulation starts. Example: randomizing mesh scale
         if self.cfg.events:
             self.event_manager = EventManager(self.cfg.events, self)
-            print("[INFO] Event Manager: ", self.event_manager)
 
             # apply USD-related randomization events
             if "prestartup" in self.event_manager.available_modes:
@@ -202,6 +201,9 @@ class DirectRLEnv(gym.Env):
 
         # perform events at the start of the simulation
         if self.cfg.events:
+            # we print it here to make the logging consistent
+            print("[INFO] Event Manager: ", self.event_manager)
+
             if "startup" in self.event_manager.available_modes:
                 self.event_manager.apply(mode="startup")
 
@@ -327,7 +329,7 @@ class DirectRLEnv(gym.Env):
         action = action.to(self.device)
         # add action noise
         if self.cfg.action_noise_model:
-            action = self._action_noise_model.apply(action)
+            action = self._action_noise_model(action)
 
         # process actions
         self._pre_physics_step(action)
@@ -384,7 +386,7 @@ class DirectRLEnv(gym.Env):
         # add observation noise
         # note: we apply no noise to the state space (since it is used for critic networks)
         if self.cfg.observation_noise_model:
-            self.obs_buf["policy"] = self._observation_noise_model.apply(self.obs_buf["policy"])
+            self.obs_buf["policy"] = self._observation_noise_model(self.obs_buf["policy"])
 
         # return observations, rewards, resets and extras
         return self.obs_buf, self.reward_buf, self.reset_terminated, self.reset_time_outs, self.extras

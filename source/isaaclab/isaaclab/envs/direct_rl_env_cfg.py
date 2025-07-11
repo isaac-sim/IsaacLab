@@ -1,10 +1,11 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 from dataclasses import MISSING
 
+from isaaclab.devices.openxr import XrCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
@@ -225,3 +226,6 @@ class DirectRLEnvCfg:
 
     wait_for_textures: bool = True
     """True to wait for assets to be loaded completely, False otherwise. Defaults to True."""
+
+    xr: XrCfg | None = None
+    """Configuration for viewing and interacting with the environment through an XR device."""

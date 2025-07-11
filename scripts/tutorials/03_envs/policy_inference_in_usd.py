@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -56,7 +56,9 @@ def main():
     policy_path = os.path.abspath(args_cli.checkpoint)
     file_content = omni.client.read_file(policy_path)[2]
     file = io.BytesIO(memoryview(file_content).tobytes())
-    policy = torch.jit.load(file)
+    policy = torch.jit.load(file, map_location=args_cli.device)
+
+    # setup environment
     env_cfg = H1RoughEnvCfg_PLAY()
     env_cfg.scene.num_envs = 1
     env_cfg.curriculum = None
@@ -65,13 +67,19 @@ def main():
         terrain_type="usd",
         usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Simple_Warehouse/warehouse.usd",
     )
-    env_cfg.sim.device = "cpu"
-    env_cfg.sim.use_fabric = False
+    env_cfg.sim.device = args_cli.device
+    if args_cli.device == "cpu":
+        env_cfg.sim.use_fabric = False
+
+    # create environment
     env = ManagerBasedRLEnv(cfg=env_cfg)
+
+    # run inference with the policy
     obs, _ = env.reset()
-    while simulation_app.is_running():
-        action = policy(obs["policy"])  # run inference
-        obs, _, _, _, _ = env.step(action)
+    with torch.inference_mode():
+        while simulation_app.is_running():
+            action = policy(obs["policy"])
+            obs, _, _, _, _ = env.step(action)
 
 
 if __name__ == "__main__":
