@@ -16,7 +16,8 @@ from typing import TYPE_CHECKING
 
 from isaaclab.assets import RigidObject, Articulation
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.utils.math import subtract_frame_transforms
+from isaaclab.managers import ManagerTermBase
+from isaaclab.utils.math import subtract_frame_transforms, quat_apply_inverse
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
@@ -49,14 +50,58 @@ def projected_joint_force(env: ManagerBasedRLEnv, asset_cfg = SceneEntityCfg("ro
     asset: Articulation = env.scene[asset_cfg.name]
     return asset.root_physx_view.get_dof_projected_joint_forces()[:, asset_cfg.joint_ids]
 
-def body_state_w(
+def body_state_b(
     env: ManagerBasedRLEnv,
-    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    body_asset_cfg: SceneEntityCfg,
+    base_asset_cfg: SceneEntityCfg,
 ) -> torch.Tensor:
-    asset: Articulation = env.scene[asset_cfg.name]
-    pose = asset.data.body_state_w[:, asset_cfg.body_ids].clone()
-    pose[..., :3] = pose[..., :3] - env.scene.env_origins.unsqueeze(1)
-    return pose.reshape(env.num_envs, -1)
+    body_asset: Articulation = env.scene[body_asset_cfg.name]
+    base_asset: Articulation = env.scene[base_asset_cfg.name]
+    # get world pose of bodies
+    body_pos_w = body_asset.data.body_pos_w[:, body_asset_cfg.body_ids].clone().view(-1, 3)
+    body_quat_w = body_asset.data.body_quat_w[:, body_asset_cfg.body_ids].clone().view(-1, 4)
+    body_lin_vel_w = body_asset.data.body_lin_vel_w[:, body_asset_cfg.body_ids].clone().view(-1, 3)
+    body_ang_vel_w = body_asset.data.body_ang_vel_w[:, body_asset_cfg.body_ids].clone().view(-1, 3)
+    num_bodies = int(body_pos_w.shape[0] / env.num_envs)
+    # get world pose of base frame
+    root_pos_w = base_asset.data.root_link_pos_w.unsqueeze(1).repeat_interleave(num_bodies, dim=1).view(-1, 3)
+    root_quat_w = base_asset.data.root_link_quat_w.unsqueeze(1).repeat_interleave(num_bodies, dim=1).view(-1, 4)
+    # transform from world body pose to local body pose
+    body_pos_b, body_quat_b = subtract_frame_transforms(root_pos_w, root_quat_w, body_pos_w, body_quat_w)
+    body_lin_vel_b = quat_apply_inverse(root_quat_w, body_lin_vel_w)
+    body_ang_vel_b = quat_apply_inverse(root_quat_w, body_ang_vel_w)
+    # concate and return
+    out = torch.cat((body_pos_b, body_quat_b, body_lin_vel_b, body_ang_vel_b), dim=1) 
+    return out.view(env.num_envs, -1)
+
+
+class object_scale(ManagerTermBase):
+
+    def __init__(self, cfg, env: ManagerBasedRLEnv):
+        import isaacsim.core.utils.prims as prim_utils
+        super().__init__(cfg, env)
+
+        self.object_cfg: SceneEntityCfg = cfg.params.get("object_cfg", SceneEntityCfg('object'))
+        self.object: RigidObject = env.scene[self.object_cfg.name]
+        self.scale = torch.zeros((env.num_envs, 3), device=self.device)
+
+        for i in range(env.num_envs):
+            object_cfg = self.object.cfg
+            prim_path = object_cfg.prim_path
+            prim = prim_utils.get_prim_at_path(prim_path.replace(".*", str(i)))
+            # prim_spec = Sdf.CreatePrimInLayer(stage_utils.get_current_stage().GetRootLayer(), )
+            scale = prim.GetAttribute("xformOp:scale").Get()
+            self.scale[i] = torch.tensor(scale, device=env.device)
+
+    def __call__(
+        self,
+        env: ManagerBasedRLEnv,
+        object_cfg: SceneEntityCfg = SceneEntityCfg("object"),
+    ):
+        return self.scale
+
+
+
 
 def all_ones(env: ManagerBasedRLEnv):
     return torch.ones((env.num_envs, 1), device=env.device)
