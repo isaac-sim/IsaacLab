@@ -12,6 +12,10 @@ for robot control. In case of SE(2) teleoperation, the returned command
 is the linear x-y velocity and yaw rate, while in SE(3), the returned
 command is a 6-D vector representing the change in pose.
 
+.. note::
+
+   Presently, Isaac Lab Mimic is only supported in Linux.
+
 To play inverse kinematics (IK) control with a keyboard device:
 
 .. code:: bash
