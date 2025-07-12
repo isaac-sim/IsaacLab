@@ -111,14 +111,15 @@ class ObservationsCfg:
         """Observations for policy group."""
         joint_pos = ObsTerm(func=mdp.joint_pos, noise=Unoise(n_min=-0., n_max=0.))
         joint_vel = ObsTerm(func=mdp.joint_vel, noise=Unoise(n_min=-0., n_max=0.))
-        hand_tips_pos = ObsTerm(
+        hand_tips_state_b = ObsTerm(
             func=mdp.body_state_b, noise=Unoise(n_min=-0., n_max=0.), params={
                 "body_asset_cfg": SceneEntityCfg("robot"),
                 "base_asset_cfg": SceneEntityCfg("robot"),
             })
-        target_object_position = ObsTerm(func=mdp.generated_commands, params={"command_name": "object_pose"})
+        object_pose_b = ObsTerm(func=mdp.object_pose_b)
+        target_object_pose_b = ObsTerm(func=mdp.generated_commands, params={"command_name": "object_pose"})
         actions = ObsTerm(func=mdp.last_action)
-        object_observation = ObsTerm(func=mdp.object_point_cloud_b, params={"num_points": 128})
+        object_observation_b = ObsTerm(func=mdp.object_point_cloud_b, params={"num_points": 128})
         contact: ObsTerm = MISSING
 
         def __post_init__(self):
@@ -141,14 +142,14 @@ class ObservationsCfg:
 class EventCfg:
     """Configuration for randomization."""
 
-    # randomize_object_scale = EventTerm(
-    #     func=mdp.randomize_rigid_body_scale,
-    #     mode="prestartup",
-    #     params={
-    #         "scale_range": {"x": (0.05, 0.20), "y": (0.05, 0.20), "z": (0.05, 0.20)},
-    #         "asset_cfg": SceneEntityCfg("object"),
-    #     },
-    # )
+    randomize_object_scale = EventTerm(
+        func=mdp.randomize_rigid_body_scale,
+        mode="prestartup",
+        params={
+            "scale_range": {"x": (0.05, 0.20), "y": (0.05, 0.20), "z": (0.05, 0.20)},
+            "asset_cfg": SceneEntityCfg("object"),
+        },
+    )
     
     # -- robot
     robot_physics_material = EventTerm(
