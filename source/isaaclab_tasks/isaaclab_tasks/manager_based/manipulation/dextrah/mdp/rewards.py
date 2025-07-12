@@ -20,13 +20,6 @@ import trimesh
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
 
-
-# viz for debug, remove when done debugging
-# from isaaclab.markers import FRAME_MARKER_CFG, VisualizationMarkers
-# frame_marker_cfg = FRAME_MARKER_CFG.copy()  # type: ignore
-# frame_marker_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
-# pose_marker = VisualizationMarkers(frame_marker_cfg.replace(prim_path="/Visuals/debug_transform"))
-
 def action_rate_l2_clamped(env: ManagerBasedRLEnv) -> torch.Tensor:
     """Penalize the rate of change of the actions using L2 squared kernel."""
     return torch.sum(torch.square(env.action_manager.action - env.action_manager.prev_action), dim=1).clamp(-1000, 1000)
@@ -187,8 +180,6 @@ class Cubelifted(ManagerTermBase):
             self.visualizer.visualize(translations=object_point_cloud_w.reshape(-1, 3))
         self.lifted = (contacts(env, 1.0)) & (torch.all(object_point_cloud_w[..., 2] > min_height, dim=1))
         return self.lifted.float()
-
-
 
 def contacts(env: ManagerBasedRLEnv, threshold: float) -> torch.Tensor:
     """Penalize undesired contacts as the number of violations that are above a threshold."""

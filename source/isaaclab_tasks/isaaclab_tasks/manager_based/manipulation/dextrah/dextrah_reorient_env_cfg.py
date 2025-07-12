@@ -284,7 +284,7 @@ class RewardsCfg:
 
     orientation_tracking = RewTerm(
         func=mdp.orientation_command_error_tanh,
-        weight=2.0,
+        weight=2.5,
         params={
             "asset_cfg": SceneEntityCfg("robot"),
             "std": 1.5,
