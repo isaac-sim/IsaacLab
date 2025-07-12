@@ -21,7 +21,6 @@ from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
 from isaaclab.utils import configclass
 
 from . import mdp
-from .mdp.curriculums import cfg_get
 from .adr_curriculum import CurriculumCfg
 
 # from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
@@ -40,13 +39,17 @@ class SceneCfg(InteractiveSceneCfg):
 
     # object
     object: RigidObjectCfg = RigidObjectCfg(
-        prim_path="/World/envs/env_.*/Object",
+        prim_path="{ENV_REGEX_NS}/Object",
         spawn=sim_utils.MultiAssetSpawnerCfg(
-            assets_cfg=[sim_utils.UsdFileCfg(usd_path=os.path.join(objects_dir, name, f"{name}.usd"))for name in dirs],
+            assets_cfg=[sim_utils.CuboidCfg(
+                size=(1., 1., 1.),
+                physics_material=sim_utils.RigidBodyMaterialCfg(static_friction=1.0),
+                # visual_material=sim_utils.GlassMdlCfg()
+            )],
             random_choice=False,
             rigid_props=sim_utils.RigidBodyPropertiesCfg(
                 rigid_body_enabled=True,
-                solver_position_iteration_count=8,
+                solver_position_iteration_count=16,
                 solver_velocity_iteration_count=0,
                 kinematic_enabled=False,
                 disable_gravity=False,
@@ -56,8 +59,10 @@ class SceneCfg(InteractiveSceneCfg):
                 max_angular_velocity=1000.0,
                 max_depenetration_velocity=1000.0,
             ),
+            collision_props=sim_utils.CollisionPropertiesCfg(collision_enabled=True),
+            mass_props=sim_utils.MassPropertiesCfg(mass=0.1),
         ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(-0.55, 0.1, 0.32)),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(-0.55, 0.1, 0.35)),
     )
 
     # table
@@ -87,13 +92,13 @@ class SceneCfg(InteractiveSceneCfg):
 class CommandsCfg:
     """Command terms for the MDP."""
 
-    object_pose = mdp.UniformPoseCommandCfg(
+    object_pose = mdp.ObjectUniformPoseCommandCfg(
         asset_name="robot",
-        body_name=MISSING,  # will be set by agent env cfg
-        resampling_time_range=(10.0, 10.0),
+        object_name="object",
+        resampling_time_range=(3.0, 5.0),
         debug_vis=True,
-        ranges=mdp.UniformPoseCommandCfg.Ranges(
-            pos_x=(-0.5, -0.5), pos_y=(0., 0.), pos_z=(0.65, 0.65), roll=(0., 0.), pitch=(0., 0.), yaw=(0., 0.)
+        ranges=mdp.ObjectUniformPoseCommandCfg.Ranges(
+            pos_x=(-0.7, -0.3), pos_y=(-0.25, 0.25), pos_z=(0.55, 0.95), roll=(-3.14, 3.14), pitch=(-3.14, 3.14), yaw=(0., 0.)
         ),
     )
 
@@ -114,6 +119,7 @@ class ObservationsCfg:
         object_pose = ObsTerm(func=mdp.object_pose_in_robot_root_frame, noise=Unoise(n_min=-0., n_max=0.))
         target_object_position = ObsTerm(func=mdp.generated_commands, params={"command_name": "object_pose"})
         actions = ObsTerm(func=mdp.last_action)
+        object_scale = ObsTerm(func=mdp.object_scale)
 
         def __post_init__(self):
             self.enable_corruption = True
@@ -121,10 +127,7 @@ class ObservationsCfg:
 
     @configclass
     class CriticCfg(PolicyCfg):
-        measured_body_forces = ObsTerm(func=mdp.body_incoming_wrench, params={"asset_cfg": SceneEntityCfg("robot")})
-        measured_joint_torques = ObsTerm(func=mdp.projected_joint_force, params={"asset_cfg": SceneEntityCfg("robot")})
-        object_lin_vel = ObsTerm(func=mdp.root_lin_vel_w, params={"asset_cfg": SceneEntityCfg("object")})
-        object_ang_vel = ObsTerm(func=mdp.root_ang_vel_w, params={"asset_cfg": SceneEntityCfg("object")})
+        pass 
 
         def __post_init__(self):
             self.enable_corruption = False
@@ -138,63 +141,32 @@ class ObservationsCfg:
 class EventCfg:
     """Configuration for randomization."""
 
-    # -- robot
-    robot_physics_material = EventTerm(
-        func=mdp.randomize_rigid_body_material,
-        mode="reset",
+    randomize_object_scale = EventTerm(
+        func=mdp.randomize_rigid_body_scale,
+        mode="prestartup",
         params={
-            "asset_cfg": SceneEntityCfg("robot", body_names=".*"),
-            "static_friction_range": [1., 1.],
-            "dynamic_friction_range": [1., 1.],
-            "restitution_range": [0.0, 0.0],
-            "num_buckets": 250
-        },
-    )
-
-    joint_stiffness_and_damping = EventTerm(
-        func=mdp.randomize_actuator_gains,
-        mode="reset",
-        params={
-            "asset_cfg": SceneEntityCfg("robot", joint_names=".*"),
-            "stiffness_distribution_params": [1., 1.],
-            "damping_distribution_params": [1., 1.],
-            "operation": "scale",
-            "distribution": "uniform"
-        },
-    )
-
-    joint_friction = EventTerm(
-        func=mdp.randomize_joint_parameters,
-        mode="reset",
-        params={
-            "asset_cfg": SceneEntityCfg("robot", joint_names=".*"),
-            "friction_distribution_params": [0. , 0.],
-            "operation": "scale",
-            "distribution": "uniform"
-        },
-    )
-
-    # -- object
-    object_physics_material = EventTerm(
-        func=mdp.randomize_rigid_body_material,
-        mode="reset",
-        params={
-            "asset_cfg": SceneEntityCfg("object", body_names=".*"),
-            "static_friction_range": [1., 1.],
-            "dynamic_friction_range": [1., 1.],
-            "restitution_range": [0.0, 0.0],
-            "num_buckets": 250,
-        },
-    )
-
-    object_scale_mass = EventTerm(
-        func=mdp.randomize_rigid_body_mass,
-        mode="reset",
-        params={
+            "scale_range": {"x": (0.05, 0.20), "y": (0.05, 0.20), "z": (0.05, 0.20)},
             "asset_cfg": SceneEntityCfg("object"),
-            "mass_distribution_params": [1., 1.],
-            "operation": "scale",
-            "distribution": "uniform",
+        },
+    )
+    
+    # reset_object = EventTerm(
+    #     func=mdp.reset_root_state_uniform,
+    #     mode="reset",
+    #     params={
+    #         "pose_range": {"x": [-0.2, 0.2], "y": [-0.2, 0.2], "z": [0.0, 0.4], "roll":[-3.14, 3.14], "pitch":[-3.14, 3.14], "yaw": [-3.14, 3.14]},
+    #         "velocity_range": {"x": [-0., 0.], "y": [-0., 0.], "z": [-0., 0.]},
+    #         "asset_cfg": SceneEntityCfg("object"),
+    #     },
+    # )
+    
+    reset_object = EventTerm(
+        func=mdp.reset_root_state_uniform,
+        mode="reset",
+        params={
+            "pose_range": {"x": [-0.2, 0.2], "y": [-0.2, 0.2], "z": [0.0, 0.4], "roll":[-3.14, 3.14], "pitch":[-3.14, 3.14], "yaw": [-3.14, 3.14]},
+            "velocity_range": {"x": [-0., 0.], "y": [-0., 0.], "z": [-0., 0.]},
+            "asset_cfg": SceneEntityCfg("object"),
         },
     )
     
@@ -209,23 +181,35 @@ class EventCfg:
     )
 
     reset_robot_joints = EventTerm(
-        func=mdp.reset_joints_by_scale,
+        func=mdp.reset_joints_by_offset,
         mode="reset",
         params={
-            "position_range": [1., 1.],
+            "position_range": [-0.50, 0.50],
             "velocity_range": [0., 0.],
         },
     )
-
-    reset_object = EventTerm(
-        func=mdp.reset_root_state_uniform,
+    
+    reset_robot_wrist_joint = EventTerm(
+        func=mdp.reset_joints_by_offset_v2,
         mode="reset",
         params={
-            "pose_range": {"x": [-0., 0.], "y": [-0., 0.], "yaw": [-3.14, 3.14]},
-            "velocity_range": {"x": [-0., 0.], "y": [-0., 0.], "z": [-0., 0.]},
-            "asset_cfg": SceneEntityCfg("object"),
+            "asset_cfg": SceneEntityCfg("robot", joint_names="iiwa7_joint_7"),
+            "position_range": [-3, 3],
+            "velocity_range": [0., 0.],
         },
     )
+    
+    # move_close_to_asset = EventTerm(
+    #     func=mdp.reset_end_effector_around_asset,
+    #     mode="reset",
+    #     params={
+    #         "reach_asset_cfg": SceneEntityCfg("object"),
+    #         "pose_range_b": {
+    #             "x": (0., 0.), "y": (0., 0.), "z": (0.15, 0.15), "roll": (0., 0.), "pitch": (2.5, 2.5), "yaw": (0., 0.)},
+    #         "robot_ik_cfg": SceneEntityCfg("robot", joint_names="iiwa7_joint_.*", body_names="palm_link"),
+    #         "ik_iterations": 10,
+    #     }
+    # )
 
 @configclass
 class ActionsCfg:
@@ -236,17 +220,49 @@ class ActionsCfg:
 class RewardsCfg:
     """Reward terms for the MDP."""
     
-    action_l2 = RewTerm(func=mdp.action_l2, weight=-0.005)
+    action_l2 = RewTerm(func=mdp.action_l2_clamped, weight=-0.005)
     
-    action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=-0.005)
+    action_rate_l2 = RewTerm(func=mdp.action_rate_l2_clamped, weight=-0.005)
     
+    # joint_pos_reg = RewTerm(func=mdp.joint_deviation_l1, params={"asset_cfg": SceneEntityCfg("robot")}, weight=-0.01)
+
     fingers_to_object = RewTerm(func=mdp.object_ee_distance, params={"std": 0.4}, weight=1.0)
 
-    lift = RewTerm(func=mdp.lifted, params={"num_points": 128, "min_height": 0.26}, weight=2.0)
+    lift = RewTerm(func=mdp.Cubelifted, params={"min_height": 0.26, "visualize": False}, weight=1.0)
+    
+    position_tracking = RewTerm(
+        func=mdp.position_command_error_tanh,
+        weight=2.0,
+        params={
+            "asset_cfg": SceneEntityCfg("robot"),
+            "std": 0.2,
+            "command_name": "object_pose",
+            "align_asset_cfg": SceneEntityCfg("object")
+        },
+    )
 
-    object_to_goal = RewTerm(func=mdp.object_goal_distance_v0, params={"std": 8., "min_height": 0.26}, weight=5.0)
-
-    finger_curl_reg = RewTerm(func=mdp.joint_deviation_l1, params={"asset_cfg": SceneEntityCfg("robot")}, weight=-0.01)
+    orientation_tracking = RewTerm(
+        func=mdp.orientation_command_error_tanh,
+        weight=2.0,
+        params={
+            "asset_cfg": SceneEntityCfg("robot"),
+            "std": 1.5,
+            "command_name": "object_pose",
+            "align_asset_cfg": SceneEntityCfg("object")
+        },
+    )
+    
+    success = RewTerm(
+        func=mdp.success_reward,
+        weight=10,
+        params={
+            "asset_cfg": SceneEntityCfg("robot"),
+            "pos_std": 0.1,
+            "quat_std": 0.5,
+            "command_name": "object_pose",
+            "align_asset_cfg": SceneEntityCfg("object")
+        },
+    )
 
 @configclass
 class TerminationsCfg:
@@ -258,14 +274,16 @@ class TerminationsCfg:
         func=mdp.out_of_bound,
         params={"in_bound_range": {"x":(-1., 0.), "y": (-.8, .8), "z": (.2, 2.)}, "asset_cfg": SceneEntityCfg("object")}
     )
+    
+    abnormal_robot = DoneTerm(func=mdp.abnormal_robot_state)
 
 
 @configclass
-class DextrahEnvCfg(ManagerBasedEnvCfg):
+class DextrahReorientEnvCfg(ManagerBasedEnvCfg):
 
     # Scene settings
-    viewer: ViewerCfg = ViewerCfg(eye=(-5.0, 1., 0.75), lookat=(0., 1., 0.3), origin_type='env')
-    scene: SceneCfg = SceneCfg(num_envs=4096, env_spacing=1.5, replicate_physics=False)
+    viewer: ViewerCfg = ViewerCfg(eye=(-2.25, 0., 0.75), lookat=(0., 0., 0.45), origin_type='env')
+    scene: SceneCfg = SceneCfg(num_envs=4096, env_spacing=3, replicate_physics=False)
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
@@ -274,14 +292,14 @@ class DextrahEnvCfg(ManagerBasedEnvCfg):
     rewards: RewardsCfg = RewardsCfg()
     terminations: TerminationsCfg = TerminationsCfg()
     events: EventCfg = EventCfg()
-    curriculum: CurriculumCfg = CurriculumCfg()
-    is_finite_horizon = True
+    curriculum: CurriculumCfg = None  # CurriculumCfg()
 
     def __post_init__(self):
         """Post initialization."""
         # general settings
+        self.is_finite_horizon = False
         self.decimation = 2
-        self.episode_length_s = 5
+        self.episode_length_s = 20.
         # simulation settings
         self.sim.dt = 1 / 120  # 60Hz
         self.sim.render_interval = self.decimation
@@ -289,18 +307,24 @@ class DextrahEnvCfg(ManagerBasedEnvCfg):
         self.sim.physx.bounce_threshold_velocity = 0.01
         self.sim.physx.gpu_max_rigid_patch_count = 4 * 5 * 2**15
         
-        to_remove = []
-        for key, term in self.curriculum.__dict__.items():
-            if term.func is mdp.modify_term_cfg:
-                cfg_address = term.params['address'].replace("_manager.cfg", "s")
-                try:
-                    cfg_variable = cfg_get(self, cfg_address)
-                except KeyError and AttributeError:
-                    print(f"Warning: Could not find curriculum variable at {cfg_address}. This term is disabled.")
-                    to_remove.append(key)
-                    continue
+        # self.sim.physx.gpu_found_lost_pairs_capacity = 2 ** 23
+        # self.sim.physx.gpu_max_rigid_contact_count = 2 ** 25
+        # self.sim.physx.gpu_total_aggregate_pairs_capacity = 2 ** 23
+        # self.sim.physx.gpu_collision_stack_size = 2 ** 28
+        # self.sim.physx.gpu_found_lost_aggregate_pairs_capacity = 2 ** 27
+        
+        # to_remove = []
+        # for key, term in self.curriculum.__dict__.items():
+        #     if term.func is mdp.modify_term_cfg:
+        #         cfg_address = term.params['address'].replace("_manager.cfg", "s")
+        #         try:
+        #             cfg_variable = cfg_get(self, cfg_address)
+        #         except KeyError and AttributeError:
+        #             print(f"Warning: Could not find curriculum variable at {cfg_address}. This term is disabled.")
+        #             to_remove.append(key)
+        #             continue
                 
-                term.params["modify_params"]["iv"] = cfg_variable
+        #         term.params["modify_params"]["iv"] = cfg_variable
 
-        for attr in to_remove:
-            delattr(self.curriculum, attr)
+        # for attr in to_remove:
+        #     delattr(self.curriculum, attr)
