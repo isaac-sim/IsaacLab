@@ -7,7 +7,6 @@ import json
 import numpy as np
 import os
 import torch
-from datetime import datetime
 
 import carb
 import isaacsim.core.utils.torch as torch_utils
