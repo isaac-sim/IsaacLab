@@ -16,7 +16,7 @@ from . import agents
 ##
 
 gym.register(
-    id="Dextrah-Kuka-Allegro-Reorient-State-RelJointPos-v0",
+    id="Dexsuite-Kuka-Allegro-Reorient-State-RelJointPos-v0",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
@@ -27,7 +27,7 @@ gym.register(
 )
 
 gym.register(
-    id="Dextrah-Kuka-Allegro-Reorient-State-Fabric-v0",
+    id="Dexsuite-Kuka-Allegro-Reorient-State-Fabric-v0",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
@@ -38,7 +38,7 @@ gym.register(
 )
 
 gym.register(
-    id="Dextrah-Kuka-Allegro-Lift-State-RelJointPos-v0",
+    id="Dexsuite-Kuka-Allegro-Lift-State-RelJointPos-v0",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
@@ -50,7 +50,7 @@ gym.register(
 
 
 gym.register(
-    id="Dextrah-Kuka-Allegro-State-PCA-v0",
+    id="Dexsuite-Kuka-Allegro-State-PCA-v0",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
@@ -62,7 +62,7 @@ gym.register(
 
 
 gym.register(
-    id="Dextrah-Kuka-Allegro-State-Fabric-v0",
+    id="Dexsuite-Kuka-Allegro-State-Fabric-v0",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={

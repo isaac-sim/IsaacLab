@@ -25,7 +25,7 @@ if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
 
 
-def object_pose_in_robot_root_frame(
+def object_pose_b(
     env: ManagerBasedRLEnv,
     robot_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
     object_cfg: SceneEntityCfg = SceneEntityCfg("object"),
@@ -99,6 +99,7 @@ class object_point_cloud_b(ManagerTermBase):
 
     def __init__(self, cfg, env: ManagerBasedRLEnv):
         from pxr import UsdGeom
+        import isaacsim.core.utils.prims as prim_utils
         import hashlib
         from isaaclab.sim.utils import get_all_matching_child_prims
         super().__init__(cfg, env)
@@ -119,6 +120,7 @@ class object_point_cloud_b(ManagerTermBase):
             self.visualizer = VisualizationMarkers(ray_cfg)
 
         self.points = torch.zeros((env.num_envs, self.num_points, 3), device=self.device)
+        scales = torch.zeros((env.num_envs, 3), device=self.device) 
         self.lifted = torch.zeros(env.num_envs, device=env.device, dtype=torch.bool)
         for i in range(env.num_envs):
             cache = getattr(env, "pointcloud_cache", None)
@@ -134,8 +136,11 @@ class object_point_cloud_b(ManagerTermBase):
             key.update(vertices.tobytes())
             geom_id = key.hexdigest()
             
-            if geom_id in cache:
-                samples = cache[geom_id]
+            scale = prim_utils.get_prim_at_path(prim_path.replace(".*", str(i))).GetAttribute("xformOp:scale").Get()
+            scales[i]=torch.tensor(scale, device=self.device)
+            
+            if geom_id in cache and len(cache[geom_id]) >= self.num_points:
+                samples = cache[geom_id][:self.num_points]
             else:
                 # load face‐counts and face‐indices
                 counts = mesh.GetFaceVertexCountsAttr().Get()
@@ -157,6 +162,7 @@ class object_point_cloud_b(ManagerTermBase):
                 samples, __ = tm.sample(self.num_points, return_index=True)
                 cache[geom_id] = samples
             self.points[i] = torch.from_numpy(samples).to(self.device)
+        self.points *= scales.unsqueeze(1)
 
     def __call__(
         self,
