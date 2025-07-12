@@ -1,14 +1,83 @@
 Changelog
 ---------
 
-0.40.17 (2025-06-25)
-~~~~~~~~~~~~~~~~~~~
+0.40.21 (2025-06-25)
+~~~~~~~~~~~~~~~~~~~~
 
 Added
 ^^^^^
+
 * Added new curriculum mdp :func:`~isaaclab.envs.mdp.curriculums.modify_env_param` and
   :func:`~isaaclab.envs.mdp.curriculums.modify_env_param` that enables flexible changes to any configurations in the
   env instance
+
+
+0.40.20 (2025-07-11)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :meth:`isaaclab.envs.mdp.events.reset_joints_by_scale`, :meth:`isaaclab.envs.mdp.events.reset_joints_by_offsets`
+restricting the resetting joint indices be that user defined joint indices.
+
+
+0.40.19 (2025-07-11)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed missing attribute in :class:`~isaaclab.sensors.ray_caster.RayCasterCamera` class and its reset method when no
+  env_ids are passed.
+
+
+0.40.18 (2025-07-09)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added input param ``update_history`` to :meth:`~isaaclab.managers.ObservationManager.compute`
+  to control whether the history buffer should be updated.
+* Added unit test for :class:`~isaaclab.envs.ManagerBasedEnv`.
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab.envs.ManagerBasedEnv` and :class:`~isaaclab.envs.ManagerBasedRLEnv` to not update the history
+  buffer on recording.
+
+
+0.40.17 (2025-07-10)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added unit tests for multiple math functions:
+  :func:`~isaaclab.utils.math.scale_transform`.
+  :func:`~isaaclab.utils.math.unscale_transform`.
+  :func:`~isaaclab.utils.math.saturate`.
+  :func:`~isaaclab.utils.math.normalize`.
+  :func:`~isaaclab.utils.math.copysign`.
+  :func:`~isaaclab.utils.math.convert_quat`.
+  :func:`~isaaclab.utils.math.quat_conjugate`.
+  :func:`~isaaclab.utils.math.quat_from_euler_xyz`.
+  :func:`~isaaclab.utils.math.quat_from_matrix`.
+  :func:`~isaaclab.utils.math.euler_xyz_from_quat`.
+  :func:`~isaaclab.utils.math.matrix_from_euler`.
+  :func:`~isaaclab.utils.math.quat_from_angle_axis`.
+  :func:`~isaaclab.utils.math.axis_angle_from_quat`.
+  :func:`~isaaclab.utils.math.skew_symmetric_matrix`.
+  :func:`~isaaclab.utils.math.combine_transform`.
+  :func:`~isaaclab.utils.math.subtract_transform`.
+  :func:`~isaaclab.utils.math.compute_pose_error`.
+
+Changed
+^^^^^^^
+
+* Changed the implementation of :func:`~isaaclab.utils.math.copysign` to better reflect the documented functionality.
 
 
 0.40.16 (2025-07-08)
