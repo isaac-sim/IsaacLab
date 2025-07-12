@@ -43,7 +43,7 @@ class SceneCfg(InteractiveSceneCfg):
         prim_path="{ENV_REGEX_NS}/Object",
         spawn=sim_utils.MultiAssetSpawnerCfg(
             assets_cfg=[sim_utils.CuboidCfg(
-                size=(1., 1., 1.),
+                size=(0.1, 0.1, 0.1),
                 physics_material=sim_utils.RigidBodyMaterialCfg(static_friction=1.0),
             )],
             random_choice=True,
@@ -146,7 +146,7 @@ class EventCfg:
         func=mdp.randomize_rigid_body_scale,
         mode="prestartup",
         params={
-            "scale_range": {"x": (0.05, 0.20), "y": (0.05, 0.20), "z": (0.05, 0.20)},
+            "scale_range": {"x": (0.5, 2.0), "y": (0.5, 2.0), "z": (0.5, 2.0)},
             "asset_cfg": SceneEntityCfg("object"),
         },
     )
@@ -381,9 +381,6 @@ class DexSuiteLiftEnvCfg(DexSuiteReorientEnvCfg):
 
     def __post_init__(self):
         super().__post_init__()
-        self.scene.object.spawn.assets_cfg = [
-        sim_utils.UsdFileCfg(usd_path=os.path.join(objects_dir, name, f"{name}.usd"))
-        for name in dirs]
         self.rewards.orientation_tracking = None  # no orientation reward
         if self.curriculum is not None:
             self.rewards.success.params["rot_std"] = None  # make success reward not consider orientation

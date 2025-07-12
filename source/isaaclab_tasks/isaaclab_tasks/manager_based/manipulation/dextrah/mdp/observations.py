@@ -12,15 +12,13 @@ from __future__ import annotations
 
 import torch
 from typing import TYPE_CHECKING
-import trimesh
-import numpy as np
 
 from isaaclab.assets import RigidObject, Articulation
 from isaaclab.sensors import ContactSensor
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import ManagerTermBase
 from isaaclab.utils.math import subtract_frame_transforms, quat_apply_inverse, quat_apply
-
+from .utils import sample_object_point_cloud
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
 
@@ -98,10 +96,6 @@ class object_scale(ManagerTermBase):
 class object_point_cloud_b(ManagerTermBase):
 
     def __init__(self, cfg, env: ManagerBasedRLEnv):
-        from pxr import UsdGeom
-        import isaacsim.core.utils.prims as prim_utils
-        import hashlib
-        from isaaclab.sim.utils import get_all_matching_child_prims
         super().__init__(cfg, env)
 
         self.object_cfg: SceneEntityCfg = cfg.params.get("object_cfg", SceneEntityCfg('object'))
@@ -118,51 +112,7 @@ class object_point_cloud_b(ManagerTermBase):
             ray_cfg = RAY_CASTER_MARKER_CFG.replace(prim_path="/Visuals/ObservationPointCloud")
             ray_cfg.markers["hit"].radius = 0.001
             self.visualizer = VisualizationMarkers(ray_cfg)
-
-        self.points = torch.zeros((env.num_envs, self.num_points, 3), device=self.device)
-        scales = torch.zeros((env.num_envs, 3), device=self.device) 
-        self.lifted = torch.zeros(env.num_envs, device=env.device, dtype=torch.bool)
-        for i in range(env.num_envs):
-            cache = getattr(env, "pointcloud_cache", None)
-            if cache is None:
-                cache = {}
-                setattr(env, "pointcloud_cache", cache)
-            prim_path = self.object.cfg.prim_path
-            prim = get_all_matching_child_prims(prim_path.replace(".*", str(i)), predicate=lambda prim: prim.GetTypeName() == "Mesh")[0]
-            mesh = UsdGeom.Mesh(prim)
-            vertices = np.array(mesh.GetPointsAttr().Get())
-
-            key = hashlib.sha256()
-            key.update(vertices.tobytes())
-            geom_id = key.hexdigest()
-            
-            scale = prim_utils.get_prim_at_path(prim_path.replace(".*", str(i))).GetAttribute("xformOp:scale").Get()
-            scales[i]=torch.tensor(scale, device=self.device)
-            
-            if geom_id in cache and len(cache[geom_id]) >= self.num_points:
-                samples = cache[geom_id][:self.num_points]
-            else:
-                # load face‐counts and face‐indices
-                counts = mesh.GetFaceVertexCountsAttr().Get()
-                indices = mesh.GetFaceVertexIndicesAttr().Get()
-
-                # triangulate "poly" faces into a (F,3) array
-                faces = []
-                it = iter(indices)
-                for cnt in counts:
-                    poly = [next(it) for _ in range(cnt)]
-                    # fan‐triangulate
-                    for k in range(1, cnt-1):
-                        faces.append([poly[0], poly[k], poly[k+1]])
-
-                faces = np.array(faces, dtype=np.int64)
-
-                # build trimesh and sample
-                tm = trimesh.Trimesh(vertices=vertices, faces=faces, process=False)
-                samples, __ = tm.sample(self.num_points, return_index=True)
-                cache[geom_id] = samples
-            self.points[i] = torch.from_numpy(samples).to(self.device)
-        self.points *= scales.unsqueeze(1)
+        self.points = sample_object_point_cloud(env.num_envs, self.num_points, self.object.cfg.prim_path, use_cache=True).to(env.device)
 
     def __call__(
         self,
