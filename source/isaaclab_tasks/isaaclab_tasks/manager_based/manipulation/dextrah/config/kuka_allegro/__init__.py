@@ -20,7 +20,7 @@ gym.register(
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": f"{__name__}.dextrah_kuka_allegro_env_cfg:DextrahKukaAllegroDextrahReorientEnvCfgRelJointPosActionCfg",
+        "env_cfg_entry_point": f"{__name__}.dextrah_kuka_allegro_env_cfg:DexsuiteKukaAllegroReorientRelJointPosActionEnvCfg",
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_lstm_cfg.yaml",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:DextrahKukaAllegroPPORunnerCfg"
     },
@@ -31,18 +31,18 @@ gym.register(
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": f"{__name__}.dextrah_kuka_allegro_env_cfg:DextrahKukaAllegroDextrahReorientEnvCfgFabricActionCfg",
+        "env_cfg_entry_point": f"{__name__}.dextrah_kuka_allegro_env_cfg:DexsuiteKukaAllegroReorientFabricActionEnvCfg",
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_lstm_cfg.yaml",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:DextrahKukaAllegroPPORunnerCfg"
     },
 )
 
 gym.register(
-    id="Dextrah-Kuka-Allegro-State-RelJointPos-v0",
+    id="Dextrah-Kuka-Allegro-Lift-State-RelJointPos-v0",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": f"{__name__}.dextrah_kuka_allegro_env_cfg:DextrahKukaAllegroEnvRelJointPosCfg",
+        "env_cfg_entry_point": f"{__name__}.dextrah_kuka_allegro_env_cfg:DexsuiteKukaAllegroLiftRelJointPosEnvCfg",
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_lstm_cfg.yaml",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:DextrahKukaAllegroPPORunnerCfg"
     },
@@ -54,7 +54,7 @@ gym.register(
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": f"{__name__}.dextrah_kuka_allegro_env_cfg:DextrahKukaAllegroEnvPCACfg",
+        "env_cfg_entry_point": f"{__name__}.dextrah_kuka_allegro_env_cfg:DexsuiteKukaAllegroLiftPCAEnvCfg",
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_lstm_cfg.yaml",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:DextrahKukaAllegroPPORunnerCfg"
     },
@@ -66,7 +66,7 @@ gym.register(
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": f"{__name__}.dextrah_kuka_allegro_env_cfg:DextrahKukaAllegroEnvFabricCfg",
+        "env_cfg_entry_point": f"{__name__}.dextrah_kuka_allegro_env_cfg:DexsuiteKukaAllegroLiftFabricEnvCfg",
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_lstm_cfg.yaml",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:DextrahKukaAllegroPPORunnerCfg"
     },

@@ -19,50 +19,6 @@ from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsA
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
 
-# viz for debug, remove when done debugging
-# from isaaclab.markers import FRAME_MARKER_CFG, VisualizationMarkers
-# frame_marker_cfg = FRAME_MARKER_CFG.copy()  # type: ignore
-# frame_marker_cfg.markers["frame"].scale = (0.025, 0.025, 0.025)
-# pose_marker = VisualizationMarkers(frame_marker_cfg.replace(prim_path="/Visuals/debug_transform"))
-
-def reset_joints_by_offset_v2(
-    env: ManagerBasedRLEnv,
-    env_ids: torch.Tensor,
-    position_range: tuple[float, float],
-    velocity_range: tuple[float, float],
-    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
-):
-    """Reset the robot joints with offsets around the default position and velocity by the given ranges.
-
-    This function samples random values from the given ranges and biases the default joint positions and velocities
-    by these values. The biased values are then set into the physics simulation.
-    """
-    # extract the used quantities (to enable type-hinting)
-    asset: Articulation = env.scene[asset_cfg.name]
-
-    # get default joint state
-    joint_pos = asset.data.default_joint_pos[env_ids, asset_cfg.joint_ids].clone()
-    joint_vel = asset.data.default_joint_vel[env_ids, asset_cfg.joint_ids].clone()
-
-    # bias these values randomly
-    joint_pos += math_utils.sample_uniform(*position_range, joint_pos.shape, joint_pos.device)
-    joint_vel += math_utils.sample_uniform(*velocity_range, joint_vel.shape, joint_vel.device)
-
-    # clamp joint pos to limits
-    joint_pos_limits = asset.data.soft_joint_pos_limits[env_ids, asset_cfg.joint_ids]
-    joint_pos = joint_pos.clamp_(joint_pos_limits[..., 0], joint_pos_limits[..., 1])
-    # clamp joint vel to limits
-    joint_vel_limits = asset.data.soft_joint_vel_limits[env_ids, asset_cfg.joint_ids]
-    joint_vel = joint_vel.clamp_(-joint_vel_limits, joint_vel_limits)
-
-    # set into the physics simulation
-    asset.write_joint_state_to_sim(
-        joint_pos.view(len(env_ids), -1),
-        joint_vel.view(len(env_ids), -1),
-        env_ids=env_ids,
-        joint_ids=asset_cfg.joint_ids
-    )
-
 class reset_end_effector_around_asset(ManagerTermBase):
     def __init__(self, cfg: EventTermCfg, env: ManagerBasedRLEnv):
         reach_asset_cfg: SceneEntityCfg = cfg.params.get("reach_asset_cfg")  # type: ignore

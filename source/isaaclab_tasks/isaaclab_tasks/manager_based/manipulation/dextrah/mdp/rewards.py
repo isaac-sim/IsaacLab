@@ -37,25 +37,6 @@ def action_l2_clamped(env: ManagerBasedRLEnv) -> torch.Tensor:
     return torch.sum(torch.square(env.action_manager.action), dim=1).clamp(-1000, 1000)
 
 
-def lift_v0(
-    env: ManagerBasedRLEnv,
-    std: float,
-    object_cfg: SceneEntityCfg = SceneEntityCfg("object"),
-    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
-) -> torch.Tensor:
-    # extract the used quantities (to enable type-hinting)
-    robot: RigidObject = env.scene[asset_cfg.name]
-    object: RigidObject = env.scene[object_cfg.name]
-    command = torch.tensor([-0.5, 0., 0.75], device=env.device).repeat(env.num_envs, 1)
-    # compute the desired position in the world frame
-    des_pos_b = command[:, :3]
-    des_pos_w, _ = combine_frame_transforms(robot.data.root_state_w[:, :3], robot.data.root_state_w[:, 3:7], des_pos_b)
-    # distance of the end-effector to the object: (num_envs,)
-    distance = torch.abs(des_pos_w[:, 2] - object.data.root_pos_w[:, 2])
-    # rewarded if the object is lifted above the threshold
-    return torch.exp(-std * distance)
-
-
 def object_ee_distance(
     env: ManagerBasedRLEnv,
     std: float,
@@ -71,56 +52,11 @@ def object_ee_distance(
     object_ee_distance = torch.norm(asset_pos - object_pos[:, None, :], dim=-1).max(dim=-1).values
     return 1 - torch.tanh(object_ee_distance / std)
 
-
-def object_goal_distance(
-    env: ManagerBasedRLEnv,
-    std: float,
-    minimal_height: float,
-    command_name: str,
-    robot_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
-    object_cfg: SceneEntityCfg = SceneEntityCfg("object"),
-) -> torch.Tensor:
-    """Reward the agent for tracking the goal pose using tanh-kernel."""
-    # extract the used quantities (to enable type-hinting)
-    robot: RigidObject = env.scene[robot_cfg.name]
-    object: RigidObject = env.scene[object_cfg.name]
-    command = env.command_manager.get_command(command_name)
-    # compute the desired position in the world frame
-    des_pos_b = command[:, :3]
-    des_pos_w, _ = combine_frame_transforms(robot.data.root_state_w[:, :3], robot.data.root_state_w[:, 3:7], des_pos_b)
-    # distance of the end-effector to the object: (num_envs,)
-    distance = torch.norm(des_pos_w - object.data.root_pos_w[:, :3], dim=1)
-    # rewarded if the object is lifted above the threshold
-    return (object.data.root_pos_w[:, 2] > minimal_height) * (1 - torch.tanh(distance / std))
-
-
-def object_goal_distance_v0(
-    env: ManagerBasedRLEnv,
-    std: float,
-    min_height: float,
-    command_name: str = "object_pose",
-    robot_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
-    object_cfg: SceneEntityCfg = SceneEntityCfg("object"),
-) -> torch.Tensor:
-    """Reward the agent for tracking the goal pose using tanh-kernel."""
-    # extract the used quantities (to enable type-hinting)
-    robot: RigidObject = env.scene[robot_cfg.name]
-    object: RigidObject = env.scene[object_cfg.name]
-    command = env.command_manager.get_command(command_name)
-    # compute the desired position in the world frame
-    des_pos_b = command[:, :3]
-    des_pos_w, _ = combine_frame_transforms(robot.data.root_state_w[:, :3], robot.data.root_state_w[:, 3:7], des_pos_b)
-    # distance of the end-effector to the object: (num_envs,)
-    distance = torch.norm(des_pos_w - object.data.root_pos_w[:, :3], dim=1)
-    # rewarded if the object is lifted above the threshold
-    lifted = env.reward_manager.get_term_cfg('lift').func.lifted
-
-    return torch.where(lifted, torch.exp(-std * distance), 0)
-
 class lifted(ManagerTermBase):
 
     def __init__(self, cfg, env: ManagerBasedRLEnv):
         from pxr import UsdGeom
+        import hashlib
         from isaaclab.sim.utils import get_all_matching_child_prims
         super().__init__(cfg, env)
 
@@ -133,37 +69,49 @@ class lifted(ManagerTermBase):
         if self.visualize:
             from isaaclab.markers.config import RAY_CASTER_MARKER_CFG
             from isaaclab.markers import VisualizationMarkers
-            ray_cfg = RAY_CASTER_MARKER_CFG.replace(prim_path="/Visuals/CameraPointCloud")
+            ray_cfg = RAY_CASTER_MARKER_CFG.replace(prim_path="/Visuals/RewardPointCloud")
             ray_cfg.markers["hit"].radius = 0.001
             self.visualizer = VisualizationMarkers(ray_cfg)
 
         self.points = torch.zeros((env.num_envs, self.num_points, 3), device=self.device)
         self.lifted = torch.zeros(env.num_envs, device=env.device, dtype=torch.bool)
         for i in range(env.num_envs):
+            cache = getattr(env, "pointcloud_cache", None)
+            if cache is None:
+                cache = {}
+                setattr(env, "pointcloud_cache", cache)
             object_cfg = self.object.cfg
             prim_path = object_cfg.prim_path
             prim = get_all_matching_child_prims(prim_path.replace(".*", str(i)), predicate=lambda prim: prim.GetTypeName() == "Mesh")[0]
             mesh = UsdGeom.Mesh(prim)
             vertices = np.array(mesh.GetPointsAttr().Get())
+            
+            key = hashlib.sha256()
+            key.update(vertices.tobytes())
+            geom_id = key.hexdigest()
+            
+            if geom_id in cache:
+                samples = cache[geom_id]
+            else:
+                # load face‐counts and face‐indices
+                counts = mesh.GetFaceVertexCountsAttr().Get()
+                indices = mesh.GetFaceVertexIndicesAttr().Get()
 
-            # load face‐counts and face‐indices
-            counts = mesh.GetFaceVertexCountsAttr().Get()
-            indices = mesh.GetFaceVertexIndicesAttr().Get()
+                # triangulate "poly" faces into a (F,3) array
+                faces = []
+                it = iter(indices)
+                for cnt in counts:
+                    poly = [next(it) for _ in range(cnt)]
+                    # fan‐triangulate
+                    for k in range(1, cnt-1):
+                        faces.append([poly[0], poly[k], poly[k+1]])
 
-            # triangulate "poly" faces into a (F,3) array
-            faces = []
-            it = iter(indices)
-            for cnt in counts:
-                poly = [next(it) for _ in range(cnt)]
-                # fan‐triangulate
-                for k in range(1, cnt-1):
-                    faces.append([poly[0], poly[k], poly[k+1]])
+                faces = np.array(faces, dtype=np.int64)
 
-            faces = np.array(faces, dtype=np.int64)
-
-            # build trimesh and sample
-            tm = trimesh.Trimesh(vertices=vertices, faces=faces, process=False)
-            samples, __ = tm.sample(self.num_points, return_index=True)
+                # build trimesh and sample
+                tm = trimesh.Trimesh(vertices=vertices, faces=faces, process=False)
+                samples, __ = tm.sample(self.num_points, return_index=True)
+                cache[geom_id] = samples
             self.points[i] = torch.from_numpy(samples).to(self.device)
 
     def __call__(
@@ -182,7 +130,7 @@ class lifted(ManagerTermBase):
 
         if visualize:
             self.visualizer.visualize(translations=object_point_cloud_w.reshape(-1, 3))
-        self.lifted = (env.episode_length_buf > 10) & torch.all(object_point_cloud_w[..., 2] > min_height, dim=1)
+        self.lifted = (contacts(env, 1.0)) & (torch.all(object_point_cloud_w[..., 2] > min_height, dim=1))
         return self.lifted.float()
 
 
@@ -266,15 +214,23 @@ def contacts(env: ManagerBasedRLEnv, threshold: float) -> torch.Tensor:
     return good_contact_cond1
 
 def success_reward(
-    env: ManagerBasedRLEnv, pos_std: float, quat_std: float, command_name: str, asset_cfg: SceneEntityCfg, align_asset_cfg: SceneEntityCfg
+    env: ManagerBasedRLEnv,
+    command_name: str,
+    asset_cfg: SceneEntityCfg,
+    align_asset_cfg: SceneEntityCfg,
+    pos_std: float,
+    rot_std: float | None = None,
 ) -> torch.Tensor:
     asset: RigidObject = env.scene[asset_cfg.name]
     object: RigidObject = env.scene[align_asset_cfg.name]
     command = env.command_manager.get_command(command_name)
     des_pos_w, des_quat_w = combine_frame_transforms(asset.data.root_pos_w, asset.data.root_quat_w, command[:, :3], command[:, 3:7])
     pos_err, rot_err = compute_pose_error(des_pos_w, des_quat_w, object.data.root_pos_w, object.data.root_quat_w)
-    pos_dist, rot_dist = torch.norm(pos_err, dim=1), torch.norm(rot_err, dim=1) 
-    return (1 - torch.tanh(pos_dist / pos_std)) * (1 - torch.tanh(rot_dist / quat_std))
+    pos_dist = torch.norm(pos_err, dim=1)
+    if not rot_std:
+        return (1 - torch.tanh(pos_dist / pos_std))
+    rot_dist = torch.norm(rot_err, dim=1)
+    return (1 - torch.tanh(pos_dist / pos_std)) * (1 - torch.tanh(rot_dist / rot_std))
 
 def position_command_error_tanh(
     env: ManagerBasedRLEnv, std: float, command_name: str, asset_cfg: SceneEntityCfg, align_asset_cfg: SceneEntityCfg
@@ -307,16 +263,6 @@ def orientation_command_error_tanh(
     des_quat_w = math_utils.quat_mul(asset.data.root_state_w[:, 3:7], des_quat_b)
     quat_distance = math_utils.quat_error_magnitude(object.data.root_quat_w, des_quat_w)
     lifted = env.reward_manager.get_term_cfg('lift').func.lifted
-    
-    # stop = False
-    # if torch.any(quat_distance < 0.4):
-    #     stop = True
-    #     print(quat_distance)
-    # while stop:
-    #     pose_marker.visualize(
-    #         translations=torch.cat((object.data.root_pos_w, object.data.root_pos_w), dim=0),
-    #         orientations=torch.cat((object.data.root_quat_w, des_quat_w), dim=0)
-    #     )
-    #     env.sim.render()
-    
+
     return (1 - torch.tanh(quat_distance / std)) * lifted.float()
+
