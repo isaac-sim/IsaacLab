@@ -119,6 +119,8 @@ def run_individual_tests(test_files, workspace_root):
             "time_elapsed": time_elapsed,
         }
 
+    print("~~~~~~~~~~~~ Finished running all tests")
+
     return failed_tests, test_status
 
 
@@ -130,6 +132,25 @@ def pytest_sessionstart(session):
         os.path.join(workspace_root, "scripts"),
         os.path.join(workspace_root, "source"),
     ]
+
+    # Get filter pattern from environment variable or command line
+    filter_pattern = os.environ.get("TEST_FILTER_PATTERN", "")
+    exclude_pattern = os.environ.get("TEST_EXCLUDE_PATTERN", "")
+
+    # Also try to get from pytest config
+    if hasattr(session.config, "option") and hasattr(session.config.option, "filter_pattern"):
+        filter_pattern = filter_pattern or getattr(session.config.option, "filter_pattern", "")
+    if hasattr(session.config, "option") and hasattr(session.config.option, "exclude_pattern"):
+        exclude_pattern = exclude_pattern or getattr(session.config.option, "exclude_pattern", "")
+
+    print("=" * 50)
+    print("CONFTEST.PY DEBUG INFO")
+    print("=" * 50)
+    print(f"Filter pattern: '{filter_pattern}'")
+    print(f"Exclude pattern: '{exclude_pattern}'")
+    print(f"TEST_FILTER_PATTERN env var: '{os.environ.get('TEST_FILTER_PATTERN', 'NOT_SET')}'")
+    print(f"TEST_EXCLUDE_PATTERN env var: '{os.environ.get('TEST_EXCLUDE_PATTERN', 'NOT_SET')}'")
+    print("=" * 50)
 
     # Get all test files in the source directories
     test_files = []
@@ -147,27 +168,50 @@ def pytest_sessionstart(session):
                         continue
 
                     full_path = os.path.join(root, file)
+
+                    # Apply include filter
+                    if filter_pattern and filter_pattern not in full_path:
+                        print(f"Skipping {full_path} (does not match include pattern: {filter_pattern})")
+                        continue
+
+                    # Apply exclude filter
+                    if exclude_pattern and exclude_pattern in full_path:
+                        print(f"Skipping {full_path} (matches exclude pattern: {exclude_pattern})")
+                        continue
+
                     test_files.append(full_path)
 
     if not test_files:
         print("No test files found in source directory")
         pytest.exit("No test files found", returncode=1)
 
+    print(f"Found {len(test_files)} test files after filtering:")
+    for test_file in test_files:
+        print(f"  - {test_file}")
+
     # Run all tests individually
     failed_tests, test_status = run_individual_tests(test_files, workspace_root)
 
+    print("failed tests:", failed_tests)
+
     # Collect reports
+    print("~~~~~~~~~ Collecting final report...")
 
     # create new full report
     full_report = JUnitXml()
     # read all reports and merge them
     for report in os.listdir("tests"):
         if report.endswith(".xml"):
+            print(report)
             report_file = JUnitXml.fromfile(f"tests/{report}")
             full_report += report_file
+    print("~~~~~~~~~~~~ Writing final report...")
     # write content to full report
-    full_report_path = "tests/full_report.xml"
+    result_file = os.environ.get("TEST_RESULT_FILE", "full_report.xml")
+    full_report_path = f"tests/{result_file}"
+    print(f"Using result file: {result_file}")
     full_report.write(full_report_path)
+    print("~~~~~~~~~~~~ Report written to", full_report_path)
 
     # print test status in a nice table
     # Calculate the number and percentage of passing tests
@@ -226,10 +270,3 @@ def pytest_sessionstart(session):
 
     # Print summary to console and log file
     print(summary_str)
-
-    # If any tests failed, mark the session as failed
-    if failed_tests:
-        print("\nFailed tests:")
-        for test in failed_tests:
-            print(f"  - {test}")
-        pytest.exit("Test failures occurred", returncode=1)

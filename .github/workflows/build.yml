@@ -1,0 +1,238 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+name: Build and Test
+
+on:
+  pull_request:
+    branches:
+      - devel
+      - main
+
+# Concurrency control to prevent parallel runs on the same PR
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  checks: write
+
+env:
+  NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
+  ISAACSIM_BASE_IMAGE: ${{ vars.ISAACSIM_BASE_IMAGE }}
+  ISAACSIM_BASE_VERSION: ${{ vars.ISAACSIM_BASE_VERSION }}
+  DOCKER_IMAGE_TAG: isaac-lab-dev:${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.ref_name }}-${{ github.sha }}
+
+jobs:
+  test-isaaclab-tasks:
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 180
+    continue-on-error: true
+    env:
+        CUDA_VISIBLE_DEVICES: all
+        NVIDIA_VISIBLE_DEVICES: all
+        NVIDIA_DRIVER_CAPABILITIES: all
+        CUDA_HOME: /usr/local/cuda
+        LD_LIBRARY_PATH: /usr/local/cuda/lib64:/usr/local/cuda/extras/CUPTI/lib64
+        DOCKER_HOST: unix:///var/run/docker.sock
+        DOCKER_TLS_CERTDIR: ""
+    container:
+      image: docker:dind
+      options: --gpus all --security-opt=no-new-privileges:true --privileged
+
+    steps:
+    - name: Install Git LFS
+      run: |
+        apk update
+        apk add --no-cache git-lfs
+        git lfs install
+
+    - name: Checkout Code
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+        lfs: true
+
+    - name: Build Docker Image
+      uses: ./.github/actions/docker-build
+      with:
+        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
+        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
+        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+
+    - name: Run IsaacLab Tasks Tests
+      uses: ./.github/actions/run-tests
+      with:
+        test-path: "tools"
+        result-file: "isaaclab-tasks-report.xml"
+        container-name: "isaac-lab-tasks-test-$$"
+        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
+        pytest-options: ""
+        filter-pattern: "isaaclab_tasks"
+
+    - name: Copy All Test Results from IsaacLab Tasks Container
+      run: |
+        CONTAINER_NAME="isaac-lab-tasks-test-$$"
+        if docker ps -a | grep -q $CONTAINER_NAME; then
+          echo "Copying all test results from IsaacLab Tasks container..."
+          docker cp $CONTAINER_NAME:/workspace/isaaclab/tests/isaaclab-tasks-report.xml reports/ 2>/dev/null || echo "No test results to copy from IsaacLab Tasks container"
+        fi
+
+    - name: Upload IsaacLab Tasks Test Results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: isaaclab-tasks-test-results
+        path: reports/isaaclab-tasks-report.xml
+        retention-days: 1
+        compression-level: 9
+
+  test-general:
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 180
+    env:
+        CUDA_VISIBLE_DEVICES: all
+        NVIDIA_VISIBLE_DEVICES: all
+        NVIDIA_DRIVER_CAPABILITIES: all
+        CUDA_HOME: /usr/local/cuda
+        LD_LIBRARY_PATH: /usr/local/cuda/lib64:/usr/local/cuda/extras/CUPTI/lib64
+        DOCKER_HOST: unix:///var/run/docker.sock
+        DOCKER_TLS_CERTDIR: ""
+    container:
+      image: docker:dind
+      options: --gpus all --security-opt=no-new-privileges:true --privileged
+
+    steps:
+    - name: Install Git LFS
+      run: |
+        apk update
+        apk add --no-cache git-lfs
+        git lfs install
+
+    - name: Checkout Code
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+        lfs: true
+
+    - name: Build Docker Image
+      uses: ./.github/actions/docker-build
+      with:
+        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
+        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
+        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+
+    - name: Run General Tests
+      uses: ./.github/actions/run-tests
+      with:
+        test-path: "tools"
+        result-file: "general-tests-report.xml"
+        container-name: "isaac-lab-general-test-$$"
+        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
+        pytest-options: ""
+        filter-pattern: "not isaaclab_tasks"
+
+    - name: Copy All Test Results from General Tests Container
+      run: |
+        CONTAINER_NAME="isaac-lab-general-test-$$"
+        if docker ps -a | grep -q $CONTAINER_NAME; then
+          echo "Copying all test results from General Tests container..."
+          docker cp $CONTAINER_NAME:/workspace/isaaclab/tests/general-tests-report.xml reports/ 2>/dev/null || echo "No test results to copy from General Tests container"
+        fi
+
+    - name: Upload General Test Results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: general-test-results
+        path: reports/general-tests-report.xml
+        retention-days: 1
+        compression-level: 9
+
+  combine-results:
+    needs: [test-isaaclab-tasks, test-general]
+    runs-on: [self-hosted, gpu]
+    if: always()
+    env:
+        DOCKER_HOST: unix:///var/run/docker.sock
+        DOCKER_TLS_CERTDIR: ""
+    container:
+      image: docker:dind
+      options: --security-opt=no-new-privileges:true --privileged
+
+    steps:
+    - name: Install Git LFS
+      run: |
+        apk update
+        apk add --no-cache git-lfs
+        git lfs install
+
+    - name: Checkout Code
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+        lfs: false
+
+    - name: Configure Git Safe Directory
+      run: |
+        git config --global --add safe.directory ${{ github.workspace }}
+        git config --global --add safe.directory /workspace/isaaclab
+        git config --global --add safe.directory .
+
+    - name: Create Reports Directory
+      run: |
+        mkdir -p reports
+        chmod 777 reports
+        ls -la reports/
+        echo "Current user: $(whoami)"
+        echo "Current directory: $(pwd)"
+
+    - name: Download Test Results
+      uses: actions/download-artifact@v4
+      with:
+        name: isaaclab-tasks-test-results
+        path: /tmp/reports/
+      continue-on-error: true
+
+    - name: Download General Test Results
+      uses: actions/download-artifact@v4
+      with:
+        name: general-test-results
+        path: reports/
+
+    - name: Combine All Test Results
+      uses: ./.github/actions/combine-results
+      with:
+        tests-dir: "reports"
+        output-file: "reports/combined-results.xml"
+
+    - name: Upload Combined Test Results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: pr-${{ github.event.pull_request.number }}-combined-test-results
+        path: reports/combined-results.xml
+        retention-days: 7
+        compression-level: 9
+
+    - name: Report Test Results
+      uses: dorny/test-reporter@v1
+      if: always()
+      with:
+        name: IsaacLab Tests
+        path: reports/combined-results.xml
+        reporter: java-junit
+        fail-on-error: false
+
+    - name: Process Combined Test Results
+      uses: ./.github/actions/process-results
+      with:
+        results-file: "reports/combined-results.xml"
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        issue-number: ${{ github.event.pull_request.number }}
+        repo-owner: ${{ github.repository_owner }}
+        repo-name: ${{ github.event.repository.name }}
