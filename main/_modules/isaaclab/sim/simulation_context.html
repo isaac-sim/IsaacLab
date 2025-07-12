@@ -784,6 +784,14 @@
                 <span class="n">physx_params</span> <span class="o">=</span> <span class="n">sim_params</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">&quot;physx&quot;</span><span class="p">)</span>
                 <span class="n">sim_params</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">physx_params</span><span class="p">)</span>
         <span class="c1"># create a simulation context to control the simulator</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">physx</span><span class="o">.</span><span class="n">enable_stabilization</span> <span class="ow">and</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">dt</span> <span class="o">&gt;</span> <span class="mf">0.0333</span><span class="p">):</span>
+            <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+                <span class="s2">&quot;Large simulation step size (&gt; 0.0333 seconds) is not recommended without enabling stabilization.&quot;</span>
+                <span class="s2">&quot; Consider setting the `enable_stabilization` flag to True in the PhysxCfg, or reducing the&quot;</span>
+                <span class="s2">&quot; simulation step size if you run into physics issues.&quot;</span>
+            <span class="p">)</span>
+
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span>
             <span class="n">stage_units_in_meters</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span>
             <span class="n">physics_dt</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">dt</span><span class="p">,</span>

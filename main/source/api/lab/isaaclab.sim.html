@@ -1423,7 +1423,11 @@ Default is False.</p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab.sim.PhysxCfg.enable_stabilization">
 <span class="sig-name descname"><span class="pre">enable_stabilization</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></em><a class="headerlink" href="#isaaclab.sim.PhysxCfg.enable_stabilization" title="Permalink to this definition">#</a></dt>
-<dd><p>Enable/disable additional stabilization pass in solver. Default is True.</p>
+<dd><p>Enable/disable additional stabilization pass in solver. Default is False.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>We recommend setting this flag to true only when the simulation step size is large (i.e., less than 30 Hz or more than 0.0333 seconds).</p>
+</div>
 </dd></dl>
 
 <dl class="py attribute">
