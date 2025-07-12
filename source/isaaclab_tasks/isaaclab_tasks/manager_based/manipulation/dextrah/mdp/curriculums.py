@@ -74,6 +74,7 @@ class DifficultyScheduler(ManagerTermBase):
         init_difficulty: int = 0,
         min_difficulty: int = 0,
         max_difficulty: int = 50,
+        promotion_only: bool = False
     ):
         command = env.command_manager.get_command("object_pose")
         des_pos_b = command[env_ids, :3]
@@ -83,8 +84,9 @@ class DifficultyScheduler(ManagerTermBase):
 
         distance = torch.norm(des_pos_w - self.object.data.root_pos_w[env_ids, :3], dim=1)
         move_up = distance < dist_tol
+        demot = self.current_adr_difficulties[env_ids] if promotion_only else self.current_adr_difficulties[env_ids] - 1
         self.current_adr_difficulties[env_ids] = torch.where(
-            move_up, self.current_adr_difficulties[env_ids] + 1, self.current_adr_difficulties[env_ids] - 1,
+            move_up, self.current_adr_difficulties[env_ids] + 1, demot,
         ).clamp(min=min_difficulty, max=max_difficulty)
         
         self.difficulty_frac = torch.mean(self.current_adr_difficulties) / max(max_difficulty, 1)
