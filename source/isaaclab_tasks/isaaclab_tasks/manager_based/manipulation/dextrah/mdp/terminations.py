@@ -19,7 +19,7 @@ from __future__ import annotations
 import torch
 from typing import TYPE_CHECKING
 
-from isaaclab.assets import RigidObject
+from isaaclab.assets import RigidObject, Articulation
 from isaaclab.managers import SceneEntityCfg
 
 if TYPE_CHECKING:
@@ -45,3 +45,8 @@ def out_of_bound(
     object_pos_local = object.data.root_pos_w - env.scene.env_origins
     outside_bounds = ((object_pos_local < ranges[:, 0]) | (object_pos_local > ranges[:, 1])).any(dim=1)
     return outside_bounds
+
+
+def abnormal_robot_state(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
+    robot: Articulation = env.scene[asset_cfg.name]
+    return (robot.data.joint_vel.abs() > (robot.data.joint_vel_limits * 2)).any(dim=1)
