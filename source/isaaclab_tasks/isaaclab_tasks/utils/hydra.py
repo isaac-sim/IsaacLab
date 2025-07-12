@@ -118,7 +118,7 @@ def hydra_task_config(task_name: str, agent_cfg_entry_point: str) -> Callable:
                 if has_hydra_group_configuration:
                     hydra_cfg = HydraConfig.get()
                     configurables = replace_strings_with_slices(configurables)
-                    for key in configurables.env.keys():
+                    for key in configurables.env.keys() and hasattr(configurables, "env"):
                         cmd_group_choice = hydra_cfg.runtime.choices[f"env.{key}"]
                         if cmd_group_choice != "default":
                             setattr_nested(env_cfg, key, configurables.env[key][cmd_group_choice])
@@ -134,7 +134,7 @@ def hydra_task_config(task_name: str, agent_cfg_entry_point: str) -> Callable:
                 if isinstance(agent_cfg, dict) or agent_cfg is None:
                     agent_cfg = hydra_env_cfg["agent"]
                 else:
-                    if has_hydra_group_configuration:
+                    if has_hydra_group_configuration and hasattr(configurables, "agent"):
                         for key in configurables.agent.keys():
                             cmd_group_choice = hydra_cfg.runtime.choices[f"agent.{key}"]
                             if cmd_group_choice != "default":
