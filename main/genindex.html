@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.1.0" />
-    <meta name="docbuild:last-update" content="Jul 11, 2025"/>
+    <meta name="docbuild:last-update" content="Jul 12, 2025"/>
   </head>
   
   
@@ -286,6 +286,7 @@
 <li class="toctree-l2"><a class="reference internal" href="source/how-to/add_own_library.html">Adding your own learning library</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/how-to/record_animation.html">Recording Animations of Simulations</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/how-to/record_video.html">Recording video clips during training</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/how-to/curriculums.html">Curriculum Utilities</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/how-to/master_omniverse.html">Mastering Omniverse for Robotics</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/how-to/cloudxr_teleoperation.html">Setting up CloudXR Teleoperation</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/how-to/simulation_performance.html">Simulation Performance</a></li>
@@ -656,6 +657,10 @@
         <li><a href="source/api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedRLEnv.__init__">(isaaclab.envs.ManagerBasedRLEnv method)</a>
 </li>
         <li><a href="source/api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedRLMimicEnv.__init__">(isaaclab.envs.ManagerBasedRLMimicEnv method)</a>
+</li>
+        <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.curriculums.modify_env_param.__init__">(isaaclab.envs.mdp.curriculums.modify_env_param method)</a>
+</li>
+        <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.curriculums.modify_term_cfg.__init__">(isaaclab.envs.mdp.curriculums.modify_term_cfg method)</a>
 </li>
         <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.events.randomize_rigid_body_material.__init__">(isaaclab.envs.mdp.events.randomize_rigid_body_material method)</a>
 </li>
@@ -4729,10 +4734,10 @@
 </li>
       <li><a href="source/api/lab/isaaclab.terrains.html#isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshRandomGridTerrainCfg">MeshRandomGridTerrainCfg (class in isaaclab.terrains.trimesh.mesh_terrains_cfg)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab/isaaclab.terrains.html#isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedBoxesTerrainCfg">MeshRepeatedBoxesTerrainCfg (class in isaaclab.terrains.trimesh.mesh_terrains_cfg)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab/isaaclab.terrains.html#isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedBoxesTerrainCfg.ObjectCfg">MeshRepeatedBoxesTerrainCfg.ObjectCfg (class in isaaclab.terrains.trimesh.mesh_terrains_cfg)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.terrains.html#isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedCylindersTerrainCfg">MeshRepeatedCylindersTerrainCfg (class in isaaclab.terrains.trimesh.mesh_terrains_cfg)</a>
@@ -4805,6 +4810,8 @@
 </li>
       <li><a href="source/api/lab/isaaclab.sim.schemas.html#isaaclab.sim.schemas.modify_deformable_body_properties">modify_deformable_body_properties() (in module isaaclab.sim.schemas)</a>
 </li>
+      <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.curriculums.modify_env_param">modify_env_param (class in isaaclab.envs.mdp.curriculums)</a>
+</li>
       <li><a href="source/api/lab/isaaclab.sim.schemas.html#isaaclab.sim.schemas.modify_fixed_tendon_properties">modify_fixed_tendon_properties() (in module isaaclab.sim.schemas)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.sim.schemas.html#isaaclab.sim.schemas.modify_joint_drive_properties">modify_joint_drive_properties() (in module isaaclab.sim.schemas)</a>
@@ -4814,6 +4821,8 @@
       <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.curriculums.modify_reward_weight">modify_reward_weight() (in module isaaclab.envs.mdp.curriculums)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.sim.schemas.html#isaaclab.sim.schemas.modify_rigid_body_properties">modify_rigid_body_properties() (in module isaaclab.sim.schemas)</a>
+</li>
+      <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.curriculums.modify_term_cfg">modify_term_cfg (class in isaaclab.envs.mdp.curriculums)</a>
 </li>
       <li>
     module
@@ -8408,7 +8417,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jul 11, 2025.
+  Last updated on Jul 12, 2025.
   <br/>
 </p>
   </div>
