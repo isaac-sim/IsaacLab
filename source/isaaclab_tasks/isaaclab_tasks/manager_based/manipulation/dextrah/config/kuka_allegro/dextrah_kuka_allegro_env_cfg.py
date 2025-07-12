@@ -79,8 +79,8 @@ class KukaAllegroMixinCfg:
             },
         )
 
-        self.observations.policy.hand_tips_pos.params["body_asset_cfg"].body_names = ["palm_link", ".*_tip"]
-        self.observations.critic.hand_tips_pos.params["body_asset_cfg"].body_names = ["palm_link", ".*_tip"]
+        self.observations.policy.hand_tips_state_b.params["body_asset_cfg"].body_names = ["palm_link", ".*_tip"]
+        self.observations.critic.hand_tips_state_b.params["body_asset_cfg"].body_names = ["palm_link", ".*_tip"]
         self.rewards.fingers_to_object.params["asset_cfg"] = SceneEntityCfg("robot", body_names=["palm_link", ".*_tip"])
         self.scene.robot.spawn.activate_contact_sensors = True
         for finger in ["index", "middle", "ring", "thumb"]:
