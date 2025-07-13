@@ -31,7 +31,7 @@ def sample_object_point_cloud(num_envs: int, num_points: int, prim_path: str, us
         # read USD transform scale
         object_prim = prim_utils.get_prim_at_path(object_prim_path)
         usd_scale = torch.tensor(object_prim.GetAttribute("xformOp:scale").Get())
-        if prim.GetPath() != object_prim.GetPath():
+        if prim.GetPath() != object_prim.GetPath() and prim.HasAttribute("xformOp:scale"):
             usd_scale *= torch.tensor(prim.GetAttribute("xformOp:scale").Get())
 
         # build (or load) samples
@@ -95,16 +95,18 @@ def sample_object_point_cloud(num_envs: int, num_points: int, prim_path: str, us
                 mesh_tm = trimesh.creation.icosphere(subdivisions=3, radius=r)
             elif prim_type == "Cylinder":
                 c = UsdGeom.Cylinder(prim)
-                mesh_tm = trimesh.creation.cylinder(radius=c.GetRadiusAttr().Get(),
-                                                    height=c.GetHeightAttr().Get())
+                mesh_tm = trimesh.creation.cylinder(radius=c.GetRadiusAttr().Get(), height=c.GetHeightAttr().Get())
             elif prim_type == "Capsule":
                 c = UsdGeom.Capsule(prim)
-                mesh_tm = trimesh.creation.capsule(radius=c.GetRadiusAttr().Get(),
-                                                   height=c.GetHeightAttr().Get())
-
+                mesh_tm = trimesh.creation.capsule(radius=c.GetRadiusAttr().Get(), height=c.GetHeightAttr().Get())
+            elif prim_type == "Cone":
+                c = UsdGeom.Cone(prim)
+                mesh_tm = trimesh.creation.cone(radius=c.GetRadiusAttr().Get(), height=c.GetHeightAttr().Get())
             # sample on surface
             samples, _ = mesh_tm.sample(num_points, return_index=True)
-
+            if prim_type == "Cone":
+                # trimesh is half height higher, has a differnt origin than usd cone
+                samples[:, 2] -= c.GetHeightAttr().Get() / 2
             if use_cache:
                 np.save(cache_file, samples)
 

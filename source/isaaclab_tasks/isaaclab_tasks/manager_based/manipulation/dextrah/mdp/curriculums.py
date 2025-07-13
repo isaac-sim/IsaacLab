@@ -19,28 +19,67 @@ from typing import TYPE_CHECKING
 
 from isaaclab.assets import Articulation, RigidObject
 from isaaclab.managers import SceneEntityCfg, ManagerTermBase
-from isaaclab.utils.math import combine_frame_transforms, compute_pose_error
+from isaaclab.utils.math import combine_frame_transforms, compute_pose_error, sample_uniform
+from isaaclab.envs import mdp
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
 
 
 def initial_final_interpolate_fn(env: ManagerBasedRLEnv, env_id, data, iv, fv, difficulty_term_str):
-    iv_, fv_ = torch.tensor(iv, device=env.device), torch.tensor(fv, device=env.device)
+    """
+    Interpolate between initial value iv and final value fv, for any arbitrarily
+    nested structure of lists/tuples in 'data'. Scalars (int/float) are handled
+    at the leaves.
+    """
+    # get the fraction scalar on the device
     difficulty_term: DifficultyScheduler = env.curriculum_manager.get_term_cfg(difficulty_term_str).func
-    new_val = difficulty_term.difficulty_frac * (fv_ - iv_) + iv_
-    if isinstance(data, float):
-        return new_val.item()
-    elif isinstance(data, int):
+    frac = difficulty_term.difficulty_frac
+
+    # convert iv/fv to tensors, but we'll peel them apart in recursion
+    iv_t = torch.tensor(iv, device=env.device)
+    fv_t = torch.tensor(fv, device=env.device)
+
+    return recurse(iv_t.tolist(), fv_t.tolist(), data, frac)
+
+def recurse(iv_elem, fv_elem, data_elem, frac):
+    # If it's a sequence, rebuild the same type with each element recursed
+    if isinstance(data_elem, Sequence) and not isinstance(data_elem, (str, bytes)):
+        # Note: we assume iv_elem and fv_elem have the same structure as data_elem
+        return type(data_elem)(
+            recurse(iv_e, fv_e, d_e, frac)
+            for iv_e, fv_e, d_e in zip(iv_elem, fv_elem, data_elem)
+        )
+    # Otherwise it's a leaf scalar: do the interpolation
+    new_val = frac * (fv_elem - iv_elem) + iv_elem
+    if isinstance(data_elem, int):
         return int(new_val.item())
-    elif isinstance(data, (tuple, list)):
-        raw = new_val.tolist()
-        # assume iv is sequence of all ints or all floats:
-        is_int = isinstance(iv[0], int)
-        casted = [int(x) if is_int else float(x) for x in raw]
-        return tuple(casted) if isinstance(data, tuple) else casted
     else:
-        raise TypeError(f"Does not support the type {type(data)}")
+        # cast floats or any numeric
+        return new_val.item()
+
+
+def resample_bucket_range(
+    env: ManagerBasedRLEnv,
+    env_id,
+    data,
+    static_fric_range: tuple[tuple[float, float], tuple[float, float]],
+    dynamic_fric_range: tuple[tuple[float, float], tuple[float, float]],
+    restitution_range: tuple[tuple[float, float], tuple[float, float]],
+    difficulty_term_str: str
+):
+    # cpu only
+    iv_s, fv_s = torch.tensor(static_fric_range[0]), torch.tensor(static_fric_range[1])
+    iv_d, fv_d = torch.tensor(dynamic_fric_range[0]), torch.tensor(dynamic_fric_range[1])
+    iv_r, fv_r = torch.tensor(restitution_range[0]), torch.tensor(restitution_range[1])
+    difficulty_term: DifficultyScheduler = env.curriculum_manager.get_term_cfg(difficulty_term_str).func
+    difficulty_frac = difficulty_term.difficulty_frac.item()
+    new_static_fric_range = difficulty_frac * (fv_s - iv_s) + iv_s
+    new_dynamic_fric_range = difficulty_frac * (fv_d - iv_d) + iv_d
+    new_restitution_range = difficulty_frac * (fv_r - iv_r) + iv_r
+    ranges = torch.stack([new_static_fric_range, new_dynamic_fric_range, new_restitution_range], dim=0)
+    new_buckets = sample_uniform(ranges[:, 0], ranges[:, 1], (len(data), 3), device="cpu")
+    return new_buckets
 
 
 def value_override(env: ManagerBasedRLEnv, env_id, data, new_val, num_steps):
@@ -90,7 +129,7 @@ class DifficultyScheduler(ManagerTermBase):
             move_up, self.current_adr_difficulties[env_ids] + 1, demot,
         ).clamp(min=min_difficulty, max=max_difficulty)
 
-        self.difficulty_frac = torch.mean(self.current_adr_difficulties) / max(max_difficulty, 1)
+        self.difficulty_frac = torch.floor(torch.mean(self.current_adr_difficulties)) / max(max_difficulty, 1)
         return self.difficulty_frac
 
 def cfg_get(root: Any, path: str) -> Any:

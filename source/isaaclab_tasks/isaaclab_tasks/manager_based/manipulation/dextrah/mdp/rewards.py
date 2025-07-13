@@ -193,8 +193,7 @@ def position_command_error_tanh(
     des_pos_b = command[:, :3]
     des_pos_w, _ = combine_frame_transforms(asset.data.root_pos_w, asset.data.root_quat_w, des_pos_b)
     distance = torch.norm(object.data.root_pos_w - des_pos_w, dim=1)
-    lifted = env.reward_manager.get_term_cfg('lift').func.lifted
-    return (1 - torch.tanh(distance / std)) * lifted.float()
+    return (1 - torch.tanh(distance / std)) * contacts(env, 1.0).float()
 
 
 def orientation_command_error_tanh(
@@ -210,7 +209,6 @@ def orientation_command_error_tanh(
     des_quat_b = command[:, 3:7]
     des_quat_w = math_utils.quat_mul(asset.data.root_state_w[:, 3:7], des_quat_b)
     quat_distance = math_utils.quat_error_magnitude(object.data.root_quat_w, des_quat_w)
-    lifted = env.reward_manager.get_term_cfg('lift').func.lifted
 
-    return (1 - torch.tanh(quat_distance / std)) * lifted.float()
+    return (1 - torch.tanh(quat_distance / std)) * contacts(env, 1.0).float()
 

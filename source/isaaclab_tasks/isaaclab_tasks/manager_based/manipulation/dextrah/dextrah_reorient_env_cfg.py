@@ -46,21 +46,13 @@ class SceneCfg(InteractiveSceneCfg):
                 size=(0.1, 0.1, 0.1),
                 physics_material=sim_utils.RigidBodyMaterialCfg(static_friction=1.0),
             )],
-            random_choice=True,
             rigid_props=sim_utils.RigidBodyPropertiesCfg(
-                rigid_body_enabled=True,
                 solver_position_iteration_count=16,
                 solver_velocity_iteration_count=0,
-                kinematic_enabled=False,
-                disable_gravity=True,
-                sleep_threshold=0.005,
-                stabilization_threshold=0.0025,
-                max_linear_velocity=1000.0,
-                max_angular_velocity=1000.0,
-                max_depenetration_velocity=1000.0,
+                disable_gravity=False,
             ),
-            collision_props=sim_utils.CollisionPropertiesCfg(collision_enabled=True),
-            mass_props=sim_utils.MassPropertiesCfg(mass=0.1),
+            collision_props=sim_utils.CollisionPropertiesCfg(),
+            mass_props=sim_utils.MassPropertiesCfg(mass=0.2),
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(-0.55, 0.1, 0.35)),
     )
@@ -116,10 +108,10 @@ class ObservationsCfg:
                 "body_asset_cfg": SceneEntityCfg("robot"),
                 "base_asset_cfg": SceneEntityCfg("robot"),
             })
-        object_pose_b = ObsTerm(func=mdp.object_pose_b)
+        object_pose_b = ObsTerm(func=mdp.object_pose_b, noise=Unoise(n_min=-0., n_max=0.))
         target_object_pose_b = ObsTerm(func=mdp.generated_commands, params={"command_name": "object_pose"})
         actions = ObsTerm(func=mdp.last_action)
-        object_observation_b = ObsTerm(func=mdp.object_point_cloud_b, params={"num_points": 128})
+        object_observation_b = ObsTerm(func=mdp.object_point_cloud_b, noise=Unoise(n_min=-0., n_max=0.), params={"num_points": 128})
         contact: ObsTerm = MISSING
 
         def __post_init__(self):
@@ -145,10 +137,7 @@ class EventCfg:
     randomize_object_scale = EventTerm(
         func=mdp.randomize_rigid_body_scale,
         mode="prestartup",
-        params={
-            "scale_range": {"x": (0.5, 2.0), "y": (0.5, 2.0), "z": (0.5, 2.0)},
-            "asset_cfg": SceneEntityCfg("object"),
-        },
+        params={"scale_range": (0.5, 2.0), "asset_cfg": SceneEntityCfg("object")},
     )
     
     # -- robot
@@ -172,7 +161,6 @@ class EventCfg:
             "stiffness_distribution_params": [1., 1.],
             "damping_distribution_params": [1., 1.],
             "operation": "scale",
-            "distribution": "uniform"
         },
     )
 
@@ -183,7 +171,6 @@ class EventCfg:
             "asset_cfg": SceneEntityCfg("robot", joint_names=".*"),
             "friction_distribution_params": [1. , 1.],
             "operation": "scale",
-            "distribution": "uniform"
         },
     )
 
@@ -207,7 +194,6 @@ class EventCfg:
             "asset_cfg": SceneEntityCfg("object"),
             "mass_distribution_params": [1., 1.],
             "operation": "scale",
-            "distribution": "uniform",
         },
     )
 
@@ -252,6 +238,15 @@ class EventCfg:
             "velocity_range": [0., 0.],
         },
     )
+    
+    variable_gravity = EventTerm(
+        func=mdp.randomize_physics_scene_gravity,
+        mode="reset",
+        params={
+            "gravity_distribution_params": ([0.0, 0.0, 0.0], [0.0, 0.0, 0.0]),
+            "operation": "abs",
+        },
+    )
 
 @configclass
 class ActionsCfg:
@@ -267,10 +262,10 @@ class RewardsCfg:
     action_rate_l2 = RewTerm(func=mdp.action_rate_l2_clamped, weight=-0.005)
     
     # joint_pos_reg = RewTerm(func=mdp.joint_deviation_l1, params={"asset_cfg": SceneEntityCfg("robot")}, weight=-0.01)
+    
+    # lift = RewTerm(func=mdp.lifted, params={"num_points": 128, "min_height": 0.26, "visualize": False}, weight=0.0)
 
     fingers_to_object = RewTerm(func=mdp.object_ee_distance, params={"std": 0.4}, weight=1.0)
-
-    lift = RewTerm(func=mdp.lifted, params={"num_points": 128, "min_height": 0.26, "visualize": False}, weight=2.0)
     
     position_tracking = RewTerm(
         func=mdp.position_command_error_tanh,
@@ -334,7 +329,7 @@ class DexSuiteReorientEnvCfg(ManagerBasedEnvCfg):
     rewards: RewardsCfg = RewardsCfg()
     terminations: TerminationsCfg = TerminationsCfg()
     events: EventCfg = EventCfg()
-    curriculum: CurriculumCfg | None = None #  CurriculumCfg()
+    curriculum: CurriculumCfg | None = CurriculumCfg()
 
     def __post_init__(self):
         """Post initialization."""
@@ -370,8 +365,6 @@ class DexSuiteReorientEnvCfg(ManagerBasedEnvCfg):
                         print(f"Warning: Could not find curriculum variable at {cfg_address}. This term is disabled.")
                         to_remove.append(key)
                         continue
-                    
-                    term.params["modify_params"]["iv"] = cfg_variable
 
             for attr in to_remove:
                 delattr(self.curriculum, attr)
