@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -43,11 +43,15 @@ QUAT_WORLD = (-0.3647052, -0.27984815, -0.1159169, 0.88047623)
 
 # NOTE: setup and teardown are own function to allow calling them in the tests
 
+# resolutions
+HEIGHT = 240
+WIDTH = 320
+
 
 def setup() -> tuple[sim_utils.SimulationContext, CameraCfg, float]:
     camera_cfg = CameraCfg(
-        height=128,
-        width=128,
+        height=HEIGHT,
+        width=WIDTH,
         prim_path="/World/Camera",
         update_period=0,
         data_types=["distance_to_image_plane"],
@@ -292,15 +296,15 @@ def test_camera_init_intrinsic_matrix(setup_sim_camera):
     camera_1 = Camera(cfg=camera_cfg)
     # initialize from intrinsic matrix
     intrinsic_camera_cfg = CameraCfg(
-        height=128,
-        width=128,
+        height=HEIGHT,
+        width=WIDTH,
         prim_path="/World/Camera_2",
         update_period=0,
         data_types=["distance_to_image_plane"],
         spawn=sim_utils.PinholeCameraCfg.from_intrinsic_matrix(
             intrinsic_matrix=intrinsic_matrix,
-            width=128,
-            height=128,
+            width=WIDTH,
+            height=HEIGHT,
             focal_length=24.0,
             focus_distance=400.0,
             clipping_range=(0.1, 1.0e5),
@@ -396,7 +400,7 @@ def test_intrinsic_matrix(setup_sim_camera):
     # play sim
     sim.reset()
     # Desired properties (obtained from realsense camera at 320x240 resolution)
-    rs_intrinsic_matrix = [229.31640625, 0.0, 164.810546875, 0.0, 229.826171875, 122.1650390625, 0.0, 0.0, 1.0]
+    rs_intrinsic_matrix = [229.8, 0.0, 160.0, 0.0, 229.8, 120.0, 0.0, 0.0, 1.0]
     rs_intrinsic_matrix = torch.tensor(rs_intrinsic_matrix, device=camera.device).reshape(3, 3).unsqueeze(0)
     # Set matrix into simulator
     camera.set_intrinsic_matrices(rs_intrinsic_matrix.clone())
@@ -414,11 +418,10 @@ def test_intrinsic_matrix(setup_sim_camera):
         # update camera
         camera.update(dt)
         # Check that matrix is correct
-        # TODO: This is not correctly setting all values in the matrix since the
-        #       vertical aperture and aperture offsets are not being set correctly
-        #       This is a bug in the simulator.
         torch.testing.assert_close(rs_intrinsic_matrix[0, 0, 0], camera.data.intrinsic_matrices[0, 0, 0])
-        # torch.testing.assert_close(rs_intrinsic_matrix[0, 1, 1], camera.data.intrinsic_matrices[0, 1, 1])
+        torch.testing.assert_close(rs_intrinsic_matrix[0, 1, 1], camera.data.intrinsic_matrices[0, 1, 1])
+        torch.testing.assert_close(rs_intrinsic_matrix[0, 0, 2], camera.data.intrinsic_matrices[0, 0, 2])
+        torch.testing.assert_close(rs_intrinsic_matrix[0, 1, 2], camera.data.intrinsic_matrices[0, 1, 2])
 
 
 def test_depth_clipping(setup_sim_camera):

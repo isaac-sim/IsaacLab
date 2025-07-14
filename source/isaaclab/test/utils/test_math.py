@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -33,6 +33,105 @@ DECIMAL_PRECISION = 5
 This value is used since float operations are inexact. For reference:
 https://github.com/pytorch/pytorch/issues/17678
 """
+
+
+@pytest.mark.parametrize("device", ("cpu", "cuda:0"))
+@pytest.mark.parametrize("size", ((5, 4, 3), (10, 2)))
+def test_scale_unscale_transform(device, size):
+    """Test scale_transform and unscale_transform."""
+
+    inputs = torch.tensor(range(math.prod(size)), device=device, dtype=torch.float32).reshape(size)
+
+    # test with same size
+    scale_same = 2.0
+    lower_same = -scale_same * torch.ones(size, device=device)
+    upper_same = scale_same * torch.ones(size, device=device)
+    output_same = math_utils.scale_transform(inputs, lower_same, upper_same)
+    expected_output_same = inputs / scale_same
+    torch.testing.assert_close(output_same, expected_output_same)
+    output_unscale_same = math_utils.unscale_transform(output_same, lower_same, upper_same)
+    torch.testing.assert_close(output_unscale_same, inputs)
+
+    # test with broadcasting
+    scale_per_batch = 3.0
+    lower_per_batch = -scale_per_batch * torch.ones(size[1:], device=device)
+    upper_per_batch = scale_per_batch * torch.ones(size[1:], device=device)
+    output_per_batch = math_utils.scale_transform(inputs, lower_per_batch, upper_per_batch)
+    expected_output_per_batch = inputs / scale_per_batch
+    torch.testing.assert_close(output_per_batch, expected_output_per_batch)
+    output_unscale_per_batch = math_utils.unscale_transform(output_per_batch, lower_per_batch, upper_per_batch)
+    torch.testing.assert_close(output_unscale_per_batch, inputs)
+
+    # test offset between lower and upper
+    lower_offset = -3.0 * torch.ones(size[1:], device=device)
+    upper_offset = 2.0 * torch.ones(size[1:], device=device)
+    output_offset = math_utils.scale_transform(inputs, lower_offset, upper_offset)
+    expected_output_offset = (inputs + 0.5) / 2.5
+    torch.testing.assert_close(output_offset, expected_output_offset)
+    output_unscale_offset = math_utils.unscale_transform(output_offset, lower_offset, upper_offset)
+    torch.testing.assert_close(output_unscale_offset, inputs)
+
+
+@pytest.mark.parametrize("device", ("cpu", "cuda:0"))
+@pytest.mark.parametrize("size", ((5, 4, 3), (10, 2)))
+def test_saturate(device, size):
+    "Test saturate of a tensor of differed shapes and device."
+
+    num_elements = math.prod(size)
+    input = torch.tensor(range(num_elements), device=device, dtype=torch.float32).reshape(size)
+
+    # testing with same size
+    lower_same = -2.0 * torch.ones(size, device=device)
+    upper_same = 2.0 * torch.ones(size, device=device)
+    output_same = math_utils.saturate(input, lower_same, upper_same)
+    assert torch.all(torch.greater_equal(output_same, lower_same)).item()
+    assert torch.all(torch.less_equal(output_same, upper_same)).item()
+    # testing with broadcasting
+    lower_per_batch = -2.0 * torch.ones(size[1:], device=device)
+    upper_per_batch = 3.0 * torch.ones(size[1:], device=device)
+    output_per_batch = math_utils.saturate(input, lower_per_batch, upper_per_batch)
+    assert torch.all(torch.greater_equal(output_per_batch, lower_per_batch)).item()
+    assert torch.all(torch.less_equal(output_per_batch, upper_per_batch)).item()
+
+
+@pytest.mark.parametrize("device", ("cpu", "cuda:0"))
+@pytest.mark.parametrize("size", ((5, 4, 3), (10, 2)))
+def test_normalize(device, size):
+    """Test normalize of a tensor along its last dimension and check the norm of that dimension is close to 1.0."""
+
+    num_elements = math.prod(size)
+    input = torch.tensor(range(num_elements), device=device, dtype=torch.float32).reshape(size)
+    output = math_utils.normalize(input)
+    norm = torch.linalg.norm(output, dim=-1)
+    torch.testing.assert_close(norm, torch.ones(size[0:-1], device=device))
+
+
+@pytest.mark.parametrize("device", ("cpu", "cuda:0"))
+def test_copysign(device):
+    """Test copysign by copying a sign from both a negative and positive value and verify that the new sign is the same."""
+
+    size = (10, 2)
+
+    input_mag_pos = 2.0
+    input_mag_neg = -3.0
+
+    input = torch.tensor(range(20), device=device, dtype=torch.float32).reshape(size)
+    value_pos = math_utils.copysign(input_mag_pos, input)
+    value_neg = math_utils.copysign(input_mag_neg, input)
+    torch.testing.assert_close(abs(input_mag_pos) * torch.ones_like(input), value_pos)
+    torch.testing.assert_close(abs(input_mag_neg) * torch.ones_like(input), value_neg)
+
+    input_neg_dim1 = input.clone()
+    input_neg_dim1[:, 1] = -input_neg_dim1[:, 1]
+    value_neg_dim1_pos = math_utils.copysign(input_mag_pos, input_neg_dim1)
+    value_neg_dim1_neg = math_utils.copysign(input_mag_neg, input_neg_dim1)
+    expected_value_neg_dim1_pos = abs(input_mag_pos) * torch.ones_like(input_neg_dim1)
+    expected_value_neg_dim1_pos[:, 1] = -expected_value_neg_dim1_pos[:, 1]
+    expected_value_neg_dim1_neg = abs(input_mag_neg) * torch.ones_like(input_neg_dim1)
+    expected_value_neg_dim1_neg[:, 1] = -expected_value_neg_dim1_neg[:, 1]
+
+    torch.testing.assert_close(expected_value_neg_dim1_pos, value_neg_dim1_pos)
+    torch.testing.assert_close(expected_value_neg_dim1_neg, value_neg_dim1_neg)
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
@@ -257,6 +356,82 @@ def test_convention_converter(device):
     )
 
 
+@pytest.mark.parametrize("device", ("cpu", "cuda:0"))
+@pytest.mark.parametrize("size", ((10, 4), (5, 3, 4)))
+def test_convert_quat(device, size):
+    """Test convert_quat from xyzw to wxyz and back to xyzw and verify the correct rolling of the tensor. Also check the correct exceptions are raised for bad inputs for the quaternion and the 'to'."""
+
+    quat = torch.zeros(size, device=device)
+    quat[..., 0] = 1.0
+
+    value_default = math_utils.convert_quat(quat)
+    expected_default = torch.zeros(size, device=device)
+    expected_default[..., -1] = 1.0
+    torch.testing.assert_close(expected_default, value_default)
+
+    value_to_xyzw = math_utils.convert_quat(quat, to="xyzw")
+    expected_to_xyzw = torch.zeros(size, device=device)
+    expected_to_xyzw[..., -1] = 1.0
+    torch.testing.assert_close(expected_to_xyzw, value_to_xyzw)
+
+    value_to_wxyz = math_utils.convert_quat(quat, to="wxyz")
+    expected_to_wxyz = torch.zeros(size, device=device)
+    expected_to_wxyz[..., 1] = 1.0
+    torch.testing.assert_close(expected_to_wxyz, value_to_wxyz)
+
+    bad_quat = torch.zeros((10, 5), device=device)
+
+    with pytest.raises(ValueError):
+        math_utils.convert_quat(bad_quat)
+
+    with pytest.raises(ValueError):
+        math_utils.convert_quat(quat, to="xwyz")
+
+
+@pytest.mark.parametrize("device", ("cpu", "cuda:0"))
+def test_quat_conjugate(device):
+    """Test quat_conjugate by checking the sign of the imaginary part changes but the magnitudes stay the same."""
+
+    quat = math_utils.random_orientation(1000, device=device)
+
+    value = math_utils.quat_conjugate(quat)
+    expected_real = quat[..., 0]
+    expected_imag = -quat[..., 1:]
+    torch.testing.assert_close(expected_real, value[..., 0])
+    torch.testing.assert_close(expected_imag, value[..., 1:])
+
+
+@pytest.mark.parametrize("device", ("cpu", "cuda:0"))
+@pytest.mark.parametrize("num_envs", (1, 10))
+@pytest.mark.parametrize(
+    "euler_angles",
+    [
+        [0.0, 0.0, 0.0],
+        [math.pi / 2.0, 0.0, 0.0],
+        [0.0, math.pi / 2.0, 0.0],
+        [0.0, 0.0, math.pi / 2.0],
+        [1.5708, -2.75, 0.1],
+        [0.1, math.pi, math.pi / 2],
+    ],
+)
+def test_quat_from_euler_xyz(device, num_envs, euler_angles):
+    """Test quat_from_euler_xyz against scipy."""
+
+    angles = torch.tensor(euler_angles, device=device).unsqueeze(0).repeat((num_envs, 1))
+    quat_value = math_utils.quat_unique(math_utils.quat_from_euler_xyz(angles[:, 0], angles[:, 1], angles[:, 2]))
+    expected_quat = math_utils.convert_quat(
+        torch.tensor(
+            scipy_tf.Rotation.from_euler("xyz", euler_angles, degrees=False).as_quat(),
+            device=device,
+            dtype=torch.float,
+        )
+        .unsqueeze(0)
+        .repeat((num_envs, 1)),
+        to="wxyz",
+    )
+    torch.testing.assert_close(expected_quat, quat_value)
+
+
 @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
 def test_wrap_to_pi(device):
     """Test wrap_to_pi method."""
@@ -293,157 +468,34 @@ def test_wrap_to_pi(device):
     torch.testing.assert_close(wrapped_angle, expected_angle)
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
-def test_quat_rotate_and_quat_rotate_inverse(device):
-    """Test for quat_rotate and quat_rotate_inverse methods.
+@pytest.mark.parametrize("device", ("cpu", "cuda:0"))
+@pytest.mark.parametrize("shape", ((3,), (1024, 3)))
+def test_skew_symmetric_matrix(device, shape):
+    """Test skew_symmetric_matrix."""
 
-    The new implementation uses :meth:`torch.einsum` instead of `torch.bmm` which allows
-    for more flexibility in the input dimensions and is faster than `torch.bmm`.
-    """
+    vec_rand = torch.zeros(shape, device=device)
+    vec_rand.uniform_(-1000.0, 1000.0)
 
-    # define old implementation for quat_rotate and quat_rotate_inverse
-    # Based on commit: cdfa954fcc4394ca8daf432f61994e25a7b8e9e2
+    if vec_rand.ndim == 1:
+        vec_rand_resized = vec_rand.clone().unsqueeze(0)
+    else:
+        vec_rand_resized = vec_rand.clone()
 
-    @torch.jit.script
-    def old_quat_rotate(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
-        shape = q.shape
-        q_w = q[:, 0]
-        q_vec = q[:, 1:]
-        a = v * (2.0 * q_w**2 - 1.0).unsqueeze(-1)
-        b = torch.cross(q_vec, v, dim=-1) * q_w.unsqueeze(-1) * 2.0
-        c = q_vec * torch.bmm(q_vec.view(shape[0], 1, 3), v.view(shape[0], 3, 1)).squeeze(-1) * 2.0
-        return a + b + c
+    mat_value = math_utils.skew_symmetric_matrix(vec_rand)
+    if len(shape) == 1:
+        expected_shape = (1, 3, 3)
+    else:
+        expected_shape = (shape[0], 3, 3)
 
-    @torch.jit.script
-    def old_quat_rotate_inverse(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
-        shape = q.shape
-        q_w = q[:, 0]
-        q_vec = q[:, 1:]
-        a = v * (2.0 * q_w**2 - 1.0).unsqueeze(-1)
-        b = torch.cross(q_vec, v, dim=-1) * q_w.unsqueeze(-1) * 2.0
-        c = q_vec * torch.bmm(q_vec.view(shape[0], 1, 3), v.view(shape[0], 3, 1)).squeeze(-1) * 2.0
-        return a - b + c
-
-    # check that implementation produces the same result as the new implementation
-    # prepare random quaternions and vectors
-    q_rand = math_utils.random_orientation(num=1024, device=device)
-    v_rand = math_utils.sample_uniform(-1000, 1000, (1024, 3), device=device)
-
-    # compute the result using the old implementation
-    old_result = old_quat_rotate(q_rand, v_rand)
-    old_result_inv = old_quat_rotate_inverse(q_rand, v_rand)
-
-    # compute the result using the new implementation
-    new_result = math_utils.quat_rotate(q_rand, v_rand)
-    new_result_inv = math_utils.quat_rotate_inverse(q_rand, v_rand)
-
-    # check that the result is close to the expected value
-    torch.testing.assert_close(old_result, new_result)
-    torch.testing.assert_close(old_result_inv, new_result_inv)
-
-    # check the performance of the new implementation
-    # prepare random quaternions and vectors
-    # new implementation supports batched inputs
-    q_shape = (1024, 2, 5, 4)
-    v_shape = (1024, 2, 5, 3)
-    # sample random quaternions and vectors
-    num_quats = math.prod(q_shape[:-1])
-    q_rand = math_utils.random_orientation(num=num_quats, device=device).reshape(q_shape)
-    v_rand = math_utils.sample_uniform(-1000, 1000, v_shape, device=device)
-
-    # create functions to test
-    def iter_quat_rotate(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
-        """Iterative implementation of new quat_rotate."""
-        out = torch.empty_like(v)
-        for i in range(q.shape[1]):
-            for j in range(q.shape[2]):
-                out[:, i, j] = math_utils.quat_rotate(q_rand[:, i, j], v_rand[:, i, j])
-        return out
-
-    def iter_quat_rotate_inverse(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
-        """Iterative implementation of new quat_rotate_inverse."""
-        out = torch.empty_like(v)
-        for i in range(q.shape[1]):
-            for j in range(q.shape[2]):
-                out[:, i, j] = math_utils.quat_rotate_inverse(q_rand[:, i, j], v_rand[:, i, j])
-        return out
-
-    def iter_old_quat_rotate(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
-        """Iterative implementation of old quat_rotate."""
-        out = torch.empty_like(v)
-        for i in range(q.shape[1]):
-            for j in range(q.shape[2]):
-                out[:, i, j] = old_quat_rotate(q_rand[:, i, j], v_rand[:, i, j])
-        return out
-
-    def iter_old_quat_rotate_inverse(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
-        """Iterative implementation of old quat_rotate_inverse."""
-        out = torch.empty_like(v)
-        for i in range(q.shape[1]):
-            for j in range(q.shape[2]):
-                out[:, i, j] = old_quat_rotate_inverse(q_rand[:, i, j], v_rand[:, i, j])
-        return out
-
-    # create benchmark
-    timer_iter_quat_rotate = benchmark.Timer(
-        stmt="iter_quat_rotate(q_rand, v_rand)",
-        globals={"iter_quat_rotate": iter_quat_rotate, "q_rand": q_rand, "v_rand": v_rand},
-    )
-    timer_iter_quat_rotate_inverse = benchmark.Timer(
-        stmt="iter_quat_rotate_inverse(q_rand, v_rand)",
-        globals={"iter_quat_rotate_inverse": iter_quat_rotate_inverse, "q_rand": q_rand, "v_rand": v_rand},
-    )
-
-    timer_iter_old_quat_rotate = benchmark.Timer(
-        stmt="iter_old_quat_rotate(q_rand, v_rand)",
-        globals={"iter_old_quat_rotate": iter_old_quat_rotate, "q_rand": q_rand, "v_rand": v_rand},
-    )
-    timer_iter_old_quat_rotate_inverse = benchmark.Timer(
-        stmt="iter_old_quat_rotate_inverse(q_rand, v_rand)",
-        globals={
-            "iter_old_quat_rotate_inverse": iter_old_quat_rotate_inverse,
-            "q_rand": q_rand,
-            "v_rand": v_rand,
-        },
-    )
-
-    timer_quat_rotate = benchmark.Timer(
-        stmt="math_utils.quat_rotate(q_rand, v_rand)",
-        globals={"math_utils": math_utils, "q_rand": q_rand, "v_rand": v_rand},
-    )
-    timer_quat_rotate_inverse = benchmark.Timer(
-        stmt="math_utils.quat_rotate_inverse(q_rand, v_rand)",
-        globals={"math_utils": math_utils, "q_rand": q_rand, "v_rand": v_rand},
-    )
-
-    # run the benchmark
-    print("--------------------------------")
-    print(f"Device: {device}")
-    print("Time for quat_rotate:", timer_quat_rotate.timeit(number=1000))
-    print("Time for iter_quat_rotate:", timer_iter_quat_rotate.timeit(number=1000))
-    print("Time for iter_old_quat_rotate:", timer_iter_old_quat_rotate.timeit(number=1000))
-    print("--------------------------------")
-    print("Time for quat_rotate_inverse:", timer_quat_rotate_inverse.timeit(number=1000))
-    print("Time for iter_quat_rotate_inverse:", timer_iter_quat_rotate_inverse.timeit(number=1000))
-    print("Time for iter_old_quat_rotate_inverse:", timer_iter_old_quat_rotate_inverse.timeit(number=1000))
-    print("--------------------------------")
-
-    # check output values are the same
     torch.testing.assert_close(
-        math_utils.quat_rotate(q_rand, v_rand), iter_quat_rotate(q_rand, v_rand), atol=1e-4, rtol=1e-3
+        torch.zeros((expected_shape[0], 3), device=device), torch.diagonal(mat_value, dim1=-2, dim2=-1)
     )
-    torch.testing.assert_close(
-        math_utils.quat_rotate(q_rand, v_rand), iter_old_quat_rotate(q_rand, v_rand), atol=1e-4, rtol=1e-3
-    )
-    torch.testing.assert_close(
-        math_utils.quat_rotate_inverse(q_rand, v_rand), iter_quat_rotate_inverse(q_rand, v_rand), atol=1e-4, rtol=1e-3
-    )
-    torch.testing.assert_close(
-        math_utils.quat_rotate_inverse(q_rand, v_rand),
-        iter_old_quat_rotate_inverse(q_rand, v_rand),
-        atol=1e-4,
-        rtol=1e-3,
-    )
+    torch.testing.assert_close(-vec_rand_resized[:, 2], mat_value[:, 0, 1])
+    torch.testing.assert_close(vec_rand_resized[:, 1], mat_value[:, 0, 2])
+    torch.testing.assert_close(-vec_rand_resized[:, 0], mat_value[:, 1, 2])
+    torch.testing.assert_close(vec_rand_resized[:, 2], mat_value[:, 1, 0])
+    torch.testing.assert_close(-vec_rand_resized[:, 1], mat_value[:, 2, 0])
+    torch.testing.assert_close(vec_rand_resized[:, 0], mat_value[:, 2, 1])
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
@@ -529,6 +581,241 @@ def test_interpolate_poses(device):
         np.testing.assert_array_almost_equal(result_pos, expected_pos, decimal=DECIMAL_PRECISION)
 
 
+def test_pose_inv():
+    """Test pose_inv function.
+
+    This test checks the output from the :meth:`~isaaclab.utils.math_utils.pose_inv` function against
+    the output from :func:`np.linalg.inv`. Two test cases are performed:
+
+    1. Checking the inverse of a random transformation matrix matches Numpy's built-in inverse.
+    2. Checking the inverse of a batch of random transformation matrices matches Numpy's built-in inverse.
+    """
+    # Check against a single matrix
+    for _ in range(100):
+        test_mat = math_utils.generate_random_transformation_matrix(pos_boundary=10, rot_boundary=(2 * np.pi))
+        result = np.array(math_utils.pose_inv(test_mat))
+        expected = np.linalg.inv(np.array(test_mat))
+        np.testing.assert_array_almost_equal(result, expected, decimal=DECIMAL_PRECISION)
+
+    # Check against a batch of matrices
+    test_mats = torch.stack([
+        math_utils.generate_random_transformation_matrix(pos_boundary=10, rot_boundary=(2 * math.pi))
+        for _ in range(100)
+    ])
+    result = np.array(math_utils.pose_inv(test_mats))
+    expected = np.linalg.inv(np.array(test_mats))
+    np.testing.assert_array_almost_equal(result, expected, decimal=DECIMAL_PRECISION)
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+def test_quat_to_and_from_angle_axis(device):
+    """Test that axis_angle_from_quat against scipy and that quat_from_angle_axis are the inverse of each other."""
+    n = 1024
+    q_rand = math_utils.quat_unique(math_utils.random_orientation(num=n, device=device))
+    rot_vec_value = math_utils.axis_angle_from_quat(q_rand)
+    rot_vec_scipy = torch.tensor(
+        scipy_tf.Rotation.from_quat(
+            math_utils.convert_quat(quat=q_rand.to(device="cpu").numpy(), to="xyzw")
+        ).as_rotvec(),
+        device=device,
+        dtype=torch.float32,
+    )
+    torch.testing.assert_close(rot_vec_scipy, rot_vec_value)
+    axis = math_utils.normalize(rot_vec_value.clone())
+    angle = torch.norm(rot_vec_value.clone(), dim=-1)
+    q_value = math_utils.quat_unique(math_utils.quat_from_angle_axis(angle, axis))
+    torch.testing.assert_close(q_rand, q_value)
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+def test_quat_box_minus(device):
+    """Test quat_box_minus method.
+
+    Ensures that quat_box_minus correctly computes the axis-angle difference
+    between two quaternions representing rotations around the same axis.
+    """
+    axis_angles = torch.tensor([0.0, 0.0, 1.0], device=device)
+    angle_a = math.pi - 0.1
+    angle_b = -math.pi + 0.1
+    quat_a = math_utils.quat_from_angle_axis(torch.tensor([angle_a], device=device), axis_angles)
+    quat_b = math_utils.quat_from_angle_axis(torch.tensor([angle_b], device=device), axis_angles)
+
+    axis_diff = math_utils.quat_box_minus(quat_a, quat_b).squeeze(0)
+    expected_diff = axis_angles * math_utils.wrap_to_pi(torch.tensor(angle_a - angle_b, device=device))
+    torch.testing.assert_close(expected_diff, axis_diff, atol=1e-06, rtol=1e-06)
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+def test_quat_box_minus_and_quat_box_plus(device):
+    """Test consistency of quat_box_plus and quat_box_minus.
+
+    Checks that applying quat_box_plus to accumulate rotations and then using
+    quat_box_minus to retrieve differences results in expected values.
+    """
+
+    # Perform closed-loop integration using quat_box_plus to accumulate rotations,
+    # and then use quat_box_minus to compute the incremental differences between quaternions.
+    # NOTE: Accuracy may decrease for very small angle increments due to numerical precision limits.
+    for n in (2, 10, 100, 1000):
+        # Define small incremental rotations around principal axes
+        delta_angle = torch.tensor(
+            [
+                [0, 0, -math.pi / n],
+                [0, -math.pi / n, 0],
+                [-math.pi / n, 0, 0],
+                [0, 0, math.pi / n],
+                [0, math.pi / n, 0],
+                [math.pi / n, 0, 0],
+            ],
+            device=device,
+        )
+
+        # Initialize quaternion trajectory starting from identity quaternion
+        quat_trajectory = torch.zeros((len(delta_angle), 2 * n + 1, 4), device=device)
+        quat_trajectory[:, 0, :] = torch.tensor([[1.0, 0.0, 0.0, 0.0]], device=device).repeat(len(delta_angle), 1)
+
+        # Integrate incremental rotations forward to form a closed loop trajectory
+        for i in range(1, 2 * n + 1):
+            quat_trajectory[:, i] = math_utils.quat_box_plus(quat_trajectory[:, i - 1], delta_angle)
+
+        # Validate the loop closure: start and end quaternions should be approximately equal
+        torch.testing.assert_close(quat_trajectory[:, 0], quat_trajectory[:, -1], atol=1e-04, rtol=1e-04)
+
+        # Validate that the differences between consecutive quaternions match the original increments
+        for i in range(2 * n):
+            delta_result = math_utils.quat_box_minus(quat_trajectory[:, i + 1], quat_trajectory[:, i])
+            torch.testing.assert_close(delta_result, delta_angle, atol=1e-04, rtol=1e-04)
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+@pytest.mark.parametrize("t12_inputs", ["True", "False"])
+@pytest.mark.parametrize("q12_inputs", ["True", "False"])
+def test_combine_frame_transforms(device, t12_inputs, q12_inputs):
+    """Test combine_frame_transforms such that inputs for delta translation and delta rotation can be None or specified."""
+    n = 1024
+    t01 = torch.zeros((n, 3), device=device)
+    t01.uniform_(-1000.0, 1000.0)
+    q01 = math_utils.quat_unique(math_utils.random_orientation(n, device=device))
+
+    mat_01 = torch.eye(4, 4, device=device).unsqueeze(0).repeat(n, 1, 1)
+    mat_01[:, 0:3, 3] = t01
+    mat_01[:, 0:3, 0:3] = math_utils.matrix_from_quat(q01)
+
+    mat_12 = torch.eye(4, 4, device=device).unsqueeze(0).repeat(n, 1, 1)
+    if t12_inputs:
+        t12 = torch.zeros((n, 3), device=device)
+        t12.uniform_(-1000.0, 1000.0)
+        mat_12[:, 0:3, 3] = t12
+    else:
+        t12 = None
+
+    if q12_inputs:
+        q12 = math_utils.quat_unique(math_utils.random_orientation(n, device=device))
+        mat_12[:, 0:3, 0:3] = math_utils.matrix_from_quat(q12)
+    else:
+        q12 = None
+
+    mat_expect = torch.einsum("bij,bjk->bik", mat_01, mat_12)
+    expected_translation = mat_expect[:, 0:3, 3]
+    expected_quat = math_utils.quat_from_matrix(mat_expect[:, 0:3, 0:3])
+    translation_value, quat_value = math_utils.combine_frame_transforms(t01, q01, t12, q12)
+
+    torch.testing.assert_close(expected_translation, translation_value, atol=1e-3, rtol=1e-5)
+    torch.testing.assert_close(math_utils.quat_unique(expected_quat), math_utils.quat_unique(quat_value))
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+@pytest.mark.parametrize("t02_inputs", ["True", "False"])
+@pytest.mark.parametrize("q02_inputs", ["True", "False"])
+def test_subtract_frame_transforms(device, t02_inputs, q02_inputs):
+    """Test subtract_frame_transforms with specified and unspecified inputs for t02 and q02. Verify that it is the inverse operation to combine_frame_transforms."""
+    n = 1024
+    t01 = torch.zeros((n, 3), device=device)
+    t01.uniform_(-1000.0, 1000.0)
+    q01 = math_utils.quat_unique(math_utils.random_orientation(n, device=device))
+
+    mat_01 = torch.eye(4, 4, device=device).unsqueeze(0).repeat(n, 1, 1)
+    mat_01[:, 0:3, 3] = t01
+    mat_01[:, 0:3, 0:3] = math_utils.matrix_from_quat(q01)
+
+    if t02_inputs:
+        t02 = torch.zeros((n, 3), device=device)
+        t02.uniform_(-1000.0, 1000.0)
+        t02_expected = t02.clone()
+    else:
+        t02 = None
+        t02_expected = torch.zeros((n, 3), device=device)
+
+    if q02_inputs:
+        q02 = math_utils.quat_unique(math_utils.random_orientation(n, device=device))
+        q02_expected = q02.clone()
+    else:
+        q02 = None
+        q02_expected = math_utils.default_orientation(n, device=device)
+
+    t12_value, q12_value = math_utils.subtract_frame_transforms(t01, q01, t02, q02)
+    t02_compare, q02_compare = math_utils.combine_frame_transforms(t01, q01, t12_value, q12_value)
+
+    torch.testing.assert_close(t02_expected, t02_compare, atol=1e-3, rtol=1e-4)
+    torch.testing.assert_close(math_utils.quat_unique(q02_expected), math_utils.quat_unique(q02_compare))
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+@pytest.mark.parametrize("rot_error_type", ("quat", "axis_angle"))
+def test_compute_pose_error(device, rot_error_type):
+    """Test compute_pose_error for different rot_error_type."""
+    n = 1000
+    t01 = torch.zeros((n, 3), device=device)
+    t01.uniform_(-1000.0, 1000.0)
+    t02 = torch.zeros((n, 3), device=device)
+    t02.uniform_(-1000.0, 1000.0)
+    q01 = math_utils.quat_unique(math_utils.random_orientation(n, device=device))
+    q02 = math_utils.quat_unique(math_utils.random_orientation(n, device=device))
+
+    diff_pos, diff_rot = math_utils.compute_pose_error(t01, q01, t02, q02, rot_error_type=rot_error_type)
+
+    torch.testing.assert_close(t02 - t01, diff_pos)
+    if rot_error_type == "axis_angle":
+        torch.testing.assert_close(math_utils.quat_box_minus(q02, q01), diff_rot)
+    else:
+        axis_angle = math_utils.quat_box_minus(q02, q01)
+        axis = math_utils.normalize(axis_angle)
+        angle = torch.norm(axis_angle, dim=-1)
+
+        torch.testing.assert_close(
+            math_utils.quat_unique(math_utils.quat_from_angle_axis(angle, axis)),
+            math_utils.quat_unique(diff_rot),
+        )
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+def test_rigid_body_twist_transform(device):
+    """Test rigid_body_twist_transform method.
+
+    Verifies correct transformation of twists (linear and angular velocity) between coordinate frames.
+    """
+    num_bodies = 100
+    # Frame A to B
+    t_AB = torch.randn((num_bodies, 3), device=device)
+    q_AB = math_utils.random_orientation(num=num_bodies, device=device)
+
+    # Twists in A in frame A
+    v_AA = torch.randn((num_bodies, 3), device=device)
+    w_AA = torch.randn((num_bodies, 3), device=device)
+
+    # Get twists in B in frame B
+    v_BB, w_BB = math_utils.rigid_body_twist_transform(v_AA, w_AA, t_AB, q_AB)
+
+    # Get back twists in A in frame A
+    t_BA = -math_utils.quat_rotate_inverse(q_AB, t_AB)
+    q_BA = math_utils.quat_conjugate(q_AB)
+    v_AA_, w_AA_ = math_utils.rigid_body_twist_transform(v_BB, w_BB, t_BA, q_BA)
+
+    # Check
+    torch.testing.assert_close(v_AA_, v_AA)
+    torch.testing.assert_close(w_AA_, w_AA)
+
+
 @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
 def test_yaw_quat(device):
     """
@@ -581,6 +868,338 @@ def test_quat_slerp(device):
             np.testing.assert_array_almost_equal(result.cpu(), expected, decimal=DECIMAL_PRECISION)
 
 
+@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+def test_matrix_from_quat(device):
+    """test matrix_from_quat against scipy."""
+    # prepare random quaternions and vectors
+    n = 1024
+    # prepare random quaternions and vectors
+    q_rand = math_utils.quat_unique(math_utils.random_orientation(num=n, device=device))
+    rot_mat = math_utils.matrix_from_quat(quaternions=q_rand)
+    rot_mat_scipy = torch.tensor(
+        scipy_tf.Rotation.from_quat(math_utils.convert_quat(quat=q_rand.to(device="cpu"), to="xyzw")).as_matrix(),
+        device=device,
+        dtype=torch.float32,
+    )
+    torch.testing.assert_close(rot_mat_scipy.to(device=device), rot_mat)
+    q_value = math_utils.quat_unique(math_utils.quat_from_matrix(rot_mat))
+    torch.testing.assert_close(q_rand, q_value)
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+@pytest.mark.parametrize(
+    "euler_angles",
+    [
+        [0.0, 0.0, 0.0],
+        [math.pi / 2.0, 0.0, 0.0],
+        [0.0, math.pi / 2.0, 0.0],
+        [0.0, 0.0, math.pi / 2.0],
+        [1.5708, -2.75, 0.1],
+        [0.1, math.pi, math.pi / 2],
+    ],
+)
+@pytest.mark.parametrize(
+    "convention", ("XYZ", "XZY", "YXZ", "YZX", "ZXY", "ZYX", "ZYZ", "YZY", "XYX", "XZX", "ZXZ", "YXY")
+)
+def test_matrix_from_euler(device, euler_angles, convention):
+    """Test matrix_from_euler against scipy for different permutations of the X,Y,Z euler angle conventions."""
+
+    num_envs = 1024
+    angles = torch.tensor(euler_angles, device=device).unsqueeze(0).repeat((num_envs, 1))
+    mat_value = math_utils.matrix_from_euler(angles, convention=convention)
+    expected_mag = (
+        torch.tensor(
+            scipy_tf.Rotation.from_euler(convention, euler_angles, degrees=False).as_matrix(),
+            device=device,
+            dtype=torch.float,
+        )
+        .unsqueeze(0)
+        .repeat((num_envs, 1, 1))
+    )
+    torch.testing.assert_close(expected_mag, mat_value)
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+def test_quat_apply(device):
+    """Test for quat_apply against scipy."""
+    # prepare random quaternions and vectors
+    n = 1024
+    q_rand = math_utils.random_orientation(num=n, device=device)
+    Rotation = scipy_tf.Rotation.from_quat(math_utils.convert_quat(quat=q_rand.to(device="cpu").numpy(), to="xyzw"))
+
+    v_rand = math_utils.sample_uniform(-1000, 1000, (n, 3), device=device)
+
+    # compute the result using the new implementation
+    scipy_result = torch.tensor(Rotation.apply(v_rand.to(device="cpu").numpy()), device=device, dtype=torch.float)
+    apply_result = math_utils.quat_apply(q_rand, v_rand)
+    torch.testing.assert_close(scipy_result.to(device=device), apply_result, atol=2e-4, rtol=2e-4)
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+def test_quat_apply_inverse(device):
+    """Test for quat_apply against scipy."""
+
+    # prepare random quaternions and vectors
+    n = 1024
+    q_rand = math_utils.random_orientation(num=n, device=device)
+    Rotation = scipy_tf.Rotation.from_quat(math_utils.convert_quat(quat=q_rand.to(device="cpu").numpy(), to="xyzw"))
+
+    v_rand = math_utils.sample_uniform(-1000, 1000, (n, 3), device=device)
+
+    # compute the result using the new implementation
+    scipy_result = torch.tensor(
+        Rotation.apply(v_rand.to(device="cpu").numpy(), inverse=True), device=device, dtype=torch.float
+    )
+    apply_result = math_utils.quat_apply_inverse(q_rand, v_rand)
+    torch.testing.assert_close(scipy_result.to(device=device), apply_result, atol=2e-4, rtol=2e-4)
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+def test_quat_inv(device):
+    """Test for quat_inv method.
+
+    For random unit and non-unit quaternions q, the Hamilton products
+    q ⊗ q⁻¹ and q⁻¹ ⊗ q must both equal the identity quaternion (1,0,0,0)
+    within numerical precision.
+    """
+    num = 2048
+
+    # -------- non-unit sample (average ‖q‖ ≈ 10) --------
+    q_nonunit = torch.randn(num, 4, device=device) * 5.0
+
+    # -------- unit sample (‖q‖ = 1) --------
+    q_unit = torch.randn(num, 4, device=device)
+    q_unit = q_unit / q_unit.norm(dim=-1, keepdim=True)
+
+    identity = torch.tensor([1.0, 0.0, 0.0, 0.0], device=device)
+
+    for q in (q_nonunit, q_unit):
+        q_inv = math_utils.quat_inv(q)
+
+        id_batch = identity.expand_as(q)
+
+        # left and right products must both be identity
+        torch.testing.assert_close(math_utils.quat_mul(q, q_inv), id_batch, atol=1e-4, rtol=1e-4)
+        torch.testing.assert_close(math_utils.quat_mul(q_inv, q), id_batch, atol=1e-4, rtol=1e-4)
+
+
+def test_quat_apply_benchmarks():
+    """Test for quat_apply and quat_apply_inverse methods compared to old methods using torch.bmm and torch.einsum.
+    The new implementation uses :meth:`torch.einsum` instead of `torch.bmm` which allows
+    for more flexibility in the input dimensions and is faster than `torch.bmm`.
+    """
+
+    # define old implementation for quat_rotate and quat_rotate_inverse
+    # Based on commit: cdfa954fcc4394ca8daf432f61994e25a7b8e9e2
+
+    @torch.jit.script
+    def bmm_quat_rotate(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
+        shape = q.shape
+        q_w = q[:, 0]
+        q_vec = q[:, 1:]
+        a = v * (2.0 * q_w**2 - 1.0).unsqueeze(-1)
+        b = torch.cross(q_vec, v, dim=-1) * q_w.unsqueeze(-1) * 2.0
+        c = q_vec * torch.bmm(q_vec.view(shape[0], 1, 3), v.view(shape[0], 3, 1)).squeeze(-1) * 2.0
+        return a + b + c
+
+    @torch.jit.script
+    def bmm_quat_rotate_inverse(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
+        shape = q.shape
+        q_w = q[:, 0]
+        q_vec = q[:, 1:]
+        a = v * (2.0 * q_w**2 - 1.0).unsqueeze(-1)
+        b = torch.cross(q_vec, v, dim=-1) * q_w.unsqueeze(-1) * 2.0
+        c = q_vec * torch.bmm(q_vec.view(shape[0], 1, 3), v.view(shape[0], 3, 1)).squeeze(-1) * 2.0
+        return a - b + c
+
+    @torch.jit.script
+    def einsum_quat_rotate(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
+        q_w = q[..., 0]
+        q_vec = q[..., 1:]
+        a = v * (2.0 * q_w**2 - 1.0).unsqueeze(-1)
+        b = torch.cross(q_vec, v, dim=-1) * q_w.unsqueeze(-1) * 2.0
+        c = q_vec * torch.einsum("...i,...i->...", q_vec, v).unsqueeze(-1) * 2.0
+        return a + b + c
+
+    @torch.jit.script
+    def einsum_quat_rotate_inverse(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
+        q_w = q[..., 0]
+        q_vec = q[..., 1:]
+        a = v * (2.0 * q_w**2 - 1.0).unsqueeze(-1)
+        b = torch.cross(q_vec, v, dim=-1) * q_w.unsqueeze(-1) * 2.0
+        c = q_vec * torch.einsum("...i,...i->...", q_vec, v).unsqueeze(-1) * 2.0
+        return a - b + c
+
+    # check that implementation produces the same result as the new implementation
+    for device in ["cpu", "cuda:0"]:
+        # prepare random quaternions and vectors
+        q_rand = math_utils.random_orientation(num=1024, device=device)
+        v_rand = math_utils.sample_uniform(-1000, 1000, (1024, 3), device=device)
+
+        # compute the result using the old implementation
+        bmm_result = bmm_quat_rotate(q_rand, v_rand)
+        bmm_result_inv = bmm_quat_rotate_inverse(q_rand, v_rand)
+
+        # compute the result using the old implementation
+        einsum_result = einsum_quat_rotate(q_rand, v_rand)
+        einsum_result_inv = einsum_quat_rotate_inverse(q_rand, v_rand)
+
+        # compute the result using the new implementation
+        new_result = math_utils.quat_apply(q_rand, v_rand)
+        new_result_inv = math_utils.quat_apply_inverse(q_rand, v_rand)
+
+        # check that the result is close to the expected value
+        torch.testing.assert_close(bmm_result, new_result, atol=1e-3, rtol=1e-3)
+        torch.testing.assert_close(bmm_result_inv, new_result_inv, atol=1e-3, rtol=1e-3)
+        torch.testing.assert_close(einsum_result, new_result, atol=1e-3, rtol=1e-3)
+        torch.testing.assert_close(einsum_result_inv, new_result_inv, atol=1e-3, rtol=1e-3)
+
+    # check the performance of the new implementation
+    for device in ["cpu", "cuda:0"]:
+        # prepare random quaternions and vectors
+        # new implementation supports batched inputs
+        q_shape = (1024, 2, 5, 4)
+        v_shape = (1024, 2, 5, 3)
+        # sample random quaternions and vectors
+        num_quats = math.prod(q_shape[:-1])
+        q_rand = math_utils.random_orientation(num=num_quats, device=device).reshape(q_shape)
+        v_rand = math_utils.sample_uniform(-1000, 1000, v_shape, device=device)
+
+        # create functions to test
+        def iter_quat_apply(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
+            """Iterative implementation of new quat_apply."""
+            out = torch.empty_like(v)
+            for i in range(q.shape[1]):
+                for j in range(q.shape[2]):
+                    out[:, i, j] = math_utils.quat_apply(q_rand[:, i, j], v_rand[:, i, j])
+            return out
+
+        def iter_quat_apply_inverse(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
+            """Iterative implementation of new quat_apply_inverse."""
+            out = torch.empty_like(v)
+            for i in range(q.shape[1]):
+                for j in range(q.shape[2]):
+                    out[:, i, j] = math_utils.quat_apply_inverse(q_rand[:, i, j], v_rand[:, i, j])
+            return out
+
+        def iter_bmm_quat_rotate(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
+            """Iterative implementation of old quat_rotate using torch.bmm."""
+            out = torch.empty_like(v)
+            for i in range(q.shape[1]):
+                for j in range(q.shape[2]):
+                    out[:, i, j] = bmm_quat_rotate(q_rand[:, i, j], v_rand[:, i, j])
+            return out
+
+        def iter_bmm_quat_rotate_inverse(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
+            """Iterative implementation of old quat_rotate_inverse using torch.bmm."""
+            out = torch.empty_like(v)
+            for i in range(q.shape[1]):
+                for j in range(q.shape[2]):
+                    out[:, i, j] = bmm_quat_rotate_inverse(q_rand[:, i, j], v_rand[:, i, j])
+            return out
+
+        def iter_einsum_quat_rotate(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
+            """Iterative implementation of old quat_rotate using torch.einsum."""
+            out = torch.empty_like(v)
+            for i in range(q.shape[1]):
+                for j in range(q.shape[2]):
+                    out[:, i, j] = einsum_quat_rotate(q_rand[:, i, j], v_rand[:, i, j])
+            return out
+
+        def iter_einsum_quat_rotate_inverse(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
+            """Iterative implementation of old quat_rotate_inverse using torch.einsum."""
+            out = torch.empty_like(v)
+            for i in range(q.shape[1]):
+                for j in range(q.shape[2]):
+                    out[:, i, j] = einsum_quat_rotate_inverse(q_rand[:, i, j], v_rand[:, i, j])
+            return out
+
+        # benchmarks for iterative calls
+        timer_iter_quat_apply = benchmark.Timer(
+            stmt="iter_quat_apply(q_rand, v_rand)",
+            globals={"iter_quat_apply": iter_quat_apply, "q_rand": q_rand, "v_rand": v_rand},
+        )
+        timer_iter_quat_apply_inverse = benchmark.Timer(
+            stmt="iter_quat_apply_inverse(q_rand, v_rand)",
+            globals={"iter_quat_apply_inverse": iter_quat_apply_inverse, "q_rand": q_rand, "v_rand": v_rand},
+        )
+
+        timer_iter_bmm_quat_rotate = benchmark.Timer(
+            stmt="iter_bmm_quat_rotate(q_rand, v_rand)",
+            globals={"iter_bmm_quat_rotate": iter_bmm_quat_rotate, "q_rand": q_rand, "v_rand": v_rand},
+        )
+        timer_iter_bmm_quat_rotate_inverse = benchmark.Timer(
+            stmt="iter_bmm_quat_rotate_inverse(q_rand, v_rand)",
+            globals={
+                "iter_bmm_quat_rotate_inverse": iter_bmm_quat_rotate_inverse,
+                "q_rand": q_rand,
+                "v_rand": v_rand,
+            },
+        )
+
+        timer_iter_einsum_quat_rotate = benchmark.Timer(
+            stmt="iter_einsum_quat_rotate(q_rand, v_rand)",
+            globals={"iter_einsum_quat_rotate": iter_einsum_quat_rotate, "q_rand": q_rand, "v_rand": v_rand},
+        )
+        timer_iter_einsum_quat_rotate_inverse = benchmark.Timer(
+            stmt="iter_einsum_quat_rotate_inverse(q_rand, v_rand)",
+            globals={
+                "iter_einsum_quat_rotate_inverse": iter_einsum_quat_rotate_inverse,
+                "q_rand": q_rand,
+                "v_rand": v_rand,
+            },
+        )
+
+        # create benchmaks for size independent calls
+        timer_quat_apply = benchmark.Timer(
+            stmt="math_utils.quat_apply(q_rand, v_rand)",
+            globals={"math_utils": math_utils, "q_rand": q_rand, "v_rand": v_rand},
+        )
+        timer_quat_apply_inverse = benchmark.Timer(
+            stmt="math_utils.quat_apply_inverse(q_rand, v_rand)",
+            globals={"math_utils": math_utils, "q_rand": q_rand, "v_rand": v_rand},
+        )
+        timer_einsum_quat_rotate = benchmark.Timer(
+            stmt="einsum_quat_rotate(q_rand, v_rand)",
+            globals={"einsum_quat_rotate": einsum_quat_rotate, "q_rand": q_rand, "v_rand": v_rand},
+        )
+        timer_einsum_quat_rotate_inverse = benchmark.Timer(
+            stmt="einsum_quat_rotate_inverse(q_rand, v_rand)",
+            globals={"einsum_quat_rotate_inverse": einsum_quat_rotate_inverse, "q_rand": q_rand, "v_rand": v_rand},
+        )
+
+        # run the benchmark
+        print("--------------------------------")
+        print(f"Device: {device}")
+        print("Time for quat_apply:", timer_quat_apply.timeit(number=1000))
+        print("Time for einsum_quat_rotate:", timer_einsum_quat_rotate.timeit(number=1000))
+        print("Time for iter_quat_apply:", timer_iter_quat_apply.timeit(number=1000))
+        print("Time for iter_bmm_quat_rotate:", timer_iter_bmm_quat_rotate.timeit(number=1000))
+        print("Time for iter_einsum_quat_rotate:", timer_iter_einsum_quat_rotate.timeit(number=1000))
+        print("--------------------------------")
+        print("Time for quat_apply_inverse:", timer_quat_apply_inverse.timeit(number=1000))
+        print("Time for einsum_quat_rotate_inverse:", timer_einsum_quat_rotate_inverse.timeit(number=1000))
+        print("Time for iter_quat_apply_inverse:", timer_iter_quat_apply_inverse.timeit(number=1000))
+        print("Time for iter_bmm_quat_rotate_inverse:", timer_iter_bmm_quat_rotate_inverse.timeit(number=1000))
+        print("Time for iter_einsum_quat_rotate_inverse:", timer_iter_einsum_quat_rotate_inverse.timeit(number=1000))
+        print("--------------------------------")
+
+        # check output values are the same
+        torch.testing.assert_close(math_utils.quat_apply(q_rand, v_rand), iter_quat_apply(q_rand, v_rand))
+        torch.testing.assert_close(
+            math_utils.quat_apply(q_rand, v_rand), iter_bmm_quat_rotate(q_rand, v_rand), atol=1e-3, rtol=1e-3
+        )
+        torch.testing.assert_close(
+            math_utils.quat_apply_inverse(q_rand, v_rand), iter_quat_apply_inverse(q_rand, v_rand)
+        )
+        torch.testing.assert_close(
+            math_utils.quat_apply_inverse(q_rand, v_rand),
+            iter_bmm_quat_rotate_inverse(q_rand, v_rand),
+            atol=1e-3,
+            rtol=1e-3,
+        )
+
+
 def test_interpolate_rotations():
     """Test interpolate_rotations function.
 
@@ -618,3 +1237,57 @@ def test_interpolate_rotations():
 
         # Assert that the result is almost equal to the expected quaternion
         np.testing.assert_array_almost_equal(result_axis_angle.cpu(), expected, decimal=DECIMAL_PRECISION)
+
+
+def test_euler_xyz_from_quat():
+    """Test euler_xyz_from_quat function.
+
+    This test checks the output from the :meth:`~isaaclab.utils.math_utils.euler_xyz_from_quat` function
+    against the expected output for various quaternions.
+    The test includes quaternions representing different rotations around the x, y, and z axes.
+    The test is performed for both the default output range (-π, π] and the wrapped output range [0, 2π).
+    """
+    quats = [
+        torch.Tensor([[1.0, 0.0, 0.0, 0.0]]),  # 0° around x, y, z
+        torch.Tensor([
+            [0.9238795, 0.3826834, 0.0, 0.0],  # 45° around x
+            [0.9238795, 0.0, -0.3826834, 0.0],  # -45° around y
+            [0.9238795, 0.0, 0.0, -0.3826834],  # -45° around z
+        ]),
+        torch.Tensor([
+            [0.7071068, -0.7071068, 0.0, 0.0],  # -90° around x
+            [0.7071068, 0.0, 0.0, -0.7071068],  # -90° around z
+        ]),
+        torch.Tensor([
+            [0.3826834, -0.9238795, 0.0, 0.0],  # -135° around x
+            [0.3826834, 0.0, 0.0, -0.9238795],  # -135° around y
+        ]),
+    ]
+
+    expected_euler_angles = [
+        torch.Tensor([[0.0, 0.0, 0.0]]),  # identity
+        torch.Tensor([
+            [torch.pi / 4, 0.0, 0.0],  # 45° about x
+            [0.0, -torch.pi / 4, 0.0],  # -45° about y
+            [0.0, 0.0, -torch.pi / 4],  # -45° about z
+        ]),
+        torch.Tensor([
+            [-torch.pi / 2, 0.0, 0.0],  # -90° about x
+            [0.0, 0.0, -torch.pi / 2],  # -90° about z
+        ]),
+        torch.Tensor([
+            [-3 * torch.pi / 4, 0.0, 0.0],  # -135° about x
+            [0.0, 0.0, -3 * torch.pi / 4],  # -135° about y
+        ]),
+    ]
+
+    # Test 1: default no-wrap range from (-π, π]
+    for quat, expected in zip(quats, expected_euler_angles):
+        output = torch.stack(math_utils.euler_xyz_from_quat(quat), dim=-1)
+        torch.testing.assert_close(output, expected)
+
+    # Test 2: wrap to [0, 2π)
+    for quat, expected in zip(quats, expected_euler_angles):
+        wrapped = expected % (2 * torch.pi)
+        output = torch.stack(math_utils.euler_xyz_from_quat(quat, wrap_to_2pi=True), dim=-1)
+        torch.testing.assert_close(output, wrapped)

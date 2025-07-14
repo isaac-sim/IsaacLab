@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -25,7 +25,13 @@ import isaacsim.core.utils.stage as stage_utils
 import omni.replicator.core as rep
 import pytest
 from isaacsim.core.prims import SingleGeometryPrim, SingleRigidPrim
-from pxr import Gf, Semantics, UsdGeom
+from pxr import Gf, UsdGeom
+
+# from Isaac Sim 4.2 onwards, pxr.Semantics is deprecated
+try:
+    import Semantics
+except ModuleNotFoundError:
+    from pxr import Semantics
 
 import isaaclab.sim as sim_utils
 from isaaclab.sensors.camera import Camera, CameraCfg, TiledCamera, TiledCameraCfg
@@ -1496,8 +1502,6 @@ def test_output_equal_to_usd_camera_intrinsics(setup_camera):
             intrinsic_matrix=intrinsics,
             height=540,
             width=960,
-            focal_length=38.0,
-            # clipping_range=(0.01, 20),
         ),
         height=540,
         width=960,
@@ -1510,8 +1514,6 @@ def test_output_equal_to_usd_camera_intrinsics(setup_camera):
             intrinsic_matrix=intrinsics,
             height=540,
             width=960,
-            focal_length=38.0,
-            # clipping_range=(0.01, 20),
         ),
         height=540,
         width=960,

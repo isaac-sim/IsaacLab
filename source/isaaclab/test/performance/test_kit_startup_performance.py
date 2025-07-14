@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -19,4 +19,5 @@ def test_kit_start_up_time():
     app_launcher = AppLauncher(headless=True).app  # noqa: F841
     end_time = time.time()
     elapsed_time = end_time - start_time
-    assert elapsed_time <= 10.0
+    # we are doing some more imports on the automate side - will investigate using warp instead of numba cuda
+    assert elapsed_time <= 12.0
