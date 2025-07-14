@@ -847,7 +847,8 @@ class Articulation(AssetBase):
 
         For many applications, we want to keep the applied external force on rigid bodies constant over a period of
         time (for instance, during the policy control). This function allows us to store the external force and torque
-        into buffers which are then applied to the simulation at every step.
+        into buffers which are then applied to the simulation at every step. Optionally, set the position to apply the
+        external wrench at (in the local link frame of the bodies).
 
         .. caution::
             If the function is called with empty forces and torques, then this function disables the application
@@ -901,14 +902,14 @@ class Articulation(AssetBase):
 
         # If the positions are not provided, the behavior and performance of the simulation should not be affected.
         if positions is not None:
-            # Generates a flag that is set for the whole simulation. This is done to avoid discarding
+            # Generates a flag that is set for a full simulation step. This is done to avoid discarding
             # the external wrench positions when multiple calls to this functions are made with and without positions.
             self.uses_external_wrench_positions = True
             self._external_wrench_positions_b.flatten(0, 1)[indices] = positions.flatten(0, 1)
         else:
             # If the positions are not provided, and the flag is set, then we need to ensure that the desired positions are zeroed.
             if self.uses_external_wrench_positions:
-                self._external_wrench_positions_b.flatten(0, 1)[indices].fill_(0.0)
+                self._external_wrench_positions_b.flatten(0, 1)[indices] = 0.0
 
     def set_joint_position_target(
         self, target: torch.Tensor, joint_ids: Sequence[int] | slice | None = None, env_ids: Sequence[int] | None = None
