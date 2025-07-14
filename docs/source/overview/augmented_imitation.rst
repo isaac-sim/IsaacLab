@@ -388,6 +388,9 @@ Example usage for the cube stacking task:
     --num_rollouts 15 \
     --rendering_mode performance
 
+.. note::
+   This script can take over a day or even longer to run (depending on the hardware being used). This behavior is expected.
+
 We use the above script to compare models trained with 1000 Mimic-generated demonstrations, 2000 Mimic-generated demonstrations and 2000 Cosmos-Mimic-generated demonstrations (1000 original mimic + 1000 Cosmos augmented) respectively. We use the same seeds (0, 1000 and 5000) for all three models and provide the metrics (averaged across best checkpoints for each seed) below:
 
 .. rubric:: Model Comparison
