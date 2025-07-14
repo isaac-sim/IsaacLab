@@ -13,7 +13,7 @@ url: https://isaac-sim.github.io/IsaacLab/main/index.html
 license: BSD-3-Clause
 preferred-citation:
   type: article
-  title: Orbit: A Unified Simulation Framework for Interactive Robot Learning Environments
+  title: Orbit - A Unified Simulation Framework for Interactive Robot Learning Environments
   authors:
     - family-names: Mittal
       given-names: Mayank
