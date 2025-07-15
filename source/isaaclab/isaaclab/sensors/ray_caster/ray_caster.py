@@ -285,7 +285,7 @@ class RayCaster(SensorBase):
 
         # ray cast and store the hits
         # TODO: Make this work for multiple meshes?
-        self._data.ray_hits_w[env_ids], ray_distance_env_ids, _, _ = raycast_mesh(
+        self._data.ray_hits_w[env_ids], ray_distance, _, _ = raycast_mesh(
             ray_starts_w,
             ray_directions_w,
             max_dist=self.cfg.max_distance,
@@ -294,7 +294,7 @@ class RayCaster(SensorBase):
         )
 
         if self.cfg.return_distance:
-            self._data.ray_distance[env_ids] = ray_distance_env_ids
+            self._data.ray_distance[env_ids] = ray_distance.clip(max=self.cfg.max_distance)
 
         # apply vertical drift to ray starting position in ray caster frame
         self._data.ray_hits_w[env_ids, :, 2] += self.ray_cast_drift[env_ids, 2].unsqueeze(-1)
