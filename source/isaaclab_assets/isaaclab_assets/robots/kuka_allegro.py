@@ -23,7 +23,7 @@ ISAACLAB_NUCLEUS_DIR = "source/isaaclab_assets/data"
 
 KUKA_ALLEGRO_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/KUKA/kuka_allegro.usd",
+        usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/KUKA/kuka_allegro_optimized.usd",
         activate_contact_sensors=False,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=True,

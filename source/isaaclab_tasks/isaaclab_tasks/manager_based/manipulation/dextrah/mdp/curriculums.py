@@ -128,8 +128,7 @@ class DifficultyScheduler(ManagerTermBase):
         self.current_adr_difficulties[env_ids] = torch.where(
             move_up, self.current_adr_difficulties[env_ids] + 1, demot,
         ).clamp(min=min_difficulty, max=max_difficulty)
-
-        self.difficulty_frac = torch.floor(torch.mean(self.current_adr_difficulties)) / max(max_difficulty, 1)
+        self.difficulty_frac = torch.mean(self.current_adr_difficulties) / max(max_difficulty, 1)
         return self.difficulty_frac
 
 def cfg_get(root: Any, path: str) -> Any:

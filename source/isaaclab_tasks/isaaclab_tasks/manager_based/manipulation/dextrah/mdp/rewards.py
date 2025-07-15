@@ -176,7 +176,8 @@ def success_reward(
     pos_err, rot_err = compute_pose_error(des_pos_w, des_quat_w, object.data.root_pos_w, object.data.root_quat_w)
     pos_dist = torch.norm(pos_err, dim=1)
     if not rot_std:
-        return (1 - torch.tanh(pos_dist / pos_std))
+        # square is not necessary but this help to keep the final value between having rot_std or not roughly the same
+        return (1 - torch.tanh(pos_dist / pos_std)) ** 2
     rot_dist = torch.norm(rot_err, dim=1)
     return (1 - torch.tanh(pos_dist / pos_std)) * (1 - torch.tanh(rot_dist / rot_std))
 

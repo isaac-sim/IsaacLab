@@ -60,12 +60,14 @@ class SceneCfg(InteractiveSceneCfg):
     # table
     table: RigidObjectCfg = RigidObjectCfg(
         prim_path="/World/envs/env_.*/table",
-        spawn=sim_utils.UsdFileCfg(
-            usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Props/Dextrah/table.usd",
+        spawn=sim_utils.CuboidCfg(
+            size=(0.8, 1.5, 0.04),
             rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
+            collision_props=sim_utils.CollisionPropertiesCfg()
         ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(-0.55, 0.0, 0.235), rot=(1.0, 0.0, 0.0, 0.0)))
-
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(-0.55, 0.0, 0.235), rot=(1.0, 0.0, 0.0, 0.0))
+    )
+    
     # plane
     plane = AssetBaseCfg(
         prim_path="/World/GroundPlane",
@@ -137,7 +139,7 @@ class EventCfg:
     randomize_object_scale = EventTerm(
         func=mdp.randomize_rigid_body_scale,
         mode="prestartup",
-        params={"scale_range": (0.5, 2.0), "asset_cfg": SceneEntityCfg("object")},
+        params={"scale_range": (0.5, 2.5), "asset_cfg": SceneEntityCfg("object")},
     )
     
     # -- robot
@@ -261,9 +263,9 @@ class RewardsCfg:
     
     action_rate_l2 = RewTerm(func=mdp.action_rate_l2_clamped, weight=-0.005)
     
-    # joint_pos_reg = RewTerm(func=mdp.joint_deviation_l1, params={"asset_cfg": SceneEntityCfg("robot")}, weight=-0.01)
+    # early_termination = RewTerm(func=mdp.is_terminated, weight=-100)
     
-    # lift = RewTerm(func=mdp.lifted, params={"num_points": 128, "min_height": 0.26, "visualize": False}, weight=0.0)
+    # joint_pos_reg = RewTerm(func=mdp.joint_deviation_l1, params={"asset_cfg": SceneEntityCfg("robot")}, weight=-0.01)
 
     fingers_to_object = RewTerm(func=mdp.object_ee_distance, params={"std": 0.4}, weight=1.0)
     
@@ -309,7 +311,7 @@ class TerminationsCfg:
 
     object_out_of_bound = DoneTerm(
         func=mdp.out_of_bound,
-        params={"in_bound_range": {"x":(-1., 0.), "y": (-.8, .8), "z": (.2, 2.)}, "asset_cfg": SceneEntityCfg("object")}
+        params={"in_bound_range": {"x":(-1.5, 0.5), "y": (-2.0, 2.0), "z": (.2, 2.)}, "asset_cfg": SceneEntityCfg("object")}
     )
     
     abnormal_robot = DoneTerm(func=mdp.abnormal_robot_state)
