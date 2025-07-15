@@ -90,6 +90,7 @@ Guidelines for modifications:
 * Michael Gussert
 * Michael Noseworthy
 * Miguel Alonso Jr
+* Mingyu Lee
 * Muhong Guo
 * Nicola Loi
 * Norbert Cygiert
