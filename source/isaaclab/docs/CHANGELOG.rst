@@ -8,7 +8,7 @@ Fixed
 ^^^^^
 
 * Fixed the test :func:`~isaaclab.test.envs.test_modify_env_param_curr_term.py` is checking wrong reset function when
-  that mismatched the reset function it was trying to modify  
+  that mismatched the reset function it was trying to modify
 
 0.40.21 (2025-06-25)
 ~~~~~~~~~~~~~~~~~~~~
