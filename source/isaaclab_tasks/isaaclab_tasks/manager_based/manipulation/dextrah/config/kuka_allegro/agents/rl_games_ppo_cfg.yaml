@@ -33,14 +33,6 @@ params:
         name: default
       regularizer:
         name: None
-    rnn:
-      name: lstm
-      units: 1024
-      layers: 1
-      before_mlp: True
-      layer_norm: True
-      concat_input: True
-      concat_output: True
 
   load_checkpoint: False # flag which sets whether to load the checkpoint
   load_path: '' # path to the checkpoint to load
