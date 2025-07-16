@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.42.28 (2025-07-18)
+0.42.29 (2025-07-18)
 ~~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -11,7 +11,7 @@ Added
 * Remove on prim deletion callback workaround
 
 
-0.42.27 (2025-07-21)
+0.42.28 (2025-07-21)
 ~~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -20,7 +20,7 @@ Fixed
 * Fixed rendering preset mode regression.
 
 
-0.42.26 (2025-07-22)
+0.42.27 (2025-07-22)
 ~~~~~~~~~~~~~~~~~~~~
 
 Changed
@@ -29,13 +29,22 @@ Changed
 * Updated teleop scripts to print to console vs omni log.
 
 
-0.42.25 (2025-07-17)
+0.42.26 (2025-07-17)
 ~~~~~~~~~~~~~~~~~~~~
 
 Changed
 ^^^^^^^
 
 * Updated test_pink_ik.py test case to pytest format.
+
+
+0.42.25 (2025-06-25)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`omni.isaac.lab.sensors.ContactSensorData.force_matrix_w_history` that tracks the history of the filtered contact forces in the world frame.
 
 
 0.42.24 (2025-06-25)
