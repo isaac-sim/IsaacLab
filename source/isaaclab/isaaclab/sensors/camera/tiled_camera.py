@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -234,6 +234,10 @@ class TiledCamera(Camera):
     def _update_buffers_impl(self, env_ids: Sequence[int]):
         # Increment frame count
         self._frame[env_ids] += 1
+
+        # update latest camera pose
+        if self.cfg.update_latest_camera_pose:
+            self._update_poses(env_ids)
 
         # Extract the flattened image buffer
         for data_type, annotator in self._annotators.items():

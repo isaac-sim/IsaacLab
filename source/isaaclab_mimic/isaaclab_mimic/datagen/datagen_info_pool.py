@@ -1,11 +1,10 @@
-# Copyright (c) 2024-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2024-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: Apache-2.0
 
 import asyncio
 
-import isaaclab.utils.math as PoseUtils
 from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
 
 from isaaclab_mimic.datagen.datagen_info import DatagenInfo
@@ -28,7 +27,9 @@ class DataGenInfoPool:
             asyncio_lock (asyncio.Lock or None): asyncio lock to use for thread safety
         """
         self._datagen_infos = []
-        self._subtask_indices = []
+
+        # Start and end step indices of each subtask in each episode for each eef
+        self._subtask_boundaries: dict[str, list[list[tuple[int, int]]]] = {}
 
         self.env = env
         self.env_cfg = env_cfg
@@ -36,14 +37,16 @@ class DataGenInfoPool:
 
         self._asyncio_lock = asyncio_lock
 
-        if len(env_cfg.subtask_configs) != 1:
-            raise ValueError("Data generation currently supports only one end-effector.")
-
-        (subtask_configs,) = env_cfg.subtask_configs.values()
-        self.subtask_term_signals = [subtask_config.subtask_term_signal for subtask_config in subtask_configs]
-        self.subtask_term_offset_ranges = [
-            subtask_config.subtask_term_offset_range for subtask_config in subtask_configs
-        ]
+        # Subtask termination infos for the given environment
+        self.subtask_term_signal_names: dict[str, list[str]] = {}
+        self.subtask_term_offset_ranges: dict[str, list[tuple[int, int]]] = {}
+        for eef_name, eef_subtask_configs in env_cfg.subtask_configs.items():
+            self.subtask_term_signal_names[eef_name] = [
+                subtask_config.subtask_term_signal for subtask_config in eef_subtask_configs
+            ]
+            self.subtask_term_offset_ranges[eef_name] = [
+                subtask_config.subtask_term_offset_range for subtask_config in eef_subtask_configs
+            ]
 
     @property
     def datagen_infos(self):
@@ -51,9 +54,9 @@ class DataGenInfoPool:
         return self._datagen_infos
 
     @property
-    def subtask_indices(self):
-        """Returns the subtask indices."""
-        return self._subtask_indices
+    def subtask_boundaries(self) -> dict[str, list[list[tuple[int, int]]]]:
+        """Returns the subtask boundaries."""
+        return self._subtask_boundaries
 
     @property
     def asyncio_lock(self):
@@ -86,43 +89,18 @@ class DataGenInfoPool:
             episode (EpisodeData): episode to add
         """
         ep_grp = episode.data
-        eef_name = list(self.env.cfg.subtask_configs.keys())[0]
 
         # extract datagen info
         if "datagen_info" in ep_grp["obs"]:
-            eef_pose = ep_grp["obs"]["datagen_info"]["eef_pose"][eef_name]
+            eef_pose = ep_grp["obs"]["datagen_info"]["eef_pose"]
             object_poses_dict = ep_grp["obs"]["datagen_info"]["object_pose"]
-            target_eef_pose = ep_grp["obs"]["datagen_info"]["target_eef_pose"][eef_name]
+            target_eef_pose = ep_grp["obs"]["datagen_info"]["target_eef_pose"]
             subtask_term_signals_dict = ep_grp["obs"]["datagen_info"]["subtask_term_signals"]
         else:
-            # Extract eef poses
-            eef_pos = ep_grp["obs"]["eef_pos"]
-            eef_quat = ep_grp["obs"]["eef_quat"]  # format (w, x, y, z)
-            eef_rot_matrices = PoseUtils.matrix_from_quat(eef_quat)  # shape (N, 3, 3)
-            # Create pose matrices for all environments
-            eef_pose = PoseUtils.make_pose(eef_pos, eef_rot_matrices)  # shape (N, 4, 4)
-
-            # Object poses
-            object_poses_dict = dict()
-            for object_name, value in ep_grp["obs"]["object_pose"].items():
-                # object_pose
-                value = value["root_pose"]
-                # Root state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame. Shape is (num_steps, 13).
-                # Quaternion ordering is wxyz
-
-                # Convert to rotation matrices
-                object_rot_matrices = PoseUtils.matrix_from_quat(value[:, 3:7])  # shape (N, 3, 3)
-                object_rot_positions = value[:, 0:3]  # shape (N, 3)
-                object_poses_dict[object_name] = PoseUtils.make_pose(object_rot_positions, object_rot_matrices)
-
-            # Target eef pose
-            target_eef_pose = ep_grp["obs"]["target_eef_pose"]
-
-            # Subtask termination signalsS
-            subtask_term_signals_dict = (ep_grp["obs"]["subtask_term_signals"],)
+            raise ValueError("Episode to be loaded to DatagenInfo pool lacks datagen_info annotations")
 
         # Extract gripper actions
-        gripper_actions = self.env.actions_to_gripper_actions(ep_grp["actions"])[eef_name]
+        gripper_actions = self.env.actions_to_gripper_actions(ep_grp["actions"])
 
         ep_datagen_info_obj = DatagenInfo(
             eef_pose=eef_pose,
@@ -133,51 +111,59 @@ class DataGenInfoPool:
         )
         self._datagen_infos.append(ep_datagen_info_obj)
 
-        # parse subtask indices using subtask termination signals
-        ep_subtask_indices = []
-        prev_subtask_term_ind = 0
-        for subtask_ind in range(len(self.subtask_term_signals)):
-            subtask_term_signal = self.subtask_term_signals[subtask_ind]
-            if subtask_term_signal is None:
-                # final subtask, finishes at end of demo
-                subtask_term_ind = ep_grp["actions"].shape[0]
-            else:
-                # trick to detect index where first 0 -> 1 transition occurs - this will be the end of the subtask
-                subtask_indicators = ep_datagen_info_obj.subtask_term_signals[subtask_term_signal].flatten().int()
-                diffs = subtask_indicators[1:] - subtask_indicators[:-1]
-                end_ind = int(diffs.nonzero()[0][0]) + 1
-                subtask_term_ind = end_ind + 1  # increment to support indexing like demo[start:end]
-            ep_subtask_indices.append([prev_subtask_term_ind, subtask_term_ind])
-            prev_subtask_term_ind = subtask_term_ind
+        # parse subtask ranges using subtask termination signals and store
+        # the start and end indices of each subtask for each eef
+        for eef_name in self.subtask_term_signal_names.keys():
+            if eef_name not in self._subtask_boundaries:
+                self._subtask_boundaries[eef_name] = []
+            prev_subtask_term_ind = 0
+            eef_subtask_boundaries = []
+            for subtask_term_signal_name in self.subtask_term_signal_names[eef_name]:
+                if subtask_term_signal_name is None:
+                    # None refers to the final subtask, so finishes at end of demo
+                    subtask_term_ind = ep_grp["actions"].shape[0]
+                else:
+                    # trick to detect index where first 0 -> 1 transition occurs - this will be the end of the subtask
+                    subtask_indicators = (
+                        ep_datagen_info_obj.subtask_term_signals[subtask_term_signal_name].flatten().int()
+                    )
+                    diffs = subtask_indicators[1:] - subtask_indicators[:-1]
+                    end_ind = int(diffs.nonzero()[0][0]) + 1
+                    subtask_term_ind = end_ind + 1  # increment to support indexing like demo[start:end]
 
-        # run sanity check on subtask_term_offset_range in task spec to make sure we can never
-        # get an empty subtask in the worst case when sampling subtask bounds:
-        #
-        #   end index of subtask i + max offset of subtask i < end index of subtask i + 1 + min offset of subtask i + 1
-        #
-        assert len(ep_subtask_indices) == len(
-            self.subtask_term_signals
-        ), "mismatch in length of extracted subtask info and number of subtasks"
-        for i in range(1, len(ep_subtask_indices)):
-            prev_max_offset_range = self.subtask_term_offset_ranges[i - 1][1]
-            assert (
-                ep_subtask_indices[i - 1][1] + prev_max_offset_range
-                < ep_subtask_indices[i][1] + self.subtask_term_offset_ranges[i][0]
-            ), (
-                "subtask sanity check violation in demo with subtask {} end ind {}, subtask {} max offset {},"
-                " subtask {} end ind {}, and subtask {} min offset {}".format(
-                    i - 1,
-                    ep_subtask_indices[i - 1][1],
-                    i - 1,
-                    prev_max_offset_range,
-                    i,
-                    ep_subtask_indices[i][1],
-                    i,
-                    self.subtask_term_offset_ranges[i][0],
+                if subtask_term_ind <= prev_subtask_term_ind:
+                    raise ValueError(
+                        f"subtask termination signal is not increasing: {subtask_term_ind} should be greater than"
+                        f" {prev_subtask_term_ind}"
+                    )
+                eef_subtask_boundaries.append((prev_subtask_term_ind, subtask_term_ind))
+                prev_subtask_term_ind = subtask_term_ind
+
+            # run sanity check on subtask_term_offset_range in task spec to make sure we can never
+            # get an empty subtask in the worst case when sampling subtask bounds:
+            #
+            #   end index of subtask i + max offset of subtask i < end index of subtask i + 1 + min offset of subtask i + 1
+            #
+            for i in range(1, len(eef_subtask_boundaries)):
+                prev_max_offset_range = self.subtask_term_offset_ranges[eef_name][i - 1][1]
+                assert (
+                    eef_subtask_boundaries[i - 1][1] + prev_max_offset_range
+                    < eef_subtask_boundaries[i][1] + self.subtask_term_offset_ranges[eef_name][i][0]
+                ), (
+                    "subtask sanity check violation in demo with subtask {} end ind {}, subtask {} max offset {},"
+                    " subtask {} end ind {}, and subtask {} min offset {}".format(
+                        i - 1,
+                        eef_subtask_boundaries[i - 1][1],
+                        i - 1,
+                        prev_max_offset_range,
+                        i,
+                        eef_subtask_boundaries[i][1],
+                        i,
+                        self.subtask_term_offset_ranges[eef_name][i][0],
+                    )
                 )
-            )
 
-        self._subtask_indices.append(ep_subtask_indices)
+            self._subtask_boundaries[eef_name].append(eef_subtask_boundaries)
 
     def load_from_dataset_file(self, file_path, select_demo_keys: str | None = None):
         """

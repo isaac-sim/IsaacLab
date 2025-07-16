@@ -1,4 +1,4 @@
-# Copyright (c) 2024-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2024-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: Apache-2.0
@@ -36,7 +36,11 @@ class FrankaCubeStackIKRelMimicEnv(ManagerBasedRLMimicEnv):
         return PoseUtils.make_pose(eef_pos, PoseUtils.matrix_from_quat(eef_quat))
 
     def target_eef_pose_to_action(
-        self, target_eef_pose_dict: dict, gripper_action_dict: dict, noise: float | None = None, env_id: int = 0
+        self,
+        target_eef_pose_dict: dict,
+        gripper_action_dict: dict,
+        action_noise_dict: dict | None = None,
+        env_id: int = 0,
     ) -> torch.Tensor:
         """
         Takes a target pose and gripper action for the end effector controller and returns an action
@@ -75,8 +79,8 @@ class FrankaCubeStackIKRelMimicEnv(ManagerBasedRLMimicEnv):
 
         # add noise to action
         pose_action = torch.cat([delta_position, delta_rotation], dim=0)
-        if noise is not None:
-            noise = noise * torch.randn_like(pose_action)
+        if action_noise_dict is not None:
+            noise = action_noise_dict["franka"] * torch.randn_like(pose_action)
             pose_action += noise
             pose_action = torch.clamp(pose_action, -1.0, 1.0)
 

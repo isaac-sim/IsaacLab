@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING
 
 import carb
 import omni.physics.tensors.impl.api as physx
+from isaacsim.core.simulation_manager import SimulationManager
 from pxr import PhysxSchema
 
 import isaaclab.sim as sim_utils
@@ -148,11 +149,10 @@ class ContactSensor(SensorBase):
         # reset accumulative data buffers
         self._data.net_forces_w[env_ids] = 0.0
         self._data.net_forces_w_history[env_ids] = 0.0
-        if self.cfg.history_length > 0:
-            self._data.net_forces_w_history[env_ids] = 0.0
         # reset force matrix
         if len(self.cfg.filter_prim_paths_expr) != 0:
             self._data.force_matrix_w[env_ids] = 0.0
+            self._data.force_matrix_w_history[env_ids] = 0.0
         # reset the current air time
         if self.cfg.track_air_time:
             self._data.current_air_time[env_ids] = 0.0
@@ -249,9 +249,8 @@ class ContactSensor(SensorBase):
 
     def _initialize_impl(self):
         super()._initialize_impl()
-        # create simulation view
-        self._physics_sim_view = physx.create_simulation_view(self._backend)
-        self._physics_sim_view.set_subspace_roots("/")
+        # obtain global simulation view
+        self._physics_sim_view = SimulationManager.get_physics_sim_view()
         # check that only rigid bodies are selected
         leaf_pattern = self.cfg.prim_path.rsplit("/", 1)[-1]
         template_prim_path = self._parent_prims[0].GetPath().pathString
@@ -311,11 +310,18 @@ class ContactSensor(SensorBase):
             self._data.last_contact_time = torch.zeros(self._num_envs, self._num_bodies, device=self._device)
             self._data.current_contact_time = torch.zeros(self._num_envs, self._num_bodies, device=self._device)
         # force matrix: (num_envs, num_bodies, num_filter_shapes, 3)
+        # force matrix history: (num_envs, history_length, num_bodies, num_filter_shapes, 3)
         if len(self.cfg.filter_prim_paths_expr) != 0:
             num_filters = self.contact_physx_view.filter_count
             self._data.force_matrix_w = torch.zeros(
                 self._num_envs, self._num_bodies, num_filters, 3, device=self._device
             )
+            if self.cfg.history_length > 0:
+                self._data.force_matrix_w_history = torch.zeros(
+                    self._num_envs, self.cfg.history_length, self._num_bodies, num_filters, 3, device=self._device
+                )
+            else:
+                self._data.force_matrix_w_history = self._data.force_matrix_w.unsqueeze(1)
 
     def _update_buffers_impl(self, env_ids: Sequence[int]):
         """Fills the buffers of the sensor data."""
@@ -330,7 +336,7 @@ class ContactSensor(SensorBase):
         self._data.net_forces_w[env_ids, :, :] = net_forces_w.view(-1, self._num_bodies, 3)[env_ids]
         # update contact force history
         if self.cfg.history_length > 0:
-            self._data.net_forces_w_history[env_ids, 1:] = self._data.net_forces_w_history[env_ids, :-1].clone()
+            self._data.net_forces_w_history[env_ids] = self._data.net_forces_w_history[env_ids].roll(1, dims=1)
             self._data.net_forces_w_history[env_ids, 0] = self._data.net_forces_w[env_ids]
 
         # obtain the contact force matrix
@@ -341,6 +347,9 @@ class ContactSensor(SensorBase):
             force_matrix_w = self.contact_physx_view.get_contact_force_matrix(dt=self._sim_physics_dt)
             force_matrix_w = force_matrix_w.view(-1, self._num_bodies, num_filters, 3)
             self._data.force_matrix_w[env_ids] = force_matrix_w[env_ids]
+            if self.cfg.history_length > 0:
+                self._data.force_matrix_w_history[env_ids] = self._data.force_matrix_w_history[env_ids].roll(1, dims=1)
+                self._data.force_matrix_w_history[env_ids, 0] = self._data.force_matrix_w[env_ids]
 
         # obtain the pose of the sensor origin
         if self.cfg.track_pose:
@@ -418,6 +427,5 @@ class ContactSensor(SensorBase):
         # call parent
         super()._invalidate_initialize_callback(event)
         # set all existing views to None to invalidate them
-        self._physics_sim_view = None
         self._body_physx_view = None
         self._contact_physx_view = None

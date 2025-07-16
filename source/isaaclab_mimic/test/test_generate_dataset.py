@@ -1,4 +1,4 @@
-# Copyright (c) 2024-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2024-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: Apache-2.0
@@ -59,10 +59,6 @@ class TestGenerateDataset(unittest.TestCase):
             DATASETS_DOWNLOAD_DIR + "/dataset.hdf5",
             "--output_file",
             DATASETS_DOWNLOAD_DIR + "/annotated_dataset.hdf5",
-            "--signals",
-            "grasp_1",
-            "stack_1",
-            "grasp_2",
             "--auto",
             "--headless",
         ]

@@ -1,6 +1,10 @@
 # Everything past this stage is to install
 # ROS2 Humble
-FROM isaac-lab-base AS ros2
+
+# What is the docker name suffix for the base image to load? (defaults to empty string)
+ARG DOCKER_NAME_SUFFIX=""
+
+FROM isaac-lab-base${DOCKER_NAME_SUFFIX} AS ros2
 
 # Which ROS2 apt package to install
 ARG ROS2_APT_PACKAGE

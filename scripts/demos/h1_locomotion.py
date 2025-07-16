@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -86,6 +86,7 @@ class H1RoughDemo:
         # create envionrment
         env_cfg = H1RoughEnvCfg_PLAY()
         env_cfg.scene.num_envs = 25
+        env_cfg.episode_length_s = 1000000
         env_cfg.curriculum = None
         env_cfg.commands.base_velocity.ranges.lin_vel_x = (0.0, 1.0)
         env_cfg.commands.base_velocity.ranges.heading = (-1.0, 1.0)

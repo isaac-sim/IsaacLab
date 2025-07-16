@@ -120,7 +120,8 @@ if %errorlevel% equ 0 (
     echo [INFO] Conda environment named '%env_name%' already exists.
 ) else (
     echo [INFO] Creating conda environment named '%env_name%'...
-    call conda create -y --name %env_name% python=3.10
+    echo [INFO] Installing dependencies from %ISAACLAB_PATH%\environment.yml
+    call conda env create -y --file %ISAACLAB_PATH%\environment.yml -n %env_name%
 )
 rem cache current paths for later
 set "cache_pythonpath=%PYTHONPATH%"
@@ -199,10 +200,6 @@ rem remove variables from environment during deactivation
     echo $env:LD_LIBRARY_PATH="%cache_pythonpath%"
 ) > "%CONDA_PREFIX%\etc\conda\deactivate.d\unsetenv_vars.ps1"
 
-rem install some extra dependencies
-echo [INFO] Installing extra dependencies (this might take a few minutes)...
-call conda install -c conda-forge -y importlib_metadata >nul 2>&1
-
 rem deactivate the environment
 call conda deactivate
 rem add information to the user about alias
@@ -244,7 +241,7 @@ echo     -i, --install [LIB]  Install the extensions inside Isaac Lab and learni
 echo     -f, --format         Run pre-commit to format the code and check lints.
 echo     -p, --python         Run the python executable (python.bat) provided by Isaac Sim.
 echo     -s, --sim            Run the simulator executable (isaac-sim.bat) provided by Isaac Sim.
-echo     -t, --test           Run all python unittest tests.
+echo     -t, --test           Run all python pytest tests.
 echo     -v, --vscode         Generate the VSCode settings file from template.
 echo     -d, --docs           Build the documentation from source using sphinx.
 echo     -n, --new            Create a new external project or internal task from template.
@@ -514,7 +511,7 @@ if "%arg%"=="-i" (
             set "skip=1"
         )
     )
-    !python_exe! tools\run_all_tests.py !allArgs!
+    !python_exe! -m pytest tools !allArgs!
     goto :end
 ) else if "%arg%"=="--test" (
     rem run the python provided by Isaac Sim
@@ -528,7 +525,7 @@ if "%arg%"=="-i" (
             set "skip=1"
         )
     )
-    !python_exe! tools\run_all_tests.py !allArgs!
+    !python_exe! -m pytest tools !allArgs!
     goto :end
 ) else if "%arg%"=="-v" (
     rem update the vscode settings
