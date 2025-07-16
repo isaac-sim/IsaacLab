@@ -172,7 +172,7 @@ class ActuatorBase(ABC):
                 torch.all(new_val == usd_val) if isinstance(usd_val, (float, int)) else torch.allclose(new_val, usd_val)
             )
             if cfg_val is None or not allclose:
-                self._print_actuator_resolution(
+                self._record_actuator_resolution(
                     cfg_val=getattr(self.cfg, param_name),
                     new_val=new_val[0],  # new val always has the shape of (num_envs, num_joints)
                     usd_val=usd_val,
@@ -266,7 +266,7 @@ class ActuatorBase(ABC):
     Helper functions.
     """
 
-    def _print_actuator_resolution(self, cfg_val, new_val, usd_val, joint_names, joint_ids, actuator_param: str):
+    def _record_actuator_resolution(self, cfg_val, new_val, usd_val, joint_names, joint_ids, actuator_param: str):
         if actuator_param not in self.joint_property_resolution_table:
             self.joint_property_resolution_table[actuator_param] = []
         table = self.joint_property_resolution_table[actuator_param]
