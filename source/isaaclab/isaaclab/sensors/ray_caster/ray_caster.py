@@ -19,6 +19,7 @@ from isaacsim.core.simulation_manager import SimulationManager
 from pxr import UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
+import isaaclab.utils.math as math_utils
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.terrains.trimesh.utils import make_plane
 from isaaclab.utils.math import convert_quat, quat_apply, quat_apply_yaw
@@ -117,10 +118,11 @@ class RayCaster(SensorBase):
         r = torch.empty(num_envs_ids, 3, device=self.device)
         self.drift[env_ids] = r.uniform_(*self.cfg.drift_range)
         # resample the height drift
-        r = torch.empty(num_envs_ids, device=self.device)
-        self.ray_cast_drift[env_ids, 0] = r.uniform_(*self.cfg.ray_cast_drift_range["x"])
-        self.ray_cast_drift[env_ids, 1] = r.uniform_(*self.cfg.ray_cast_drift_range["y"])
-        self.ray_cast_drift[env_ids, 2] = r.uniform_(*self.cfg.ray_cast_drift_range["z"])
+        range_list = [self.cfg.ray_cast_drift_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z"]]
+        ranges = torch.tensor(range_list, device="cpu")
+        self.ray_cast_drift[env_ids] = math_utils.sample_uniform(
+            ranges[:, 0], ranges[:, 1], (num_envs_ids, 3), device=self.device
+        )
 
     """
     Implementation.
