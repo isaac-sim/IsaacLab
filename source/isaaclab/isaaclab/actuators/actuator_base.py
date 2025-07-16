@@ -149,12 +149,12 @@ class ActuatorBase(ABC):
         # (unless it is explicitly set)
         if not self.is_implicit_model and self.cfg.effort_limit_sim is None:
             self.cfg.effort_limit_sim = self._DEFAULT_MAX_EFFORT_SIM
-        
+
         # resolve usd, actuator configuration values
         # case 1: if usd_value == actuator_cfg_value: all good,
         # case 2: if usd_value != actuator_cfg_value: we use actuator_cfg_value
         # case 3: if actuator_cfg_value is None: we use usd_value
-        
+
         to_check = [
             ("velocity_limit_sim", velocity_limit),
             ("effort_limit_sim", effort_limit),
@@ -168,8 +168,9 @@ class ActuatorBase(ABC):
             setattr(self, param_name, self._parse_joint_parameter(cfg_val, usd_val))
             new_val = getattr(self, param_name)
 
-            allclose = torch.all(new_val == usd_val) if isinstance(usd_val, (float, int))\
-                else torch.allclose(new_val, usd_val)
+            allclose = (
+                torch.all(new_val == usd_val) if isinstance(usd_val, (float, int)) else torch.allclose(new_val, usd_val)
+            )
             if cfg_val is None or not allclose:
                 self._print_actuator_resolution(
                     cfg_val=getattr(self.cfg, param_name),
@@ -177,7 +178,7 @@ class ActuatorBase(ABC):
                     usd_val=usd_val,
                     joint_names=joint_names,
                     joint_ids=joint_ids,
-                    actuator_param=param_name
+                    actuator_param=param_name,
                 )
 
         self.velocity_limit = self._parse_joint_parameter(self.cfg.velocity_limit, self.velocity_limit_sim)

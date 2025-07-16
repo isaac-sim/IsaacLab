@@ -1448,13 +1448,13 @@ class Articulation(AssetBase):
             for actuator_group, actuator in self.actuators.items():
                 group_count = 0
                 for property, resolution_details in actuator.joint_property_resolution_table.items():
-                    property_count = 0
-                    for resolution_detail in resolution_details:
+                    for prop_idx, resolution_detail in enumerate(resolution_details):
                         actuator_group_str = actuator_group if group_count == 0 else ""
-                        property_str = property if property_count == 0 else ""
-                        t.add_row([actuator_group_str, property_str, *resolution_detail])
-                        group_count += 1; property_count += 1
-            omni.log.warn(f"\nActuatorCfg-USD Value Discrepency Resolution (matching values are skipped): \n{t}")
+                        property_str = property if prop_idx == 0 else ""
+                        fmt = [f"{v:.2e}" if isinstance(v, float) else str(v) for v in resolution_detail]
+                        t.add_row([actuator_group_str, property_str, *fmt])
+                        group_count += 1
+            omni.log.warn(f"\nActuatorCfg-USD Value Discrepancy Resolution (matching values are skipped): \n{t}")
 
     def _process_fixed_tendons(self):
         """Process fixed tendons."""
