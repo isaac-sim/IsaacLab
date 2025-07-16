@@ -251,6 +251,21 @@ class RayCaster(SensorBase):
         self._data.pos_w[env_ids] = pos_w
         self._data.quat_w[env_ids] = quat_w
 
+        # check if user provided attach_yaw_only flag
+        if self.cfg.attach_yaw_only is not None:
+            msg = (
+                "Raycaster attribute 'attach_yaw_only' property will be deprecated in a future release."
+                " Please use the parameter 'ray_alignment' instead."
+            )
+            # set ray alignment to yaw
+            if self.cfg.attach_yaw_only:
+                self.cfg.ray_alignment = "yaw"
+                msg += " Setting ray_alignment to 'yaw'."
+            else:
+                self.cfg.ray_alignment = "base"
+                msg += " Setting ray_alignment to 'base'."
+            # log the warning
+            omni.log.warn(msg)
         # ray cast based on the sensor poses
         if self.cfg.ray_alignment == "world":
             # apply horizontal drift to ray starting position in ray caster frame
@@ -259,14 +274,7 @@ class RayCaster(SensorBase):
             ray_starts_w = self.ray_starts[env_ids]
             ray_starts_w += pos_w.unsqueeze(1)
             ray_directions_w = self.ray_directions[env_ids]
-        elif self.cfg.ray_alignment == "yaw" or self.cfg.attach_yaw_only:
-            if self.cfg.attach_yaw_only:
-                self.cfg.ray_alignment = "yaw"
-                omni.log.warn(
-                    "The `attach_yaw_only` property will be deprecated in a future release. Please use"
-                    " `ray_alignment='yaw'` instead."
-                )
-
+        elif self.cfg.ray_alignment == "yaw":
             # apply horizontal drift to ray starting position in ray caster frame
             pos_w[:, 0:2] += quat_apply_yaw(quat_w, self.ray_cast_drift[env_ids])[:, 0:2]
             # only yaw orientation is considered and directions are not rotated
