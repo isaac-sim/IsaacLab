@@ -18,12 +18,12 @@ class H1FlatEnvCfg(H1RoughEnvCfg):
         self.scene.terrain.terrain_type = "plane"
         self.scene.terrain.terrain_generator = None
         # no height scan
-        self.scene.height_scanner = None
-        self.observations.policy.height_scan = None
+        # self.scene.height_scanner = None
+        # self.observations.policy.height_scan = None
         # no terrain curriculum
-        self.curriculum.terrain_levels = None
-        #self.rewards.feet_air_time.weight = 1.0
-        #self.rewards.feet_air_time.params["threshold"] = 0.6
+        # self.curriculum.terrain_levels = None
+        # self.rewards.feet_air_time.weight = 1.0
+        # self.rewards.feet_air_time.params["threshold"] = 0.6
 
 
 class H1FlatEnvCfg_PLAY(H1FlatEnvCfg):

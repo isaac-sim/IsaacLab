@@ -23,8 +23,9 @@ class NewtonManager:
     #_contact_manager: ContactViewManager = None
     _model: Model = None
     _device: str = "cuda:0"
-    _sim_dt: float = 1.0 / 600.0
-    _decimation: int = 10
+    _sim_dt: float = 1.0 / 1000.0
+    _solver_type: str = "mjwarp" # "xpbd, mjwarp
+    _num_substeps: int = 5
     _solver = None
     _state_0: State = None
     _state_1: State = None
@@ -39,7 +40,6 @@ class NewtonManager:
     _usdrt_stage = None
     _newton_index_attr = "newton:index"
     _env_offsets = None
-
     @property
     def model(self) -> Model:
         return NewtonManager._model
@@ -62,6 +62,7 @@ class NewtonManager:
 
     @classmethod
     def start_simulation(cls):
+        NewtonManager._builder.add_ground_plane()
         NewtonManager._model = NewtonManager._builder.finalize(device=NewtonManager._device)
         #NewtonManager._contact_manager = ContactViewManager(NewtonManager._model)
         NewtonManager._state_0 = NewtonManager._model.state()
@@ -81,7 +82,21 @@ class NewtonManager:
 
     @classmethod
     def initialize_solver(cls):
-        NewtonManager._solver = newton.solvers.MuJoCoSolver(NewtonManager._model)
+        if NewtonManager._solver_type == "xpbd":
+            NewtonManager._solver = newton.solvers.XPBDSolver(NewtonManager._model, iterations=20)
+        elif NewtonManager._solver_type == "mjwarp":
+            NewtonManager._solver = newton.solvers.MuJoCoSolver(NewtonManager._model, 
+                                                                solver="newton",
+                                                                # ls_iterations=50, 
+                                                                # iterations=20, 
+                                                                # nefc_per_env=60, 
+                                                                ncon_per_env=30, 
+                                                                contact_stiffness_time_const=0.01, 
+                                                                save_to_mjcf="example_g1_mjwarp.xml"
+                                                                )
+        else:
+            raise ValueError(f"Unknown solver type: {NewtonManager._solver_type}")
+
         NewtonManager._use_cuda_graph = wp.get_device().is_cuda
         #NewtonManager._contact_manager.finalize(NewtonManager._solver)
         if NewtonManager._use_cuda_graph:
@@ -91,13 +106,18 @@ class NewtonManager:
 
     @classmethod
     def simulate(cls):
+
+
         state_0_dict = NewtonManager._state_0.__dict__
         state_1_dict = NewtonManager._state_1.__dict__
-        state_temp_dict = NewtonManager._state_temp.__dict__ # <-- Is this still used?
-        for i in range(NewtonManager._decimation):
-            NewtonManager._state_0.clear_forces()
-            NewtonManager._solver.step(NewtonManager._state_0, NewtonManager._state_1, NewtonManager._control, None, NewtonManager._sim_dt)
-            if i < NewtonManager._decimation - 1 or not NewtonManager._use_cuda_graph:
+        state_temp_dict = NewtonManager._state_temp.__dict__
+        contacts = None
+        if not NewtonManager._solver_type == "mjwarp":
+            contacts = NewtonManager._model.collide(NewtonManager._state_0)
+        
+        for i in range(NewtonManager._num_substeps):
+            NewtonManager._solver.step(NewtonManager._state_0, NewtonManager._state_1, NewtonManager._control, contacts, NewtonManager._sim_dt)
+            if i < NewtonManager._num_substeps - 1 or not NewtonManager._use_cuda_graph:
                 # we can just swap the state references
                 NewtonManager._state_0, NewtonManager._state_1 = NewtonManager._state_1, NewtonManager._state_0
             elif  NewtonManager._use_cuda_graph:
@@ -118,6 +138,7 @@ class NewtonManager:
 
         #    n_contacts = NewtonManager._solver.mjw_data.ncon
         #    NewtonManager._contact_manager.contact_reporter.select_aggregate(contact, n_contacts)
+        NewtonManager._state_0.clear_forces()
 
     @classmethod
     def set_device(cls, device: str) -> None:
@@ -144,12 +165,15 @@ class NewtonManager:
                 wp.capture_launch(NewtonManager._graph)
             else:
                 NewtonManager.simulate()
-        NewtonManager._sim_time += (NewtonManager._sim_dt * NewtonManager._decimation)
+        
+        NewtonManager._sim_time += (NewtonManager._sim_dt * NewtonManager._num_substeps)
+
 
     @classmethod
-    def set_simulation_dt(cls, sim_dt, decimation):
-        NewtonManager._sim_dt = sim_dt
-        NewtonManager._decimation = decimation
+    def set_simulation_dt(cls, sim_dt, substeps):
+        if substeps is not None:
+            NewtonManager._num_substeps = substeps
+        NewtonManager._sim_dt = sim_dt / NewtonManager._num_substeps
 
 
     @classmethod
@@ -194,6 +218,10 @@ class NewtonManager:
     @classmethod
     def get_state_0(cls):
         return NewtonManager._state_0
+    
+    @classmethod
+    def get_state_1(cls):
+        return NewtonManager._state_1
 
     @classmethod
     def get_control(cls):

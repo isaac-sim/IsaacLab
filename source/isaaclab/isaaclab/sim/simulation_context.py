@@ -243,7 +243,7 @@ class SimulationContext(_SimulationContext):
             device=self.cfg.device,
         )
         self.set_setting("/app/player/playSimulations", False)
-        NewtonManager.set_simulation_dt(self.cfg.dt, 1)
+        NewtonManager.set_simulation_dt(self.cfg.dt, None)
 
     def _apply_physics_settings(self):
         """Sets various carb physics settings."""

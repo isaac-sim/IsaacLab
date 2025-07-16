@@ -7,7 +7,7 @@
 # disclosure or distribution of this material and related documentation
 # without an express license agreement from NVIDIA CORPORATION or
 # its affiliates is strictly prohibited.
-from typing import List
+from typing import List, Union
 
 import numpy as np
 import omni.usd
@@ -165,10 +165,10 @@ class GridCloner(Cloner):
                 clone_base_path + "{}",
                 num_clones,
                 (self._spacing, self._spacing, 0.0),
-                # Hack to avoid ground collisions when spawning assets.
-                spawn_offset = (0,0,20),
+                # USD importer args
                 collapse_fixed_joints=False,
-                joint_ordering="dfs"
+                joint_ordering="dfs",
+                joint_drive_gains_scaling=1.0,
             )
             NewtonManager.set_builder(builder)
 
@@ -185,3 +185,5 @@ class GridCloner(Cloner):
         )
 
         return positions
+
+    

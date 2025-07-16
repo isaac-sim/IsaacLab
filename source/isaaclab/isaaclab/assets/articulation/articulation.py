@@ -203,18 +203,20 @@ class Articulation(AssetBase):
                 indices=self._ALL_INDICES,
                 is_global=False,
             )
+            self._root_newton_view.set_attribute("body_f", NewtonManager.get_state_0(), self._joint_effort_target_sim)
+
 
         # apply actuator models
         self._apply_actuator_model()
         # write actions into simulation
         # self.root_physx_view.set_dof_actuation_forces(self._joint_effort_target_sim, self._ALL_INDICES)
-        self._root_newton_view.set_dof_forces(NewtonManager.get_control(), self._joint_effort_target_sim)
-        #self._root_newton_view.set_attribute("joint_f", NewtonManager.get_control(), self._joint_effort_target_sim)
+        self._root_newton_view.set_attribute("joint_f", NewtonManager.get_control(), self._joint_effort_target_sim)
         # position and velocity targets only for implicit actuators
         #TODO: write position and velocity targets to simulation
-        # if self._has_implicit_actuators:
-        #     self.root_physx_view.set_dof_position_targets(self._joint_pos_target_sim, self._ALL_INDICES)
-        #     self.root_physx_view.set_dof_velocity_targets(self._joint_vel_target_sim, self._ALL_INDICES)
+        if self._has_implicit_actuators:
+            #     self.root_physx_view.set_dof_position_targets(self._joint_pos_target_sim, self._ALL_INDICES)
+            #     self.root_physx_view.set_dof_velocity_targets(self._joint_vel_target_sim, self._ALL_INDICES)
+            self._root_newton_view.set_attribute("joint_target", NewtonManager.get_control(), self._joint_pos_target_sim)
 
     def update(self, dt: float):
         self._data.update(dt)
@@ -359,7 +361,6 @@ class Articulation(AssetBase):
         # self.root_physx_view.set_root_transforms(root_poses_xyzw, indices=physx_env_ids)
         self._mask.fill_(False)
         self._mask[physx_env_ids] = True
-        #print(root_poses_xyzw.shape)
         self._root_newton_view.set_root_transforms(NewtonManager.get_state_0(), root_poses_xyzw, mask=self._mask)
 
     def write_root_link_pose_to_sim(self, root_pose: torch.Tensor, env_ids: Sequence[int] | None = None):
@@ -1227,10 +1228,12 @@ class Articulation(AssetBase):
         # resolve articulation root prim back into regex expression
         root_prim_path = root_prims[0].GetPath().pathString
         root_prim_path_expr = self.cfg.prim_path + root_prim_path[len(template_prim_path) :]
-        self._root_newton_view = NewtonArticulationView(NewtonManager.get_model(), root_prim_path_expr.replace(".*", "*").replace("env_*", "*"), verbose=True, exclude_joint_types=[JOINT_FREE])
+        prim_path = root_prim_path_expr.replace(".*", "*")
 
+        import newton
+        self._root_newton_view = NewtonArticulationView(NewtonManager.get_model(), prim_path, verbose=True, exclude_joint_types=[newton.sim.JOINT_FREE, newton.sim.JOINT_FIXED])
         # log information about the articulation
-        print(f"[INFO]:Articulation initialized at: {self.cfg.prim_path} with root '{root_prim_path_expr}'.")
+        print(f"[INFO]:Articulation initialized at: {self.cfg.prim_path} with root '{prim_path}'.")
         print(f"[INFO]:Is fixed root: {self.is_fixed_base}")
         print(f"[INFO]:Number of bodies: {self.num_bodies}")
         print(f"[INFO]:Body names: {self.body_names}")
@@ -1272,22 +1275,14 @@ class Articulation(AssetBase):
         # tendon names are set in _process_fixed_tendons function
 
         # -- joint properties
-        self._data.default_joint_pos_limits = torch.stack(
-            (wp.to_torch(self._root_newton_view.get_attribute("joint_limit_lower", NewtonManager.get_model())), 
-            wp.to_torch(self._root_newton_view.get_attribute("joint_limit_upper", NewtonManager.get_model()))), dim=2
-        ).clone()
-        self._data.default_joint_stiffness = wp.to_torch(
-            self._root_newton_view.get_attribute("joint_target_ke", NewtonManager.get_model())
-        ).clone()
-        self._data.default_joint_damping = wp.to_torch(
-            self._root_newton_view.get_attribute("joint_target_kd", NewtonManager.get_model())
-        ).clone()
-        self._data.default_joint_armature = wp.to_torch(
-            self._root_newton_view.get_attribute("joint_armature", NewtonManager.get_model())
-        ).clone()
-        self._data.default_joint_friction_coeff = wp.to_torch(
-            self._root_newton_view.get_attribute("joint_friction", NewtonManager.get_model())
-        ).clone()
+        self._data.default_joint_pos_limits = torch.stack((wp.to_torch(self._root_newton_view.get_attribute("joint_limit_lower", NewtonManager.get_model())), 
+                                                            wp.to_torch(self._root_newton_view.get_attribute("joint_limit_upper", NewtonManager.get_model()))), dim=2).clone()
+        self._data.default_joint_stiffness = wp.to_torch(self._root_newton_view.get_attribute("joint_target_ke", NewtonManager.get_model())).clone().clone()
+        self._data.default_joint_damping = wp.to_torch(self._root_newton_view.get_attribute("joint_target_kd", NewtonManager.get_model())).clone().clone()
+        self._data.default_joint_armature = wp.to_torch(self._root_newton_view.get_attribute("joint_armature", NewtonManager.get_model())).clone()
+        self._data.default_joint_friction_coeff = (
+            torch.zeros([self.num_instances, self.num_joints], dtype=torch.float32, device=self.device).clone()
+        )
 
         self._data.joint_pos_limits = self._data.default_joint_pos_limits.clone()
         self._data.joint_vel_limits = wp.to_torch(
@@ -1362,6 +1357,12 @@ class Articulation(AssetBase):
             self.cfg.init_state.joint_vel, self.joint_names
         )
         self._data.default_joint_vel[:, indices_list] = torch.tensor(values_list, device=self.device)
+        root_state_w = self._data.default_root_state
+        # convert root quaternion from wxyz to xyzw
+        root_poses_xyzw = root_state_w[:, :7].clone()
+        root_poses_xyzw[:, 3:] = math_utils.convert_quat(root_poses_xyzw[:, 3:], to="xyzw")
+        self._root_newton_view.set_root_transforms(NewtonManager.get_state_0(), root_poses_xyzw, mask=self._mask)
+
 
     """
     Internal simulation callbacks.

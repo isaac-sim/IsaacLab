@@ -38,6 +38,7 @@ GO1_ACTUATOR_CFG = ActuatorNetMLPCfg(
     effort_limit=23.7,  # taken from spec sheet
     velocity_limit=30.0,  # taken from spec sheet
     saturation_effort=23.7,  # same as effort limit
+    armature=0.2
 )
 """Configuration of Go1 actuators using MLP model.
 
@@ -70,7 +71,7 @@ UNITREE_A1_CFG = ArticulationCfg(
         ),
     ),
     init_state=ArticulationCfg.InitialStateCfg(
-        pos=(0.0, 0.0, 0.42),
+        pos=(0.0, 0.0, 0.45),
         joint_pos={
             ".*L_hip_joint": 0.1,
             ".*R_hip_joint": -0.1,
@@ -90,6 +91,7 @@ UNITREE_A1_CFG = ArticulationCfg(
             stiffness=25.0,
             damping=0.5,
             friction=0.0,
+            armature=0.1,
         ),
     },
 )
@@ -117,7 +119,7 @@ UNITREE_GO1_CFG = ArticulationCfg(
         ),
     ),
     init_state=ArticulationCfg.InitialStateCfg(
-        pos=(0.0, 0.0, 0.4),
+        pos=(0.0, 0.0, 0.45),
         joint_pos={
             ".*L_hip_joint": 0.1,
             ".*R_hip_joint": -0.1,
@@ -153,7 +155,7 @@ UNITREE_GO2_CFG = ArticulationCfg(
         ),
     ),
     init_state=ArticulationCfg.InitialStateCfg(
-        pos=(0.0, 0.0, 0.4),
+        pos=(0.0, 0.0, 0.45),
         joint_pos={
             ".*L_hip_joint": 0.1,
             ".*R_hip_joint": -0.1,
@@ -172,6 +174,7 @@ UNITREE_GO2_CFG = ArticulationCfg(
             velocity_limit=30.0,
             stiffness=25.0,
             damping=0.5,
+            armature=0.1,
             friction=0.0,
         ),
     },
@@ -273,22 +276,23 @@ This configuration removes most collision meshes to speed up simulation.
 G1_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/Unitree/G1/g1.usd",
-        activate_contact_sensors=True,
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
-            disable_gravity=False,
-            retain_accelerations=False,
-            linear_damping=0.0,
-            angular_damping=0.0,
-            max_linear_velocity=1000.0,
-            max_angular_velocity=1000.0,
-            max_depenetration_velocity=1.0,
-        ),
-        articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-            enabled_self_collisions=False, solver_position_iteration_count=8, solver_velocity_iteration_count=4
-        ),
+		# usd_path="g1.usd",
+        # activate_contact_sensors=True,
+        # rigid_props=sim_utils.RigidBodyPropertiesCfg(
+        #     disable_gravity=False,
+        #     retain_accelerations=False,
+        #     linear_damping=0.0,
+        #     angular_damping=0.0,
+        #     max_linear_velocity=1000.0,
+        #     max_angular_velocity=1000.0,
+        #     max_depenetration_velocity=1.0,
+        # ),
+        # articulation_props=sim_utils.ArticulationRootPropertiesCfg(
+        #     enabled_self_collisions=False, solver_position_iteration_count=8, solver_velocity_iteration_count=4
+        # ),
     ),
     init_state=ArticulationCfg.InitialStateCfg(
-        pos=(0.0, 0.0, 0.74),
+        pos=(0.0, 0.0, 0.76),
         joint_pos={
             ".*_hip_pitch_joint": -0.20,
             ".*_knee_joint": 0.42,
@@ -332,9 +336,9 @@ G1_CFG = ArticulationCfg(
                 "torso_joint": 5.0,
             },
             armature={
-                ".*_hip_.*": 0.01,
-                ".*_knee_joint": 0.01,
-                "torso_joint": 0.01,
+                ".*_hip_.*": 0.1,
+                ".*_knee_joint": 0.1,
+                "torso_joint": 0.1,
             },
         ),
         "feet": ImplicitActuatorCfg(
@@ -342,7 +346,7 @@ G1_CFG = ArticulationCfg(
             joint_names_expr=[".*_ankle_pitch_joint", ".*_ankle_roll_joint"],
             stiffness=20.0,
             damping=2.0,
-            armature=0.01,
+            armature=0.1,
         ),
         "arms": ImplicitActuatorCfg(
             joint_names_expr=[
@@ -364,15 +368,15 @@ G1_CFG = ArticulationCfg(
             stiffness=40.0,
             damping=10.0,
             armature={
-                ".*_shoulder_.*": 0.01,
-                ".*_elbow_.*": 0.01,
-                ".*_five_joint": 0.001,
-                ".*_three_joint": 0.001,
-                ".*_six_joint": 0.001,
-                ".*_four_joint": 0.001,
-                ".*_zero_joint": 0.001,
-                ".*_one_joint": 0.001,
-                ".*_two_joint": 0.001,
+                ".*_shoulder_.*": 0.1,
+                ".*_elbow_.*": 0.1,
+                ".*_five_joint": 0.1,
+                ".*_three_joint": 0.1,
+                ".*_six_joint": 0.1,
+                ".*_four_joint": 0.1,
+                ".*_zero_joint": 0.1,
+                ".*_one_joint": 0.1,
+                ".*_two_joint": 0.1,
             },
         ),
     },
@@ -382,6 +386,8 @@ G1_CFG = ArticulationCfg(
 
 G1_MINIMAL_CFG = G1_CFG.copy()
 G1_MINIMAL_CFG.spawn.usd_path = f"{ISAACLAB_NUCLEUS_DIR}/Robots/Unitree/G1/g1_minimal.usd"
+# G1_MINIMAL_CFG.spawn.usd_path = f"g1_minimal_modified.usd"
+
 """Configuration for the Unitree G1 Humanoid robot with fewer collision meshes.
 
 This configuration removes most collision meshes to speed up simulation.
