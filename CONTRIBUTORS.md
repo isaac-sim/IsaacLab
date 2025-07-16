@@ -37,6 +37,7 @@ Guidelines for modifications:
 ## Contributors
 
 * Alessandro Assirelli
+* Alex Omar
 * Alice Zhou
 * Amr Mousa
 * Andrej Orsula
