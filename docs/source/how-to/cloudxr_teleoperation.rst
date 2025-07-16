@@ -358,7 +358,7 @@ Back on your Apple Vision Pro:
 
 #. Teleoperate the simulated robot by moving your hands.
 
-   .. figure:: ../_static/setup/cloudxr_bimanual_teleop.gif
+   .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/cloudxr_bimanual_teleop.gif
       :align: center
       :alt: Isaac Lab teleoperation of a bimanual dexterous robot with CloudXR
 
