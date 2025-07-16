@@ -27,19 +27,13 @@ env:
 
 jobs:
   build-and-push-images:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     timeout-minutes: 180
     environment:
       name: postmerge-production
       url: https://github.com/${{ github.repository }}
 
     steps:
-    - name: Install Git LFS
-      run: |
-        curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | sudo bash
-        sudo apt-get install git-lfs
-        git lfs install
-
     - name: Checkout Code
       uses: actions/checkout@v4
       with:
