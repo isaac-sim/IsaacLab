@@ -246,8 +246,8 @@ class modify_env_param(ManagerTermBase):
             set_value = lambda val: setattr(self._container, self._last_path, val)  # noqa: E731
         else:
             raise TypeError(
-                f"Unable to build accessors for address '{path}'. Unknown type found for access variable: '{type(self._container)}'."
-                " Expected a list, dict, or object with attributes."
+                f"Unable to build accessors for address '{path}'. Unknown type found for access variable:"
+                f" '{type(self._container)}'. Expected a list, dict, or object with attributes."
             )
 
         return get_value, set_value
