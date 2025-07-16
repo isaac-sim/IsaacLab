@@ -19,8 +19,6 @@ from __future__ import annotations
 
 import argparse
 
-from isaacsim.core.utils.stage import get_current_stage
-
 from isaaclab.app import AppLauncher
 
 # add argparse arguments
@@ -39,6 +37,7 @@ simulation_app = app_launcher.app
 
 import random
 
+from isaacsim.core.utils.stage import get_current_stage
 from pxr import Gf, Sdf
 
 import isaaclab.sim as sim_utils
