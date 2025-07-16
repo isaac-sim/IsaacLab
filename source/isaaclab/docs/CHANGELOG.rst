@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.40.22 (2025-07-15)
+0.40.23 (2025-07-15)
 ~~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -10,6 +10,15 @@ Fixed
 * Fixed IndexError in :meth:`isaaclab.envs.mdp.events.reset_joints_by_scale`,
   :meth:`isaaclab.envs.mdp.events.reset_joints_by_offsets` by indexing joint positions by env_ids and joint_ids
   separately.
+
+0.40.22 (2025-07-11)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`omni.isaac.lab.sensors.ContactSensorData.force_matrix_w_history` that tracks the history of the filtered contact forces in the world frame.
+
 
 0.40.21 (2025-06-25)
 ~~~~~~~~~~~~~~~~~~~~
