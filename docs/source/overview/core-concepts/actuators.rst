@@ -98,3 +98,66 @@ What does this mean for the user? It means that policies trained with implicit a
 to the exact same robot model when using explicit actuators. If you are running into issues like this, or
 in cases where policies do not converge on explicit actuators while they do on implicit ones, increasing
 or setting the ``armature`` parameter to a higher value may help.
+
+
+Actuator velocity/effort limits legacy considerations
+-----------------------------------------------------
+
+In IsaacLab v1.4.0, the plain ``velocity_limit`` and ``effort_limit`` attributes were **not** consistently
+pushed into the physics solver:
+
+- **Implicit actuators**
+  - velocity_limit was ignored (never set in simulation)
+  - effort_limit was set into simulation
+
+- **Explicit actuators**
+  - both velocity_limit and effort_limit were used only by the drive model, not by the solver
+
+
+In v2.0.1 we accidentally changed this: all velocity_limit & effort_limit, implicit or
+explicit, were being applied to the solver. That caused many training under the old default uncaped solver
+limits to break.
+
+To restore the original behavior while still giving users full control over solver limits, we introduced two new flags:
+
+* **velocity_limit_sim**
+  Sets the physics-solver's maximum joint-velocity cap in simulation.
+
+* **effort_limit_sim**
+  Sets the physics-solver's maximum joint-effort cap in simulation.
+
+
+These explicitly set the solver's joint-velocity and joint-effort caps at simulation level.
+
+On the other hand, velocity_limit and effort_limit model the motor's hardware-level constraints in torque
+computation for all explicit actuators rather than limiting simulation-level constraint.
+For implicit actuators, since they do not model motor hardware limitations, ``velocity_limit`` were removed in v2.1.1
+and marked as deprecated. This preserves same behavior as they did in v1.4.0. Eventually, ``velocity_limit`` and
+``effort_limit`` will be deprecated for implicit actuators, preserving only ``velocity_limit_sim`` and
+``effort_limit_sim``
+
+.. table:: Limit Options Comparison
+
+.. list-table::
+   :header-rows: 1
+   :widths: 20 40 40
+
+   * - **Attribute**
+     - **Implicit Actuator**
+     - **Explicit Actuator**
+   * - ``velocity_limit``
+     - Deprecated (alias for ``velocity_limit_sim``)
+     - Used by the model (e.g. DC motor), not set into simulation
+   * - ``effort_limit``
+     - Deprecated (alias for ``effort_limit_sim``)
+     - Used by the model, not set into simulation
+   * - ``velocity_limit_sim``
+     - Set into simulation
+     - Set into simulation
+   * - ``effort_limit_sim``
+     - Set into simulation
+     - Set into simulation
+
+
+
+Users who want to tune the underlying physics-solver limits should set the ``_sim`` flags.
