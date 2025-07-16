@@ -377,11 +377,7 @@ class ArticulationData:
             # read data from simulation
             # Newton reads poses as [x, y, z, qx, qy, qz, qw] Isaac reads as [x, y, z, qw, qx, qy, qz]
             pose = wp.to_torch(self._root_newton_view.get_root_transforms(NewtonManager.get_state_0())).clone()
-            if self._root_newton_view.is_floating_base:
-                pose[:, 3:7] = math_utils.convert_quat(pose[:, 3:7], to="wxyz")
-            else:
-                pose = pose.squeeze(1)
-                pose[:, 3:7] = math_utils.convert_quat(pose[:, 3:7], to="wxyz")
+            pose[:, 3:7] = math_utils.convert_quat(pose[:, 3:7], to="wxyz")
             # Newton reads velocities as [wx, wy, wz, vx, vy, vz] Isaac reads as [vx, vy, vz, wx, wy, wz]
             velocities = self._root_newton_view.get_root_velocities(NewtonManager.get_state_0())
             if velocities is not None:
