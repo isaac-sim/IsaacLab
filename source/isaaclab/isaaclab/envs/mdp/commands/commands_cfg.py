@@ -81,6 +81,9 @@ class UniformVelocityCommandCfg(CommandTermCfg):
     ranges: Ranges = MISSING
     """Distribution ranges for the velocity commands."""
 
+    debug_vis_z: float = 0.5
+    """Height at which the visualizer gets set (w.r.t. root_pos_w)."""
+
     goal_vel_visualizer_cfg: VisualizationMarkersCfg = GREEN_ARROW_X_MARKER_CFG.replace(
         prim_path="/Visuals/Command/velocity_goal"
     )
