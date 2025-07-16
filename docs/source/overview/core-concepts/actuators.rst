@@ -164,13 +164,27 @@ and marked as deprecated. This preserves same behavior as they did in v1.4.0. Ev
 Users who want to tune the underlying physics-solver limits should set the ``_sim`` flags.
 
 
-USD vs. ActuatorCfg Resolution
--------------------------------
+USD vs. ActuatorCfg discrepancy resolution
+------------------------------------------
 
-USD having default value and ActuatorCfg can be specified with None, or a different value from USD can sometime be
-confusing what exactly gets written into simulation. To help clarify that, we designed a flag
-:attr:`~isaaclab.assets.ArticulationCfg.actuator_value_resolution_debug_print`, to help user figure
-out what exact value gets used in simulation.
+USD having default value and the fact that ActuatorCfg can be specified with None, or a overriding value can sometime be
+confusing what exactly gets written into simulation. The resolution follows these simple rules,per joint and per
+property:
+
+.. table:: Resolution Rules for USD vs. ActuatorCfg
+
+    +------------------------+------------------------+--------------------+
+    | **Condition**          | **ActuatorCfg Value**  | **Applied**        |
+    +========================+========================+====================+
+    | No override provided   | Not Specified          | USD Value          |
+    +------------------------+------------------------+--------------------+
+    | Override provided      | User's ActuatorCfg     | Same as ActuatorCfg|
+    +------------------------+------------------------+--------------------+
+
+
+Digging into USD can sometime be unconvinent, to help clarify what exact value is written, we designed a flag
+:attr:`~isaaclab.assets.ArticulationCfg.actuator_value_resolution_debug_print`,
+to help user figure out what exact value gets used in simulation.
 
 Whenever an actuator parameter is overridden in the user's ActuatorCfg (or left unspecified),
 we compare it to the value read from the USD definition and record any differences.  For each joint and each property,
