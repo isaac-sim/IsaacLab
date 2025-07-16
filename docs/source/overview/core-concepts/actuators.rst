@@ -100,8 +100,8 @@ in cases where policies do not converge on explicit actuators while they do on i
 or setting the ``armature`` parameter to a higher value may help.
 
 
-Actuator velocity/effort limits legacy considerations
------------------------------------------------------
+Actuator velocity/effort limits considerations
+----------------------------------------------
 
 In IsaacLab v1.4.0, the plain ``velocity_limit`` and ``effort_limit`` attributes were **not** consistently
 pushed into the physics solver:
@@ -136,28 +136,102 @@ and marked as deprecated. This preserves same behavior as they did in v1.4.0. Ev
 ``effort_limit`` will be deprecated for implicit actuators, preserving only ``velocity_limit_sim`` and
 ``effort_limit_sim``
 
+
 .. table:: Limit Options Comparison
 
-.. list-table::
-   :header-rows: 1
-   :widths: 20 40 40
+    .. list-table::
+      :header-rows: 1
+      :widths: 20 40 40
 
-   * - **Attribute**
-     - **Implicit Actuator**
-     - **Explicit Actuator**
-   * - ``velocity_limit``
-     - Deprecated (alias for ``velocity_limit_sim``)
-     - Used by the model (e.g. DC motor), not set into simulation
-   * - ``effort_limit``
-     - Deprecated (alias for ``effort_limit_sim``)
-     - Used by the model, not set into simulation
-   * - ``velocity_limit_sim``
-     - Set into simulation
-     - Set into simulation
-   * - ``effort_limit_sim``
-     - Set into simulation
-     - Set into simulation
+      * - **Attribute**
+        - **Implicit Actuator**
+        - **Explicit Actuator**
+      * - ``velocity_limit``
+        - Deprecated (alias for ``velocity_limit_sim``)
+        - Used by the model (e.g. DC motor), not set into simulation
+      * - ``effort_limit``
+        - Deprecated (alias for ``effort_limit_sim``)
+        - Used by the model, not set into simulation
+      * - ``velocity_limit_sim``
+        - Set into simulation
+        - Set into simulation
+      * - ``effort_limit_sim``
+        - Set into simulation
+        - Set into simulation
 
 
 
 Users who want to tune the underlying physics-solver limits should set the ``_sim`` flags.
+
+
+USD vs. ActuatorCfg Resolution
+-------------------------------
+
+USD having default value and ActuatorCfg can be specified with None, or a different value from USD can sometime be
+confusing what exactly gets written into simulation. To help clarify that, we designed a flag
+:attr:`~isaaclab.assets.ArticulationCfg.actuator_value_resolution_debug_print`, to help user figure
+out what exact value gets used in simulation.
+
+Whenever an actuator parameter is overridden in the user's ActuatorCfg (or left unspecified),
+we compare it to the value read from the USD definition and record any differences.  For each joint and each property,
+if unmatching value is found, we log the resolution:
+
+  1. **USD Value**
+     The default limit or gain parsed from the USD asset.
+
+  2. **ActuatorCfg Value**
+     The user-provided override (or “Not Specified” if none was given).
+
+  3. **Applied**
+     The final value actually used for simulation: if the user didn't override it, this matches the USD value;
+     otherwise it reflects the user's setting.
+
+This resolution info is emitted as a warning table only when discrepancies exist.
+Here's an example of what you'll see::
+
+    +----------------+--------------------+---------------------+----+-------------+--------------------+----------+
+    |     Group      |      Property      |         Name        | ID |  USD Value  | ActuatorCfg Value  | Applied  |
+    +----------------+--------------------+---------------------+----+-------------+--------------------+----------+
+    | panda_shoulder | velocity_limit_sim |    panda_joint1     |  0 |    2.17e+00 |   Not Specified    | 2.17e+00 |
+    |                |                    |    panda_joint2     |  1 |    2.17e+00 |   Not Specified    | 2.17e+00 |
+    |                |                    |    panda_joint3     |  2 |    2.17e+00 |   Not Specified    | 2.17e+00 |
+    |                |                    |    panda_joint4     |  3 |    2.17e+00 |   Not Specified    | 2.17e+00 |
+    |                |     stiffness      |    panda_joint1     |  0 |    2.29e+04 |      8.00e+01      | 8.00e+01 |
+    |                |                    |    panda_joint2     |  1 |    2.29e+04 |      8.00e+01      | 8.00e+01 |
+    |                |                    |    panda_joint3     |  2 |    2.29e+04 |      8.00e+01      | 8.00e+01 |
+    |                |                    |    panda_joint4     |  3 |    2.29e+04 |      8.00e+01      | 8.00e+01 |
+    |                |      damping       |    panda_joint1     |  0 |    4.58e+03 |      4.00e+00      | 4.00e+00 |
+    |                |                    |    panda_joint2     |  1 |    4.58e+03 |      4.00e+00      | 4.00e+00 |
+    |                |                    |    panda_joint3     |  2 |    4.58e+03 |      4.00e+00      | 4.00e+00 |
+    |                |                    |    panda_joint4     |  3 |    4.58e+03 |      4.00e+00      | 4.00e+00 |
+    |                |      armature      |    panda_joint1     |  0 |    0.00e+00 |   Not Specified    | 0.00e+00 |
+    |                |                    |    panda_joint2     |  1 |    0.00e+00 |   Not Specified    | 0.00e+00 |
+    |                |                    |    panda_joint3     |  2 |    0.00e+00 |   Not Specified    | 0.00e+00 |
+    |                |                    |    panda_joint4     |  3 |    0.00e+00 |   Not Specified    | 0.00e+00 |
+    | panda_forearm  | velocity_limit_sim |    panda_joint5     |  4 |    2.61e+00 |   Not Specified    | 2.61e+00 |
+    |                |                    |    panda_joint6     |  5 |    2.61e+00 |   Not Specified    | 2.61e+00 |
+    |                |                    |    panda_joint7     |  6 |    2.61e+00 |   Not Specified    | 2.61e+00 |
+    |                |     stiffness      |    panda_joint5     |  4 |    2.29e+04 |      8.00e+01      | 8.00e+01 |
+    |                |                    |    panda_joint6     |  5 |    2.29e+04 |      8.00e+01      | 8.00e+01 |
+    |                |                    |    panda_joint7     |  6 |    2.29e+04 |      8.00e+01      | 8.00e+01 |
+    |                |      damping       |    panda_joint5     |  4 |    4.58e+03 |      4.00e+00      | 4.00e+00 |
+    |                |                    |    panda_joint6     |  5 |    4.58e+03 |      4.00e+00      | 4.00e+00 |
+    |                |                    |    panda_joint7     |  6 |    4.58e+03 |      4.00e+00      | 4.00e+00 |
+    |                |      armature      |    panda_joint5     |  4 |    0.00e+00 |   Not Specified    | 0.00e+00 |
+    |                |                    |    panda_joint6     |  5 |    0.00e+00 |   Not Specified    | 0.00e+00 |
+    |                |                    |    panda_joint7     |  6 |    0.00e+00 |   Not Specified    | 0.00e+00 |
+    |                |      friction      |    panda_joint5     |  4 |    0.00e+00 |   Not Specified    | 0.00e+00 |
+    |                |                    |    panda_joint6     |  5 |    0.00e+00 |   Not Specified    | 0.00e+00 |
+    |                |                    |    panda_joint7     |  6 |    0.00e+00 |   Not Specified    | 0.00e+00 |
+    |  panda_hand    | velocity_limit_sim | panda_finger_joint1 |  7 |    2.00e-01 |   Not Specified    | 2.00e-01 |
+    |                |                    | panda_finger_joint2 |  8 |    2.00e-01 |   Not Specified    | 2.00e-01 |
+    |                |     stiffness      | panda_finger_joint1 |  7 |    1.00e+06 |      2.00e+03      | 2.00e+03 |
+    |                |                    | panda_finger_joint2 |  8 |    1.00e+06 |      2.00e+03      | 2.00e+03 |
+    |                |      armature      | panda_finger_joint1 |  7 |    0.00e+00 |   Not Specified    | 0.00e+00 |
+    |                |                    | panda_finger_joint2 |  8 |    0.00e+00 |   Not Specified    | 0.00e+00 |
+    |                |      friction      | panda_finger_joint1 |  7 |    0.00e+00 |   Not Specified    | 0.00e+00 |
+    |                |                    | panda_finger_joint2 |  8 |    0.00e+00 |   Not Specified    | 0.00e+00 |
+    +----------------+--------------------+---------------------+----+-------------+--------------------+----------+
+
+To keep the cleaniness of logging, :attr:`~isaaclab.assets.ArticulationCfg.actuator_value_resolution_debug_print`
+default to False, remember to turn it on when wishes.
