@@ -63,7 +63,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.1.0" />
-    <meta name="docbuild:last-update" content="Jul 15, 2025"/>
+    <meta name="docbuild:last-update" content="Jul 16, 2025"/>
   </head>
   
   
@@ -765,6 +765,7 @@
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.ContactSensorData.net_forces_w"><code class="docutils literal notranslate"><span class="pre">ContactSensorData.net_forces_w</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.ContactSensorData.net_forces_w_history"><code class="docutils literal notranslate"><span class="pre">ContactSensorData.net_forces_w_history</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.ContactSensorData.force_matrix_w"><code class="docutils literal notranslate"><span class="pre">ContactSensorData.force_matrix_w</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.ContactSensorData.force_matrix_w_history"><code class="docutils literal notranslate"><span class="pre">ContactSensorData.force_matrix_w_history</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.ContactSensorData.last_air_time"><code class="docutils literal notranslate"><span class="pre">ContactSensorData.last_air_time</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.ContactSensorData.current_air_time"><code class="docutils literal notranslate"><span class="pre">ContactSensorData.current_air_time</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.ContactSensorData.last_contact_time"><code class="docutils literal notranslate"><span class="pre">ContactSensorData.last_contact_time</span></code></a></li>
@@ -2813,16 +2814,19 @@ does not support debug visualization.</p>
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sensors.ContactSensorData.force_matrix_w" title="isaaclab.sensors.ContactSensorData.force_matrix_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">force_matrix_w</span></code></a></p></td>
 <td><p>The normal contact forces filtered between the sensor bodies and filtered bodies in world frame.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sensors.ContactSensorData.last_air_time" title="isaaclab.sensors.ContactSensorData.last_air_time"><code class="xref py py-obj docutils literal notranslate"><span class="pre">last_air_time</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sensors.ContactSensorData.force_matrix_w_history" title="isaaclab.sensors.ContactSensorData.force_matrix_w_history"><code class="xref py py-obj docutils literal notranslate"><span class="pre">force_matrix_w_history</span></code></a></p></td>
+<td><p>The normal contact forces filtered between the sensor bodies and filtered bodies in world frame.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sensors.ContactSensorData.last_air_time" title="isaaclab.sensors.ContactSensorData.last_air_time"><code class="xref py py-obj docutils literal notranslate"><span class="pre">last_air_time</span></code></a></p></td>
 <td><p>Time spent (in s) in the air before the last contact.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sensors.ContactSensorData.current_air_time" title="isaaclab.sensors.ContactSensorData.current_air_time"><code class="xref py py-obj docutils literal notranslate"><span class="pre">current_air_time</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sensors.ContactSensorData.current_air_time" title="isaaclab.sensors.ContactSensorData.current_air_time"><code class="xref py py-obj docutils literal notranslate"><span class="pre">current_air_time</span></code></a></p></td>
 <td><p>Time spent (in s) in the air since the last detach.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sensors.ContactSensorData.last_contact_time" title="isaaclab.sensors.ContactSensorData.last_contact_time"><code class="xref py py-obj docutils literal notranslate"><span class="pre">last_contact_time</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sensors.ContactSensorData.last_contact_time" title="isaaclab.sensors.ContactSensorData.last_contact_time"><code class="xref py py-obj docutils literal notranslate"><span class="pre">last_contact_time</span></code></a></p></td>
 <td><p>Time spent (in s) in contact before the last detach.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sensors.ContactSensorData.current_contact_time" title="isaaclab.sensors.ContactSensorData.current_contact_time"><code class="xref py py-obj docutils literal notranslate"><span class="pre">current_contact_time</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sensors.ContactSensorData.current_contact_time" title="isaaclab.sensors.ContactSensorData.current_contact_time"><code class="xref py py-obj docutils literal notranslate"><span class="pre">current_contact_time</span></code></a></p></td>
 <td><p>Time spent (in s) in contact since the last contact.</p></td>
 </tr>
 </tbody>
@@ -2881,7 +2885,20 @@ with the total contact forces acting on the sensor bodies (which also includes t
 <span class="sig-name descname"><span class="pre">force_matrix_w</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#isaaclab.sensors.ContactSensorData.force_matrix_w" title="Permalink to this definition">#</a></dt>
 <dd><p>The normal contact forces filtered between the sensor bodies and filtered bodies in world frame.</p>
 <p>Shape is (N, B, M, 3), where N is the number of sensors, B is number of bodies in each sensor
-and <code class="docutils literal notranslate"><span class="pre">M</span></code> is the number of filtered bodies.</p>
+and M is the number of filtered bodies.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>If the <a class="reference internal" href="#isaaclab.sensors.ContactSensorCfg.filter_prim_paths_expr" title="isaaclab.sensors.ContactSensorCfg.filter_prim_paths_expr"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ContactSensorCfg.filter_prim_paths_expr</span></code></a> is empty, then this quantity is None.</p>
+</div>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab.sensors.ContactSensorData.force_matrix_w_history">
+<span class="sig-name descname"><span class="pre">force_matrix_w_history</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#isaaclab.sensors.ContactSensorData.force_matrix_w_history" title="Permalink to this definition">#</a></dt>
+<dd><p>The normal contact forces filtered between the sensor bodies and filtered bodies in world frame.</p>
+<p>Shape is (N, T, B, M, 3), where N is the number of sensors, T is the configured history length,
+B is number of bodies in each sensor and M is the number of filtered bodies.</p>
+<p>In the history dimension, the first index is the most recent and the last index is the oldest.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>If the <a class="reference internal" href="#isaaclab.sensors.ContactSensorCfg.filter_prim_paths_expr" title="isaaclab.sensors.ContactSensorCfg.filter_prim_paths_expr"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ContactSensorCfg.filter_prim_paths_expr</span></code></a> is empty, then this quantity is None.</p>
@@ -4861,6 +4878,7 @@ which results in a positive acceleration reading in the world Z.</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.ContactSensorData.net_forces_w"><code class="docutils literal notranslate"><span class="pre">ContactSensorData.net_forces_w</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.ContactSensorData.net_forces_w_history"><code class="docutils literal notranslate"><span class="pre">ContactSensorData.net_forces_w_history</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.ContactSensorData.force_matrix_w"><code class="docutils literal notranslate"><span class="pre">ContactSensorData.force_matrix_w</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.ContactSensorData.force_matrix_w_history"><code class="docutils literal notranslate"><span class="pre">ContactSensorData.force_matrix_w_history</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.ContactSensorData.last_air_time"><code class="docutils literal notranslate"><span class="pre">ContactSensorData.last_air_time</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.ContactSensorData.current_air_time"><code class="docutils literal notranslate"><span class="pre">ContactSensorData.current_air_time</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.ContactSensorData.last_contact_time"><code class="docutils literal notranslate"><span class="pre">ContactSensorData.last_contact_time</span></code></a></li>
@@ -5080,7 +5098,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jul 15, 2025.
+  Last updated on Jul 16, 2025.
   <br/>
 </p>
   </div>
