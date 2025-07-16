@@ -92,6 +92,12 @@ import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import get_checkpoint_path
 from isaaclab_tasks.utils.hydra import hydra_task_config
 
+
+# Bernie_Proj Enviornments
+from isaaclab_tasks.manager_based.manipulation.bernie_proj import box, door, tray, pot, cabinet
+from isaaclab_tasks.manager_based.manipulation.bernie_proj.ycb.config import rby1
+from isaaclab_tasks.manager_based.manipulation.bernie_proj.kitchen.config import rby1
+
 # PLACEHOLDER: Extension template (do not remove this comment)
 
 torch.backends.cuda.matmul.allow_tf32 = True
