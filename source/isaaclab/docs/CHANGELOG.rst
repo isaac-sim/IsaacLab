@@ -1,16 +1,6 @@
 Changelog
 ---------
 
-0.40.23 (2025-07-15)
-~~~~~~~~~~~~~~~~~~~~
-
-Fixed
-^^^^^
-
-* Fixed the test :func:`~isaaclab.test.envs.test_modify_env_param_curr_term.py` is checking wrong reset function when
-  that mismatched the reset function it was trying to modify
-
-
 0.40.22 (2025-07-11)
 ~~~~~~~~~~~~~~~~~~~~
 
