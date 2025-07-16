@@ -66,3 +66,6 @@ class ArticulationCfg(AssetBaseCfg):
 
     actuators: dict[str, ActuatorBaseCfg] = MISSING
     """Actuators for the robot with corresponding joint names."""
+    
+    actuator_value_resolution_debug_print = True
+    """Print the resolution of actuator final value when input cfg is different from USD value for debug purpose""" 
