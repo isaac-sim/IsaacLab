@@ -82,6 +82,29 @@ def root_quat_w(
     return math_utils.quat_unique(quat) if make_quat_unique else quat
 
 
+def root_pos_w_object(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("object")) -> torch.Tensor:
+    """Asset root position in the environment frame."""
+    # extract the used quantities (to enable type-hinting)
+    asset: RigidObject = env.scene[asset_cfg.name]
+    return asset.data.root_pos_w - env.scene.env_origins
+
+
+def root_quat_w_object(
+    env: ManagerBasedEnv, make_quat_unique: bool = False, asset_cfg: SceneEntityCfg = SceneEntityCfg("object")
+) -> torch.Tensor:
+    """Asset root orientation (w, x, y, z) in the environment frame.
+
+    If :attr:`make_quat_unique` is True, then returned quaternion is made unique by ensuring
+    the quaternion has non-negative real component. This is because both ``q`` and ``-q`` represent
+    the same orientation.
+    """
+    # extract the used quantities (to enable type-hinting)
+    asset: RigidObject = env.scene[asset_cfg.name]
+
+    quat = asset.data.root_quat_w
+    # make the quaternion real-part positive if configured
+    return math_utils.quat_unique(quat) if make_quat_unique else quat
+
 def root_lin_vel_w(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """Asset root linear velocity in the environment frame."""
     # extract the used quantities (to enable type-hinting)
