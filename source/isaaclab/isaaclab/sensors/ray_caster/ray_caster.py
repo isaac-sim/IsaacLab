@@ -290,7 +290,7 @@ class RayCaster(SensorBase):
             ray_directions_w,
             max_dist=self.cfg.max_distance,
             mesh=self.meshes[self.cfg.mesh_prim_paths[0]],
-            track_ray_distance=self.cfg.track_ray_distance,
+            return_distance=self.cfg.track_ray_distance,
         )
 
         if self.cfg.track_ray_distance:
