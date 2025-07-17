@@ -17,8 +17,8 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
-#from isaaclab.sensors import ContactSensorCfg, RayCasterCfg, patterns
-from isaaclab.sensors import RayCasterCfg, patterns
+from isaaclab.sensors import ContactSensorCfg#, RayCasterCfg, patterns
+#from isaaclab.sensors import RayCasterCfg, patterns
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
@@ -72,7 +72,13 @@ class MySceneCfg(InteractiveSceneCfg):
     #     debug_vis=False,
     #     mesh_prim_paths=["/World/ground"],
     # )
-    #contact_forces = ContactSensorCfg(prim_path="{ENV_REGEX_NS}/Robot/.*", filter_prim_paths_expr=["/World/ground/terrain/GroundPlane/CollisionPlane"], history_length=3, track_air_time=True)
+    contact_forces = ContactSensorCfg(
+        prim_path="{ENV_REGEX_NS}/Robot",
+        body_names_expr=["{ENV_REGEX_NS}/Robot/.*"],
+        contact_partners_shape_expr=["/World/ground/terrain/GroundPlane/CollisionPlane"],
+        history_length=3,
+        track_air_time=True,
+    )
     # lights
     sky_light = AssetBaseCfg(
         prim_path="/World/skyLight",
@@ -235,20 +241,20 @@ class RewardsCfg:
     dof_torques_l2 = RewTerm(func=mdp.joint_torques_l2, weight=-1.0e-5)
     dof_acc_l2 = RewTerm(func=mdp.joint_acc_l2, weight=-2.5e-7)
     action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=-0.01)
-    #feet_air_time = RewTerm(
-    #    func=mdp.feet_air_time,
-    #    weight=0.125,
-    #    params={
-    #        "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*FOOT"),
-    #        "command_name": "base_velocity",
-    #        "threshold": 0.5,
-    #    },
-    #)
-    #undesired_contacts = RewTerm(
-    #    func=mdp.undesired_contacts,
-    #    weight=-1.0,
-    #    params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*THIGH"), "threshold": 1.0},
-    #)
+    feet_air_time = RewTerm(
+        func=mdp.feet_air_time,
+        weight=0.125,
+        params={
+            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*FOOT"),
+            "command_name": "base_velocity",
+            "threshold": 0.5,
+        },
+    )
+    undesired_contacts = RewTerm(
+        func=mdp.undesired_contacts,
+        weight=-1.0,
+        params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*THIGH"), "threshold": 1.0},
+    )
     # -- optional penalties
     flat_orientation_l2 = RewTerm(func=mdp.flat_orientation_l2, weight=0.0)
     dof_pos_limits = RewTerm(func=mdp.joint_pos_limits, weight=0.0)
@@ -259,12 +265,10 @@ class TerminationsCfg:
     """Termination terms for the MDP."""
 
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
-    Base_too_low = DoneTerm(func=mdp.root_height_below_minimum, params={"minimum_height": 0.5})
-    Base_too_high = DoneTerm(func=mdp.root_height_above_maximum, params={"maximum_height": 1.1})
-    #Base_contact = DoneTerm(
-    #    func=mdp.illegal_contact,
-    #    params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names="base"), "threshold": 1.0},
-    #)
+    Base_contact = DoneTerm(
+        func=mdp.illegal_contact,
+        params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names="base"), "threshold": 1.0},
+    )
 
 
 @configclass
