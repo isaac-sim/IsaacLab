@@ -125,10 +125,6 @@ class ContactSensor(SensorBase):
     """
 
     @property
-    def buffers_are_initialized(self) -> bool:
-        return self._buffers_are_initialized
-
-    @property
     def num_instances(self) -> int | None:
         return self._num_bodies
 
@@ -421,21 +417,22 @@ class ContactSensor(SensorBase):
 
     def _debug_vis_callback(self, event):
         # safely return if view becomes invalid
+        return
         # note: this invalidity happens because of isaac sim view callbacks
-        if self.body_physx_view is None:
-            return
+        #if self.body_physx_view is None:
+        #    return
         # marker indices
         # 0: contact, 1: no contact
-        net_contact_force_w = torch.norm(self._data.net_forces_w, dim=-1)
-        marker_indices = torch.where(net_contact_force_w > self.cfg.force_threshold, 0, 1)
+        #net_contact_force_w = torch.norm(self._data.net_forces_w, dim=-1)
+        #marker_indices = torch.where(net_contact_force_w > self.cfg.force_threshold, 0, 1)
         # check if prim is visualized
-        if self.cfg.track_pose:
-            frame_origins: torch.Tensor = self._data.pos_w
-        else:
-            pose = self.body_physx_view.get_transforms()
-            frame_origins = pose.view(-1, self._num_bodies, 7)[:, :, :3]
+        #if self.cfg.track_pose:
+        #    frame_origins: torch.Tensor = self._data.pos_w
+        #else:
+        #    pose = self.body_physx_view.get_transforms()
+        #    frame_origins = pose.view(-1, self._num_bodies, 7)[:, :, :3]
         # visualize
-        self.contact_visualizer.visualize(frame_origins.view(-1, 3), marker_indices=marker_indices.view(-1))
+        #self.contact_visualizer.visualize(frame_origins.view(-1, 3), marker_indices=marker_indices.view(-1))
 
     """
     Internal simulation callbacks.
@@ -446,6 +443,4 @@ class ContactSensor(SensorBase):
         # call parent
         super()._invalidate_initialize_callback(event)
         # set all existing views to None to invalidate them
-        #self._body_physx_view = None
-        #self._contact_physx_view = None
         self._contact_newton_view = None
