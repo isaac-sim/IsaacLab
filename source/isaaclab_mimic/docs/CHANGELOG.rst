@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+1.0.11 (2025-07-17)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated test_selection_strategy.py and test_generate_dataset.py test cases to pytest format.
+* Updated annotate_demos.py script to return the number of successful task completions as the exit code to support check in test_generate_dataset.py test case.
+
+
 1.0.10 (2025-07-08)
 ~~~~~~~~~~~~~~~~~~
 

@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.42.25 (2025-07-17)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated test_pink_ik.py test case to pytest format.
+
+
 0.42.24 (2025-06-25)
 ~~~~~~~~~~~~~~~~~~~~
 
