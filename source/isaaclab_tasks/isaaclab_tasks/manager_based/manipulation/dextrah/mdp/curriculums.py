@@ -35,6 +35,8 @@ def initial_final_interpolate_fn(env: ManagerBasedRLEnv, env_id, data, iv, fv, d
     # get the fraction scalar on the device
     difficulty_term: DifficultyScheduler = env.curriculum_manager.get_term_cfg(difficulty_term_str).func
     frac = difficulty_term.difficulty_frac
+    if frac < 1.0:
+        return mdp.modify_env_param.NO_CHANGE
 
     # convert iv/fv to tensors, but we'll peel them apart in recursion
     iv_t = torch.tensor(iv, device=env.device)

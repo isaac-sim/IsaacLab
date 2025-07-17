@@ -38,7 +38,7 @@ params:
   load_path: '' # path to the checkpoint to load
 
   config:
-    name: dexsuite
+    name: reorient
     env_name: rlgpu
     device: 'cuda:0'
     device_name: 'cuda:0'

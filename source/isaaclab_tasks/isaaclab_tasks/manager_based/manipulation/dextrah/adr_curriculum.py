@@ -129,20 +129,6 @@ class CurriculumCfg:
             "modify_params": {"iv": (1., 1.), "fv": (0.2, 2.0), "difficulty_term_str": "adr"}
         }
     )
-    
-    robot_physics_material_adr = CurrTerm(
-        func=mdp.modify_env_param,
-        params={
-            "address": "event_manager.cfg.object_physics_material.func.material_buckets",
-            "modify_fn": mdp.resample_bucket_range,
-            "modify_params": {
-                "static_fric_range": ((1., 1.), (.6, 1.)), # [0]: initial range, [1]: final range
-                "dynamic_fric_range": ((1., 1.), (.4, 1.)),
-                "restitution_range": ((0., 0.), (0., .1)),
-                "difficulty_term_str": "adr"
-            }
-        }
-    )
 
     joint_friction_scale_adr = CurrTerm(
         func=mdp.modify_term_cfg,
@@ -153,20 +139,6 @@ class CurriculumCfg:
         }
     )
     
-    object_physics_material_adr = CurrTerm(
-        func=mdp.modify_env_param,
-        params={
-            "address": "event_manager.cfg.object_physics_material.func.material_buckets",
-            "modify_fn": mdp.resample_bucket_range,
-            "modify_params": {
-                "static_fric_range": ((1., 1.), (.6, 1.)), # [0]: initial range, [1]: final range
-                "dynamic_fric_range": ((1., 1.), (.4, 1.)),
-                "restitution_range": ((0., 0.), (0., .1)),
-                "difficulty_term_str": "adr"
-            }
-        }
-    )
-
     gravity_adr = CurrTerm(
         func=mdp.modify_term_cfg,
         params={

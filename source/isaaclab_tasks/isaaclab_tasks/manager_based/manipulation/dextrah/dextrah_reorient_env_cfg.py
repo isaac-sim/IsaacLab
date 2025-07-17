@@ -113,7 +113,7 @@ class ObservationsCfg:
         object_pose_b = ObsTerm(func=mdp.object_pose_b, noise=Unoise(n_min=-0., n_max=0.))
         target_object_pose_b = ObsTerm(func=mdp.generated_commands, params={"command_name": "object_pose"})
         actions = ObsTerm(func=mdp.last_action)
-        object_observation_b = ObsTerm(func=mdp.object_point_cloud_b, noise=Unoise(n_min=-0., n_max=0.), params={"num_points": 128})
+        object_observation_b = ObsTerm(func=mdp.object_point_cloud_b, noise=Unoise(n_min=-0., n_max=0.), params={"num_points": 64})
         contact: ObsTerm = MISSING
 
         def __post_init__(self):
@@ -135,23 +135,34 @@ class ObservationsCfg:
 @configclass
 class EventCfg:
     """Configuration for randomization."""
-
+    # -- pre-startup
     randomize_object_scale = EventTerm(
         func=mdp.randomize_rigid_body_scale,
         mode="prestartup",
-        params={"scale_range": (0.5, 2.5), "asset_cfg": SceneEntityCfg("object")},
+        params={"scale_range": (0.5, 2.0), "asset_cfg": SceneEntityCfg("object")},
     )
-    
-    # -- robot
+
     robot_physics_material = EventTerm(
         func=mdp.randomize_rigid_body_material,
-        mode="reset",
+        mode="prestartup",
         params={
             "asset_cfg": SceneEntityCfg("robot", body_names=".*"),
-            "static_friction_range": [1., 1.],
-            "dynamic_friction_range": [1., 1.],
+            "static_friction_range": [0.6, 1.],
+            "dynamic_friction_range": [0.5, 1.],
             "restitution_range": [0.0, 0.0],
             "num_buckets": 250
+        },
+    )
+    
+    object_physics_material = EventTerm(
+        func=mdp.randomize_rigid_body_material,
+        mode="prestartup",
+        params={
+            "asset_cfg": SceneEntityCfg("object", body_names=".*"),
+            "static_friction_range": [0.6, 1.],
+            "dynamic_friction_range": [0.5, 1.],
+            "restitution_range": [0.0, 0.0],
+            "num_buckets": 250,
         },
     )
 
@@ -177,18 +188,6 @@ class EventCfg:
     )
 
     # -- object
-    object_physics_material = EventTerm(
-        func=mdp.randomize_rigid_body_material,
-        mode="reset",
-        params={
-            "asset_cfg": SceneEntityCfg("object", body_names=".*"),
-            "static_friction_range": [1., 1.],
-            "dynamic_friction_range": [1., 1.],
-            "restitution_range": [0.0, 0.0],
-            "num_buckets": 250,
-        },
-    )
-
     object_scale_mass = EventTerm(
         func=mdp.randomize_rigid_body_mass,
         mode="reset",
@@ -282,7 +281,7 @@ class RewardsCfg:
 
     orientation_tracking = RewTerm(
         func=mdp.orientation_command_error_tanh,
-        weight=2.5,
+        weight=4.0,
         params={
             "asset_cfg": SceneEntityCfg("robot"),
             "std": 1.5,

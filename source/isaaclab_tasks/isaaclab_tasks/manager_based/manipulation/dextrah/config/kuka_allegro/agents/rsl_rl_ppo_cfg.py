@@ -12,7 +12,7 @@ from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlPpoActorCriticCfg, R
 class DextrahKukaAllegroPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     num_steps_per_env = 64
     max_iterations = 15000
-    save_interval = 100
+    save_interval = 250
     experiment_name = "dexrah_kuka_allegro_direct"
     empirical_normalization = True
     policy = RslRlPpoActorCriticCfg(
