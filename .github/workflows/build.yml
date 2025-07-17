@@ -195,7 +195,7 @@ jobs:
       uses: actions/download-artifact@v4
       with:
         name: isaaclab-tasks-test-results
-        path: /tmp/reports/
+        path: reports/
       continue-on-error: true
 
     - name: Download General Test Results
