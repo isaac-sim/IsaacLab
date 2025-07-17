@@ -299,7 +299,7 @@ class NewtonManager:
             contact_partners_body_expr: str | None = None,
             contact_partners_shape_expr: str | None = None,
             include_total: bool = True,
-            verbose: bool = True) -> ContactView:
+            verbose: bool = False) -> ContactView:
         """Adds a contact view.
 
         Adds a contact view to the simulation allowing to report contacts between the specified bodies/shapes and the
