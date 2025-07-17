@@ -669,10 +669,26 @@ class InteractiveScene:
                         updated_target_frames.append(target_frame)
                     asset_cfg.target_frames = updated_target_frames
                 elif isinstance(asset_cfg, ContactSensorCfg):
-                    updated_filter_prim_paths_expr = []
-                    for filter_prim_path in asset_cfg.filter_prim_paths_expr:
-                        updated_filter_prim_paths_expr.append(filter_prim_path.format(ENV_REGEX_NS=self.env_regex_ns))
-                    asset_cfg.filter_prim_paths_expr = updated_filter_prim_paths_expr
+                    if asset_cfg.body_names_expr is not None:
+                        updated_body_names_expr = []
+                        for body_name_expr in asset_cfg.body_names_expr:
+                            updated_body_names_expr.append(body_name_expr.format(ENV_REGEX_NS=self.env_regex_ns))
+                        asset_cfg.body_names_expr = updated_body_names_expr
+                    if asset_cfg.shape_names_expr is not None:
+                        updated_shape_names_expr = []
+                        for filter_prim_path in asset_cfg.shape_names_expr:
+                            updated_shape_names_expr.append(filter_prim_path.format(ENV_REGEX_NS=self.env_regex_ns))
+                        asset_cfg.shape_names_expr = updated_shape_names_expr
+                    if asset_cfg.contact_partners_body_expr is not None:
+                        updated_contact_partners_body_expr = []
+                        for contact_partners_body_expr in asset_cfg.contact_partners_body_expr:
+                            updated_contact_partners_body_expr.append(contact_partners_body_expr.format(ENV_REGEX_NS=self.env_regex_ns))
+                        asset_cfg.contact_partners_body_expr = updated_contact_partners_body_expr
+                    if asset_cfg.contact_partners_shape_expr is not None:
+                        updated_contact_partners_shape_expr = []
+                        for contact_partners_shape_expr in asset_cfg.contact_partners_shape_expr:
+                            updated_contact_partners_shape_expr.append(contact_partners_shape_expr.format(ENV_REGEX_NS=self.env_regex_ns))
+                        asset_cfg.contact_partners_shape_expr = updated_contact_partners_shape_expr
 
                 self._sensors[asset_name] = asset_cfg.class_type(asset_cfg)
             elif isinstance(asset_cfg, AssetBaseCfg):
