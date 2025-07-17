@@ -87,10 +87,14 @@ def main():
             actions = 2 * torch.rand(env.action_space.shape, device=env.unwrapped.device) - 1
             # apply actions
             obs,_,_,_,_ = env.step(actions)
-            save_images_to_file(obs["policy"]["image"],f"frames/hand/rgb_out{frame_idx:04d}.png")
-            save_images_to_file(obs["policy"]["image1"],f"frames/front/rgb_out{frame_idx:04d}.png")
-            save_images_to_file(obs["policy"]["image2"],f"frames/side/rgb_out{frame_idx:04d}.png")
-            save_images_to_file(obs["policy"]["image3"],f"frames/bird/rgb_out{frame_idx:04d}.png")
+            
+            save_images_to_file(obs["image"]["image"],f"frames/hand/rgb_out{frame_idx:04d}.png")
+            save_images_to_file(obs["image"]["image1"],f"frames/front/rgb_out{frame_idx:04d}.png")
+            save_images_to_file(obs["image"]["image2"],f"frames/side/rgb_out{frame_idx:04d}.png")
+            save_images_to_file(obs["image"]["image3"],f"frames/bird/rgb_out{frame_idx:04d}.png")
+
+            # Call computer vision to process the images
+            # Save processed images to another folder
             '''
             ffmpeg -framerate 30 -i frames/hand/rgb_out%04d.png -vf scale=640:480 -c:v libx264 -pix_fmt yuv420p hand_video.mp4
             ffmpeg -framerate 30 -i frames/front/rgb_out%04d.png -vf scale=640:480 -c:v libx264 -pix_fmt yuv420p front_video.mp4

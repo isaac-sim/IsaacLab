@@ -112,7 +112,21 @@ class ObservationsCfg:
 
         def __post_init__(self):
             self.enable_corruption = True
+            self.concatenate_terms = True
+    
+    @configclass
+    class ImageCfg(ObsGroup):
+        """Observations for image group."""
+        image = ObsTerm(func=mdp.image, params={"sensor_cfg": SceneEntityCfg("camera"), "data_type": "rgb"})
+        image1 = ObsTerm(func=mdp.image, params={"sensor_cfg": SceneEntityCfg("camera"), "data_type": "rgb"})
+        image2 = ObsTerm(func=mdp.image, params={"sensor_cfg": SceneEntityCfg("camera"), "data_type": "rgb"})
+        image3 = ObsTerm(func=mdp.image, params={"sensor_cfg": SceneEntityCfg("camera"), "data_type": "rgb"})
+        
+        def __post_init__(self):
+            self.enable_corruption = True
             self.concatenate_terms = False
+
+
 
     # observation groups
     policy: PolicyCfg = PolicyCfg()
