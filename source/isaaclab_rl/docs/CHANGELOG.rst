@@ -1,6 +1,42 @@
 Changelog
 ---------
 
+0.1.8 (2025-06-29)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Support SB3 VecEnv wrapper to configure with composite observation spaces properly so that the cnn creation pipelines
+  natively supported by sb3 can be automatically triggered
+
+
+0.1.7 (2025-06-30)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Call :meth:`eval` during :meth:`forward`` RSL-RL OnnxPolicyExporter
+
+
+0.1.6 (2025-06-26)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Relaxed upper range pin for protobuf python dependency for more permissive installation.
+
+
+0.1.5 (2025-04-11)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+* Optimized Stable-Baselines3 wrapper ``Sb3VecEnvWrapper`` (now 4x faster) by using Numpy buffers and only logging episode and truncation information by default.
+* Upgraded minimum SB3 version to 2.6.0 and added optional dependencies for progress bar
+
 0.1.4 (2025-04-10)
 ~~~~~~~~~~~~~~~~~~
 

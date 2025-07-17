@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -229,6 +229,7 @@ html_static_path = ["source/_static/css"]
 html_css_files = ["custom.css"]
 
 html_theme_options = {
+    "path_to_docs": "docs/",
     "collapse_navigation": True,
     "repository_url": "https://github.com/isaac-sim/IsaacLab",
     "use_repository_button": True,

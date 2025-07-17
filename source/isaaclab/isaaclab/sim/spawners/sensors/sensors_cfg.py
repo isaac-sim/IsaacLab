@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -8,6 +8,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Literal
 
+import isaaclab.utils.sensors as sensor_utils
 from isaaclab.sim.spawners.spawner_cfg import SpawnerCfg
 from isaaclab.utils import configclass
 
@@ -102,7 +103,7 @@ class PinholeCameraCfg(SpawnerCfg):
         width: int,
         height: int,
         clipping_range: tuple[float, float] = (0.01, 1e6),
-        focal_length: float = 24.0,
+        focal_length: float | None = None,
         focus_distance: float = 400.0,
         f_stop: float = 0.0,
         projection_type: str = "pinhole",
@@ -129,7 +130,8 @@ class PinholeCameraCfg(SpawnerCfg):
             width: Width of the image (in pixels).
             height: Height of the image (in pixels).
             clipping_range: Near and far clipping distances (in m). Defaults to (0.01, 1e6).
-            focal_length: Perspective focal length (in cm). Defaults to 24.0 cm.
+            focal_length: Perspective focal length (in cm) used to calculate pixel size. Defaults to None. If None
+                focal_length will be calculated 1 / width.
             focus_distance: Distance from the camera to the focus plane (in m). Defaults to 400.0 m.
             f_stop: Lens aperture. Defaults to 0.0, which turns off focusing.
             projection_type: Type of projection to use for the camera. Defaults to "pinhole".
@@ -142,27 +144,20 @@ class PinholeCameraCfg(SpawnerCfg):
         if projection_type != "pinhole":
             raise NotImplementedError("Only pinhole projection type is supported.")
 
-        # extract parameters from matrix
-        f_x = intrinsic_matrix[0]
-        c_x = intrinsic_matrix[2]
-        f_y = intrinsic_matrix[4]
-        c_y = intrinsic_matrix[5]
-        # resolve parameters for usd camera
-        horizontal_aperture = width * focal_length / f_x
-        vertical_aperture = height * focal_length / f_y
-        horizontal_aperture_offset = (c_x - width / 2) / f_x
-        vertical_aperture_offset = (c_y - height / 2) / f_y
+        usd_camera_params = sensor_utils.convert_camera_intrinsics_to_usd(
+            intrinsic_matrix=intrinsic_matrix, height=height, width=width, focal_length=focal_length
+        )
 
         return cls(
             projection_type=projection_type,
             clipping_range=clipping_range,
-            focal_length=focal_length,
+            focal_length=usd_camera_params["focal_length"],
             focus_distance=focus_distance,
             f_stop=f_stop,
-            horizontal_aperture=horizontal_aperture,
-            vertical_aperture=vertical_aperture,
-            horizontal_aperture_offset=horizontal_aperture_offset,
-            vertical_aperture_offset=vertical_aperture_offset,
+            horizontal_aperture=usd_camera_params["horizontal_aperture"],
+            vertical_aperture=usd_camera_params["vertical_aperture"],
+            horizontal_aperture_offset=usd_camera_params["horizontal_aperture_offset"],
+            vertical_aperture_offset=usd_camera_params["vertical_aperture_offset"],
             lock_camera=lock_camera,
         )
 

@@ -112,6 +112,19 @@ This guide explains how to record an animation and video in Isaac Lab.
     record_animation
     record_video
 
+
+Dynamically Modifying Environment Parameters With CurriculumTerm
+----------------------------------------------------------------
+
+This guide explains how to dynamically modify environment parameters during training in Isaac Lab.
+It covers the use of curriculum utilities to change environment parameters at runtime.
+
+.. toctree::
+    :maxdepth: 1
+
+    curriculums
+
+
 Mastering Omniverse
 -------------------
 
@@ -134,3 +147,16 @@ teleoperation in Isaac Lab.
     :maxdepth: 1
 
     cloudxr_teleoperation
+
+
+Understanding Simulation Performance
+------------------------------------
+
+This guide provides tips on optimizing simulation performance for different simulation use cases.
+Additional resources are also linked to provide relevant performance guides for Isaac Sim and
+Omniverse Physics.
+
+.. toctree::
+    :maxdepth: 1
+
+    simulation_performance

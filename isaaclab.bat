@@ -241,7 +241,7 @@ echo     -i, --install [LIB]  Install the extensions inside Isaac Lab and learni
 echo     -f, --format         Run pre-commit to format the code and check lints.
 echo     -p, --python         Run the python executable (python.bat) provided by Isaac Sim.
 echo     -s, --sim            Run the simulator executable (isaac-sim.bat) provided by Isaac Sim.
-echo     -t, --test           Run all python unittest tests.
+echo     -t, --test           Run all python pytest tests.
 echo     -v, --vscode         Generate the VSCode settings file from template.
 echo     -d, --docs           Build the documentation from source using sphinx.
 echo     -n, --new            Create a new external project or internal task from template.
@@ -511,7 +511,7 @@ if "%arg%"=="-i" (
             set "skip=1"
         )
     )
-    !python_exe! tools\run_all_tests.py !allArgs!
+    !python_exe! -m pytest tools !allArgs!
     goto :end
 ) else if "%arg%"=="--test" (
     rem run the python provided by Isaac Sim
@@ -525,7 +525,7 @@ if "%arg%"=="-i" (
             set "skip=1"
         )
     )
-    !python_exe! tools\run_all_tests.py !allArgs!
+    !python_exe! -m pytest tools !allArgs!
     goto :end
 ) else if "%arg%"=="-v" (
     rem update the vscode settings

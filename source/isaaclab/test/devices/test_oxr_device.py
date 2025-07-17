@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # Copyright (c) 2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
@@ -8,7 +13,7 @@
 
 from __future__ import annotations
 
-from isaaclab.app import AppLauncher, run_tests
+from isaaclab.app import AppLauncher
 
 # Can set this to False to see the GUI for debugging.
 HEADLESS = True
@@ -138,7 +143,3 @@ class TestOpenXRDevice(unittest.TestCase):
         device_1.reset()
         device_2.reset()
         env.close()
-
-
-if __name__ == "__main__":
-    run_tests()

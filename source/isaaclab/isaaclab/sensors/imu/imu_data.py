@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -23,6 +23,12 @@ class ImuData:
     """Orientation of the sensor origin in quaternion ``(w, x, y, z)`` in world frame.
 
     Shape is (N, 4), where ``N`` is the number of environments.
+    """
+
+    projected_gravity_b: torch.Tensor = None
+    """Gravity direction unit vector projected on the imu frame.
+
+    Shape is (N,3), where ``N`` is the number of environments.
     """
 
     lin_vel_b: torch.Tensor = None
