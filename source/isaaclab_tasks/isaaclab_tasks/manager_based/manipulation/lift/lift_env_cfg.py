@@ -100,10 +100,6 @@ class ObservationsCfg:
     @configclass
     class PolicyCfg(ObsGroup):
         """Observations for policy group."""
-        image = ObsTerm(func=mdp.image, params={"sensor_cfg": SceneEntityCfg("camera"), "data_type": "rgb"})
-        image1 = ObsTerm(func=mdp.image, params={"sensor_cfg": SceneEntityCfg("camera_ext1"), "data_type": "rgb"})
-        image2 = ObsTerm(func=mdp.image, params={"sensor_cfg": SceneEntityCfg("camera_ext2"), "data_type": "rgb"})
-        image3 = ObsTerm(func=mdp.image, params={"sensor_cfg": SceneEntityCfg("camera_bird"), "data_type": "rgb"})
         joint_pos = ObsTerm(func=mdp.joint_pos_rel)
         joint_vel = ObsTerm(func=mdp.joint_vel_rel)
         object_position = ObsTerm(func=mdp.object_position_in_robot_root_frame)
@@ -118,9 +114,9 @@ class ObservationsCfg:
     class ImageCfg(ObsGroup):
         """Observations for image group."""
         image = ObsTerm(func=mdp.image, params={"sensor_cfg": SceneEntityCfg("camera"), "data_type": "rgb"})
-        image1 = ObsTerm(func=mdp.image, params={"sensor_cfg": SceneEntityCfg("camera"), "data_type": "rgb"})
-        image2 = ObsTerm(func=mdp.image, params={"sensor_cfg": SceneEntityCfg("camera"), "data_type": "rgb"})
-        image3 = ObsTerm(func=mdp.image, params={"sensor_cfg": SceneEntityCfg("camera"), "data_type": "rgb"})
+        image1 = ObsTerm(func=mdp.image, params={"sensor_cfg": SceneEntityCfg("camera_ext1"), "data_type": "rgb"})
+        image2 = ObsTerm(func=mdp.image, params={"sensor_cfg": SceneEntityCfg("camera_ext2"), "data_type": "rgb"})
+        image3 = ObsTerm(func=mdp.image, params={"sensor_cfg": SceneEntityCfg("camera_bird"), "data_type": "rgb"})
         
         def __post_init__(self):
             self.enable_corruption = True
