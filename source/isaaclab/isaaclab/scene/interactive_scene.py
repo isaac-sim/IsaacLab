@@ -442,7 +442,7 @@ class InteractiveScene:
         """
         # resolve env_ids
         if env_ids is None:
-            env_ids = slice(None)
+            env_ids = torch.arange(self.num_envs, device=self.device)
         # articulations
         for asset_name, articulation in self._articulations.items():
             asset_state = state["articulation"][asset_name]
