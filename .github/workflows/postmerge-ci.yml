@@ -45,7 +45,15 @@ jobs:
 
     - name: Login to NGC
       run: |
-        docker login -u \$oauthtoken -p ${{ env.NGC_API_KEY }} nvcr.io
+        # Only attempt NGC login if API key is available
+        if [ -n "${{ env.NGC_API_KEY }}" ]; then
+          echo "Logging into NGC registry..."
+          docker login -u \$oauthtoken -p ${{ env.NGC_API_KEY }} nvcr.io
+          echo "✅ Successfully logged into NGC registry"
+        else
+          echo "⚠️ NGC_API_KEY not available - skipping NGC login"
+          echo "This is normal when secrets are not configured"
+        fi
 
     - name: Build and Push Docker Images
       run: |
