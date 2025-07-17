@@ -5,6 +5,7 @@
 
 import numpy as np
 import torch
+from collections import defaultdict
 
 import carb
 import isaacsim.core.utils.torch as torch_utils
@@ -82,6 +83,8 @@ class FactoryEnv(DirectRLEnv):
         self.ctrl_target_joint_pos = torch.zeros((self.num_envs, self._robot.num_joints), device=self.device)
         self.ctrl_target_fingertip_midpoint_pos = torch.zeros((self.num_envs, 3), device=self.device)
         self.ctrl_target_fingertip_midpoint_quat = torch.zeros((self.num_envs, 4), device=self.device)
+        self.ema_factor = self.cfg.ctrl.ema_factor
+        self.dead_zone_thresholds = None
 
         # Fixed asset.
         self.fixed_pos_action_frame = torch.zeros((self.num_envs, 3), device=self.device)
@@ -251,8 +254,8 @@ class FactoryEnv(DirectRLEnv):
         self.keypoint_dist = torch.norm(self.keypoints_held - self.keypoints_fixed, p=2, dim=-1).mean(-1)
         self.last_update_timestamp = self._robot._data._sim_timestamp
 
-    def _get_observations(self):
-        """Get actor/critic inputs using asymmetric critic."""
+    def _get_obs_state_dict(self):
+        """Populate dictionaries for the policy and critic."""
         noisy_fixed_pos = self.fixed_pos_obs_frame + self.init_fixed_pos_obs_noise
 
         prev_actions = self.actions.clone()
@@ -283,6 +286,12 @@ class FactoryEnv(DirectRLEnv):
             "rot_threshold": self.rot_threshold,
             "prev_actions": prev_actions,
         }
+        return obs_dict, state_dict
+
+    def _get_observations(self):
+        """Get actor/critic inputs using asymmetric critic."""
+        obs_dict, state_dict = self._get_obs_state_dict()
+
         obs_tensors = [obs_dict[obs_name] for obs_name in self.cfg.obs_order + ["prev_actions"]]
         obs_tensors = torch.cat(obs_tensors, dim=-1)
         state_tensors = [state_dict[state_name] for state_name in self.cfg.state_order + ["prev_actions"]]
@@ -292,6 +301,7 @@ class FactoryEnv(DirectRLEnv):
     def _reset_buffers(self, env_ids):
         """Reset buffers."""
         self.ep_succeeded[env_ids] = 0
+        self.ep_success_times[env_ids] = 0
 
     def _pre_physics_step(self, action):
         """Apply policy actions with smoothing."""
@@ -299,9 +309,7 @@ class FactoryEnv(DirectRLEnv):
         if len(env_ids) > 0:
             self._reset_buffers(env_ids)
 
-        self.actions = (
-            self.cfg.ctrl.ema_factor * action.clone().to(self.device) + (1 - self.cfg.ctrl.ema_factor) * self.actions
-        )
+        self.actions = self.ema_factor * action.clone().to(self.device) + (1 - self.ema_factor) * self.actions
 
     def close_gripper_in_place(self):
         """Keep gripper in current position as gripper closes."""
@@ -401,11 +409,11 @@ class FactoryEnv(DirectRLEnv):
         self.joint_torque, self.applied_wrench = fc.compute_dof_torque(
             cfg=self.cfg,
             dof_pos=self.joint_pos,
-            dof_vel=self.joint_vel,  # _fd,
+            dof_vel=self.joint_vel,
             fingertip_midpoint_pos=self.fingertip_midpoint_pos,
             fingertip_midpoint_quat=self.fingertip_midpoint_quat,
-            fingertip_midpoint_linvel=self.ee_linvel_fd,
-            fingertip_midpoint_angvel=self.ee_angvel_fd,
+            fingertip_midpoint_linvel=self.fingertip_midpoint_linvel,
+            fingertip_midpoint_angvel=self.fingertip_midpoint_angvel,
             jacobian=self.fingertip_midpoint_jacobian,
             arm_mass_matrix=self.arm_mass_matrix,
             ctrl_target_fingertip_midpoint_pos=self.ctrl_target_fingertip_midpoint_pos,
@@ -413,6 +421,7 @@ class FactoryEnv(DirectRLEnv):
             task_prop_gains=self.task_prop_gains,
             task_deriv_gains=self.task_deriv_gains,
             device=self.device,
+            dead_zone_thresholds=self.dead_zone_thresholds,
         )
 
         # set target for gripper joints to use physx's PD controller
@@ -463,8 +472,6 @@ class FactoryEnv(DirectRLEnv):
             success_threshold=self.cfg_task.success_threshold, check_rot=check_rot
         )
 
-        rew_buf = self._update_rew_buf(curr_successes)
-
         # Only log episode success rates at the end of an episode.
         if torch.any(self.reset_buf):
             self.extras["successes"] = torch.count_nonzero(curr_successes) / self.num_envs
@@ -481,12 +488,20 @@ class FactoryEnv(DirectRLEnv):
             success_times = self.ep_success_times[nonzero_success_ids].sum() / len(nonzero_success_ids)
             self.extras["success_times"] = success_times
 
+        rew_dict, rew_scales = self._get_rew_dict(curr_successes)
+
+        rew_buf = torch.zeros_like(rew_dict["kp_coarse"])
+        for rew_name, rew in rew_dict.items():
+            rew_buf += rew_dict[rew_name] * rew_scales[rew_name]
+            self.extras[f"logs_rew_{rew_name}"] = rew.mean()
+
         self.prev_actions = self.actions.clone()
         return rew_buf
 
-    def _update_rew_buf(self, curr_successes):
-        """Compute reward at current timestep."""
+    def _get_rew_dict(self, curr_successes):
+        """Compute reward terms at current timestep."""
         rew_dict = {}
+        rew_scales = defaultdict(lambda: 1.0)
 
         # Keypoint rewards.
         def squashing_fn(x, a, b):
@@ -494,35 +509,22 @@ class FactoryEnv(DirectRLEnv):
 
         a0, b0 = self.cfg_task.keypoint_coef_baseline
         rew_dict["kp_baseline"] = squashing_fn(self.keypoint_dist, a0, b0)
-        # a1, b1 = 25, 2
         a1, b1 = self.cfg_task.keypoint_coef_coarse
         rew_dict["kp_coarse"] = squashing_fn(self.keypoint_dist, a1, b1)
         a2, b2 = self.cfg_task.keypoint_coef_fine
-        # a2, b2 = 300, 0
         rew_dict["kp_fine"] = squashing_fn(self.keypoint_dist, a2, b2)
 
         # Action penalties.
         rew_dict["action_penalty"] = torch.norm(self.actions, p=2)
+        rew_scales["action_penalty"] = -self.cfg_task.action_penalty_scale
         rew_dict["action_grad_penalty"] = torch.norm(self.actions - self.prev_actions, p=2, dim=-1)
+        rew_scales["action_grad_penalty"] = -self.cfg_task.action_grad_penalty_scale
         rew_dict["curr_engaged"] = (
             self._get_curr_successes(success_threshold=self.cfg_task.engage_threshold, check_rot=False).clone().float()
         )
         rew_dict["curr_successes"] = curr_successes.clone().float()
 
-        rew_buf = (
-            rew_dict["kp_coarse"]
-            + rew_dict["kp_baseline"]
-            + rew_dict["kp_fine"]
-            - rew_dict["action_penalty"] * self.cfg_task.action_penalty_scale
-            - rew_dict["action_grad_penalty"] * self.cfg_task.action_grad_penalty_scale
-            + rew_dict["curr_engaged"]
-            + rew_dict["curr_successes"]
-        )
-
-        for rew_name, rew in rew_dict.items():
-            self.extras[f"logs_rew_{rew_name}"] = rew.mean()
-
-        return rew_buf
+        return rew_dict, rew_scales
 
     def _reset_idx(self, env_ids):
         """
@@ -849,32 +851,8 @@ class FactoryEnv(DirectRLEnv):
         # Set initial actions to involve no-movement. Needed for EMA/correct penalties.
         self.actions = torch.zeros_like(self.actions)
         self.prev_actions = torch.zeros_like(self.actions)
-        # Back out what actions should be for initial state.
-        # Relative position to bolt tip.
+
         self.fixed_pos_action_frame[:] = self.fixed_pos_obs_frame + self.init_fixed_pos_obs_noise
-
-        pos_actions = self.fingertip_midpoint_pos - self.fixed_pos_action_frame
-        pos_action_bounds = torch.tensor(self.cfg.ctrl.pos_action_bounds, device=self.device)
-        pos_actions = pos_actions @ torch.diag(1.0 / pos_action_bounds)
-        self.actions[:, 0:3] = self.prev_actions[:, 0:3] = pos_actions
-
-        # Relative yaw to bolt.
-        unrot_180_euler = torch.tensor([-np.pi, 0.0, 0.0], device=self.device).repeat(self.num_envs, 1)
-        unrot_quat = torch_utils.quat_from_euler_xyz(
-            roll=unrot_180_euler[:, 0], pitch=unrot_180_euler[:, 1], yaw=unrot_180_euler[:, 2]
-        )
-
-        fingertip_quat_rel_bolt = torch_utils.quat_mul(unrot_quat, self.fingertip_midpoint_quat)
-        fingertip_yaw_bolt = torch_utils.get_euler_xyz(fingertip_quat_rel_bolt)[-1]
-        fingertip_yaw_bolt = torch.where(
-            fingertip_yaw_bolt > torch.pi / 2, fingertip_yaw_bolt - 2 * torch.pi, fingertip_yaw_bolt
-        )
-        fingertip_yaw_bolt = torch.where(
-            fingertip_yaw_bolt < -torch.pi, fingertip_yaw_bolt + 2 * torch.pi, fingertip_yaw_bolt
-        )
-
-        yaw_action = (fingertip_yaw_bolt + np.deg2rad(180.0)) / np.deg2rad(270.0) * 2.0 - 1.0
-        self.actions[:, 5] = self.prev_actions[:, 5] = yaw_action
 
         # Zero initial velocity.
         self.ee_angvel_fd[:, :] = 0.0
@@ -882,5 +860,4 @@ class FactoryEnv(DirectRLEnv):
 
         # Set initial gains for the episode.
         self._set_gains(self.default_gains)
-
         physics_sim_view.set_gravity(carb.Float3(*self.cfg.sim.gravity))
