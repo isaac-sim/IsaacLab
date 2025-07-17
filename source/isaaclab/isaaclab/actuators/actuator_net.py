@@ -45,6 +45,8 @@ class ActuatorNetLSTM(DCMotor):
     def __init__(self, cfg: ActuatorNetLSTMCfg, *args, **kwargs):
         super().__init__(cfg, *args, **kwargs)
 
+        assert self.cfg.control_mode == "position", "ActuatorNetLSTM only supports position control"
+
         # load the model from JIT file
         file_bytes = read_file(self.cfg.network_file)
         self.network = torch.jit.load(file_bytes, map_location=self._device).eval()
@@ -77,7 +79,7 @@ class ActuatorNetLSTM(DCMotor):
         self, control_action: ArticulationActions, joint_pos: torch.Tensor, joint_vel: torch.Tensor
     ) -> ArticulationActions:
         # compute network inputs
-        self.sea_input[:, 0, 0] = (control_action.joint_positions - joint_pos).flatten()
+        self.sea_input[:, 0, 0] = (control_action.joint_targets - joint_pos).flatten()
         self.sea_input[:, 0, 1] = joint_vel.flatten()
         # save current joint vel for dc-motor clipping
         self._joint_vel[:] = joint_vel
@@ -94,8 +96,7 @@ class ActuatorNetLSTM(DCMotor):
 
         # return torques
         control_action.joint_efforts = self.applied_effort
-        control_action.joint_positions = None
-        control_action.joint_velocities = None
+        control_action.joint_targets = None
         return control_action
 
 
@@ -124,6 +125,8 @@ class ActuatorNetMLP(DCMotor):
     def __init__(self, cfg: ActuatorNetMLPCfg, *args, **kwargs):
         super().__init__(cfg, *args, **kwargs)
 
+        assert self.cfg.control_mode == "position", "ActuatorNetLSTM only supports position control"
+
         # load the model from JIT file
         file_bytes = read_file(self.cfg.network_file)
         self.network = torch.jit.load(file_bytes, map_location=self._device).eval()
@@ -150,7 +153,7 @@ class ActuatorNetMLP(DCMotor):
         # move history queue by 1 and update top of history
         # -- positions
         self._joint_pos_error_history = self._joint_pos_error_history.roll(1, 1)
-        self._joint_pos_error_history[:, 0] = control_action.joint_positions - joint_pos
+        self._joint_pos_error_history[:, 0] = control_action.joint_targets - joint_pos
         # -- velocity
         self._joint_vel_history = self._joint_vel_history.roll(1, 1)
         self._joint_vel_history[:, 0] = joint_vel
@@ -184,6 +187,5 @@ class ActuatorNetMLP(DCMotor):
 
         # return torques
         control_action.joint_efforts = self.applied_effort
-        control_action.joint_positions = None
-        control_action.joint_velocities = None
+        control_action.joint_targets = None
         return control_action

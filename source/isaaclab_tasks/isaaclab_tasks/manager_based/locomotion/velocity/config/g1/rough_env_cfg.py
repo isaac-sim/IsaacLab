@@ -112,8 +112,9 @@ class G1RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         # self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/torso_link"
 
         # Randomization
-        # self.events.push_robot = None
-        # self.events.add_base_mass = None
+        #self.events.push_robot = None
+        #self.events.add_base_mass = None
+        self.events.add_base_mass.params["asset_cfg"].body_names = ["torso_link"]
         self.events.reset_robot_joints.params["position_range"] = (1.0, 1.0)
         self.events.base_external_force_torque.params["asset_cfg"].body_names = ["torso_link"]
         self.events.reset_base.params = {

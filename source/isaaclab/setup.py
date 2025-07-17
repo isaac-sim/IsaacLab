@@ -24,6 +24,8 @@ INSTALL_REQUIRES = [
     "onnx==1.16.1",  # 1.16.2 throws access violation on Windows
     "prettytable==3.3.0",
     "toml",
+    "fast_simplification",
+    "tqdm",
     # devices
     "hidapi==0.14.0.post2",
     # reinforcement learning

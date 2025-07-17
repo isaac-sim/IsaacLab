@@ -23,9 +23,9 @@ class NewtonManager:
     #_contact_manager: ContactViewManager = None
     _model: Model = None
     _device: str = "cuda:0"
-    _sim_dt: float = 1.0 / 1000.0
+    _sim_dt: float = 1.0 / 200.0
     _solver_type: str = "mjwarp" # "xpbd, mjwarp
-    _num_substeps: int = 5
+    _num_substeps: int = 1
     _solver = None
     _state_0: State = None
     _state_1: State = None
@@ -62,7 +62,6 @@ class NewtonManager:
 
     @classmethod
     def start_simulation(cls):
-        NewtonManager._builder.add_ground_plane()
         NewtonManager._model = NewtonManager._builder.finalize(device=NewtonManager._device)
         #NewtonManager._contact_manager = ContactViewManager(NewtonManager._model)
         NewtonManager._state_0 = NewtonManager._model.state()
@@ -72,7 +71,6 @@ class NewtonManager:
         newton.sim.articulation.eval_fk(NewtonManager._model, NewtonManager._model.joint_q, NewtonManager._model.joint_qd, NewtonManager._state_0, None)
         NewtonManager._usdrt_stage = get_current_stage(fabric=True)
         for i, prim_path in enumerate(NewtonManager._model.body_key):
-            #print("Being added to fabric: ", prim_path)
             prim = NewtonManager._usdrt_stage.GetPrimAtPath(prim_path)
             prim.CreateAttribute(NewtonManager._newton_index_attr, usdrt.Sdf.ValueTypeNames.UInt, True)
             prim.GetAttribute(NewtonManager._newton_index_attr).Set(i)
@@ -87,12 +85,10 @@ class NewtonManager:
         elif NewtonManager._solver_type == "mjwarp":
             NewtonManager._solver = newton.solvers.MuJoCoSolver(NewtonManager._model, 
                                                                 solver="newton",
-                                                                # ls_iterations=50, 
-                                                                # iterations=20, 
-                                                                # nefc_per_env=60, 
-                                                                ncon_per_env=30, 
-                                                                contact_stiffness_time_const=0.01, 
-                                                                save_to_mjcf="example_g1_mjwarp.xml"
+                                                                ls_iterations=50, 
+                                                                iterations=100, 
+                                                                ncon_per_env=300, 
+                                                                contact_stiffness_time_const=0.01,
                                                                 )
         else:
             raise ValueError(f"Unknown solver type: {NewtonManager._solver_type}")
@@ -106,8 +102,6 @@ class NewtonManager:
 
     @classmethod
     def simulate(cls):
-
-
         state_0_dict = NewtonManager._state_0.__dict__
         state_1_dict = NewtonManager._state_1.__dict__
         state_temp_dict = NewtonManager._state_temp.__dict__

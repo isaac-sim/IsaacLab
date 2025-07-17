@@ -1,13 +1,28 @@
 from typing import Any
 
+import omni.log
 import warp as wp
 import numpy as np
-
 import newton
+import tqdm
 
 def compute_env_offsets(
     num_envs: int, env_offset: tuple[float, float, float] = (5.0, 5.0, 0.0), up_axis: newton.AxisType = newton.Axis.Z
-):
+) -> np.ndarray:
+    """Computes the positional offsets for each environment.
+
+    The environment offsets are computed based on the number of environments and the environment spacing. Setting the 
+    env_offset value to (i, 0, 0) will result in a line, setting it to (i, j, 0) will result in a 2D grid and setting
+    it to (i, j, k) will result in a 3D grid. Currently, there is no way to offset the position of all the environments.
+
+    Args:
+        num_envs (int): Number of environments to offset.
+        env_offset (tuple[float]): The offset between each environment.
+        up_axis (AxisType): The desired up-vector (should match the USD stage).
+    
+    Returns:
+        np.ndarray: The positional offsets for each environment.
+    """
     # compute positional offsets per environment
     env_offset = np.array(env_offset)
     nonzeros = np.nonzero(env_offset)[0]
@@ -54,6 +69,8 @@ def replicate_environment(
         num_envs: int,
         env_spacing: tuple[float],
         up_axis: newton.AxisType = "Z",
+        simplify_meshes: bool = True,
+        spawn_offset: tuple[float] = (0.0, 0.0, 20.0),
         **usd_kwargs,
     ) -> tuple[newton.ModelBuilder, dict[str:Any]]:
         """
@@ -66,6 +83,9 @@ def replicate_environment(
             num_envs (int): Number of replicas to create.
             env_spacing (tuple[float]): Environment spacing vector.
             up_axis (AxisType): The desired up-vector (should match the USD stage).
+            simplify_meshes (bool): If True, simplify the meshes to reduce the number of triangles. This is useful when
+            meshes with complex geometry are used as collision meshes.
+            spawn_offset (tuple[float]): The offset to apply to the spawned environments.
             **usd_kwargs: Keyword arguments to pass to the USD importer (see `newton.utils.parse_usd()`).
 
         Returns:
@@ -95,40 +115,34 @@ def replicate_environment(
             root_path=prototype_path,
             **usd_kwargs,
         )
-        simplified_meshes = {}
-        try:
-            import tqdm  # noqa: PLC0415
 
+        # If enabled, simplify the meshes to reduce the number of triangles. This is useful when meshes with complex
+        # geometry are used as collision meshes.
+        if simplify_meshes:
+            simplified_meshes = {}
             meshes = tqdm.tqdm(prototype_builder.shape_geo_src, desc="Simplifying meshes")
-        except ImportError:
-            meshes = prototype_builder.shape_geo_src
-            
-        for i, m in enumerate(meshes):
-            if m is None:
-                continue
-            hash_m = hash(m)
-            if hash_m in simplified_meshes:
-                prototype_builder.shape_geo_src[i] = simplified_meshes[hash_m]
-            else:
-                simplified = newton.geometry.utils.remesh_mesh(
-                    m, visualize=False, method="convex_hull", recompute_inertia=False
-                )
-                simplified = newton.geometry.utils.remesh_mesh(
-                    simplified, visualize=False, target_reduction=None, target_count=32, recompute_inertia=False
-                )
-                # simplified = newton.geometry.utils.remesh_mesh(
-                #     simplified, visualize=False, method="convex_hull", recompute_inertia=False
-                # )
-                # simplified = newton.geometry.utils.remesh_mesh(
-                #     simplified, visualize=False, method="convex_hull", alpha=0.01, recompute_inertia=False
-                # )
-                # simplified = newton.geometry.utils.remesh_mesh(
-                #     m, visualize=False, method="ftetwild", edge_length_fac=0.5, optimize=True, recompute_inertia=False
-                # )
-                prototype_builder.shape_geo_src[i] = simplified
-                simplified_meshes[hash_m] = simplified
+                
+            for i, m in enumerate(meshes):
+                if m is None:
+                    continue
+                hash_m = hash(m)
+                if hash_m in simplified_meshes:
+                    prototype_builder.shape_geo_src[i] = simplified_meshes[hash_m]
+                else:
+                    simplified = newton.geometry.utils.remesh_mesh(
+                        m, visualize=False, method="convex_hull", recompute_inertia=False
+                    )
+                    try:
+                        simplified = newton.geometry.utils.remesh_mesh(
+                            simplified, visualize=False, target_reduction=None, target_count=32, recompute_inertia=False
+                        )
+                    except Exception as e:
+                        omni.log.warn(f"Error simplifying mesh {i}: {e}")
+                        simplified = m
+                    prototype_builder.shape_geo_src[i] = simplified
+                    simplified_meshes[hash_m] = simplified
 
-
+        # compute the environment offsets
         env_offsets = compute_env_offsets(num_envs, env_offset=env_spacing, up_axis=up_axis)
 
         # clone the prototype env with updated paths
@@ -138,7 +152,7 @@ def replicate_environment(
             joint_start = builder.joint_count
             articulation_start = builder.articulation_count
 
-            builder.add_builder(prototype_builder, xform=wp.transform(env_offsets[i], wp.quat_identity()))
+            builder.add_builder(prototype_builder, xform=wp.transform(env_offsets[i] + np.array(spawn_offset), wp.quat_identity()))
 
             if i > 0:
                 update_paths(
@@ -155,8 +169,26 @@ def replicate_environment(
 
 
 
-def update_paths(builder, old_root, new_root, body_start=None, shape_start=None, joint_start=None, articulation_start=None
-):
+def update_paths(
+    builder: newton.ModelBuilder,
+    old_root: str,
+    new_root: str,
+    body_start: int | None = None,
+    shape_start: int | None = None,
+    joint_start: int | None = None,
+    articulation_start: int | None = None,
+) -> None:
+    """Updates the paths of the builder to match the new root path.
+
+    Args:
+        builder (ModelBuilder): The builder to update.
+        old_root (str): The old root path.
+        new_root (str): The new root path.
+        body_start (int): The start index of the bodies.
+        shape_start (int): The start index of the shapes.
+        joint_start (int): The start index of the joints.
+        articulation_start (int): The start index of the articulations.
+    """
     old_len = len(old_root)
     if body_start is not None:
         for i in range(body_start, builder.body_count):

@@ -29,6 +29,7 @@ from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 GO1_ACTUATOR_CFG = ActuatorNetMLPCfg(
     joint_names_expr=[".*_hip_joint", ".*_thigh_joint", ".*_calf_joint"],
+    control_mode="position",
     network_file=f"{ISAACLAB_NUCLEUS_DIR}/ActuatorNets/Unitree/unitree_go1.pt",
     pos_scale=-1.0,
     vel_scale=1.0,
@@ -85,6 +86,7 @@ UNITREE_A1_CFG = ArticulationCfg(
     actuators={
         "base_legs": DCMotorCfg(
             joint_names_expr=[".*_hip_joint", ".*_thigh_joint", ".*_calf_joint"],
+            control_mode="position",
             effort_limit=33.5,
             saturation_effort=33.5,
             velocity_limit=21.0,
@@ -169,13 +171,14 @@ UNITREE_GO2_CFG = ArticulationCfg(
     actuators={
         "base_legs": DCMotorCfg(
             joint_names_expr=[".*_hip_joint", ".*_thigh_joint", ".*_calf_joint"],
+            control_mode="position",
             effort_limit=23.5,
             saturation_effort=23.5,
             velocity_limit=30.0,
             stiffness=25.0,
             damping=0.5,
-            armature=0.1,
             friction=0.0,
+            armature=0.1,
         ),
     },
 )
@@ -219,6 +222,7 @@ H1_CFG = ArticulationCfg(
     actuators={
         "legs": ImplicitActuatorCfg(
             joint_names_expr=[".*_hip_yaw", ".*_hip_roll", ".*_hip_pitch", ".*_knee", "torso"],
+            control_mode="position",
             effort_limit=300,
             velocity_limit=100.0,
             stiffness={
@@ -238,6 +242,7 @@ H1_CFG = ArticulationCfg(
         ),
         "feet": ImplicitActuatorCfg(
             joint_names_expr=[".*_ankle"],
+            control_mode="position",
             effort_limit=100,
             velocity_limit=100.0,
             stiffness={".*_ankle": 20.0},
@@ -245,6 +250,7 @@ H1_CFG = ArticulationCfg(
         ),
         "arms": ImplicitActuatorCfg(
             joint_names_expr=[".*_shoulder_pitch", ".*_shoulder_roll", ".*_shoulder_yaw", ".*_elbow"],
+            control_mode="position",
             effort_limit=300,
             velocity_limit=100.0,
             stiffness={
@@ -319,6 +325,7 @@ G1_CFG = ArticulationCfg(
                 ".*_knee_joint",
                 "torso_joint",
             ],
+            control_mode="position",
             effort_limit=300,
             velocity_limit=100.0,
             stiffness={
@@ -342,6 +349,7 @@ G1_CFG = ArticulationCfg(
             },
         ),
         "feet": ImplicitActuatorCfg(
+            control_mode="position",
             effort_limit=20,
             joint_names_expr=[".*_ankle_pitch_joint", ".*_ankle_roll_joint"],
             stiffness=20.0,
@@ -363,6 +371,7 @@ G1_CFG = ArticulationCfg(
                 ".*_one_joint",
                 ".*_two_joint",
             ],
+            control_mode="position",
             effort_limit=300,
             velocity_limit=100.0,
             stiffness=40.0,

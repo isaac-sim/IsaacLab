@@ -229,16 +229,21 @@ class ArticulationData:
     # Joint commands -- Set into simulation.
     ##
 
-    joint_pos_target: torch.Tensor = None
-    """Joint position targets commanded by the user. Shape is (num_instances, num_joints).
+    joint_control_mode: torch.Tensor = None
+    """Joint control mode. Shape is (num_instances, num_joints).
+    
+    When using implicit actuator models Newton needs to know how the joints are controlled.
+    The control mode can be one of the following:
+    
+    * None: 0
+    * Position control: 1
+    * Velocity control: 2
 
-    For an implicit actuator model, the targets are directly set into the simulation.
-    For an explicit actuator model, the targets are used to compute the joint torques (see :attr:`applied_torque`),
-    which are then set into the simulation.
+    This quantity is set by the :meth:`Articulation.write_joint_control_mode_to_sim` method.
     """
 
-    joint_vel_target: torch.Tensor = None
-    """Joint velocity targets commanded by the user. Shape is (num_instances, num_joints).
+    joint_target: torch.Tensor = None
+    """Joint position targets commanded by the user. Shape is (num_instances, num_joints).
 
     For an implicit actuator model, the targets are directly set into the simulation.
     For an explicit actuator model, the targets are used to compute the joint torques (see :attr:`applied_torque`),

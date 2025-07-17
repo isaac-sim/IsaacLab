@@ -109,6 +109,16 @@ class ActuatorBaseCfg:
 
     """
 
+    control_mode: Literal["position", "velocity", "none"] = "position"
+    """Control mode of the actuator. Defaults to "position".
+    
+    The control mode can be one of the following:
+
+    * ``"position"``: Position control
+    * ``"velocity"``: Velocity control
+    * ``"none"``: No control (used for explicit actuators or direct effort control)
+    """
+
     stiffness: dict[str, float] | float | None = MISSING
     """Stiffness gains (also known as p-gain) of the joints in the group.
 

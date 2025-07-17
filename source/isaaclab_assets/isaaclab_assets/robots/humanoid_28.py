@@ -40,6 +40,7 @@ HUMANOID_28_CFG = ArticulationCfg(
     ),
     actuators={
         "body": ImplicitActuatorCfg(
+            control_mode="position",
             joint_names_expr=[".*"],
             stiffness=None,
             damping=None,

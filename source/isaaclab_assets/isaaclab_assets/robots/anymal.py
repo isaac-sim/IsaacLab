@@ -33,6 +33,7 @@ from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 ANYDRIVE_3_SIMPLE_ACTUATOR_CFG = DCMotorCfg(
     joint_names_expr=[".*HAA", ".*HFE", ".*KFE"],
+    control_mode="position",
     saturation_effort=120.0,
     effort_limit=80.0,
     velocity_limit=7.5,
@@ -44,6 +45,7 @@ ANYDRIVE_3_SIMPLE_ACTUATOR_CFG = DCMotorCfg(
 
 ANYDRIVE_3_LSTM_ACTUATOR_CFG = ActuatorNetLSTMCfg(
     joint_names_expr=[".*HAA", ".*HFE", ".*KFE"],
+    control_mode="position",
     network_file=f"{ISAACLAB_NUCLEUS_DIR}/ActuatorNets/ANYbotics/anydrive_3_lstm_jit.pt",
     saturation_effort=120.0,
     effort_limit=80.0,
@@ -54,6 +56,7 @@ ANYDRIVE_3_LSTM_ACTUATOR_CFG = ActuatorNetLSTMCfg(
 ANYDRIVE_4_MLP_ACTUATOR_CFG = ActuatorNetMLPCfg(
     # values matched from legged gym
     joint_names_expr=[".*HAA", ".*HFE", ".*KFE"],
+    control_mode="position",
     network_file="/home/antoiner/Downloads/anydrive_4_mlp.jit",
     saturation_effort=140.0,
     effort_limit=80.0,  # see anydrive 3 above
