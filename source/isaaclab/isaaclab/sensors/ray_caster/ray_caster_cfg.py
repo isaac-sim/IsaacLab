@@ -61,8 +61,8 @@ class RayCasterCfg(SensorBaseCfg):
         * `world` if rays' starting positions and directions are always fixed. This is useful in combination with the grid map package.
     """
 
-    return_distance: bool = False
-    """Whether to include ray_distance in RayCasterData. Defaults to False."""
+    track_ray_distance: bool = False
+    """Whether to track the ray_distance (distances of the rays until they hits the mesh). Defaults to False."""
 
     pattern_cfg: PatternBaseCfg = MISSING
     """The pattern that defines the local ray starting positions and directions."""
