@@ -4,6 +4,8 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 
+import torch
+
 from isaaclab.envs import DirectRLEnvCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg, PhysxCfg, PinholeCameraCfg
@@ -11,11 +13,10 @@ from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMater
 from isaaclab.utils import configclass
 from isaaclab.sensors import CameraCfg
 from isaaclab.utils.math import quat_from_euler_xyz
+import isaaclab.sim as sim_utils
+from isaaclab.assets import RigidObjectCfg
 
 from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG  # isort: skip
-
-
-import torch
 
 
 @configclass
@@ -60,16 +61,17 @@ class PegInsertionSideEnvCfg(DirectRLEnvCfg):
     )
 
     robot_cfg = FRANKA_PANDA_CFG.replace(prim_path="/World/envs/env_.*/Robot")
-    robot_cfg.init_state.joint_pos = {
-        "panda_joint1": 00.0,
-        "panda_joint2": 0.6,
-        "panda_joint3": 0.0,
-        "panda_joint4": -2.2,
-        "panda_joint5": 0.0,
-        "panda_joint6": 3.037,
-        "panda_joint7": 0.741,
-        "panda_finger_joint.*": 0.04,
-    }
+    robot_cfg.spawn.activate_contact_sensors = True
+    # robot_cfg.init_state.joint_pos = {
+    #     "panda_joint1": 00.0,
+    #     "panda_joint2": 0.6,
+    #     "panda_joint3": 0.0,
+    #     "panda_joint4": -2.2,
+    #     "panda_joint5": 0.0,
+    #     "panda_joint6": 3.037,
+    #     "panda_joint7": 0.741,
+    #     "panda_finger_joint.*": 0.04,
+    # }
 
     sensors = (
         CameraCfg(
@@ -100,6 +102,41 @@ class PegInsertionSideEnvCfg(DirectRLEnvCfg):
             ),
         ),
     )
+
+    asset_dir = "/home/johann/Downloads/peg_insertion_side"
+
+    def get_multi_cfg(
+        self, usd_paths: list[str], prim_path: str, kinematic_enabled
+    ) -> RigidObjectCfg:
+        cfg: RigidObjectCfg = RigidObjectCfg(
+            prim_path=prim_path,
+            spawn=sim_utils.MultiUsdFileCfg(
+                usd_path=usd_paths,
+                random_choice=False,
+                rigid_props=sim_utils.RigidBodyPropertiesCfg(
+                    kinematic_enabled=kinematic_enabled,
+                    disable_gravity=False,
+                    enable_gyroscopic_forces=True,
+                    solver_position_iteration_count=8,
+                    solver_velocity_iteration_count=0,
+                    sleep_threshold=0.005,
+                    stabilization_threshold=0.0025,
+                    max_depenetration_velocity=1000.0,
+                ),
+                visual_material=sim_utils.PreviewSurfaceCfg(
+                    diffuse_color=(0.27807487, 0.20855615, 0.16934046),
+                    emissive_color=(0.0, 0.0, 0.0),
+                    roughness=0.5,
+                    metallic=0.0,
+                    opacity=1.0,
+                ),
+            ),
+            init_state=RigidObjectCfg.InitialStateCfg(
+                pos=(0.55, 0.0, 0.05), rot=(0.0, 0.0, 0.0, 1.0)
+            ),
+        )
+
+        return cfg
 
 
 @configclass
