@@ -14,17 +14,16 @@ import math
 import torch
 from collections.abc import Sequence
 
-from isaacsim.core.utils.stage import get_current_stage
-from isaacsim.core.utils.torch.transformations import tf_combine, tf_inverse
-from pxr import UsdGeom
-
 import isaaclab.sim as sim_utils
-from isaaclab.assets import Articulation, RigidObjectCfg, RigidObject, AssetBase
+from isaaclab.assets import Articulation, RigidObjectCfg, RigidObject
 from isaaclab.sensors import Camera
 from isaaclab.envs import DirectRLEnv
 from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
 from isaaclab.utils import convert_to_torch
 from isaaclab.utils.math import quat_from_euler_xyz, euler_xyz_from_quat
+from isaaclab.sensors import FrameTransformer, FrameTransformerCfg, OffsetCfg
+from isaaclab.markers.config import FRAME_MARKER_CFG
+
 
 from .assembly_kit_env_cfg import AssemblyKitEnvCfg
 
@@ -32,120 +31,21 @@ from .assembly_kit_env_cfg import AssemblyKitEnvCfg
 class AssemblyKitEnv(DirectRLEnv):
     """Direct-RL environment for the Assembly-Kit task in Isaac Lab.
 
-    This class handles scene setup, TCP computation (both local and world),
-    observation & reward computation, and environment resets for the Franka
-    assembly-kit benchmark.
+    This class handles scene setup observation & reward computation,
+    and environment resets for the Franka assembly-kit benchmark.
 
     Attributes:
         cfg (AssemblyKitEnvCfg): Configuration for this environment.
-        robot_local_grasp_pos (Tensor): Precomputed local TCP positions.
-        robot_local_grasp_rot (Tensor): Precomputed local TCP orientations.
-        hand_link_idx (int): Index of the wrist link in the Articulation.
-        left_finger_link_idx (int): Index of the left-finger link.
-        right_finger_link_idx (int): Index of the right-finger link.
     """
 
     cfg: AssemblyKitEnvCfg
 
-    # === Add helper functions for computing local TCP ===
-    @staticmethod
-    def get_env_local_pose(
-        env_origin: torch.Tensor, prim_path: str, device: torch.device
-    ) -> torch.Tensor:
-        """Get a prim’s pose in environment-local coordinates.
-
-        Args:
-            env_origin (Tensor[3]): The world-space origin of this env.
-            prim_path (str): USD path to the prim (e.g. "/World/.../panda_link7").
-            device (torch.device): Device on which to place the result.
-
-        Returns:
-            Tensor[7]: [x, y, z, qw, qx, qy, qz] of the prim in env-local frame.
-        """
-
-        stage = get_current_stage()
-        xformable = UsdGeom.Xformable(stage.GetPrimAtPath(prim_path))
-        world_tf = xformable.ComputeLocalToWorldTransform(0)
-        world_pos = world_tf.ExtractTranslation()
-        world_quat = world_tf.ExtractRotationQuat()
-
-        px = world_pos[0] - env_origin[0]
-        py = world_pos[1] - env_origin[1]
-        pz = world_pos[2] - env_origin[2]
-        qw = world_quat.real
-        qx, qy, qz = world_quat.imaginary
-
-        return torch.tensor([px, py, pz, qw, qx, qy, qz], device=device)
-
-    @staticmethod
-    def compute_local_tcp(
-        env_origin: torch.Tensor,
-        wrist_prim_path: str,
-        lfinger_prim_path: str,
-        rfinger_prim_path: str,
-        device: torch.device,
-        y_offset: float = 0.04,
-    ) -> tuple[torch.Tensor, torch.Tensor]:
-        """Computes the gripper’s local tool-center-point (TCP) in the wrist frame.
-
-        Finds the midpoint between left and right finger tips and applies a forward offset.
-
-        Args:
-            env_origin:        Tensor giving the environment origin.
-            wrist_prim_path:   USD path of the wrist link.
-            lfinger_prim_path: USD path of the left finger tip.
-            rfinger_prim_path: USD path of the right finger tip.
-            device:            Torch device for computation.
-            y_offset:          Offset along wrist Y to push TCP forward.
-
-        Returns:
-            local_grasp_pos: TCP position in the wrist link frame.
-            local_grasp_rot: TCP orientation (quaternion) in the wrist link frame.
-        """
-
-        # 1) get initial wrist, left‐finger, right‐finger poses in env-local coords
-        wrist_pose = AssemblyKitEnv.get_env_local_pose(
-            env_origin, wrist_prim_path, device
-        )
-        lfinger_pose = AssemblyKitEnv.get_env_local_pose(
-            env_origin, lfinger_prim_path, device
-        )
-        rfinger_pose = AssemblyKitEnv.get_env_local_pose(
-            env_origin, rfinger_prim_path, device
-        )
-
-        # 2) build midpoint‐finger pose (env-local)
-        finger_mid = torch.zeros(7, device=device)
-        finger_mid[0:3] = (
-            lfinger_pose[0:3] + rfinger_pose[0:3]
-        ) / 2.0  # average position
-        finger_mid[3:7] = lfinger_pose[3:7]  # pick left‐finger's quaternion
-
-        # 3) invert wrist pose
-        wrist_pos_env = wrist_pose[0:3]
-        wrist_quat_env = wrist_pose[3:7]
-        wrist_inv_rot, wrist_inv_pos = tf_inverse(wrist_quat_env, wrist_pos_env)
-
-        # 4) combine wrist‐inverse with finger_mid to get TCP in wrist‐frame
-        local_grasp_rot, local_grasp_pos = tf_combine(
-            wrist_inv_rot,
-            wrist_inv_pos,
-            finger_mid[3:7],
-            finger_mid[0:3],
-        )
-
-        # 5) apply small offset along wrist‐Y
-        local_grasp_pos += torch.tensor([0.0, y_offset, 0.0], device=device)
-
-        return local_grasp_pos, local_grasp_rot
-
     def __init__(
         self, cfg: AssemblyKitEnvCfg, render_mode: str | None = None, **kwargs
     ):
-        """Initializes the assembly-kit environment and computes per-env local TCPs.
+        """Initializes the assembly-kit environment
 
-        Sets up asset directories, loads episodes, spawns the scene, and precomputes
-        each Franka gripper’s TCP in its wrist frame.
+        Sets up asset directories, loads episodes, spawns the scene
 
         Args:
             cfg:         AssemblyKitEnvCfg with environment parameters.
@@ -176,73 +76,6 @@ class AssemblyKitEnv(DirectRLEnv):
         random.seed(self.cfg.seed)
 
         self.joint_ids, _ = self.robot.find_joints("panda_joint.*|panda_finger_joint.*")
-
-        # Compute and store local TCP once
-        device = self.device
-        origins = self.scene.env_origins
-
-        local_pos_list = []
-        local_rot_list = []
-        for i in range(self.num_envs):
-            env_origin = origins[i]
-            wrist_path = f"/World/envs/env_{i}/Robot/panda_link7"
-            lfinger_path = f"/World/envs/env_{i}/Robot/panda_leftfinger"
-            rfinger_path = f"/World/envs/env_{i}/Robot/panda_rightfinger"
-
-            pos, rot = AssemblyKitEnv.compute_local_tcp(
-                env_origin,
-                wrist_path,
-                lfinger_path,
-                rfinger_path,
-                device,
-            )
-            local_pos_list.append(pos)
-            local_rot_list.append(rot)
-
-        self.robot_local_grasp_pos = torch.stack(local_pos_list, dim=0)
-        self.robot_local_grasp_rot = torch.stack(local_rot_list, dim=0)
-
-        # Find relevant link indices for runtime TCP computation
-        self.hand_link_idx = self.robot.find_bodies("panda_link7")[0][0]
-        self.left_finger_link_idx = self.robot.find_bodies("panda_leftfinger")[0][0]
-        self.right_finger_link_idx = self.robot.find_bodies("panda_rightfinger")[0][0]
-
-    # === New helper to compute world‐TCP each step ===
-    def _compute_tcp_world(
-        self, env_ids: torch.Tensor | None = None
-    ) -> tuple[torch.Tensor, torch.Tensor]:
-        """Computes the world-frame TCP pose for the selected envs.
-
-        Reads the current wrist link pose, combines it with the stored local TCP,
-        and converts positions to environment-local coordinates.
-
-        Args:
-            env_ids: Tensor of environment indices (all if None).
-
-        Returns:
-            tcp_pos_env: Tensor of shape (N, 3) of TCP positions in env-local coords.
-            tcp_rot:     Tensor of shape (N, 4) of TCP orientations (quaternion).
-        """
-        if env_ids is None:
-            env_ids = torch.arange(self.num_envs, device=self.device)
-
-        # read current wrist world-pose
-        hand_pos_world = self.robot.data.body_pos_w[env_ids, self.hand_link_idx]
-        hand_rot_world = self.robot.data.body_quat_w[env_ids, self.hand_link_idx]
-
-        # combine with stored local grasps to get world TCP
-        global_tcp_rot, global_tcp_pos_world = tf_combine(
-            hand_rot_world,
-            hand_pos_world,
-            self.robot_local_grasp_rot[env_ids],
-            self.robot_local_grasp_pos[env_ids],
-        )
-
-        # convert world TCP pos to env-local TCP pos
-        env_origins = self.scene.env_origins[env_ids]
-        tcp_pos_env = global_tcp_pos_world - env_origins
-
-        return tcp_pos_env, global_tcp_rot
 
     def _load_table_scene(self):
         """Spawns the ground plane, table, robot, and camera into the simulation.
@@ -356,6 +189,30 @@ class AssemblyKitEnv(DirectRLEnv):
         )
 
         self._init_model_sampling()
+
+        # Listens to the required transforms
+        marker_cfg = FRAME_MARKER_CFG.copy()
+        marker_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
+        marker_cfg.prim_path = "/Visuals/FrameTransformer"
+
+        tcp_cfg = FrameTransformerCfg(
+            prim_path="/World/envs/env_.*/Robot/panda_link7",
+            debug_vis=True,
+            visualizer_cfg=marker_cfg,
+            target_frames=[
+                FrameTransformerCfg.FrameCfg(
+                    prim_path="/World/envs/env_.*/Robot/panda_hand",
+                    name="end_effector",
+                    offset=OffsetCfg(
+                        pos=(0.0, 0.0, 0.1),
+                    ),
+                ),
+            ],
+        )
+
+        # Create the transformer and attach it to the scene
+        self.tcp_transformer = FrameTransformer(cfg=tcp_cfg)
+        self.scene.sensors["tcp"] = self.tcp_transformer
 
         # Filtering collisions for optimization of collisions between environment instances
         self.scene.filter_collisions(
@@ -528,7 +385,8 @@ class AssemblyKitEnv(DirectRLEnv):
         Returns:
             Dict with key 'policy' mapping to either a state tensor or image tensor.
         """
-        tcp_pos_env, tcp_rot = self._compute_tcp_world()
+        tcp_pos = self.tcp_transformer.data.target_pos_w.squeeze(1)
+        tcp_rot = self.tcp_transformer.data.target_quat_w.squeeze(1)
 
         target_model_pose = self.get_target_model_pose()
 
@@ -542,10 +400,10 @@ class AssemblyKitEnv(DirectRLEnv):
 
         state_obs = torch.cat(
             (
-                tcp_pos_env,
+                tcp_pos,
                 tcp_rot,
                 target_model_pose,
-                target_model_pose[:, :3] - tcp_pos_env,
+                target_model_pose[:, :3] - tcp_pos,
                 self.target_goal_pos,
                 self.target_goal_rot.unsqueeze(1),
                 self.target_goal_pos - target_model_pose[:, :3],
