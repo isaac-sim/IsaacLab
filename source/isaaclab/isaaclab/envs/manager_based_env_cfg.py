@@ -10,6 +10,7 @@ configuring the environment instances, viewer settings, and simulation parameter
 """
 
 from dataclasses import MISSING
+from typing import Dict, List, Optional
 
 import isaaclab.envs.mdp as mdp
 from isaaclab.devices.openxr import XrCfg
