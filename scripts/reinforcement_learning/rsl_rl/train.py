@@ -56,9 +56,9 @@ import platform
 from packaging import version
 
 # for distributed training, check minimum supported rsl-rl version
-RSL_RL_VERSION = "2.3.1"
+RSL_RL_VERSION = "3.0.0"
 installed_version = metadata.version("rsl-rl-lib")
-if args_cli.distributed and version.parse(installed_version) < version.parse(RSL_RL_VERSION):
+if version.parse(installed_version) < version.parse(RSL_RL_VERSION):
     if platform.system() == "Windows":
         cmd = [r".\isaaclab.bat", "-p", "-m", "pip", "install", f"rsl-rl-lib=={RSL_RL_VERSION}"]
     else:

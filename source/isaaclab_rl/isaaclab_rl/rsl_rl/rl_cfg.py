@@ -148,6 +148,12 @@ class RslRlBaseRunnerCfg:
     max_iterations: int = MISSING
     """The maximum number of iterations."""
 
+    empirical_normalization: bool = None
+    """This parameter is deprecated and will be removed in the future.
+
+    Use `actor_obs_normalization` and `critic_obs_normalization` instead.
+    """
+
     obs_groups: dict[str, list[str]] = MISSING
     """A mapping from observation groups to observation sets.
 
