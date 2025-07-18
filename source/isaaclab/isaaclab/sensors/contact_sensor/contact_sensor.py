@@ -159,6 +159,11 @@ class ContactSensor(SensorBase):
             self._data.last_air_time[env_ids] = 0.0
             self._data.current_contact_time[env_ids] = 0.0
             self._data.last_contact_time[env_ids] = 0.0
+        # reset contact positions
+        if self.cfg.track_contact_points:
+            self._data.contact_pos_w[env_ids, :] = torch.nan
+            # buffer used during contact position aggregation
+            self._contact_position_aggregate_buffer[env_ids, :] = torch.nan
 
     def find_bodies(self, name_keys: str | Sequence[str], preserve_order: bool = False) -> tuple[list[int], list[str]]:
         """Find bodies in the articulation based on the name keys.
@@ -277,7 +282,9 @@ class ContactSensor(SensorBase):
         # create a rigid prim view for the sensor
         self._body_physx_view = self._physics_sim_view.create_rigid_body_view(body_names_glob)
         self._contact_physx_view = self._physics_sim_view.create_rigid_contact_view(
-            body_names_glob, filter_patterns=filter_prim_paths_glob
+            body_names_glob,
+            filter_patterns=filter_prim_paths_glob,
+            max_contact_data_count=self.cfg.max_contact_data_count_per_prim * len(body_names) * self._num_envs,
         )
         # resolve the true count of bodies
         self._num_bodies = self.body_physx_view.count // self._num_envs
@@ -303,6 +310,19 @@ class ContactSensor(SensorBase):
         if self.cfg.track_pose:
             self._data.pos_w = torch.zeros(self._num_envs, self._num_bodies, 3, device=self._device)
             self._data.quat_w = torch.zeros(self._num_envs, self._num_bodies, 4, device=self._device)
+        # -- position of contact points
+        if self.cfg.track_contact_points:
+            self._data.contact_pos_w = torch.full(
+                (self._num_envs, self._num_bodies, self.contact_physx_view.filter_count, 3),
+                torch.nan,
+                device=self._device,
+            )
+            # buffer used during contact position aggregation
+            self._contact_position_aggregate_buffer = torch.full(
+                (self._num_bodies * self._num_envs, self.contact_physx_view.filter_count, 3),
+                torch.nan,
+                device=self._device,
+            )
         # -- air/contact time between contacts
         if self.cfg.track_air_time:
             self._data.last_air_time = torch.zeros(self._num_envs, self._num_bodies, device=self._device)
@@ -356,6 +376,32 @@ class ContactSensor(SensorBase):
             pose = self.body_physx_view.get_transforms().view(-1, self._num_bodies, 7)[env_ids]
             pose[..., 3:] = convert_quat(pose[..., 3:], to="wxyz")
             self._data.pos_w[env_ids], self._data.quat_w[env_ids] = pose.split([3, 4], dim=-1)
+
+        # obtain contact points
+        if self.cfg.track_contact_points:
+            _, buffer_contact_points, _, _, buffer_count, buffer_start_indices = (
+                self.contact_physx_view.get_contact_data(dt=self._sim_physics_dt)
+            )
+            # unpack the contact points: see RigidContactView.get_contact_data() documentation for details:
+            # https://docs.omniverse.nvidia.com/kit/docs/omni_physics/107.3/extensions/runtime/source/omni.physics.tensors/docs/api/python.html#omni.physics.tensors.impl.api.RigidContactView.get_net_contact_forces
+            # buffer_count: (N_envs * N_bodies, N_filters), buffer_contact_points: (N_envs * N_bodies, 3)
+            counts, max_count = buffer_count.view(-1), int(buffer_count.max())
+            if max_count > 0:
+                rel = torch.arange(max_count, device=counts.device).unsqueeze(0).expand(counts.size(0), max_count)
+                # 1) pull out all points → (n_env*n_bodies, max_count, and mask out invalid slots (r ≥ counts[k])
+                pts = buffer_contact_points[buffer_start_indices.view(-1).unsqueeze(1) + rel]
+                pts = pts * (rel < counts.unsqueeze(1)).unsqueeze(2)
+                # zero out invalid rows # 2) sum & divide → (n_env*n_bodies*n_filter, 3) → reshape: (n_env*n_bodies, n_filter, 3)
+                self._contact_position_aggregate_buffer[:] = (pts.sum(dim=1) / counts.unsqueeze(1)).view(
+                    self._num_envs * self.num_bodies, self.contact_physx_view.filter_count, 3
+                )
+            else:
+                self._contact_position_aggregate_buffer[:] = float("nan")
+
+            # reshape from [num_env*num_bodies, num_filter_shapes, 3] to [num_env, num_bodies, num_filter_shapes, 3]
+            self._data.contact_pos_w[env_ids] = self._contact_position_aggregate_buffer.view(
+                -1, self._num_bodies, self.contact_physx_view.filter_count, 3
+            )[env_ids]
 
         # obtain the air time
         if self.cfg.track_air_time:
