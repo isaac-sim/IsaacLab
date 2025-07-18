@@ -284,9 +284,7 @@ class DCMotor(IdealPDActuator):
         # -- min limit
         min_effort = torch.clip(torque_speed_bottom, min=-self.effort_limit)
         # clip the torques based on the motor limits
-        clamped = torch.clip(effort, min=min_effort, max=max_effort)
-
-        return clamped
+        return torch.clip(effort, min=min_effort, max=max_effort)
 
 
 class DelayedPDActuator(IdealPDActuator):
