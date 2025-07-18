@@ -22,19 +22,69 @@ import inspect
 
 @configclass
 class GenericActionIODescriptor:
+    """Generic action IO descriptor.
+
+    This descriptor is used to describe the action space of a policy.
+    It can be extended as needed to add more information about the action term that is being described.
+    """
+
     mdp_type: str = "Action"
+    """The type of MDP that the action term belongs to."""
+
     name: str = None
+    """The name of the action term.
+    
+    By default, the name of the action term class is used.
+    """
+
     full_path: str = None
+    """The full path of the action term class.
+    
+    By default, python's will retrieve the path from the file that the action term class is defined in
+    and the name of the action term class.
+    """
+
     description: str = None
+    """The description of the action term.
+    
+    By default, the docstring of the action term class is used.
+    """
+
     shape: tuple[int, ...] = None
+    """The shape of the action term.
+    
+    This should be populated by the user."""
+
     dtype: str = None
+    """The dtype of the action term.
+    
+    This should be populated by the user."""
+
     action_type: str = None
+    """The type of the action term.
+    
+    This attribute is purely informative and should be populated by the user."""
+
     extras: dict[str, Any] = {}
+    """Extra information about the action term.
+    
+    This attribute is purely informative and should be populated by the user."""
+
     export: bool = True
+    """Whether to export the action term.
+    
+    Should be set to False if the class is not meant to be exported.
+    """
 
 
 @configclass
-class GenericIODescriptor:
+class GenericObservationIODescriptor:
+    """Generic observation IO descriptor.
+
+    This descriptor is used to describe the observation space of a policy.
+    It can be extended as needed to add more information about the observation term that is being described.
+    """
+
     mdp_type: str = "Observation"
     name: str = None
     full_path: str = None
@@ -51,13 +101,13 @@ R = TypeVar("R")
 
 
 # Automatically builds a descriptor from the kwargs
-def _make_descriptor(**kwargs: Any) -> GenericIODescriptor:
+def _make_descriptor(**kwargs: Any) -> GenericObservationIODescriptor:
     """Split *kwargs* into (known dataclass fields) and (extras)."""
-    field_names = {f.name for f in dataclasses.fields(GenericIODescriptor)}
+    field_names = {f.name for f in dataclasses.fields(GenericObservationIODescriptor)}
     known = {k: v for k, v in kwargs.items() if k in field_names}
     extras = {k: v for k, v in kwargs.items() if k not in field_names}
 
-    desc = GenericIODescriptor(**known)
+    desc = GenericObservationIODescriptor(**known)
     # User defined extras are stored in the descriptor under the `extras` field
     desc.extras = extras
     return desc
@@ -121,8 +171,8 @@ def generic_io_descriptor(
     Returns:
         A decorator that can be used to decorate a function.
     """
-
-    if _func is not None and isinstance(_func, GenericIODescriptor):
+    # If the decorator is used with a descriptor, use it as the descriptor.
+    if _func is not None and isinstance(_func, GenericObservationIODescriptor):
         descriptor = _func
         _func = None
     else:
@@ -178,15 +228,38 @@ def generic_io_descriptor(
     return _apply
 
 
-def record_shape(output: torch.Tensor, descriptor: GenericIODescriptor, **kwargs):
+def record_shape(output: torch.Tensor, descriptor: GenericObservationIODescriptor, **kwargs) -> None:
+    """Record the shape of the output tensor.
+    
+    Args:
+        output: The output tensor.
+        descriptor: The descriptor to record the shape to.
+        **kwargs: Additional keyword arguments.
+    """
     descriptor.shape = (output.shape[-1],)
 
 
-def record_dtype(output: torch.Tensor, descriptor: GenericIODescriptor, **kwargs):
+def record_dtype(output: torch.Tensor, descriptor: GenericObservationIODescriptor, **kwargs) -> None:
+    """Record the dtype of the output tensor.
+    
+    Args:
+        output: The output tensor.
+        descriptor: The descriptor to record the dtype to.
+        **kwargs: Additional keyword arguments.
+    """
     descriptor.dtype = str(output.dtype)
 
 
-def record_joint_names(output: torch.Tensor, descriptor: GenericIODescriptor, **kwargs):
+def record_joint_names(output: torch.Tensor, descriptor: GenericObservationIODescriptor, **kwargs) -> None:
+    """Record the joint names of the output tensor.
+
+    Expects the `asset_cfg` keyword argument to be set.
+    
+    Args:
+        output: The output tensor.
+        descriptor: The descriptor to record the joint names to.
+        **kwargs: Additional keyword arguments.
+    """
     asset: Articulation = kwargs["env"].scene[kwargs["asset_cfg"].name]
     joint_ids = kwargs["asset_cfg"].joint_ids
     if joint_ids == slice(None, None, None):
@@ -194,7 +267,16 @@ def record_joint_names(output: torch.Tensor, descriptor: GenericIODescriptor, **
     descriptor.joint_names = [asset.joint_names[i] for i in joint_ids]
 
 
-def record_body_names(output: torch.Tensor, descriptor: GenericIODescriptor, **kwargs):
+def record_body_names(output: torch.Tensor, descriptor: GenericObservationIODescriptor, **kwargs) -> None:
+    """Record the body names of the output tensor.
+    
+    Expects the `asset_cfg` keyword argument to be set.
+    
+    Args:
+        output: The output tensor.
+        descriptor: The descriptor to record the body names to.
+        **kwargs: Additional keyword arguments.
+    """
     asset: Articulation = kwargs["env"].scene[kwargs["asset_cfg"].name]
     body_ids = kwargs["asset_cfg"].body_ids
     if body_ids == slice(None, None, None):
@@ -202,7 +284,16 @@ def record_body_names(output: torch.Tensor, descriptor: GenericIODescriptor, **k
     descriptor.body_names = [asset.body_names[i] for i in body_ids]
 
 
-def record_joint_pos_offsets(output: torch.Tensor, descriptor: GenericIODescriptor, **kwargs):
+def record_joint_pos_offsets(output: torch.Tensor, descriptor: GenericObservationIODescriptor, **kwargs):
+    """Record the joint position offsets of the output tensor.
+    
+    Expects the `asset_cfg` keyword argument to be set.
+    
+    Args:
+        output: The output tensor.
+        descriptor: The descriptor to record the joint position offsets to.
+        **kwargs: Additional keyword arguments.
+    """
     asset: Articulation = kwargs["env"].scene[kwargs["asset_cfg"].name]
     ids = kwargs["asset_cfg"].joint_ids
     # Get the offsets of the joints for the first robot in the scene.
@@ -210,7 +301,16 @@ def record_joint_pos_offsets(output: torch.Tensor, descriptor: GenericIODescript
     descriptor.joint_pos_offsets = asset.data.default_joint_pos[:, ids][0]
 
 
-def record_joint_vel_offsets(output: torch.Tensor, descriptor: GenericIODescriptor, **kwargs):
+def record_joint_vel_offsets(output: torch.Tensor, descriptor: GenericObservationIODescriptor, **kwargs):
+    """Record the joint velocity offsets of the output tensor.
+    
+    Expects the `asset_cfg` keyword argument to be set.
+    
+    Args:
+        output: The output tensor.
+        descriptor: The descriptor to record the joint velocity offsets to.
+        **kwargs: Additional keyword arguments.
+    """
     asset: Articulation = kwargs["env"].scene[kwargs["asset_cfg"].name]
     ids = kwargs["asset_cfg"].joint_ids
     # Get the offsets of the joints for the first robot in the scene.
@@ -218,9 +318,20 @@ def record_joint_vel_offsets(output: torch.Tensor, descriptor: GenericIODescript
     descriptor.joint_vel_offsets = asset.data.default_joint_vel[:, ids][0]
 
 
-def export_articulations_data(env: ManagerBasedEnv):
+def export_articulations_data(env: ManagerBasedEnv) -> dict[str, dict[str, list[float]]]:
+    """Export the articulations data.
+    
+    Args:
+        env: The environment.
+
+    Returns:
+        A dictionary containing the articulations data.
+    """
+    # Create a dictionary for all the articulations in the scene.
     articulation_joint_data = {}
     for articulation_name, articulation in env.scene.articulations.items():
+        # For each articulation, create a dictionary with the articulation's data.
+        # Some of the data may be redundant with other information provided by the observation descriptors.
         articulation_joint_data[articulation_name] = {}
         articulation_joint_data[articulation_name]["joint_names"] = articulation.joint_names
         articulation_joint_data[articulation_name]["default_joint_pos"] = (
@@ -247,7 +358,16 @@ def export_articulations_data(env: ManagerBasedEnv):
     return articulation_joint_data
 
 
-def export_scene_data(env: ManagerBasedEnv):
+def export_scene_data(env: ManagerBasedEnv) -> dict[str, Any]:
+    """Export the scene data.
+    
+    Args:
+        env: The environment.
+
+    Returns:
+        A dictionary containing the scene data.
+    """
+    # Create a dictionary for the scene data.
     scene_data = {}
     scene_data["physics_dt"] = env.physics_dt
     scene_data["dt"] = env.step_dt

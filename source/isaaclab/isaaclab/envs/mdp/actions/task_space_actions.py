@@ -151,6 +151,20 @@ class DifferentialInverseKinematicsAction(ActionTerm):
 
     @property
     def IO_descriptor(self) -> GenericActionIODescriptor:
+        """The IO descriptor of the action term.
+        
+        This descriptor is used to describe the action term of the pink inverse kinematics action.
+        It adds the following information to the base descriptor:
+        - body_name: The name of the body.
+        - joint_names: The names of the joints.
+        - scale: The scale of the action term.
+        - clip: The clip of the action term.
+        - controller_cfg: The configuration of the controller.
+        - body_offset: The offset of the body.
+
+        Returns:
+            The IO descriptor of the action term.
+        """
         super().IO_descriptor
         self._IO_descriptor.shape = (self.action_dim,)
         self._IO_descriptor.dtype = str(self.raw_actions.dtype)
@@ -429,6 +443,25 @@ class OperationalSpaceControllerAction(ActionTerm):
 
     @property
     def IO_descriptor(self) -> GenericActionIODescriptor:
+        """The IO descriptor of the action term.
+        
+        This descriptor is used to describe the action term of the pink inverse kinematics action.
+        It adds the following information to the base descriptor:
+        - body_name: The name of the body.
+        - joint_names: The names of the joints.
+        - position_scale: The scale of the position.
+        - orientation_scale: The scale of the orientation.
+        - wrench_scale: The scale of the wrench.
+        - stiffness_scale: The scale of the stiffness.
+        - damping_ratio_scale: The scale of the damping ratio.
+        - nullspace_joint_pos_target: The nullspace joint pos target.
+        - clip: The clip of the action term.
+        - controller_cfg: The configuration of the controller.
+        - body_offset: The offset of the body.
+
+        Returns:
+            The IO descriptor of the action term.
+        """
         super().IO_descriptor
         self._IO_descriptor.shape = (self.action_dim,)
         self._IO_descriptor.dtype = str(self.raw_actions.dtype)
