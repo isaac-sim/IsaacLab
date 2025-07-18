@@ -1,6 +1,7 @@
 Changelog
 ---------
 
+
 0.41.0 (2025-07-2)
 ~~~~~~~~~~~~~~~~~~
 
@@ -13,7 +14,7 @@ Added
   amount of contacts per sensor body.
 * Added :attr:`~isaaclab.sensors.contact_sensor.ContactSensorData.contact_pos_w` data field for tracking contact point
   locations.
-  
+
 
 0.40.22 (2025-07-11)
 ~~~~~~~~~~~~~~~~~~~~
