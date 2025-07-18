@@ -140,6 +140,7 @@ class _OnnxPolicyExporter(torch.nn.Module):
 
     def export(self, path, filename):
         self.to("cpu")
+        self.eval()
         if self.is_recurrent:
             obs = torch.zeros(1, self.rnn.input_size)
             h_in = torch.zeros(self.rnn.num_layers, 1, self.rnn.hidden_size)

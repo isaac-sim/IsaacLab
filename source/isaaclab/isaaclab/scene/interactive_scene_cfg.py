@@ -52,7 +52,7 @@ class InteractiveSceneCfg:
             height_scanner = RayCasterCfg(
                 prim_path="{ENV_REGEX_NS}/Robot_1/base",
                 offset=RayCasterCfg.OffsetCfg(pos=(0.0, 0.0, 20.0)),
-                attach_yaw_only=True,
+                ray_alignment="yaw",
                 pattern_cfg=GridPatternCfg(resolution=0.1, size=[1.6, 1.0]),
                 debug_vis=True,
                 mesh_prim_paths=["/World/ground"],
