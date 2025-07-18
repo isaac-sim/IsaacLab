@@ -51,7 +51,7 @@ To learn about how to set up your own project on top of Isaac Lab, see :ref:`tem
                   env_isaaclab\Scripts\activate
 
 
--  Next, install a CUDA-enabled PyTorch 2.7.0 build for CUDA 12.8. This step is optional for Linux, but required for Windows to ensure a CUDA-compatible version of PyTorch is installed.
+-  Next, install a CUDA-enabled PyTorch 2.7.0 build for CUDA 12.8.
 
    .. code-block:: bash
 
