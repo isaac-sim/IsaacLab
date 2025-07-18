@@ -55,7 +55,6 @@ To set the environment variables, one can use the following command in the termi
 
 .. code:: bash
 
-   export REMOTE_DEPLOYMENT=3
    export ENABLE_CAMERAS=1
    # run the python script
    ./isaaclab.sh -p scripts/demo/play_quadrupeds.py
@@ -64,7 +63,7 @@ Alternatively, one can set the environment variables to the python script direct
 
 .. code:: bash
 
-   REMOTE_DEPLOYMENT=3 ENABLE_CAMERAS=1 ./isaaclab.sh -p scripts/demo/play_quadrupeds.py
+   ENABLE_CAMERAS=1 ./isaaclab.sh -p scripts/demo/play_quadrupeds.py
 
 
 Overriding the environment variables

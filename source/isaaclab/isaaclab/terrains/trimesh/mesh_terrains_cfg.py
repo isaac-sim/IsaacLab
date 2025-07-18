@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import warnings
 from dataclasses import MISSING
 from typing import Literal
 
@@ -41,6 +42,10 @@ class MeshPyramidStairsTerrainCfg(SubTerrainBaseCfg):
     """The width of the steps (in m)."""
     platform_width: float = 1.0
     """The width of the square platform at the center of the terrain. Defaults to 1.0."""
+    platform_height: float = -1.0
+    """The height of the platform.  Defaults to -1.0.
+
+    If the value is negative, the height is the same as the object height."""
     holes: bool = False
     """If True, the terrain will have holes in the steps. Defaults to False.
 
@@ -191,13 +196,29 @@ class MeshRepeatedObjectsTerrainCfg(SubTerrainBaseCfg):
     """
     object_params_start: ObjectCfg = MISSING
     """The object curriculum parameters at the start of the curriculum."""
+
     object_params_end: ObjectCfg = MISSING
     """The object curriculum parameters at the end of the curriculum."""
 
-    max_height_noise: float = 0.0
-    """The maximum amount of noise to add to the height of the objects (in m). Defaults to 0.0."""
+    max_height_noise: float | None = None
+    """"This parameter is deprecated, but stated here to support backward compatibility"""
+
+    abs_height_noise: tuple[float, float] = (0.0, 0.0)
+    """The minimum and maximum amount of additive noise for the height of the objects. Default is set to 0.0, which is no noise."""
+
+    rel_height_noise: tuple[float, float] = (1.0, 1.0)
+    """The minimum and maximum amount of multiplicative noise for the height of the objects. Default is set to 1.0, which is no noise."""
+
     platform_width: float = 1.0
     """The width of the cylindrical platform at the center of the terrain. Defaults to 1.0."""
+
+    def __post_init__(self):
+        if self.max_height_noise is not None:
+            warnings.warn(
+                "MeshRepeatedObjectsTerrainCfg: max_height_noise:float is deprecated and support will be removed in the"
+                " future. Use abs_height_noise:list[float] instead."
+            )
+            self.abs_height_noise = (-self.max_height_noise, self.max_height_noise)
 
 
 @configclass

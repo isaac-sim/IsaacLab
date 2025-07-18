@@ -27,7 +27,7 @@ INSTALL_REQUIRES = [
     # devices
     "hidapi==0.14.0.post2",
     # reinforcement learning
-    "gymnasium>=1.0",
+    "gymnasium==1.2.0",
     # procedural-generation
     "trimesh",
     "pyglet<2",
@@ -36,7 +36,7 @@ INSTALL_REQUIRES = [
     "einops",  # needed for transformers, doesn't always auto-install
     "warp-lang",
     # make sure this is consistent with isaac sim version
-    "pillow==11.0.0",
+    "pillow==11.2.1",
     # livestream
     "starlette==0.45.3",
     # testing
