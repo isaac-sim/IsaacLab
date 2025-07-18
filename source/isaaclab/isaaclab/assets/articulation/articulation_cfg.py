@@ -44,12 +44,12 @@ class ArticulationCfg(AssetBaseCfg):
 
     If not provided will search for a prim with the ArticulationRootAPI. Should start with a slash.
     """
+
+    articulation_external_wrench_frame: str = "local"
+    """Frame in which external wrenches are applied. Defaults to "local".
     
-    articulation_force_frame: str = "local"
-    """Frame in which the external wrench is applied. Defaults to "local".
-    
-    If "local", the external wrench is applied in the local frame of the articulation root.
-    If "world", the external wrench is applied in the world frame.
+    If "local", the external wrenches are applied in the local frame of the articulation root.
+    If "world", the external wrenches are applied in the world frame.
     """
 
     init_state: InitialStateCfg = InitialStateCfg()
