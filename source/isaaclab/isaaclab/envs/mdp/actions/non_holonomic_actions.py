@@ -137,6 +137,21 @@ class NonHolonomicAction(ActionTerm):
 
     @property
     def IO_descriptor(self) -> GenericActionIODescriptor:
+        """The IO descriptor of the action term.
+        
+        This descriptor is used to describe the action term of the non-holonomic action.
+        It adds the following information to the base descriptor:
+        - scale: The scale of the action term.
+        - offset: The offset of the action term.
+        - clip: The clip of the action term.
+        - body_name: The name of the body.
+        - x_joint_name: The name of the x joint.
+        - y_joint_name: The name of the y joint.
+        - yaw_joint_name: The name of the yaw joint.
+
+        Returns:
+            The IO descriptor of the action term.
+        """
         super().IO_descriptor
         self._IO_descriptor.shape = (self.action_dim,)
         self._IO_descriptor.dtype = str(self.raw_actions.dtype)
