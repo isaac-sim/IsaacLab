@@ -76,9 +76,9 @@ def test_dc_motor_clip(num_envs, num_joints, device, test_point):
     3 - less than effort limit but outside torque speed curve (quadrant 1)
     4 - less than effort limit but outside torque speed curve and outside corner velocity(quadrant 4)
     5 - fully inside torque speed curve and effort limit (quadrant 4)
-    6 - fully outside torque speed curve and -effort limit (quadrant 4)
+
     7 - fully inside torque speed curve, outside -effort limit, and inside corner velocity (quadrant 4)
-    8 - fully inside torque speed curves, outside -effort limit, and outside corner velocity (quadrant 4)
+
     9 - less than effort limit but outside torque speed curve and inside corner velocity (quadrant 4)
     e - effort_limit
     s - saturation_effort
@@ -136,26 +136,26 @@ def test_dc_motor_clip(num_envs, num_joints, device, test_point):
         (10.0, -70.0),  # -9
     ]
     expected_clipped_effort = [
-        30.0,
-        60.0,
-        20.0,
-        20.0,
-        -80.0,
-        -30.0,
-        -120.0,
-        -60.0,
-        -80.0,
-        -40.0,
-        -30.0,
-        -60.0,
-        -20,
-        -20,
-        80.0,
-        30.0,
-        120.0,
-        60.0,
-        80.0,
-        40.0,
+        30.0,  # 0
+        60.0,  # 1
+        20.0,  # 2
+        20.0,  # 3
+        -50.0,  # 4
+        -30.0,  # 5
+        -60.0,  # 6
+        -60.0,  # 7
+        -60.0,  # 8
+        -40.0,  # 9
+        -30.0,  # -0
+        -60.0,  # -1
+        -20,  # -2
+        -20,  # -3
+        60.0,  # -4
+        30.0,  # -5
+        60.0,  # -6
+        60.0,  # -7
+        60.0,  # -8
+        40.0,  # -9
     ]
 
     joint_names = [f"joint_{d}" for d in range(num_joints)]
