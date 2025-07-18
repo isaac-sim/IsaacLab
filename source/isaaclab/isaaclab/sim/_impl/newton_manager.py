@@ -37,6 +37,7 @@ class NewtonManager:
     _on_init_callbacks: list = []
     _on_start_callbacks: list = []
     _contact_info: ContactInfo = None
+    _report_contacts: bool = False
     _use_cuda_graph: bool = False
     _graph = None
     _up_axis: str = "Z"
@@ -171,7 +172,7 @@ class NewtonManager:
                         state_0_dict[key].assign(state_1_dict[key])
                         state_1_dict[key].assign(state_temp_dict[key])
 
-        with wp.ScopedTimer("Contacts aggregation", active=False):
+        if NewtonManager._report_contacts:
             convert_contact_info(NewtonManager._model, NewtonManager._contact_info, NewtonManager._solver)
             NewtonManager._model.eval_contact_sensors(NewtonManager._contact_info)
         NewtonManager._state_0.clear_forces()
@@ -350,4 +351,5 @@ class NewtonManager:
             include_total=include_total,
             verbose=verbose
         )
+        NewtonManager._report_contacts = True
         return contact_sensor 
