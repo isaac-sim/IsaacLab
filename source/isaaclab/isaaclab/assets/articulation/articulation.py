@@ -189,7 +189,7 @@ class Articulation(AssetBase):
                     torque_data=self._external_torque_b.view(-1, 3),
                     position_data=self._external_wrench_positions_b.view(-1, 3),
                     indices=self._ALL_INDICES,
-                    is_global=False,
+                    is_global=self._use_global_wrench_frame,
                 )
             else:
                 self.root_physx_view.apply_forces_and_torques_at_position(
@@ -197,7 +197,7 @@ class Articulation(AssetBase):
                     torque_data=self._external_torque_b.view(-1, 3),
                     position_data=None,
                     indices=self._ALL_INDICES,
-                    is_global=False,
+                    is_global=self._use_global_wrench_frame,
                 )
 
         # apply actuator models
@@ -1323,6 +1323,15 @@ class Articulation(AssetBase):
         )
         default_root_state = torch.tensor(default_root_state, dtype=torch.float, device=self.device)
         self._data.default_root_state = default_root_state.repeat(self.num_instances, 1)
+
+        # -- external wrench
+        external_wrench_frame = self.cfg.articulation_force_frame
+        if external_wrench_frame == "local":
+            self._use_global_wrench_frame = False
+        elif external_wrench_frame == "world":
+            self._use_global_wrench_frame = True
+        else:
+            raise ValueError(f"Invalid external wrench frame: {self._external_wrench_frame}. Must be 'local' or 'world'.")
 
         # -- joint state
         self._data.default_joint_pos = torch.zeros(self.num_instances, self.num_joints, device=self.device)

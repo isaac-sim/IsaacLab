@@ -12,6 +12,7 @@ from ..asset_base_cfg import AssetBaseCfg
 from .articulation import Articulation
 
 
+
 @configclass
 class ArticulationCfg(AssetBaseCfg):
     """Configuration parameters for an articulation."""
@@ -42,6 +43,13 @@ class ArticulationCfg(AssetBaseCfg):
     """Path to the articulation root prim in the USD file.
 
     If not provided will search for a prim with the ArticulationRootAPI. Should start with a slash.
+    """
+    
+    articulation_force_frame: str = "local"
+    """Frame in which the external wrench is applied. Defaults to "local".
+    
+    If "local", the external wrench is applied in the local frame of the articulation root.
+    If "world", the external wrench is applied in the world frame.
     """
 
     init_state: InitialStateCfg = InitialStateCfg()
