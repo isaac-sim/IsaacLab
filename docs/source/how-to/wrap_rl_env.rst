@@ -4,7 +4,7 @@
 Wrapping environments
 =====================
 
-.. currentmodule:: omni.isaac.lab
+.. currentmodule:: isaaclab
 
 Environment wrappers are a way to modify the behavior of an environment without modifying the environment itself.
 This can be used to apply functions to modify observations or rewards, record videos, enforce time limits, etc.
@@ -22,7 +22,7 @@ For example, here is how you would wrap an environment to enforce that reset is 
     """Launch Isaac Sim Simulator first."""
 
 
-    from omni.isaac.lab.app import AppLauncher
+    from isaaclab.app import AppLauncher
 
     # launch omniverse app in headless mode
     app_launcher = AppLauncher(headless=True)
@@ -32,8 +32,8 @@ For example, here is how you would wrap an environment to enforce that reset is 
 
     import gymnasium as gym
 
-    import omni.isaac.lab_tasks  # noqa: F401
-    from omni.isaac.lab_tasks.utils import load_cfg_from_registry
+    import isaaclab_tasks  # noqa: F401
+    from isaaclab_tasks.utils import load_cfg_from_registry
 
     # create base environment
     cfg = load_cfg_from_registry("Isaac-Reach-Franka-v0", "env_cfg_entry_point")
@@ -77,7 +77,7 @@ The camera's pose and image resolution can be configured through the
 .. dropdown:: Default parameters of the ViewerCfg class:
     :icon: code
 
-    .. literalinclude:: ../../../source/extensions/omni.isaac.lab/omni/isaac/lab/envs/common.py
+    .. literalinclude:: ../../../source/isaaclab/isaaclab/envs/common.py
         :language: python
         :pyobject: ViewerCfg
 
@@ -94,7 +94,7 @@ for 200 steps, and saves it in the ``videos`` folder at a step interval of 1500 
     """Launch Isaac Sim Simulator first."""
 
 
-    from omni.isaac.lab.app import AppLauncher
+    from isaaclab.app import AppLauncher
 
     # launch omniverse app in headless mode with off-screen rendering
     app_launcher = AppLauncher(headless=True, enable_cameras=True)
@@ -135,7 +135,7 @@ As an example of how to use the RL task environment with Stable-Baselines3:
 
 .. code:: python
 
-    from omni.isaac.lab_tasks.utils.wrappers.sb3 import Sb3VecEnvWrapper
+    from isaaclab_rl.sb3 import Sb3VecEnvWrapper
 
     # create isaac-env instance
     env = gym.make(task_name, cfg=env_cfg)
@@ -153,8 +153,8 @@ As an example of how to use the RL task environment with Stable-Baselines3:
 Adding new wrappers
 -------------------
 
-All new wrappers should be added to the :mod:`omni.isaac.lab_tasks.utils.wrappers` module.
-They should check that the underlying environment is an instance of :class:`omni.isaac.lab.envs.ManagerBasedRLEnv`
+All new wrappers should be added to the :mod:`isaaclab_rl` module.
+They should check that the underlying environment is an instance of :class:`isaaclab.envs.ManagerBasedRLEnv`
 or :class:`~envs.DirectRLEnv`
 before applying the wrapper. This can be done by using the :func:`unwrapped` property.
 

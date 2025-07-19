@@ -1,7 +1,7 @@
 Recording Animations of Simulations
 ===================================
 
-.. currentmodule:: omni.isaac.lab
+.. currentmodule:: isaaclab
 
 Omniverse includes tools to record animations of physics simulations. The `Stage Recorder`_ extension
 listens to all the motion and USD property changes within a USD stage and records them to a USD file.
@@ -19,7 +19,7 @@ to play back the animation.
 
 
 In Isaac Lab, we directly use the `Stage Recorder`_ extension to record the animation of the physics simulation.
-This is available as a feature in the :class:`~omni.isaac.lab.envs.ui.BaseEnvWindow` class.
+This is available as a feature in the :class:`~isaaclab.envs.ui.BaseEnvWindow` class.
 However, to record the animation of a simulation, you need to disable `Fabric`_ to allow reading and writing
 all the changes (such as motion and USD properties) to the USD stage.
 
@@ -33,7 +33,7 @@ settings, you can directly use the `Stage Recorder`_ extension in the Omniverse 
 .. dropdown:: Settings used in base_env_window.py
   :icon: code
 
-  .. literalinclude:: ../../../source/extensions/omni.isaac.lab/omni/isaac/lab/envs/ui/base_env_window.py
+  .. literalinclude:: ../../../source/isaaclab/isaaclab/envs/ui/base_env_window.py
     :language: python
     :linenos:
     :pyobject: BaseEnvWindow._toggle_recording_animation_fn
@@ -47,7 +47,7 @@ Here we run the state-machine example and record the animation of the simulation
 
 .. code-block:: bash
 
-  ./isaaclab.sh -p source/standalone/environments/state_machine/lift_cube_sm.py --num_envs 8 --device cpu --disable_fabric
+  ./isaaclab.sh -p scripts/environments/state_machine/lift_cube_sm.py --num_envs 8 --device cpu --disable_fabric
 
 
 On running the script, the Isaac Lab UI window opens with the button "Record Animation" in the toolbar.
@@ -67,8 +67,8 @@ application and play the animation.
   ./isaaclab.sh -s  # Opens Isaac Sim application through _isaac_sim/isaac-sim.sh
 
 On a new stage, add the ``Stage.usd`` as a sublayer and then add the ``TimeSample_tk001.usd`` as a sublayer.
-You can do this by dragging and dropping the files from the file explorer to the stage. Please check out
-the `tutorial on layering in Omniverse`_ for more details.
+You can do this by opening the ``Layers`` window on the top right and then dragging and dropping the files from the file explorer to the stage (or finding the files in the ``Content`` window on the bottom left, right clicking and selecting ``Insert As Sublayer``).
+Please check out the `tutorial on layering in Omniverse`_ for more details.
 
 You can then play the animation by pressing the play button.
 

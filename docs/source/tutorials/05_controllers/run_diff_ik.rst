@@ -1,7 +1,7 @@
 Using a task-space controller
 =============================
 
-.. currentmodule:: omni.isaac.lab
+.. currentmodule:: isaaclab
 
 In the previous tutorials, we have joint-space controllers to control the robot. However, in many
 cases, it is more intuitive to control the robot using a task-space controller. For example, if we
@@ -17,13 +17,13 @@ The Code
 ~~~~~~~~
 
 The tutorial corresponds to the ``run_diff_ik.py`` script in the
-``source/standalone/tutorials/05_controllers`` directory.
+``scripts/tutorials/05_controllers`` directory.
 
 
 .. dropdown:: Code for run_diff_ik.py
    :icon: code
 
-   .. literalinclude:: ../../../../source/standalone/tutorials/05_controllers/run_diff_ik.py
+   .. literalinclude:: ../../../../scripts/tutorials/05_controllers/run_diff_ik.py
       :language: python
       :emphasize-lines: 98-100, 121-136, 155-157, 161-171
       :linenos:
@@ -65,7 +65,7 @@ In this tutorial, we will use the damped least-squares method to compute the des
 joint positions. Additionally, since we want to track desired end-effector poses, we
 will use the absolute pose command mode.
 
-.. literalinclude:: ../../../../source/standalone/tutorials/05_controllers/run_diff_ik.py
+.. literalinclude:: ../../../../scripts/tutorials/05_controllers/run_diff_ik.py
    :language: python
    :start-at: # Create controller
    :end-at: diff_ik_controller = DifferentialIKController(diff_ik_cfg, num_envs=scene.num_envs, device=sim.device)
@@ -79,7 +79,7 @@ joint positions, current end-effector pose, and the Jacobian matrix.
 
 While the attribute :attr:`assets.ArticulationData.joint_pos` provides the joint positions,
 we only want the joint positions of the robot's arm, and not the gripper. Similarly, while
-the attribute :attr:`assets.ArticulationData.body_link_state_w` provides the state of all the
+the attribute :attr:`assets.Articulationdata.body_state_w` provides the state of all the
 robot's bodies, we only want the state of the robot's end-effector. Thus, we need to
 index into these arrays to obtain the desired quantities.
 
@@ -94,7 +94,7 @@ calls the above methods to obtain the indices. However, it also performs some ad
 checks to ensure that the provided names are valid. Thus, it is a safer option to use
 this class.
 
-.. literalinclude:: ../../../../source/standalone/tutorials/05_controllers/run_diff_ik.py
+.. literalinclude:: ../../../../scripts/tutorials/05_controllers/run_diff_ik.py
    :language: python
    :start-at: # Specify robot-specific parameters
    :end-before: # Define simulation stepping
@@ -111,7 +111,7 @@ The :meth:`~controllers.DifferentialIKController.set_command` method takes in
 the desired end-effector pose as a single batched array. The pose is specified in
 the robot's base frame.
 
-.. literalinclude:: ../../../../source/standalone/tutorials/05_controllers/run_diff_ik.py
+.. literalinclude:: ../../../../scripts/tutorials/05_controllers/run_diff_ik.py
    :language: python
    :start-at: # reset controller
    :end-at: diff_ik_controller.set_command(ik_commands)
@@ -123,7 +123,7 @@ current joint positions. We read the Jacobian matrix from the robot's data, whic
 its value computed from the physics engine.
 
 
-.. literalinclude:: ../../../../source/standalone/tutorials/05_controllers/run_diff_ik.py
+.. literalinclude:: ../../../../scripts/tutorials/05_controllers/run_diff_ik.py
    :language: python
    :start-at: # obtain quantities from simulation
    :end-at: joint_pos_des = diff_ik_controller.compute(ee_pos_b, ee_quat_b, jacobian, joint_pos)
@@ -131,7 +131,7 @@ its value computed from the physics engine.
 The computed joint position targets can then be applied on the robot, as done in the
 previous tutorials.
 
-.. literalinclude:: ../../../../source/standalone/tutorials/05_controllers/run_diff_ik.py
+.. literalinclude:: ../../../../scripts/tutorials/05_controllers/run_diff_ik.py
    :language: python
    :start-at: # apply actions
    :end-at: scene.write_data_to_sim()
@@ -145,7 +145,7 @@ Now that we have gone through the code, let's run the script and see the result:
 
 .. code-block:: bash
 
-   ./isaaclab.sh -p source/standalone/tutorials/05_controllers/run_diff_ik.py --robot franka_panda --num_envs 128
+   ./isaaclab.sh -p scripts/tutorials/05_controllers/run_diff_ik.py --robot franka_panda --num_envs 128
 
 The script will start a simulation with 128 robots. The robots will be controlled using the IK controller.
 The current and desired end-effector poses should be displayed using frame markers. When the robot reaches

@@ -3,7 +3,7 @@
 From IsaacGymEnvs
 =================
 
-.. currentmodule:: omni.isaac.lab
+.. currentmodule:: isaaclab
 
 
 `IsaacGymEnvs`_ was a reinforcement learning framework designed for the `Isaac Gym Preview Release`_.
@@ -21,7 +21,7 @@ Task Config Setup
 ~~~~~~~~~~~~~~~~~
 
 In IsaacGymEnvs, task config files were defined in ``.yaml`` format. With Isaac Lab, configs are now specified using
-a specialized Python class :class:`~omni.isaac.lab.utils.configclass`. The :class:`~omni.isaac.lab.utils.configclass`
+a specialized Python class :class:`~isaaclab.utils.configclass`. The :class:`~isaaclab.utils.configclass`
 module provides a wrapper on top of Python's ``dataclasses`` module. Each environment should specify its own config
 class annotated by ``@configclass`` that inherits from :class:`~envs.DirectRLEnvCfg`, which can include simulation
 parameters, environment scene parameters, robot parameters, and task-specific parameters.
@@ -30,9 +30,9 @@ Below is an example skeleton of a task config class:
 
 .. code-block:: python
 
-   from omni.isaac.lab.envs import DirectRLEnvCfg
-   from omni.isaac.lab.scene import InteractiveSceneCfg
-   from omni.isaac.lab.sim import SimulationCfg
+   from isaaclab.envs import DirectRLEnvCfg
+   from isaaclab.scene import InteractiveSceneCfg
+   from isaaclab.sim import SimulationCfg
 
    @configclass
    class MyEnvCfg(DirectRLEnvCfg):
@@ -54,10 +54,10 @@ Below is an example skeleton of a task config class:
 Simulation Config
 -----------------
 
-Simulation related parameters are defined as part of the :class:`~omni.isaac.lab.sim.SimulationCfg` class,
-which is a :class:`~omni.isaac.lab.utils.configclass` module that holds simulation parameters such as ``dt``,
+Simulation related parameters are defined as part of the :class:`~isaaclab.sim.SimulationCfg` class,
+which is a :class:`~isaaclab.utils.configclass` module that holds simulation parameters such as ``dt``,
 ``device``, and ``gravity``. Each task config must have a variable named ``sim`` defined that holds the type
-:class:`~omni.isaac.lab.sim.SimulationCfg`.
+:class:`~isaaclab.sim.SimulationCfg`.
 
 In Isaac Lab, the use of ``substeps`` has been replaced
 by a combination of the simulation ``dt`` and the ``decimation`` parameters. For example, in IsaacGymEnvs, having
@@ -74,7 +74,7 @@ to each individual articulation and rigid body config.
 When running simulation on the GPU, buffers in PhysX require pre-allocation for computing and storing
 information such as contacts, collisions and aggregate pairs. These buffers may need to be adjusted
 depending on the complexity of the environment, the number of expected contacts and collisions,
-and the number of actors in the environment. The :class:`~omni.isaac.lab.sim.PhysxCfg` class provides access for
+and the number of actors in the environment. The :class:`~isaaclab.sim.PhysxCfg` class provides access for
 setting the GPU buffer dimensions.
 
 +--------------------------------------------------------------+-------------------------------------------------------------------+
@@ -109,9 +109,9 @@ setting the GPU buffer dimensions.
 Scene Config
 ------------
 
-The :class:`~omni.isaac.lab.scene.InteractiveSceneCfg` class can be used to specify parameters related to the scene,
+The :class:`~isaaclab.scene.InteractiveSceneCfg` class can be used to specify parameters related to the scene,
 such as the number of environments and the spacing between environments. Each task config must have a variable named
-``scene`` defined that holds the type :class:`~omni.isaac.lab.scene.InteractiveSceneCfg`.
+``scene`` defined that holds the type :class:`~isaaclab.scene.InteractiveSceneCfg`.
 
 +--------------------------------------------------------------+-------------------------------------------------------------------+
 |                                                              |                                                                   |
@@ -207,13 +207,13 @@ adding any other optional objects into the scene, such as lights.
 Ground Plane
 ------------
 
-In Isaac Lab, most of the environment creation process has been simplified into configs with the :class:`~omni.isaac.lab.utils.configclass` module.
+In Isaac Lab, most of the environment creation process has been simplified into configs with the :class:`~isaaclab.utils.configclass` module.
 
 The ground plane can be defined using the :class:`~terrains.TerrainImporterCfg` class.
 
 .. code-block:: python
 
-   from omni.isaac.lab.terrains import TerrainImporterCfg
+   from isaaclab.terrains import TerrainImporterCfg
 
    terrain = TerrainImporterCfg(
         prim_path="/World/ground",
@@ -247,13 +247,13 @@ library for describing the scene. Assets defined in MJCF and URDF formats can be
 tools described in the `Importing a New Asset <../how-to/import_new_asset.html>`_ tutorial.
 
 Each Articulation and Rigid Body actor can also have its own config class. The
-:class:`~omni.isaac.lab.assets.ArticulationCfg` class can be used to define parameters for articulation actors,
+:class:`~isaaclab.assets.ArticulationCfg` class can be used to define parameters for articulation actors,
 including file path, simulation parameters, actuator properties, and initial states.
 
 .. code-block::python
 
-   from omni.isaac.lab.actuators import ImplicitActuatorCfg
-   from omni.isaac.lab.assets import ArticulationCfg
+   from isaaclab.actuators import ImplicitActuatorCfg
+   from isaaclab.assets import ArticulationCfg
 
    CARTPOLE_CFG = ArticulationCfg(
        spawn=sim_utils.UsdFileCfg(
@@ -291,9 +291,9 @@ including file path, simulation parameters, actuator properties, and initial sta
    )
 
 Within the :class:`~assets.ArticulationCfg`, the ``spawn`` attribute can be used to add the robot to the scene by
-specifying the path to the robot file. In addition, :class:`~omni.isaac.lab.sim.schemas.RigidBodyPropertiesCfg` can
+specifying the path to the robot file. In addition, :class:`~isaaclab.sim.schemas.RigidBodyPropertiesCfg` can
 be used to specify simulation properties for the rigid bodies in the articulation.
-Similarly, the :class:`~omni.isaac.lab.sim.schemas.ArticulationRootPropertiesCfg` class can be used to specify
+Similarly, the :class:`~isaaclab.sim.schemas.ArticulationRootPropertiesCfg` class can be used to specify
 simulation properties for the articulation. Joint properties are now specified as part of the ``actuators``
 dictionary using :class:`~actuators.ImplicitActuatorCfg`. Joints with the same properties can be grouped into
 regex expressions or provided as a list of names or expressions.
@@ -484,7 +484,7 @@ Each environment in Isaac Lab should be in its own directory following this stru
 
    gym.register(
        id="Isaac-Cartpole-Direct-v0",
-       entry_point="omni.isaac.lab_tasks.direct_workflow.cartpole:CartpoleEnv",
+       entry_point="isaaclab_tasks.direct_workflow.cartpole:CartpoleEnv",
        disable_env_checker=True,
        kwargs={
            "env_cfg_entry_point": CartpoleEnvCfg,
@@ -814,9 +814,9 @@ The ``progress_buf`` variable has also been renamed to ``episode_length_buf``.
 |                                                                       |                                                                           |
 |                                                                       |     self.joint_pos[env_ids] = joint_pos                                   |
 |                                                                       |                                                                           |
-|                                                                       |     self.cartpole.write_root_link_pose_to_sim(                            |
+|                                                                       |     self.cartpole.write_root_pose_to_sim(                                 |
 |                                                                       |         default_root_state[:, :7], env_ids)                               |
-|                                                                       |     self.cartpole.write_root_com_velocity_to_sim(                         |
+|                                                                       |     self.cartpole.write_root_velocity_to_sim(                             |
 |                                                                       |         default_root_state[:, 7:], env_ids)                               |
 |                                                                       |     self.cartpole.write_joint_state_to_sim(                               |
 |                                                                       |         joint_pos, joint_vel, None, env_ids)                              |
@@ -912,7 +912,7 @@ To launch a training in Isaac Lab, use the command:
 
 .. code-block:: bash
 
-   python source/standalone/workflows/rl_games/train.py --task=Isaac-Cartpole-Direct-v0 --headless
+   python scripts/reinforcement_learning/rl_games/train.py --task=Isaac-Cartpole-Direct-v0 --headless
 
 Launching Inferencing
 ~~~~~~~~~~~~~~~~~~~~~
@@ -921,7 +921,7 @@ To launch inferencing in Isaac Lab, use the command:
 
 .. code-block:: bash
 
-   python source/standalone/workflows/rl_games/play.py --task=Isaac-Cartpole-Direct-v0 --num_envs=25 --checkpoint=<path/to/checkpoint>
+   python scripts/reinforcement_learning/rl_games/play.py --task=Isaac-Cartpole-Direct-v0 --num_envs=25 --checkpoint=<path/to/checkpoint>
 
 
 .. _IsaacGymEnvs: https://github.com/isaac-sim/IsaacGymEnvs

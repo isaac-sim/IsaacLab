@@ -1,0 +1,43 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+import gymnasium as gym
+
+from . import agents
+
+##
+# Register Gym environments.
+##
+
+
+gym.register(
+    id="{{ task.id }}",
+{% if task.workflow.name == "direct" %}
+    entry_point=f"{__name__}.{{ task.filename }}_env:{{ task.classname }}Env",
+{% else %}
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+{% endif %}
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.{{ task.filename }}_env_cfg:{{ task.classname }}EnvCfg",
+{# RL libraries configurations #}
+{% for rl_library in rl_libraries %}
+  {% for algorithm in rl_library.algorithms %}
+    {# configuration file #}
+    {% if rl_library.name == "rsl_rl" %}
+      {% set agent_config = "." ~ rl_library.name ~ "_" ~ algorithm ~ "_cfg:" ~ algorithm|upper ~ "RunnerCfg" %}
+    {% else %}
+      {% set agent_config = ":" ~ rl_library.name ~ "_" ~ algorithm ~ "_cfg.yaml" %}
+    {% endif %}
+    {# library configuration #}
+    {% if algorithm == "ppo" %}
+        "{{ rl_library.name }}_cfg_entry_point": f"{agents.__name__}{{ agent_config }}",
+    {% else %}
+        "{{ rl_library.name }}_{{ algorithm }}_cfg_entry_point": f"{agents.__name__}{{ agent_config }}",
+    {% endif %}
+  {% endfor %}
+{% endfor %}
+    },
+)

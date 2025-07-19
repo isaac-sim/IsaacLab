@@ -1,21 +1,21 @@
 Creating Visualization Markers
 ==============================
 
-.. currentmodule:: omni.isaac.lab
+.. currentmodule:: isaaclab
 
 Visualization markers are useful to debug the state of the environment. They can be used to visualize
 the frames, commands, and other information in the simulation.
 
-While Isaac Sim provides its own :mod:`omni.isaac.debug_draw` extension, it is limited to rendering only
+While Isaac Sim provides its own :mod:`isaacsim.util.debug_draw` extension, it is limited to rendering only
 points, lines and splines. For cases, where you need to render more complex shapes, you can use the
 :class:`markers.VisualizationMarkers` class.
 
-This guide is accompanied by a sample script ``markers.py`` in the ``IsaacLab/source/standalone/demos`` directory.
+This guide is accompanied by a sample script ``markers.py`` in the ``IsaacLab/scripts/demos`` directory.
 
 .. dropdown:: Code for markers.py
    :icon: code
 
-   .. literalinclude:: ../../../source/standalone/demos/markers.py
+   .. literalinclude:: ../../../scripts/demos/markers.py
       :language: python
       :emphasize-lines: 45-90, 106-107, 136-142
       :linenos:
@@ -41,7 +41,7 @@ Here we show all the different types of markers that can be configured. These ra
 cones and spheres to more complex geometries like a frame or arrows. The marker prototypes can also be
 configured from USD files.
 
-.. literalinclude:: ../../../source/standalone/demos/markers.py
+.. literalinclude:: ../../../scripts/demos/markers.py
    :language: python
    :lines: 45-90
    :dedent:
@@ -53,7 +53,7 @@ Drawing the markers
 To draw the markers, we call the :class:`~markers.VisualizationMarkers.visualize` method. This method takes in
 as arguments the pose of the markers and the corresponding marker prototypes to draw.
 
-.. literalinclude:: ../../../source/standalone/demos/markers.py
+.. literalinclude:: ../../../scripts/demos/markers.py
    :language: python
    :lines: 136-142
    :dedent:
@@ -66,7 +66,7 @@ To run the accompanying script, execute the following command:
 
 .. code-block:: bash
 
-  ./isaaclab.sh -p source/standalone/demos/markers.py
+  ./isaaclab.sh -p scripts/demos/markers.py
 
 The simulation should start, and you can observe the different types of markers arranged in a grid pattern.
 The markers will rotating around their respective axes. Additionally every few rotations, they will

@@ -28,13 +28,14 @@ The explicit actuator model performs two steps: 1) it computes the desired joint
 the input commands, and 2) it clips the desired torques based on the motor capabilities. The clipped
 torques are the desired actuation efforts that are set into the simulation.
 
-As an example of an ideal explicit actuator model, we provide the :class:`omni.isaac.lab.actuators.IdealPDActuator`
+As an example of an ideal explicit actuator model, we provide the :class:`isaaclab.actuators.IdealPDActuator`
 class, which implements a PD controller with feed-forward effort, and simple clipping based on the configured
 maximum effort:
 
 .. math::
 
-    \tau_{j, computed} & = k_p * (q - q_{des}) + k_d * (\dot{q} - \dot{q}_{des}) + \tau_{ff} \\
+    \tau_{j, computed} & = k_p * (q_{des} - q) + k_d * (\dot{q}_{des} - \dot{q}) + \tau_{ff} \\
+    \tau_{j, max} & = \gamma \times \tau_{motor, max} \\
     \tau_{j, applied} & = clip(\tau_{computed}, -\tau_{j, max}, \tau_{j, max})
 
 
@@ -48,7 +49,7 @@ Actuator groups
 
 The actuator models by themselves are computational blocks that take as inputs the desired joint commands
 and output the joint commands to apply into the simulator. They do not contain any knowledge about the
-joints they are acting on themselves. These are handled by the :class:`omni.isaac.lab.assets.Articulation`
+joints they are acting on themselves. These are handled by the :class:`isaaclab.assets.Articulation`
 class, which wraps around the physics engine's articulation class.
 
 Actuator are collected as a set of actuated joints on an articulation that are using the same actuator model.
@@ -74,4 +75,26 @@ The following figure shows the actuator groups for a legged mobile manipulator:
 .. seealso::
 
     We provide implementations for various explicit actuator models. These are detailed in
-    `omni.isaac.lab.actuators <../../api/lab/omni.isaac.lab.actuators.html>`_ sub-package.
+    `isaaclab.actuators <../../api/lab/isaaclab.actuators.html>`_ sub-package.
+
+Considerations when using actuators
+-----------------------------------
+
+As explained in the previous sections, there are two main types of actuator models: implicit and explicit.
+The implicit actuator model is provided by the physics engine. This means that when the user sets either
+a desired position or velocity, the physics engine will internally compute the efforts that need to be
+applied to the joints to achieve the desired behavior. In PhysX, the PD controller adds numerical damping
+to the desired effort, which results in more stable behavior.
+
+The explicit actuator model is provided by the user. This means that when the user sets either a desired
+position or velocity, the user's model will compute the efforts that need to be applied to the joints to
+achieve the desired behavior. While this provides more flexibility, it can also lead to some numerical
+instabilities. One way to mitigate this is to use the ``armature`` parameter of the actuator model, either in
+the USD file or in the articulation config. This parameter is used to dampen the joint response and helps
+improve the numerical stability of the simulation. More details on how to improve articulation stability
+can be found in the `OmniPhysics documentation <https://docs.omniverse.nvidia.com/kit/docs/omni_physics/latest/dev_guide/guides/articulation_stability_guide.html>`_.
+
+What does this mean for the user? It means that policies trained with implicit actuators may not transfer
+to the exact same robot model when using explicit actuators. If you are running into issues like this, or
+in cases where policies do not converge on explicit actuators while they do on implicit ones, increasing
+or setting the ``armature`` parameter to a higher value may help.

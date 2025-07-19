@@ -5,7 +5,7 @@ Workflows
 ---------
 
 With Isaac Lab, we also provide a suite of benchmark environments included
-in the ``omni.isaac.lab_tasks`` extension. We use the OpenAI Gym registry
+in the ``isaaclab_tasks`` extension. We use the OpenAI Gym registry
 to register these environments. For each environment, we provide a default
 configuration file that defines the scene, observations, rewards and action spaces.
 
@@ -19,14 +19,14 @@ The list of environments available registered with OpenAI Gym can be found by ru
 
       .. code:: bash
 
-         ./isaaclab.sh -p source/standalone/environments/list_envs.py
+         ./isaaclab.sh -p scripts/environments/list_envs.py
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
 
       .. code:: batch
 
-         isaaclab.bat -p source\standalone\environments\list_envs.py
+         isaaclab.bat -p scripts\environments\list_envs.py
 
 Dummy agents
 ~~~~~~~~~~~~
@@ -44,14 +44,14 @@ useful to ensure that the environments are configured correctly.
 
       .. code:: bash
 
-         ./isaaclab.sh -p source/standalone/environments/zero_agent.py --task Isaac-Cartpole-v0 --num_envs 32
+         ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Cartpole-v0 --num_envs 32
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
 
       .. code:: batch
 
-         isaaclab.bat -p source\standalone\environments\zero_agent.py --task Isaac-Cartpole-v0 --num_envs 32
+         isaaclab.bat -p scripts\environments\zero_agent.py --task Isaac-Cartpole-v0 --num_envs 32
 
 -  Random-action agent on the Cart-pole example:
 
@@ -63,14 +63,14 @@ useful to ensure that the environments are configured correctly.
 
       .. code:: bash
 
-         ./isaaclab.sh -p source/standalone/environments/random_agent.py --task Isaac-Cartpole-v0 --num_envs 32
+         ./isaaclab.sh -p scripts/environments/random_agent.py --task Isaac-Cartpole-v0 --num_envs 32
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
 
       .. code:: batch
 
-         isaaclab.bat -p source\standalone\environments\random_agent.py --task Isaac-Cartpole-v0 --num_envs 32
+         isaaclab.bat -p scripts\environments\random_agent.py --task Isaac-Cartpole-v0 --num_envs 32
 
 
 State machine
@@ -91,14 +91,14 @@ allows efficient execution for large number of environments using CUDA kernels.
 
       .. code:: bash
 
-         ./isaaclab.sh -p source/standalone/environments/state_machine/lift_cube_sm.py --num_envs 32
+         ./isaaclab.sh -p scripts/environments/state_machine/lift_cube_sm.py --num_envs 32
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
 
       .. code:: batch
 
-         isaaclab.bat -p source\standalone\environments\state_machine\lift_cube_sm.py --num_envs 32
+         isaaclab.bat -p scripts\environments\state_machine\lift_cube_sm.py --num_envs 32
 
 - Picking up a deformable teddy bear and placing it at a desired pose with a robotic arm:
 
@@ -110,11 +110,11 @@ allows efficient execution for large number of environments using CUDA kernels.
 
       .. code:: bash
 
-         ./isaaclab.sh -p source/standalone/environments/state_machine/lift_teddy_bear.py
+         ./isaaclab.sh -p scripts/environments/state_machine/lift_teddy_bear.py
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
 
       .. code:: batch
 
-         isaaclab.bat -p source\standalone\environments\state_machine\lift_teddy_bear.py
+         isaaclab.bat -p scripts\environments\state_machine\lift_teddy_bear.py
