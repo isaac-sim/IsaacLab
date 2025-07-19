@@ -1,6 +1,22 @@
 Changelog
 ---------
 
+
+0.40.23 (2025-07-18)
+~~~~~~~~~~~~~~~~~~~~
+Added
+^^^^^
+
+* Added unit tests for :class:`~isaaclab.actuator.ImplicitActuator`, :class:`~isaaclab.actuator.IdealPDActuator`,
+  and :class:`~isaaclab.actuator.DCMotor` independent of :class:`~isaaclab.assets.Articulation`
+  
+Changed
+^^^^^^^
+
+* Changed the way clipping is handled for :class:`~isaaclab.actuator.DCMotor` for torque-speed points in when in
+  negative power regions.
+  
+  
 0.40.22 (2025-07-11)
 ~~~~~~~~~~~~~~~~~~~~
 
@@ -133,8 +149,7 @@ Fixed
 
 Changed
 ^^^^^^^
-
-* Updated gymnasium to v1.2.0. This update includes fixes for a memory leak that appears when recording
+>>>* Updated gymnasium to v1.2.0. This update includes fixes for a memory leak that appears when recording
   videos with the ``--video`` flag.
 
 
@@ -143,7 +158,6 @@ Changed
 
 Added
 ^^^^^
-
 
 * Added unit test for :func:`~isaaclab.utils.math.quat_inv`.
 
