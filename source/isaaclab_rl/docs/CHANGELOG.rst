@@ -1,6 +1,25 @@
 Changelog
 ---------
 
+0.1.8 (2025-06-29)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Support SB3 VecEnv wrapper to configure with composite observation spaces properly so that the cnn creation pipelines
+  natively supported by sb3 can be automatically triggered
+
+
+0.1.7 (2025-06-30)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Call :meth:`eval` during :meth:`forward`` RSL-RL OnnxPolicyExporter
+
+
 0.1.6 (2025-06-26)
 ~~~~~~~~~~~~~~~~~~
 

@@ -7,6 +7,7 @@
 
 
 from dataclasses import MISSING
+from typing import Literal
 
 from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.markers.config import RAY_CASTER_MARKER_CFG
@@ -43,10 +44,22 @@ class RayCasterCfg(SensorBaseCfg):
     offset: OffsetCfg = OffsetCfg()
     """The offset pose of the sensor's frame from the sensor's parent frame. Defaults to identity."""
 
-    attach_yaw_only: bool = MISSING
+    attach_yaw_only: bool = False
     """Whether the rays' starting positions and directions only track the yaw orientation.
 
     This is useful for ray-casting height maps, where only yaw rotation is needed.
+
+    .. warning::
+
+        This attribute is deprecated. Use :attr:`~isaaclab.sensors.ray_caster.ray_caster_cfg.ray_alignment` instead.
+        To get the same behavior, set `ray_alignment` to `"yaw"`.
+    """
+
+    ray_alignment: Literal["base", "yaw", "world"] = "yaw"
+    """Specify in what frame the rays are projected onto the ground. Default is `world`.
+        * `base` if the rays' starting positions and directions track the full root position and orientation.
+        * `yaw` if the rays' starting positions and directions track root position and only yaw component of orientation. This is useful for ray-casting height maps.
+        * `world` if rays' starting positions and directions are always fixed. This is useful in combination with the grid map package.
     """
 
     pattern_cfg: PatternBaseCfg = MISSING
@@ -56,7 +69,13 @@ class RayCasterCfg(SensorBaseCfg):
     """Maximum distance (in meters) from the sensor to ray cast to. Defaults to 1e6."""
 
     drift_range: tuple[float, float] = (0.0, 0.0)
-    """The range of drift (in meters) to add to the ray starting positions (xyz). Defaults to (0.0, 0.0).
+    """The range of drift (in meters) to add to the ray starting positions (xyz) in world frame. Defaults to (0.0, 0.0).
+
+    For floating base robots, this is useful for simulating drift in the robot's pose estimation.
+    """
+
+    ray_cast_drift_range: dict[str, tuple[float, float]] = {"x": (0.0, 0.0), "y": (0.0, 0.0), "z": (0.0, 0.0)}
+    """The range of drift (in meters) to add to the projected ray points in local projection frame. Defaults to (0.0, 0.0) for x, y, and z drift.
 
     For floating base robots, this is useful for simulating drift in the robot's pose estimation.
     """

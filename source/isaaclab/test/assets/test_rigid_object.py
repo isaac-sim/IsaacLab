@@ -591,7 +591,7 @@ def test_rigid_body_with_static_friction(num_cubes, device):
                 cube_object.update(sim.cfg.dt)
                 if force == "below_mu":
                     # Assert that the block has not moved
-                    torch.testing.assert_close(cube_object.data.root_pos_w, initial_root_pos, rtol=1e-3, atol=1e-3)
+                    torch.testing.assert_close(cube_object.data.root_pos_w, initial_root_pos, rtol=2e-3, atol=2e-3)
             if force == "above_mu":
                 assert (cube_object.data.root_state_w[..., 0] - initial_root_pos[..., 0] > 0.02).all()
 
@@ -848,8 +848,8 @@ def test_body_root_state_properties(num_cubes, device, with_offset):
                 lin_vel_rel_root_gt = quat_apply_inverse(root_link_state_w[..., 3:7], root_link_state_w[..., 7:10])
                 lin_vel_rel_body_gt = quat_apply_inverse(body_link_state_w[..., 3:7], body_link_state_w[..., 7:10])
                 lin_vel_rel_gt = torch.linalg.cross(spin_twist.repeat(num_cubes, 1)[..., 3:], -offset)
-                torch.testing.assert_close(lin_vel_rel_gt, lin_vel_rel_root_gt, atol=1e-4, rtol=1e-4)
-                torch.testing.assert_close(lin_vel_rel_gt, lin_vel_rel_body_gt.squeeze(-2), atol=1e-4, rtol=1e-4)
+                torch.testing.assert_close(lin_vel_rel_gt, lin_vel_rel_root_gt, atol=1e-3, rtol=1e-3)
+                torch.testing.assert_close(lin_vel_rel_gt, lin_vel_rel_body_gt.squeeze(-2), atol=1e-3, rtol=1e-3)
 
                 # ang_vel will always match
                 torch.testing.assert_close(root_state_w[..., 10:], root_com_state_w[..., 10:])

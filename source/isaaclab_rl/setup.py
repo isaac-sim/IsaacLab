@@ -19,7 +19,7 @@ EXTENSION_TOML_DATA = toml.load(os.path.join(EXTENSION_PATH, "config", "extensio
 # Minimum dependencies required prior to installation
 INSTALL_REQUIRES = [
     # generic
-    "numpy",
+    "numpy<2",
     "torch==2.5.1",
     "torchvision>=0.14.1",  # ensure compatibility with torch 1.13.1
     "protobuf>=3.20.2,!=5.26.0",
@@ -32,7 +32,7 @@ INSTALL_REQUIRES = [
     # video recording
     "moviepy",
     # make sure this is consistent with isaac sim version
-    "pillow==11.0.0",
+    "pillow==11.2.1",
 ]
 
 PYTORCH_INDEX_URL = ["https://download.pytorch.org/whl/cu118"]

@@ -59,7 +59,19 @@ class ContactSensorData:
     """The normal contact forces filtered between the sensor bodies and filtered bodies in world frame.
 
     Shape is (N, B, M, 3), where N is the number of sensors, B is number of bodies in each sensor
-    and ``M`` is the number of filtered bodies.
+    and M is the number of filtered bodies.
+
+    Note:
+        If the :attr:`ContactSensorCfg.filter_prim_paths_expr` is empty, then this quantity is None.
+    """
+
+    force_matrix_w_history: torch.Tensor | None = None
+    """The normal contact forces filtered between the sensor bodies and filtered bodies in world frame.
+
+    Shape is (N, T, B, M, 3), where N is the number of sensors, T is the configured history length,
+    B is number of bodies in each sensor and M is the number of filtered bodies.
+
+    In the history dimension, the first index is the most recent and the last index is the oldest.
 
     Note:
         If the :attr:`ContactSensorCfg.filter_prim_paths_expr` is empty, then this quantity is None.

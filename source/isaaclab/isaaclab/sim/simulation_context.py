@@ -234,6 +234,14 @@ class SimulationContext(_SimulationContext):
                 physx_params = sim_params.pop("physx")
                 sim_params.update(physx_params)
         # create a simulation context to control the simulator
+
+        if not self.cfg.physx.enable_stabilization and (self.cfg.dt > 0.0333):
+            omni.log.warn(
+                "Large simulation step size (> 0.0333 seconds) is not recommended without enabling stabilization."
+                " Consider setting the `enable_stabilization` flag to True in the PhysxCfg, or reducing the"
+                " simulation step size if you run into physics issues."
+            )
+
         super().__init__(
             stage_units_in_meters=1.0,
             physics_dt=self.cfg.dt,
