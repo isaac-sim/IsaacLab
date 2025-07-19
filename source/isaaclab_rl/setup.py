@@ -42,7 +42,7 @@ EXTRAS_REQUIRE = {
     "sb3": ["stable-baselines3>=2.6", "tqdm", "rich"],  # tqdm/rich for progress bar
     "skrl": ["skrl>=1.4.2"],
     "rl-games": ["rl-games==1.6.1", "gym"],  # rl-games still needs gym :(
-    "rsl-rl": ["rsl-rl-lib==2.3.3"],
+    "rsl-rl": ["rsl-rl-lib==3.0.0"],
 }
 # Add the names with hyphens as aliases for convenience
 EXTRAS_REQUIRE["rl_games"] = EXTRAS_REQUIRE["rl-games"]
