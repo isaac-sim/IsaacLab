@@ -5,7 +5,6 @@
 
 """Configuration for the ray-cast sensor."""
 
-
 from dataclasses import MISSING
 from typing import Literal
 
@@ -61,6 +60,9 @@ class RayCasterCfg(SensorBaseCfg):
         * `yaw` if the rays' starting positions and directions track root position and only yaw component of orientation. This is useful for ray-casting height maps.
         * `world` if rays' starting positions and directions are always fixed. This is useful in combination with the grid map package.
     """
+
+    track_ray_distance: bool = False
+    """Whether to track the ray_distance (distances of the rays until they hits the mesh). Defaults to False."""
 
     pattern_cfg: PatternBaseCfg = MISSING
     """The pattern that defines the local ray starting positions and directions."""
