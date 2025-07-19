@@ -1,13 +1,28 @@
 Changelog
 ---------
 
+0.40.x (2025-07-17)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :meth:`isaaclab.scene.reset_to` to properly accept None as valid argument.
+
+
+Added
+^^^^^
+
+* Added tests to verify that argument types.
+
+
 0.40.22 (2025-07-11)
 ~~~~~~~~~~~~~~~~~~~~
 
 Added
 ^^^^^
 
-* Added :attr:`omni.isaac.lab.sensors.ContactSensorData.force_matrix_w_history` that tracks the history of the filtered contact forces in the world frame.
+* Added :attr:`~isaaclab.sensors.ContactSensorData.force_matrix_w_history` that tracks the history of the filtered contact forces in the world frame.
 
 
 0.40.21 (2025-06-25)
