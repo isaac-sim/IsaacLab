@@ -3,11 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 # NOTE: While we don't actually use the simulation app in this test, we still need to launch it
 #       because warp is only available in the context of a running simulation
 """Launch Isaac Sim Simulator first."""

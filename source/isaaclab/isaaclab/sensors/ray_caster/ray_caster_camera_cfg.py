@@ -3,11 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 """Configuration for the ray-cast camera sensor."""
 
 from dataclasses import MISSING
@@ -65,4 +60,4 @@ class RayCasterCameraCfg(RayCasterCfg):
 
     def __post_init__(self):
         # for cameras, this quantity should be False always.
-        self.attach_yaw_only = False
+        self.ray_alignment = "base"

@@ -3,11 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -16,7 +11,13 @@ import isaacsim.core.utils.prims as prim_utils
 import isaacsim.core.utils.stage as stage_utils
 import omni.kit.commands
 import omni.log
-from pxr import Gf, Sdf, Semantics, Usd
+from pxr import Gf, Sdf, Usd
+
+# from Isaac Sim 4.2 onwards, pxr.Semantics is deprecated
+try:
+    import Semantics
+except ModuleNotFoundError:
+    from pxr import Semantics
 
 from isaaclab.sim import converters, schemas
 from isaaclab.sim.utils import bind_physics_material, bind_visual_material, clone, select_usd_variants

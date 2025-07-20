@@ -3,11 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 from __future__ import annotations
 
 import builtins
@@ -361,7 +356,7 @@ class DirectMARLEnv(gym.Env):
         if self.cfg.action_noise_model:
             for agent, action in actions.items():
                 if agent in self._action_noise_model:
-                    actions[agent] = self._action_noise_model[agent].apply(action)
+                    actions[agent] = self._action_noise_model[agent](action)
         # process actions
         self._pre_physics_step(actions)
 
@@ -414,7 +409,7 @@ class DirectMARLEnv(gym.Env):
         if self.cfg.observation_noise_model:
             for agent, obs in self.obs_dict.items():
                 if agent in self._observation_noise_model:
-                    self.obs_dict[agent] = self._observation_noise_model[agent].apply(obs)
+                    self.obs_dict[agent] = self._observation_noise_model[agent](obs)
 
         # return observations, rewards, resets and extras
         return self.obs_dict, self.reward_dict, self.terminated_dict, self.time_out_dict, self.extras

@@ -3,11 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 """Sub-module for spawning meshes in the simulation.
 
 NVIDIA Omniverse deals with meshes as `USDGeomMesh`_ prims. This sub-module provides various

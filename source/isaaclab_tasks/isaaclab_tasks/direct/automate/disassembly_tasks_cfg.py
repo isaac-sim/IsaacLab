@@ -3,11 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, RigidObjectCfg
 from isaaclab.utils import configclass
@@ -120,10 +115,10 @@ class Hole8mm(FixedAssetCfg):
 class Extraction(DisassemblyTask):
     name = "extraction"
 
-    assembly_id = "00731"
+    assembly_id = "00015"
     assembly_dir = f"{ASSET_DIR}/{assembly_id}/"
     disassembly_dir = "disassembly_dir"
-    num_log_traj = 100
+    num_log_traj = 1000
 
     fixed_asset_cfg = Hole8mm()
     held_asset_cfg = Peg8mm()

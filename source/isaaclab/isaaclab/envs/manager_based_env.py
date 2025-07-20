@@ -3,11 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 import builtins
 import torch
 from collections.abc import Sequence
@@ -310,7 +305,7 @@ class ManagerBasedEnv:
         self.recorder_manager.record_post_reset(env_ids)
 
         # compute observations
-        self.obs_buf = self.observation_manager.compute()
+        self.obs_buf = self.observation_manager.compute(update_history=True)
 
         if self.cfg.wait_for_textures and self.sim.has_rtx_sensors():
             while SimulationManager.assets_loading():
@@ -370,7 +365,7 @@ class ManagerBasedEnv:
         self.recorder_manager.record_post_reset(env_ids)
 
         # compute observations
-        self.obs_buf = self.observation_manager.compute()
+        self.obs_buf = self.observation_manager.compute(update_history=True)
 
         # return observations
         return self.obs_buf, self.extras
@@ -421,7 +416,7 @@ class ManagerBasedEnv:
             self.event_manager.apply(mode="interval", dt=self.step_dt)
 
         # -- compute observations
-        self.obs_buf = self.observation_manager.compute()
+        self.obs_buf = self.observation_manager.compute(update_history=True)
         self.recorder_manager.record_post_step()
 
         # return observations and extras

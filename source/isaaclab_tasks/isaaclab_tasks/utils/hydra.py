@@ -3,11 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 """Sub-module with utilities for the hydra configuration system."""
 
 
@@ -83,10 +78,10 @@ def hydra_task_config(task_name: str, agent_cfg_entry_point: str) -> Callable:
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
             # register the task to Hydra
-            env_cfg, agent_cfg = register_task_to_hydra(task_name, agent_cfg_entry_point)
+            env_cfg, agent_cfg = register_task_to_hydra(task_name.split(":")[-1], agent_cfg_entry_point)
 
             # define the new Hydra main function
-            @hydra.main(config_path=None, config_name=task_name, version_base="1.3")
+            @hydra.main(config_path=None, config_name=task_name.split(":")[-1], version_base="1.3")
             def hydra_main(hydra_env_cfg: DictConfig, env_cfg=env_cfg, agent_cfg=agent_cfg):
                 # convert to a native dictionary
                 hydra_env_cfg = OmegaConf.to_container(hydra_env_cfg, resolve=True)
