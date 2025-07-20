@@ -86,9 +86,9 @@ jobs:
               # If the license is provided in the exceptions list, check the license
               EXCEPTION_LICENSE=$(echo "$EXCEPTION" | jq -r '.license')
 
-              echo "Comparing licenses for $pkg:"
-              echo "  EXCEPTION_LICENSE='${EXCEPTION_LICENSE}' (len=${#EXCEPTION_LICENSE})"
-              echo "  LICENSE='${LICENSE}' (len=${#LICENSE})"
+              # echo "Comparing licenses for $pkg:"
+              # echo "  EXCEPTION_LICENSE='${EXCEPTION_LICENSE}' (len=${#EXCEPTION_LICENSE})"
+              # echo "  LICENSE='${LICENSE}' (len=${#LICENSE})"
 
               # If the exceptions list has a license and doesn't match the current license
               if [ "$EXCEPTION_LICENSE" != "null" ] && [ "$EXCEPTION_LICENSE" != "$LICENSE" ]; then
