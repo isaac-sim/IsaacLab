@@ -232,6 +232,10 @@
     "license": "Mozilla Public License 2.0 (MPL 2.0)"
   },
   {
+    "package": "certifi",
+    "license": "MPL-2.0"
+  },  
+  {
       "package": "rl_games",
       "license": "UNKNOWN"
   },
