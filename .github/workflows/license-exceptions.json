@@ -234,7 +234,7 @@
   {
     "package": "certifi",
     "license": "MPL-2.0"
-  },  
+  },
   {
       "package": "rl_games",
       "license": "UNKNOWN"
