@@ -1,8 +1,24 @@
 Changelog
 ---------
 
+
+0.41.0 (2025-07-2)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab.sensors.contact_sensor.ContactSensorCfg.track_contact_points` to toggle tracking of contact
+  point locations between sensor bodies and filtered bodies.
+* Added :attr:`~isaaclab.sensors.contact_sensor.ContactSensorCfg.max_contact_data_per_prim` to configure the maximum
+  amount of contacts per sensor body.
+* Added :attr:`~isaaclab.sensors.contact_sensor.ContactSensorData.contact_pos_w` data field for tracking contact point
+  locations.
+
+
 0.40.22 (2025-07-11)
 ~~~~~~~~~~~~~~~~~~~~
+
 
 Added
 ^^^^^
@@ -143,7 +159,6 @@ Changed
 
 Added
 ^^^^^
-
 
 * Added unit test for :func:`~isaaclab.utils.math.quat_inv`.
 
