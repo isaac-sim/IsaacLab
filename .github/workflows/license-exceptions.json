@@ -228,6 +228,10 @@
     "license": "Python Software Foundation License"
   },
   {
+    "package": "certifi",
+    "license": "Mozilla Public License 2.0 (MPL 2.0)"
+  },
+  {
       "package": "rl_games",
       "license": "UNKNOWN"
   },
@@ -264,10 +268,6 @@
     "license": "UNKNOWN"
   },
   {
-    "package": "certifi",
-    "license": "Mozilla Public License 2.0 (MPL 2.0)"
-  },
-  {
     "package": "click",
     "license": "UNKNOWN"
   },
@@ -297,6 +297,22 @@
   },
   {
     "package": "h5py",
+    "license": "UNKNOWN"
+  },
+  {
+    "package": "pillow",
+    "license": "UNKNOWN"
+  },
+  {
+    "package": "pygame",
+    "license": "GNU Library or Lesser General Public License (LGPL)"
+  },
+  {
+    "package": "scikit-learn",
+    "license": "UNKNOWN"
+  },
+  {
+    "package": "tensorboardX",
     "license": "UNKNOWN"
   }
 ]
