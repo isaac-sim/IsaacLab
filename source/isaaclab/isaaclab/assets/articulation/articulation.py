@@ -1452,9 +1452,11 @@ class Articulation(AssetBase):
                 )
 
         # resolve articulation root prim back into regex expression
-        root_prim_path = root_prims[0].GetPath().pathString
-        root_prim_path_expr = self.cfg.prim_path + root_prim_path[len(template_prim_path) :]
+        first_env_root_prim_path = first_env_root_prims[0].GetPath().pathString
+        root_prim_path_relative_to_prim_path = first_env_root_prim_path[len(first_env_matching_prim_path) :]
+        root_prim_path_expr = self.cfg.prim_path + root_prim_path_relative_to_prim_path
         prim_path = root_prim_path_expr.replace(".*", "*")
+
         self._root_newton_view = NewtonArticulationView(NewtonManager.get_model(), prim_path, verbose=True, exclude_joint_types=[JOINT_FREE, JOINT_FIXED])
 
         # log information about the articulation

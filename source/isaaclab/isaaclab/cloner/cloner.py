@@ -64,7 +64,8 @@ class Cloner:
         return [f"{root_path}_{i}" for i in range(num_paths)]
 
     def replicate_physics(
-        self, source_prim_path: str, prim_paths: list, base_env_path: str, root_path: str, enable_env_ids: bool = False
+        self, source_prim_path: str, prim_paths: list, base_env_path: str, root_path: str, enable_env_ids: bool = False,
+        clone_in_fabric: bool = False,
     ):
         """Replicates physics properties directly in omni.physics to avoid performance bottlenecks when parsing physics.
 
@@ -74,6 +75,7 @@ class Cloner:
             base_env_path (str): Path to namespace for all environments.
             root_path (str): Prefix path for each environment.
             useEnvIds (bool): Whether to use envIDs functionality in physics to enable co-location of clones. Clones will be filtered automatically.
+            clone_in_fabric (bool): Not supported in Newton. This is here for compatibility with IL 2.2.
         Raises:
             Exception: Raises exception if base_env_path is None or root_path is None.
 
@@ -155,6 +157,7 @@ class Cloner:
         positions: Union[np.ndarray, torch.Tensor] = None,
         orientations: Union[np.ndarray, torch.Tensor] = None,
         replicate_physics: bool = False,
+        clone_in_fabric: bool = False,
         base_env_path: str = None,
         root_path: str = None,
         copy_from_source: bool = False,
@@ -172,6 +175,7 @@ class Cloner:
             orientations (Union[np.ndarray, torch.Tensor]): An array containing target orientations of clones. Dimension must equal length of prim_paths.
                                     Defaults to None. Clones will have identity orientation (1, 0, 0, 0) if not specified.
             replicate_physics (bool): Uses omni.physics replication. This will replicate physics properties directly for paths beginning with root_path and skip physics parsing for anything under the base_env_path.
+            clone_in_fabric (bool): Not supported in Newton. This is here for compatibility with IL 2.2.
             base_env_path (str): Path to namespace for all environments. Required if replicate_physics=True and define_base_env() not called.
             root_path (str): Prefix path for each environment. Required if replicate_physics=True and generate_paths() not called.
             copy_from_source: (bool): Setting this to False will inherit all clones from the source prim; any changes made to the source prim will be reflected in the clones.

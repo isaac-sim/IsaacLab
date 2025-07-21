@@ -130,6 +130,7 @@ class GridCloner(Cloner):
         orientation_offsets: np.ndarray = None,
         replicate_physics: bool = False,
         base_env_path: str = None,
+        clone_in_fabric: bool = False,
         root_path: str = None,
         copy_from_source: bool = False,
         enable_env_ids: bool = False,
@@ -145,6 +146,7 @@ class GridCloner(Cloner):
                                            Defaults to None, no offset will be applied.
             replicate_physics (bool): Uses omni.physics replication. This will replicate physics properties directly for paths beginning with root_path and skip physics parsing for anything under the base_env_path.
             base_env_path (str): Path to namespace for all environments. Required if replicate_physics=True and define_base_env() not called.
+            clone_in_fabric (bool): Not supported in Newton. This is here for compatibility with IL 2.2.
             root_path (str): Prefix path for each environment. Required if replicate_physics=True and generate_paths() not called.
             copy_from_source: (bool): Setting this to False will inherit all clones from the source prim; any changes made to the source prim will be reflected in the clones.
                          Setting this to True will make copies of the source prim when creating new clones; changes to the source prim will not be reflected in clones. Defaults to False. Note that setting this to True will take longer to execute.
