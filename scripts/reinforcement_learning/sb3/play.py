@@ -23,6 +23,7 @@ parser.add_argument(
 parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 parser.add_argument("--checkpoint", type=str, default=None, help="Path to model checkpoint.")
+parser.add_argument("--seed", type=int, default=None, help="Seed used for the environment")
 parser.add_argument(
     "--use_pretrained_checkpoint",
     action="store_true",
@@ -59,6 +60,7 @@ simulation_app = app_launcher.app
 
 import gymnasium as gym
 import os
+import random
 import time
 import torch
 
@@ -87,8 +89,16 @@ from isaaclab_tasks.utils.parse_cfg import get_checkpoint_path
 @hydra_task_config(args_cli.task, "sb3_cfg_entry_point")
 def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agent_cfg: dict):
     """Play with stable-baselines agent."""
+    # randomly sample a seed if seed = -1
+    if args_cli.seed == -1:
+        args_cli.seed = random.randint(0, 10000)
+
     # override configurations with non-hydra CLI arguments
     env_cfg.scene.num_envs = args_cli.num_envs if args_cli.num_envs is not None else env_cfg.scene.num_envs
+    agent_cfg["seed"] = args_cli.seed if args_cli.seed is not None else agent_cfg["seed"]
+    # set the environment seed
+    # note: certain randomizations occur in the environment initialization so we set the seed here
+    env_cfg.seed = agent_cfg["seed"]
     env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
 
     task_name = args_cli.task.split(":")[-1]
