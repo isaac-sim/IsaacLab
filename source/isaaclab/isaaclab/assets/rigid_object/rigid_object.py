@@ -120,7 +120,7 @@ class RigidObject(AssetBase):
                     torque_data=self._external_torque_b.view(-1, 3),
                     position_data=self._external_wrench_positions_b.view(-1, 3),
                     indices=self._ALL_INDICES,
-                    is_global=False,
+                    is_global=self._use_global_wrench_frame,
                 )
             else:
                 self.root_physx_view.apply_forces_and_torques_at_position(
@@ -128,7 +128,7 @@ class RigidObject(AssetBase):
                     torque_data=self._external_torque_b.view(-1, 3),
                     position_data=None,
                     indices=self._ALL_INDICES,
-                    is_global=False,
+                    is_global=self._use_global_wrench_frame,
                 )
 
     def update(self, dt: float):
@@ -524,6 +524,15 @@ class RigidObject(AssetBase):
         )
         default_root_state = torch.tensor(default_root_state, dtype=torch.float, device=self.device)
         self._data.default_root_state = default_root_state.repeat(self.num_instances, 1)
+
+        # -- external wrench
+        external_wrench_frame = self.cfg.object_external_wrench_frame
+        if external_wrench_frame == "local":
+            self._use_global_wrench_frame = False
+        elif external_wrench_frame == "world":
+            self._use_global_wrench_frame = True
+        else:
+            raise ValueError(f"Invalid external wrench frame: {external_wrench_frame}. Must be 'local' or 'world'.")
 
     """
     Internal simulation callbacks.

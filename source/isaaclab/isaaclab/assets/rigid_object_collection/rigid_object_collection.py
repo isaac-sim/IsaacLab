@@ -182,7 +182,7 @@ class RigidObjectCollection(AssetBase):
                     torque_data=self.reshape_data_to_view(self._external_torque_b),
                     position_data=self.reshape_data_to_view(self._external_wrench_positions_b),
                     indices=self._env_obj_ids_to_view_ids(self._ALL_ENV_INDICES, self._ALL_OBJ_INDICES),
-                    is_global=False,
+                    is_global=self._use_global_wrench_frame,
                 )
             else:
                 self.root_physx_view.apply_forces_and_torques_at_position(
@@ -190,7 +190,7 @@ class RigidObjectCollection(AssetBase):
                     torque_data=self.reshape_data_to_view(self._external_torque_b),
                     position_data=None,
                     indices=self._env_obj_ids_to_view_ids(self._ALL_ENV_INDICES, self._ALL_OBJ_INDICES),
-                    is_global=False,
+                    is_global=self._use_global_wrench_frame,
                 )
 
     def update(self, dt: float):
@@ -690,6 +690,15 @@ class RigidObjectCollection(AssetBase):
         # concatenate the default state for each object
         default_object_states = torch.cat(default_object_states, dim=1)
         self._data.default_object_state = default_object_states
+
+        # -- external wrench
+        external_wrench_frame = self.cfg.objects_external_wrench_frame
+        if external_wrench_frame == "local":
+            self._use_global_wrench_frame = False
+        elif external_wrench_frame == "world":
+            self._use_global_wrench_frame = True
+        else:
+            raise ValueError(f"Invalid external wrench frame: {external_wrench_frame}. Must be 'local' or 'world'.")
 
     def _env_obj_ids_to_view_ids(
         self, env_ids: torch.Tensor, object_ids: Sequence[int] | slice | torch.Tensor
