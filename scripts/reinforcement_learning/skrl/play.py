@@ -131,7 +131,6 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, expe
     experiment_cfg["seed"] = args_cli.seed if args_cli.seed is not None else experiment_cfg["seed"]
     env_cfg.seed = experiment_cfg["seed"]
 
-    
     task_name = args_cli.task.split(":")[-1]
 
     # specify directory for logging experiments (load checkpoint)
