@@ -34,7 +34,7 @@ setup(
     install_requires=INSTALL_REQUIRES,
     license="Apache-2.0",
     include_package_data=True,
-    python_requires=">=3.11",
+    python_requires=">=3.10",
     classifiers=[
         "Natural Language :: English",
         "Programming Language :: Python :: 3.10",
