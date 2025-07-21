@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.42.29 (2025-07-18)
+0.42.30 (2025-07-18)
 ~~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -11,7 +11,7 @@ Added
 * Remove on prim deletion callback workaround
 
 
-0.42.28 (2025-07-21)
+0.42.29 (2025-07-21)
 ~~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -20,7 +20,7 @@ Fixed
 * Fixed rendering preset mode regression.
 
 
-0.42.27 (2025-07-22)
+0.42.28 (2025-07-22)
 ~~~~~~~~~~~~~~~~~~~~
 
 Changed
@@ -29,7 +29,7 @@ Changed
 * Updated teleop scripts to print to console vs omni log.
 
 
-0.42.26 (2025-07-17)
+0.42.27 (2025-07-17)
 ~~~~~~~~~~~~~~~~~~~~
 
 Changed
@@ -38,7 +38,18 @@ Changed
 * Updated test_pink_ik.py test case to pytest format.
 
 
-0.42.25 (2025-06-25)
+0.42.26 (2025-06-25)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added MangerBasedRLEnv support for composite gym observation spaces.
+* A test for the composite gym observation spaces in ManagerBasedRLEnv is added to ensure that the observation spaces
+  are correctly configured base on the clip.
+
+
+0.42.25 (2025-07-11)
 ~~~~~~~~~~~~~~~~~~~~
 
 Added

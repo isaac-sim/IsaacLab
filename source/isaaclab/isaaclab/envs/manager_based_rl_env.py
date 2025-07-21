@@ -333,10 +333,13 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             if has_concatenated_obs:
                 self.single_observation_space[group_name] = gym.spaces.Box(low=-np.inf, high=np.inf, shape=group_dim)
             else:
-                self.single_observation_space[group_name] = gym.spaces.Dict({
-                    term_name: gym.spaces.Box(low=-np.inf, high=np.inf, shape=term_dim)
-                    for term_name, term_dim in zip(group_term_names, group_dim)
-                })
+                group_term_cfgs = self.observation_manager._group_obs_term_cfgs[group_name]
+                for term_name, term_dim, term_cfg in zip(group_term_names, group_dim, group_term_cfgs):
+                    low = -np.inf if term_cfg.clip is None else term_cfg.clip[0]
+                    high = np.inf if term_cfg.clip is None else term_cfg.clip[1]
+                    self.single_observation_space[group_name] = gym.spaces.Dict(
+                        {term_name: gym.spaces.Box(low=low, high=high, shape=term_dim)}
+                    )
         # action space (unbounded since we don't impose any limits)
         action_dim = sum(self.action_manager.action_term_dim)
         self.single_action_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(action_dim,))
