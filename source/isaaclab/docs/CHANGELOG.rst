@@ -1,6 +1,18 @@
 Changelog
 ---------
 
+0.41.0 (2025-07-21)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updates torch version to 2.7.0 and torchvision to 0.22.0.
+  Some dependencies now require torch>=2.6, and given the vulnerabilities in Torch 2.5.1,
+  we are updating the torch version to 2.7.0 to also include Blackwell support. Since Isaac Sim 4.5 has not updated the
+  torch version, we are now overwriting the torch installation step in isaaclab.sh when running ``./isaaclab.sh -i``.
+
+
 0.40.23 (2025-06-29)
 ~~~~~~~~~~~~~~~~~~~~
 
