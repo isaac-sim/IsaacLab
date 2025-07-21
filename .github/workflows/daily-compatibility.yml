@@ -43,19 +43,8 @@ jobs:
         NVIDIA_DRIVER_CAPABILITIES: all
         CUDA_HOME: /usr/local/cuda
         LD_LIBRARY_PATH: /usr/local/cuda/lib64:/usr/local/cuda/extras/CUPTI/lib64
-        DOCKER_HOST: unix:///var/run/docker.sock
-        DOCKER_TLS_CERTDIR: ""
-    container:
-      image: docker:dind
-      options: --gpus all --security-opt=no-new-privileges:true --privileged
 
     steps:
-    - name: Install Git LFS
-      run: |
-        apk update
-        apk add --no-cache git-lfs
-        git lfs install
-
     - name: Checkout Code
       uses: actions/checkout@v3
       with:
@@ -105,19 +94,8 @@ jobs:
         NVIDIA_DRIVER_CAPABILITIES: all
         CUDA_HOME: /usr/local/cuda
         LD_LIBRARY_PATH: /usr/local/cuda/lib64:/usr/local/cuda/extras/CUPTI/lib64
-        DOCKER_HOST: unix:///var/run/docker.sock
-        DOCKER_TLS_CERTDIR: ""
-    container:
-      image: docker:dind
-      options: --gpus all --security-opt=no-new-privileges:true --privileged
 
     steps:
-    - name: Install Git LFS
-      run: |
-        apk update
-        apk add --no-cache git-lfs
-        git lfs install
-
     - name: Checkout Code
       uses: actions/checkout@v3
       with:
@@ -162,20 +140,8 @@ jobs:
     needs: [test-isaaclab-tasks-compat, test-general-compat]
     runs-on: [self-hosted, gpu]
     if: always()
-    env:
-        DOCKER_HOST: unix:///var/run/docker.sock
-        DOCKER_TLS_CERTDIR: ""
-    container:
-      image: docker:dind
-      options: --security-opt=no-new-privileges:true --privileged
 
     steps:
-    - name: Install Git LFS
-      run: |
-        apk update
-        apk add --no-cache git-lfs
-        git lfs install
-
     - name: Checkout Code
       uses: actions/checkout@v3
       with:
@@ -185,10 +151,6 @@ jobs:
     - name: Create Reports Directory
       run: |
         mkdir -p reports
-        chmod 777 reports
-        ls -la reports/
-        echo "Current user: $(whoami)"
-        echo "Current directory: $(pwd)"
 
     - name: Download Test Results
       uses: actions/download-artifact@v4
@@ -219,30 +181,18 @@ jobs:
         retention-days: 30
         compression-level: 9
 
-    - name: Process Combined Test Results
-      uses: ./.github/actions/process-results
+    - name: Publish Test Results
+      uses: EnricoMi/publish-unit-test-result-action@v2
+      if: always()
       with:
-        results-file: "reports/combined-compat-results.xml"
-        github-token: ${{ secrets.GH_TOKEN }}
-        issue-number: 0  # No PR for scheduled runs
-        repo-owner: ${{ github.repository_owner }}
-        repo-name: ${{ github.event.repository.name }}
+        files: "reports/combined-compat-results.xml"
 
   notify-compatibility-status:
     needs: [combine-compat-results]
     runs-on: [self-hosted, gpu]
     if: always()
-    container:
-      image: docker:dind
-      options: --security-opt=no-new-privileges:true --privileged
 
     steps:
-    - name: Install Git LFS
-      run: |
-        apk update
-        apk add --no-cache git-lfs
-        git lfs install
-
     - name: Checkout Code
       uses: actions/checkout@v3
       with:

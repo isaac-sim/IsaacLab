@@ -3,13 +3,20 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import contextlib
 import os
+
+# Platform-specific imports for real-time output streaming
+import select
 import subprocess
 import sys
+import time
+
+# Third-party imports
 from prettytable import PrettyTable
 
 import pytest
-from junitparser import JUnitXml
+from junitparser import Error, JUnitXml, TestCase, TestSuite
 
 import tools.test_settings as test_settings
 
@@ -17,6 +24,112 @@ import tools.test_settings as test_settings
 def pytest_ignore_collect(collection_path, config):
     # Skip collection and run each test script individually
     return True
+
+
+def capture_test_output_with_timeout(cmd, timeout, env):
+    """Run a command with timeout and capture all output while streaming in real-time."""
+    stdout_data = b""
+    stderr_data = b""
+
+    try:
+        # Use Popen to capture output in real-time
+        process = subprocess.Popen(
+            cmd, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=0, universal_newlines=False
+        )
+
+        # Set up file descriptors for non-blocking reads
+        stdout_fd = process.stdout.fileno()
+        stderr_fd = process.stderr.fileno()
+
+        # Set non-blocking mode (Unix systems only)
+        try:
+            import fcntl
+
+            for fd in [stdout_fd, stderr_fd]:
+                flags = fcntl.fcntl(fd, fcntl.F_GETFL)
+                fcntl.fcntl(fd, fcntl.F_SETFL, flags | os.O_NONBLOCK)
+        except ImportError:
+            # fcntl not available on Windows, use a simpler approach
+            pass
+
+        start_time = time.time()
+
+        while process.poll() is None:
+            # Check for timeout
+            if time.time() - start_time > timeout:
+                process.kill()
+                try:
+                    remaining_stdout, remaining_stderr = process.communicate(timeout=5)
+                    stdout_data += remaining_stdout
+                    stderr_data += remaining_stderr
+                except subprocess.TimeoutExpired:
+                    process.terminate()
+                    remaining_stdout, remaining_stderr = process.communicate(timeout=1)
+                    stdout_data += remaining_stdout
+                    stderr_data += remaining_stderr
+                return -1, stdout_data, stderr_data, True  # -1 indicates timeout
+
+            # Check for available output
+            try:
+                ready_fds, _, _ = select.select([stdout_fd, stderr_fd], [], [], 0.1)
+
+                for fd in ready_fds:
+                    with contextlib.suppress(OSError):
+                        if fd == stdout_fd:
+                            chunk = process.stdout.read(1024)
+                            if chunk:
+                                stdout_data += chunk
+                                # Print to stdout in real-time
+                                sys.stdout.buffer.write(chunk)
+                                sys.stdout.buffer.flush()
+                        elif fd == stderr_fd:
+                            chunk = process.stderr.read(1024)
+                            if chunk:
+                                stderr_data += chunk
+                                # Print to stderr in real-time
+                                sys.stderr.buffer.write(chunk)
+                                sys.stderr.buffer.flush()
+            except OSError:
+                # select failed, fall back to simple polling
+                time.sleep(0.1)
+                continue
+
+        # Get any remaining output
+        remaining_stdout, remaining_stderr = process.communicate()
+        stdout_data += remaining_stdout
+        stderr_data += remaining_stderr
+
+        return process.returncode, stdout_data, stderr_data, False
+
+    except Exception as e:
+        return -1, str(e).encode(), b"", False
+
+
+def create_timeout_test_case(test_file, timeout, stdout_data, stderr_data):
+    """Create a test case entry for a timeout test with captured logs."""
+    test_suite = TestSuite(name=f"timeout_{os.path.splitext(os.path.basename(test_file))[0]}")
+    test_case = TestCase(name="test_execution", classname=os.path.splitext(os.path.basename(test_file))[0])
+
+    # Create error message with timeout info and captured logs
+    error_msg = f"Test timed out after {timeout} seconds"
+
+    # Add captured output to error details
+    details = f"Timeout after {timeout} seconds\n\n"
+
+    if stdout_data:
+        details += "=== STDOUT ===\n"
+        details += stdout_data.decode("utf-8", errors="replace") + "\n"
+
+    if stderr_data:
+        details += "=== STDERR ===\n"
+        details += stderr_data.decode("utf-8", errors="replace") + "\n"
+
+    error = Error(message=error_msg)
+    error.text = details
+    test_case.result = error
+
+    test_suite.add_testcase(test_case)
+    return test_suite
 
 
 def run_individual_tests(test_files, workspace_root):
@@ -30,45 +143,53 @@ def run_individual_tests(test_files, workspace_root):
         file_name = os.path.basename(test_file)
         env = os.environ.copy()
 
-        try:
-            # Run each test file with pytest but skip collection
-            process = subprocess.run(
-                [
-                    sys.executable,
-                    "-m",
-                    "pytest",
-                    "--no-header",
-                    f"--junitxml=tests/test-reports-{str(file_name)}.xml",
-                    str(test_file),
-                    "-v",
-                ],
-                env=env,
-                timeout=(
-                    test_settings.PER_TEST_TIMEOUTS[file_name]
-                    if file_name in test_settings.PER_TEST_TIMEOUTS
-                    else test_settings.DEFAULT_TIMEOUT
-                ),
-            )
+        # Determine timeout for this test
+        timeout = (
+            test_settings.PER_TEST_TIMEOUTS[file_name]
+            if file_name in test_settings.PER_TEST_TIMEOUTS
+            else test_settings.DEFAULT_TIMEOUT
+        )
 
-            if process.returncode != 0:
-                failed_tests.append(test_file)
+        # Prepare command
+        cmd = [
+            sys.executable,
+            "-m",
+            "pytest",
+            "--no-header",
+            f"--junitxml=tests/test-reports-{str(file_name)}.xml",
+            str(test_file),
+            "-v",
+            "--tb=short",
+        ]
 
-        except subprocess.TimeoutExpired:
-            print(f"Test {test_file} timed out...")
+        # Run test with timeout and capture output
+        returncode, stdout_data, stderr_data, timed_out = capture_test_output_with_timeout(cmd, timeout, env)
+
+        if timed_out:
+            print(f"Test {test_file} timed out after {timeout} seconds...")
             failed_tests.append(test_file)
+
+            # Create a special XML report for timeout tests with captured logs
+            timeout_suite = create_timeout_test_case(test_file, timeout, stdout_data, stderr_data)
+            timeout_report = JUnitXml()
+            timeout_report.add_testsuite(timeout_suite)
+
+            # Write timeout report
+            report_file = f"tests/test-reports-{str(file_name)}.xml"
+            timeout_report.write(report_file)
+
             test_status[test_file] = {
                 "errors": 1,
                 "failures": 0,
                 "skipped": 0,
-                "tests": 0,
+                "tests": 1,
                 "result": "TIMEOUT",
-                "time_elapsed": (
-                    test_settings.PER_TEST_TIMEOUTS[file_name]
-                    if file_name in test_settings.PER_TEST_TIMEOUTS
-                    else test_settings.DEFAULT_TIMEOUT
-                ),
+                "time_elapsed": timeout,
             }
             continue
+
+        if returncode != 0:
+            failed_tests.append(test_file)
 
         # check report for any failures
         report_file = f"tests/test-reports-{str(file_name)}.xml"
@@ -87,12 +208,23 @@ def run_individual_tests(test_files, workspace_root):
 
         try:
             report = JUnitXml.fromfile(report_file)
-            # Parse the integer values
-            errors = int(report.errors)
-            failures = int(report.failures)
-            skipped = int(report.skipped)
-            tests = int(report.tests)
-            time_elapsed = float(report.time)
+
+            # Rename test suites to be more descriptive
+            for suite in report:
+                if suite.name == "pytest":
+                    # Remove .py extension and use the filename as the test suite name
+                    suite_name = os.path.splitext(file_name)[0]
+                    suite.name = suite_name
+
+            # Write the updated report back
+            report.write(report_file)
+
+            # Parse the integer values with None handling
+            errors = int(report.errors) if report.errors is not None else 0
+            failures = int(report.failures) if report.failures is not None else 0
+            skipped = int(report.skipped) if report.skipped is not None else 0
+            tests = int(report.tests) if report.tests is not None else 0
+            time_elapsed = float(report.time) if report.time is not None else 0.0
         except Exception as e:
             print(f"Error reading test report {report_file}: {e}")
             failed_tests.append(test_file)
@@ -270,3 +402,6 @@ def pytest_sessionstart(session):
 
     # Print summary to console and log file
     print(summary_str)
+
+    # Exit pytest after custom execution to prevent normal pytest from overwriting our report
+    pytest.exit("Custom test execution completed", returncode=0)

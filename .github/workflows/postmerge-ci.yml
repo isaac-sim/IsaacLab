@@ -27,13 +27,25 @@ env:
 
 jobs:
   build-and-push-images:
-    runs-on: self-hosted
+    runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     environment:
       name: postmerge-production
       url: https://github.com/${{ github.repository }}
+    env:
+        DOCKER_HOST: unix:///var/run/docker.sock
+        DOCKER_TLS_CERTDIR: ""
+    container:
+      image: docker:dind
+      options: --security-opt=no-new-privileges:true --privileged
 
     steps:
+    - name: Install Git LFS
+      run: |
+        apk update
+        apk add --no-cache git-lfs
+        git lfs install
+
     - name: Checkout Code
       uses: actions/checkout@v4
       with:

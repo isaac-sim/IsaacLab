@@ -36,7 +36,7 @@ runs:
   using: composite
   steps:
     - name: Run Tests in Docker Container
-      shell: sh
+      shell: bash
       run: |
         # Function to run tests in Docker container
         run_tests() {
@@ -63,7 +63,15 @@ runs:
           docker rm -f $container_name 2>/dev/null || true
 
           # Build Docker environment variables
-          docker_env_vars="-e CUDA_VISIBLE_DEVICES=0 -e OMNI_KIT_ACCEPT_EULA=yes -e OMNI_KIT_DISABLE_CUP=1 -e ISAAC_SIM_HEADLESS=1 -e ISAAC_SIM_LOW_MEMORY=1 -e PYTHONUNBUFFERED=1 -e PYTHONIOENCODING=utf-8 -e TEST_RESULT_FILE=$result_file"
+          docker_env_vars="\
+            -e OMNI_KIT_ACCEPT_EULA=yes \
+            -e ACCEPT_EULA=Y \
+            -e OMNI_KIT_DISABLE_CUP=1 \
+            -e ISAAC_SIM_HEADLESS=1 \
+            -e ISAAC_SIM_LOW_MEMORY=1 \
+            -e PYTHONUNBUFFERED=1 \
+            -e PYTHONIOENCODING=utf-8 \
+            -e TEST_RESULT_FILE=$result_file"
 
           if [ -n "$filter_pattern" ]; then
             if [[ "$filter_pattern" == not* ]]; then
@@ -87,8 +95,8 @@ runs:
           if docker run --name $container_name \
             --entrypoint bash --gpus all --network=host \
             --security-opt=no-new-privileges:true \
-            --memory=$(echo "$(free -m | awk '/^Mem:/{print $2}') * 0.8 / 1" | bc)m \
-            --cpus=$(echo "$(nproc) * 0.8" | bc) \
+            --memory=$(echo "$(free -m | awk '/^Mem:/{print $2}') * 0.9 / 1" | bc)m \
+            --cpus=$(echo "$(nproc) * 0.9" | bc) \
             --oom-kill-disable=false \
             --ulimit nofile=65536:65536 \
             --ulimit nproc=4096:4096 \
@@ -98,12 +106,8 @@ runs:
               set -e
               cd /workspace/isaaclab
               mkdir -p tests
-              echo 'Environment variables in container:'
-              echo 'TEST_FILTER_PATTERN: '\"'\"'$TEST_FILTER_PATTERN'\"'\"''
-              echo 'TEST_EXCLUDE_PATTERN: '\"'\"'$TEST_EXCLUDE_PATTERN'\"'\"''
-              echo 'TEST_RESULT_FILE: '\"'\"'$TEST_RESULT_FILE'\"'\"''
               echo 'Starting pytest with path: $test_path'
-              /isaac-sim/python.sh -m pytest $test_path $pytest_options -v || echo 'Pytest completed with exit code: $?'
+              /isaac-sim/python.sh -m pytest --ignore=tools/conftest.py $test_path $pytest_options -v --junitxml=tests/$result_file || echo 'Pytest completed with exit code: $?'
             "; then
             echo "✅ Docker container completed successfully"
           else
