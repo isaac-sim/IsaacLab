@@ -216,6 +216,9 @@ class DCMotor(IdealPDActuator):
     * Continuous torque (:math:`\tau_{motor, con}`): The maximum torque that can be outputted for a short period. This
       is often enforced on the current drives for a DC motor to limit overheating, prevent mechanical damage, or
       enforced by electrical limitations.(:attr:`effort_limit`).
+    * Corner velocity (:math:`V_{c}`): The velocity where the torque-speed curve intersects with continuous torque.
+      Based on these parameters, the instantaneous minimum and maximum torques for velocities between corner velocities
+      (where torque-speed curve intersects with continuous torque) are defined as follows:
 
     Based on these parameters, the instantaneous minimum and maximum torques for velocities are defined as follows:
 
@@ -239,6 +242,9 @@ class DCMotor(IdealPDActuator):
 
         \tau_{j, applied} = clip(\tau_{computed}, \tau_{j, min}(\dot{q}), \tau_{j, max}(\dot{q}))
 
+    If the velocity of the joint is outside corner velocities (this would be due to external forces) the
+    applied output torque will be driven to the Continuous Torque (`effort_limit`).
+
     The figure below demonstrates the clipping action for example (velocity, torque) pairs.
     """
 
@@ -251,6 +257,8 @@ class DCMotor(IdealPDActuator):
         if self.cfg.saturation_effort is None:
             raise ValueError("The saturation_effort must be provided for the DC motor actuator model.")
         self._saturation_effort = self.cfg.saturation_effort
+        # find the velocity on the torque-speed curve that intersects effort_limit in the second and fourth quadrant
+        self._vel_at_effort_lim = self.velocity_limit * (1 + self.effort_limit / self._saturation_effort)
         # prepare joint vel buffer for max effort computation
         self._joint_vel = torch.zeros_like(self.computed_effort)
         # create buffer for zeros effort
@@ -276,6 +284,8 @@ class DCMotor(IdealPDActuator):
     """
 
     def _clip_effort(self, effort: torch.Tensor) -> torch.Tensor:
+        # save current joint vel
+        self._joint_vel[:] = torch.clip(self._joint_vel, min=-self._vel_at_effort_lim, max=self._vel_at_effort_lim)
         # compute torque limits
         torque_speed_top = self._saturation_effort * (1.0 - self._joint_vel / self.velocity_limit)
         torque_speed_bottom = self._saturation_effort * (-1.0 - self._joint_vel / self.velocity_limit)
@@ -284,7 +294,8 @@ class DCMotor(IdealPDActuator):
         # -- min limit
         min_effort = torch.clip(torque_speed_bottom, min=-self.effort_limit)
         # clip the torques based on the motor limits
-        return torch.clip(effort, min=min_effort, max=max_effort)
+        clamped = torch.clip(effort, min=min_effort, max=max_effort)
+        return clamped
 
 
 class DelayedPDActuator(IdealPDActuator):
