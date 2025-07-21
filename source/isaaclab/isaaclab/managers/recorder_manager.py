@@ -50,6 +50,28 @@ class RecorderManagerBaseCfg:
     export_in_record_pre_reset: bool = True
     """Whether to export episodes in the record_pre_reset call."""
 
+    # LeRobot dataset specific configuration
+    observation_keys_to_record: list[tuple[str, str]] = None
+    """List of (group_name, observation_key) tuples to record as regular observations.
+
+    These will be saved as "observation.{obs_key}" in the LeRobot format.
+    Example: [("policy", "joint_pos"), ("policy", "camera_rgb"), ("critic", "joint_vel")]
+    """
+
+    state_observation_keys: list[tuple[str, str]] = None
+    """List of (group_name, observation_key) tuples that should be treated as state observations.
+
+    These will be combined and saved as "observation.state" in the LeRobot format.
+    Example: [("policy", "joint_pos"), ("policy", "joint_vel")]
+    """
+
+    task_description: str = None
+    """Task description for the LeRobot dataset.
+
+    This description will be used for all episodes in the dataset.
+    Example: "Stack the red cube on top of the blue cube"
+    """
+
 
 class RecorderTerm(ManagerTermBase):
     """Base class for recorder terms.
@@ -161,14 +183,14 @@ class RecorderManager(ManagerBase):
         if cfg.dataset_export_mode != DatasetExportMode.EXPORT_NONE:
             self._dataset_file_handler = cfg.dataset_file_handler_class_type()
             self._dataset_file_handler.create(
-                os.path.join(cfg.dataset_export_dir_path, cfg.dataset_filename), env_name=env_name
+                os.path.join(cfg.dataset_export_dir_path, cfg.dataset_filename), env_name=env_name, env=env
             )
 
         self._failed_episode_dataset_file_handler = None
         if cfg.dataset_export_mode == DatasetExportMode.EXPORT_SUCCEEDED_FAILED_IN_SEPARATE_FILES:
             self._failed_episode_dataset_file_handler = cfg.dataset_file_handler_class_type()
             self._failed_episode_dataset_file_handler.create(
-                os.path.join(cfg.dataset_export_dir_path, f"{cfg.dataset_filename}_failed"), env_name=env_name
+                os.path.join(cfg.dataset_export_dir_path, f"{cfg.dataset_filename}_failed"), env_name=env_name, env=env
             )
 
         self._exported_successful_episode_count = {}
@@ -475,6 +497,9 @@ class RecorderManager(ManagerBase):
                 "dataset_export_dir_path",
                 "dataset_export_mode",
                 "export_in_record_pre_reset",
+                "observation_keys_to_record",
+                "state_observation_keys",
+                "task_description",
             ]:
                 continue
             # check if term config is None
