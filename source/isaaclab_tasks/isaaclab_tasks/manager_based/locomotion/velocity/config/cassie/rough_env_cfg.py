@@ -56,7 +56,7 @@ class CassieRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         super().__post_init__()
         # scene
         self.scene.robot = CASSIE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-        #self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/pelvis"
+        # self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/pelvis"
 
         # actions
         self.actions.joint_pos.scale = 0.5
@@ -101,9 +101,9 @@ class CassieRoughEnvCfg_PLAY(CassieRoughEnvCfg):
         self.scene.num_envs = 50
         self.scene.env_spacing = 2.5
         # spawn the robot randomly in the grid (instead of their terrain levels)
-        #self.scene.terrain.max_init_terrain_level = None
+        # self.scene.terrain.max_init_terrain_level = None
         # reduce the number of terrains to save memory
-        #if self.scene.terrain.terrain_generator is not None:
+        # if self.scene.terrain.terrain_generator is not None:
         #    self.scene.terrain.terrain_generator.num_rows = 5
         #    self.scene.terrain.terrain_generator.num_cols = 5
         #    self.scene.terrain.terrain_generator.curriculum = False

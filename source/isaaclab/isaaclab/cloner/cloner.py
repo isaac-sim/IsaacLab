@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # SPDX-FileCopyrightText: Copyright (c) 2022-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: LicenseRef-NvidiaProprietary
 #
@@ -7,15 +12,15 @@
 # disclosure or distribution of this material and related documentation
 # without an express license agreement from NVIDIA CORPORATION or
 # its affiliates is strictly prohibited.
-from typing import List, Union
+import numpy as np
+import torch
 
 import carb
 import carb.settings
-import numpy as np
+import omni.log
 import omni.usd
-import torch
 from isaacsim.core.simulation_manager import SimulationManager
-from omni.physx import get_physx_replicator_interface, get_physx_simulation_interface
+from omni.physx import get_physx_replicator_interface
 from pxr import Gf, PhysxSchema, Sdf, Usd, UsdGeom, UsdUtils, Vt
 
 
@@ -64,7 +69,12 @@ class Cloner:
         return [f"{root_path}_{i}" for i in range(num_paths)]
 
     def replicate_physics(
-        self, source_prim_path: str, prim_paths: list, base_env_path: str, root_path: str, enable_env_ids: bool = False,
+        self,
+        source_prim_path: str,
+        prim_paths: list,
+        base_env_path: str,
+        root_path: str,
+        enable_env_ids: bool = False,
         clone_in_fabric: bool = False,
     ):
         """Replicates physics properties directly in omni.physics to avoid performance bottlenecks when parsing physics.
@@ -121,8 +131,8 @@ class Cloner:
             self._physx_ui_notice_enabled = get_physxui_interface().is_usd_notice_handler_enabled()
             if self._physx_ui_notice_enabled:
                 get_physxui_interface().block_usd_notice_handler(True)
-        except:
-            pass
+        except Exception as e:
+            omni.log.info(f"Error disabling change listener: {e}")
 
         # second disable Fabric USD notice handler
         # A.B. Needs a fix first on Fabric side
@@ -140,8 +150,8 @@ class Cloner:
 
             if self._physx_ui_notice_enabled:
                 get_physxui_interface().block_usd_notice_handler(False)
-        except:
-            pass
+        except Exception as e:
+            omni.log.info(f"Error enabling change listener: {e}")
 
         # A.B. Needs a fix first on Fabric side
         # if self._fabric_usd_notice_enabled:
@@ -150,12 +160,12 @@ class Cloner:
 
         SimulationManager.enable_usd_notice_handler(True)
 
-    def clone(
+    def clone(  # noqa: C901
         self,
         source_prim_path: str,
-        prim_paths: List[str],
-        positions: Union[np.ndarray, torch.Tensor] = None,
-        orientations: Union[np.ndarray, torch.Tensor] = None,
+        prim_paths: list[str],
+        positions: np.ndarray | torch.Tensor = None,
+        orientations: np.ndarray | torch.Tensor = None,
         replicate_physics: bool = False,
         clone_in_fabric: bool = False,
         base_env_path: str = None,
@@ -302,7 +312,6 @@ class Cloner:
                     has_clones = True
 
                     env_spec = Sdf.CreatePrimInLayer(self._stage.GetRootLayer(), prim_path)
-                    stack = UsdGeom.Xform(self._stage.GetPrimAtPath(source_prim_path)).GetPrim().GetPrimStack()
 
                     if copy_from_source:
                         Sdf.CopySpec(env_spec.layer, Sdf.Path(source_prim_path), env_spec.layer, Sdf.Path(prim_path))
@@ -335,7 +344,7 @@ class Cloner:
                         else:
                             orient_spec = Sdf.AttributeSpec(env_spec, "xformOp:orient", Sdf.ValueTypeNames.Quatd)
                             orient_spec.default = Gf.Quatd(orientation)
-                    elif orient_spec.default is not None and type(orient_spec.default) == Gf.Quatf:
+                    elif orient_spec.default is not None and isinstance(orient_spec.default, Gf.Quatf):
                         orient_spec.default = Gf.Quatf(orientation)
                     else:
                         orient_spec.default = Gf.Quatd(orientation)
@@ -362,7 +371,7 @@ class Cloner:
         self.enable_change_listener()
 
     def filter_collisions(
-        self, physicsscene_path: str, collision_root_path: str, prim_paths: List[str], global_paths: List[str] = []
+        self, physicsscene_path: str, collision_root_path: str, prim_paths: list[str], global_paths: list[str] = []
     ):
         """Filters collisions between clones. Clones will not collide with each other, but can collide with objects specified in global_paths.
 
@@ -381,7 +390,7 @@ class Cloner:
 
         # Make sure we create the collision_scope in the RootLayer since the edit target may be a live layer in the case of Live Sync.
         with Usd.EditContext(self._stage, Usd.EditTarget(self._stage.GetRootLayer())):
-            collision_scope = UsdGeom.Scope.Define(self._stage, collision_root_path)
+            _ = UsdGeom.Scope.Define(self._stage, collision_root_path)
 
         with Sdf.ChangeBlock():
             if len(global_paths) > 0:

@@ -17,8 +17,9 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sensors import ContactSensorCfg#, RayCasterCfg, patterns
-#from isaaclab.sensors import RayCasterCfg, patterns
+from isaaclab.sensors import ContactSensorCfg  # , RayCasterCfg, patterns
+
+# from isaaclab.sensors import RayCasterCfg, patterns
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
@@ -111,6 +112,7 @@ class CommandsCfg:
         ),
     )
 
+
 @configclass
 class ActionsCfg:
     """Action specifications for the MDP."""
@@ -157,7 +159,7 @@ class EventCfg:
     """Configuration for events."""
 
     # startup
-    #physics_material = EventTerm(
+    # physics_material = EventTerm(
     #    func=mdp.randomize_rigid_body_material,
     #    mode="startup",
     #    params={
@@ -167,7 +169,7 @@ class EventCfg:
     #        "restitution_range": (0.0, 0.0),
     #        "num_buckets": 64,
     #    },
-    #)
+    # )
 
     add_base_mass = EventTerm(
         func=mdp.randomize_rigid_body_mass,
@@ -179,14 +181,14 @@ class EventCfg:
         },
     )
 
-    #base_com = EventTerm(
+    # base_com = EventTerm(
     #    func=mdp.randomize_rigid_body_com,
     #    mode="startup",
     #    params={
     #        "asset_cfg": SceneEntityCfg("robot", body_names="base"),
     #        "com_range": {"x": (-0.05, 0.05), "y": (-0.05, 0.05), "z": (-0.01, 0.01)},
     #    },
-    #)
+    # )
 
     # reset
     base_external_force_torque = EventTerm(
@@ -311,7 +313,7 @@ class LocomotionVelocityRoughEnvCfg(ManagerBasedRLEnvCfg):
     def __post_init__(self):
         """Post initialization."""
         # general settings
-        self.decimation = 4 
+        self.decimation = 4
         self.episode_length_s = 20.0
         # simulation settings
         self.sim.dt = 1.0 / 200.0
@@ -322,7 +324,7 @@ class LocomotionVelocityRoughEnvCfg(ManagerBasedRLEnvCfg):
         # we tick all the sensors based on the smallest update period (physics update period)
         # if self.scene.height_scanner is not None:
         #     self.scene.height_scanner.update_period = self.decimation * self.sim.dt
-        #if self.scene.contact_forces is not None:
+        # if self.scene.contact_forces is not None:
         #    self.scene.contact_forces.update_period = self.sim.dt
 
         # check if terrain levels curriculum is enabled - if so, enable curriculum for terrain generator

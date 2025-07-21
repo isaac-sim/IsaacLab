@@ -46,7 +46,7 @@ INSTALL_REQUIRES = [
     "pytest-mock",
     "junitparser",
     "flatdict==4.0.1",
-    "usd-core==25.05.0"
+    "usd-core==25.05.0",
 ]
 
 # Additional dependencies that are only available on Linux platforms

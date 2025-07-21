@@ -111,7 +111,7 @@ class SpotEventCfg:
     """Configuration for randomization."""
 
     # startup
-    #physics_material = EventTerm(
+    # physics_material = EventTerm(
     #    func=mdp.randomize_rigid_body_material,
     #    mode="startup",
     #    params={
@@ -121,7 +121,7 @@ class SpotEventCfg:
     #        "restitution_range": (0.0, 0.0),
     #        "num_buckets": 64,
     #    },
-    #)
+    # )
 
     add_base_mass = EventTerm(
         func=mdp.randomize_rigid_body_mass,
@@ -332,7 +332,7 @@ class SpotFlatEnvCfg(LocomotionVelocityRoughEnvCfg):
 
         # terrain
         self.scene.terrain.terrain_type = "plane"
-        #self.scene.terrain = TerrainImporterCfg(
+        # self.scene.terrain = TerrainImporterCfg(
         #    prim_path="/World/ground",
         #    terrain_type="generator",
         #    terrain_generator=COBBLESTONE_ROAD_CFG,
@@ -350,7 +350,7 @@ class SpotFlatEnvCfg(LocomotionVelocityRoughEnvCfg):
         #        texture_scale=(0.25, 0.25),
         #    ),
         #    debug_vis=True,
-        #)
+        # )
 
         # no height scan
         self.scene.height_scanner = None

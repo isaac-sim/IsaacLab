@@ -19,12 +19,12 @@ class CassieFlatEnvCfg(CassieRoughEnvCfg):
         self.rewards.joint_deviation_hip.params["asset_cfg"].joint_names = ["hip_rotation_.*"]
         # change terrain to flat
         self.scene.terrain.terrain_type = "plane"
-        #self.scene.terrain.terrain_generator = None
+        # self.scene.terrain.terrain_generator = None
         # no height scan
-        #self.scene.height_scanner = None
-        #self.observations.policy.height_scan = None
+        # self.scene.height_scanner = None
+        # self.observations.policy.height_scan = None
         # no terrain curriculum
-        #self.curriculum.terrain_levels = None
+        # self.curriculum.terrain_levels = None
 
 
 class CassieFlatEnvCfg_PLAY(CassieFlatEnvCfg):

@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # SPDX-FileCopyrightText: Copyright (c) 2022-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: LicenseRef-NvidiaProprietary
 #
@@ -7,15 +12,16 @@
 # disclosure or distribution of this material and related documentation
 # without an express license agreement from NVIDIA CORPORATION or
 # its affiliates is strictly prohibited.
-from typing import List, Union
-
 import numpy as np
-import omni.usd
 import torch
-from isaaclab.cloner import Cloner
+
+import omni.usd
 from pxr import Gf, Usd, UsdGeom
-from isaaclab.sim._impl.newton_manager import NewtonManager
+
+from isaaclab.cloner import Cloner
 from isaaclab.cloner.utils import replicate_environment
+from isaaclab.sim._impl.newton_manager import NewtonManager
+
 
 class GridCloner(Cloner):
     """This is a specialized Cloner class that will automatically generate clones in a grid fashion."""
@@ -125,7 +131,7 @@ class GridCloner(Cloner):
     def clone(
         self,
         source_prim_path: str,
-        prim_paths: List[str],
+        prim_paths: list[str],
         position_offsets: np.ndarray = None,
         orientation_offsets: np.ndarray = None,
         replicate_physics: bool = False,
@@ -159,7 +165,6 @@ class GridCloner(Cloner):
 
         positions, orientations = self.get_clone_transforms(num_clones, position_offsets, orientation_offsets)
         if replicate_physics:
-            stage = omni.usd.get_context().get_stage()
             clone_base_path = self._root_path if root_path is None else root_path
             builder, stage_info = replicate_environment(
                 omni.usd.get_context().get_stage(),
@@ -187,5 +192,3 @@ class GridCloner(Cloner):
         )
 
         return positions
-
-    

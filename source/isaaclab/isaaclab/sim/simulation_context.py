@@ -30,9 +30,9 @@ from isaacsim.core.simulation_manager import SimulationManager
 from isaacsim.core.utils.carb import get_carb_setting, set_carb_setting
 from isaacsim.core.utils.viewports import set_camera_view
 from isaacsim.core.version import get_version
-from isaaclab.sim._impl.newton_manager import NewtonManager
 from pxr import Gf, PhysxSchema, Usd, UsdPhysics
 
+from isaaclab.sim._impl.newton_manager import NewtonManager
 from isaaclab.sim.utils import create_new_stage_in_memory, use_stage
 
 from .simulation_cfg import SimulationCfg
@@ -567,14 +567,6 @@ class SimulationContext(_SimulationContext):
         """
         return self._initial_stage
 
-    def get_initial_stage(self) -> Usd.Stage:
-        """Returns stage handle used during scene creation.
-
-        Returns:
-            The stage used during scene creation.
-        """
-        return self._initial_stage
-
     """
     Operations - Override (standalone)
     """
@@ -594,7 +586,7 @@ class SimulationContext(_SimulationContext):
             NewtonManager.start_simulation()
             self.play()
             NewtonManager.initialize_solver()
-            
+
         # app.update() may be changing the cuda device in reset, so we force it back to our desired device here
         if "cuda" in self.device:
             torch.cuda.set_device(self.device)
@@ -655,7 +647,7 @@ class SimulationContext(_SimulationContext):
             # rendering dt is zero, but physics is not, call step and then render
             elif self.get_rendering_dt() == 0 and self.get_physics_dt() != 0:
                 # if self.is_playing():
-                    # self._physics_context._step(current_time=self.current_time)
+                # self._physics_context._step(current_time=self.current_time)
                 SimulationContext.render(self)
             else:
                 self._app.update()
@@ -710,7 +702,7 @@ class SimulationContext(_SimulationContext):
             #  and we don't want to do it twice. We may remove it once we drop support for Isaac Sim 2022.2.
             self.set_setting("/app/player/playSimulations", False)
             self._app.update()
-            #NewtonManager.render()
+            # NewtonManager.render()
 
         # app.update() may be changing the cuda device, so we force it back to our desired device here
         if "cuda" in self.device:
@@ -742,7 +734,7 @@ class SimulationContext(_SimulationContext):
             # set additional physx parameters and bind material
             self._set_additional_physx_params()
             # load flatcache/fabric interface
-            #self._load_fabric_interface()
+            # self._load_fabric_interface()
             # return the stage
             return self.stage
 

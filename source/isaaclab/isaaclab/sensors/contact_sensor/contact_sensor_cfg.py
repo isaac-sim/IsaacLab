@@ -67,7 +67,7 @@ class ContactSensorCfg(SensorBaseCfg):
     :attr:`contact_partners_shape_expr` are None, the contact with all bodies/shapes is reported.
 
     Only one of :attr:`contact_partners_body_expr` or :attr:`contact_partners_shape_expr` can be provided.
-    If both are provided, an error will be raised. 
+    If both are provided, an error will be raised.
 
     The contact sensor allows reporting contacts between the primitive specified with either :attr:`body_names_expr` or
     :attr:`shape_names_expr` and other primitives in the scene. For instance, in a scene containing a robot, a ground
@@ -97,7 +97,7 @@ class ContactSensorCfg(SensorBaseCfg):
 
     Only one of :attr:`contact_partners_body_expr` or :attr:`contact_partners_shape_expr` can be provided.
     If both are provided, an error will be raised.
-    
+
     The contact sensor allows reporting contacts between the primitive specified with either :attr:`body_names_expr` or
     :attr:`shape_names_expr` and other primitives in the scene. For instance, in a scene containing a robot, a ground
     plane and an object, you can obtain individual contact reports of the base of the robot with the ground plane and

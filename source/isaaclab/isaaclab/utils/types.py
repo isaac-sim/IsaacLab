@@ -24,7 +24,7 @@ class ArticulationActions:
 
     joint_targets: torch.Tensor | None = None
     """The joint targets of the articulation. Defaults to None.
-    
+
     Depending on the control mode of the articulation, the joint targets can be either joint positions or joint\
     velocities.
     """

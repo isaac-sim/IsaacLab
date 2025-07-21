@@ -60,6 +60,7 @@ class UnitreeGo1RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         # terminations
         self.terminations.base_contact.params["sensor_cfg"].body_names = "trunk"
 
+
 @configclass
 class UnitreeGo1RoughEnvCfg_PLAY(UnitreeGo1RoughEnvCfg):
     def __post_init__(self):

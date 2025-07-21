@@ -9,23 +9,17 @@
 from __future__ import annotations
 
 import torch
+import weakref
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-import carb
-from isaacsim.core.simulation_manager import SimulationManager
-from isaaclab.sim._impl.newton_manager import NewtonManager
-from newton.utils.contact_reporter import ContactView
-from pxr import PhysxSchema
-import warp as wp
-import omni.kit.app
-import weakref
 import omni.timeline
+import warp as wp
+from newton.utils.contact_sensor import ContactView
 
-import isaaclab.sim as sim_utils
 import isaaclab.utils.string as string_utils
 from isaaclab.markers import VisualizationMarkers
-from isaaclab.utils.math import convert_quat
+from isaaclab.sim._impl.newton_manager import NewtonManager
 
 from ..sensor_base import SensorBase
 from .contact_sensor_data import ContactSensorData
@@ -144,7 +138,7 @@ class ContactSensor(SensorBase):
     def body_names(self) -> list[str] | None:
         """Ordered names of shapes or bodies with contact sensors attached."""
         return self._body_names
-    
+
     @property
     def contact_partner_names(self) -> list[str] | None:
         """Ordered names of shapes or bodies that are selected as contact partners."""
@@ -292,14 +286,14 @@ class ContactSensor(SensorBase):
             self._generate_force_matrix = True
         else:
             self._generate_force_matrix = False
-        
+
         self._contact_newton_view = NewtonManager.add_contact_view(
             self,
-            body_names_expr = body_names_regex,
-            shape_names_expr = shape_names_regex,
-            contact_partners_body_expr = contact_partners_body_regex,
-            contact_partners_shape_expr = contact_partners_shape_regex,
-            include_total = True,
+            body_names_expr=body_names_regex,
+            shape_names_expr=shape_names_regex,
+            contact_partners_body_expr=contact_partners_body_regex,
+            contact_partners_shape_expr=contact_partners_shape_regex,
+            include_total=True,
         )
         NewtonManager.add_on_start_callback(self._create_buffers)
 
@@ -309,11 +303,18 @@ class ContactSensor(SensorBase):
 
         # Check that number of bodies is an integer
         if self._contact_newton_view.shape[0] % self._num_envs != 0:
-            raise RuntimeError(f"Number of bodies is not an integer multiple of the number of environments. Received: {self._num_bodies} bodies and {self._num_envs} environments.")
+            raise RuntimeError(
+                "Number of bodies is not an integer multiple of the number of environments. Received:"
+                f" {self._num_bodies} bodies and {self._num_envs} environments."
+            )
         print(f"[INFO] Contact sensor initialized with {self._num_bodies} bodies.")
-        
-        self._body_names = [entity[1].split("/")[-1] for entity in self._contact_newton_view.sensor_keys[:self._num_bodies]]
-        self._contact_partner_names = [entity[1].split("/")[-1] for entity in self._contact_newton_view.contact_partner_keys[1:]]
+
+        self._body_names = [
+            entity[1].split("/")[-1] for entity in self._contact_newton_view.sensor_keys[: self._num_bodies]
+        ]
+        self._contact_partner_names = [
+            entity[1].split("/")[-1] for entity in self._contact_newton_view.contact_partner_keys[1:]
+        ]
 
         # prepare data buffers
         self._data.net_forces_w = torch.zeros(self._num_envs, self._num_bodies, 3, device=self._device)
@@ -337,7 +338,7 @@ class ContactSensor(SensorBase):
             self._data.current_contact_time = torch.zeros(self._num_envs, self._num_bodies, device=self._device)
         # force matrix: (num_envs, num_bodies, num_filter_shapes, 3)
         if self._generate_force_matrix:
-            #num_filters = self.contact_physx_view.filter_count
+            # num_filters = self.contact_physx_view.filter_count
             num_filters = self._contact_newton_view.shape[1]
             self._data.force_matrix_w = torch.zeros(
                 self._num_envs, self._num_bodies, num_filters, 3, device=self._device
@@ -345,15 +346,17 @@ class ContactSensor(SensorBase):
 
     def _update_buffers_impl(self, env_ids: Sequence[int]):
         """Fills the buffers of the sensor data."""
-        
+
         # default to all sensors
         if len(env_ids) == self._num_envs:
             env_ids = slice(None)
 
-        #net_force is a matrix of shape (num_bodies * num_envs, num_filters, 3)
+        # net_force is a matrix of shape (num_bodies * num_envs, num_filters, 3)
         net_forces_w = wp.to_torch(self._contact_newton_view.net_force).clone()
-        self._data.net_forces_w[env_ids, :, :] = net_forces_w[:, 0, :].reshape(self._num_envs, self._num_bodies, 3)[env_ids]
-        
+        self._data.net_forces_w[env_ids, :, :] = net_forces_w[:, 0, :].reshape(self._num_envs, self._num_bodies, 3)[
+            env_ids
+        ]
+
         if self.cfg.history_length > 0:
             self._data.net_forces_w_history[env_ids, 1:] = self._data.net_forces_w_history[env_ids, :-1].clone()
             self._data.net_forces_w_history[env_ids, 0] = self._data.net_forces_w[env_ids]
@@ -361,13 +364,15 @@ class ContactSensor(SensorBase):
         # obtain the contact force matrix
         if self._generate_force_matrix:
             # shape of the filtering matrix: (num_envs, num_bodies, num_filter_shapes, 3)
-            num_filters = self._contact_newton_view.shape[1] - 1 # -1 for the total force
+            num_filters = self._contact_newton_view.shape[1] - 1  # -1 for the total force
             # acquire and shape the force matrix
-            self._data.force_matrix_w[env_ids] = net_forces_w[:, 1:, :].reshape(self._num_envs, self._num_bodies, num_filters, 3)[env_ids]
+            self._data.force_matrix_w[env_ids] = net_forces_w[:, 1:, :].reshape(
+                self._num_envs, self._num_bodies, num_filters, 3
+            )[env_ids]
 
         # FIXME: Re-enable this when we have a non-physx rigid body view?
         # obtain the pose of the sensor origin
-        #if self.cfg.track_pose:
+        # if self.cfg.track_pose:
         #    pose = self.body_physx_view.get_transforms().view(-1, self._num_bodies, 7)[env_ids]
         #    pose[..., 3:] = convert_quat(pose[..., 3:], to="wxyz")
         #    self._data.pos_w[env_ids], self._data.quat_w[env_ids] = pose.split([3, 4], dim=-1)
@@ -419,20 +424,20 @@ class ContactSensor(SensorBase):
         # safely return if view becomes invalid
         return
         # note: this invalidity happens because of isaac sim view callbacks
-        #if self.body_physx_view is None:
+        # if self.body_physx_view is None:
         #    return
         # marker indices
         # 0: contact, 1: no contact
-        #net_contact_force_w = torch.norm(self._data.net_forces_w, dim=-1)
-        #marker_indices = torch.where(net_contact_force_w > self.cfg.force_threshold, 0, 1)
+        # net_contact_force_w = torch.norm(self._data.net_forces_w, dim=-1)
+        # marker_indices = torch.where(net_contact_force_w > self.cfg.force_threshold, 0, 1)
         # check if prim is visualized
-        #if self.cfg.track_pose:
+        # if self.cfg.track_pose:
         #    frame_origins: torch.Tensor = self._data.pos_w
-        #else:
+        # else:
         #    pose = self.body_physx_view.get_transforms()
         #    frame_origins = pose.view(-1, self._num_bodies, 7)[:, :, :3]
         # visualize
-        #self.contact_visualizer.visualize(frame_origins.view(-1, 3), marker_indices=marker_indices.view(-1))
+        # self.contact_visualizer.visualize(frame_origins.view(-1, 3), marker_indices=marker_indices.view(-1))
 
     """
     Internal simulation callbacks.

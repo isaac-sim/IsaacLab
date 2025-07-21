@@ -7,12 +7,10 @@ import torch
 import weakref
 
 import omni.log
-import omni.physics.tensors.impl.api as physx
-from isaacsim.core.simulation_manager import SimulationManager
-from isaaclab.sim._impl.newton_manager import NewtonManager
 import warp as wp
 
 import isaaclab.utils.math as math_utils
+from isaaclab.sim._impl.newton_manager import NewtonManager
 from isaaclab.utils.buffers import TimestampedBuffer
 
 
@@ -64,7 +62,9 @@ class ArticulationData:
         # Initialize history for finite differencing
         velocity = wp.to_torch(self._root_newton_view.get_link_velocities(NewtonManager.get_state_0())).clone()
         self._previous_body_com_vel = torch.cat((velocity[:, :, 3:], velocity[:, :, :3]), dim=-1)
-        self._previous_joint_vel = wp.to_torch(self._root_newton_view.get_dof_velocities(NewtonManager.get_state_0())).clone()
+        self._previous_joint_vel = wp.to_torch(
+            self._root_newton_view.get_dof_velocities(NewtonManager.get_state_0())
+        ).clone()
 
         # Initialize the lazy buffers.
         # -- link frame w.r.t. world frame
@@ -272,10 +272,10 @@ class ArticulationData:
 
     joint_control_mode: torch.Tensor = None
     """Joint control mode. Shape is (num_instances, num_joints).
-    
+
     When using implicit actuator models Newton needs to know how the joints are controlled.
     The control mode can be one of the following:
-    
+
     * None: 0
     * Position control: 1
     * Velocity control: 2
@@ -552,7 +552,7 @@ class ArticulationData:
         """
         if self._body_link_pose_w.timestamp < self._sim_timestamp:
             # perform forward kinematics (shouldn't cause overhead if it happened already)
-            #self._physics_sim_view.update_articulations_kinematic()
+            # self._physics_sim_view.update_articulations_kinematic()
             # read data from simulation
             # Newton reads poses as [x, y, z, qx, qy, qz, qw] Isaac reads as [x, y, z, qw, qx, qy, qz]
             poses = wp.to_torch(self._root_newton_view.get_link_transforms(NewtonManager.get_state_0())).clone()
@@ -670,7 +670,7 @@ class ArticulationData:
         """
         if self._body_com_acc_w.timestamp < self._sim_timestamp:
             # read data from simulation and set the buffer data and timestamp
-            #self._body_com_acc_w.data = self._root_physx_view.get_link_accelerations()
+            # self._body_com_acc_w.data = self._root_physx_view.get_link_accelerations()
             time_elapsed = self._sim_timestamp - self._joint_acc.timestamp
             self._body_com_acc_w.data = (self.body_com_vel_w - self._previous_body_com_vel) / time_elapsed
             self._previous_body_com_vel[:] = self.body_com_vel_w

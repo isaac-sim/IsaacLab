@@ -22,7 +22,6 @@ import omni.kit.app
 import omni.log
 import omni.physx
 from isaacsim.core.simulation_manager import SimulationManager
-from isaaclab.sim._impl.newton_manager import NewtonManager
 from isaacsim.core.version import get_version
 
 from isaaclab.managers import EventManager

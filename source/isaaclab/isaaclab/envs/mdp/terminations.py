@@ -84,6 +84,7 @@ def root_height_above_maximum(
     asset: RigidObject = env.scene[asset_cfg.name]
     return asset.data.root_pos_w[:, 2] > maximum_height
 
+
 """
 Joint terminations.
 """

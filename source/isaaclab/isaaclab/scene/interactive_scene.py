@@ -10,7 +10,6 @@ from typing import Any
 import carb
 import omni.log
 import omni.usd
-from isaaclab.cloner import GridCloner
 from isaacsim.core.prims import XFormPrim
 from isaacsim.core.utils.stage import get_current_stage
 from isaacsim.core.version import get_version
@@ -30,6 +29,7 @@ from isaaclab.assets import (
     SurfaceGripper,
     SurfaceGripperCfg,
 )
+from isaaclab.cloner import GridCloner
 from isaaclab.sensors import ContactSensorCfg, FrameTransformerCfg, SensorBase, SensorBaseCfg
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils import get_current_stage_id
@@ -771,12 +771,16 @@ class InteractiveScene:
                     if asset_cfg.contact_partners_body_expr is not None:
                         updated_contact_partners_body_expr = []
                         for contact_partners_body_expr in asset_cfg.contact_partners_body_expr:
-                            updated_contact_partners_body_expr.append(contact_partners_body_expr.format(ENV_REGEX_NS=self.env_regex_ns))
+                            updated_contact_partners_body_expr.append(
+                                contact_partners_body_expr.format(ENV_REGEX_NS=self.env_regex_ns)
+                            )
                         asset_cfg.contact_partners_body_expr = updated_contact_partners_body_expr
                     if asset_cfg.contact_partners_shape_expr is not None:
                         updated_contact_partners_shape_expr = []
                         for contact_partners_shape_expr in asset_cfg.contact_partners_shape_expr:
-                            updated_contact_partners_shape_expr.append(contact_partners_shape_expr.format(ENV_REGEX_NS=self.env_regex_ns))
+                            updated_contact_partners_shape_expr.append(
+                                contact_partners_shape_expr.format(ENV_REGEX_NS=self.env_regex_ns)
+                            )
                         asset_cfg.contact_partners_shape_expr = updated_contact_partners_shape_expr
 
                 self._sensors[asset_name] = asset_cfg.class_type(asset_cfg)

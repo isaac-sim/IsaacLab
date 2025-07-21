@@ -139,4 +139,4 @@ class H1RoughEnvCfg_PLAY(H1RoughEnvCfg):
         self.observations.policy.enable_corruption = False
         # remove random pushing
         self.events.base_external_force_torque = None
-        #self.events.push_robot = None
+        # self.events.push_robot = None

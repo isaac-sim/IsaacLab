@@ -39,7 +39,7 @@ GO1_ACTUATOR_CFG = ActuatorNetMLPCfg(
     effort_limit=23.7,  # taken from spec sheet
     velocity_limit=30.0,  # taken from spec sheet
     saturation_effort=23.7,  # same as effort limit
-    armature=0.2
+    armature=0.2,
 )
 """Configuration of Go1 actuators using MLP model.
 
