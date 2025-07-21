@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -11,7 +11,9 @@ Each sensor class should inherit from this class and implement the abstract meth
 
 from __future__ import annotations
 
+import builtins
 import inspect
+import re
 import torch
 import weakref
 from abc import ABC, abstractmethod
@@ -20,8 +22,11 @@ from typing import TYPE_CHECKING, Any
 
 import omni.kit.app
 import omni.timeline
+from isaacsim.core.simulation_manager import IsaacEvents, SimulationManager
+from isaacsim.core.utils.stage import get_current_stage
 
 import isaaclab.sim as sim_utils
+from isaaclab.sim import SimulationContext
 
 if TYPE_CHECKING:
     from .sensor_base_cfg import SensorBaseCfg
@@ -56,21 +61,43 @@ class SensorBase(ABC):
         self._is_initialized = False
         # flag for whether the sensor is in visualization mode
         self._is_visualizing = False
+        # get stage handle
+        self.stage = get_current_stage()
 
-        # note: Use weakref on callbacks to ensure that this object can be deleted when its destructor is called.
+        # register simulator callbacks (with weakref safety to avoid crashes on deletion)
+        def safe_callback(callback_name, event, obj_ref):
+            """Safely invoke a callback on a weakly-referenced object, ignoring ReferenceError if deleted."""
+            try:
+                obj = obj_ref
+                getattr(obj, callback_name)(event)
+            except ReferenceError:
+                # Object has been deleted; ignore.
+                pass
+
+        # note: use weakref on callbacks to ensure that this object can be deleted when its destructor is called.
         # add callbacks for stage play/stop
-        # The order is set to 10 which is arbitrary but should be lower priority than the default order of 0
+        obj_ref = weakref.proxy(self)
         timeline_event_stream = omni.timeline.get_timeline_interface().get_timeline_event_stream()
+
+        # the order is set to 10 which is arbitrary but should be lower priority than the default order of 0
+        # register timeline PLAY event callback (lower priority with order=10)
         self._initialize_handle = timeline_event_stream.create_subscription_to_pop_by_type(
             int(omni.timeline.TimelineEventType.PLAY),
-            lambda event, obj=weakref.proxy(self): obj._initialize_callback(event),
+            lambda event, obj_ref=obj_ref: safe_callback("_initialize_callback", event, obj_ref),
             order=10,
         )
+        # register timeline STOP event callback (lower priority with order=10)
         self._invalidate_initialize_handle = timeline_event_stream.create_subscription_to_pop_by_type(
             int(omni.timeline.TimelineEventType.STOP),
-            lambda event, obj=weakref.proxy(self): obj._invalidate_initialize_callback(event),
+            lambda event, obj_ref=obj_ref: safe_callback("_invalidate_initialize_callback", event, obj_ref),
             order=10,
         )
+        # register prim deletion callback
+        self._prim_deletion_callback_id = SimulationManager.register_callback(
+            lambda event, obj_ref=obj_ref: safe_callback("_on_prim_deletion", event, obj_ref),
+            event=IsaacEvents.PRIM_DELETION,
+        )
+
         # add handle for debug visualization (this is set to a valid handle inside set_debug_vis)
         self._debug_vis_handle = None
         # set initial state of debug visualization
@@ -79,16 +106,7 @@ class SensorBase(ABC):
     def __del__(self):
         """Unsubscribe from the callbacks."""
         # clear physics events handles
-        if self._initialize_handle:
-            self._initialize_handle.unsubscribe()
-            self._initialize_handle = None
-        if self._invalidate_initialize_handle:
-            self._invalidate_initialize_handle.unsubscribe()
-            self._invalidate_initialize_handle = None
-        # clear debug visualization
-        if self._debug_vis_handle:
-            self._debug_vis_handle.unsubscribe()
-            self._debug_vis_handle = None
+        self._clear_callbacks()
 
     """
     Properties
@@ -270,13 +288,54 @@ class SensorBase(ABC):
             called whenever the simulator "plays" from a "stop" state.
         """
         if not self._is_initialized:
-            self._initialize_impl()
+            try:
+                self._initialize_impl()
+            except Exception as e:
+                if builtins.ISAACLAB_CALLBACK_EXCEPTION is None:
+                    builtins.ISAACLAB_CALLBACK_EXCEPTION = e
             self._is_initialized = True
 
     def _invalidate_initialize_callback(self, event):
         """Invalidates the scene elements."""
         self._is_initialized = False
         if self._debug_vis_handle is not None:
+            self._debug_vis_handle.unsubscribe()
+            self._debug_vis_handle = None
+
+    def _on_prim_deletion(self, prim_path: str) -> None:
+        """Invalidates and deletes the callbacks when the prim is deleted.
+
+        Args:
+            prim_path: The path to the prim that is being deleted.
+
+        Note:
+            This function is called when the prim is deleted.
+        """
+        # skip callback if required
+        if getattr(SimulationContext.instance(), "_skip_next_prim_deletion_callback_fn", False):
+            return
+        if prim_path == "/":
+            self._clear_callbacks()
+            return
+        result = re.match(
+            pattern="^" + "/".join(self.cfg.prim_path.split("/")[: prim_path.count("/") + 1]) + "$", string=prim_path
+        )
+        if result:
+            self._clear_callbacks()
+
+    def _clear_callbacks(self) -> None:
+        """Clears the callbacks."""
+        if self._prim_deletion_callback_id:
+            SimulationManager.deregister_callback(self._prim_deletion_callback_id)
+            self._prim_deletion_callback_id = None
+        if self._initialize_handle:
+            self._initialize_handle.unsubscribe()
+            self._initialize_handle = None
+        if self._invalidate_initialize_handle:
+            self._invalidate_initialize_handle.unsubscribe()
+            self._invalidate_initialize_handle = None
+        # clear debug visualization
+        if self._debug_vis_handle:
             self._debug_vis_handle.unsubscribe()
             self._debug_vis_handle = None
 

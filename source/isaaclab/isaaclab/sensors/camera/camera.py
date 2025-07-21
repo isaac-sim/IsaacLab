@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -21,6 +21,7 @@ from isaacsim.core.version import get_version
 from pxr import Sdf, UsdGeom
 
 import isaaclab.sim as sim_utils
+import isaaclab.utils.sensors as sensor_utils
 from isaaclab.utils import to_camel_case
 from isaaclab.utils.array import convert_to_torch
 from isaaclab.utils.math import (
@@ -153,9 +154,8 @@ class Camera(SensorBase):
                     " will be disabled in the current workflow and may lead to longer load times and increased memory"
                     " usage."
                 )
-                stage = omni.usd.get_context().get_stage()
                 with Sdf.ChangeBlock():
-                    for prim in stage.Traverse():
+                    for prim in self.stage.Traverse():
                         prim.SetInstanceable(False)
 
     def __del__(self):
@@ -221,11 +221,11 @@ class Camera(SensorBase):
     """
 
     def set_intrinsic_matrices(
-        self, matrices: torch.Tensor, focal_length: float = 1.0, env_ids: Sequence[int] | None = None
+        self, matrices: torch.Tensor, focal_length: float | None = None, env_ids: Sequence[int] | None = None
     ):
         """Set parameters of the USD camera from its intrinsic matrix.
 
-        The intrinsic matrix and focal length are used to set the following parameters to the USD camera:
+        The intrinsic matrix is used to set the following parameters to the USD camera:
 
         - ``focal_length``: The focal length of the camera.
         - ``horizontal_aperture``: The horizontal aperture of the camera.
@@ -241,7 +241,8 @@ class Camera(SensorBase):
 
         Args:
             matrices: The intrinsic matrices for the camera. Shape is (N, 3, 3).
-            focal_length: Focal length to use when computing aperture values (in cm). Defaults to 1.0.
+            focal_length: Perspective focal length (in cm) used to calculate pixel size. Defaults to None. If None,
+                focal_length will be calculated 1 / width.
             env_ids: A sensor ids to manipulate. Defaults to None, which means all sensor indices.
         """
         # resolve env_ids
@@ -254,27 +255,12 @@ class Camera(SensorBase):
             matrices = np.asarray(matrices, dtype=float)
         # iterate over env_ids
         for i, intrinsic_matrix in zip(env_ids, matrices):
-            # extract parameters from matrix
-            f_x = intrinsic_matrix[0, 0]
-            c_x = intrinsic_matrix[0, 2]
-            f_y = intrinsic_matrix[1, 1]
-            c_y = intrinsic_matrix[1, 2]
-            # get viewport parameters
-            height, width = self.image_shape
-            height, width = float(height), float(width)
-            # resolve parameters for usd camera
-            params = {
-                "focal_length": focal_length,
-                "horizontal_aperture": width * focal_length / f_x,
-                "vertical_aperture": height * focal_length / f_y,
-                "horizontal_aperture_offset": (c_x - width / 2) / f_x,
-                "vertical_aperture_offset": (c_y - height / 2) / f_y,
-            }
 
-            # TODO: Adjust to handle aperture offsets once supported by omniverse
-            #   Internal ticket from rendering team: OM-42611
-            if params["horizontal_aperture_offset"] > 1e-4 or params["vertical_aperture_offset"] > 1e-4:
-                omni.log.warn("Camera aperture offsets are not supported by Omniverse. These parameters are ignored.")
+            height, width = self.image_shape
+
+            params = sensor_utils.convert_camera_intrinsics_to_usd(
+                intrinsic_matrix=intrinsic_matrix.reshape(-1), height=height, width=width, focal_length=focal_length
+            )
 
             # change data for corresponding camera index
             sensor_prim = self._sensor_prims[i]
@@ -434,12 +420,10 @@ class Camera(SensorBase):
         self._render_product_paths: list[str] = list()
         self._rep_registry: dict[str, list[rep.annotators.Annotator]] = {name: list() for name in self.cfg.data_types}
 
-        # Obtain current stage
-        stage = omni.usd.get_context().get_stage()
         # Convert all encapsulated prims to Camera
         for cam_prim_path in self._view.prim_paths:
             # Get camera prim
-            cam_prim = stage.GetPrimAtPath(cam_prim_path)
+            cam_prim = self.stage.GetPrimAtPath(cam_prim_path)
             # Check if prim is a camera
             if not cam_prim.IsA(UsdGeom.Camera):
                 raise RuntimeError(f"Prim at path '{cam_prim_path}' is not a Camera.")
@@ -599,18 +583,17 @@ class Camera(SensorBase):
             # Get corresponding sensor prim
             sensor_prim = self._sensor_prims[i]
             # get camera parameters
+            # currently rendering does not use aperture offsets or vertical aperture
             focal_length = sensor_prim.GetFocalLengthAttr().Get()
             horiz_aperture = sensor_prim.GetHorizontalApertureAttr().Get()
-            vert_aperture = sensor_prim.GetVerticalApertureAttr().Get()
-            horiz_aperture_offset = sensor_prim.GetHorizontalApertureOffsetAttr().Get()
-            vert_aperture_offset = sensor_prim.GetVerticalApertureOffsetAttr().Get()
+
             # get viewport parameters
             height, width = self.image_shape
             # extract intrinsic parameters
             f_x = (width * focal_length) / horiz_aperture
-            f_y = (height * focal_length) / vert_aperture
-            c_x = width * 0.5 + horiz_aperture_offset * f_x
-            c_y = height * 0.5 + vert_aperture_offset * f_y
+            f_y = f_x
+            c_x = width * 0.5
+            c_y = height * 0.5
             # create intrinsic matrix for depth linear
             self._data.intrinsic_matrices[i, 0, 0] = f_x
             self._data.intrinsic_matrices[i, 0, 2] = c_x

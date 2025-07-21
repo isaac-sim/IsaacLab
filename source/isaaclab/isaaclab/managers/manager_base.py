@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -16,7 +16,7 @@ import omni.log
 import omni.timeline
 
 import isaaclab.utils.string as string_utils
-from isaaclab.utils import string_to_callable
+from isaaclab.utils import class_to_dict, string_to_callable
 
 from .manager_term_cfg import ManagerTermBaseCfg
 from .scene_entity_cfg import SceneEntityCfg
@@ -79,6 +79,11 @@ class ManagerTermBase(ABC):
         """Device on which to perform computations."""
         return self._env.device
 
+    @property
+    def __name__(self) -> str:
+        """Return the name of the class or subclass."""
+        return self.__class__.__name__
+
     """
     Operations.
     """
@@ -91,6 +96,10 @@ class ManagerTermBase(ABC):
                 all environments are considered.
         """
         pass
+
+    def serialize(self) -> dict:
+        """General serialization call. Includes the configuration dict."""
+        return {"cfg": class_to_dict(self.cfg)}
 
     def __call__(self, *args) -> Any:
         """Returns the value of the term required by the manager.
@@ -135,6 +144,10 @@ class ManagerBase(ABC):
         # store the inputs
         self.cfg = copy.deepcopy(cfg)
         self._env = env
+
+        # flag for whether the scene entities have been resolved
+        # if sim is playing, we resolve the scene entities directly while preparing the terms
+        self._is_scene_entities_resolved = self._env.sim.is_playing()
 
         # if the simulation is not playing, we use callbacks to trigger the resolution of the scene
         # entities configuration. this is needed for cases where the manager is created after the
@@ -256,6 +269,9 @@ class ManagerBase(ABC):
 
         Please check the :meth:`_process_term_cfg_at_play` method for more information.
         """
+        # check if scene entities have been resolved
+        if self._is_scene_entities_resolved:
+            return
         # check if config is dict already
         if isinstance(self.cfg, dict):
             cfg_items = self.cfg.items()
@@ -270,6 +286,9 @@ class ManagerBase(ABC):
             # process attributes at runtime
             # these properties are only resolvable once the simulation starts playing
             self._process_term_cfg_at_play(term_name, term_cfg)
+
+        # set the flag
+        self._is_scene_entities_resolved = True
 
     """
     Internal functions.

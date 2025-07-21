@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -57,7 +57,12 @@ FRAME_MARKER_CFG = VisualizationMarkersCfg(
         "frame": sim_utils.UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/UIElements/frame_prim.usd",
             scale=(0.5, 0.5, 0.5),
-        )
+        ),
+        "connecting_line": sim_utils.CylinderCfg(
+            radius=0.002,
+            height=1.0,
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 1.0, 0.0), roughness=1.0),
+        ),
     }
 )
 """Configuration for the frame marker."""
@@ -111,6 +116,16 @@ CUBOID_MARKER_CFG = VisualizationMarkersCfg(
     }
 )
 """Configuration for the cuboid marker."""
+
+SPHERE_MARKER_CFG = VisualizationMarkersCfg(
+    markers={
+        "sphere": sim_utils.SphereCfg(
+            radius=0.05,
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0)),
+        ),
+    }
+)
+"""Configuration for the sphere marker."""
 
 POSITION_GOAL_MARKER_CFG = VisualizationMarkersCfg(
     markers={

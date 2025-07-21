@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -262,6 +262,37 @@ class FixedTendonPropertiesCfg:
 
     rest_length: float | None = None
     """Spring rest length of the tendon."""
+
+
+@configclass
+class SpatialTendonPropertiesCfg:
+    """Properties to define spatial tendons of an articulation.
+
+    See :meth:`modify_spatial_tendon_properties` for more information.
+
+    .. note::
+        If the values are None, they are not modified. This is useful when you want to set only a subset of
+        the properties and leave the rest as-is.
+    """
+
+    tendon_enabled: bool | None = None
+    """Whether to enable or disable the tendon."""
+
+    stiffness: float | None = None
+    """Spring stiffness term acting on the tendon's length."""
+
+    damping: float | None = None
+    """The damping term acting on both the tendon length and the tendon-length limits."""
+
+    limit_stiffness: float | None = None
+    """Limit stiffness term acting on the tendon's length limits."""
+
+    offset: float | None = None
+    """Length offset term for the tendon.
+
+    It defines an amount to be added to the accumulated length computed for the tendon. This allows the application
+    to actuate the tendon by shortening or lengthening it.
+    """
 
 
 @configclass

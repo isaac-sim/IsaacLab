@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -44,3 +44,4 @@ from .asset_base_cfg import AssetBaseCfg
 from .deformable_object import DeformableObject, DeformableObjectCfg, DeformableObjectData
 from .rigid_object import RigidObject, RigidObjectCfg, RigidObjectData
 from .rigid_object_collection import RigidObjectCollection, RigidObjectCollectionCfg, RigidObjectCollectionData
+from .surface_gripper import SurfaceGripper, SurfaceGripperCfg

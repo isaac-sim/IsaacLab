@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -68,7 +68,7 @@ import isaacsim.core.utils.prims as prim_utils
 import omni.kit
 import omni.kit.commands
 from isaacsim.core.api.simulation_context import SimulationContext
-from isaaclab.cloner import GridCloner
+from isaacsim.core.cloner import GridCloner
 from isaacsim.core.materials import PhysicsMaterial, PreviewSurface
 from isaacsim.core.objects import DynamicSphere
 from isaacsim.core.prims import RigidPrim, SingleGeometryPrim, SingleRigidPrim

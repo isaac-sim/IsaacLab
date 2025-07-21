@@ -47,7 +47,7 @@ For instance, if you cloned the library to ``/home/user/git/rsl_rl``, the output
 .. code-block:: bash
 
   Name: rsl_rl
-  Version: 2.1.0
+  Version: 2.2.0
   Summary: Fast and simple RL algorithms implemented in pytorch
   Home-page: https://github.com/leggedrobotics/rsl_rl
   Author: ETH Zurich, NVIDIA CORPORATION
@@ -63,7 +63,7 @@ Integrating a new library
 
 Adding a new library to Isaac Lab is similar to using a different version of a library. You can install the library
 in your Python environment and use it in your experiments. However, if you want to integrate the library with
-Isaac Lab, you can will first need to make a wrapper for the library, as explained in
+Isaac Lab, you will first need to make a wrapper for the library, as explained in
 :ref:`how-to-env-wrappers`.
 
 The following steps can be followed to integrate a new library with Isaac Lab:

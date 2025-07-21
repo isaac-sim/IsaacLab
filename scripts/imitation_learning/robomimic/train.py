@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -285,7 +285,8 @@ def train(config: Config, device: str, log_dir: str, ckpt_dir: str, video_dir: s
                 and (epoch % config.experiment.save.every_n_epochs == 0)
             )
             epoch_list_check = epoch in config.experiment.save.epochs
-            should_save_ckpt = time_check or epoch_check or epoch_list_check
+            last_epoch_check = epoch == config.train.num_epochs
+            should_save_ckpt = time_check or epoch_check or epoch_list_check or last_epoch_check
         ckpt_reason = None
         if should_save_ckpt:
             last_ckpt_time = time.time()
@@ -354,15 +355,16 @@ def main(args: argparse.Namespace):
     if args.task is not None:
         # obtain the configuration entry point
         cfg_entry_point_key = f"robomimic_{args.algo}_cfg_entry_point"
+        task_name = args.task.split(":")[-1]
 
-        print(f"Loading configuration for task: {args.task}")
+        print(f"Loading configuration for task: {task_name}")
         print(gym.envs.registry.keys())
         print(" ")
-        cfg_entry_point_file = gym.spec(args.task).kwargs.pop(cfg_entry_point_key)
+        cfg_entry_point_file = gym.spec(task_name).kwargs.pop(cfg_entry_point_key)
         # check if entry point exists
         if cfg_entry_point_file is None:
             raise ValueError(
-                f"Could not find configuration for the environment: '{args.task}'."
+                f"Could not find configuration for the environment: '{task_name}'."
                 f" Please check that the gym registry has the entry point: '{cfg_entry_point_key}'."
             )
 
@@ -381,6 +383,9 @@ def main(args: argparse.Namespace):
 
     if args.name is not None:
         config.experiment.name = args.name
+
+    if args.epochs is not None:
+        config.train.num_epochs = args.epochs
 
     # change location of experiment directory
     config.train.output_dir = os.path.abspath(os.path.join("./logs", args.log_dir, args.task))
@@ -427,6 +432,15 @@ if __name__ == "__main__":
     parser.add_argument("--algo", type=str, default=None, help="Name of the algorithm.")
     parser.add_argument("--log_dir", type=str, default="robomimic", help="Path to log directory")
     parser.add_argument("--normalize_training_actions", action="store_true", default=False, help="Normalize actions")
+    parser.add_argument(
+        "--epochs",
+        type=int,
+        default=None,
+        help=(
+            "Optional: Number of training epochs. If specified, overrides the number of epochs from the JSON training"
+            " config."
+        ),
+    )
 
     args = parser.parse_args()
 

@@ -5,7 +5,7 @@
 [package]
 title = "Isaac Lab Python"
 description = "An app for running Isaac Lab"
-version = "2.1.0"
+version = "2.2.0"
 
 # That makes it browsable in UI with "experience" filter
 keywords = ["experience", "app", "usd"]
@@ -27,7 +27,6 @@ keywords = ["experience", "app", "usd"]
 "isaacsim.robot.manipulators" = {}
 "isaacsim.robot.policy.examples" = {}
 "isaacsim.robot.schema" = {}
-"isaacsim.robot.surface_gripper" = {}
 "isaacsim.robot.wheeled_robots" = {}
 "isaacsim.sensors.camera" = {}
 "isaacsim.sensors.physics" = {}
@@ -69,6 +68,7 @@ keywords = ["experience", "app", "usd"]
 "omni.kit.primitive.mesh" = {}
 "omni.kit.property.bundle" = {}
 "omni.kit.raycast.query" = {}
+"omni.kit.stagerecorder.bundle" = {}
 "omni.kit.stage_template.core" = {}
 "omni.kit.telemetry" = {}
 "omni.kit.tool.asset_importer" = {}
@@ -84,16 +84,16 @@ keywords = ["experience", "app", "usd"]
 "omni.kit.window.console" = {}
 "omni.kit.window.content_browser" = {}
 "omni.kit.window.property" = {}
+"omni.kit.window.script_editor" = {}
 "omni.kit.window.stage" = {}
 "omni.kit.window.status_bar" = {}
 "omni.kit.window.toolbar" = {}
-"omni.physx.stageupdate" = {}
+"omni.physics.stageupdate" = {}
 "omni.rtx.settings.core" = {}
 "omni.uiaudio" = {}
 "omni.usd.metrics.assembler.ui" = {}
 "omni.usd.schema.metrics.assembler" = {}
-"omni.warp" = { version = "1.9.0-beta.3", exact = true }
-"omni.warp.core" = { version = "1.9.0-beta.3", exact = true }
+"omni.warp.core" = {}
 
 ########################
 # Isaac Lab Extensions #
@@ -126,6 +126,9 @@ rtx.hydra.mdlMaterialWarmup = true # start loading the MDL shaders needed before
 omni.replicator.asyncRendering = false # Async rendering must be disabled for SDG
 exts."omni.kit.test".includeTests = ["*isaac*"] # Add isaac tests to test runner
 foundation.verifyOsVersion.enabled = false
+
+# disable the metrics assembler change listener, we don't want to do any runtime changes
+metricsAssembler.changeListenerEnabled = false
 
 # set the default ros bridge to disable on startup
 isaac.startup.ros_bridge_extension = ""
@@ -238,6 +241,10 @@ omni.replicator.asyncRendering = false
 app.asyncRendering = false
 app.asyncRenderingLowLatency = false
 
+### FSD
+app.useFabricSceneDelegate = true
+rtx.hydra.readTransformsFromFabricInRenderDelegate = true
+
 # disable replicator orchestrator for better runtime perf
 exts."omni.replicator.core".Orchestrator.enabled = false
 
@@ -247,18 +254,11 @@ outDirectory = "${data}"
 # Extensions
 ###############################
 [settings.exts."omni.kit.registry.nucleus"]
-
 registries = [
-    { name = "kit/default", url = "omniverse://kit-extensions.ov.nvidia.com/exts/kit/default" },
-    { name = "kit/sdk", url = "omniverse://kit-extensions.ov.nvidia.com/exts/kit/sdk/${kit_version_short}/${kit_git_hash}" },
+    { name = "kit/default", url = "https://ovextensionsprod.blob.core.windows.net/exts/kit/prod/106/shared" },
+    { name = "kit/sdk", url = "https://ovextensionsprod.blob.core.windows.net/exts/kit/prod/sdk/${kit_version_short}/${kit_git_hash}" },
+    { name = "kit/community", url = "https://dw290v42wisod.cloudfront.net/exts/kit/community" },
 ]
-
-#FOR PRODUCTION
-#registries = [
-#    { name = "kit/default", url = "https://ovextensionsprod.blob.core.windows.net/exts/kit/prod/106/shared" },
-#    { name = "kit/sdk", url = "https://ovextensionsprod.blob.core.windows.net/exts/kit/prod/sdk/${kit_version_short}/${kit_git_hash}" },
-#    { name = "kit/community", url = "https://dw290v42wisod.cloudfront.net/exts/kit/community" },   
-#]
 
 [settings.app.extensions]
 skipPublishVerification = false
@@ -295,11 +295,13 @@ fabricUpdateTransformations = false
 fabricUpdateVelocities = false
 fabricUpdateForceSensors = false
 fabricUpdateJointStates = false
+### When Direct GPU mode is enabled (suppressReadback=true) use direct interop between PhysX GPU and Fabric
+fabricUseGPUInterop = true
 
 # Asset path
 # set the S3 directory manually to the latest published S3
 # note: this is done to ensure prior versions of Isaac Sim still use the latest assets
 [settings]
-persistent.isaac.asset_root.default = "http://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/4.5"
-persistent.isaac.asset_root.cloud = "http://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/4.5"
-persistent.isaac.asset_root.nvidia = "http://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/4.5"
+persistent.isaac.asset_root.default = "https://omniverse-content-staging.s3-us-west-2.amazonaws.com/Assets/Isaac/5.0"
+persistent.isaac.asset_root.cloud = "https://omniverse-content-staging.s3-us-west-2.amazonaws.com/Assets/Isaac/5.0"
+persistent.isaac.asset_root.nvidia = "https://omniverse-content-staging.s3-us-west-2.amazonaws.com/Assets/Isaac/5.0"

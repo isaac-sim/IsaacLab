@@ -47,6 +47,7 @@ class and its derivatives such as :class:`~isaaclab.assets.RigidObject`,
     01_assets/run_rigid_object
     01_assets/run_articulation
     01_assets/run_deformable_object
+    01_assets/run_surface_gripper
 
 Creating a Scene
 ----------------

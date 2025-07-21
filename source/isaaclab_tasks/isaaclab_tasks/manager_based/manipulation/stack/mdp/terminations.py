@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -27,7 +27,7 @@ def cubes_stacked(
     cube_1_cfg: SceneEntityCfg = SceneEntityCfg("cube_1"),
     cube_2_cfg: SceneEntityCfg = SceneEntityCfg("cube_2"),
     cube_3_cfg: SceneEntityCfg = SceneEntityCfg("cube_3"),
-    xy_threshold: float = 0.05,
+    xy_threshold: float = 0.04,
     height_threshold: float = 0.005,
     height_diff: float = 0.0468,
     gripper_open_val: torch.tensor = torch.tensor([0.04]),
@@ -53,7 +53,9 @@ def cubes_stacked(
     # Check cube positions
     stacked = torch.logical_and(xy_dist_c12 < xy_threshold, xy_dist_c23 < xy_threshold)
     stacked = torch.logical_and(h_dist_c12 - height_diff < height_threshold, stacked)
+    stacked = torch.logical_and(pos_diff_c12[:, 2] < 0.0, stacked)
     stacked = torch.logical_and(h_dist_c23 - height_diff < height_threshold, stacked)
+    stacked = torch.logical_and(pos_diff_c23[:, 2] < 0.0, stacked)
 
     # Check gripper positions
     stacked = torch.logical_and(

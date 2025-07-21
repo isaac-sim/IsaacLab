@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -77,6 +77,7 @@ class CassieRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
                 "yaw": (0.0, 0.0),
             },
         }
+        self.events.base_com = None
 
         # terminations
         self.terminations.base_contact.params["sensor_cfg"].body_names = [".*pelvis"]

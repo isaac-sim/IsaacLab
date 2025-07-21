@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -67,7 +67,7 @@ class MySceneCfg(InteractiveSceneCfg):
     # height_scanner = RayCasterCfg(
     #     prim_path="{ENV_REGEX_NS}/Robot/base",
     #     offset=RayCasterCfg.OffsetCfg(pos=(0.0, 0.0, 20.0)),
-    #     attach_yaw_only=True,
+    #     ray_alignment="yaw",
     #     pattern_cfg=patterns.GridPatternCfg(resolution=0.1, size=[1.6, 1.0]),
     #     debug_vis=False,
     #     mesh_prim_paths=["/World/ground"],
@@ -179,6 +179,15 @@ class EventCfg:
         },
     )
 
+    base_com = EventTerm(
+        func=mdp.randomize_rigid_body_com,
+        mode="startup",
+        params={
+            "asset_cfg": SceneEntityCfg("robot", body_names="base"),
+            "com_range": {"x": (-0.05, 0.05), "y": (-0.05, 0.05), "z": (-0.01, 0.01)},
+        },
+    )
+
     # reset
     base_external_force_torque = EventTerm(
         func=mdp.apply_external_force_torque,
@@ -216,12 +225,12 @@ class EventCfg:
     )
 
     # interval
-    # push_robot = EventTerm(
-    #     func=mdp.push_by_setting_velocity,
-    #     mode="interval",
-    #     interval_range_s=(10.0, 15.0),
-    #     params={"velocity_range": {"x": (-0.1, 0.1), "y": (-0.1, 0.1)}},
-    # )
+    push_robot = EventTerm(
+        func=mdp.push_by_setting_velocity,
+        mode="interval",
+        interval_range_s=(10.0, 15.0),
+        params={"velocity_range": {"x": (-0.1, 0.1), "y": (-0.1, 0.1)}},
+    )
 
 
 @configclass

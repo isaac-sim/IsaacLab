@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -314,7 +314,8 @@ def main():
     """Main function."""
 
     # setup base environment
-    env = ManagerBasedEnv(cfg=CubeEnvCfg())
+    env_cfg = CubeEnvCfg()
+    env = ManagerBasedEnv(cfg=env_cfg)
 
     # setup target position commands
     target_position = torch.rand(env.num_envs, 3, device=env.device) * 2

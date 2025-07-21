@@ -27,36 +27,15 @@ Quick Installation Guide
 There are many ways to :ref:`install <isaaclab-installation-root>` Isaac Lab, but for the purposes of this quickstart guide, we will follow the
 pip install route using virtual environments.
 
-
-.. note::
-
-   If you are using Ubuntu 20.04, you will need to follow the :ref:`Binary Installation Guide <isaaclab-binaries-installation>` instead of the pip install route described below.
-
-
 To begin, we first define our virtual environment.
 
-.. tab-set::
-    :sync-group: os
 
-    .. tab-item:: :icon:`fa-brands fa-linux` Linux
-        :sync: linux
+.. code-block:: bash
 
-        .. code-block:: bash
-
-            # create a virtual environment named env_isaaclab with python3.11
-            python3.11 -m venv env_isaaclab
-            # activate the virtual environment
-            source env_isaaclab/bin/activate
-
-    .. tab-item:: :icon:`fa-brands fa-windows` Windows
-        :sync: windows
-
-        .. code-block:: batch
-
-            # create a virtual environment named env_isaaclab with python3.11
-            python3.11 -m venv env_isaaclab
-            # activate the virtual environment
-            env_isaaclab\Scripts\activate
+    # create a virtual environment named env_isaaclab with python3.11
+    conda create -n env_isaaclab python=3.11
+    # activate the virtual environment
+    conda activate env_isaaclab
 
 Before we can install Isaac Sim, we need to make sure pip is updated.  To update pip, run
 
@@ -81,7 +60,7 @@ and now we can install the Isaac Sim packages.
 
 .. code-block:: none
 
-    pip install 'isaacsim[all,extscache]==4.5.0' --extra-index-url https://pypi.nvidia.com
+    pip install "isaacsim[all,extscache]==5.0.0" --extra-index-url https://pypi.nvidia.com
 
 Finally, we can install Isaac Lab.  To start, clone the repository using the following
 
