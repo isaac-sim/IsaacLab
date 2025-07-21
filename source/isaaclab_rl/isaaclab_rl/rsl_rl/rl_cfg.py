@@ -148,7 +148,7 @@ class RslRlBaseRunnerCfg:
     max_iterations: int = MISSING
     """The maximum number of iterations."""
 
-    empirical_normalization: bool = None
+    empirical_normalization: bool | None = None
     """This parameter is deprecated and will be removed in the future.
 
     Use `actor_obs_normalization` and `critic_obs_normalization` instead.
