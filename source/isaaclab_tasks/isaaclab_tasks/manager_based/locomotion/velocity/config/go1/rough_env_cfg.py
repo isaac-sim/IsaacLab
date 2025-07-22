@@ -22,9 +22,9 @@ class UnitreeGo1RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         self.scene.robot = UNITREE_GO1_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
         # self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/trunk"
         # scale down the terrains because the robot is small
-        # self.scene.terrain.terrain_generator.sub_terrains["boxes"].grid_height_range = (0.025, 0.1)
-        # self.scene.terrain.terrain_generator.sub_terrains["random_rough"].noise_range = (0.01, 0.06)
-        # self.scene.terrain.terrain_generator.sub_terrains["random_rough"].noise_step = 0.01
+        self.scene.terrain.terrain_generator.sub_terrains["boxes"].grid_height_range = (0.025, 0.1)
+        self.scene.terrain.terrain_generator.sub_terrains["random_rough"].noise_range = (0.01, 0.06)
+        self.scene.terrain.terrain_generator.sub_terrains["random_rough"].noise_step = 0.01
 
         # reduce action scale
         self.actions.joint_pos.scale = 0.25
@@ -71,15 +71,15 @@ class UnitreeGo1RoughEnvCfg_PLAY(UnitreeGo1RoughEnvCfg):
         self.scene.num_envs = 50
         self.scene.env_spacing = 2.5
         # spawn the robot randomly in the grid (instead of their terrain levels)
-        # self.scene.terrain.max_init_terrain_level = None
-        # # reduce the number of terrains to save memory
-        # if self.scene.terrain.terrain_generator is not None:
-        #     self.scene.terrain.terrain_generator.num_rows = 5
-        #     self.scene.terrain.terrain_generator.num_cols = 5
-        #     self.scene.terrain.terrain_generator.curriculum = False
+        self.scene.terrain.max_init_terrain_level = None
+        # reduce the number of terrains to save memory
+        if self.scene.terrain.terrain_generator is not None:
+            self.scene.terrain.terrain_generator.num_rows = 5
+            self.scene.terrain.terrain_generator.num_cols = 5
+            self.scene.terrain.terrain_generator.curriculum = False
 
         # disable randomization for play
-        # self.observations.policy.enable_corruption = False
+        self.observations.policy.enable_corruption = False
         # remove random pushing event
-        # self.events.base_external_force_torque = None
-        # self.events.push_robot = None
+        self.events.base_external_force_torque = None
+        self.events.push_robot = None
