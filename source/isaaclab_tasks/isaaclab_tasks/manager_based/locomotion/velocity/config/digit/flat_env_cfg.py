@@ -17,10 +17,10 @@ class DigitFlatEnvCfg(DigitRoughEnvCfg):
         self.scene.terrain.terrain_type = "plane"
         self.scene.terrain.terrain_generator = None
         # Remove height scanner.
-        self.scene.height_scanner = None
-        self.observations.policy.height_scan = None
+        #self.scene.height_scanner = None
+        #self.observations.policy.height_scan = None
         # Remove terrain curriculum.
-        self.curriculum.terrain_levels = None
+        #self.curriculum.terrain_levels = None
 
 
 class DigitFlatEnvCfg_PLAY(DigitFlatEnvCfg):
@@ -33,5 +33,5 @@ class DigitFlatEnvCfg_PLAY(DigitFlatEnvCfg):
         # Disable randomization for play.
         self.observations.policy.enable_corruption = False
         # Remove random pushing.
-        self.randomization.base_external_force_torque = None
-        self.randomization.push_robot = None
+        self.events.base_external_force_torque = None
+        self.events.push_robot = None

@@ -17,7 +17,7 @@ class G1FlatEnvCfg(G1RoughEnvCfg):
 
         # change terrain to flat
         self.scene.terrain.terrain_type = "plane"
-        # self.scene.terrain.terrain_generator = None
+        self.scene.terrain.terrain_generator = None
         # no height scan
         # self.scene.height_scanner = None
         # self.observations.policy.height_scan = None
@@ -50,7 +50,7 @@ class G1FlatEnvCfg_PLAY(G1FlatEnvCfg):
         self.scene.num_envs = 50
         self.scene.env_spacing = 2.5
         # disable randomization for play
-        # self.observations.policy.enable_corruption = False
+        self.observations.policy.enable_corruption = False
         # remove random pushing
-        # self.events.base_external_force_torque = None
-        # self.events.push_robot = None
+        self.events.base_external_force_torque = None
+        self.events.push_robot = None

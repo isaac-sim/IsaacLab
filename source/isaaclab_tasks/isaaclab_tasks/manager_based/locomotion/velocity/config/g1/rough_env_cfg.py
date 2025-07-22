@@ -112,7 +112,7 @@ class G1RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         # self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/torso_link"
 
         # Randomization
-        # self.events.push_robot = None
+        self.events.push_robot = None
         self.events.add_base_mass = None
         self.events.reset_robot_joints.params["position_range"] = (1.0, 1.0)
         self.events.base_external_force_torque.params["asset_cfg"].body_names = ["torso_link"]
@@ -165,17 +165,17 @@ class G1RoughEnvCfg_PLAY(G1RoughEnvCfg):
         # spawn the robot randomly in the grid (instead of their terrain levels)
         self.scene.terrain.max_init_terrain_level = None
         # reduce the number of terrains to save memory
-        # if self.scene.terrain.terrain_generator is not None:
-        #     self.scene.terrain.terrain_generator.num_rows = 5
-        #     self.scene.terrain.terrain_generator.num_cols = 5
-        #     self.scene.terrain.terrain_generator.curriculum = False
+        if self.scene.terrain.terrain_generator is not None:
+            self.scene.terrain.terrain_generator.num_rows = 5
+            self.scene.terrain.terrain_generator.num_cols = 5
+            self.scene.terrain.terrain_generator.curriculum = False
 
         self.commands.base_velocity.ranges.lin_vel_x = (1.0, 1.0)
         self.commands.base_velocity.ranges.lin_vel_y = (0.0, 0.0)
         self.commands.base_velocity.ranges.ang_vel_z = (-1.0, 1.0)
         self.commands.base_velocity.ranges.heading = (0.0, 0.0)
         # disable randomization for play
-        # self.observations.policy.enable_corruption = False
+        self.observations.policy.enable_corruption = False
         # remove random pushing
-        # self.events.base_external_force_torque = None
-        # self.events.push_robot = None
+        self.events.base_external_force_torque = None
+        self.events.push_robot = None
