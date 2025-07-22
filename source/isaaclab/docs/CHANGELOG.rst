@@ -148,6 +148,7 @@ Fixed
 
 Changed
 ^^^^^^^
+
 * Updated gymnasium to v1.2.0. This update includes fixes for a memory leak that appears when recording
   videos with the ``--video`` flag.
 
@@ -157,6 +158,7 @@ Changed
 
 Added
 ^^^^^
+
 
 * Added unit test for :func:`~isaaclab.utils.math.quat_inv`.
 
