@@ -31,6 +31,7 @@ DIGIT_V4_CFG = ArticulationCfg(
     soft_joint_pos_limit_factor=0.9,
     actuators={
         "all": ImplicitActuatorCfg(
+            control_mode="position",
             joint_names_expr=".*",
             stiffness=None,
             damping=None,
