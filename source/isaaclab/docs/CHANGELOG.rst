@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.40.23 (2025-07-18)
+0.40.24 (2025-07-22)
 ~~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -15,6 +15,16 @@ Changed
 
 * Changed the way clipping is handled for :class:`~isaaclab.actuator.DCMotor` for torque-speed points in when in
   negative power regions.
+
+0.40.23 (2025-06-29)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added MangerBasedRLEnv support for composite gym observation spaces.
+* A test for the composite gym observation spaces in ManagerBasedRLEnv is added to ensure that the observation spaces
+  are correctly configured base on the clip.
 
 
 0.40.22 (2025-07-11)
