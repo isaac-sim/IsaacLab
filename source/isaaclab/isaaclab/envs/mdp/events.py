@@ -19,17 +19,19 @@ import torch
 from typing import TYPE_CHECKING, Literal
 
 import carb
+import newton
 import omni.physics.tensors.impl.api as physx
 import omni.usd
+import warp as wp
 from isaacsim.core.utils.extensions import enable_extension
 from pxr import Gf, Sdf, UsdGeom, Vt
-import warp as wp
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.actuators import ImplicitActuator
 from isaaclab.assets import Articulation, DeformableObject, RigidObject
 from isaaclab.managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
+from isaaclab.sim._impl.newton_manager import NewtonManager
 from isaaclab.terrains import TerrainImporter
 
 if TYPE_CHECKING:
@@ -316,9 +318,9 @@ def randomize_rigid_body_mass(
         body_ids = torch.tensor(asset_cfg.body_ids, dtype=torch.int, device="cpu")
 
     # get the current masses of the bodies (num_assets, num_bodies)
-    #masses = asset.root_physx_view.get_masses()
+    # masses = asset.root_physx_view.get_masses()
 
-    # FIXME: Do all this in warp and get rid of the torch conversions    
+    # FIXME: Do all this in warp and get rid of the torch conversions
     masses = wp.to_torch(asset.root_newton_view.get_attribute("body_mass", asset.root_newton_model)).clone()
     # apply randomization on default values
     # this is to make sure when calling the function multiple times, the randomization is applied on the
@@ -336,7 +338,7 @@ def randomize_rigid_body_mass(
     mask = torch.zeros((env.scene.num_envs,), dtype=torch.bool, device=env.device)
     mask[env_ids] = True
     asset.root_newton_view.set_attribute("body_mass", asset.root_newton_model, wp.from_torch(masses), mask=mask)
-    #asset.root_physx_view.set_masses(masses, env_ids)
+    # asset.root_physx_view.set_masses(masses, env_ids)
 
     # recompute inertia tensors if needed
     if recompute_inertia:
@@ -344,17 +346,33 @@ def randomize_rigid_body_mass(
         ratios = masses[env_ids[:, None], body_ids] / asset.data.default_mass[env_ids[:, None], body_ids]
         # scale the inertia tensors by the the ratios
         # since mass randomization is done on default values, we can use the default inertia tensors
-        inertias = wp.to_torch(asset.root_newton_view.get_attribute("body_inertia", asset.root_newton_model)).clone().reshape(env.scene.num_envs, asset.num_bodies, 9)
-        #inertias = asset.root_physx_view.get_inertias()
+        inertias = (
+            wp.to_torch(asset.root_newton_view.get_attribute("body_inertia", asset.root_newton_model))
+            .clone()
+            .reshape(env.scene.num_envs, asset.num_bodies, 9)
+        )
+        # inertias = asset.root_physx_view.get_inertias()
         if isinstance(asset, Articulation):
             # inertia has shape: (num_envs, num_bodies, 9) for articulation
-            inertias[env_ids[:, None], body_ids] = (asset.data.default_inertia[env_ids[:, None], body_ids] * ratios[..., None])
+            inertias[env_ids[:, None], body_ids] = (
+                asset.data.default_inertia[env_ids[:, None], body_ids] * ratios[..., None]
+            )
         else:
             # inertia has shape: (num_envs, 9) for rigid object
             inertias[env_ids] = asset.data.default_inertia[env_ids] * ratios
         # set the inertia tensors into the physics simulation
-        #asset.root_physx_view.set_inertias(inertias, env_ids)
-        asset.root_newton_view.set_attribute("body_inertia", asset.root_newton_model, wp.from_torch(inertias.reshape(env.scene.num_envs, asset.num_bodies, 3,3), dtype=wp.mat33, requires_grad=False), mask=mask)
+        # asset.root_physx_view.set_inertias(inertias, env_ids)
+        asset.root_newton_view.set_attribute(
+            "body_inertia",
+            asset.root_newton_model,
+            wp.from_torch(
+                inertias.reshape(env.scene.num_envs, asset.num_bodies, 3, 3), dtype=wp.mat33, requires_grad=False
+            ),
+            mask=mask,
+        )
+
+        NewtonManager._solver.notify_model_changed(newton.sim.NOTIFY_FLAG_BODY_INERTIAL_PROPERTIES)
+
 
 def randomize_rigid_body_collider_offsets(
     env: ManagerBasedEnv,
@@ -1328,6 +1346,7 @@ class randomize_visual_color(ManagerTermBase):
 Internal helper functions.
 """
 
+
 def _randomize_prop_by_op(
     data: torch.Tensor,
     distribution_parameters: tuple[float | torch.Tensor, float | torch.Tensor],
@@ -1391,4 +1410,3 @@ def _randomize_prop_by_op(
             f"Unknown operation: '{operation}' for property randomization. Please use 'add', 'scale', or 'abs'."
         )
     return data
-
