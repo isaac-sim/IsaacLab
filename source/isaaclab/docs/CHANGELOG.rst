@@ -148,7 +148,7 @@ Fixed
 
 Changed
 ^^^^^^^
->>>* Updated gymnasium to v1.2.0. This update includes fixes for a memory leak that appears when recording
+* Updated gymnasium to v1.2.0. This update includes fixes for a memory leak that appears when recording
   videos with the ``--video`` flag.
 
 

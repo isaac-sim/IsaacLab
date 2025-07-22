@@ -62,12 +62,9 @@ def test_dc_motor_init_minimum(num_envs, num_joints, device):
     )
 
 
-# @pytest.mark.parametrize("num_envs", [1, 2])
-# @pytest.mark.parametrize("num_joints", [1, 2])
-# @pytest.mark.parametrize("device", ["cuda", "cpu"])
-@pytest.mark.parametrize("num_envs", [1])
-@pytest.mark.parametrize("num_joints", [1])
-@pytest.mark.parametrize("device", ["cuda"])
+@pytest.mark.parametrize("num_envs", [1, 2])
+@pytest.mark.parametrize("num_joints", [1, 2])
+@pytest.mark.parametrize("device", ["cuda", "cpu"])
 @pytest.mark.parametrize("test_point", range(20))
 def test_dc_motor_clip(num_envs, num_joints, device, test_point):
     r"""Test the computation of the dc motor actuator 4 quadrant torque speed curve.
