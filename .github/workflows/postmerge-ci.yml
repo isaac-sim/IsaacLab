@@ -35,17 +35,8 @@ jobs:
     env:
         DOCKER_HOST: unix:///var/run/docker.sock
         DOCKER_TLS_CERTDIR: ""
-    container:
-      image: docker:dind
-      options: --security-opt=no-new-privileges:true --privileged
 
     steps:
-    - name: Install Git LFS
-      run: |
-        apk update
-        apk add --no-cache git-lfs
-        git lfs install
-
     - name: Checkout Code
       uses: actions/checkout@v4
       with:
@@ -92,7 +83,10 @@ jobs:
         echo "IsaacSim versions: ${{ env.ISAACSIM_BASE_VERSIONS_STRING }}"
 
         # Parse the env variable string into an array
-        mapfile -d ' ' -t IMAGE_BASE_VERSIONS <<< "${{ env.ISAACSIM_BASE_VERSIONS_STRING }}"
+        IMAGE_BASE_VERSIONS_STRING="${{ env.ISAACSIM_BASE_VERSIONS_STRING }}"
+        # Use set to split the string into positional parameters, then convert to array
+        set -- $IMAGE_BASE_VERSIONS_STRING
+        IMAGE_BASE_VERSIONS=("$@")
 
         for IMAGE_BASE_VERSION in "${IMAGE_BASE_VERSIONS[@]}"; do
           IMAGE_BASE_VERSION=$(echo "$IMAGE_BASE_VERSION" | tr -d '[:space:]')
