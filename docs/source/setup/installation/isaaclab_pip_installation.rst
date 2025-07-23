@@ -51,22 +51,11 @@ To learn about how to set up your own project on top of Isaac Lab, see :ref:`tem
                   env_isaaclab\Scripts\activate
 
 
--  Next, install a CUDA-enabled PyTorch 2.5.1 build based on the CUDA version available on your system. This step is optional for Linux, but required for Windows to ensure a CUDA-compatible version of PyTorch is installed.
+-  Next, install a CUDA-enabled PyTorch 2.7.0 build. This step is optional for Linux, but required for Windows to ensure a CUDA-compatible version of PyTorch is installed.
 
-   .. tab-set::
+   .. code-block:: bash
 
-      .. tab-item:: CUDA 11
-
-         .. code-block:: bash
-
-            pip install torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/cu118
-
-      .. tab-item:: CUDA 12
-
-         .. code-block:: bash
-
-            pip install torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/cu121
-
+      pip install torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
 
 -  Before installing Isaac Lab, ensure the latest pip version is installed. To update pip, run
 
@@ -92,15 +81,6 @@ To learn about how to set up your own project on top of Isaac Lab, see :ref:`tem
    .. code-block:: none
 
       pip install isaaclab[isaacsim,all]==2.1.0 --extra-index-url https://pypi.nvidia.com
-
-
-.. attention::
-
-   For 50 series GPUs, please use the latest PyTorch nightly build instead of PyTorch 2.5.1, which comes with Isaac Sim:
-
-   .. code:: bash
-
-      pip install --upgrade --pre torch torchvision --index-url https://download.pytorch.org/whl/nightly/cu128
 
 
 Verifying the Isaac Sim installation

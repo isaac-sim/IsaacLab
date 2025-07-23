@@ -13,6 +13,7 @@ a more user-friendly way.
 """Launch Isaac Sim Simulator first."""
 
 import argparse
+import sys
 
 from isaaclab.app import AppLauncher
 
@@ -49,11 +50,14 @@ parser.add_argument("--real-time", action="store_true", default=False, help="Run
 
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
-args_cli = parser.parse_args()
+# parse the arguments
+args_cli, hydra_args = parser.parse_known_args()
 # always enable cameras to record video
 if args_cli.video:
     args_cli.enable_cameras = True
 
+# clear out sys.argv for Hydra
+sys.argv = [sys.argv[0]] + hydra_args
 # launch omniverse app
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
@@ -82,37 +86,41 @@ if args_cli.ml_framework.startswith("torch"):
 elif args_cli.ml_framework.startswith("jax"):
     from skrl.utils.runner.jax import Runner
 
-from isaaclab.envs import DirectMARLEnv, multi_agent_to_single_agent
+from isaaclab.envs import (
+    DirectMARLEnv,
+    DirectMARLEnvCfg,
+    DirectRLEnvCfg,
+    ManagerBasedRLEnvCfg,
+    multi_agent_to_single_agent,
+)
 from isaaclab.utils.dict import print_dict
 from isaaclab.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
 
 from isaaclab_rl.skrl import SkrlVecEnvWrapper
 
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.utils import get_checkpoint_path, load_cfg_from_registry, parse_env_cfg
+from isaaclab_tasks.utils import get_checkpoint_path
+from isaaclab_tasks.utils.hydra import hydra_task_config
 
 # PLACEHOLDER: Extension template (do not remove this comment)
 
 # config shortcuts
 algorithm = args_cli.algorithm.lower()
+agent_cfg_entry_point = "skrl_cfg_entry_point" if algorithm in ["ppo"] else f"skrl_{algorithm}_cfg_entry_point"
 
 
-def main():
+@hydra_task_config(args_cli.task, agent_cfg_entry_point)
+def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, experiment_cfg: dict):
     """Play with skrl agent."""
+    # override configurations with non-hydra CLI arguments
+    env_cfg.scene.num_envs = args_cli.num_envs if args_cli.num_envs is not None else env_cfg.scene.num_envs
+    env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
+
     # configure the ML framework into the global skrl variable
     if args_cli.ml_framework.startswith("jax"):
         skrl.config.jax.backend = "jax" if args_cli.ml_framework == "jax" else "numpy"
 
     task_name = args_cli.task.split(":")[-1]
-
-    # parse configuration
-    env_cfg = parse_env_cfg(
-        args_cli.task, device=args_cli.device, num_envs=args_cli.num_envs, use_fabric=not args_cli.disable_fabric
-    )
-    try:
-        experiment_cfg = load_cfg_from_registry(task_name, f"skrl_{algorithm}_cfg_entry_point")
-    except ValueError:
-        experiment_cfg = load_cfg_from_registry(task_name, "skrl_cfg_entry_point")
 
     # specify directory for logging experiments (load checkpoint)
     log_root_path = os.path.join("logs", "skrl", experiment_cfg["agent"]["experiment"]["directory"])
