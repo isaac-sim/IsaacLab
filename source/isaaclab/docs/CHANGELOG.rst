@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.43.4 (2025-07-18)
+0.44.4 (2025-07-18)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -11,7 +11,7 @@ Added
 * Remove on prim deletion callback workaround
 
 
-0.43.3 (2025-07-21)
+0.44.3 (2025-07-21)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -20,7 +20,7 @@ Fixed
 * Fixed rendering preset mode regression.
 
 
-0.43.2 (2025-07-22)
+0.44.2 (2025-07-22)
 ~~~~~~~~~~~~~~~~~~~
 
 Changed
@@ -29,13 +29,29 @@ Changed
 * Updated teleop scripts to print to console vs omni log.
 
 
-0.43.1 (2025-07-17)
+0.44.1 (2025-07-17)
 ~~~~~~~~~~~~~~~~~~~
 
 Changed
 ^^^^^^^
 
 * Updated test_pink_ik.py test case to pytest format.
+
+
+0.44.0 (2025-07-21)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the way clipping is handled for :class:`~isaaclab.actuator.DCMotor` for torque-speed points in when in
+  negative power regions.
+
+Added
+^^^^^
+
+* Added unit tests for :class:`~isaaclab.actuator.ImplicitActuator`, :class:`~isaaclab.actuator.IdealPDActuator`,
+  and :class:`~isaaclab.actuator.DCMotor` independent of :class:`~isaaclab.assets.Articulation`
 
 
 0.43.0 (2025-07-21)
