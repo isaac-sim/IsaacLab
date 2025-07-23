@@ -9,23 +9,11 @@ import isaacsim.core.utils.torch as torch_utils
 
 from isaaclab.utils.math import axis_angle_from_quat
 
+from isaaclab_tasks.direct.factory import factory_utils
 from isaaclab_tasks.direct.factory.factory_env import FactoryEnv
 
+from . import forge_utils
 from .forge_env_cfg import ForgeEnvCfg
-
-
-def change_FT_frame(source_F, source_T, source_frame, target_frame):
-    """Convert force/torque reading from source to target frame."""
-    # Modern Robotics eq. 3.95
-    source_frame_inv = torch_utils.tf_inverse(source_frame[0], source_frame[1])
-    target_T_source_quat, target_T_source_pos = torch_utils.tf_combine(
-        source_frame_inv[0], source_frame_inv[1], target_frame[0], target_frame[1]
-    )
-    target_F = torch_utils.quat_apply(target_T_source_quat, source_F)
-    target_T = torch_utils.quat_apply(
-        target_T_source_quat, (source_T + torch.cross(target_T_source_pos, source_F, dim=-1))
-    )
-    return target_F, target_T
 
 
 class ForgeEnv(FactoryEnv):
@@ -116,7 +104,7 @@ class ForgeEnv(FactoryEnv):
         self.force_sensor_world_smooth = alpha * self.force_sensor_world + (1 - alpha) * self.force_sensor_world_smooth
 
         self.force_sensor_smooth = torch.zeros_like(self.force_sensor_world)
-        self.force_sensor_smooth[:, :3], self.force_sensor_smooth[:, 3:6] = change_FT_frame(
+        self.force_sensor_smooth[:, :3], self.force_sensor_smooth[:, 3:6] = forge_utils.change_FT_frame(
             self.force_sensor_world_smooth[:, 0:3],
             self.force_sensor_world_smooth[:, 3:6],
             (self.identity_quat, torch.zeros_like(self.force_sensor_pos)),
@@ -298,10 +286,17 @@ class ForgeEnv(FactoryEnv):
         prop_gains = self.default_gains.clone()
         self.pos_threshold = self.default_pos_threshold.clone()
         self.rot_threshold = self.default_rot_threshold.clone()
-        prop_gains = self._get_random_prop_gains(prop_gains, self.cfg.ctrl.task_prop_gains_noise_level)
-        self.pos_threshold = self._get_random_prop_gains(self.pos_threshold, self.cfg.ctrl.pos_threshold_noise_level)
-        self.rot_threshold = self._get_random_prop_gains(self.rot_threshold, self.cfg.ctrl.rot_threshold_noise_level)
-        self._set_gains(prop_gains)
+        prop_gains = forge_utils.get_random_prop_gains(
+            prop_gains, self.cfg.ctrl.task_prop_gains_noise_level, self.num_envs, self.device
+        )
+        self.pos_threshold = forge_utils.get_random_prop_gains(
+            self.pos_threshold, self.cfg.ctrl.pos_threshold_noise_level, self.num_envs, self.device
+        )
+        self.rot_threshold = forge_utils.get_random_prop_gains(
+            self.rot_threshold, self.cfg.ctrl.rot_threshold_noise_level, self.num_envs, self.device
+        )
+        self.task_prop_gains = prop_gains
+        self.task_deriv_gains = factory_utils.get_deriv_gains(prop_gains)
 
         contact_rand = torch.rand((self.num_envs,), dtype=torch.float32, device=self.device)
         contact_lower, contact_upper = self.cfg.task.contact_penalty_threshold_range
@@ -323,20 +318,6 @@ class ForgeEnv(FactoryEnv):
         # Reset success pred metrics.
         for thresh in [0.5, 0.6, 0.7, 0.8, 0.9]:
             self.first_pred_success_tx[thresh][env_ids] = 0
-
-    def _get_random_prop_gains(self, default_values, noise_levels):
-        """Helper function to randomize controller gains."""
-        c_param_noise = torch.rand((self.num_envs, default_values.shape[1]), dtype=torch.float32, device=self.device)
-        c_param_noise = c_param_noise @ torch.diag(torch.tensor(noise_levels, dtype=torch.float32, device=self.device))
-        c_param_multiplier = 1.0 + c_param_noise
-        decrease_param_flag = (
-            torch.rand((self.num_envs, default_values.shape[1]), dtype=torch.float32, device=self.device) > 0.5
-        )
-        c_param_multiplier = torch.where(decrease_param_flag, 1.0 / c_param_multiplier, c_param_multiplier)
-
-        prop_gains = default_values * c_param_multiplier
-
-        return prop_gains
 
     def compute_early_term_metrics(self, policy_success_pred):
         """Log metrics to evaluate success prediction performance."""

@@ -17,7 +17,7 @@ from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.math import axis_angle_from_quat
 
-from . import factory_control as fc
+from . import factory_control, factory_utils
 from .factory_env_cfg import OBS_DIM_CFG, STATE_DIM_CFG, FactoryEnvCfg
 
 
@@ -96,7 +96,7 @@ class FactoryEnv(DirectRLEnv):
         if self.cfg_task.name == "peg_insert":
             held_base_z_offset = 0.0
         elif self.cfg_task.name == "gear_mesh":
-            gear_base_offset = self._get_target_gear_base_offset()
+            gear_base_offset = self.cfg_task.fixed_asset_cfg.medium_gear_base_offset
             held_base_x_offset = gear_base_offset[0]
             held_base_z_offset = gear_base_offset[2]
         elif self.cfg_task.name == "nut_thread":
@@ -127,7 +127,7 @@ class FactoryEnv(DirectRLEnv):
         self.target_held_base_pos = torch.zeros((self.num_envs, 3), device=self.device)
         self.target_held_base_quat = self.identity_quat.clone().detach()
 
-        offsets = self._get_keypoint_offsets(self.cfg_task.num_keypoints)
+        offsets = factory_utils.get_keypoint_offsets(self.cfg_task.num_keypoints, self.device)
         self.keypoint_offsets = offsets * self.cfg_task.keypoint_scale
         self.keypoints_held = torch.zeros((self.num_envs, self.cfg_task.num_keypoints, 3), device=self.device)
         self.keypoints_fixed = torch.zeros_like(self.keypoints_held, device=self.device)
@@ -137,7 +137,7 @@ class FactoryEnv(DirectRLEnv):
         if self.cfg_task.name == "peg_insert":
             self.fixed_success_pos_local[:, 2] = 0.0
         elif self.cfg_task.name == "gear_mesh":
-            gear_base_offset = self._get_target_gear_base_offset()
+            gear_base_offset = self.cfg_task.fixed_asset_cfg.medium_gear_base_offset
             self.fixed_success_pos_local[:, 0] = gear_base_offset[0]
             self.fixed_success_pos_local[:, 2] = gear_base_offset[2]
         elif self.cfg_task.name == "nut_thread":
@@ -150,13 +150,6 @@ class FactoryEnv(DirectRLEnv):
 
         self.ep_succeeded = torch.zeros((self.num_envs,), dtype=torch.long, device=self.device)
         self.ep_success_times = torch.zeros((self.num_envs,), dtype=torch.long, device=self.device)
-
-    def _get_keypoint_offsets(self, num_keypoints):
-        """Get uniformly-spaced keypoints along a line of unit length, centered at 0."""
-        keypoint_offsets = torch.zeros((num_keypoints, 3), device=self.device)
-        keypoint_offsets[:, -1] = torch.linspace(0.0, 1.0, num_keypoints, device=self.device) - 0.5
-
-        return keypoint_offsets
 
     def _setup_scene(self):
         """Initialize simulation scene."""
@@ -398,15 +391,9 @@ class FactoryEnv(DirectRLEnv):
         self.ctrl_target_gripper_dof_pos = 0.0
         self.generate_ctrl_signals()
 
-    def _set_gains(self, prop_gains, rot_deriv_scale=1.0):
-        """Set robot gains using critical damping."""
-        self.task_prop_gains = prop_gains
-        self.task_deriv_gains = 2 * torch.sqrt(prop_gains)
-        self.task_deriv_gains[:, 3:6] /= rot_deriv_scale
-
     def generate_ctrl_signals(self):
         """Get Jacobian. Set Franka DOF position targets (fingers) or DOF torques (arm)."""
-        self.joint_torque, self.applied_wrench = fc.compute_dof_torque(
+        self.joint_torque, self.applied_wrench = factory_control.compute_dof_torque(
             cfg=self.cfg,
             dof_pos=self.joint_pos,
             dof_vel=self.joint_vel,
@@ -538,19 +525,6 @@ class FactoryEnv(DirectRLEnv):
 
         self.randomize_initial_state(env_ids)
 
-    def _get_target_gear_base_offset(self):
-        """Get offset of target gear from the gear base asset."""
-        target_gear = self.cfg_task.target_gear
-        if target_gear == "gear_large":
-            gear_base_offset = self.cfg_task.fixed_asset_cfg.large_gear_base_offset
-        elif target_gear == "gear_medium":
-            gear_base_offset = self.cfg_task.fixed_asset_cfg.medium_gear_base_offset
-        elif target_gear == "gear_small":
-            gear_base_offset = self.cfg_task.fixed_asset_cfg.small_gear_base_offset
-        else:
-            raise ValueError(f"{target_gear} not valid in this context!")
-        return gear_base_offset
-
     def _set_assets_to_default_pose(self, env_ids):
         """Move assets to default pose before randomization."""
         held_state = self._held_asset.data.default_root_state.clone()[env_ids]
@@ -572,7 +546,7 @@ class FactoryEnv(DirectRLEnv):
         ik_time = 0.0
         while ik_time < 0.25:
             # Compute error to target.
-            pos_error, axis_angle_error = fc.get_pose_error(
+            pos_error, axis_angle_error = factory_control.get_pose_error(
                 fingertip_midpoint_pos=self.fingertip_midpoint_pos[env_ids],
                 fingertip_midpoint_quat=self.fingertip_midpoint_quat[env_ids],
                 ctrl_target_fingertip_midpoint_pos=self.ctrl_target_fingertip_midpoint_pos[env_ids],
@@ -584,7 +558,7 @@ class FactoryEnv(DirectRLEnv):
             delta_hand_pose = torch.cat((pos_error, axis_angle_error), dim=-1)
 
             # Solve DLS problem.
-            delta_dof_pos = fc._get_delta_dof_pos(
+            delta_dof_pos = factory_control.get_delta_dof_pos(
                 delta_pose=delta_hand_pose,
                 ik_method="dls",
                 jacobian=self.fingertip_midpoint_jacobian[env_ids],
@@ -612,7 +586,7 @@ class FactoryEnv(DirectRLEnv):
             held_asset_relative_pos[:, 2] -= self.cfg_task.robot_cfg.franka_fingerpad_length
         elif self.cfg_task.name == "gear_mesh":
             held_asset_relative_pos = torch.zeros_like(self.held_base_pos_local)
-            gear_base_offset = self._get_target_gear_base_offset()
+            gear_base_offset = self.cfg_task.fixed_asset_cfg.medium_gear_base_offset
             held_asset_relative_pos[:, 0] += gear_base_offset[0]
             held_asset_relative_pos[:, 2] += gear_base_offset[2]
             held_asset_relative_pos[:, 2] += self.cfg_task.held_asset_cfg.height / 2.0 * 1.1
@@ -651,7 +625,7 @@ class FactoryEnv(DirectRLEnv):
         self.step_sim_no_action()
 
     def step_sim_no_action(self):
-        """Step the simulation without an action. Used for resets."""
+        """Step the simulation without an action. Used for resets only."""
         self.scene.write_data_to_sim()
         self.sim.step(render=False)
         self.scene.update(dt=self.physics_dt)
@@ -704,7 +678,7 @@ class FactoryEnv(DirectRLEnv):
         fixed_tip_pos_local[:, 2] += self.cfg_task.fixed_asset_cfg.height
         fixed_tip_pos_local[:, 2] += self.cfg_task.fixed_asset_cfg.base_height
         if self.cfg_task.name == "gear_mesh":
-            fixed_tip_pos_local[:, 0] = self._get_target_gear_base_offset()[0]
+            fixed_tip_pos_local[:, 0] = self.cfg_task.fixed_asset_cfg.medium_gear_base_offset[0]
 
         _, fixed_tip_pos = torch_utils.tf_combine(
             self.fixed_quat, self.fixed_pos, self.identity_quat, fixed_tip_pos_local
@@ -831,8 +805,10 @@ class FactoryEnv(DirectRLEnv):
         reset_task_prop_gains = torch.tensor(self.cfg.ctrl.reset_task_prop_gains, device=self.device).repeat(
             (self.num_envs, 1)
         )
-        reset_rot_deriv_scale = self.cfg.ctrl.reset_rot_deriv_scale
-        self._set_gains(reset_task_prop_gains, reset_rot_deriv_scale)
+        self.task_prop_gains = reset_task_prop_gains
+        self.task_deriv_gains = factory_utils.get_deriv_gains(
+            reset_task_prop_gains, self.cfg.ctrl.reset_rot_deriv_scale
+        )
 
         self.step_sim_no_action()
 
@@ -859,5 +835,7 @@ class FactoryEnv(DirectRLEnv):
         self.ee_linvel_fd[:, :] = 0.0
 
         # Set initial gains for the episode.
-        self._set_gains(self.default_gains)
+        self.task_prop_gains = self.default_gains
+        self.task_deriv_gains = factory_utils.get_deriv_gains(self.default_gains)
+
         physics_sim_view.set_gravity(carb.Float3(*self.cfg.sim.gravity))

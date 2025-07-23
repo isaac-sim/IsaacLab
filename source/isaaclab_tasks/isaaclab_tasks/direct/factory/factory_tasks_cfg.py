@@ -206,7 +206,6 @@ class GearMesh(FactoryTask):
     name = "gear_mesh"
     fixed_asset_cfg = GearBase()
     held_asset_cfg = MediumGear()
-    target_gear = "gear_medium"
     duration_s = 20.0
 
     small_gear_usd = f"{ASSET_DIR}/factory_gear_small.usd"
