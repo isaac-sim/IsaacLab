@@ -53,7 +53,7 @@ if platform.system() == "Linux":
         "dex-retargeting==0.4.6",  # required by isaaclab.devices.openxr.retargeters.humanoid.fourier.gr1_t2_dex_retargeting_utils
     ]
 
-PYTORCH_INDEX_URL = ["https://download.pytorch.org/whl/cu118"]
+PYTORCH_INDEX_URL = ["https://download.pytorch.org/whl/cu128"]
 
 # Installation operation
 setup(

@@ -1,8 +1,8 @@
 Changelog
 ---------
 
-0.42.30 (2025-07-18)
-~~~~~~~~~~~~~~~~~~~~
+0.43.4 (2025-07-18)
+~~~~~~~~~~~~~~~~~~~
 
 Added
 ^^^^^
@@ -11,8 +11,8 @@ Added
 * Remove on prim deletion callback workaround
 
 
-0.42.29 (2025-07-21)
-~~~~~~~~~~~~~~~~~~~~
+0.43.3 (2025-07-21)
+~~~~~~~~~~~~~~~~~~~
 
 Fixed
 ^^^^^
@@ -20,8 +20,8 @@ Fixed
 * Fixed rendering preset mode regression.
 
 
-0.42.28 (2025-07-22)
-~~~~~~~~~~~~~~~~~~~~
+0.43.2 (2025-07-22)
+~~~~~~~~~~~~~~~~~~~
 
 Changed
 ^^^^^^^
@@ -29,8 +29,8 @@ Changed
 * Updated teleop scripts to print to console vs omni log.
 
 
-0.42.27 (2025-07-17)
-~~~~~~~~~~~~~~~~~~~~
+0.43.1 (2025-07-17)
+~~~~~~~~~~~~~~~~~~~
 
 Changed
 ^^^^^^^
@@ -38,7 +38,19 @@ Changed
 * Updated test_pink_ik.py test case to pytest format.
 
 
-0.42.26 (2025-06-25)
+0.43.0 (2025-07-21)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updates torch version to 2.7.0 and torchvision to 0.22.0.
+  Some dependencies now require torch>=2.6, and given the vulnerabilities in Torch 2.5.1,
+  we are updating the torch version to 2.7.0 to also include Blackwell support. Since Isaac Sim 4.5 has not updated the
+  torch version, we are now overwriting the torch installation step in isaaclab.sh when running ``./isaaclab.sh -i``.
+
+
+0.42.26 (2025-06-29)
 ~~~~~~~~~~~~~~~~~~~~
 
 Added

@@ -75,6 +75,13 @@ If you encounter any issues, please report them to the
                   # activate the virtual environment
                   env_isaaclab\Scripts\activate
 
+
+-  Next, install a CUDA-enabled PyTorch 2.7.0 build.
+
+   .. code-block:: bash
+
+      pip install torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
+
 -  Before installing Isaac Sim, ensure the latest pip version is installed. To update pip, run
 
    .. tab-set::

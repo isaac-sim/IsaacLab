@@ -35,7 +35,7 @@ INSTALL_REQUIRES = [
     "pillow==11.2.1",
 ]
 
-PYTORCH_INDEX_URL = ["https://download.pytorch.org/whl/cu118"]
+PYTORCH_INDEX_URL = ["https://download.pytorch.org/whl/cu128"]
 
 # Extra dependencies for RL agents
 EXTRAS_REQUIRE = {
