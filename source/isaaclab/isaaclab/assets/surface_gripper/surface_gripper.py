@@ -7,11 +7,8 @@ from __future__ import annotations
 
 import torch
 import warnings
-import weakref
 from typing import TYPE_CHECKING
 
-import omni.timeline
-from isaacsim.core.simulation_manager import IsaacEvents, SimulationManager
 from isaacsim.core.utils.extensions import enable_extension
 from isaacsim.core.version import get_version
 
@@ -69,39 +66,8 @@ class SurfaceGripper(AssetBase):
         self._is_initialized = False
         self._debug_vis_handle = None
 
-        # Register simulator callbacks (with weakref safety to avoid crashes on deletion)
-        def safe_callback(callback_name, event, obj_ref):
-            """Safely invoke a callback on a weakly-referenced object, ignoring ReferenceError if deleted."""
-            try:
-                obj = obj_ref
-                getattr(obj, callback_name)(event)
-            except ReferenceError:
-                # Object has been deleted; ignore.
-                pass
-
-        # note: Use weakref on callbacks to ensure that this object can be deleted when its destructor is called.
-        # add callbacks for stage play/stop
-        obj_ref = weakref.proxy(self)
-        timeline_event_stream = omni.timeline.get_timeline_interface().get_timeline_event_stream()
-
-        # The order is set to 10 which is arbitrary but should be lower priority than the default order of 0
-        # Register timeline PLAY event callback (lower priority with order=10)
-        self._initialize_handle = timeline_event_stream.create_subscription_to_pop_by_type(
-            int(omni.timeline.TimelineEventType.PLAY),
-            lambda event, obj_ref=obj_ref: safe_callback("_initialize_callback", event, obj_ref),
-            order=10,
-        )
-        # Register timeline STOP event callback (lower priority with order=10)
-        self._invalidate_initialize_handle = timeline_event_stream.create_subscription_to_pop_by_type(
-            int(omni.timeline.TimelineEventType.STOP),
-            lambda event, obj_ref=obj_ref: safe_callback("_invalidate_initialize_callback", event, obj_ref),
-            order=10,
-        )
-        # Register prim deletion callback
-        self._prim_deletion_callback_id = SimulationManager.register_callback(
-            lambda event, obj_ref=obj_ref: safe_callback("_on_prim_deletion", event, obj_ref),
-            event=IsaacEvents.PRIM_DELETION,
-        )
+        # register various callback functions
+        self._register_callbacks()
 
     """
     Properties

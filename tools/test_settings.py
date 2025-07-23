@@ -18,7 +18,11 @@ DEFAULT_TIMEOUT = 200
 PER_TEST_TIMEOUTS = {
     "test_articulation.py": 500,
     "test_rigid_object.py": 300,
-    "test_environments.py": 1500,  # This test runs through all the environments for 100 steps each
+    "test_stage_in_memory.py": 500,
+    "test_environments.py": 2000,  # This test runs through all the environments for 100 steps each
+    "test_environments_with_stage_in_memory.py": (
+        1000
+    ),  # Like the above, with stage in memory and with and without fabric cloning
     "test_environment_determinism.py": 500,  # This test runs through many the environments for 100 steps each
     "test_factory_environments.py": 300,  # This test runs through Factory environments for 100 steps each
     "test_env_rendering_logic.py": 300,

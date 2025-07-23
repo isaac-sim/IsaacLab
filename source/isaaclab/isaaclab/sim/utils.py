@@ -844,6 +844,8 @@ def attach_stage_to_usd_context(attaching_early: bool = False):
         attaching_early: Whether to attach the stage to the usd context before stage is created. Defaults to False.
     """
 
+    from isaacsim.core.simulation_manager import SimulationManager
+
     from isaaclab.sim.simulation_context import SimulationContext
 
     # if Isaac Sim version is less than 5.0, stage in memory is not supported
@@ -878,8 +880,8 @@ def attach_stage_to_usd_context(attaching_early: bool = False):
     # skip this callback to avoid wiping the stage after attachment
     SimulationContext.instance().skip_next_stage_open_callback()
 
-    # skip this callback to avoid clearing the prims
-    SimulationContext.instance()._skip_next_prim_deletion_callback_fn = True
+    # disable stage open callback to avoid clearing callbacks
+    SimulationManager.enable_stage_open_callback(False)
 
     # enable physics fabric
     SimulationContext.instance()._physics_context.enable_fabric(True)
@@ -891,7 +893,8 @@ def attach_stage_to_usd_context(attaching_early: bool = False):
     physx_sim_interface = omni.physx.get_physx_simulation_interface()
     physx_sim_interface.attach_stage(stage_id)
 
-    SimulationContext.instance()._skip_next_prim_deletion_callback_fn = False
+    # re-enable stage open callback
+    SimulationManager.enable_stage_open_callback(True)
 
 
 def is_current_stage_in_memory() -> bool:

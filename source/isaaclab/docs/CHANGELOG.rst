@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.42.28 (2025-07-18)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added safe callbacks for stage in memory attaching.
+* Remove on prim deletion callback workaround
+
+
 0.42.27 (2025-07-21)
 ~~~~~~~~~~~~~~~~~~~~
 

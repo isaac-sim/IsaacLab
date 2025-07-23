@@ -243,10 +243,6 @@ class SimulationContext(_SimulationContext):
             self._app_control_on_stop_handle = None
         self._disable_app_control_on_stop_handle = False
 
-        # flag for skipping prim deletion callback
-        # when stage in memory is attached
-        self._skip_next_prim_deletion_callback_fn = False
-
         # flatten out the simulation dictionary
         sim_params = self.cfg.to_dict()
         if sim_params is not None:
