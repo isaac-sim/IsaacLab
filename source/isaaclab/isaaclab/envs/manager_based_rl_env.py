@@ -135,6 +135,9 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         if "startup" in self.event_manager.available_modes:
             self.event_manager.apply(mode="startup")
 
+        # Add debug prints after managers are loaded
+        self._print_joint_order_info()
+
     def setup_manager_visualizers(self):
         """Creates live visualizers for manager terms."""
 
@@ -391,3 +394,29 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
 
         # reset the episode length buffer
         self.episode_length_buf[env_ids] = 0
+
+    def _print_joint_order_info(self):
+        """Print joint ordering information for debugging."""
+        print("\n" + "="*50)
+        print("JOINT ORDERING DEBUG INFORMATION")
+        print("="*50)
+
+        # Print robot joint names
+        robot = self.scene["robot"]
+        print(f"\nAll robot joints ({robot.num_joints} total):")
+        for i, name in enumerate(robot.joint_names):
+            print(f"  {i}: {name}")
+
+        # Print action manager info
+        print(f"\nAction manager:")
+        print(f"  Total action dimension: {self.action_manager.total_action_dim}")
+        for term_name, term in self.action_manager._terms.items():
+            if hasattr(term, '_joint_names'):
+                print(f"  Term '{term_name}': {term._joint_names}")
+
+        # Print observation manager info
+        print(f"\nObservation manager:")
+        for group_name in self.observation_manager.active_terms:
+            print(f"  Group '{group_name}': {self.observation_manager.group_obs_dim[group_name]}")
+
+        print("="*50 + "\n")
