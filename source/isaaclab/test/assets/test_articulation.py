@@ -126,10 +126,24 @@ def generate_articulation_cfg(
                 ),
             },
         )
+    elif articulation_type == "spatial_tendon_test_asset":
+        # we set 80.0 default for max force because default in USD is 10e10 which makes testing annoying.
+        articulation_cfg = ArticulationCfg(
+            spawn=sim_utils.UsdFileCfg(
+                usd_path=f"{ISAAC_NUCLEUS_DIR}/IsaacLab/Tests/spatial_tendons.usd",
+            ),
+            actuators={
+                "joint": ImplicitActuatorCfg(
+                    joint_names_expr=[".*"],
+                    stiffness=2000.0,
+                    damping=100.0,
+                ),
+            },
+        )
     else:
         raise ValueError(
             f"Invalid articulation type: {articulation_type}, valid options are 'humanoid', 'panda', 'anymal',"
-            " 'shadow_hand', 'single_joint_implicit' or 'single_joint_explicit'."
+            " 'shadow_hand', 'single_joint_implicit', 'single_joint_explicit' or 'spatial_tendon_test_asset'."
         )
 
     return articulation_cfg
@@ -1693,6 +1707,53 @@ def test_write_joint_state_data_consistency(sim, num_articulations, device, grav
     torch.testing.assert_close(articulation.data.body_link_pose_w, articulation.data.body_link_state_w[..., :7])
     torch.testing.assert_close(articulation.data.body_com_pose_w, articulation.data.body_com_state_w[..., :7])
     torch.testing.assert_close(articulation.data.body_vel_w, articulation.data.body_state_w[..., 7:])
+
+
+@pytest.mark.parametrize("num_articulations", [1, 2])
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+def test_spatial_tendons(sim, num_articulations, device):
+    """Test spatial tendons apis.
+    This test verifies that:
+    1. The articulation is properly initialized
+    2. The articulation has spatial tendons
+    3. All buffers have correct shapes
+    4. The articulation can be simulated
+    Args:
+        sim: The simulation fixture
+        num_articulations: Number of articulations to test
+        device: The device to run the simulation on
+    """
+    articulation_cfg = generate_articulation_cfg(articulation_type="spatial_tendon_test_asset")
+    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
+
+    # Check that boundedness of articulation is correct
+    assert ctypes.c_long.from_address(id(articulation)).value == 1
+
+    # Play sim
+    sim.reset()
+    # Check if articulation is initialized
+    assert articulation.is_initialized
+    # Check that fixed base
+    assert articulation.is_fixed_base
+    # Check buffers that exists and have correct shapes
+    assert articulation.data.root_pos_w.shape == (num_articulations, 3)
+    assert articulation.data.root_quat_w.shape == (num_articulations, 4)
+    assert articulation.data.joint_pos.shape == (num_articulations, 3)
+    assert articulation.data.default_mass.shape == (num_articulations, articulation.num_bodies)
+    assert articulation.data.default_inertia.shape == (num_articulations, articulation.num_bodies, 9)
+    assert articulation.num_spatial_tendons == 1
+
+    articulation.set_spatial_tendon_stiffness(torch.tensor([10.0]))
+    articulation.set_spatial_tendon_limit_stiffness(torch.tensor([10.0]))
+    articulation.set_spatial_tendon_damping(torch.tensor([10.0]))
+    articulation.set_spatial_tendon_offset(torch.tensor([10.0]))
+
+    # Simulate physics
+    for _ in range(10):
+        # perform rendering
+        sim.step()
+        # update articulation
+        articulation.update(sim.cfg.dt)
 
 
 if __name__ == "__main__":
