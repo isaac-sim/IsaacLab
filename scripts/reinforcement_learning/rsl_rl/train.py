@@ -74,7 +74,13 @@ import os
 import torch
 from datetime import datetime
 
-from rsl_rl.runners import OnPolicyRunner
+# Ensure rsl_rl package is in sys.path
+import os
+rsl_rl_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../../rsl_rl"))
+if rsl_rl_path not in sys.path:
+    sys.path.insert(0, rsl_rl_path)
+
+from rsl_rl.runners.on_policy_runner import OnPolicyRunner
 
 from isaaclab.envs import (
     DirectMARLEnv,
@@ -87,7 +93,6 @@ from isaaclab.utils.dict import print_dict
 from isaaclab.utils.io import dump_pickle, dump_yaml
 
 from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlVecEnvWrapper
-
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import get_checkpoint_path
 from isaaclab_tasks.utils.hydra import hydra_task_config
@@ -178,7 +183,6 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     dump_yaml(os.path.join(log_dir, "params", "agent.yaml"), agent_cfg)
     dump_pickle(os.path.join(log_dir, "params", "env.pkl"), env_cfg)
     dump_pickle(os.path.join(log_dir, "params", "agent.pkl"), agent_cfg)
-
     # run training
     runner.learn(num_learning_iterations=agent_cfg.max_iterations, init_at_random_ep_len=True)
 
