@@ -94,8 +94,6 @@ class ForgeEnv(FactoryEnv):
         self.prev_fingertip_quat = self.noisy_fingertip_quat.clone()
 
         # Update and smooth force values.
-        self.force_sensor_pos = self._robot.data.body_pos_w[:, self.force_sensor_body_idx] - self.scene.env_origins
-        self.force_sensor_quat = self._robot.data.body_quat_w[:, self.force_sensor_body_idx]
         self.force_sensor_world = self._robot.root_physx_view.get_link_incoming_joint_force()[
             :, self.force_sensor_body_idx
         ]
@@ -107,7 +105,7 @@ class ForgeEnv(FactoryEnv):
         self.force_sensor_smooth[:, :3], self.force_sensor_smooth[:, 3:6] = forge_utils.change_FT_frame(
             self.force_sensor_world_smooth[:, 0:3],
             self.force_sensor_world_smooth[:, 3:6],
-            (self.identity_quat, torch.zeros_like(self.force_sensor_pos)),
+            (self.identity_quat, torch.zeros_like(self.fixed_pos_obs_frame)),
             (self.identity_quat, self.fixed_pos_obs_frame + self.init_fixed_pos_obs_noise),
         )
 
@@ -178,7 +176,7 @@ class ForgeEnv(FactoryEnv):
         # (2.a): Clip position targets.
         self.delta_pos = ctrl_target_fingertip_preclipped_pos - self.fingertip_midpoint_pos  # Used for action_penalty.
         pos_error_clipped = torch.clip(self.delta_pos, -self.pos_threshold, self.pos_threshold)
-        self.ctrl_target_fingertip_midpoint_pos = self.fingertip_midpoint_pos + pos_error_clipped
+        ctrl_target_fingertip_midpoint_pos = self.fingertip_midpoint_pos + pos_error_clipped
 
         # (2.b) Clip orientation targets. Use Euler angles. We assume we are near upright, so
         # clipping yaw will effectively cause slow motions. When we clip, we also need to make
@@ -191,13 +189,13 @@ class ForgeEnv(FactoryEnv):
 
         # (2.b.ii) Correct the direction of motion to avoid joint limit.
         # Map yaws between [-125, 235] degrees (so that angles appear on a continuous span uninterrupted by the joint limit).
-        self.curr_yaw = torch.where(curr_yaw > np.deg2rad(235), curr_yaw - 2 * np.pi, curr_yaw)
-        desired_yaw = torch.where(desired_yaw > np.deg2rad(235), desired_yaw - 2 * np.pi, desired_yaw)
+        curr_yaw = factory_utils.wrap_yaw(curr_yaw)
+        desired_yaw = factory_utils.wrap_yaw(desired_yaw)
 
         # (2.b.iii) Clip motion in the correct direction.
-        self.delta_yaw = desired_yaw - self.curr_yaw  # Used later for action_penalty.
+        self.delta_yaw = desired_yaw - curr_yaw  # Used later for action_penalty.
         clipped_yaw = torch.clip(self.delta_yaw, -self.rot_threshold[:, 2], self.rot_threshold[:, 2])
-        desired_xyz[:, 2] = self.curr_yaw + clipped_yaw
+        desired_xyz[:, 2] = curr_yaw + clipped_yaw
 
         # (2.b.iv) Clip roll and pitch.
         desired_roll = torch.where(desired_roll < 0.0, desired_roll + 2 * torch.pi, desired_roll)
@@ -214,12 +212,15 @@ class ForgeEnv(FactoryEnv):
         clipped_pitch = torch.clip(delta_pitch, -self.rot_threshold[:, 1], self.rot_threshold[:, 1])
         desired_xyz[:, 1] = curr_pitch + clipped_pitch
 
-        self.ctrl_target_fingertip_midpoint_quat = torch_utils.quat_from_euler_xyz(
+        ctrl_target_fingertip_midpoint_quat = torch_utils.quat_from_euler_xyz(
             roll=desired_xyz[:, 0], pitch=desired_xyz[:, 1], yaw=desired_xyz[:, 2]
         )
 
-        self.ctrl_target_gripper_dof_pos = 0.0
-        self.generate_ctrl_signals()
+        self.generate_ctrl_signals(
+            ctrl_target_fingertip_midpoint_pos=ctrl_target_fingertip_midpoint_pos,
+            ctrl_target_fingertip_midpoint_quat=ctrl_target_fingertip_midpoint_quat,
+            ctrl_target_gripper_dof_pos=0.0,
+        )
 
     def _get_rew_dict(self, curr_successes):
         """FORGE reward includes a contact penalty and success prediction error."""

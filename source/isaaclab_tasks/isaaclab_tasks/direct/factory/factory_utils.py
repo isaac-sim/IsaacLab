@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import numpy as np
 import torch
 
 
@@ -18,3 +19,8 @@ def get_deriv_gains(prop_gains, rot_deriv_scale=1.0):
     deriv_gains = 2 * torch.sqrt(prop_gains)
     deriv_gains[:, 3:6] /= rot_deriv_scale
     return deriv_gains
+
+
+def wrap_yaw(angle):
+    """Ensure yaw stays within range."""
+    return torch.where(angle > np.deg2rad(235), angle - 2 * np.pi, angle)
