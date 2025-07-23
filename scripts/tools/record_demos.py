@@ -161,7 +161,7 @@ def setup_output_directories() -> tuple[str, str]:
     # create directory if it does not exist
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
-        omni.log.info(f"Created output directory: {output_dir}")
+        print(f"Created output directory: {output_dir}")
 
     return output_dir, output_file_name
 
@@ -342,7 +342,7 @@ def process_success_condition(env: gym.Env, success_term: object | None, success
                 [0], torch.tensor([[True]], dtype=torch.bool, device=env.device)
             )
             env.recorder_manager.export_episodes([0])
-            omni.log.info("Success condition met! Recording completed.")
+            print("Success condition met! Recording completed.")
             return success_step_count, True
     else:
         success_step_count = 0
@@ -367,7 +367,7 @@ def handle_reset(
     Returns:
         int: Reset success step count (0)
     """
-    omni.log.info("Resetting environment...")
+    print("Resetting environment...")
     env.sim.reset()
     env.recorder_manager.reset()
     env.reset()
@@ -406,17 +406,17 @@ def run_simulation_loop(
     def reset_recording_instance():
         nonlocal should_reset_recording_instance
         should_reset_recording_instance = True
-        omni.log.info("Recording instance reset requested")
+        print("Recording instance reset requested")
 
     def start_recording_instance():
         nonlocal running_recording_instance
         running_recording_instance = True
-        omni.log.info("Recording started")
+        print("Recording started")
 
     def stop_recording_instance():
         nonlocal running_recording_instance
         running_recording_instance = False
-        omni.log.info("Recording paused")
+        print("Recording paused")
 
     # Set up teleoperation callbacks
     teleoperation_callbacks = {
@@ -467,7 +467,7 @@ def run_simulation_loop(
             if env.recorder_manager.exported_successful_episode_count > current_recorded_demo_count:
                 current_recorded_demo_count = env.recorder_manager.exported_successful_episode_count
                 label_text = f"Recorded {current_recorded_demo_count} successful demonstrations."
-                omni.log.info(label_text)
+                print(label_text)
 
             # Handle reset if requested
             if should_reset_recording_instance:
@@ -476,7 +476,7 @@ def run_simulation_loop(
 
             # Check if we've reached the desired number of demos
             if args_cli.num_demos > 0 and env.recorder_manager.exported_successful_episode_count >= args_cli.num_demos:
-                omni.log.info(f"All {args_cli.num_demos} demonstrations recorded. Exiting the app.")
+                print(f"All {args_cli.num_demos} demonstrations recorded. Exiting the app.")
                 break
 
             # Check if simulation is stopped
@@ -524,8 +524,8 @@ def main() -> None:
 
     # Clean up
     env.close()
-    omni.log.info(f"Recording session completed with {current_recorded_demo_count} successful demonstrations")
-    omni.log.info(f"Demonstrations saved to: {args_cli.dataset_file}")
+    print(f"Recording session completed with {current_recorded_demo_count} successful demonstrations")
+    print(f"Demonstrations saved to: {args_cli.dataset_file}")
 
 
 if __name__ == "__main__":

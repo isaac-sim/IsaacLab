@@ -127,7 +127,7 @@ def main() -> None:
         """
         nonlocal should_reset_recording_instance
         should_reset_recording_instance = True
-        omni.log.info("Reset triggered - Environment will reset on next step")
+        print("Reset triggered - Environment will reset on next step")
 
     def start_teleoperation() -> None:
         """
@@ -140,7 +140,7 @@ def main() -> None:
         """
         nonlocal teleoperation_active
         teleoperation_active = True
-        omni.log.info("Teleoperation activated")
+        print("Teleoperation activated")
 
     def stop_teleoperation() -> None:
         """
@@ -153,7 +153,7 @@ def main() -> None:
         """
         nonlocal teleoperation_active
         teleoperation_active = False
-        omni.log.info("Teleoperation deactivated")
+        print("Teleoperation deactivated")
 
     # Create device config if not already in env_cfg
     teleoperation_callbacks: dict[str, Callable[[], None]] = {
@@ -219,13 +219,13 @@ def main() -> None:
         simulation_app.close()
         return
 
-    omni.log.info(f"Using teleop device: {teleop_interface}")
+    print(f"Using teleop device: {teleop_interface}")
 
     # reset environment
     env.reset()
     teleop_interface.reset()
 
-    omni.log.info("Teleoperation started. Press 'R' to reset the environment.")
+    print("Teleoperation started. Press 'R' to reset the environment.")
 
     # simulate environment
     while simulation_app.is_running():
@@ -247,14 +247,14 @@ def main() -> None:
                 if should_reset_recording_instance:
                     env.reset()
                     should_reset_recording_instance = False
-                    omni.log.info("Environment reset complete")
+                    print("Environment reset complete")
         except Exception as e:
             omni.log.error(f"Error during simulation step: {e}")
             break
 
     # close the simulator
     env.close()
-    omni.log.info("Environment closed")
+    print("Environment closed")
 
 
 if __name__ == "__main__":

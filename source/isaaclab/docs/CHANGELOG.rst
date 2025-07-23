@@ -1,6 +1,14 @@
 Changelog
 ---------
 
+0.42.26 (2025-07-22)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated teleop scripts to print to console vs omni log.
+
 0.42.25 (2025-07-17)
 ~~~~~~~~~~~~~~~~~~~~
 
