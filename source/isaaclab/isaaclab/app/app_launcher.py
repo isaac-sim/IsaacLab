@@ -18,10 +18,7 @@ import os
 import re
 import signal
 import sys
-import toml
 from typing import Any, Literal
-
-import flatdict
 
 with contextlib.suppress(ModuleNotFoundError):
     import isaacsim  # noqa: F401
@@ -865,7 +862,7 @@ class AppLauncher:
                 play_button_group._stop_button = None  # type: ignore
 
     def _set_rendering_mode_settings(self, launcher_args: dict) -> None:
-        """Set RTX rendering settings to the values from the selected preset."""
+        """Store RTX rendering mode in carb settings."""
         import carb
         from isaacsim.core.utils.carb import set_carb_setting
 
@@ -879,23 +876,12 @@ class AppLauncher:
         if rendering_mode is None:
             rendering_mode = "balanced"
 
-        # parse preset file
-        repo_path = os.path.join(carb.tokens.get_tokens_interface().resolve("${app}"), "..")
-        if self.is_isaac_sim_version_4_5():
-            repo_path = os.path.join(repo_path, "..")
-        preset_filename = os.path.join(repo_path, f"apps/rendering_modes/{rendering_mode}.kit")
-        with open(preset_filename) as file:
-            preset_dict = toml.load(file)
-        preset_dict = dict(flatdict.FlatDict(preset_dict, delimiter="."))
-
-        # set presets
-        carb_setting = carb.settings.get_settings()
-        for key, value in preset_dict.items():
-            key = "/" + key.replace(".", "/")  # convert to carb setting format
-            set_carb_setting(carb_setting, key, value)
+        # store rendering mode in carb settings
+        carb_settings = carb.settings.get_settings()
+        set_carb_setting(carb_settings, "/isaaclab/rendering/rendering_mode", rendering_mode)
 
     def _set_animation_recording_settings(self, launcher_args: dict) -> None:
-        """Set animation recording settings."""
+        """Store animation recording settings in carb settings."""
         import carb
         from isaacsim.core.utils.carb import set_carb_setting
 

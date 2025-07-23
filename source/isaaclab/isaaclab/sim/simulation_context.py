@@ -333,8 +333,12 @@ class SimulationContext(_SimulationContext):
 
         not_carb_settings = ["rendering_mode", "carb_settings", "antialiasing_mode"]
 
+        # grab rendering mode, defaulting first to the CLI arg --rendering_mode
+        rendering_mode = get_carb_setting(self.carb_settings, "/isaaclab/rendering/rendering_mode")
+        if rendering_mode is None:
+            rendering_mode = self.cfg.render.rendering_mode
+
         # set preset settings (same behavior as the CLI arg --rendering_mode)
-        rendering_mode = self.cfg.render.rendering_mode
         if rendering_mode is not None:
             # check if preset is supported
             supported_rendering_modes = ["performance", "balanced", "quality"]
