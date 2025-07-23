@@ -58,7 +58,8 @@ Note that not all learning libraries support exporting the policy to a jit or on
 For libraries that don't currently support this functionality, please refer to the corresponding ``play.py`` script for the library
 to learn about how to initialize the policy.
 
-We can then load the warehouse asset and run inference on the H1 robot using the exported jit policy.
+We can then load the warehouse asset and run inference on the H1 robot using the exported jit policy
+(``policy.pt`` file in the ``exported/`` directory).
 
 .. code-block:: bash
 
