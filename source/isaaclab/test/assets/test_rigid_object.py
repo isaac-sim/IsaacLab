@@ -224,26 +224,39 @@ def test_external_force_buffer(device):
 
             # initiate force tensor
             external_wrench_b = torch.zeros(cube_object.num_instances, len(body_ids), 6, device=sim.device)
+            external_wrench_positions_b = torch.zeros(cube_object.num_instances, len(body_ids), 3, device=sim.device)
 
             if step == 0 or step == 3:
                 # set a non-zero force
                 force = 1
+                position = 1
             else:
                 # set a zero force
                 force = 0
+                position = 0
 
             # set force value
             external_wrench_b[:, :, 0] = force
             external_wrench_b[:, :, 3] = force
+            external_wrench_positions_b[:, :, 0] = position
 
             # apply force
-            cube_object.set_external_force_and_torque(
-                external_wrench_b[..., :3], external_wrench_b[..., 3:], body_ids=body_ids
-            )
+            if step == 0 or step == 3:
+                cube_object.set_external_force_and_torque(
+                    external_wrench_b[..., :3],
+                    external_wrench_b[..., 3:],
+                    body_ids=body_ids,
+                    positions=external_wrench_positions_b,
+                )
+            else:
+                cube_object.set_external_force_and_torque(
+                    external_wrench_b[..., :3], external_wrench_b[..., 3:], body_ids=body_ids
+                )
 
             # check if the cube's force and torque buffers are correctly updated
             assert cube_object._external_force_b[0, 0, 0].item() == force
             assert cube_object._external_torque_b[0, 0, 0].item() == force
+            assert cube_object._external_wrench_positions_b[0, 0, 0].item() == position
 
             # apply action to the object
             cube_object.write_data_to_sim()
@@ -312,6 +325,70 @@ def test_external_force_on_single_body(num_cubes, device):
             torch.testing.assert_close(
                 cube_object.data.root_pos_w[0::2, 2], torch.ones(num_cubes // 2, device=sim.device)
             )
+            # Second object should have fallen, so it's Z height should be less than initial height of 1.0
+            assert torch.all(cube_object.data.root_pos_w[1::2, 2] < 1.0)
+
+
+@pytest.mark.parametrize("num_cubes", [2, 4])
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+def test_external_force_on_single_body_at_position(num_cubes, device):
+    """Test application of external force on the base of the object at a specific position.
+
+    In this test, we apply a force equal to the weight of an object on the base of
+    one of the objects at 1m in the Y direction, we check that the object rotates around it's X axis.
+    For the other object, we do not apply any force and check that it falls down.
+    """
+    # Generate cubes scene
+    with build_simulation_context(device=device, add_ground_plane=True, auto_add_lighting=True) as sim:
+        sim._app_control_on_stop_handle = None
+        cube_object, origins = generate_cubes_scene(num_cubes=num_cubes, device=device)
+
+        # Play the simulator
+        sim.reset()
+
+        # Find bodies to apply the force
+        body_ids, body_names = cube_object.find_bodies(".*")
+
+        # Sample a force equal to the weight of the object
+        external_wrench_b = torch.zeros(cube_object.num_instances, len(body_ids), 6, device=sim.device)
+        external_wrench_positions_b = torch.zeros(cube_object.num_instances, len(body_ids), 3, device=sim.device)
+        # Every 2nd cube should have a force applied to it
+        external_wrench_b[0::2, :, 2] = 9.81 * cube_object.root_physx_view.get_masses()[0]
+        external_wrench_positions_b[0::2, :, 1] = 1.0
+
+        # Now we are ready!
+        for _ in range(5):
+            # reset root state
+            root_state = cube_object.data.default_root_state.clone()
+
+            # need to shift the position of the cubes otherwise they will be on top of each other
+            root_state[:, :3] = origins
+            cube_object.write_root_pose_to_sim(root_state[:, :7])
+            cube_object.write_root_velocity_to_sim(root_state[:, 7:])
+
+            # reset object
+            cube_object.reset()
+
+            # apply force
+            cube_object.set_external_force_and_torque(
+                external_wrench_b[..., :3],
+                external_wrench_b[..., 3:],
+                positions=external_wrench_positions_b,
+                body_ids=body_ids,
+            )
+            # perform simulation
+            for _ in range(5):
+                # apply action to the object
+                cube_object.write_data_to_sim()
+
+                # perform step
+                sim.step()
+
+                # update buffers
+                cube_object.update(sim.cfg.dt)
+
+            # The first object should be rotating around it's X axis
+            assert torch.all(torch.abs(cube_object.data.root_ang_vel_b[0::2, 0]) > 0.1)
             # Second object should have fallen, so it's Z height should be less than initial height of 1.0
             assert torch.all(cube_object.data.root_pos_w[1::2, 2] < 1.0)
 
@@ -848,8 +925,8 @@ def test_body_root_state_properties(num_cubes, device, with_offset):
                 lin_vel_rel_root_gt = quat_apply_inverse(root_link_state_w[..., 3:7], root_link_state_w[..., 7:10])
                 lin_vel_rel_body_gt = quat_apply_inverse(body_link_state_w[..., 3:7], body_link_state_w[..., 7:10])
                 lin_vel_rel_gt = torch.linalg.cross(spin_twist.repeat(num_cubes, 1)[..., 3:], -offset)
-                torch.testing.assert_close(lin_vel_rel_gt, lin_vel_rel_root_gt, atol=1e-3, rtol=1e-3)
-                torch.testing.assert_close(lin_vel_rel_gt, lin_vel_rel_body_gt.squeeze(-2), atol=1e-3, rtol=1e-3)
+                torch.testing.assert_close(lin_vel_rel_gt, lin_vel_rel_root_gt, atol=1e-4, rtol=1e-4)
+                torch.testing.assert_close(lin_vel_rel_gt, lin_vel_rel_body_gt.squeeze(-2), atol=1e-4, rtol=1e-4)
 
                 # ang_vel will always match
                 torch.testing.assert_close(root_state_w[..., 10:], root_com_state_w[..., 10:])
