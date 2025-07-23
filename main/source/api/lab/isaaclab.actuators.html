@@ -63,7 +63,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.1.0" />
-    <meta name="docbuild:last-update" content="Jul 21, 2025"/>
+    <meta name="docbuild:last-update" content="Jul 23, 2025"/>
   </head>
   
   
@@ -2286,38 +2286,49 @@ similar to static and Coulomb friction.</p>
 </section>
 <section id="dc-motor-actuator">
 <h2>DC Motor Actuator<a class="headerlink" href="#dc-motor-actuator" title="Permalink to this heading">#</a></h2>
+<figure class="align-center" style="width: 100%">
+<img alt="The effort clipping as a function of joint velocity for a linear DC Motor." src="_static/overview/actuator-group/dc_motor_clipping.jpg" />
+</figure>
 <dl class="py class">
 <dt class="sig sig-object py" id="isaaclab.actuators.DCMotor">
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab.actuators.</span></span><span class="sig-name descname"><span class="pre">DCMotor</span></span><a class="reference internal" href="../../../_modules/isaaclab/actuators/actuator_pd.html#DCMotor"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.actuators.DCMotor" title="Permalink to this definition">#</a></dt>
 <dd><p>Bases: <a class="reference internal" href="#isaaclab.actuators.IdealPDActuator" title="isaaclab.actuators.actuator_pd.IdealPDActuator"><code class="xref py py-class docutils literal notranslate"><span class="pre">IdealPDActuator</span></code></a></p>
 <p>Direct control (DC) motor actuator model with velocity-based saturation model.</p>
-<p>It uses the same model as the <code class="xref py py-class docutils literal notranslate"><span class="pre">IdealActuator</span></code> for computing the torques from input commands.
-However, it implements a saturation model defined by DC motor characteristics.</p>
+<p>It uses the same model as the <a class="reference internal" href="#isaaclab.actuators.IdealPDActuator" title="isaaclab.actuators.IdealPDActuator"><code class="xref py py-class docutils literal notranslate"><span class="pre">IdealPDActuator</span></code></a> for computing the torques from input commands.
+However, it implements a saturation model defined by a linear four quadrant DC motor torque-speed curve.</p>
 <p>A DC motor is a type of electric motor that is powered by direct current electricity. In most cases,
 the motor is connected to a constant source of voltage supply, and the current is controlled by a rheostat.
 Depending on various design factors such as windings and materials, the motor can draw a limited maximum power
 from the electronic source, which limits the produced motor torque and speed.</p>
 <p>A DC motor characteristics are defined by the following parameters:</p>
 <ul class="simple">
-<li><p>Continuous-rated speed (<span class="math notranslate nohighlight">\(\dot{q}_{motor, max}\)</span>) : The maximum-rated speed of the motor.</p></li>
-<li><p>Continuous-stall torque (<span class="math notranslate nohighlight">\(\tau_{motor, max}\)</span>): The maximum-rated torque produced at 0 speed.</p></li>
-<li><p>Saturation torque (<span class="math notranslate nohighlight">\(\tau_{motor, sat}\)</span>): The maximum torque that can be outputted for a short period.</p></li>
+<li><p>No-load speed (<span class="math notranslate nohighlight">\(\dot{q}_{motor, max}\)</span>) : The maximum-rated speed of the motor at 0 Torque (<a class="reference internal" href="#isaaclab.actuators.DCMotor.velocity_limit" title="isaaclab.actuators.DCMotor.velocity_limit"><code class="xref py py-attr docutils literal notranslate"><span class="pre">velocity_limit</span></code></a>).</p></li>
+<li><p>Stall torque (<span class="math notranslate nohighlight">\(\tau_{motor, stall}\)</span>): The maximum-rated torque produced at 0 speed (<code class="xref py py-attr docutils literal notranslate"><span class="pre">saturation_effort</span></code>).</p></li>
+<li><p>Continuous torque (<span class="math notranslate nohighlight">\(\tau_{motor, con}\)</span>): The maximum torque that can be outputted for a short period. This
+is often enforced on the current drives for a DC motor to limit overheating, prevent mechanical damage, or
+enforced by electrical limitations.(<a class="reference internal" href="#isaaclab.actuators.DCMotor.effort_limit" title="isaaclab.actuators.DCMotor.effort_limit"><code class="xref py py-attr docutils literal notranslate"><span class="pre">effort_limit</span></code></a>).</p></li>
+<li><p>Corner velocity (<span class="math notranslate nohighlight">\(V_{c}\)</span>): The velocity where the torque-speed curve intersects with continuous torque.
+Based on these parameters, the instantaneous minimum and maximum torques for velocities between corner velocities
+(where torque-speed curve intersects with continuous torque) are defined as follows:</p></li>
 </ul>
-<p>Based on these parameters, the instantaneous minimum and maximum torques are defined as follows:</p>
+<p>Based on these parameters, the instantaneous minimum and maximum torques for velocities are defined as follows:</p>
 <div class="math notranslate nohighlight">
-\[\begin{split}\tau_{j, max}(\dot{q}) &amp; = clip \left (\tau_{j, sat} \times \left(1 -
-    \frac{\dot{q}}{\dot{q}_{j, max}}\right), 0.0, \tau_{j, max} \right) \\
-\tau_{j, min}(\dot{q}) &amp; = clip \left (\tau_{j, sat} \times \left( -1 -
-    \frac{\dot{q}}{\dot{q}_{j, max}}\right), - \tau_{j, max}, 0.0 \right)\end{split}\]</div>
+\[\begin{split}\tau_{j, max}(\dot{q}) &amp; = clip \left (\tau_{j, stall} \times \left(1 -
+    \frac{\dot{q}}{\dot{q}_{j, max}}\right), -∞, \tau_{j, con} \right) \\
+\tau_{j, min}(\dot{q}) &amp; = clip \left (\tau_{j, stall} \times \left( -1 -
+    \frac{\dot{q}}{\dot{q}_{j, max}}\right), - \tau_{j, con}, ∞ \right)\end{split}\]</div>
 <p>where <span class="math notranslate nohighlight">\(\gamma\)</span> is the gear ratio of the gear box connecting the motor and the actuated joint ends,
-<span class="math notranslate nohighlight">\(\dot{q}_{j, max} = \gamma^{-1} \times  \dot{q}_{motor, max}\)</span>, <span class="math notranslate nohighlight">\(\tau_{j, max} =
-\gamma \times \tau_{motor, max}\)</span> and <span class="math notranslate nohighlight">\(\tau_{j, peak} = \gamma \times \tau_{motor, peak}\)</span>
-are the maximum joint velocity, maximum joint torque and peak torque, respectively. These parameters
+<span class="math notranslate nohighlight">\(\dot{q}_{j, max} = \gamma^{-1} \times  \dot{q}_{motor, max}\)</span>, <span class="math notranslate nohighlight">\(\tau_{j, con} =
+\gamma \times \tau_{motor, con}\)</span> and <span class="math notranslate nohighlight">\(\tau_{j, stall} = \gamma \times \tau_{motor, stall}\)</span>
+are the maximum joint velocity, continuous joint torque and stall torque, respectively. These parameters
 are read from the configuration instance passed to the class.</p>
 <p>Using these values, the computed torques are clipped to the minimum and maximum values based on the
 instantaneous joint velocity:</p>
 <div class="math notranslate nohighlight">
 \[\tau_{j, applied} = clip(\tau_{computed}, \tau_{j, min}(\dot{q}), \tau_{j, max}(\dot{q}))\]</div>
+<p>If the velocity of the joint is outside corner velocities (this would be due to external forces) the
+applied output torque will be driven to the Continuous Torque (<cite>effort_limit</cite>).</p>
+<p>The figure below demonstrates the clipping action for example (velocity, torque) pairs.</p>
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
@@ -4961,7 +4972,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jul 21, 2025.
+  Last updated on Jul 23, 2025.
   <br/>
 </p>
   </div>

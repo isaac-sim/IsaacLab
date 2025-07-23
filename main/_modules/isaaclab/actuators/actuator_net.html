@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.1.0" />
-    <meta name="docbuild:last-update" content="Jul 21, 2025"/>
+    <meta name="docbuild:last-update" content="Jul 23, 2025"/>
   </head>
   
   
@@ -629,8 +629,6 @@
         <span class="c1"># compute network inputs</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">sea_input</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">control_action</span><span class="o">.</span><span class="n">joint_positions</span> <span class="o">-</span> <span class="n">joint_pos</span><span class="p">)</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">sea_input</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">joint_vel</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
-        <span class="c1"># save current joint vel for dc-motor clipping</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_joint_vel</span><span class="p">[:]</span> <span class="o">=</span> <span class="n">joint_vel</span>
 
         <span class="c1"># run network inference</span>
         <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">inference_mode</span><span class="p">():</span>
@@ -784,7 +782,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jul 21, 2025.
+  Last updated on Jul 23, 2025.
   <br/>
 </p>
   </div>

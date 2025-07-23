@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.1.0" />
-    <meta name="docbuild:last-update" content="Jul 21, 2025"/>
+    <meta name="docbuild:last-update" content="Jul 23, 2025"/>
   </head>
   
   
@@ -751,8 +751,8 @@
 <div class="viewcode-block" id="DCMotor"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.actuators.html#isaaclab.actuators.DCMotor">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">DCMotor</span><span class="p">(</span><span class="n">IdealPDActuator</span><span class="p">):</span>
 <span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Direct control (DC) motor actuator model with velocity-based saturation model.</span>
 
-<span class="sd">    It uses the same model as the :class:`IdealActuator` for computing the torques from input commands.</span>
-<span class="sd">    However, it implements a saturation model defined by DC motor characteristics.</span>
+<span class="sd">    It uses the same model as the :class:`IdealPDActuator` for computing the torques from input commands.</span>
+<span class="sd">    However, it implements a saturation model defined by a linear four quadrant DC motor torque-speed curve.</span>
 
 <span class="sd">    A DC motor is a type of electric motor that is powered by direct current electricity. In most cases,</span>
 <span class="sd">    the motor is connected to a constant source of voltage supply, and the current is controlled by a rheostat.</span>
@@ -761,23 +761,28 @@
 
 <span class="sd">    A DC motor characteristics are defined by the following parameters:</span>
 
-<span class="sd">    * Continuous-rated speed (:math:`\dot{q}_{motor, max}`) : The maximum-rated speed of the motor.</span>
-<span class="sd">    * Continuous-stall torque (:math:`\tau_{motor, max}`): The maximum-rated torque produced at 0 speed.</span>
-<span class="sd">    * Saturation torque (:math:`\tau_{motor, sat}`): The maximum torque that can be outputted for a short period.</span>
+<span class="sd">    * No-load speed (:math:`\dot{q}_{motor, max}`) : The maximum-rated speed of the motor at 0 Torque (:attr:`velocity_limit`).</span>
+<span class="sd">    * Stall torque (:math:`\tau_{motor, stall}`): The maximum-rated torque produced at 0 speed (:attr:`saturation_effort`).</span>
+<span class="sd">    * Continuous torque (:math:`\tau_{motor, con}`): The maximum torque that can be outputted for a short period. This</span>
+<span class="sd">      is often enforced on the current drives for a DC motor to limit overheating, prevent mechanical damage, or</span>
+<span class="sd">      enforced by electrical limitations.(:attr:`effort_limit`).</span>
+<span class="sd">    * Corner velocity (:math:`V_{c}`): The velocity where the torque-speed curve intersects with continuous torque.</span>
+<span class="sd">      Based on these parameters, the instantaneous minimum and maximum torques for velocities between corner velocities</span>
+<span class="sd">      (where torque-speed curve intersects with continuous torque) are defined as follows:</span>
 
-<span class="sd">    Based on these parameters, the instantaneous minimum and maximum torques are defined as follows:</span>
+<span class="sd">    Based on these parameters, the instantaneous minimum and maximum torques for velocities are defined as follows:</span>
 
 <span class="sd">    .. math::</span>
 
-<span class="sd">        \tau_{j, max}(\dot{q}) &amp; = clip \left (\tau_{j, sat} \times \left(1 -</span>
-<span class="sd">            \frac{\dot{q}}{\dot{q}_{j, max}}\right), 0.0, \tau_{j, max} \right) \\</span>
-<span class="sd">        \tau_{j, min}(\dot{q}) &amp; = clip \left (\tau_{j, sat} \times \left( -1 -</span>
-<span class="sd">            \frac{\dot{q}}{\dot{q}_{j, max}}\right), - \tau_{j, max}, 0.0 \right)</span>
+<span class="sd">        \tau_{j, max}(\dot{q}) &amp; = clip \left (\tau_{j, stall} \times \left(1 -</span>
+<span class="sd">            \frac{\dot{q}}{\dot{q}_{j, max}}\right), -∞, \tau_{j, con} \right) \\</span>
+<span class="sd">        \tau_{j, min}(\dot{q}) &amp; = clip \left (\tau_{j, stall} \times \left( -1 -</span>
+<span class="sd">            \frac{\dot{q}}{\dot{q}_{j, max}}\right), - \tau_{j, con}, ∞ \right)</span>
 
 <span class="sd">    where :math:`\gamma` is the gear ratio of the gear box connecting the motor and the actuated joint ends,</span>
-<span class="sd">    :math:`\dot{q}_{j, max} = \gamma^{-1} \times  \dot{q}_{motor, max}`, :math:`\tau_{j, max} =</span>
-<span class="sd">    \gamma \times \tau_{motor, max}` and :math:`\tau_{j, peak} = \gamma \times \tau_{motor, peak}`</span>
-<span class="sd">    are the maximum joint velocity, maximum joint torque and peak torque, respectively. These parameters</span>
+<span class="sd">    :math:`\dot{q}_{j, max} = \gamma^{-1} \times  \dot{q}_{motor, max}`, :math:`\tau_{j, con} =</span>
+<span class="sd">    \gamma \times \tau_{motor, con}` and :math:`\tau_{j, stall} = \gamma \times \tau_{motor, stall}`</span>
+<span class="sd">    are the maximum joint velocity, continuous joint torque and stall torque, respectively. These parameters</span>
 <span class="sd">    are read from the configuration instance passed to the class.</span>
 
 <span class="sd">    Using these values, the computed torques are clipped to the minimum and maximum values based on the</span>
@@ -787,6 +792,10 @@
 
 <span class="sd">        \tau_{j, applied} = clip(\tau_{computed}, \tau_{j, min}(\dot{q}), \tau_{j, max}(\dot{q}))</span>
 
+<span class="sd">    If the velocity of the joint is outside corner velocities (this would be due to external forces) the</span>
+<span class="sd">    applied output torque will be driven to the Continuous Torque (`effort_limit`).</span>
+
+<span class="sd">    The figure below demonstrates the clipping action for example (velocity, torque) pairs.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">cfg</span><span class="p">:</span> <span class="n">DCMotorCfg</span>
@@ -795,10 +804,11 @@
 <div class="viewcode-block" id="DCMotor.__init__"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.actuators.html#isaaclab.actuators.DCMotor.__init__">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">DCMotorCfg</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
         <span class="c1"># parse configuration</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">saturation_effort</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_saturation_effort</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">saturation_effort</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_saturation_effort</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">inf</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">saturation_effort</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;The saturation_effort must be provided for the DC motor actuator model.&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_saturation_effort</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">saturation_effort</span>
+        <span class="c1"># find the velocity on the torque-speed curve that intersects effort_limit in the second and fourth quadrant</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_vel_at_effort_lim</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">velocity_limit</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">effort_limit</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">_saturation_effort</span><span class="p">)</span>
         <span class="c1"># prepare joint vel buffer for max effort computation</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_joint_vel</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">computed_effort</span><span class="p">)</span>
         <span class="c1"># create buffer for zeros effort</span>
@@ -824,16 +834,18 @@
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_clip_effort</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">effort</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+        <span class="c1"># save current joint vel</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_joint_vel</span><span class="p">[:]</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">clip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_joint_vel</span><span class="p">,</span> <span class="nb">min</span><span class="o">=-</span><span class="bp">self</span><span class="o">.</span><span class="n">_vel_at_effort_lim</span><span class="p">,</span> <span class="nb">max</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_vel_at_effort_lim</span><span class="p">)</span>
         <span class="c1"># compute torque limits</span>
+        <span class="n">torque_speed_top</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_saturation_effort</span> <span class="o">*</span> <span class="p">(</span><span class="mf">1.0</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">_joint_vel</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">velocity_limit</span><span class="p">)</span>
+        <span class="n">torque_speed_bottom</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_saturation_effort</span> <span class="o">*</span> <span class="p">(</span><span class="o">-</span><span class="mf">1.0</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">_joint_vel</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">velocity_limit</span><span class="p">)</span>
         <span class="c1"># -- max limit</span>
-        <span class="n">max_effort</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_saturation_effort</span> <span class="o">*</span> <span class="p">(</span><span class="mf">1.0</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">_joint_vel</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">velocity_limit</span><span class="p">)</span>
-        <span class="n">max_effort</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">clip</span><span class="p">(</span><span class="n">max_effort</span><span class="p">,</span> <span class="nb">min</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_zeros_effort</span><span class="p">,</span> <span class="nb">max</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">effort_limit</span><span class="p">)</span>
+        <span class="n">max_effort</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">clip</span><span class="p">(</span><span class="n">torque_speed_top</span><span class="p">,</span> <span class="nb">max</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">effort_limit</span><span class="p">)</span>
         <span class="c1"># -- min limit</span>
-        <span class="n">min_effort</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_saturation_effort</span> <span class="o">*</span> <span class="p">(</span><span class="o">-</span><span class="mf">1.0</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">_joint_vel</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">velocity_limit</span><span class="p">)</span>
-        <span class="n">min_effort</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">clip</span><span class="p">(</span><span class="n">min_effort</span><span class="p">,</span> <span class="nb">min</span><span class="o">=-</span><span class="bp">self</span><span class="o">.</span><span class="n">effort_limit</span><span class="p">,</span> <span class="nb">max</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_zeros_effort</span><span class="p">)</span>
-
+        <span class="n">min_effort</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">clip</span><span class="p">(</span><span class="n">torque_speed_bottom</span><span class="p">,</span> <span class="nb">min</span><span class="o">=-</span><span class="bp">self</span><span class="o">.</span><span class="n">effort_limit</span><span class="p">)</span>
         <span class="c1"># clip the torques based on the motor limits</span>
-        <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">clip</span><span class="p">(</span><span class="n">effort</span><span class="p">,</span> <span class="nb">min</span><span class="o">=</span><span class="n">min_effort</span><span class="p">,</span> <span class="nb">max</span><span class="o">=</span><span class="n">max_effort</span><span class="p">)</span></div>
+        <span class="n">clamped</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">clip</span><span class="p">(</span><span class="n">effort</span><span class="p">,</span> <span class="nb">min</span><span class="o">=</span><span class="n">min_effort</span><span class="p">,</span> <span class="nb">max</span><span class="o">=</span><span class="n">max_effort</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">clamped</span></div>
 
 
 <div class="viewcode-block" id="DelayedPDActuator"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.actuators.html#isaaclab.actuators.DelayedPDActuator">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">DelayedPDActuator</span><span class="p">(</span><span class="n">IdealPDActuator</span><span class="p">):</span>
@@ -1011,7 +1023,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jul 21, 2025.
+  Last updated on Jul 23, 2025.
   <br/>
 </p>
   </div>

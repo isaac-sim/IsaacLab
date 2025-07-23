@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.1.0" />
-    <meta name="docbuild:last-update" content="Jul 21, 2025"/>
+    <meta name="docbuild:last-update" content="Jul 23, 2025"/>
   </head>
   
   
@@ -747,7 +747,8 @@ where you started the simulation.</p>
 Note that not all learning libraries support exporting the policy to a jit or onnx file.
 For libraries that don’t currently support this functionality, please refer to the corresponding <code class="docutils literal notranslate"><span class="pre">play.py</span></code> script for the library
 to learn about how to initialize the policy.</p>
-<p>We can then load the warehouse asset and run inference on the H1 robot using the exported jit policy.</p>
+<p>We can then load the warehouse asset and run inference on the H1 robot using the exported jit policy
+(<code class="docutils literal notranslate"><span class="pre">policy.pt</span></code> file in the <code class="docutils literal notranslate"><span class="pre">exported/</span></code> directory).</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/tutorials/03_envs/policy_inference_in_usd.py<span class="w"> </span>--checkpoint<span class="w"> </span>logs/rsl_rl/h1_rough/EXPERIMENT_NAME/exported/policy.pt
 </pre></div>
 </div>
@@ -839,7 +840,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jul 21, 2025.
+  Last updated on Jul 23, 2025.
   <br/>
 </p>
   </div>

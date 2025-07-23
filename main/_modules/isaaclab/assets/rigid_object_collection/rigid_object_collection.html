@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.1.0" />
-    <meta name="docbuild:last-update" content="Jul 21, 2025"/>
+    <meta name="docbuild:last-update" content="Jul 23, 2025"/>
   </head>
   
   
@@ -714,7 +714,8 @@
             <span class="n">object_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_OBJ_INDICES</span>
         <span class="c1"># reset external wrench</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_external_force_b</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">object_ids</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.0</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_external_torque_b</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">object_ids</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.0</span></div>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_external_torque_b</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">object_ids</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_external_wrench_positions_b</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">object_ids</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.0</span></div>
 
 <div class="viewcode-block" id="RigidObjectCollection.write_data_to_sim"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectCollection.write_data_to_sim">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">write_data_to_sim</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Write external wrench to the simulation.</span>
@@ -725,13 +726,22 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># write external wrench</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">has_external_wrench</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">apply_forces_and_torques_at_position</span><span class="p">(</span>
-                <span class="n">force_data</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">reshape_data_to_view</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_external_force_b</span><span class="p">),</span>
-                <span class="n">torque_data</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">reshape_data_to_view</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_external_torque_b</span><span class="p">),</span>
-                <span class="n">position_data</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-                <span class="n">indices</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_env_obj_ids_to_view_ids</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_ALL_ENV_INDICES</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_OBJ_INDICES</span><span class="p">),</span>
-                <span class="n">is_global</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
-            <span class="p">)</span></div>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">uses_external_wrench_positions</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">apply_forces_and_torques_at_position</span><span class="p">(</span>
+                    <span class="n">force_data</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">reshape_data_to_view</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_external_force_b</span><span class="p">),</span>
+                    <span class="n">torque_data</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">reshape_data_to_view</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_external_torque_b</span><span class="p">),</span>
+                    <span class="n">position_data</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">reshape_data_to_view</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_external_wrench_positions_b</span><span class="p">),</span>
+                    <span class="n">indices</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_env_obj_ids_to_view_ids</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_ALL_ENV_INDICES</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_OBJ_INDICES</span><span class="p">),</span>
+                    <span class="n">is_global</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_use_global_wrench_frame</span><span class="p">,</span>
+                <span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">apply_forces_and_torques_at_position</span><span class="p">(</span>
+                    <span class="n">force_data</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">reshape_data_to_view</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_external_force_b</span><span class="p">),</span>
+                    <span class="n">torque_data</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">reshape_data_to_view</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_external_torque_b</span><span class="p">),</span>
+                    <span class="n">position_data</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                    <span class="n">indices</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_env_obj_ids_to_view_ids</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_ALL_ENV_INDICES</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_OBJ_INDICES</span><span class="p">),</span>
+                    <span class="n">is_global</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_use_global_wrench_frame</span><span class="p">,</span>
+                <span class="p">)</span></div>
 
 <div class="viewcode-block" id="RigidObjectCollection.update"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectCollection.update">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">update</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dt</span><span class="p">:</span> <span class="nb">float</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">dt</span><span class="p">)</span></div>
@@ -1036,6 +1046,7 @@
         <span class="bp">self</span><span class="p">,</span>
         <span class="n">forces</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
         <span class="n">torques</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+        <span class="n">positions</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">object_ids</span><span class="p">:</span> <span class="nb">slice</span> <span class="o">|</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">env_ids</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="p">):</span>
@@ -1062,6 +1073,7 @@
 <span class="sd">        Args:</span>
 <span class="sd">            forces: External forces in bodies&#39; local frame. Shape is (len(env_ids), len(object_ids), 3).</span>
 <span class="sd">            torques: External torques in bodies&#39; local frame. Shape is (len(env_ids), len(object_ids), 3).</span>
+<span class="sd">            positions: External wrench positions in bodies&#39; local frame. Shape is (len(env_ids), len(object_ids), 3).</span>
 <span class="sd">            object_ids: Object indices to apply external wrench to. Defaults to None (all objects).</span>
 <span class="sd">            env_ids: Environment indices to apply external wrench to. Defaults to None (all instances).</span>
 <span class="sd">        &quot;&quot;&quot;</span>
@@ -1081,7 +1093,13 @@
             <span class="n">object_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_OBJ_INDICES</span>
         <span class="c1"># set into internal buffers</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_external_force_b</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">object_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">forces</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_external_torque_b</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">object_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">torques</span></div>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_external_torque_b</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">object_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">torques</span>
+        <span class="k">if</span> <span class="n">positions</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">uses_external_wrench_positions</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_external_wrench_positions_b</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">object_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">positions</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">uses_external_wrench_positions</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_external_wrench_positions_b</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">object_ids</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.0</span></div>
 
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Helper functions.</span>
@@ -1193,6 +1211,8 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">has_external_wrench</span> <span class="o">=</span> <span class="kc">False</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_external_force_b</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">num_instances</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_objects</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_external_torque_b</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_external_force_b</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_external_wrench_positions_b</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_external_force_b</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">uses_external_wrench_positions</span> <span class="o">=</span> <span class="kc">False</span>
 
         <span class="c1"># set information about rigid body into data</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">object_names</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">object_names</span>
@@ -1220,6 +1240,15 @@
         <span class="c1"># concatenate the default state for each object</span>
         <span class="n">default_object_states</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">(</span><span class="n">default_object_states</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">default_object_state</span> <span class="o">=</span> <span class="n">default_object_states</span>
+
+        <span class="c1"># -- external wrench</span>
+        <span class="n">external_wrench_frame</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">objects_external_wrench_frame</span>
+        <span class="k">if</span> <span class="n">external_wrench_frame</span> <span class="o">==</span> <span class="s2">&quot;local&quot;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_use_global_wrench_frame</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="k">elif</span> <span class="n">external_wrench_frame</span> <span class="o">==</span> <span class="s2">&quot;world&quot;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_use_global_wrench_frame</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Invalid external wrench frame: </span><span class="si">{</span><span class="n">external_wrench_frame</span><span class="si">}</span><span class="s2">. Must be &#39;local&#39; or &#39;world&#39;.&quot;</span><span class="p">)</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_env_obj_ids_to_view_ids</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">object_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="nb">slice</span> <span class="o">|</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
@@ -1318,7 +1347,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jul 21, 2025.
+  Last updated on Jul 23, 2025.
   <br/>
 </p>
   </div>

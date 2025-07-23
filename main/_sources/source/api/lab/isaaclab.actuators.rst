@@ -67,6 +67,11 @@ Ideal PD Actuator
 DC Motor Actuator
 -----------------
 
+.. figure:: ../../../_static/overview/actuator-group/dc_motor_clipping.jpg
+    :align: center
+    :figwidth: 100%
+    :alt: The effort clipping as a function of joint velocity for a linear DC Motor.
+
 .. autoclass:: DCMotor
   :members:
   :inherited-members:
