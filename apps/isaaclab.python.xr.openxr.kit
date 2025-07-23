@@ -18,7 +18,8 @@ app.name = "Isaac-Sim"
 app.version = "5.0.0"
 
 ### async rendering settings
-omni.replicator.asyncRendering = true
+# omni.replicator.asyncRendering needs to be false for external camera rendering
+omni.replicator.asyncRendering = false
 app.asyncRendering = true
 app.asyncRenderingLowLatency = true
 
