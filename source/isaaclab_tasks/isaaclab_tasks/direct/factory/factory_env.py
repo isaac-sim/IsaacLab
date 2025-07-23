@@ -419,7 +419,11 @@ class FactoryEnv(DirectRLEnv):
         self._robot.set_joint_effort_target(self.joint_torque)
 
     def _get_dones(self):
-        """Update intermediate values used for rewards and observations."""
+        """Check which environments are terminated.
+
+        For Factory reset logic, it is important that all environments
+        stay in sync (i.e., _get_dones should return all true or all false).
+        """
         self._compute_intermediate_values(dt=self.physics_dt)
         time_out = self.episode_length_buf >= self.max_episode_length - 1
         return time_out, time_out
@@ -514,9 +518,7 @@ class FactoryEnv(DirectRLEnv):
         return rew_dict, rew_scales
 
     def _reset_idx(self, env_ids):
-        """
-        We assume all envs will always be reset at the same time.
-        """
+        """We assume all envs will always be reset at the same time."""
         super()._reset_idx(env_ids)
 
         self._set_assets_to_default_pose(env_ids)
@@ -625,7 +627,11 @@ class FactoryEnv(DirectRLEnv):
         self.step_sim_no_action()
 
     def step_sim_no_action(self):
-        """Step the simulation without an action. Used for resets only."""
+        """Step the simulation without an action. Used for resets only.
+
+        This method should only be called during resets when all environments
+        reset at the same time.
+        """
         self.scene.write_data_to_sim()
         self.sim.step(render=False)
         self.scene.update(dt=self.physics_dt)
