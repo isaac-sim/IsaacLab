@@ -105,7 +105,7 @@ class TorchPolicyExporter(torch.nn.Module):
     def _forward_ff(self, obs: torch.Tensor, carry: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         """Feedforward forward pass (stateless for consistency)."""
         obs = self.normalizer(obs)
-        return self.actor(obs), carry
+        return self.actor(obs), self.actor(obs)
 
     def _forward_gru(self, obs: torch.Tensor, carry: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         """GRU forward pass with stateless carry management."""
