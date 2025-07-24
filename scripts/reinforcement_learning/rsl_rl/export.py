@@ -217,22 +217,26 @@ def main():
 
     ts_policy = exporter
 
-    num_joints = len(env.unwrapped.scene["robot"].data.joint_names)
-    NUM_COMMANDS = 3
+    NUM_JOINTS = len(env.unwrapped.scene["robot"].data.joint_names)
     
     # Get carry shape from the exporter
-    CARRY_SHAPE = exporter.get_carry_shape(num_joints)
+    CARRY_SHAPE = exporter.get_carry_shape(NUM_JOINTS)
 
     # action_term = env.unwrapped.action_manager.active_terms[0]
     action_term_name = "joint_pos"
-
     action_term = env.unwrapped.action_manager.get_term(action_term_name)
 
     _INIT_JOINT_POS = action_term._offset
-
     _INIT_JOINT_POS = _INIT_JOINT_POS.to("cpu").squeeze(0)
-
     ACTION_SCALE = action_term._scale
+
+    command_manager = env.unwrapped.command_manager
+    command_term_names = command_manager.active_terms
+
+    command_tensor = torch.cat([command_manager.get_command(name) for name in command_term_names], dim=-1)
+    command_tensor = command_tensor.to("cpu").flatten()
+
+    NUM_COMMANDS = command_tensor.shape[0]
     
     def construct_obs_rnn(
         projected_gravity: torch.Tensor,
@@ -290,12 +294,12 @@ def main():
         return (actions * ACTION_SCALE) + _INIT_JOINT_POS, new_carry
     
     def _init_fn() -> torch.Tensor:
-        return exporter.get_initial_carry(num_joints)
+        return exporter.get_initial_carry(NUM_JOINTS)
 
     step_args = (
         torch.zeros(3),
-        torch.zeros(num_joints),
-        torch.zeros(num_joints),
+        torch.zeros(NUM_JOINTS),
+        torch.zeros(NUM_JOINTS),
         torch.zeros(NUM_COMMANDS),
         torch.zeros(3),
         torch.zeros(*CARRY_SHAPE),
