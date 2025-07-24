@@ -184,40 +184,49 @@
     "license": null
   },
   {
-    "package": "cmeel", // BSD
-    "license": "UNKNOWN"
+    "package": "cmeel",
+    "license": "UNKNOWN",
+    "comment": "BSD"
   },
   {
-    "package": "cmeel-assimp", // BSD
-    "license": "UNKNOWN"
+    "package": "cmeel-assimp",
+    "license": "UNKNOWN",
+    "comment": "BSD"
   },
   {
-    "package": "cmeel-boost", // BSL
-    "license": "UNKNOWN"
+    "package": "cmeel-boost",
+    "license": "UNKNOWN",
+    "comment": "BSL"
   },
   {
-    "package": "cmeel-console-bridge", // BSD
-    "license": "UNKNOWN"
+    "package": "cmeel-console-bridge",
+    "license": "UNKNOWN",
+    "comment": "BSD"
   },
   {
-    "package": "cmeel-octomap", // BSD
-    "license": "UNKNOWN"
+    "package": "cmeel-octomap",
+    "license": "UNKNOWN",
+    "comment": "BSD"
   },
   {
-    "package": "cmeel-qhull", // custom / OSRB
-    "license": "UNKNOWN"
+    "package": "cmeel-qhull",
+    "license": "UNKNOWN",
+    "comment": "custom / OSRB"
   },
   {
-    "package": "cmeel-tinyxml", // ZLIBL
-    "license": "UNKNOWN"
+    "package": "cmeel-tinyxml",
+    "license": "UNKNOWN",
+    "comment": "ZLIBL"
   },
   {
-    "package": "cmeel-urdfdom", // BSD
-    "license": "UNKNOWN"
+    "package": "cmeel-urdfdom",
+    "license": "UNKNOWN",
+    "comment": "BSD"
   },
   {
-    "package": "cmeel-zlib", // ZLIBL
-    "license": "UNKNOWN"
+    "package": "cmeel-zlib",
+    "license": "UNKNOWN",
+    "comment": "ZLIBL"
   },
   {
     "package": "matplotlib",
@@ -228,103 +237,128 @@
     "license": "Mozilla Public License 2.0 (MPL 2.0)"
   },
   {
-      "package": "rl_games", // MIT
-      "license": "UNKNOWN"
+      "package": "rl_games",
+      "license": "UNKNOWN",
+      "comment": "MIT"
   },
   {
-      "package": "robomimic", // MIT
-      "license": "UNKNOWN"
+      "package": "robomimic",
+      "license": "UNKNOWN",
+      "comment": "MIT"
   },
   {
-      "package": "hpp-fcl", // BSD
-      "license": "UNKNOWN"
+      "package": "hpp-fcl",
+      "license": "UNKNOWN",
+      "comment": "BSD"
   },
   {
-      "package": "pin", // BSD
-      "license": "UNKNOWN"
+      "package": "pin",
+      "license": "UNKNOWN",
+      "comment": "BSD"
   },
   {
-      "package": "eigenpy", // BSD
-      "license": "UNKNOWN"
+      "package": "eigenpy",
+      "license": "UNKNOWN",
+      "comment": "BSD"
   },
   {
-      "package": "qpsolvers", // OSRB
-      "license": "GNU Lesser General Public License v3 (LGPLv3)"
+      "package": "qpsolvers",
+      "license": "GNU Lesser General Public License v3 (LGPLv3)",
+      "comment": "OSRB"
   },
   {
-      "package": "quadprog", // OSRB
-      "license": "GNU General Public License v2 or later (GPLv2+)"
+      "package": "quadprog",
+      "license": "GNU General Public License v2 or later (GPLv2+)",
+      "comment": "OSRB"
   },
   {
-    "package": "Markdown", // BSD
-    "license": "UNKNOWN"
+    "package": "Markdown",
+    "license": "UNKNOWN",
+    "comment": "BSD"
   },
   {
-    "package": "anytree", // Apache
-    "license": "UNKNOWN"
+    "package": "anytree",
+    "license": "UNKNOWN",
+    "comment": "Apache"
   },
   {
-    "package": "click", // BSD
-    "license": "UNKNOWN"
+    "package": "click",
+    "license": "UNKNOWN",
+    "comment": "BSD"
   },
   {
-    "package": "egl_probe", // MIT
-    "license": "UNKNOWN"
+    "package": "egl_probe",
+    "license": "UNKNOWN",
+    "comment": "MIT"
   },
   {
-    "package": "filelock", // no condition
-    "license": "The Unlicense (Unlicense)"
+    "package": "filelock",
+    "license": "The Unlicense (Unlicense)",
+    "comment": "no condition"
   },
   {
-    "package": "proglog", // MIT
-    "license": "UNKNOWN"
+    "package": "proglog",
+    "license": "UNKNOWN",
+    "comment": "MIT"
   },
   {
-    "package": "termcolor", // MIT
-    "license": "UNKNOWN"
+    "package": "termcolor",
+    "license": "UNKNOWN",
+    "comment": "MIT"
   },
   {
-    "package": "typing_extensions", // PSFL / OSRB
-    "license": "UNKNOWN"
+    "package": "typing_extensions",
+    "license": "UNKNOWN",
+    "comment": "PSFL / OSRB"
   },
   {
-    "package": "urllib3", // MIT
-    "license": "UNKNOWN"
+    "package": "urllib3",
+    "license": "UNKNOWN",
+    "comment": "MIT"
   },
   {
-    "package": "h5py", // BSD
-    "license": "UNKNOWN"
+    "package": "h5py",
+    "license": "UNKNOWN",
+    "comment": "BSD"
   },
   {
-    "package": "pillow", // MIT
-    "license": "UNKNOWN"
+    "package": "pillow",
+    "license": "UNKNOWN",
+    "comment": "MIT"
   },
   {
-    "package": "pygame", // OSRB
-    "license": "GNU Library or Lesser General Public License (LGPL)"
+    "package": "pygame",
+    "license": "GNU Library or Lesser General Public License (LGPL)",
+    "comment": "OSRB"
   },
   {
-    "package": "scikit-learn", // BSD
-    "license": "UNKNOWN"
+    "package": "scikit-learn",
+    "license": "UNKNOWN",
+    "comment": "BSD"
   },
   {
-    "package": "tensorboardX", // MIT
-    "license": "UNKNOWN"
+    "package": "tensorboardX",
+    "license": "UNKNOWN",
+    "comment": "MIT"
   },
   {
-    "package": "attrs", // MIT
-    "license": "UNKNOWN"
+    "package": "attrs",
+    "license": "UNKNOWN",
+    "comment": "MIT"
   },
   {
-    "package": "jsonschema", // MIT
-    "license": "UNKNOWN"
+    "package": "jsonschema",
+    "license": "UNKNOWN",
+    "comment": "MIT"
   },
   {
-    "package": "jsonschema-specifications", // MIT
-    "license": "UNKNOWN"
+    "package": "jsonschema-specifications",
+    "license": "UNKNOWN",
+    "comment": "MIT"
   },
   {
-    "package": "referencing", // MIT
-    "license": "UNKNOWN"
+    "package": "referencing",
+    "license": "UNKNOWN",
+    "comment": "MIT"
   },
 ]
