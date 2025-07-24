@@ -6,21 +6,45 @@
 import argparse
 import sys
 import yaml
+from datetime import datetime
 
-import ray
 import util
 
 """
 This script dispatches one or more user-defined Python tasks to workers in a Ray cluster.
-Each task, with its resource requirements and execution parameters, is described in a YAML configuration file.
-You may specify the desired number of CPUs, GPUs, and memory allocation for each task in the config file.
+Each task, along with its resource requirements and execution parameters, is specified in a YAML configuration file.
+Users may define the number of CPUs, GPUs, and the amount of memory to allocate per task via the config file.
 
 Key features:
-- Flexible resource management per task via config fields (`num_gpus`, `num_cpus`, `memory`).
-- Real-time output streaming (stdout/stderr) for each task.
-- Parallel execution of multiple tasks across cluster resources.
+-------------
+- Fine-grained, per-task resource management via config fields (`num_gpus`, `num_cpus`, `memory`).
+- Parallel execution of multiple tasks using available resources across the Ray cluster.
+- Option to specify node affinity for tasks, e.g., by hostname, node ID, or any node.
+- Optional batch (simultaneous) or independent scheduling of tasks.
 
-Tasks are distributed and scheduled according to Ray’s built-in resource manager.
+Task scheduling and distribution are handled via Ray’s built-in resource manager.
+
+YAML configuration fields:
+--------------------------
+- `pip`: List of extra pip packages to install before running any tasks.
+- `py_modules`: List of additional Python module paths (directories or files) to include in the runtime environment.
+- `concurrent`: (bool) It determines task dispatch semantics:
+    - If `concurrent: true`, **all tasks are scheduled as a batch**. The script waits until sufficient resources are available for every task in the batch, then launches all tasks together. If resources are insufficient, all tasks remain blocked until the cluster can support the full batch.
+    - If `concurrent: false`, tasks are launched as soon as resources are available for each individual task, and Ray independently schedules them. This may result in non-simultaneous task start times.
+- `tasks`: List of task specifications, each with:
+    - `name`: String identifier for the task.
+    - `py_args`: Arguments to the Python interpreter (e.g., script/module, flags, user arguments).
+    - `num_gpus`: Number of GPUs to allocate (float or string arithmetic, e.g., "2*2").
+    - `num_cpus`: Number of CPUs to allocate (float or string).
+    - `memory`: Amount of RAM in bytes (int or string).
+    - `node` (optional): Node placement constraints.
+        - `specific` (str): Type of node placement, support `hostname`, `node_id`, or `any`.
+            - `any`: Place the task on any available node.
+            - `hostname`: Place the task on a specific hostname. `hostname` must be specified in the node field.
+            - `node_id`: Place the task on a specific node ID. `node_id` must be specified in the node field.
+        - `hostname` (str): Specific hostname to place the task on.
+        - `node_id` (str): Specific node ID to place the task on.
+
 
 Typical usage:
 ---------------
@@ -33,27 +57,49 @@ Typical usage:
     # Submit tasks defined in a YAML file to the Ray cluster (auto-detects Ray head address):
     python task_runner.py --task_cfg /path/to/tasks.yaml
 
-YAML configuration example:
+YAML configuration example-1:
 ---------------------------
 .. code-block:: yaml
+
     pip: ["xxx"]
     py_modules: ["my_package/my_package"]
+    concurrent: false
     tasks:
-      - name: "task1"
+      - name: "Isaac-Cartpole-v0"
         py_args: "-m torch.distributed.run --nnodes=1 --nproc_per_node=2  --rdzv_endpoint=localhost:29501 /workspace/isaaclab/scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Cartpole-v0 --max_iterations 200 --headless --distributed"
         num_gpus: 2
         num_cpus: 10
         memory: 10737418240
-      - name: "task2"
+      - name: "script need some dependencies"
         py_args: "script.py --option arg"
         num_gpus: 0
         num_cpus: 1
         memory: 10*1024*1024*1024
 
-- `pip`: List of pip packages to install.
-- `py_args`: Arguments passed to the Python executable for this task.
-- `num_gpus`, `num_cpus`: Number of GPUs/CPUs to allocate. Can be integer or a string like `"2*2"`.
-- `memory`: Amount of memory (bytes) to allocate. Can be integer or a string like `"10*1024*1024*1024"`.
+YAML configuration example-2:
+---------------------------
+.. code-block:: yaml
+
+    pip: ["xxx"]
+    py_modules: ["my_package/my_package"]
+    concurrent: true
+    tasks:
+    - name: "Isaac-Cartpole-v0-multi-node-train-1"
+        py_args: "-m torch.distributed.run --nproc_per_node=1 --nnodes=2 --node_rank=0 --rdzv_id=123 --rdzv_backend=c10d --rdzv_endpoint=localhost:5555 /workspace/isaaclab/scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Cartpole-v0 --headless --distributed --max_iterations 1000"
+        num_gpus: 1
+        num_cpus: 10
+        memory: 10*1024*1024*1024
+        node:
+          specific: "hostname"
+          hostname: "xxx"
+    - name: "Isaac-Cartpole-v0-multi-node-train-2"
+        py_args: "-m torch.distributed.run --nproc_per_node=1 --nnodes=2 --node_rank=1 --rdzv_id=123 --rdzv_backend=c10d --rdzv_endpoint=x.x.x.x:5555 /workspace/isaaclab/scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Cartpole-v0 --headless --distributed --max_iterations 1000"
+        num_gpus: 1
+        num_cpus: 10
+        memory: 10*1024*1024*1024
+        node:
+          specific: "hostname"
+          hostname: "xxx"
 
 To stop all tasks early, press Ctrl+C; the script will cancel all running Ray tasks.
 """
@@ -75,83 +121,65 @@ def parse_args():
     return parser.parse_args()
 
 
-def parse_task_opt(task):
-    opts = {}
+def parse_task_resource(task) -> util.JobResource:
+    resource = util.JobResource()
     if "num_gpus" in task:
-        opts["num_gpus"] = eval(task["num_gpus"]) if isinstance(task["num_gpus"], str) else task["num_gpus"]
+        resource.num_gpus = eval(task["num_gpus"]) if isinstance(task["num_gpus"], str) else task["num_gpus"]
     if "num_cpus" in task:
-        opts["num_cpus"] = eval(task["num_cpus"]) if isinstance(task["num_cpus"], str) else task["num_cpus"]
+        resource.num_cpus = eval(task["num_cpus"]) if isinstance(task["num_cpus"], str) else task["num_cpus"]
     if "memory" in task:
-        opts["memory"] = eval(task["memory"]) if isinstance(task["memory"], str) else task["memory"]
-    return opts
+        resource.memory = eval(task["memory"]) if isinstance(task["memory"], str) else task["memory"]
+    return resource
 
 
-@ray.remote
-def remote_execute_job(job_cmd: str, identifier_string: str, test_mode: bool) -> str | dict:
-    return util.execute_job(
-        job_cmd=job_cmd,
-        identifier_string=identifier_string,
-        test_mode=test_mode,
-        log_all_output=True,  # make log_all_output=True to check output in real time
-    )
-
-
-def run_tasks(ray_address, pip, py_modules, tasks, test_mode=False):
-    if not tasks:
-        print("[WARNING]: no tasks to submit")
-        return
-
-    if not ray.is_initialized():
-        try:
-            ray.init(
-                address=ray_address,
-                log_to_driver=True,
-                runtime_env={
-                    "pip": pip,
-                    "py_modules": py_modules,
-                },
-            )
-        except Exception as e:
-            raise RuntimeError(f"initialize ray failed: {str(e)}")
-    task_results = []
+def run_tasks(tasks, args: argparse.Namespace, runtime_env=None, concurrent=False):
+    job_objs = []
+    util.ray_init(ray_address=args.ray_address, runtime_env=runtime_env, log_to_driver=False)
     for task in tasks:
-        opts = parse_task_opt(task)
+        resource = parse_task_resource(task)
         task_cmd = " ".join([sys.executable, *task["py_args"].split()])
-        print(f"[INFO] submitting task {task['name']} with opts={opts}: {task_cmd}")
-        task_results.append(remote_execute_job.options(**opts).remote(task_cmd, task["name"], test_mode))
-
-    try:
-        results = ray.get(task_results)
-        for i, result in enumerate(results):
-            print(f"[INFO]: Task {tasks[i]['name']} result: \n{result}")
-        print("[INFO]: all tasks completed.")
-    except KeyboardInterrupt:
-        print("[INFO]: dealing with keyboard interrupt")
-        for future in task_results:
-            ray.cancel(future, force=True)
-        print("[INFO]: all tasks cancelled.")
-        sys.exit(1)
-    except Exception as e:
-        print(f"[ERROR]: error while running tasks: {str(e)}")
-        raise e
+        print(f"[INFO] Creating job {task['name']} with resource={resource}: {task_cmd}")
+        job = util.Job(
+            name=task["name"],
+            # cmd=task_cmd,
+            py_args=task["py_args"],
+            resources=resource,
+            node=util.JobNode(
+                specific=task.get("node", {}).get("specific"),
+                hostname=task.get("node", {}).get("hostname"),
+                node_id=task.get("node", {}).get("node_id"),
+            ),
+        )
+        job_objs.append(job)
+    start = datetime.now()
+    print(f"[INFO] Creating {len(job_objs)} jobs at {start.strftime('%H:%M:%S.%f')} with runtime env={runtime_env}")
+    # submit jobs
+    util.submit_wrapped_jobs(
+        jobs=job_objs,
+        test_mode=args.test,
+        concurrent=concurrent,
+    )
+    end = datetime.now()
+    print(
+        f"[INFO] All jobs completed at {end.strftime('%H:%M:%S.%f')}, took {(end - start).total_seconds():.2f} seconds."
+    )
 
 
 def main():
     args = parse_args()
-    try:
-        with open(args.task_cfg) as f:
-            config = yaml.safe_load(f)
-    except Exception as e:
-        raise SystemExit(f"error while loading task config: {str(e)}")
+    with open(args.task_cfg) as f:
+        config = yaml.safe_load(f)
     tasks = config["tasks"]
-    py_modules = config.get("py_modules")
-    pip = config.get("pip")
+    runtime_env = {
+        "pip": None if not config.get("pip") else config["pip"],
+        "py_modules": None if not config.get("py_modules") else config["py_modules"],
+    }
+    concurrent = config.get("concurrent", False)
     run_tasks(
-        ray_address=args.ray_address,
-        pip=pip,
-        py_modules=py_modules,
         tasks=tasks,
-        test_mode=args.test,
+        args=args,
+        runtime_env=runtime_env,
+        concurrent=concurrent,
     )
 
 
