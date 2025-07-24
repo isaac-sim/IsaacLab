@@ -102,11 +102,12 @@ class ForgeEnv(FactoryEnv):
         self.force_sensor_world_smooth = alpha * self.force_sensor_world + (1 - alpha) * self.force_sensor_world_smooth
 
         self.force_sensor_smooth = torch.zeros_like(self.force_sensor_world)
+        identity_quat = torch.tensor([1.0, 0.0, 0.0, 0.0], device=self.device).unsqueeze(0).repeat(self.num_envs, 1)
         self.force_sensor_smooth[:, :3], self.force_sensor_smooth[:, 3:6] = forge_utils.change_FT_frame(
             self.force_sensor_world_smooth[:, 0:3],
             self.force_sensor_world_smooth[:, 3:6],
-            (self.identity_quat, torch.zeros_like(self.fixed_pos_obs_frame)),
-            (self.identity_quat, self.fixed_pos_obs_frame + self.init_fixed_pos_obs_noise),
+            (identity_quat, torch.zeros((self.num_envs, 3), device=self.device)),
+            (identity_quat, self.fixed_pos_obs_frame + self.init_fixed_pos_obs_noise),
         )
 
         # Compute noisy force values.
@@ -154,7 +155,8 @@ class ForgeEnv(FactoryEnv):
 
         # Step (1): Compute desired pose targets in EE frame.
         # (1.a) Position. Action frame is assumed to be the top of the bolt (noisy estimate).
-        ctrl_target_fingertip_preclipped_pos = self.fixed_pos_action_frame + pos_actions
+        fixed_pos_action_frame = self.fixed_pos_obs_frame + self.init_fixed_pos_obs_noise
+        ctrl_target_fingertip_preclipped_pos = fixed_pos_action_frame + pos_actions
         # (1.b) Enforce rotation action constraints.
         rot_actions[:, 0:2] = 0.0
 
@@ -254,7 +256,8 @@ class ForgeEnv(FactoryEnv):
         super().randomize_initial_state(env_ids)
 
         # Compute initial action for correct EMA computation.
-        pos_actions = self.fingertip_midpoint_pos - self.fixed_pos_action_frame
+        fixed_pos_action_frame = self.fixed_pos_obs_frame + self.init_fixed_pos_obs_noise
+        pos_actions = self.fingertip_midpoint_pos - fixed_pos_action_frame
         pos_action_bounds = torch.tensor(self.cfg.ctrl.pos_action_bounds, device=self.device)
         pos_actions = pos_actions @ torch.diag(1.0 / pos_action_bounds)
         self.actions[:, 0:3] = self.prev_actions[:, 0:3] = pos_actions
