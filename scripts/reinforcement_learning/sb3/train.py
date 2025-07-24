@@ -25,6 +25,7 @@ parser.add_argument("--num_envs", type=int, default=None, help="Number of enviro
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 parser.add_argument("--seed", type=int, default=None, help="Seed used for the environment")
 parser.add_argument("--log_interval", type=int, default=100_000, help="Log data every n timesteps.")
+parser.add_argument("--checkpoint", type=str, default=None, help="Continue the training from checkpoint.")
 parser.add_argument("--max_iterations", type=int, default=None, help="RL Policy training iterations.")
 parser.add_argument(
     "--keep_all_info",
@@ -179,6 +180,8 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
 
     # create agent from stable baselines
     agent = PPO(policy_arch, env, verbose=1, tensorboard_log=log_dir, **agent_cfg)
+    if args_cli.checkpoint is not None:
+        agent = agent.load(args_cli.checkpoint, env, print_system_info=True)
 
     # callbacks for agent
     checkpoint_callback = CheckpointCallback(save_freq=1000, save_path=log_dir, name_prefix="model", verbose=2)
