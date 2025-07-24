@@ -6,6 +6,7 @@
 """Shared test utilities for Isaac Lab environments."""
 
 import gymnasium as gym
+import inspect
 import os
 import torch
 
@@ -127,13 +128,20 @@ def _run_environments(
     if task_name in ["Isaac-AutoMate-Assembly-Direct-v0", "Isaac-AutoMate-Disassembly-Direct-v0"]:
         return
 
-    # skipping this test for now as it requires torch 2.6 or newer
-    if task_name == "Isaac-Cartpole-RGB-TheiaTiny-v0":
-        return
-
-    # TODO: why is this failing in Isaac Sim 5.0??? but the environment itself can run.
+    # Check if this is the teddy bear environment and if it's being called from the right test file
     if task_name == "Isaac-Lift-Teddy-Bear-Franka-IK-Abs-v0":
-        return
+        # Get the calling frame to check which test file is calling this function
+        frame = inspect.currentframe()
+        while frame:
+            filename = frame.f_code.co_filename
+            if "test_lift_teddy_bear.py" in filename:
+                # Called from the dedicated test file, allow it to run
+                break
+            frame = frame.f_back
+
+        # If not called from the dedicated test file, skip it
+        if not frame:
+            return
 
     print(f""">>> Running test for environment: {task_name}""")
     _check_random_actions(
