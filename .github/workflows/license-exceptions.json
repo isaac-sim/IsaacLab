@@ -184,39 +184,39 @@
     "license": null
   },
   {
-    "package": "cmeel",
+    "package": "cmeel", // BSD
     "license": "UNKNOWN"
   },
   {
-    "package": "cmeel-assimp",
+    "package": "cmeel-assimp", // BSD
     "license": "UNKNOWN"
   },
   {
-    "package": "cmeel-boost",
+    "package": "cmeel-boost", // BSL
     "license": "UNKNOWN"
   },
   {
-    "package": "cmeel-console-bridge",
+    "package": "cmeel-console-bridge", // BSD
     "license": "UNKNOWN"
   },
   {
-    "package": "cmeel-octomap",
+    "package": "cmeel-octomap", // BSD
     "license": "UNKNOWN"
   },
   {
-    "package": "cmeel-qhull",
+    "package": "cmeel-qhull", // custom / OSRB
     "license": "UNKNOWN"
   },
   {
-    "package": "cmeel-tinyxml",
+    "package": "cmeel-tinyxml", // ZLIBL
     "license": "UNKNOWN"
   },
   {
-    "package": "cmeel-urdfdom",
+    "package": "cmeel-urdfdom", // BSD
     "license": "UNKNOWN"
   },
   {
-    "package": "cmeel-zlib",
+    "package": "cmeel-zlib", // ZLIBL
     "license": "UNKNOWN"
   },
   {
@@ -228,87 +228,103 @@
     "license": "Mozilla Public License 2.0 (MPL 2.0)"
   },
   {
-      "package": "rl_games",
+      "package": "rl_games", // MIT
       "license": "UNKNOWN"
   },
   {
-      "package": "robomimic",
+      "package": "robomimic", // MIT
       "license": "UNKNOWN"
   },
   {
-      "package": "hpp-fcl",
+      "package": "hpp-fcl", // BSD
       "license": "UNKNOWN"
   },
   {
-      "package": "pin",
+      "package": "pin", // BSD
       "license": "UNKNOWN"
   },
   {
-      "package": "eigenpy",
+      "package": "eigenpy", // BSD
       "license": "UNKNOWN"
   },
   {
-      "package": "qpsolvers",
+      "package": "qpsolvers", // OSRB
       "license": "GNU Lesser General Public License v3 (LGPLv3)"
   },
   {
-      "package": "quadprog",
+      "package": "quadprog", // OSRB
       "license": "GNU General Public License v2 or later (GPLv2+)"
   },
   {
-    "package": "Markdown",
+    "package": "Markdown", // BSD
     "license": "UNKNOWN"
   },
   {
-    "package": "anytree",
+    "package": "anytree", // Apache
     "license": "UNKNOWN"
   },
   {
-    "package": "click",
+    "package": "click", // BSD
     "license": "UNKNOWN"
   },
   {
-    "package": "egl_probe",
+    "package": "egl_probe", // MIT
     "license": "UNKNOWN"
   },
   {
-    "package": "filelock",
+    "package": "filelock", // no condition
     "license": "The Unlicense (Unlicense)"
   },
   {
-    "package": "proglog",
+    "package": "proglog", // MIT
     "license": "UNKNOWN"
   },
   {
-    "package": "termcolor",
+    "package": "termcolor", // MIT
     "license": "UNKNOWN"
   },
   {
-    "package": "typing_extensions",
+    "package": "typing_extensions", // PSFL / OSRB
     "license": "UNKNOWN"
   },
   {
-    "package": "urllib3",
+    "package": "urllib3", // MIT
     "license": "UNKNOWN"
   },
   {
-    "package": "h5py",
+    "package": "h5py", // BSD
     "license": "UNKNOWN"
   },
   {
-    "package": "pillow",
+    "package": "pillow", // MIT
     "license": "UNKNOWN"
   },
   {
-    "package": "pygame",
+    "package": "pygame", // OSRB
     "license": "GNU Library or Lesser General Public License (LGPL)"
   },
   {
-    "package": "scikit-learn",
+    "package": "scikit-learn", // BSD
     "license": "UNKNOWN"
   },
   {
-    "package": "tensorboardX",
+    "package": "tensorboardX", // MIT
     "license": "UNKNOWN"
-  }
+  },
+  {
+    "package": "attrs", // MIT
+    "license": "UNKNOWN"
+  },
+  {
+    "package": "jsonschema", // MIT
+    "license": "UNKNOWN"
+  },
+  {
+    "package": "jsonschema-specifications", // MIT
+    "license": "UNKNOWN"
+  },
+  {
+    "package": "referencing", // MIT
+    "license": "UNKNOWN"
+  },
 ]
