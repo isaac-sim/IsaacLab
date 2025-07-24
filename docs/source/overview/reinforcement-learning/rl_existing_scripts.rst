@@ -149,6 +149,8 @@ SKRL
             ./isaaclab.sh -i skrl
             # install skrl dependencies for JAX
             ./isaaclab.sh -p -m pip install skrl["jax"]
+            # install jax<0.6.0 for torch 2.7
+            ./isaaclab.sh -p -m pip install "jax[cuda12]<0.6.0"
             # run script for training
             ./isaaclab.sh -p scripts/reinforcement_learning/skrl/train.py --task Isaac-Reach-Franka-v0 --headless --ml_framework jax
             # run script for playing with 32 environments
