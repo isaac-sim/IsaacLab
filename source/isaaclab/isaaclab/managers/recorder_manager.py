@@ -50,6 +50,9 @@ class RecorderManagerBaseCfg:
     export_in_record_pre_reset: bool = True
     """Whether to export episodes in the record_pre_reset call."""
 
+    export_in_close: bool = False
+    """Whether to export episodes in the close call."""
+
 
 class RecorderTerm(ManagerTermBase):
     """Base class for recorder terms.
@@ -205,9 +208,6 @@ class RecorderManager(ManagerBase):
     def __del__(self):
         """Destructor for recorder."""
         self.close()
-
-        if self._failed_episode_dataset_file_handler is not None:
-            self._failed_episode_dataset_file_handler.close()
 
     """
     Properties.
@@ -468,8 +468,11 @@ class RecorderManager(ManagerBase):
         if len(self.active_terms) == 0:
             return
         if self._dataset_file_handler is not None:
-            self.export_episodes()
+            if self.cfg.export_in_close:
+                self.export_episodes()
             self._dataset_file_handler.close()
+        if self._failed_episode_dataset_file_handler is not None:
+            self._failed_episode_dataset_file_handler.close()
         for term in self._terms.values():
             term.close(os.path.join(self.cfg.dataset_export_dir_path, self.cfg.dataset_filename))
 

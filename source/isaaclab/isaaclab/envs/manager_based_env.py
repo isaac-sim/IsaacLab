@@ -450,7 +450,6 @@ class ManagerBasedEnv:
             del self.action_manager
             del self.observation_manager
             del self.event_manager
-            self.recorder_manager.close()
             del self.recorder_manager
             del self.scene
             # clear callbacks and instance

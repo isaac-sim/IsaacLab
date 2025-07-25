@@ -232,12 +232,14 @@ def test_record(device, dataset_dir):
 
 @pytest.mark.parametrize("device", ("cpu", "cuda"))
 def test_close(device, dataset_dir):
-    """Test whether data is correctly exported in the close function fully integrated with ManagerBasedEnv."""
+    """Test whether data is correctly exported in the close function when fully integrated with ManagerBasedEnv and
+    `export_in_close` is True."""
     # create a new stage
     omni.usd.get_context().new_stage()
     # create environment
     env_cfg = get_empty_base_env_cfg(device=device, num_envs=2)
     cfg = DummyRecorderManagerCfg()
+    cfg.export_in_close = True
     cfg.dataset_export_dir_path = dataset_dir
     cfg.dataset_filename = f"{uuid.uuid4()}.hdf5"
     env_cfg.recorders = cfg
