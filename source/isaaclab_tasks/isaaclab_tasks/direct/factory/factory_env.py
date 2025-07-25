@@ -5,7 +5,6 @@
 
 import numpy as np
 import torch
-from collections import defaultdict
 
 import carb
 import isaacsim.core.utils.torch as torch_utils
@@ -34,9 +33,9 @@ class FactoryEnv(DirectRLEnv):
 
         super().__init__(cfg, render_mode, **kwargs)
 
+        factory_utils.set_body_inertias(self._robot, self.scene.num_envs)
         self._init_tensors()
         self._set_default_dynamics_parameters()
-        self._compute_intermediate_values(dt=self.physics_dt)
 
     def _set_default_dynamics_parameters(self):
         """Set parameters defining dynamic interactions."""
@@ -55,8 +54,6 @@ class FactoryEnv(DirectRLEnv):
         factory_utils.set_friction(self._held_asset, self.cfg_task.held_asset_cfg.friction, self.scene.num_envs)
         factory_utils.set_friction(self._fixed_asset, self.cfg_task.fixed_asset_cfg.friction, self.scene.num_envs)
         factory_utils.set_friction(self._robot, self.cfg_task.robot_cfg.friction, self.scene.num_envs)
-
-        factory_utils.set_body_inertias(self._robot, self.scene.num_envs)
 
     def _init_tensors(self):
         """Initialize tensors once."""
@@ -160,7 +157,7 @@ class FactoryEnv(DirectRLEnv):
 
         self.last_update_timestamp = self._robot._data._sim_timestamp
 
-    def _get_obs_state_dict(self):
+    def _get_factory_obs_state_dict(self):
         """Populate dictionaries for the policy and critic."""
         noisy_fixed_pos = self.fixed_pos_obs_frame + self.init_fixed_pos_obs_noise
 
@@ -196,12 +193,10 @@ class FactoryEnv(DirectRLEnv):
 
     def _get_observations(self):
         """Get actor/critic inputs using asymmetric critic."""
-        obs_dict, state_dict = self._get_obs_state_dict()
+        obs_dict, state_dict = self._get_factory_obs_state_dict()
 
-        obs_tensors = [obs_dict[obs_name] for obs_name in self.cfg.obs_order + ["prev_actions"]]
-        obs_tensors = torch.cat(obs_tensors, dim=-1)
-        state_tensors = [state_dict[state_name] for state_name in self.cfg.state_order + ["prev_actions"]]
-        state_tensors = torch.cat(state_tensors, dim=-1)
+        obs_tensors = factory_utils.collapse_obs_dict(obs_dict, self.cfg.obs_order + ["prev_actions"])
+        state_tensors = factory_utils.collapse_obs_dict(state_dict, self.cfg.state_order + ["prev_actions"])
         return {"policy": obs_tensors, "critic": state_tensors}
 
     def _reset_buffers(self, env_ids):
@@ -386,14 +381,8 @@ class FactoryEnv(DirectRLEnv):
 
         return curr_successes
 
-    def _get_rewards(self):
-        """Update rewards and compute success statistics."""
-        # Get successful and failed envs at current timestep
-        check_rot = self.cfg_task.name == "nut_thread"
-        curr_successes = self._get_curr_successes(
-            success_threshold=self.cfg_task.success_threshold, check_rot=check_rot
-        )
-
+    def _log_factory_metrics(self, rew_dict, curr_successes):
+        """Keep track of episode statistics and log rewards."""
         # Only log episode success rates at the end of an episode.
         if torch.any(self.reset_buf):
             self.extras["successes"] = torch.count_nonzero(curr_successes) / self.num_envs
@@ -410,24 +399,31 @@ class FactoryEnv(DirectRLEnv):
             success_times = self.ep_success_times[nonzero_success_ids].sum() / len(nonzero_success_ids)
             self.extras["success_times"] = success_times
 
-        rew_dict, rew_scales = self._get_rew_dict(curr_successes)
+        for rew_name, rew in rew_dict.items():
+            self.extras[f"logs_rew_{rew_name}"] = rew.mean()
+
+    def _get_rewards(self):
+        """Update rewards and compute success statistics."""
+        # Get successful and failed envs at current timestep
+        check_rot = self.cfg_task.name == "nut_thread"
+        curr_successes = self._get_curr_successes(
+            success_threshold=self.cfg_task.success_threshold, check_rot=check_rot
+        )
+
+        rew_dict, rew_scales = self._get_factory_rew_dict(curr_successes)
 
         rew_buf = torch.zeros_like(rew_dict["kp_coarse"])
         for rew_name, rew in rew_dict.items():
             rew_buf += rew_dict[rew_name] * rew_scales[rew_name]
-            self.extras[f"logs_rew_{rew_name}"] = rew.mean()
 
         self.prev_actions = self.actions.clone()
+
+        self._log_factory_metrics(rew_dict, curr_successes)
         return rew_buf
 
-    def _get_rew_dict(self, curr_successes):
+    def _get_factory_rew_dict(self, curr_successes):
         """Compute reward terms at current timestep."""
-        rew_dict = {}
-        rew_scales = defaultdict(lambda: 1.0)
-
-        # Keypoint rewards.
-        def squashing_fn(x, a, b):
-            return 1 / (torch.exp(a * x) + b + torch.exp(-a * x))
+        rew_dict, rew_scales = {}, {}
 
         # Compute pos of keypoints on held asset, and fixed asset in world frame
         held_base_pos, held_base_quat = factory_utils.get_held_base_pose(
@@ -462,22 +458,31 @@ class FactoryEnv(DirectRLEnv):
         keypoint_dist = torch.norm(keypoints_held - keypoints_fixed, p=2, dim=-1).mean(-1)
 
         a0, b0 = self.cfg_task.keypoint_coef_baseline
-        rew_dict["kp_baseline"] = squashing_fn(keypoint_dist, a0, b0)
         a1, b1 = self.cfg_task.keypoint_coef_coarse
-        rew_dict["kp_coarse"] = squashing_fn(keypoint_dist, a1, b1)
         a2, b2 = self.cfg_task.keypoint_coef_fine
-        rew_dict["kp_fine"] = squashing_fn(keypoint_dist, a2, b2)
-
         # Action penalties.
-        rew_dict["action_penalty"] = torch.norm(self.actions, p=2)
-        rew_scales["action_penalty"] = -self.cfg_task.action_penalty_scale
-        rew_dict["action_grad_penalty"] = torch.norm(self.actions - self.prev_actions, p=2, dim=-1)
-        rew_scales["action_grad_penalty"] = -self.cfg_task.action_grad_penalty_scale
-        rew_dict["curr_engaged"] = (
-            self._get_curr_successes(success_threshold=self.cfg_task.engage_threshold, check_rot=False).clone().float()
-        )
-        rew_dict["curr_successes"] = curr_successes.clone().float()
+        action_penalty_ee = torch.norm(self.actions, p=2)
+        action_grad_penalty = torch.norm(self.actions - self.prev_actions, p=2, dim=-1)
+        curr_engaged = self._get_curr_successes(success_threshold=self.cfg_task.engage_threshold, check_rot=False)
 
+        rew_dict = {
+            "kp_baseline": factory_utils.squashing_fn(keypoint_dist, a0, b0),
+            "kp_coarse": factory_utils.squashing_fn(keypoint_dist, a1, b1),
+            "kp_fine": factory_utils.squashing_fn(keypoint_dist, a2, b2),
+            "action_penalty_ee": action_penalty_ee,
+            "action_grad_penalty": action_grad_penalty,
+            "curr_engaged": curr_engaged.float(),
+            "curr_success": curr_successes.float(),
+        }
+        rew_scales = {
+            "kp_baseline": 1.0,
+            "kp_coarse": 1.0,
+            "kp_fine": 1.0,
+            "action_penalty_ee": -self.cfg_task.action_penalty_ee_scale,
+            "action_grad_penalty": -self.cfg_task.action_grad_penalty_scale,
+            "curr_engaged": 1.0,
+            "curr_success": 1.0,
+        }
         return rew_dict, rew_scales
 
     def _reset_idx(self, env_ids):

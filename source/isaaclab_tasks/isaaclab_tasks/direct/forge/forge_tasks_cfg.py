@@ -10,7 +10,8 @@ from isaaclab_tasks.direct.factory.factory_tasks_cfg import FactoryTask, GearMes
 
 @configclass
 class ForgeTask(FactoryTask):
-    action_penalty_scale: float = 0.001
+    action_penalty_ee_scale: float = 0.0
+    action_penalty_asset_scale: float = 0.001
     action_grad_penalty_scale: float = 0.1
     contact_penalty_scale: float = 0.05
     delay_until_ratio: float = 0.25
