@@ -20,7 +20,7 @@
 
 # Core Framework
 /source/isaaclab/ @Mayankm96 @kellyguo11
-/source/isaaclab/isaaclab/actuators @Mayankm96 @nikitardn @jtigue-bdai
+/source/isaaclab/isaaclab/actuators @Mayankm96 @jtigue-bdai
 /source/isaaclab/isaaclab/app @hhansen-bdai @kellyguo11
 /source/isaaclab/isaaclab/assets @kellyguo11 @Mayankm96 @jtigue-bdai
 /source/isaaclab/isaaclab/assets/deformable_object @kellyguo11 @Mayankm96 @masoudmoghani
