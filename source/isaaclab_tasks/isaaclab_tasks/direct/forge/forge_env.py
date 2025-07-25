@@ -17,11 +17,27 @@ from .forge_env_cfg import ForgeEnvCfg
 
 
 class ForgeEnv(FactoryEnv):
-
     cfg: ForgeEnvCfg
 
-    def _set_default_dynamics_parameters(self):
-        """Set nominal dynamics parameters for randomization."""
+    def __init__(self, cfg: ForgeEnvCfg, render_mode: str | None = None, **kwargs):
+        """Initialize additional randomization and logging tensors."""
+        super().__init__(cfg, render_mode, **kwargs)
+
+        # Success prediction.
+        self.success_pred_scale = 0.0
+        self.first_pred_success_tx = {}
+        for thresh in [0.5, 0.6, 0.7, 0.8, 0.9]:
+            self.first_pred_success_tx[thresh] = torch.zeros(self.num_envs, device=self.device, dtype=torch.long)
+
+        # Flip quaternions.
+        self.flip_quats = torch.ones((self.num_envs,), dtype=torch.float32, device=self.device)
+
+        # Force sensor information.
+        self.force_sensor_body_idx = self._robot.body_names.index("force_sensor")
+        self.force_sensor_smooth = torch.zeros((self.num_envs, 6), device=self.device)
+        self.force_sensor_world_smooth = torch.zeros((self.num_envs, 6), device=self.device)
+
+        # Set nominal dynamics parameters for randomization.
         self.default_gains = torch.tensor(self.cfg.ctrl.default_task_prop_gains, device=self.device).repeat(
             (self.num_envs, 1)
         )
@@ -37,24 +53,6 @@ class ForgeEnv(FactoryEnv):
 
         self.pos_threshold = self.default_pos_threshold.clone()
         self.rot_threshold = self.default_rot_threshold.clone()
-
-    def _init_tensors(self):
-        """Add additional tensors for FORGE."""
-        super()._init_tensors()
-
-        # Success prediction.
-        self.success_pred_scale = 0.0
-        self.first_pred_success_tx = {}
-        for thresh in [0.5, 0.6, 0.7, 0.8, 0.9]:
-            self.first_pred_success_tx[thresh] = torch.zeros(self.num_envs, device=self.device, dtype=torch.long)
-
-        # Flip quaternions.
-        self.flip_quats = torch.ones((self.num_envs,), dtype=torch.float32, device=self.device)
-
-        # Force sensor information.
-        self.force_sensor_body_idx = self._robot.body_names.index("force_sensor")
-        self.force_sensor_smooth = torch.zeros((self.num_envs, 6), device=self.device)
-        self.force_sensor_world_smooth = torch.zeros((self.num_envs, 6), device=self.device)
 
     def _compute_intermediate_values(self, dt):
         """Add noise to observations for force sensing."""
@@ -115,12 +113,11 @@ class ForgeEnv(FactoryEnv):
         force_noise *= self.cfg.obs_rand.ft_force
         self.noisy_force = self.force_sensor_smooth[:, 0:3] + force_noise
 
-    def _get_obs_state_dict(self):
+    def _get_observations(self):
         """Add additional FORGE observations."""
-        obs_dict, state_dict = super()._get_obs_state_dict()
+        obs_dict, state_dict = self._get_factory_obs_state_dict()
 
         noisy_fixed_pos = self.fixed_pos_obs_frame + self.init_fixed_pos_obs_noise
-
         prev_actions = self.actions.clone()
         prev_actions[:, 3:5] = 0.0
 
@@ -139,7 +136,10 @@ class ForgeEnv(FactoryEnv):
             "force_threshold": self.contact_penalty_thresholds[:, None],
             "prev_actions": prev_actions,
         })
-        return obs_dict, state_dict
+
+        obs_tensors = factory_utils.collapse_obs_dict(obs_dict, self.cfg.obs_order + ["prev_actions"])
+        state_tensors = factory_utils.collapse_obs_dict(state_dict, self.cfg.state_order + ["prev_actions"])
+        return {"policy": obs_tensors, "critic": state_tensors}
 
     def _apply_action(self):
         """FORGE actions are defined as targets relative to the fixed asset."""
@@ -224,36 +224,49 @@ class ForgeEnv(FactoryEnv):
             ctrl_target_gripper_dof_pos=0.0,
         )
 
-    def _get_rew_dict(self, curr_successes):
+    def _get_rewards(self):
         """FORGE reward includes a contact penalty and success prediction error."""
-        # Use same base-rewards as Factory.
-        rew_dict, rew_scales = super()._get_rew_dict(curr_successes)
+        # Use same base rewards as Factory.
+        rew_buf = super()._get_rewards()
 
+        rew_dict, rew_scales = {}, {}
         # Calculate action penalty for the asset-relative action space.
-        pos_error = torch.norm(self.delta_pos, p=2, dim=-1)
-        rot_error = torch.abs(self.delta_yaw)
-        rew_dict["action_penalty"] = (
-            pos_error / self.cfg.ctrl.pos_action_threshold[0] + rot_error / self.cfg.ctrl.rot_action_threshold[0]
-        )
-
+        pos_error = torch.norm(self.delta_pos, p=2, dim=-1) / self.cfg.ctrl.pos_action_threshold[0]
+        rot_error = torch.abs(self.delta_yaw) / self.cfg.ctrl.rot_action_threshold[0]
         # Contact penalty.
         contact_force = torch.norm(self.force_sensor_smooth[:, 0:3], p=2, dim=-1, keepdim=False)
-        rew_dict["contact_penalty"] = torch.nn.functional.relu(contact_force - self.contact_penalty_thresholds)
-        rew_scales["contact_penalty"] = -self.cfg_task.contact_penalty_scale
-
+        contact_penalty = torch.nn.functional.relu(contact_force - self.contact_penalty_thresholds)
         # Add success prediction rewards.
+        check_rot = self.cfg_task.name == "nut_thread"
+        true_successes = self._get_curr_successes(
+            success_threshold=self.cfg_task.success_threshold, check_rot=check_rot
+        )
         policy_success_pred = (self.actions[:, 6] + 1) / 2  # rescale from [-1, 1] to [0, 1]
-        rew_dict["success_pred_error"] = (rew_dict["curr_successes"] - policy_success_pred).abs()
-        if rew_dict["curr_successes"].mean() >= self.cfg_task.delay_until_ratio:
+        success_pred_error = (true_successes.float() - policy_success_pred).abs()
+        # Delay success prediction penalty until some successes have occurred.
+        if true_successes.float().mean() >= self.cfg_task.delay_until_ratio:
             self.success_pred_scale = 1.0
-        rew_scales["success_pred_error"] = -self.success_pred_scale
-        self.compute_early_term_metrics(policy_success_pred)
 
-        return rew_dict, rew_scales
+        # Add new FORGE reward terms.
+        rew_dict = {
+            "action_penalty_asset": pos_error + rot_error,
+            "contact_penalty": contact_penalty,
+            "success_pred_error": success_pred_error,
+        }
+        rew_scales = {
+            "action_penalty_asset": -self.cfg_task.action_penalty_asset_scale,
+            "contact_penalty": -self.cfg_task.contact_penalty_scale,
+            "success_pred_error": -self.success_pred_scale,
+        }
+        for rew_name, rew in rew_dict.items():
+            rew_buf += rew_dict[rew_name] * rew_scales[rew_name]
 
-    def randomize_initial_state(self, env_ids):
+        self._log_forge_metrics(rew_dict, policy_success_pred)
+        return rew_buf
+
+    def _reset_idx(self, env_ids):
         """Perform additional randomizations."""
-        super().randomize_initial_state(env_ids)
+        super()._reset_idx(env_ids)
 
         # Compute initial action for correct EMA computation.
         fixed_pos_action_frame = self.fixed_pos_obs_frame + self.init_fixed_pos_obs_noise
@@ -323,8 +336,11 @@ class ForgeEnv(FactoryEnv):
         for thresh in [0.5, 0.6, 0.7, 0.8, 0.9]:
             self.first_pred_success_tx[thresh][env_ids] = 0
 
-    def compute_early_term_metrics(self, policy_success_pred):
+    def _log_forge_metrics(self, rew_dict, policy_success_pred):
         """Log metrics to evaluate success prediction performance."""
+        for rew_name, rew in rew_dict.items():
+            self.extras[f"logs_rew_{rew_name}"] = rew.mean()
+
         for thresh, first_success_tx in self.first_pred_success_tx.items():
             curr_predicted_success = policy_success_pred > thresh
             first_success_idxs = torch.logical_and(curr_predicted_success, first_success_tx == 0)

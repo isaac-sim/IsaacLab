@@ -47,7 +47,7 @@ def set_body_inertias(robot, num_envs):
 
 
 def get_held_base_pos_local(task_name, fixed_asset_cfg, num_envs, device):
-    # Held asset
+    """Get transform between asset default frame and geometric base frame."""
     held_base_x_offset = 0.0
     if task_name == "peg_insert":
         held_base_z_offset = 0.0
@@ -68,6 +68,7 @@ def get_held_base_pos_local(task_name, fixed_asset_cfg, num_envs, device):
 
 
 def get_held_base_pose(held_pos, held_quat, task_name, fixed_asset_cfg, num_envs, device):
+    """Get current poses for keypoint and success computation."""
     held_base_pos_local = get_held_base_pos_local(task_name, fixed_asset_cfg, num_envs, device)
     held_base_quat_local = torch.tensor([1.0, 0.0, 0.0, 0.0], device=device).unsqueeze(0).repeat(num_envs, 1)
 
@@ -78,6 +79,7 @@ def get_held_base_pose(held_pos, held_quat, task_name, fixed_asset_cfg, num_envs
 
 
 def get_target_held_base_pose(fixed_pos, fixed_quat, task_name, fixed_asset_cfg, num_envs, device):
+    """Get target poses for keypoint and success computation."""
     fixed_success_pos_local = torch.zeros((num_envs, 3), device=device)
     if task_name == "peg_insert":
         fixed_success_pos_local[:, 2] = 0.0
@@ -98,3 +100,15 @@ def get_target_held_base_pose(fixed_pos, fixed_quat, task_name, fixed_asset_cfg,
         fixed_quat, fixed_pos, fixed_success_quat_local, fixed_success_pos_local
     )
     return target_held_base_pos, target_held_base_quat
+
+
+def squashing_fn(x, a, b):
+    """Compute bounded reward function."""
+    return 1 / (torch.exp(a * x) + b + torch.exp(-a * x))
+
+
+def collapse_obs_dict(obs_dict, obs_order):
+    """Stack observations in given order."""
+    obs_tensors = [obs_dict[obs_name] for obs_name in obs_order]
+    obs_tensors = torch.cat(obs_tensors, dim=-1)
+    return obs_tensors
