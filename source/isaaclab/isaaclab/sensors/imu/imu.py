@@ -168,8 +168,8 @@ class Imu(SensorBase):
         )
 
         # numerical derivative
-        lin_acc_w = (lin_vel_w - self._prev_lin_vel_w[env_ids]) / self._dt + self._gravity_bias_w[env_ids]
-        ang_acc_w = (ang_vel_w - self._prev_ang_vel_w[env_ids]) / self._dt
+        lin_acc_w = (lin_vel_w - self._prev_lin_vel_w[env_ids]) / self._sim_physics_dt + self._gravity_bias_w[env_ids]
+        ang_acc_w = (ang_vel_w - self._prev_ang_vel_w[env_ids]) / self._sim_physics_dt
         # stack data in world frame and batch rotate
         dynamics_data = torch.stack((lin_vel_w, ang_vel_w, lin_acc_w, ang_acc_w, self.GRAVITY_VEC_W[env_ids]), dim=0)
         dynamics_data_rot = math_utils.quat_apply_inverse(self._data.quat_w[env_ids].repeat(5, 1), dynamics_data).chunk(
