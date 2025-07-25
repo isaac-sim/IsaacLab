@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.41.2 (2025-07-25)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Makes :attr:`~isaaclab.sensors.sensor_base._sim_physics_dt` updated each sensor.update() call, allowing for all
+  sensors to track changes in physics rate.
+
+
 0.41.1 (2025-07-22)
 ~~~~~~~~~~~~~~~~~~~
 
