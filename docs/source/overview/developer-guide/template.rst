@@ -23,7 +23,7 @@ The template generator enables you to create an:
   new tasks within the Isaac Lab repository in order to contribute to it.
 
   .. warning::
-   
+
     If you installed Isaac Lab via pip, any internal task generated outside of the pip-installed environment may not
     be discovered properly. We are working on better support, but please prefer external projects when using
     isaac lab pip installation.
