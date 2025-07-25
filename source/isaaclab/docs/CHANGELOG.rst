@@ -8,7 +8,7 @@ Changed
 ^^^^^^^
 
 * Makes :attr:`~isaaclab.sensors.sensor_base._sim_physics_dt` updated each sensor.update() call, allowing for all
-  sensors to have access to self._sim_physics_dt.
+  sensors to track changes in physics rate.
 
 
 0.41.1 (2025-07-22)
