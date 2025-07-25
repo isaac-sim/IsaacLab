@@ -417,7 +417,7 @@ class DirectRLEnv(gym.Env):
         By convention, if mode is:
 
         - **human**: Render to the current display and return nothing. Usually for human consumption.
-        - **rgb_array**: Return an numpy.ndarray with shape (x, y, 3), representing RGB values for an
+        - **rgb_array**: Return a numpy.ndarray with shape (x, y, 3), representing RGB values for an
           x-by-y pixel image, suitable for turning into a video.
 
         Args:
