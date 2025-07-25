@@ -36,7 +36,7 @@
 /source/isaaclab/isaaclab/sensors/ray_caster @pascal-roth
 /source/isaaclab/isaaclab/sim @Mayankm96 @jtigue-bdai
 /source/isaaclab/isaaclab/sim/simulation_context.py @kellyguo11
-/source/isaaclab/isaaclab/terrains @Mayankm96 @nikitardn
+/source/isaaclab/isaaclab/terrains @Mayankm96
 /source/isaaclab/isaaclab/utils @Mayankm96 @jtigue-bdai
 /source/isaaclab/isaaclab/utils/modifiers @jtigue-bdai
 /source/isaaclab/isaaclab/utils/interpolation @jtigue-bdai
