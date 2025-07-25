@@ -406,7 +406,7 @@ class ArticulationData:
             vel = self.root_com_vel_w.clone()
             # adjust linear velocity to link from center of mass
             vel[:, :3] += torch.linalg.cross(
-                vel[:, 3:], math_utils.quat_rotate(self.root_link_quat_w, -self.body_com_pos_b[:, 0]), dim=-1
+                vel[:, 3:], math_utils.quat_apply(self.root_link_quat_w, -self.body_com_pos_b[:, 0]), dim=-1
             )
             # set the buffer data and timestamp
             self._root_link_vel_w.data = vel
@@ -522,7 +522,7 @@ class ArticulationData:
             velocities = self.body_com_vel_w.clone()
             # adjust linear velocity to link from center of mass
             velocities[..., :3] += torch.linalg.cross(
-                velocities[..., 3:], math_utils.quat_rotate(self.body_link_quat_w, -self.body_com_pos_b), dim=-1
+                velocities[..., 3:], math_utils.quat_apply(self.body_link_quat_w, -self.body_com_pos_b), dim=-1
             )
             # set the buffer data and timestamp
             self._body_link_vel_w.data = velocities

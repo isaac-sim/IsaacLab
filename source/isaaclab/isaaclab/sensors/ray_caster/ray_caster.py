@@ -110,8 +110,17 @@ class RayCaster(SensorBase):
         # resolve None
         if env_ids is None:
             env_ids = slice(None)
+            num_envs_ids = self._view.count
+        else:
+            num_envs_ids = len(env_ids)
         # resample the drift
-        self.drift[env_ids] = self.drift[env_ids].uniform_(*self.cfg.drift_range)
+        r = torch.empty(num_envs_ids, 3, device=self.device)
+        self.drift[env_ids] = r.uniform_(*self.cfg.drift_range)
+        # resample the height drift
+        r = torch.empty(num_envs_ids, device=self.device)
+        self.ray_cast_drift[env_ids, 0] = r.uniform_(*self.cfg.ray_cast_drift_range["x"])
+        self.ray_cast_drift[env_ids, 1] = r.uniform_(*self.cfg.ray_cast_drift_range["y"])
+        self.ray_cast_drift[env_ids, 2] = r.uniform_(*self.cfg.ray_cast_drift_range["z"])
 
     """
     Implementation.
@@ -212,6 +221,7 @@ class RayCaster(SensorBase):
         self.ray_directions = self.ray_directions.repeat(self._view.count, 1, 1)
         # prepare drift
         self.drift = torch.zeros(self._view.count, 3, device=self.device)
+        self.ray_cast_drift = torch.zeros(self._view.count, 3, device=self.device)
         # fill the data buffer
         self._data.pos_w = torch.zeros(self._view.count, 3, device=self._device)
         self._data.quat_w = torch.zeros(self._view.count, 4, device=self._device)
@@ -233,23 +243,44 @@ class RayCaster(SensorBase):
         # note: we clone here because we are read-only operations
         pos_w = pos_w.clone()
         quat_w = quat_w.clone()
-        # apply drift
+        # apply drift to ray starting position in world frame
         pos_w += self.drift[env_ids]
         # store the poses
         self._data.pos_w[env_ids] = pos_w
         self._data.quat_w[env_ids] = quat_w
 
         # ray cast based on the sensor poses
-        if self.cfg.attach_yaw_only:
+        if self.cfg.ray_alignment == "world":
+            # apply horizontal drift to ray starting position in ray caster frame
+            pos_w[:, 0:2] += self.ray_cast_drift[env_ids, 0:2]
+            # no rotation is considered and directions are not rotated
+            ray_starts_w = self.ray_starts[env_ids]
+            ray_starts_w += pos_w.unsqueeze(1)
+            ray_directions_w = self.ray_directions[env_ids]
+        elif self.cfg.ray_alignment == "yaw" or self.cfg.attach_yaw_only:
+            if self.cfg.attach_yaw_only:
+                self.cfg.ray_alignment = "yaw"
+                omni.log.warn(
+                    "The `attach_yaw_only` property will be deprecated in a future release. Please use"
+                    " `ray_alignment='yaw'` instead."
+                )
+
+            # apply horizontal drift to ray starting position in ray caster frame
+            pos_w[:, 0:2] += quat_apply_yaw(quat_w, self.ray_cast_drift[env_ids])[:, 0:2]
             # only yaw orientation is considered and directions are not rotated
             ray_starts_w = quat_apply_yaw(quat_w.repeat(1, self.num_rays), self.ray_starts[env_ids])
             ray_starts_w += pos_w.unsqueeze(1)
             ray_directions_w = self.ray_directions[env_ids]
-        else:
+        elif self.cfg.ray_alignment == "base":
+            # apply horizontal drift to ray starting position in ray caster frame
+            pos_w[:, 0:2] += quat_apply(quat_w, self.ray_cast_drift[env_ids])[:, 0:2]
             # full orientation is considered
             ray_starts_w = quat_apply(quat_w.repeat(1, self.num_rays), self.ray_starts[env_ids])
             ray_starts_w += pos_w.unsqueeze(1)
             ray_directions_w = quat_apply(quat_w.repeat(1, self.num_rays), self.ray_directions[env_ids])
+        else:
+            raise RuntimeError(f"Unsupported ray_alignment type: {self.cfg.ray_alignment}.")
+
         # ray cast and store the hits
         # TODO: Make this work for multiple meshes?
         self._data.ray_hits_w[env_ids] = raycast_mesh(
@@ -258,6 +289,9 @@ class RayCaster(SensorBase):
             max_dist=self.cfg.max_distance,
             mesh=self.meshes[self.cfg.mesh_prim_paths[0]],
         )[0]
+
+        # apply vertical drift to ray starting position in ray caster frame
+        self._data.ray_hits_w[env_ids, :, 2] += self.ray_cast_drift[env_ids, 2].unsqueeze(-1)
 
     def _set_debug_vis_impl(self, debug_vis: bool):
         # set visibility of markers
