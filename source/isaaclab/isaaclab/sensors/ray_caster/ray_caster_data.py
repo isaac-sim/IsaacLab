@@ -28,7 +28,10 @@ class RayCasterData:
     in the scan pattern per sensor.
     """
     ray_distance: torch.Tensor | None = None
-    """Distances (in meters) of the rays until they hits the mesh. Clipped to 'RayCasterCfg.max_distance'.
+    """Distances (in meters) of the rays until they hit a target mesh.
+    
+    This distance is clipped to the maximum distance specified through
+    :attr:`RayCasterCfg.max_distance`.
 
     Shape is (N, B), where N is the number of sensors, B is the number of rays
     in the scan pattern per sensor.
