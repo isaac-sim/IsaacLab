@@ -185,39 +185,48 @@
   },
   {
     "package": "cmeel",
-    "license": "UNKNOWN"
+    "license": "UNKNOWN",
+    "comment": "BSD"
   },
   {
     "package": "cmeel-assimp",
-    "license": "UNKNOWN"
+    "license": "UNKNOWN",
+    "comment": "BSD"
   },
   {
     "package": "cmeel-boost",
-    "license": "UNKNOWN"
+    "license": "UNKNOWN",
+    "comment": "BSL"
   },
   {
     "package": "cmeel-console-bridge",
-    "license": "UNKNOWN"
+    "license": "UNKNOWN",
+    "comment": "BSD"
   },
   {
     "package": "cmeel-octomap",
-    "license": "UNKNOWN"
+    "license": "UNKNOWN",
+    "comment": "BSD"
   },
   {
     "package": "cmeel-qhull",
-    "license": "UNKNOWN"
+    "license": "UNKNOWN",
+    "comment": "custom / OSRB"
   },
   {
     "package": "cmeel-tinyxml",
-    "license": "UNKNOWN"
+    "license": "UNKNOWN",
+    "comment": "ZLIBL"
   },
   {
     "package": "cmeel-urdfdom",
-    "license": "UNKNOWN"
+    "license": "UNKNOWN",
+    "comment": "BSD"
   },
   {
     "package": "cmeel-zlib",
-    "license": "UNKNOWN"
+    "license": "UNKNOWN",
+    "comment": "ZLIBL"
   },
   {
     "package": "matplotlib",
@@ -229,86 +238,127 @@
   },
   {
       "package": "rl_games",
-      "license": "UNKNOWN"
+      "license": "UNKNOWN",
+      "comment": "MIT"
   },
   {
       "package": "robomimic",
-      "license": "UNKNOWN"
+      "license": "UNKNOWN",
+      "comment": "MIT"
   },
   {
       "package": "hpp-fcl",
-      "license": "UNKNOWN"
+      "license": "UNKNOWN",
+      "comment": "BSD"
   },
   {
       "package": "pin",
-      "license": "UNKNOWN"
+      "license": "UNKNOWN",
+      "comment": "BSD"
   },
   {
       "package": "eigenpy",
-      "license": "UNKNOWN"
+      "license": "UNKNOWN",
+      "comment": "BSD"
   },
   {
       "package": "qpsolvers",
-      "license": "GNU Lesser General Public License v3 (LGPLv3)"
+      "license": "GNU Lesser General Public License v3 (LGPLv3)",
+      "comment": "OSRB"
   },
   {
       "package": "quadprog",
-      "license": "GNU General Public License v2 or later (GPLv2+)"
+      "license": "GNU General Public License v2 or later (GPLv2+)",
+      "comment": "OSRB"
   },
   {
     "package": "Markdown",
-    "license": "UNKNOWN"
+    "license": "UNKNOWN",
+    "comment": "BSD"
   },
   {
     "package": "anytree",
-    "license": "UNKNOWN"
+    "license": "UNKNOWN",
+    "comment": "Apache"
   },
   {
     "package": "click",
-    "license": "UNKNOWN"
+    "license": "UNKNOWN",
+    "comment": "BSD"
   },
   {
     "package": "egl_probe",
-    "license": "UNKNOWN"
+    "license": "UNKNOWN",
+    "comment": "MIT"
   },
   {
     "package": "filelock",
-    "license": "The Unlicense (Unlicense)"
+    "license": "The Unlicense (Unlicense)",
+    "comment": "no condition"
   },
   {
     "package": "proglog",
-    "license": "UNKNOWN"
+    "license": "UNKNOWN",
+    "comment": "MIT"
   },
   {
     "package": "termcolor",
-    "license": "UNKNOWN"
+    "license": "UNKNOWN",
+    "comment": "MIT"
   },
   {
     "package": "typing_extensions",
-    "license": "UNKNOWN"
+    "license": "UNKNOWN",
+    "comment": "PSFL / OSRB"
   },
   {
     "package": "urllib3",
-    "license": "UNKNOWN"
+    "license": "UNKNOWN",
+    "comment": "MIT"
   },
   {
     "package": "h5py",
-    "license": "UNKNOWN"
+    "license": "UNKNOWN",
+    "comment": "BSD"
   },
   {
     "package": "pillow",
-    "license": "UNKNOWN"
+    "license": "UNKNOWN",
+    "comment": "MIT"
   },
   {
     "package": "pygame",
-    "license": "GNU Library or Lesser General Public License (LGPL)"
+    "license": "GNU Library or Lesser General Public License (LGPL)",
+    "comment": "OSRB"
   },
   {
     "package": "scikit-learn",
-    "license": "UNKNOWN"
+    "license": "UNKNOWN",
+    "comment": "BSD"
   },
   {
     "package": "tensorboardX",
-    "license": "UNKNOWN"
+    "license": "UNKNOWN",
+    "comment": "MIT"
+  },
+  {
+    "package": "attrs",
+    "license": "UNKNOWN",
+    "comment": "MIT"
+  },
+  {
+    "package": "jsonschema",
+    "license": "UNKNOWN",
+    "comment": "MIT"
+  },
+  {
+    "package": "jsonschema-specifications",
+    "license": "UNKNOWN",
+    "comment": "MIT"
+  },
+  {
+    "package": "referencing",
+    "license": "UNKNOWN",
+    "comment": "MIT"
   }
 ]
