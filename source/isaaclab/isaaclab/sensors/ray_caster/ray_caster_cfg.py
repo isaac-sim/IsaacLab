@@ -62,7 +62,7 @@ class RayCasterCfg(SensorBaseCfg):
     """
 
     track_ray_distance: bool = False
-    """Whether to track the ray_distance (distances of the rays until they hits the mesh). Defaults to False."""
+    """Whether to track the raycast distances (i.e., the distances traveled by the rays until they hit a target mesh). Defaults to False."""
 
     pattern_cfg: PatternBaseCfg = MISSING
     """The pattern that defines the local ray starting positions and directions."""
