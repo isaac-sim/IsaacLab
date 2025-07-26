@@ -8,8 +8,7 @@ Fixed
 ^^^^^
 
 * Fixed IndexError in :meth:`isaaclab.envs.mdp.events.reset_joints_by_scale`,
-  :meth:`isaaclab.envs.mdp.events.reset_joints_by_offsets` by indexing joint positions by env_ids and joint_ids
-  separately.
+  :meth:`isaaclab.envs.mdp.events.reset_joints_by_offsets` by adding dimension to env_ids when indexing.
 
 
 0.41.1 (2025-07-22)
