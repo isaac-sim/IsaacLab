@@ -233,15 +233,16 @@ class ManagerBasedEnv:
         # prepare the managers
         # -- event manager (we print it here to make the logging consistent)
         print("[INFO] Event Manager: ", self.event_manager)
-        # -- recorder manager
-        self.recorder_manager = RecorderManager(self.cfg.recorders, self)
-        print("[INFO] Recorder Manager: ", self.recorder_manager)
         # -- action manager
         self.action_manager = ActionManager(self.cfg.actions, self)
         print("[INFO] Action Manager: ", self.action_manager)
         # -- observation manager
         self.observation_manager = ObservationManager(self.cfg.observations, self)
         print("[INFO] Observation Manager:", self.observation_manager)
+        # -- recorder manager
+        # Recorder manager depends on the action and observation managers being created first
+        self.recorder_manager = RecorderManager(self.cfg.recorders, self)
+        print("[INFO] Recorder Manager: ", self.recorder_manager)
 
         # perform events at the start of the simulation
         # in-case a child implementation creates other managers, the randomization should happen

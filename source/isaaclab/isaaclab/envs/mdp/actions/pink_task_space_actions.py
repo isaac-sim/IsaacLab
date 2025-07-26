@@ -198,7 +198,8 @@ class PinkInverseKinematicsAction(ActionTerm):
             all_envs_joint_pos_des.append(joint_pos_des)
         all_envs_joint_pos_des = torch.stack(all_envs_joint_pos_des)
         # Combine IK joint positions with hand joint positions
-        all_envs_joint_pos_des = torch.cat((all_envs_joint_pos_des, self._target_hand_joint_positions), dim=1)
+        # all_envs_joint_pos_des = torch.cat((all_envs_joint_pos_des, self._target_hand_joint_positions), dim=1)
+        # print("self._target_hand_joint_positions", self._target_hand_joint_positions)
 
         self._asset.set_joint_position_target(all_envs_joint_pos_des, self._joint_ids)
 
