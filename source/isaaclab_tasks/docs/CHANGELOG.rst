@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.10.43 (2025-07-24)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed un-set camera observations in the ``Isaac-Stack-Cube-Instance-Randomize-Franka-v0`` environment.
+
+
 0.10.42 (2025-07-11)
 ~~~~~~~~~~~~~~~~~~~~
 
