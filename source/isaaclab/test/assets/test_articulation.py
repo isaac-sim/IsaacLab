@@ -1899,5 +1899,44 @@ def test_spatial_tendons(sim, num_articulations, device):
         articulation.update(sim.cfg.dt)
 
 
+@pytest.mark.parametrize("add_ground_plane", [True])
+@pytest.mark.parametrize("num_articulations", [1, 2])
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+def test_write_joint_frictions_to_sim(sim, num_articulations, device, add_ground_plane):
+    """Test applying of joint position target functions correctly for a robotic arm."""
+    articulation_cfg = generate_articulation_cfg(articulation_type="panda")
+    articulation, _ = generate_articulation(
+        articulation_cfg=articulation_cfg, num_articulations=num_articulations, device=device
+    )
+
+    # Play the simulator
+    sim.reset()
+
+    for _ in range(100):
+        # perform step
+        sim.step()
+        # update buffers
+        articulation.update(sim.cfg.dt)
+
+    # apply action to the articulation
+    dynamic_friction = torch.rand(num_articulations, articulation.num_joints, device=device)
+    viscous_friction = torch.rand(num_articulations, articulation.num_joints, device=device)
+    friction = torch.rand(num_articulations, articulation.num_joints, device=device)
+    articulation.write_joint_dynamic_friction_coefficient_to_sim(dynamic_friction)
+    articulation.write_joint_viscous_friction_coefficient_to_sim(viscous_friction)
+    articulation.write_joint_friction_coefficient_to_sim(friction)
+    articulation.write_data_to_sim()
+
+    for _ in range(100):
+        # perform step
+        sim.step()
+        # update buffers
+        articulation.update(sim.cfg.dt)
+
+    assert torch.allclose(articulation.data.joint_dynamic_friction_coeff, dynamic_friction)
+    assert torch.allclose(articulation.data.joint_viscous_friction_coeff, viscous_friction)
+    assert torch.allclose(articulation.data.joint_friction_coeff, friction)
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "--maxfail=1"])

@@ -190,9 +190,25 @@ class ArticulationData:
     """
 
     default_joint_friction_coeff: torch.Tensor = None
-    """Default joint friction coefficient of all joints. Shape is (num_instances, num_joints).
+    """Default joint static friction coefficient of all joints. Shape is (num_instances, num_joints).
 
     This quantity is configured through the actuator model's :attr:`isaaclab.actuators.ActuatorBaseCfg.friction`
+    parameter. If the parameter's value is None, the value parsed from the USD schema, at the time of initialization,
+    is used.
+    """
+
+    default_joint_dynamic_friction_coeff: torch.Tensor = None
+    """Default joint dynamic friction coefficient of all joints. Shape is (num_instances, num_joints).
+
+    This quantity is configured through the actuator model's :attr:`isaaclab.actuators.ActuatorBaseCfg.dynamic_friction`
+    parameter. If the parameter's value is None, the value parsed from the USD schema, at the time of initialization,
+    is used.
+    """
+
+    default_joint_viscous_friction_coeff: torch.Tensor = None
+    """Default joint viscous friction coefficient of all joints. Shape is (num_instances, num_joints).
+
+    This quantity is configured through the actuator model's :attr:`isaaclab.actuators.ActuatorBaseCfg.viscous_friction`
     parameter. If the parameter's value is None, the value parsed from the USD schema, at the time of initialization,
     is used.
     """
@@ -330,7 +346,13 @@ class ArticulationData:
     """Joint armature provided to the simulation. Shape is (num_instances, num_joints)."""
 
     joint_friction_coeff: torch.Tensor = None
-    """Joint friction coefficient provided to the simulation. Shape is (num_instances, num_joints)."""
+    """Joint static friction coefficient provided to the simulation. Shape is (num_instances, num_joints)."""
+
+    joint_dynamic_friction_coeff: torch.Tensor = None
+    """Joint dynamic friction coefficient provided to the simulation. Shape is (num_instances, num_joints)."""
+
+    joint_viscous_friction_coeff: torch.Tensor = None
+    """Joint viscous friction coefficient provided to the simulation. Shape is (num_instances, num_joints)."""
 
     joint_pos_limits: torch.Tensor = None
     """Joint position limits provided to the simulation. Shape is (num_instances, num_joints, 2).
