@@ -431,7 +431,7 @@ class ArticulationData:
         if self._root_com_state_w.timestamp < self._sim_timestamp:
             # read data from simulation (pose is of link)
             # Newton reads poses as [x, y, z, qx, qy, qz, qw] Isaac reads as [x, y, z, qw, qx, qy, qz]
-            pose = wp.to_torch(self._root_newton_view.get_root_transforms(NewtonManager.get_state_0())).clone()
+            pose = wp.to_torch(self._root_newton_view.get_root_transforms(NewtonManager.get_state_0()))
             pose[:, 3:7] = math_utils.convert_quat(pose[:, 3:7], to="wxyz")
             # Newton reads velocities as [wx, wy, wz, vx, vy, vz] Isaac reads as [vx, vy, vz, wx, wy, wz]
             velocity = wp.to_torch(self._root_newton_view.get_root_velocities(NewtonManager.get_state_0()))
@@ -454,14 +454,13 @@ class ArticulationData:
         The position and quaternion are of all the articulation links's actor frame. Meanwhile, the linear and angular
         velocities are of the articulation links's center of mass frame.
         """
+        raise NotImplementedError("Body state in world frame is not implemented for Newton.")
         if self._body_state_w.timestamp < self._sim_timestamp:
-            #self._physics_sim_view.update_articulations_kinematic()
+            self._physics_sim_view.update_articulations_kinematic()
             # read data from simulation
-            # Newton reads poses as [x, y, z, qx, qy, qz, qw] Isaac reads as [x, y, z, qw, qx, qy, qz]
-            poses = wp.to_torch(self._root_newton_view.get_link_transforms(NewtonManager.get_state_0())).clone()
+            poses = self._root_physx_view.get_link_transforms().clone()
             poses[..., 3:7] = math_utils.convert_quat(poses[..., 3:7], to="wxyz")
-            velocities = wp.to_torch(self._root_newton_view.get_link_velocities(NewtonManager.get_state_0()))
-            velocities = torch.cat((velocities[:, :, 3:], velocities[:, :, :3]), dim=-1)
+            velocities = self._root_physx_view.get_link_velocities()
             # set the buffer data and timestamp
             self._body_state_w.data = torch.cat((poses, velocities), dim=-1)
             self._body_state_w.timestamp = self._sim_timestamp

@@ -48,16 +48,18 @@ class UnitreeA1RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         }
 
         # rewards
-        self.rewards.feet_air_time.params["sensor_cfg"].body_names = ".*_foot"
-        self.rewards.feet_air_time.weight = 0.01
-        self.rewards.undesired_contacts = None
+        # self.rewards.feet_air_time.params["sensor_cfg"].body_names = ".*_foot"
+        # self.rewards.feet_air_time.weight = 0.01
+        # self.rewards.undesired_contacts = None
         self.rewards.dof_torques_l2.weight = -0.0002
         self.rewards.track_lin_vel_xy_exp.weight = 1.5
         self.rewards.track_ang_vel_z_exp.weight = 0.75
         self.rewards.dof_acc_l2.weight = -2.5e-7
 
         # terminations
-        self.terminations.base_contact.params["sensor_cfg"].body_names = "trunk"
+        # self.terminations.base_contact.params["sensor_cfg"].body_names = "trunk"
+        self.terminations.Base_too_high.params["maximum_height"] = 1.0
+        self.terminations.Base_too_low.params["minimum_height"] = 0.25
 
 
 @configclass
