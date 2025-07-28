@@ -371,8 +371,6 @@ class DelayedPDActuator(IdealPDActuator):
     The amount of time lag is configurable and can be set to a random value between the minimum and maximum time
     lag bounds at every reset. The minimum and maximum time lag values are set in the configuration instance passed
     to the class.
-
-    Note that, before clipping, this Actuator scales the computed effort depending on the motor_strength Cfg
     """
 
     cfg: DelayedPDActuatorCfg
