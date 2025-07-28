@@ -136,6 +136,11 @@ class RslRlVecEnvWrapper(VecEnv):
     def seed(self, seed: int = -1) -> int:  # noqa: D102
         return self.unwrapped.seed(seed)
 
+    def reset(self) -> tuple[TensorDict, dict]:  # noqa: D102
+        # reset the environment
+        obs_dict, extras = self.env.reset()
+        return TensorDict(obs_dict, batch_size=[self.num_envs]), extras
+
     def get_observations(self) -> TensorDict:
         """Returns the current observations of the environment."""
         if hasattr(self.unwrapped, "observation_manager"):
