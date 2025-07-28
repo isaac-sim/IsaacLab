@@ -233,22 +233,35 @@ def test_external_force_buffer(sim, device):
     for step in range(5):
         # initiate force tensor
         external_wrench_b = torch.zeros(object_collection.num_instances, len(object_ids), 6, device=sim.device)
+        external_wrench_positions_b = torch.zeros(
+            object_collection.num_instances, len(object_ids), 3, device=sim.device
+        )
 
         # decide if zero or non-zero force
-        force = 1 if step == 0 or step == 3 else 0
+        if step == 0 or step == 3:
+            force = 1.0
+            position = 1.0
+        else:
+            force = 0.0
+            position = 0.0
 
         # apply force to the object
         external_wrench_b[:, :, 0] = force
         external_wrench_b[:, :, 3] = force
+        external_wrench_positions_b[:, :, 0] = position
 
         object_collection.set_external_force_and_torque(
-            external_wrench_b[..., :3], external_wrench_b[..., 3:], object_ids=object_ids
+            external_wrench_b[..., :3],
+            external_wrench_b[..., 3:],
+            object_ids=object_ids,
+            positions=external_wrench_positions_b,
         )
 
         # check if the object collection's force and torque buffers are correctly updated
         for i in range(num_envs):
             assert object_collection._external_force_b[i, 0, 0].item() == force
             assert object_collection._external_torque_b[i, 0, 0].item() == force
+            assert object_collection._external_wrench_positions_b[i, 0, 0].item() == position
 
         # apply action to the object collection
         object_collection.write_data_to_sim()
@@ -299,6 +312,60 @@ def test_external_force_on_single_body(sim, num_envs, num_cubes, device):
             object_collection.data.object_link_pos_w[:, 0::2, 2],
             torch.ones_like(object_collection.data.object_pos_w[:, 0::2, 2]),
         )
+        # Second object should have fallen, so it's Z height should be less than initial height of 1.0
+        assert torch.all(object_collection.data.object_link_pos_w[:, 1::2, 2] < 1.0)
+
+
+@pytest.mark.parametrize("num_envs", [1, 2])
+@pytest.mark.parametrize("num_cubes", [1, 4])
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+def test_external_force_on_single_body_at_position(sim, num_envs, num_cubes, device):
+    """Test application of external force on the base of the object at a specific position.
+
+    In this test, we apply a force equal to the weight of an object on the base of
+    one of the objects at 1m in the Y direction, we check that the object rotates around it's X axis.
+    For the other object, we do not apply any force and check that it falls down.
+    """
+    object_collection, origins = generate_cubes_scene(num_envs=num_envs, num_cubes=num_cubes, device=device)
+    sim.reset()
+
+    # find objects to apply the force
+    object_ids, object_names = object_collection.find_objects(".*")
+
+    # Sample a force equal to the weight of the object
+    external_wrench_b = torch.zeros(object_collection.num_instances, len(object_ids), 6, device=sim.device)
+    external_wrench_positions_b = torch.zeros(object_collection.num_instances, len(object_ids), 3, device=sim.device)
+    # Every 2nd cube should have a force applied to it
+    external_wrench_b[:, 0::2, 2] = 9.81 * object_collection.data.default_mass[:, 0::2, 0]
+    external_wrench_positions_b[:, 0::2, 1] = 1.0
+
+    for _ in range(5):
+        # reset object state
+        object_state = object_collection.data.default_object_state.clone()
+        # need to shift the position of the cubes otherwise they will be on top of each other
+        object_state[..., :2] += origins.unsqueeze(1)[..., :2]
+        object_collection.write_object_state_to_sim(object_state)
+        # reset object
+        object_collection.reset()
+
+        # apply force
+        object_collection.set_external_force_and_torque(
+            external_wrench_b[..., :3],
+            external_wrench_b[..., 3:],
+            positions=external_wrench_positions_b,
+            object_ids=object_ids,
+        )
+
+        for _ in range(10):
+            # write data to sim
+            object_collection.write_data_to_sim()
+            # step sim
+            sim.step()
+            # update object collection
+            object_collection.update(sim.cfg.dt)
+
+        # First object should be rotating around it's X axis
+        assert torch.all(object_collection.data.object_ang_vel_b[:, 0::2, 0] > 0.1)
         # Second object should have fallen, so it's Z height should be less than initial height of 1.0
         assert torch.all(object_collection.data.object_link_pos_w[:, 1::2, 2] < 1.0)
 
