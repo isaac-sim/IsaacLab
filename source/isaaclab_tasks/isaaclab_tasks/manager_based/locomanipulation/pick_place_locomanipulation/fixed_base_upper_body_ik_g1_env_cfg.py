@@ -9,19 +9,26 @@ import torch
 from pathlib import Path
 
 import isaaclab.controllers.utils as ControllerUtils
+import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.controllers.pink_ik import PinkIKControllerCfg
 from isaaclab.devices.device_base import DevicesCfg
 from isaaclab.devices.openxr import OpenXRDeviceCfg, XrCfg
+from isaaclab.devices.openxr.retargeters.humanoid.unitree.g1_upper_body_retargeter import G1UpperBodyRetargeterCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
+from isaaclab.managers import ObservationGroupCfg as ObsGroup
+from isaaclab.managers import ObservationTermCfg as ObsTerm
+from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg
+from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
 from isaaclab.utils import configclass
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 
-from isaaclab_tasks.manager_based.locomanipulation.pick_place_locomanipulation import mdp
+from isaaclab_tasks.manager_based.locomanipulation.pick_place_locomanipulation import mdp as locomanip_mdp
+from isaaclab_tasks.manager_based.manipulation.pick_place import mdp as manip_mdp
 
 from source.isaaclab_tasks.isaaclab_tasks.manager_based.locomanipulation.pick_place_locomanipulation.configs.g1_locomanipulation_robot_cfg import (  # isort: skip
     G1_LOCOMANIPULATION_ROBOT_CFG,
@@ -29,13 +36,6 @@ from source.isaaclab_tasks.isaaclab_tasks.manager_based.locomanipulation.pick_pl
 from source.isaaclab_tasks.isaaclab_tasks.manager_based.locomanipulation.pick_place_locomanipulation.configs.pink_controller_cfg import (  # isort: skip
     G1_UPPER_BODY_IK_ACTION_CFG,
 )
-from isaaclab.devices.openxr.commands.humanoid.g1_upper_body_command_term import (
-    G1UpperBodyCommandTermCfg,
-)
-from isaaclab.devices.openxr.commands.humanoid.g1_upper_body_command_term import (
-    G1UpperBodyCommandTermCfg,
-)
-
 
 
 ##
@@ -49,6 +49,36 @@ class FixedBaseUpperBodyIKG1SceneCfg(InteractiveSceneCfg):
     allowing only arm manipulation while the base remains stationary. The robot is
     controlled using upper body IK.
     """
+
+    # Table
+    packing_table = AssetBaseCfg(
+        prim_path="/World/envs/env_.*/PackingTable",
+        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.55, -0.3], rot=[1.0, 0.0, 0.0, 0.0]),
+        spawn=UsdFileCfg(
+            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/PackingTable/packing_table.usd",
+            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
+        ),
+    )
+
+    object = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/Object",
+        init_state=RigidObjectCfg.InitialStateCfg(pos=[0.0, 0.30, 1.0413-0.3], rot=[1, 0, 0, 0]),
+        spawn=sim_utils.CylinderCfg(
+            radius=0.018,
+            height=0.35,
+            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+            mass_props=sim_utils.MassPropertiesCfg(mass=0.3),
+            collision_props=sim_utils.CollisionPropertiesCfg(),
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.15, 0.15, 0.15), metallic=1.0),
+            physics_material=sim_utils.RigidBodyMaterialCfg(
+                friction_combine_mode="max",
+                restitution_combine_mode="min",
+                static_friction=0.9,
+                dynamic_friction=0.9,
+                restitution=0.0,
+            ),
+        ),
+    )
 
     # Unitree G1 Humanoid robot - fixed base configuration
     robot: ArticulationCfg = G1_LOCOMANIPULATION_ROBOT_CFG
@@ -70,6 +100,14 @@ class FixedBaseUpperBodyIKG1SceneCfg(InteractiveSceneCfg):
         # Set the robot to fixed base
         self.robot.spawn.articulation_props.fix_root_link = True
 
+        # Increase the stiffness of the waist to keep it locked
+        self.robot.actuators["waist"].stiffness["waist_yaw_joint"] = 4000.0
+        self.robot.actuators["waist"].stiffness["waist_roll_joint"] = 4000.0
+        self.robot.actuators["waist"].stiffness["waist_pitch_joint"] = 4000.0
+        self.robot.actuators["waist"].damping["waist_yaw_joint"] = 20.0
+        self.robot.actuators["waist"].damping["waist_roll_joint"] = 20.0
+        self.robot.actuators["waist"].damping["waist_pitch_joint"] = 20.0
+
 
 @configclass
 class ActionsCfg:
@@ -83,43 +121,46 @@ class ObservationsCfg:
     """Observation specifications for the MDP.
     This class is required by the environment configuration but not used in this implementation
     """
+    @configclass
+    class PolicyCfg(ObsGroup):
+        """Observations for policy group with state values."""
 
-    policy = None
+        actions = ObsTerm(func=manip_mdp.last_action)
+        robot_joint_pos = ObsTerm(
+            func=base_mdp.joint_pos,
+            params={"asset_cfg": SceneEntityCfg("robot")},
+        )
+        robot_root_pos = ObsTerm(func=base_mdp.root_pos_w, params={"asset_cfg": SceneEntityCfg("robot")})
+        robot_root_rot = ObsTerm(func=base_mdp.root_quat_w, params={"asset_cfg": SceneEntityCfg("robot")})
+        object_pos = ObsTerm(func=base_mdp.root_pos_w, params={"asset_cfg": SceneEntityCfg("object")})
+        object_rot = ObsTerm(func=base_mdp.root_quat_w, params={"asset_cfg": SceneEntityCfg("object")})
+        robot_links_state = ObsTerm(func=manip_mdp.get_all_robot_link_state)
+
+        left_eef_pos = ObsTerm(func=manip_mdp.get_left_eef_pos, params={"link_name": "left_wrist_yaw_link"})
+        left_eef_quat = ObsTerm(func=manip_mdp.get_left_eef_quat, params={"link_name": "left_wrist_yaw_link"})
+        right_eef_pos = ObsTerm(func=manip_mdp.get_right_eef_pos, params={"link_name": "right_wrist_yaw_link"})
+        right_eef_quat = ObsTerm(func=manip_mdp.get_right_eef_quat, params={"link_name": "right_wrist_yaw_link"})
+
+        hand_joint_state = ObsTerm(func=manip_mdp.get_hand_state, params={"hand_joint_names": [".*_hand.*"]})
+        head_joint_state = ObsTerm(func=manip_mdp.get_head_state, params={"head_joint_names": []})
+
+        object = ObsTerm(func=manip_mdp.object_obs, params={"left_eef_link_name": "left_wrist_yaw_link", "right_eef_link_name": "right_wrist_yaw_link"})
+
+        def __post_init__(self):
+            self.enable_corruption = False
+            self.concatenate_terms = False
+
+    # observation groups
+    policy: PolicyCfg = PolicyCfg()
 
 
 @configclass
 class TerminationsCfg:
     """Termination terms for the MDP."""
 
-    time_out = DoneTerm(func=mdp.time_out, time_out=True)
+    time_out = DoneTerm(func=locomanip_mdp.time_out, time_out=True)
 
-
-@configclass
-class UpperAndLowerBodyCommandCfg:
-    """Command terms for the upper and lower body."""
-
-    upper_body_command = G1UpperBodyCommandTermCfg(
-        resampling_time_range=(0, 0),
-        device_name="handtracking",
-        enable_visualization=True,
-        num_hand_joints=2 * 26,
-        hand_joint_names=[
-            "left_hand_index_0_joint",      # Index finger proximal
-            "left_hand_middle_0_joint",     # Middle finger proximal
-            "left_hand_thumb_0_joint",      # Thumb base (yaw axis)
-            "right_hand_index_0_joint",     # Index finger proximal
-            "right_hand_middle_0_joint",    # Middle finger proximal
-            "right_hand_thumb_0_joint",     # Thumb base (yaw axis)
-            "left_hand_index_1_joint",      # Index finger distal
-            "left_hand_middle_1_joint",     # Middle finger distal
-            "left_hand_thumb_1_joint",      # Thumb middle (pitch axis)
-            "right_hand_index_1_joint",     # Index finger distal
-            "right_hand_middle_1_joint",    # Middle finger distal
-            "right_hand_thumb_1_joint",      # Thumb middle (pitch axis)
-            "left_hand_thumb_2_joint",      # Thumb tip
-            "right_hand_thumb_2_joint",     # Thumb tip
-        ],
-    )
+    success = DoneTerm(func=manip_mdp.task_done_pick_place)
 
 ##
 # MDP settings
@@ -145,7 +186,7 @@ class FixedBaseUpperBodyIKG1EnvCfg(ManagerBasedRLEnvCfg):
     actions: ActionsCfg = ActionsCfg()
 
     # Unused managers
-    commands = UpperAndLowerBodyCommandCfg()
+    commands = None
     rewards = None
     curriculum = None
 
@@ -168,18 +209,22 @@ class FixedBaseUpperBodyIKG1EnvCfg(ManagerBasedRLEnvCfg):
             self.scene.robot.spawn.usd_path, tempfile.gettempdir(), force_conversion=True
         )
 
-        # Convert revolute joints to fixed joints for pelvis and legs
-        ControllerUtils.change_revolute_to_fixed_regex(
-            temp_urdf_output_path, self.actions.upper_body_ik.ik_urdf_fixed_joint_names
-        )
-
         # Set the URDF and mesh paths for the IK controller
-        self.actions.upper_body_ik.controller.urdf_path = temp_urdf_output_path
+        self.actions.upper_body_ik.controller.urdf_path = "source/isaaclab_tasks/isaaclab_tasks/manager_based/locomanipulation/assets/robots/g1/g1_minimal_with_leg_hand_collision_corrected.urdf"
         self.actions.upper_body_ik.controller.mesh_path = temp_urdf_meshes_output_path
 
         self.teleop_devices = DevicesCfg(
             devices={
                 "handtracking": OpenXRDeviceCfg(
+                    retargeters=[
+                        G1UpperBodyRetargeterCfg(
+                            enable_visualization=True,
+                            # OpenXR hand tracking has 26 joints per hand
+                            num_open_xr_hand_joints=2 * 26,
+                            sim_device=self.sim.device,
+                            hand_joint_names=self.actions.upper_body_ik.hand_joint_names,
+                        ),
+                    ],
                     sim_device=self.sim.device,
                     xr_cfg=self.xr,
                 ),

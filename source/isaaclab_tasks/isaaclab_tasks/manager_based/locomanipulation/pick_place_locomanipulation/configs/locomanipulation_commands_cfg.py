@@ -15,9 +15,6 @@ from isaaclab.utils import configclass
 from isaaclab_tasks.manager_based.locomanipulation.pick_place_locomanipulation.mdp.commands import (
     UniformVelocityAndHeightCommand,
 )
-from isaaclab.devices.openxr.commands.humanoid.g1_upper_body_command_term import (
-    G1UpperBodyCommandTermCfg,
-)
 
 
 @configclass
@@ -81,25 +78,3 @@ class StandingCommandsCfg(LocomotionCommandsCfg):
         ),
     )
 
-    upper_body_command = G1UpperBodyCommandTermCfg(
-        resampling_time_range=(0, 0),
-        device_name="handtracking",
-        enable_visualization=True,
-        num_hand_joints=2 * 26,
-        hand_joint_names=[
-            "left_hand_thumb_0_joint",
-            "left_hand_thumb_1_joint",
-            "left_hand_thumb_2_joint",
-            "left_hand_middle_0_joint",
-            "left_hand_middle_1_joint",
-            "left_hand_index_0_joint",
-            "left_hand_index_1_joint",
-            "right_hand_thumb_0_joint",
-            "right_hand_thumb_1_joint",
-            "right_hand_thumb_2_joint",
-            "right_hand_index_0_joint",
-            "right_hand_index_1_joint",
-            "right_hand_middle_0_joint",
-            "right_hand_middle_1_joint",
-        ],
-    )

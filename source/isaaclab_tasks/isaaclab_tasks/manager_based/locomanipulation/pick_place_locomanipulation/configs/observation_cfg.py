@@ -115,18 +115,6 @@ class ObservationsCfg(ObsGroup):
         },
     )
 
-    base_commands = ObsTerm(
-        func=obs_mdp.weighted_generated_commands,
-        params={
-            "command_name": "base_velocity",
-            "weights": {
-                "lin_vel_x": 1.0,
-                "lin_vel_y": 1.0,
-                "height": 1.0,
-            },
-        },
-    )
-
     def __post_init__(self):
         self.enable_corruption = False
         self.concatenate_terms = True

@@ -5,9 +5,8 @@
         "rotation": 0.02,
         "check_errors": true
     },
-    "num_iterations": 12,
+    "allowed_steps_to_settle": 100,
     "tests": {
-
         "stay_still": {
             "left_hand_pose": [
                 [-0.23, 0.28, 1.1, 0.7071, 0.0, 0.0, 0.7071],
@@ -41,7 +40,7 @@
                 [0.23, 0.28, 1.1, 0.7071, 0.0, 0.0, 0.7071],
                 [0.13, 0.32, 1.1, 0.7071, 0.0, 0.0, 0.7071]
             ],
-            "allowed_steps_per_motion": 50,
+            "allowed_steps_per_motion": 30,
             "repeat": 2
         },
         "horizontal_small_movement": {

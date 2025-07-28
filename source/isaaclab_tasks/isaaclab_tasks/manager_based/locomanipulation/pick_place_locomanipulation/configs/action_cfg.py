@@ -5,10 +5,29 @@
 
 from dataclasses import MISSING
 from isaaclab.envs.mdp.actions import actions_cfg as mdp
-from isaaclab.managers.action_manager import ActionTerm
+from isaaclab.managers.action_manager import ActionTerm, ActionTermCfg
 from isaaclab.utils import configclass
 
-from ..mdp.actions import JointPositionPolicyAction
+from ..mdp.actions import JointPositionPolicyAction, LowerBodyAction
+
+@configclass
+class LowerBodyActionCfg(ActionTermCfg):
+    """Configuration for the lower body action term."""
+
+    class_type: type[ActionTerm] = LowerBodyAction
+    """The class type for the lower body action term."""
+
+    policy_path: str = MISSING
+    """The path to the policy model."""
+
+    joint_names: list[str] = MISSING
+    """The names of the joints to control."""
+
+    scale: float = 1.0
+    """The scale of the action."""
+    
+    offset: float = 0.0
+    """The offset of the action."""
 
 
 @configclass

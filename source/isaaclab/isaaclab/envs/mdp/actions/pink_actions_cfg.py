@@ -26,9 +26,6 @@ class PinkInverseKinematicsActionCfg(ActionTermCfg):
     pink_controlled_joint_names: list[str] = MISSING
     """List of joint names or regular expression patterns that specify the joints controlled by pink IK."""
 
-    ik_urdf_fixed_joint_names: list[str] = MISSING
-    """List of joint names that specify the joints to be locked in URDF."""
-
     hand_joint_names: list[str] = MISSING
     """List of joint names or regular expression patterns that specify the joints controlled by hand retargeting."""
 

@@ -5,7 +5,6 @@
 
 """Launch Isaac Sim Simulator first."""
 import json
-import os
 import sys
 from pathlib import Path
 
@@ -26,7 +25,6 @@ import gymnasium as gym
 import numpy as np
 import pytest
 import torch
-import time
 
 from pink.configuration import Configuration
 
@@ -36,14 +34,12 @@ import isaaclab_tasks  # noqa: F401
 import isaaclab_tasks.manager_based.manipulation.pick_place  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
-from pink.configuration import Configuration
-
 
 @pytest.fixture(scope="module")
 def test_cfg():
     """Load test configuration."""
-    # config_path = os.path.join(os.path.dirname(__file__), "test_configs", "pink_ik_gr1_test_configs.json")
-    config_path = os.path.join(os.path.dirname(__file__), "test_configs", "pink_ik_g1_test_configs.json")
+    config_path = Path(__file__).parent / "test_configs" / "pink_ik_gr1_test_configs.json"
+    # config_path = Path(__file__).parent / "test_configs" / "pink_ik_g1_test_configs.json"
     with open(config_path) as f:
         return json.load(f)
 
@@ -62,15 +58,16 @@ def test_params(test_cfg):
 def create_test_env(num_envs):
     """Create a test environment with the Pink IK controller."""
     # env_name = "Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0"
-    # env_name = "Isaac-PickPlace-FixedBaseUpperBodyIK-GR1T2-Abs-v0"
-    env_name = "Isaac-PickPlace-FixedBaseUpperBodyIK-G1-Abs-v0"
+    env_name = "Isaac-PickPlace-FixedBaseUpperBodyIK-GR1T2-Abs-v0"
+    # env_name = "Isaac-PickPlace-FixedBaseUpperBodyIK-G1-Abs-v0"
+    # env_name = "Isaac-PickPlace-Locomanipulation-G1-Abs-v0"
     device = "cuda:0"
 
     try:
         env_cfg = parse_env_cfg(env_name, device=device, num_envs=num_envs)
         # Modify scene config to not spawn the packing table to avoid collision with the robot
         del env_cfg.scene.packing_table
-        del env_cfg.terminations.object_dropping
+        # del env_cfg.terminations.object_dropping
         del env_cfg.terminations.time_out
         return gym.make(env_name, cfg=env_cfg).unwrapped, env_cfg
     except Exception as e:
@@ -102,10 +99,10 @@ def test_setup(env_and_cfg):
     articulation = action_term._asset
 
     # Initialize Pink Configuration for forward kinematics
-    kinematics_model = Configuration(
-        pink_controllers[0].robot_wrapper.model,
-        pink_controllers[0].robot_wrapper.data,
-        pink_controllers[0].robot_wrapper.q0,
+    test_kinematics_model = Configuration(
+        pink_controllers[0].pink_configuration.model,
+        pink_controllers[0].pink_configuration.data,
+        pink_controllers[0].pink_configuration.q,
     )
     left_target_link_name = env_cfg.actions.upper_body_ik.target_eef_link_names["left_wrist"]
     right_target_link_name = env_cfg.actions.upper_body_ik.target_eef_link_names["right_wrist"]
@@ -117,10 +114,15 @@ def test_setup(env_and_cfg):
         "action_term": action_term,
         "pink_controllers": pink_controllers,
         "articulation": articulation,
-        "kinematics_model": kinematics_model,
+        "test_kinematics_model": test_kinematics_model,
         "left_target_link_name": left_target_link_name,
         "right_target_link_name": right_target_link_name,
     }
+
+def test_horizontal_movement(test_setup, test_cfg):
+    """Test horizontal movement of robot hands."""
+    print("Running horizontal movement test...")
+    run_movement_test(test_setup, test_cfg["tests"]["horizontal_movement"], test_cfg)
 
 
 def test_stay_still(test_setup, test_cfg):
@@ -133,12 +135,6 @@ def test_vertical_movement(test_setup, test_cfg):
     """Test vertical movement of robot hands."""
     print("Running vertical movement test...")
     run_movement_test(test_setup, test_cfg["tests"]["vertical_movement"], test_cfg)
-
-
-def test_horizontal_movement(test_setup, test_cfg):
-    """Test horizontal movement of robot hands."""
-    print("Running horizontal movement test...")
-    run_movement_test(test_setup, test_cfg["tests"]["horizontal_movement"], test_cfg)
 
 
 def test_horizontal_small_movement(test_setup, test_cfg):
@@ -174,8 +170,14 @@ def run_movement_test(test_setup, test_config, test_cfg, aux_function=None):
     with contextlib.suppress(KeyboardInterrupt) and torch.inference_mode():
         obs, _ = env.reset()
 
+        # Make the first phase longer than subsequent ones
+        initial_steps = test_cfg["allowed_steps_to_settle"]
+        phase = "initial"
+        steps_in_phase = 0
+
         while simulation_app.is_running() and not simulation_app.is_exiting():
             num_runs += 1
+            steps_in_phase += 1
 
             # Call auxiliary function if provided
             if aux_function is not None:
@@ -185,13 +187,26 @@ def run_movement_test(test_setup, test_config, test_cfg, aux_function=None):
             setpoint_poses = np.concatenate([left_hand_poses[curr_pose_idx], right_hand_poses[curr_pose_idx]])
             actions = np.concatenate([setpoint_poses, np.zeros(num_joints_in_robot_hands)])
             actions = torch.tensor(actions, device=env.device, dtype=torch.float32)
+            # Append base command for Locomanipulation environments with fixed height
+            if test_setup["env_cfg"].__class__.__name__ == "LocomanipulationG1EnvCfg":
+                # Use a named variable for base height for clarity and maintainability
+                BASE_HEIGHT = 0.7
+                base_command = torch.zeros(4, device=env.device, dtype=actions.dtype)
+                base_command[3] = BASE_HEIGHT
+                actions = torch.cat([actions, base_command])
             actions = actions.repeat(env.num_envs, 1)
 
             # Step environment
             obs, _, _, _, _ = env.step(actions)
 
+            # Determine the step interval for error checking
+            if phase == "initial":
+                check_interval = initial_steps
+            else:
+                check_interval = test_config["allowed_steps_per_motion"]
+
             # Check convergence and verify errors
-            if num_runs % test_config["allowed_steps_per_motion"] == 0:
+            if steps_in_phase % check_interval == 0:
                 print("Computing errors...")
                 errors = compute_errors(
                     test_setup, env, left_hand_poses[curr_pose_idx], right_hand_poses[curr_pose_idx]
@@ -199,6 +214,7 @@ def run_movement_test(test_setup, test_config, test_cfg, aux_function=None):
                 print_debug_info(errors, test_counter)
                 if test_cfg["tolerances"]["check_errors"]:
                     verify_errors(errors, test_setup, test_cfg["tolerances"])
+                num_runs += 1
 
                 curr_pose_idx = (curr_pose_idx + 1) % len(left_hand_poses)
                 if curr_pose_idx == 0:
@@ -206,6 +222,10 @@ def run_movement_test(test_setup, test_config, test_cfg, aux_function=None):
                     if test_counter > test_config["repeat"]:
                         print("Test completed successfully")
                         break
+                # After the first phase, switch to normal interval
+                if phase == "initial":
+                    phase = "normal"
+                    steps_in_phase = 0
 
 
 def get_link_pose(env, link_name):
@@ -238,10 +258,9 @@ def compute_errors(test_setup, env, left_target_pose, right_target_pose):
     action_term = test_setup["action_term"]
     pink_controllers = test_setup["pink_controllers"]
     articulation = test_setup["articulation"]
-    kinematics_model = test_setup["kinematics_model"]
+    test_kinematics_model = test_setup["test_kinematics_model"]
     left_target_link_name = test_setup["left_target_link_name"]
     right_target_link_name = test_setup["right_target_link_name"]
-    num_joints_in_robot_hands = test_setup["num_joints_in_robot_hands"]
     
     # Get current hand positions and orientations
     left_hand_pos, left_hand_rot = get_link_pose(env, left_target_link_name)
@@ -265,35 +284,35 @@ def compute_errors(test_setup, env, left_target_pose, right_target_pose):
 
     # Calculate PD controller errors
     ik_controller = pink_controllers[0]
-    pink_controlled_joint_ids = action_term._pink_controlled_joint_ids
+    isaaclab_controlled_joint_ids = action_term._isaaclab_controlled_joint_ids
 
-    # Get current and target positions
-    curr_joints = articulation.data.joint_pos[:, pink_controlled_joint_ids].cpu().numpy()[0]
-    target_joints = action_term.processed_actions[:, : num_joints_in_robot_hands].cpu().numpy()[0]
+    # Get current and target positions for controlled joints only
+    curr_joints = articulation.data.joint_pos[:, isaaclab_controlled_joint_ids].cpu().numpy()[0]
+    target_joints = action_term.processed_actions[:, :len(isaaclab_controlled_joint_ids)].cpu().numpy()[0]
 
-    # Reorder joints for Pink IK
-    curr_joints = np.array(curr_joints)[ik_controller.isaac_lab_to_pink_ordering]
-    target_joints = np.array(target_joints)[ik_controller.isaac_lab_to_pink_ordering]
+    # Reorder joints for Pink IK (using controlled joint ordering)
+    curr_joints = np.array(curr_joints)[ik_controller.isaac_lab_to_pink_controlled_ordering]
+    target_joints = np.array(target_joints)[ik_controller.isaac_lab_to_pink_controlled_ordering]
 
     # Run forward kinematics
-    kinematics_model.update(curr_joints)
-    left_curr_pos = kinematics_model.get_transform_frame_to_world(
-        frame="g1_29dof_with_hand_rev_1_0_left_wrist_yaw_link"
-        # frame="GR1T2_fourier_hand_6dof_left_hand_pitch_link"
+    test_kinematics_model.update(curr_joints)
+    left_curr_pos = test_kinematics_model.get_transform_frame_to_world(
+        # frame="g1_29dof_with_hand_rev_1_0_left_wrist_yaw_link"
+        frame="GR1T2_fourier_hand_6dof_left_hand_pitch_link"
     ).translation
-    right_curr_pos = kinematics_model.get_transform_frame_to_world(
-        frame="g1_29dof_with_hand_rev_1_0_right_wrist_yaw_link"
-        # frame="GR1T2_fourier_hand_6dof_right_hand_pitch_link"
+    right_curr_pos = test_kinematics_model.get_transform_frame_to_world(
+        # frame="g1_29dof_with_hand_rev_1_0_right_wrist_yaw_link"
+        frame="GR1T2_fourier_hand_6dof_right_hand_pitch_link"
     ).translation
 
-    kinematics_model.update(target_joints)
-    left_target_pos = kinematics_model.get_transform_frame_to_world(
-        frame="g1_29dof_with_hand_rev_1_0_left_wrist_yaw_link"
-        # frame="GR1T2_fourier_hand_6dof_left_hand_pitch_link"
+    test_kinematics_model.update(target_joints)
+    left_target_pos = test_kinematics_model.get_transform_frame_to_world(
+        # frame="g1_29dof_with_hand_rev_1_0_left_wrist_yaw_link"
+        frame="GR1T2_fourier_hand_6dof_left_hand_pitch_link"
     ).translation
-    right_target_pos = kinematics_model.get_transform_frame_to_world(
-        frame="g1_29dof_with_hand_rev_1_0_right_wrist_yaw_link"
-        # frame="GR1T2_fourier_hand_6dof_right_hand_pitch_link"
+    right_target_pos = test_kinematics_model.get_transform_frame_to_world(
+        # frame="g1_29dof_with_hand_rev_1_0_right_wrist_yaw_link"
+        frame="GR1T2_fourier_hand_6dof_right_hand_pitch_link"
     ).translation
 
     # Calculate PD errors

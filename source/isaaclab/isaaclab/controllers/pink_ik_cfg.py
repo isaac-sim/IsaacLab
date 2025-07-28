@@ -45,8 +45,16 @@ class PinkIKControllerCfg:
     For more details, visit: https://github.com/stephane-caron/pink
     """
 
-    joint_names: list[str] | None = None
+    controlled_joint_names: list[str] | None = None
+    """A list of joint names in the USD asset controlled by the Pink IK controller. This is required because the joint naming conventions differ between USD and URDF files.
+    This value is currently designed to be automatically populated by the action term in a manager based environment."""
+
+    all_joint_names: list[str] | None = None
     """A list of joint names in the USD asset. This is required because the joint naming conventions differ between USD and URDF files.
+    This value is currently designed to be automatically populated by the action term in a manager based environment."""
+
+    controlled_joint_indices: list[int] | None = None
+    """A list of joint indices in the USD asset controlled by the Pink IK controller. This is required because the joint naming conventions differ between USD and URDF files.
     This value is currently designed to be automatically populated by the action term in a manager based environment."""
 
     articulation_name: str = "robot"

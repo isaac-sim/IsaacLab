@@ -11,6 +11,8 @@ including both fixed base and mobile configurations for upper body manipulation.
 
 from pink.tasks import FrameTask
 
+from isaaclab.controllers.local_frame_task import LocalFrameTask
+
 from isaaclab.controllers.pink_ik_cfg import PinkIKControllerCfg
 from isaaclab.envs.mdp.actions.pink_actions_cfg import PinkInverseKinematicsActionCfg
 
@@ -22,21 +24,23 @@ G1_UPPER_BODY_IK_CONTROLLER_CFG = PinkIKControllerCfg(
     articulation_name="robot",
     base_link_name="pelvis",
     num_hand_joints=14,
-    show_ik_warnings=False,
+    show_ik_warnings=True,
     variable_input_tasks=[
-        FrameTask(
+        LocalFrameTask(
             "g1_29dof_with_hand_rev_1_0_left_wrist_yaw_link",
-            position_cost=1.0,  # [cost] / [m]
-            orientation_cost=1.0,  # [cost] / [rad]
+            base_link_frame_name="g1_29dof_with_hand_rev_1_0_pelvis",
+            position_cost=8.0,  # [cost] / [m]
+            orientation_cost=2.0,  # [cost] / [rad]
             lm_damping=10,  # dampening for solver for step jumps
-            gain=0.8,
+            gain=0.2,
         ),
-        FrameTask(
+        LocalFrameTask(
             "g1_29dof_with_hand_rev_1_0_right_wrist_yaw_link",
-            position_cost=1.0,  # [cost] / [m]
-            orientation_cost=1.0,  # [cost] / [rad]
+            base_link_frame_name="g1_29dof_with_hand_rev_1_0_pelvis",
+            position_cost=8.0,  # [cost] / [m]
+            orientation_cost=2.0,  # [cost] / [rad]
             lm_damping=10,  # dampening for solver for step jumps
-            gain=0.8,
+            gain=0.2,
         ),
     ],
     fixed_input_tasks=[],
@@ -62,19 +66,6 @@ G1_UPPER_BODY_IK_ACTION_CFG = PinkInverseKinematicsActionCfg(
         ".*_wrist_pitch_joint",
         ".*_wrist_roll_joint",
         ".*_wrist_yaw_joint",
-    ],
-    # Fixed joints for IK (pelvis, legs, and hands are fixed)
-    ik_urdf_fixed_joint_names=[
-        ".*_hip_yaw_joint",
-        ".*_hip_roll_joint",
-        ".*_hip_pitch_joint",
-        ".*waist.*",
-        ".*_knee_joint",
-        ".*_ankle_pitch_joint",
-        ".*_ankle_roll_joint",
-        ".*_index_.*",
-        ".*_middle_.*",
-        ".*_thumb_.*",
     ],
     hand_joint_names=[
         "left_hand_index_0_joint",      # Index finger proximal
@@ -170,48 +161,6 @@ GR1T2_UPPER_BODY_IK_ACTION_CFG = PinkInverseKinematicsActionCfg(
         "right_wrist_yaw_joint",
         "right_wrist_roll_joint",
         "right_wrist_pitch_joint",
-    ],
-    ik_urdf_fixed_joint_names=[
-        "left_hip_roll_joint",
-        "right_hip_roll_joint",
-        "left_hip_yaw_joint",
-        "right_hip_yaw_joint",
-        "left_hip_pitch_joint",
-        "right_hip_pitch_joint",
-        "left_knee_pitch_joint",
-        "right_knee_pitch_joint",
-        "left_ankle_pitch_joint",
-        "right_ankle_pitch_joint",
-        "left_ankle_roll_joint",
-        "right_ankle_roll_joint",
-        "L_index_proximal_joint",
-        "L_middle_proximal_joint",
-        "L_pinky_proximal_joint",
-        "L_ring_proximal_joint",
-        "L_thumb_proximal_yaw_joint",
-        "R_index_proximal_joint",
-        "R_middle_proximal_joint",
-        "R_pinky_proximal_joint",
-        "R_ring_proximal_joint",
-        "R_thumb_proximal_yaw_joint",
-        "L_index_intermediate_joint",
-        "L_middle_intermediate_joint",
-        "L_pinky_intermediate_joint",
-        "L_ring_intermediate_joint",
-        "L_thumb_proximal_pitch_joint",
-        "R_index_intermediate_joint",
-        "R_middle_intermediate_joint",
-        "R_pinky_intermediate_joint",
-        "R_ring_intermediate_joint",
-        "R_thumb_proximal_pitch_joint",
-        "L_thumb_distal_joint",
-        "R_thumb_distal_joint",
-        "head_roll_joint",
-        "head_pitch_joint",
-        "head_yaw_joint",
-        "waist_yaw_joint",
-        "waist_pitch_joint",
-        "waist_roll_joint",
     ],
     hand_joint_names=[
         "L_index_proximal_joint",

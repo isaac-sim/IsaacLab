@@ -21,7 +21,7 @@ from isaaclab.assets.articulation import ArticulationCfg
 G1_LOCOMANIPULATION_ROBOT_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=(
-            "omniverse://isaac-dev.ov.nvidia.com/Projects/agile/Robots/Collected_g1/g1_minimal_with_leg_collision.usd"
+            "omniverse://isaac-dev.ov.nvidia.com/Projects/agile/Robots/Collected_g1/g1_minimal_with_leg_hand_collision.usd"
         ),
         activate_contact_sensors=False,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
@@ -144,21 +144,17 @@ G1_LOCOMANIPULATION_ROBOT_CFG = ArticulationCfg(
                 ".*_shoulder_yaw_joint",
                 ".*_elbow_joint",
                 ".*_wrist_.*_joint",
-                ".*_index_.*",
-                ".*_middle_.*",
-                ".*_thumb_.*",
+                ".*_hand_.*",
             ],
             effort_limit=300,
             velocity_limit=100,
-            stiffness=4000,
+            stiffness=10000,
             damping=50,
             armature={
                 ".*_shoulder_.*": 0.01,
                 ".*_elbow_.*": 0.01,
                 ".*_wrist_.*_joint": 0.01,
-                ".*_index_.*": 0.001,
-                ".*_middle_.*": 0.001,
-                ".*_thumb_.*": 0.001,
+                ".*_hand_.*": 0.001,
             },
         ),
         "hands": ImplicitActuatorCfg(

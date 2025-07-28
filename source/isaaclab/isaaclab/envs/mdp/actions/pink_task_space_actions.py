@@ -11,6 +11,9 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 from pink.tasks import FrameTask
+from isaaclab.controllers.local_frame_task import LocalFrameTask
+
+
 
 import isaaclab.utils.math as math_utils
 from isaaclab.assets.articulation import Articulation
@@ -26,8 +29,8 @@ if TYPE_CHECKING:
 class PinkInverseKinematicsAction(ActionTerm):
     r"""Pink Inverse Kinematics action term.
 
-    This action term processes the action tensor and sets these setpoints in the pink IK framework
-    The action tensor is ordered in the order of the tasks defined in PinkIKControllerCfg
+    This action term processes the action tensor and sets these setpoints in the pink IK framework.
+    The action tensor is ordered in the order of the tasks defined in PinkIKControllerCfg.
     """
 
     cfg: pink_actions_cfg.PinkInverseKinematicsActionCfg
@@ -44,63 +47,63 @@ class PinkInverseKinematicsAction(ActionTerm):
             env: The environment in which the action term will be applied.
         """
         super().__init__(cfg, env)
+        
+        self._env = env
+        self._sim_dt = env.sim.get_physics_dt()
+        
+        # Initialize joint information
+        self._initialize_joint_info()
+        
+        # Initialize IK controllers
+        self._initialize_ik_controllers()
+        
+        # Initialize action tensors
+        self._raw_actions = torch.zeros(self.num_envs, self.action_dim, device=self.device)
+        self._processed_actions = torch.zeros_like(self._raw_actions)
+        
+        # Initialize hand pose transformations
+        self._initialize_hand_pose_transforms()
 
-        # Resolve joint IDs and names based on the configuration
-        self._pink_controlled_joint_ids, self._pink_controlled_joint_names = self._asset.find_joints(
+    def _initialize_joint_info(self) -> None:
+        """Initialize joint IDs and names based on configuration."""
+        # Resolve pink controlled joints
+        self._isaaclab_controlled_joint_ids, self._isaaclab_controlled_joint_names = self._asset.find_joints(
             self.cfg.pink_controlled_joint_names
         )
-        self.cfg.controller.joint_names = self._pink_controlled_joint_names
-        self._hand_joint_ids, self._hand_joint_names = self._asset.find_joints(self.cfg.hand_joint_names)
-        self._joint_ids = self._pink_controlled_joint_ids + self._hand_joint_ids
-        self._joint_names = self._pink_controlled_joint_names + self._hand_joint_names
-        self._env = env
+        self.cfg.controller.controlled_joint_names = self._isaaclab_controlled_joint_names
+        self.cfg.controller.controlled_joint_indices = self._isaaclab_controlled_joint_ids
+        self._isaaclab_all_joint_ids = list(range(len(self._asset.data.joint_names)))
+        self.cfg.controller.all_joint_names = self._asset.data.joint_names
 
-        # Initialize the Pink IK controller
+        # Resolve hand joints
+        self._hand_joint_ids, self._hand_joint_names = self._asset.find_joints(self.cfg.hand_joint_names)
+        
+        # Combine all joint information
+        self._controlled_joint_ids = self._isaaclab_controlled_joint_ids + self._hand_joint_ids
+        self._controlled_joint_names = self._isaaclab_controlled_joint_names + self._hand_joint_names
+
+    def _initialize_ik_controllers(self) -> None:
+        """Initialize Pink IK controllers for all environments."""
         assert self._env.num_envs > 0, "Number of environments specified are less than 1."
+        
         self._ik_controllers = []
-        for _ in range(env.num_envs):
+        for _ in range(self._env.num_envs):
             self._ik_controllers.append(
                 PinkIKController(
-                    cfg=copy.deepcopy(self.cfg.controller), robot_cfg=env.scene.cfg.robot, device=self.device
+                    cfg=copy.deepcopy(self.cfg.controller), robot_cfg=self._env.scene.cfg.robot, device=self.device
                 )
             )
 
-        # Create tensors to store raw and processed actions
-        self._raw_actions = torch.zeros(self.num_envs, self.action_dim, device=self.device)
-        self._processed_actions = torch.zeros_like(self.raw_actions)
-
-        # Get the simulation time step
-        self._sim_dt = env.sim.get_physics_dt()
-
-        self.total_time = 0  # Variable to accumulate the total time
-        self.num_runs = 0  # Counter for the number of runs
-
-        # Get homogeneous transform to nominal hand pose with zero translation
-        self.nominal_hand_pose_rotmat = math_utils.matrix_from_quat(torch.tensor(self.cfg.controller.hand_rotational_offset, device=self.device))
-        self.nominal_hand_pose_transform = math_utils.make_pose(
-            torch.zeros(3, device=self.device), self.nominal_hand_pose_rotmat
+    def _initialize_hand_pose_transforms(self) -> None:
+        """Initialize hand pose transformation matrices."""
+        # Create nominal hand pose rotation matrix
+        hand_rot_offset = torch.tensor(
+            self.cfg.controller.hand_rotational_offset, 
+            device=self.device
         )
+        self.nominal_hand_pose_rotmat = math_utils.matrix_from_quat(hand_rot_offset)
 
-        # Save the base_link_frame pose in the world frame as a transformation matrix in
-        # order to transform the desired pose of the controlled_frame to be with respect to the base_link_frame
-        # Shape of env.scene[self.cfg.articulation_name].data.body_link_state_w is (num_instances, num_bodies, 13)
-        base_link_frame_in_world_origin = self._env.scene[self.cfg.controller.articulation_name].data.body_link_state_w[
-            :,
-            self._env.scene[self.cfg.controller.articulation_name].data.body_names.index(self.cfg.controller.base_link_name),
-            :7,
-        ]
-
-        # Get robot base link frame in env origin frame
-        base_link_frame_in_world_rf = copy.deepcopy(base_link_frame_in_world_origin)
-        base_link_frame_in_world_rf[:, :3] -= self._env.scene.env_origins
-
-        self.base_link_frame_in_world_rf = math_utils.make_pose(
-            base_link_frame_in_world_rf[:, :3], math_utils.matrix_from_quat(base_link_frame_in_world_rf[:, 3:7])
-        )
-
-    # """
-    # Properties.
-    # """
+    # ==================== Properties ====================
 
     @property
     def hand_joint_dim(self) -> int:
@@ -141,81 +144,160 @@ class PinkInverseKinematicsAction(ActionTerm):
         """Get the processed actions tensor."""
         return self._processed_actions
 
-    # """
-    # Operations.
-    # """
+    # ==================== Action Processing ====================
 
-    def process_actions(self, actions: torch.Tensor):
+    def process_actions(self, actions: torch.Tensor) -> None:
         """Process the input actions and set targets for each task.
 
         Args:
             actions: The input actions tensor.
         """
-        # Store the raw actions
+        # Store raw actions
         self._raw_actions[:] = actions
 
-        # Make a copy of actions before modifying so that raw actions are not modified
+        # Extract and process action components
         actions_clone = actions.clone()
+        self._target_hand_joint_positions = actions_clone[:, -self.hand_joint_dim:]
+        
+        # Get base link frame transformation
+        self.base_link_frame_in_world_rf = self._get_base_link_frame_transform()
+        
+        # Process controlled frame poses
+        controlled_frame_poses = self._extract_controlled_frame_poses(actions_clone)
+        transformed_poses = self._transform_poses_to_base_link_frame(controlled_frame_poses)
+        
+        # Set targets for all tasks
+        self._set_task_targets(transformed_poses)
 
-        # Extract hand joint positions (last 22 values)
-        self._target_hand_joint_positions = actions_clone[:, -self.hand_joint_dim :]
+    def _get_base_link_frame_transform(self) -> torch.Tensor:
+        """Get the base link frame transformation matrix.
+        
+        Returns:
+            Base link frame transformation matrix.
+        """
+        # Get base link frame pose in world origin
+        articulation_data = self._env.scene[self.cfg.controller.articulation_name].data
+        base_link_idx = articulation_data.body_names.index(self.cfg.controller.base_link_name)
+        base_link_frame_in_world_origin = articulation_data.body_link_state_w[:, base_link_idx, :7]
 
-        # The action tensor provides the desired pose of the controlled_frame with respect to the env origin frame
-        # But the pink IK controller expects the desired pose of the controlled_frame with respect to the base_link_frame
-        # So we need to transform the desired pose of the controlled_frame to be with respect to the base_link_frame
+        # Transform to environment origin frame
+        base_link_frame_in_world_rf = base_link_frame_in_world_origin.clone()
+        base_link_frame_in_world_rf[:, :3] -= self._env.scene.env_origins
 
-        # Get the controlled_frame pose wrt to the world reference frame
-        all_controlled_frames_in_world_rf = []
-        # The contrllers for all envs are the same, hence just using the first one to get the number of variable_input_tasks
-        for task_index in range(len(self._ik_controllers[0].cfg.variable_input_tasks)):
-            controlled_frame_in_world_rf_pos = actions_clone[
-                :, task_index * self.pose_dim : task_index * self.pose_dim + self.position_dim
-            ]
-            controlled_frame_in_world_rf_quat = actions_clone[
-                :, task_index * self.pose_dim + self.position_dim : (task_index + 1) * self.pose_dim
-            ]
-            controlled_frame_in_world_rf = math_utils.make_pose(
-                controlled_frame_in_world_rf_pos, math_utils.matrix_from_quat(controlled_frame_in_world_rf_quat)
+        # Create transformation matrix
+        return math_utils.make_pose(
+            base_link_frame_in_world_rf[:, :3],
+            math_utils.matrix_from_quat(base_link_frame_in_world_rf[:, 3:7])
+        )
+
+    def _extract_controlled_frame_poses(self, actions: torch.Tensor) -> torch.Tensor:
+        """Extract controlled frame poses from action tensor.
+        
+        Args:
+            actions: The action tensor.
+            
+        Returns:
+            Stacked controlled frame poses tensor.
+        """
+        num_tasks = len(self._ik_controllers[0].cfg.variable_input_tasks)
+        controlled_frames = []
+        
+        for task_index in range(num_tasks):
+            # Extract position and orientation for this task
+            pos_start = task_index * self.pose_dim
+            pos_end = pos_start + self.position_dim
+            quat_start = pos_end
+            quat_end = (task_index + 1) * self.pose_dim
+            
+            position = actions[:, pos_start:pos_end]
+            quaternion = actions[:, quat_start:quat_end]
+            
+            # Create pose matrix
+            pose = math_utils.make_pose(
+                position, 
+                math_utils.matrix_from_quat(quaternion)
             )
-            all_controlled_frames_in_world_rf.append(controlled_frame_in_world_rf)
-        # Stack all the controlled_frame poses in the env origin frame. Shape is (num_tasks, num_envs , 4, 4)
-        all_controlled_frames_in_world_rf = torch.stack(all_controlled_frames_in_world_rf)
+            controlled_frames.append(pose)
+        
+        return torch.stack(controlled_frames)
 
-        # Transform the controlled_frame to be with respect to the base_link_frame using batched matrix multiplication
-        controlled_frame_in_base_link_rf = math_utils.pose_in_A_to_pose_in_B(
-            all_controlled_frames_in_world_rf, math_utils.pose_inv(self.base_link_frame_in_world_rf)
-        )
+    def _transform_poses_to_base_link_frame(self, poses: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        """Transform poses from world frame to base link frame.
+        
+        Args:
+            poses: Poses in world frame.
+            
+        Returns:
+            Tuple of (positions, rotation_matrices) in base link frame.
+        """
+        # Transform poses to base link frame
+        base_link_inv = math_utils.pose_inv(self.base_link_frame_in_world_rf)
+        transformed_poses = math_utils.pose_in_A_to_pose_in_B(poses, base_link_inv)
+        
+        # Extract position and rotation
+        positions, rotation_matrices = math_utils.unmake_pose(transformed_poses)
+        
+        # Apply hand rotational offset
+        rotation_matrices = rotation_matrices @ self.nominal_hand_pose_rotmat
+        
+        return positions, rotation_matrices
 
-        controlled_frame_in_base_link_frame_pos, controlled_frame_in_base_link_frame_rotmat = math_utils.unmake_pose(
-            controlled_frame_in_base_link_rf
-        )
-        # Add the hand rotational offset to the controlled_frame rotation
-        controlled_frame_in_base_link_frame_rotmat = controlled_frame_in_base_link_frame_rotmat @ self.nominal_hand_pose_rotmat
-
-        # Loop through each task and set the target
+    def _set_task_targets(self, transformed_poses: tuple[torch.Tensor, torch.Tensor]) -> None:
+        """Set targets for all tasks across all environments.
+        
+        Args:
+            transformed_poses: Tuple of (positions, rotation_matrices) in base link frame.
+        """
+        positions, rotation_matrices = transformed_poses
+        
         for env_index, ik_controller in enumerate(self._ik_controllers):
             for task_index, task in enumerate(ik_controller.cfg.variable_input_tasks):
-                if isinstance(task, FrameTask):
+                if isinstance(task, LocalFrameTask):
+                    target = task.transform_target_to_base
+                elif isinstance(task, FrameTask):
                     target = task.transform_target_to_world
-                    target.translation = controlled_frame_in_base_link_frame_pos[task_index, env_index, :].cpu().numpy()
-                    target.rotation = controlled_frame_in_base_link_frame_rotmat[task_index, env_index, :].cpu().numpy()
-                    task.set_target(target)
+                else:
+                    continue
+                
+                # Set position and rotation targets
+                target.translation = positions[task_index, env_index, :].cpu().numpy()
+                target.rotation = rotation_matrices[task_index, env_index, :].cpu().numpy()
+                
+                task.set_target(target)
 
-    def apply_actions(self):
-        # start_time = time.time()  # Capture the time before the step
+    # ==================== Action Application ====================
+
+    def apply_actions(self) -> None:
         """Apply the computed joint positions based on the inverse kinematics solution."""
-        all_envs_joint_pos_des = []
+        # Compute IK solutions for all environments
+        ik_joint_positions = self._compute_ik_solutions()
+        
+        # Combine IK and hand joint positions
+        all_joint_positions = torch.cat((ik_joint_positions, self._target_hand_joint_positions), dim=1)
+        self._processed_actions = all_joint_positions
+        
+        # Apply joint position targets
+        self._asset.set_joint_position_target(self._processed_actions, self._controlled_joint_ids)
+
+    def _compute_ik_solutions(self) -> torch.Tensor:
+        """Compute IK solutions for all environments.
+        
+        Returns:
+            IK joint positions tensor for all environments.
+        """
+        ik_solutions = []
+        
         for env_index, ik_controller in enumerate(self._ik_controllers):
-            curr_joint_pos = self._asset.data.joint_pos[:, self._pink_controlled_joint_ids].cpu().numpy()[env_index]
-            joint_pos_des = ik_controller.compute(curr_joint_pos, self._sim_dt)
-            all_envs_joint_pos_des.append(joint_pos_des)
-        all_envs_joint_pos_des = torch.stack(all_envs_joint_pos_des)
+            # Get current joint positions for this environment
+            current_joint_pos = self._asset.data.joint_pos.cpu().numpy()[env_index]
+            
+            # Compute IK solution
+            joint_pos_des = ik_controller.compute(current_joint_pos, self._sim_dt)
+            ik_solutions.append(joint_pos_des)
+        
+        return torch.stack(ik_solutions)
 
-        # Combine IK joint positions with hand joint positions
-        all_envs_joint_pos_des = torch.cat((all_envs_joint_pos_des, self._target_hand_joint_positions), dim=1)
-        self._processed_actions = all_envs_joint_pos_des
-
-        self._asset.set_joint_position_target(all_envs_joint_pos_des, self._joint_ids)
+    # ==================== Reset ====================
 
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
         """Reset the action term for specified environments.
