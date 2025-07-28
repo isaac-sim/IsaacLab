@@ -14,8 +14,6 @@ import isaaclab.utils.string as string_utils
 from isaaclab.utils.types import ArticulationActions
 
 if TYPE_CHECKING:
-    from omni.isaac.lab.assets import Articulation
-
     from .actuator_cfg import ActuatorBaseCfg
 
 
@@ -243,18 +241,6 @@ class ActuatorBase(ABC):
             The computed desired joint positions, joint velocities and joint efforts.
         """
         raise NotImplementedError
-
-    def update_params(self, articulation: Articulation):
-        """
-        Optional hook to update actuator parameters dynamically based on the provided articulation.
-        By default, no parameter update is performed. Override this method in subclasses if dynamic
-        updates are required to parameters that propagate through articulation to physics
-        (e.g. variable armature actuators).
-
-        Args:
-            articulation (Articulation): The current articulation instance.
-        """
-        pass
 
     """
     Helper functions.

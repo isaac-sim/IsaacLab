@@ -1521,8 +1521,6 @@ class Articulation(AssetBase):
             # TODO: find a cleaner way to handle gear ratio. Only needed for variable gear ratio actuators.
             if hasattr(actuator, "gear_ratio"):
                 self._data.gear_ratio[:, actuator.joint_indices] = actuator.gear_ratio
-            # update parameters of the actuator model
-            actuator.update_params(self)
 
     """
     Internal helpers -- Debugging.
