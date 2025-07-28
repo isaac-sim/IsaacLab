@@ -74,9 +74,8 @@ class MySceneCfg(InteractiveSceneCfg):
     #     mesh_prim_paths=["/World/ground"],
     # )
     contact_forces = ContactSensorCfg(
-        prim_path="{ENV_REGEX_NS}/Robot",
-        body_names_expr=["{ENV_REGEX_NS}/Robot/.*"],
-        contact_partners_shape_expr=["/World/ground/terrain/GroundPlane/CollisionPlane"],
+        prim_path="{ENV_REGEX_NS}/Robot/.*",
+        filter_shape_paths_expr=["/World/ground/terrain/GroundPlane/CollisionPlane"],
         history_length=3,
         track_air_time=True,
     )

@@ -30,23 +30,7 @@ class ContactSensorCfg(SensorBaseCfg):
     if :attr:`track_air_time` is True.
     """
 
-    body_names_expr: list[str] | None = None
-    """A list of expressions to filter contacts bodies with. Defaults to None. If both :attr:`body_names_expr` and
-    :attr:`shape_names_expr` are None, the contact with all bodies/shapes is reported.
-
-    Only one of :attr:`body_names_expr` or :attr:`shape_names_expr` can be provided.
-    If both are provided, an error will be raised.
-
-    We make an explicit difference between a body and a shape. A body is a rigid body, while a shape is a collision
-    shape. A body can have multiple shapes. The shape option allows a more fine-grained control over the contact
-    reporting.
-
-    .. note::
-        The expression in the list can contain the environment namespace regex ``{ENV_REGEX_NS}`` which
-        will be replaced with the environment namespace.
-    """
-
-    shape_names_expr: list[str] | None = None
+    shape_path: list[str] | None = None
     """A list of expressions to filter contacts shapes with. Defaults to None. If both :attr:`body_names_expr` and
     :attr:`shape_names_expr` are None, the contact with all bodies/shapes is reported.
 
@@ -62,7 +46,7 @@ class ContactSensorCfg(SensorBaseCfg):
         will be replaced with the environment namespace.
     """
 
-    contact_partners_body_expr: list[str] | None = None
+    filter_prim_paths_expr: list[str] | None = None
     """A list of expressions to filter contacts bodies with. Defaults to None. If both :attr:`contact_partners_body_expr` and
     :attr:`contact_partners_shape_expr` are None, the contact with all bodies/shapes is reported.
 
@@ -91,7 +75,7 @@ class ContactSensorCfg(SensorBaseCfg):
         for more details.
     """
 
-    contact_partners_shape_expr: list[str] | None = None
+    filter_shape_paths_expr: list[str] | None = None
     """A list of expressions to filter contacts shapes with. Defaults to None. If both :attr:`contact_partners_body_expr` and
     :attr:`contact_partners_shape_expr` are None, the contact with all bodies/shapes is reported.
 

@@ -165,7 +165,7 @@ class ContactSensor(SensorBase):
         if self.cfg.history_length > 0:
             self._data.net_forces_w_history[env_ids] = 0.0
         # reset force matrix
-        if self.cfg.contact_partners_body_expr is not None or self.cfg.contact_partners_shape_expr is not None:
+        if self.cfg.filter_prim_paths_expr is not None or self.cfg.filter_shape_paths_expr is not None:
             self._data.force_matrix_w[env_ids] = 0.0
         # reset the current air time
         if self.cfg.track_air_time:
@@ -265,24 +265,21 @@ class ContactSensor(SensorBase):
         super()._initialize_impl()
         """Initializes the sensor-related handles and internal buffers."""
         # construct regex expression for the body names
-        if self.cfg.body_names_expr is not None:
-            body_names_regex = r"(" + "|".join(self.cfg.body_names_expr) + r")"
-        else:
-            body_names_regex = None
-        if self.cfg.shape_names_expr is not None:
-            shape_names_regex = r"(" + "|".join(self.cfg.shape_names_expr) + r")"
+        body_names_regex = self.cfg.prim_path
+        if self.cfg.shape_path is not None:
+            shape_names_regex = r"(" + "|".join(self.cfg.shape_path) + r")"
         else:
             shape_names_regex = None
-        if self.cfg.contact_partners_body_expr is not None:
-            contact_partners_body_regex = r"(" + "|".join(self.cfg.contact_partners_body_expr) + r")"
+        if self.cfg.filter_prim_paths_expr is not None:
+            contact_partners_body_regex = r"(" + "|".join(self.cfg.filter_prim_paths_expr) + r")"
         else:
             contact_partners_body_regex = None
-        if self.cfg.contact_partners_shape_expr is not None:
-            contact_partners_shape_regex = r"(" + "|".join(self.cfg.contact_partners_shape_expr) + r")"
+        if self.cfg.filter_shape_paths_expr is not None:
+            contact_partners_shape_regex = r"(" + "|".join(self.cfg.filter_shape_paths_expr) + r")"
         else:
             contact_partners_shape_regex = None
 
-        if self.cfg.contact_partners_body_expr is not None or self.cfg.contact_partners_shape_expr is not None:
+        if self.cfg.filter_prim_paths_expr is not None or self.cfg.filter_shape_paths_expr is not None:
             self._generate_force_matrix = True
         else:
             self._generate_force_matrix = False
