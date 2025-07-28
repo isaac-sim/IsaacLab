@@ -223,7 +223,6 @@ class IdealPDActuator(ActuatorBase):
             self.velocities_delay_buffer.reset(env_ids)
             self.efforts_delay_buffer.reset(env_ids)
 
-
     def compute(
         self, control_action: ArticulationActions, joint_pos: torch.Tensor, joint_vel: torch.Tensor
     ) -> ArticulationActions:
@@ -350,14 +349,8 @@ class DCMotor(IdealPDActuator):
 class DelayedPDActuator(IdealPDActuator):
     """Ideal PD actuator with delayed command application.
 
-    This class extends the :class:`IdealPDActuator` class by adding a delay to the actuator commands. The delay
-    is implemented using a circular buffer that stores the actuator commands for a certain number of physics steps.
-    The most recent actuation value is pushed to the buffer at every physics step, but the final actuation value
-    applied to the simulation is lagged by a certain number of physics steps.
-
-    The amount of time lag is configurable and can be set to a random value between the minimum and maximum time
-    lag bounds at every reset. The minimum and maximum time lag values are set in the configuration instance passed
-    to the class.
+    .. deprecated:: 2.2.0
+        Please use :class:`IdealPDActuator` instead.
     """
 
     cfg: DelayedPDActuatorCfg
