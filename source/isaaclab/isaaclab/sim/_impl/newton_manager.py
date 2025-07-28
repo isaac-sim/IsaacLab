@@ -1,11 +1,15 @@
 import newton.sim.articulation
 import warp as wp
 import newton.utils
-#from newton.utils.selection import ContactViewManager, ContactView
-from isaacsim.core.utils.stage import print_stage_prim_paths, get_current_stage
+from newton.sim.contacts import ContactInfo
+from newton.utils.contact_sensor import convert_contact_info, ContactView
+from isaacsim.core.utils.stage import get_current_stage
 from newton import Model, State, Control
 from newton.sim import ModelBuilder
+import re
 import usdrt
+
+flipped_match = lambda x, y: re.match(y, x)
 
 @wp.kernel(enable_backward=False)
 def set_vec3d_array(
@@ -20,7 +24,6 @@ def set_vec3d_array(
 
 class NewtonManager:
     _builder: ModelBuilder = None
-    #_contact_manager: ContactViewManager = None
     _model: Model = None
     _device: str = "cuda:0"
     _sim_dt: float = 1.0 / 200.0
@@ -31,6 +34,10 @@ class NewtonManager:
     _state_1: State = None
     _state_temp: State = None
     _control: Control = None
+    _on_init_callbacks: list = []
+    _on_start_callbacks: list = []
+    _contact_info: ContactInfo = None
+    _report_contacts: bool = False
     _use_cuda_graph: bool = False
     _graph = None
     _up_axis: str = "Z"
@@ -61,13 +68,32 @@ class NewtonManager:
         NewtonManager._builder = builder
 
     @classmethod
-    def start_simulation(cls):
+    def add_on_init_callback(cls, callback) -> None:
+        NewtonManager._on_init_callbacks.append(callback)
+
+    @classmethod
+    def add_on_start_callback(cls, callback) -> None:
+        NewtonManager._on_start_callbacks.append(callback)
+
+    @classmethod
+    def start_simulation(cls) -> None:
+        """Starts the simulation.
+
+        This function finalizes the model and initializes the simulation state.
+        """
+        print(f"[INFO] Running on init callbacks")
+        for callback in NewtonManager._on_init_callbacks:
+            callback()
+        print(f"[INFO] Finalizing model on device: {NewtonManager._device}")
         NewtonManager._model = NewtonManager._builder.finalize(device=NewtonManager._device)
-        #NewtonManager._contact_manager = ContactViewManager(NewtonManager._model)
+        print(f"[INFO] Running on start callbacks")
+        for callback in NewtonManager._on_start_callbacks:
+            callback()
         NewtonManager._state_0 = NewtonManager._model.state()
         NewtonManager._state_1 = NewtonManager._model.state()
         NewtonManager._state_temp = NewtonManager._model.state()
         NewtonManager._control = NewtonManager._model.control()
+        NewtonManager._contact_info = ContactInfo()
         newton.sim.articulation.eval_fk(NewtonManager._model, NewtonManager._model.joint_q, NewtonManager._model.joint_qd, NewtonManager._state_0, None)
         NewtonManager._usdrt_stage = get_current_stage(fabric=True)
         for i, prim_path in enumerate(NewtonManager._model.body_key):
@@ -80,6 +106,17 @@ class NewtonManager:
 
     @classmethod
     def initialize_solver(cls):
+        """Initializes the solver.
+
+        This function initializes the solver based on the specified solver type. Currently, only XPBD and MuJoCoWarp
+        are supported. The graphing of the simulation is performed in this function if the simulation is ran using
+        a CUDA enabled device.
+
+        .. warning::
+            When using a CUDA enabled device, the simulation will be graphed. This means that this function steps the
+            simulation once to capture the graph. Hence, this function should only be called after everything else in
+            the simulation is initialized.
+        """
         if NewtonManager._solver_type == "xpbd":
             NewtonManager._solver = newton.solvers.XPBDSolver(NewtonManager._model, iterations=20)
         elif NewtonManager._solver_type == "mjwarp":
@@ -89,28 +126,39 @@ class NewtonManager:
                                                                 iterations=100, 
                                                                 ncon_per_env=300, 
                                                                 contact_stiffness_time_const=0.01,
+                                                                impratio=100,
+                                                                cone="elliptic",
                                                                 )
         else:
             raise ValueError(f"Unknown solver type: {NewtonManager._solver_type}")
 
         NewtonManager._use_cuda_graph = wp.get_device().is_cuda
-        #NewtonManager._contact_manager.finalize(NewtonManager._solver)
         if NewtonManager._use_cuda_graph:
             with wp.ScopedCapture() as capture:
                 NewtonManager.simulate()
             NewtonManager._graph = capture.graph
 
     @classmethod
-    def simulate(cls):
+    def simulate(cls) -> None:
+        """Simulates the simulation.
+
+        Performs one simulation step with the specified number of substeps. Depending on the solver type, this function
+        may need to explicitly compute the collisions. This function also aggregates the contacts and evaluates the
+        contact sensors. Finally, it performs the state swapping for Newton.
+        """
         state_0_dict = NewtonManager._state_0.__dict__
         state_1_dict = NewtonManager._state_1.__dict__
         state_temp_dict = NewtonManager._state_temp.__dict__
         contacts = None
+
+        # MJWarp computes its own collisions.
         if not NewtonManager._solver_type == "mjwarp":
             contacts = NewtonManager._model.collide(NewtonManager._state_0)
         
         for i in range(NewtonManager._num_substeps):
             NewtonManager._solver.step(NewtonManager._state_0, NewtonManager._state_1, NewtonManager._control, contacts, NewtonManager._sim_dt)
+
+            # FIXME: Ask Lukasz help to deal with non-even number of substeps. This should not be needed.
             if i < NewtonManager._num_substeps - 1 or not NewtonManager._use_cuda_graph:
                 # we can just swap the state references
                 NewtonManager._state_0, NewtonManager._state_1 = NewtonManager._state_1, NewtonManager._state_0
@@ -123,15 +171,10 @@ class NewtonManager:
                         state_temp_dict[key].assign(value)
                         state_0_dict[key].assign(state_1_dict[key])
                         state_1_dict[key].assign(state_temp_dict[key])
-        #with wp.ScopedTimer("Contacts aggregation"):
-        #    contact = NewtonManager._model.contact()
-        #    contact.dist = NewtonManager._solver.mjw_data.contact.dist
-        #    contact.geom = NewtonManager._solver.mjw_data.contact.geom
-        #    contact.frame = NewtonManager._solver.mjw_data.contact.frame
-        #    contact.worldid = NewtonManager._solver.mjw_data.contact.worldid
 
-        #    n_contacts = NewtonManager._solver.mjw_data.ncon
-        #    NewtonManager._contact_manager.contact_reporter.select_aggregate(contact, n_contacts)
+        if NewtonManager._report_contacts:
+            convert_contact_info(NewtonManager._model, NewtonManager._contact_info, NewtonManager._solver)
+            NewtonManager._model.eval_contact_sensors(NewtonManager._contact_info)
         NewtonManager._state_0.clear_forces()
 
     @classmethod
@@ -153,7 +196,11 @@ class NewtonManager:
         NewtonManager._device = device
 
     @classmethod
-    def step(cls):
+    def step(cls) -> None:
+        """Steps the simulation.
+
+        This function steps the simulation by the specified time step in the simulation configuration.
+        """
         with wp.ScopedTimer("step", active=False):
             if NewtonManager._use_cuda_graph:
                 wp.capture_launch(NewtonManager._graph)
@@ -164,14 +211,24 @@ class NewtonManager:
 
 
     @classmethod
-    def set_simulation_dt(cls, sim_dt, substeps):
+    def set_simulation_dt(cls, sim_dt: float, substeps: int | None = None) -> None:
+        """Sets the simulation time step and the number of substeps.
+
+        Args:
+            sim_dt (float): The simulation time step.
+            substeps (int | None): The number of substeps. If None, the number of substeps will be set to the default value.
+        """
         if substeps is not None:
             NewtonManager._num_substeps = substeps
         NewtonManager._sim_dt = sim_dt / NewtonManager._num_substeps
 
 
     @classmethod
-    def render(cls):
+    def render(cls) -> None:
+        """Renders the simulation.
+
+        This function renders the simulation using the OpenGL renderer.
+        """
         if NewtonManager._renderer is None:
             NewtonManager._renderer = newton.utils.SimRendererOpenGL(
                 path="example.usd",
@@ -188,7 +245,11 @@ class NewtonManager:
             NewtonManager._renderer.end_frame()
 
     @classmethod
-    def sync_fabric_transforms(cls): 
+    def sync_fabric_transforms(cls) -> None:
+        """Syncs the fabric transforms with the Newton state.
+
+        This function syncs the fabric transforms with the Newton state.
+        """
         selection = NewtonManager._usdrt_stage.SelectPrims(
             require_attrs=[
                 (usdrt.Sdf.ValueTypeNames.Matrix4d, "omni:fabric:worldMatrix", usdrt.Usd.Access.ReadWrite),
@@ -221,18 +282,72 @@ class NewtonManager:
     def get_control(cls):
         return NewtonManager._control
 
-
     @classmethod
-    def forward_kinematics(cls, selection):
+    def forward_kinematics(cls, selection) -> None:
+        """Evaluates the forward kinematics for the selected articulations.
+
+        This function evaluates the forward kinematics for the selected articulations.
+        """
         newton.sim.articulation.eval_fk(
             NewtonManager._model, NewtonManager._state_0.joint_q, NewtonManager._state_0.joint_qd, NewtonManager._state_0, selection.articulation_mask 
         )
 
-    #@classmethod
-    #def add_contact_view(cls, body_names_glob, filter_prim_paths_glob):
-    #    print(f"[INFO] Adding contact view for {body_names_glob} with filter {filter_prim_paths_glob}")
-    #    return ContactView(NewtonManager._contact_manager, body_names_glob, filter_prim_paths_glob)
+    @classmethod
+    def add_contact_view(cls,
+            body_names_expr: str | None = None,
+            shape_names_expr: str | None = None,
+            contact_partners_body_expr: str | None = None,
+            contact_partners_shape_expr: str | None = None,
+            verbose: bool = False) -> ContactView:
+        """Adds a contact view.
 
-    #@classmethod
-    #def get_contact_view(cls):
-    #    return NewtonManager._contact_manager
+        Adds a contact view to the simulation allowing to report contacts between the specified bodies/shapes and the
+        contact partners. As of now, only one body/shape name expression can be provided. Similarly, only one contact
+        partner body/shape expression can be provided. If no contact partner expression is provided, the contact view
+        will report contacts with all bodies/shapes.
+
+        Note that we make an explicit difference between a body and a shape. A body is a rigid body, while a shape
+        is a collision shape. A body can have multiple shapes. The shape option allows a more fine-grained control
+        over the contact reporting.
+
+        Args:
+            body_names_expr (str | None): The expression for the body names.
+            shape_names_expr (str | None): The expression for the shape names.
+            contact_partners_body_expr (str | None): The expression for the contact partners' body names.
+            contact_partners_shape_expr (str | None): The expression for the contact partners' shape names.
+            verbose (bool): Whether to print verbose information.
+
+        Returns:
+            ContactView: The contact view.
+        """
+        if body_names_expr is None and shape_names_expr is None:
+            raise ValueError("At least one of body_names_expr or shape_names_expr must be provided")
+        if body_names_expr is not None and shape_names_expr is not None:
+            raise ValueError("Only one of body_names_expr or shape_names_expr must be provided")
+        if contact_partners_body_expr is not None and contact_partners_shape_expr is not None:
+            raise ValueError("Only one of contact_partners_body_expr or contact_partners_shape_expr must be provided")
+        if contact_partners_body_expr is None and contact_partners_shape_expr is None:
+            print(f"[INFO] Adding contact view for {body_names_expr}. It will report contacts with all bodies/shapes.")
+        else:
+            if body_names_expr is not None:
+                if contact_partners_body_expr is not None:
+                    print(f"[INFO] Adding contact view for {body_names_expr} with filter {contact_partners_body_expr}.")
+                else:
+                    print(f"[INFO] Adding contact view for {body_names_expr} with filter {shape_names_expr}.")
+            else:
+                if contact_partners_body_expr is not None:
+                    print(f"[INFO] Adding contact view for {shape_names_expr} with filter {contact_partners_body_expr}.")
+                else:
+                    print(f"[INFO] Adding contact view for {shape_names_expr} with filter {contact_partners_shape_expr}.")
+
+        contact_sensor = NewtonManager._builder.add_contact_sensor(
+            sensor_body=body_names_expr,
+            sensor_shape=shape_names_expr,
+            contact_partners_body=contact_partners_body_expr,
+            contact_partners_shape=contact_partners_shape_expr,
+            match_fun=flipped_match,
+            include_total=True,
+            verbose=verbose
+        )
+        NewtonManager._report_contacts = True
+        return contact_sensor 

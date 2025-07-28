@@ -366,6 +366,7 @@ class RemotizedPDActuator(DelayedPDActuator):
         joint_ids: Sequence[int],
         num_envs: int,
         device: str,
+        control_mode: str = "position",
         stiffness: torch.Tensor | float = 0.0,
         damping: torch.Tensor | float = 0.0,
         armature: torch.Tensor | float = 0.0,
@@ -378,7 +379,7 @@ class RemotizedPDActuator(DelayedPDActuator):
         cfg.velocity_limit = torch.inf
         # call the base method and set default effort_limit and velocity_limit to inf
         super().__init__(
-            cfg, joint_names, joint_ids, num_envs, device, stiffness, damping, armature, friction, torch.inf, torch.inf
+            cfg, joint_names, joint_ids, num_envs, device, control_mode, stiffness, damping, armature, friction, torch.inf, torch.inf
         )
         self._joint_parameter_lookup = torch.tensor(cfg.joint_parameter_lookup, device=device)
         # define remotized joint torque limit

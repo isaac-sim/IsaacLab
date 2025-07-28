@@ -20,7 +20,6 @@ class AnymalCRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         super().__post_init__()
         # switch robot to anymal-c
         self.scene.robot = ANYMAL_C_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-        self.terminations.Base_too_low.params = {"minimum_height": 0.2}
 
 
 @configclass
