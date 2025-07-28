@@ -288,12 +288,10 @@ class ContactSensor(SensorBase):
             self._generate_force_matrix = False
 
         self._contact_newton_view = NewtonManager.add_contact_view(
-            self,
             body_names_expr=body_names_regex,
             shape_names_expr=shape_names_regex,
             contact_partners_body_expr=contact_partners_body_regex,
             contact_partners_shape_expr=contact_partners_shape_regex,
-            include_total=True,
         )
         NewtonManager.add_on_start_callback(self._create_buffers)
 
@@ -338,7 +336,6 @@ class ContactSensor(SensorBase):
             self._data.current_contact_time = torch.zeros(self._num_envs, self._num_bodies, device=self._device)
         # force matrix: (num_envs, num_bodies, num_filter_shapes, 3)
         if self._generate_force_matrix:
-            # num_filters = self.contact_physx_view.filter_count
             num_filters = self._contact_newton_view.shape[1]
             self._data.force_matrix_w = torch.zeros(
                 self._num_envs, self._num_bodies, num_filters, 3, device=self._device

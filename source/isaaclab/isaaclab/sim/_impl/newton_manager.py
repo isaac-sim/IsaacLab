@@ -319,12 +319,10 @@ class NewtonManager:
     @classmethod
     def add_contact_view(
         cls,
-        il_contact_sensor,
         body_names_expr: str | None = None,
         shape_names_expr: str | None = None,
         contact_partners_body_expr: str | None = None,
         contact_partners_shape_expr: str | None = None,
-        include_total: bool = True,
         verbose: bool = False,
     ) -> ContactView:
         """Adds a contact view.
@@ -378,7 +376,7 @@ class NewtonManager:
             contact_partners_body=contact_partners_body_expr,
             contact_partners_shape=contact_partners_shape_expr,
             match_fun=flipped_match,
-            include_total=include_total,
+            include_total=True,
             verbose=verbose,
         )
         NewtonManager._report_contacts = True
