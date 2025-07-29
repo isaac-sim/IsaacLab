@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -41,7 +41,7 @@ import traceback
 import carb
 import omni
 from isaacsim.core.api.simulation_context import SimulationContext
-from isaaclab.cloner import GridCloner
+from isaacsim.core.cloner import GridCloner
 from isaacsim.core.utils.viewports import set_camera_view
 from pxr import PhysxSchema
 

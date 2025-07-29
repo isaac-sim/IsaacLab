@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -161,6 +161,7 @@ SPOT_CFG = ArticulationCfg(
     ),
     actuators={
         "spot_hip": DelayedPDActuatorCfg(
+            control_mode="position",
             joint_names_expr=[".*_h[xy]"],
             effort_limit=45.0,
             stiffness=60.0,
@@ -169,6 +170,7 @@ SPOT_CFG = ArticulationCfg(
             max_delay=4,  # physics time steps (max: 2.0*4=8.0ms)
         ),
         "spot_knee": RemotizedPDActuatorCfg(
+            control_mode="position",
             joint_names_expr=[".*_kn"],
             joint_parameter_lookup=joint_parameter_lookup,
             effort_limit=None,  # torque limits are handled based experimental data (`RemotizedPDActuatorCfg.data`)

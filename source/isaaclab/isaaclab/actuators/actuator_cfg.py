@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -111,7 +111,7 @@ class ActuatorBaseCfg:
 
     control_mode: Literal["position", "velocity", "none"] = "position"
     """Control mode of the actuator. Defaults to "position".
-    
+
     The control mode can be one of the following:
 
     * ``"position"``: Position control

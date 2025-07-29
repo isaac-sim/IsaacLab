@@ -1,4 +1,4 @@
-# Copyright (c) 2024-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2024-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: Apache-2.0
@@ -80,7 +80,7 @@ import random
 import time
 import torch
 
-from isaaclab.devices import Se3Keyboard, Se3SpaceMouse
+from isaaclab.devices import Se3Keyboard, Se3KeyboardCfg, Se3SpaceMouse, Se3SpaceMouseCfg
 from isaaclab.envs import ManagerBasedRLMimicEnv
 from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
 from isaaclab.managers import DatasetExportMode, RecorderTerm, RecorderTermCfg
@@ -198,9 +198,9 @@ async def run_teleop_robot(
     # create controller if needed
     if teleop_interface is None:
         if args_cli.teleop_device.lower() == "keyboard":
-            teleop_interface = Se3Keyboard(pos_sensitivity=0.2, rot_sensitivity=0.5)
+            teleop_interface = Se3Keyboard(Se3KeyboardCfg(pos_sensitivity=0.2, rot_sensitivity=0.5))
         elif args_cli.teleop_device.lower() == "spacemouse":
-            teleop_interface = Se3SpaceMouse(pos_sensitivity=0.2, rot_sensitivity=0.5)
+            teleop_interface = Se3SpaceMouse(Se3SpaceMouseCfg(pos_sensitivity=0.2, rot_sensitivity=0.5))
         else:
             raise ValueError(
                 f"Invalid device interface '{args_cli.teleop_device}'. Supported: 'keyboard', 'spacemouse'."
@@ -361,7 +361,7 @@ def main():
 
     # get the environment name
     if args_cli.task is not None:
-        env_name = args_cli.task
+        env_name = args_cli.task.split(":")[-1]
     elif args_cli.input_file:
         # if the environment name is not specified, try to get it from the dataset file
         dataset_file_handler = HDF5DatasetFileHandler()
@@ -401,7 +401,7 @@ def main():
         env_cfg.recorders.dataset_export_mode = DatasetExportMode.EXPORT_SUCCEEDED_ONLY
 
     # create environment
-    env = gym.make(env_name, cfg=env_cfg)
+    env = gym.make(args_cli.task, cfg=env_cfg)
 
     if not isinstance(env.unwrapped, ManagerBasedRLMimicEnv):
         raise ValueError("The environment should be derived from ManagerBasedRLMimicEnv")

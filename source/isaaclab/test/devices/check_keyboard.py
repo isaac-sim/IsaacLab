@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -25,7 +25,7 @@ import ctypes
 
 from isaacsim.core.api.simulation_context import SimulationContext
 
-from isaaclab.devices import Se3Keyboard
+from isaaclab.devices import Se3Keyboard, Se3KeyboardCfg
 
 
 def print_cb():
@@ -44,7 +44,7 @@ def main():
     sim = SimulationContext(physics_dt=0.01, rendering_dt=0.01)
 
     # Create teleoperation interface
-    teleop_interface = Se3Keyboard(pos_sensitivity=0.1, rot_sensitivity=0.1)
+    teleop_interface = Se3Keyboard(Se3KeyboardCfg(pos_sensitivity=0.1, rot_sensitivity=0.1))
     # Add teleoperation callbacks
     # available key buttons: https://docs.omniverse.nvidia.com/kit/docs/carbonite/latest/docs/python/carb.html?highlight=keyboardeventtype#carb.input.KeyboardInput
     teleop_interface.add_callback("L", print_cb)

@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -15,6 +15,7 @@ import isaacsim
 import omni.kit.app
 import omni.kit.commands
 import omni.usd
+from isaacsim.core.utils.stage import get_current_stage
 from pxr import PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics
 
 from isaaclab.ui.widgets import ManagerLiveVisualizer
@@ -59,6 +60,9 @@ class BaseEnvWindow:
             *self.env.scene.rigid_objects.keys(),
             *self.env.scene.articulations.keys(),
         ]
+
+        # get stage handle
+        self.stage = get_current_stage()
 
         # Listeners for environment selection changes
         self._ui_listeners: list[ManagerLiveVisualizer] = []
@@ -300,8 +304,7 @@ class BaseEnvWindow:
             # stop the recording
             _ = omni.kit.commands.execute("StopRecording")
             # save the current stage
-            stage = omni.usd.get_context().get_stage()
-            source_layer = stage.GetRootLayer()
+            source_layer = self.stage.GetRootLayer()
             # output the stage to a file
             stage_usd_path = os.path.join(self.animation_log_dir, "Stage.usd")
             source_prim_path = "/"
@@ -311,8 +314,8 @@ class BaseEnvWindow:
                 temp_layer = Sdf.Layer.CreateNew(stage_usd_path)
             temp_stage = Usd.Stage.Open(temp_layer)
             # update stage data
-            UsdGeom.SetStageUpAxis(temp_stage, UsdGeom.GetStageUpAxis(stage))
-            UsdGeom.SetStageMetersPerUnit(temp_stage, UsdGeom.GetStageMetersPerUnit(stage))
+            UsdGeom.SetStageUpAxis(temp_stage, UsdGeom.GetStageUpAxis(self.stage))
+            UsdGeom.SetStageMetersPerUnit(temp_stage, UsdGeom.GetStageMetersPerUnit(self.stage))
             # copy the prim
             Sdf.CreatePrimInLayer(temp_layer, source_prim_path)
             Sdf.CopySpec(source_layer, source_prim_path, temp_layer, source_prim_path)

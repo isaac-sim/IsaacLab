@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -9,20 +9,17 @@
 from __future__ import annotations
 
 import torch
+import weakref
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-import carb
-import omni.physics.tensors.impl.api as physx
-from isaacsim.core.simulation_manager import SimulationManager
-from isaaclab.sim._impl.newton_manager import NewtonManager
-#from newton.utils.selection import ContactView
-from pxr import PhysxSchema
+import omni.timeline
+import warp as wp
+from newton.utils.contact_sensor import ContactView
 
-import isaaclab.sim as sim_utils
 import isaaclab.utils.string as string_utils
 from isaaclab.markers import VisualizationMarkers
-from isaaclab.utils.math import convert_quat
+from isaaclab.sim._impl.newton_manager import NewtonManager
 
 from ..sensor_base import SensorBase
 from .contact_sensor_data import ContactSensorData
@@ -65,6 +62,8 @@ class ContactSensor(SensorBase):
 
     cfg: ContactSensorCfg
     """The configuration parameters."""
+    _contact_newton_view: ContactView
+    """The contact view for the sensor."""
 
     def __init__(self, cfg: ContactSensorCfg):
         """Initializes the contact sensor object.
@@ -73,22 +72,43 @@ class ContactSensor(SensorBase):
             cfg: The configuration parameters.
         """
         # initialize base class
-        super().__init__(cfg)
+        # check that config is valid
+        if cfg.history_length < 0:
+            raise ValueError(f"History length must be greater than 0! Received: {cfg.history_length}")
+        # check that the config is valid
+        cfg.validate()
+        # store inputs
+        self.cfg = cfg.copy()
+        # flag for whether the sensor is initialized
+        self._is_initialized = False
+        # flag for whether the sensor is in visualization mode
+        self._is_visualizing = False
 
-        # Enable contact processing
-        carb_settings_iface = carb.settings.get_settings()
-        carb_settings_iface.set_bool("/physics/disableContactProcessing", False)
+        # note: Use weakref on callbacks to ensure that this object can be deleted when its destructor is called.
+        # add callbacks for stage play/stop
+        # The order is set to 10 which is arbitrary but should be lower priority than the default order of 0
+
+        NewtonManager.add_on_init_callback(self._initialize_impl)
+
+        timeline_event_stream = omni.timeline.get_timeline_interface().get_timeline_event_stream()
+        self._invalidate_initialize_handle = timeline_event_stream.create_subscription_to_pop_by_type(
+            int(omni.timeline.TimelineEventType.STOP),
+            lambda event, obj=weakref.proxy(self): obj._invalidate_initialize_callback(event),
+            order=10,
+        )
+        # add handle for debug visualization (this is set to a valid handle inside set_debug_vis)
+        self._debug_vis_handle = None
+        # set initial state of debug visualization
+        self.set_debug_vis(self.cfg.debug_vis)
 
         # Create empty variables for storing output data
         self._data: ContactSensorData = ContactSensorData()
-        # initialize self._body_physx_view for running in extension mode
-        self._body_physx_view = None
 
     def __str__(self) -> str:
         """Returns: A string containing information about the instance."""
         return (
             f"Contact sensor @ '{self.cfg.prim_path}': \n"
-            f"\tview type         : {self.body_physx_view.__class__}\n"
+            f"\tview type         : {self.contact_newton_view.__class__}\n"
             f"\tupdate period (s) : {self.cfg.update_period}\n"
             f"\tnumber of bodies  : {self.num_bodies}\n"
             f"\tbody names        : {self.body_names}\n"
@@ -99,8 +119,8 @@ class ContactSensor(SensorBase):
     """
 
     @property
-    def num_instances(self) -> int:
-        return len(self._contact_newton_view.entity_a)
+    def num_instances(self) -> int | None:
+        return self._num_bodies
 
     @property
     def data(self) -> ContactSensorData:
@@ -115,29 +135,14 @@ class ContactSensor(SensorBase):
         return self._num_bodies
 
     @property
-    def body_names(self) -> list[str]:
-        """Ordered names of bodies with contact sensors attached."""
-        #prim_paths = self.body_physx_view.prim_paths[: self.num_bodies]
-        prim_paths = self._contact_newton_view.query_keys[0][: self.num_bodies]
-        return [path.split("/")[-1] for path in prim_paths]
+    def body_names(self) -> list[str] | None:
+        """Ordered names of shapes or bodies with contact sensors attached."""
+        return self._body_names
 
-    #@property
-    #def body_physx_view(self) -> physx.RigidBodyView:
-    #    """View for the rigid bodies captured (PhysX).
-
-    #    Note:
-    #        Use this view with caution. It requires handling of tensors in a specific way.
-    #    """
-    #    return self._body_physx_view
-
-    #@property
-    #def contact_physx_view(self) -> physx.RigidContactView:
-    #    """Contact reporter view for the bodies (PhysX).
-
-    #    Note:
-    #        Use this view with caution. It requires handling of tensors in a specific way.
-    #    """
-    #    return self._contact_physx_view
+    @property
+    def contact_partner_names(self) -> list[str] | None:
+        """Ordered names of shapes or bodies that are selected as contact partners."""
+        return self._contact_partner_names
 
     @property
     def contact_newton_view(self) -> ContactView:
@@ -160,7 +165,7 @@ class ContactSensor(SensorBase):
         if self.cfg.history_length > 0:
             self._data.net_forces_w_history[env_ids] = 0.0
         # reset force matrix
-        if len(self.cfg.filter_prim_paths_expr) != 0:
+        if self.cfg.filter_prim_paths_expr is not None or self.cfg.filter_shape_paths_expr is not None:
             self._data.force_matrix_w[env_ids] = 0.0
         # reset the current air time
         if self.cfg.track_air_time:
@@ -258,54 +263,53 @@ class ContactSensor(SensorBase):
 
     def _initialize_impl(self):
         super()._initialize_impl()
-        # obtain global simulation view
-        self._physics_sim_view = SimulationManager.get_physics_sim_view()
-        # check that only rigid bodies are selected
-        leaf_pattern = self.cfg.prim_path.rsplit("/", 1)[-1]
-        template_prim_path = self._parent_prims[0].GetPath().pathString
-        body_names = list()
-        for prim in sim_utils.find_matching_prims(template_prim_path + "/" + leaf_pattern):
-            # check if prim has contact reporter API
-            if prim.HasAPI(PhysxSchema.PhysxContactReportAPI):
-                prim_path = prim.GetPath().pathString
-                body_names.append(prim_path.rsplit("/", 1)[-1])
-        # check that there is at least one body with contact reporter API
-        if not body_names:
-            raise RuntimeError(
-                f"Sensor at path '{self.cfg.prim_path}' could not find any bodies with contact reporter API."
-                "\nHINT: Make sure to enable 'activate_contact_sensors' in the corresponding asset spawn configuration."
-            )
-
+        """Initializes the sensor-related handles and internal buffers."""
         # construct regex expression for the body names
-        body_names_regex = r"(" + "|".join(body_names) + r")"
-        body_names_regex = f"{self.cfg.prim_path.rsplit('/', 1)[0]}/{body_names_regex}$"
-        # convert regex expressions to glob expressions for PhysX
-        #body_names_glob = body_names_regex.replace(".*", "*")
-        filter_prim_paths_glob = [expr.replace(".*", "*") for expr in self.cfg.filter_prim_paths_expr]
-        #print(f"[INFO] Body names glob: {body_names_glob}")
+        body_names_regex = self.cfg.prim_path
+        if self.cfg.shape_path is not None:
+            shape_names_regex = r"(" + "|".join(self.cfg.shape_path) + r")"
+        else:
+            shape_names_regex = None
+        if self.cfg.filter_prim_paths_expr is not None:
+            contact_partners_body_regex = r"(" + "|".join(self.cfg.filter_prim_paths_expr) + r")"
+        else:
+            contact_partners_body_regex = None
+        if self.cfg.filter_shape_paths_expr is not None:
+            contact_partners_shape_regex = r"(" + "|".join(self.cfg.filter_shape_paths_expr) + r")"
+        else:
+            contact_partners_shape_regex = None
 
-        # create a rigid prim view for the sensor
-        #self._body_physx_view = self._physics_sim_view.create_rigid_body_view(body_names_glob)
-        #self._contact_physx_view = self._physics_sim_view.create_rigid_contact_view(
-        #    body_names_glob, filter_patterns=filter_prim_paths_glob
-        #)
-        self._contact_newton_view = NewtonManager.add_contact_view(body_names_regex, filter_prim_paths_glob)
+        if self.cfg.filter_prim_paths_expr is not None or self.cfg.filter_shape_paths_expr is not None:
+            self._generate_force_matrix = True
+        else:
+            self._generate_force_matrix = False
+
+        self._contact_newton_view = NewtonManager.add_contact_view(
+            body_names_expr=body_names_regex,
+            shape_names_expr=shape_names_regex,
+            contact_partners_body_expr=contact_partners_body_regex,
+            contact_partners_shape_expr=contact_partners_shape_regex,
+        )
+        NewtonManager.add_on_start_callback(self._create_buffers)
+
+    def _create_buffers(self):
         # resolve the true count of bodies
-        #self._num_bodies = self.body_physx_view.count // self._num_envs
-        self._num_bodies = len(self._contact_newton_view.entity_a) // self._num_envs
+        self._num_bodies = self._contact_newton_view.shape[0] // self._num_envs
 
+        # Check that number of bodies is an integer
+        if self._contact_newton_view.shape[0] % self._num_envs != 0:
+            raise RuntimeError(
+                "Number of bodies is not an integer multiple of the number of environments. Received:"
+                f" {self._num_bodies} bodies and {self._num_envs} environments."
+            )
         print(f"[INFO] Contact sensor initialized with {self._num_bodies} bodies.")
-        print(f"[INFO] Body names: {self._contact_newton_view.entity_a}")
-        print(f"[INFO] Filter prim paths: {self._contact_newton_view.query_keys}")
 
-        
-        # check that contact reporter succeeded
-        #if self._num_bodies != len(body_names):
-        #    raise RuntimeError(
-        #        "Failed to initialize contact reporter for specified bodies."
-        #        f"\n\tInput prim path    : {self.cfg.prim_path}"
-        #        f"\n\tResolved prim paths: {body_names_regex}"
-        #    )
+        self._body_names = [
+            entity[1].split("/")[-1] for entity in self._contact_newton_view.sensor_keys[: self._num_bodies]
+        ]
+        self._contact_partner_names = [
+            entity[1].split("/")[-1] for entity in self._contact_newton_view.contact_partner_keys[1:]
+        ]
 
         # prepare data buffers
         self._data.net_forces_w = torch.zeros(self._num_envs, self._num_bodies, 3, device=self._device)
@@ -328,64 +332,41 @@ class ContactSensor(SensorBase):
             self._data.last_contact_time = torch.zeros(self._num_envs, self._num_bodies, device=self._device)
             self._data.current_contact_time = torch.zeros(self._num_envs, self._num_bodies, device=self._device)
         # force matrix: (num_envs, num_bodies, num_filter_shapes, 3)
-        if len(self.cfg.filter_prim_paths_expr) != 0:
-            #num_filters = self.contact_physx_view.filter_count
-            num_filters = len(self._contact_newton_view.entity_b)
+        if self._generate_force_matrix:
+            num_filters = self._contact_newton_view.shape[1]
             self._data.force_matrix_w = torch.zeros(
                 self._num_envs, self._num_bodies, num_filters, 3, device=self._device
             )
 
     def _update_buffers_impl(self, env_ids: Sequence[int]):
         """Fills the buffers of the sensor data."""
+
         # default to all sensors
         if len(env_ids) == self._num_envs:
             env_ids = slice(None)
 
-        # obtain the contact forces
-        # TODO: We are handling the indexing ourself because of the shape; (N, B) vs expected (N * B).
-        #   This isn't the most efficient way to do this, but it's the easiest to implement.
-        # FIXME: In Newton, we cannot yet get the contact forces. But we can get the distances.
-        #   Hence, we will make this a binary sensor, if the distance is less than a very small threshold
-        #   then we will set the contact force to 1.0.
-        #net_forces_w = self.contact_physx_view.get_net_contact_forces(dt=self._sim_physics_dt)
-        entities, distance_matrix_w = self._contact_newton_view.get_contact_dist()
-        distance_matrix_w = torch.tensor(distance_matrix_w)
-        # Shape of the distance matrix: (N * B, F):
-        #   with N: number of environments
-        #   with B: number of bodies
-        #   with F: number of filters --> Right now we assume that this is always 1.
-        # Values are set to:
-        #   Inf: no contact
-        #   Anything negative: penetration depth.
-        # Since we do not know if the value is post or pre solver, we should set a non-negative contact threshold.
-        # Something like 0.01 should be good enough.
-        #self._data.net_forces_w[env_ids, :, :] = distance_matrix_w.squeeze(-1).view(-1, self._num_bodies)[env_ids]
-        # We duplicate the penetration depth to 3 components just so that it's plug and play with the rest of the code.
-        reshaped = distance_matrix_w.squeeze(-1).view(-1, self._num_bodies)[env_ids].unsqueeze(-1).expand(-1,-1,3)
-        # Apply binary thresholding to get the contact forces.
-        reshaped2 = torch.zeros_like(reshaped)
-        reshaped2[reshaped < 0.001] = - (reshaped[reshaped < 0.001] - 0.001) * 1000.0 # Randomly chosen gain to create a contact force.
-        reshaped2[reshaped >= 0.001] = 0.0
-        self._data.net_forces_w[env_ids, :, :] = reshaped2
-        # update contact force history
+        # net_force is a matrix of shape (num_bodies * num_envs, num_filters, 3)
+        net_forces_w = wp.to_torch(self._contact_newton_view.net_force).clone()
+        self._data.net_forces_w[env_ids, :, :] = net_forces_w[:, 0, :].reshape(self._num_envs, self._num_bodies, 3)[
+            env_ids
+        ]
+
         if self.cfg.history_length > 0:
             self._data.net_forces_w_history[env_ids, 1:] = self._data.net_forces_w_history[env_ids, :-1].clone()
             self._data.net_forces_w_history[env_ids, 0] = self._data.net_forces_w[env_ids]
 
-        # FIXME: We need to get the contact force matrix.
         # obtain the contact force matrix
-        #if len(self.cfg.filter_prim_paths_expr) != 0:
-        #    # shape of the filtering matrix: (num_envs, num_bodies, num_filter_shapes, 3)
-        #    num_filters = self.contact_physx_view.filter_count
-        #    # acquire and shape the force matrix
-        #    force_matrix_w = self.contact_physx_view.get_contact_force_matrix(dt=self._sim_physics_dt)
-        #    force_matrix_w = force_matrix_w.view(-1, self._num_bodies, num_filters, 3)
-        #    self._data.force_matrix_w[env_ids] = force_matrix_w[env_ids]
+        if self._generate_force_matrix:
+            # shape of the filtering matrix: (num_envs, num_bodies, num_filter_shapes, 3)
+            num_filters = self._contact_newton_view.shape[1] - 1  # -1 for the total force
+            # acquire and shape the force matrix
+            self._data.force_matrix_w[env_ids] = net_forces_w[:, 1:, :].reshape(
+                self._num_envs, self._num_bodies, num_filters, 3
+            )[env_ids]
 
         # FIXME: Re-enable this when we have a non-physx rigid body view?
-        #   Or we could request this from the contact view?
         # obtain the pose of the sensor origin
-        #if self.cfg.track_pose:
+        # if self.cfg.track_pose:
         #    pose = self.body_physx_view.get_transforms().view(-1, self._num_bodies, 7)[env_ids]
         #    pose[..., 3:] = convert_quat(pose[..., 3:], to="wxyz")
         #    self._data.pos_w[env_ids], self._data.quat_w[env_ids] = pose.split([3, 4], dim=-1)
@@ -435,21 +416,22 @@ class ContactSensor(SensorBase):
 
     def _debug_vis_callback(self, event):
         # safely return if view becomes invalid
+        return
         # note: this invalidity happens because of isaac sim view callbacks
-        if self.body_physx_view is None:
-            return
+        # if self.body_physx_view is None:
+        #    return
         # marker indices
         # 0: contact, 1: no contact
-        net_contact_force_w = torch.norm(self._data.net_forces_w, dim=-1)
-        marker_indices = torch.where(net_contact_force_w > self.cfg.force_threshold, 0, 1)
+        # net_contact_force_w = torch.norm(self._data.net_forces_w, dim=-1)
+        # marker_indices = torch.where(net_contact_force_w > self.cfg.force_threshold, 0, 1)
         # check if prim is visualized
-        if self.cfg.track_pose:
-            frame_origins: torch.Tensor = self._data.pos_w
-        else:
-            pose = self.body_physx_view.get_transforms()
-            frame_origins = pose.view(-1, self._num_bodies, 7)[:, :, :3]
+        # if self.cfg.track_pose:
+        #    frame_origins: torch.Tensor = self._data.pos_w
+        # else:
+        #    pose = self.body_physx_view.get_transforms()
+        #    frame_origins = pose.view(-1, self._num_bodies, 7)[:, :, :3]
         # visualize
-        self.contact_visualizer.visualize(frame_origins.view(-1, 3), marker_indices=marker_indices.view(-1))
+        # self.contact_visualizer.visualize(frame_origins.view(-1, 3), marker_indices=marker_indices.view(-1))
 
     """
     Internal simulation callbacks.
@@ -460,6 +442,4 @@ class ContactSensor(SensorBase):
         # call parent
         super()._invalidate_initialize_callback(event)
         # set all existing views to None to invalidate them
-        #self._body_physx_view = None
-        #self._contact_physx_view = None
         self._contact_newton_view = None

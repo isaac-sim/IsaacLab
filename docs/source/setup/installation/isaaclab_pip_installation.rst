@@ -50,6 +50,21 @@ To learn about how to set up your own project on top of Isaac Lab, see :ref:`tem
                   # activate the virtual environment
                   env_isaaclab\Scripts\activate
 
+
+-  Next, install a CUDA-enabled PyTorch 2.7.0 build for CUDA 12.8.
+
+   .. code-block:: bash
+
+      pip install torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
+
+
+-  If using rl_games for training and inferencing, install the following python 3.11 enabled rl_games fork.
+
+   .. code-block:: bash
+
+      pip install git+https://github.com/kellyguo11/rl_games.git@python3.11
+
+
 -  Before installing Isaac Lab, ensure the latest pip version is installed. To update pip, run
 
    .. tab-set::
@@ -133,3 +148,18 @@ To run a user-defined script for Isaac Lab, simply run
 .. code:: bash
 
     python my_awesome_script.py
+
+Generating VS Code Settings
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Due to the structure resulting from the installation, VS Code IntelliSense (code completion, parameter info and member lists, etc.) will not work by default.
+To set it up (define the search paths for import resolution, the path to the default Python interpreter, and other settings), for a given workspace folder, run the following command:
+
+    .. code-block:: bash
+
+        python -m isaaclab --generate-vscode-settings
+
+    .. warning::
+
+        The command will generate a ``.vscode/settings.json`` file in the workspace folder.
+        If the file already exists, it will be overwritten (a confirmation prompt will be shown first).

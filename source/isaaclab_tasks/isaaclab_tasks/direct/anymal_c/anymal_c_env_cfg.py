@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -26,7 +26,7 @@ from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG  # isort: skip
 class EventCfg:
     """Configuration for randomization."""
 
-    #physics_material = EventTerm(
+    # physics_material = EventTerm(
     #    func=mdp.randomize_rigid_body_material,
     #    mode="startup",
     #    params={
@@ -36,7 +36,7 @@ class EventCfg:
     #        "restitution_range": (0.0, 0.0),
     #        "num_buckets": 64,
     #    },
-    #)
+    # )
 
     add_base_mass = EventTerm(
         func=mdp.randomize_rigid_body_mass,
@@ -93,9 +93,9 @@ class AnymalCFlatEnvCfg(DirectRLEnvCfg):
 
     # robot
     robot: ArticulationCfg = ANYMAL_C_CFG.replace(prim_path="/World/envs/env_.*/Robot")
-    #contact_sensor: ContactSensorCfg = ContactSensorCfg(
+    # contact_sensor: ContactSensorCfg = ContactSensorCfg(
     #    prim_path="/World/envs/env_.*/Robot/.*", history_length=3, update_period=0.005, track_air_time=True
-    #)
+    # )
 
     # reward scales
     lin_vel_reward_scale = 1.0

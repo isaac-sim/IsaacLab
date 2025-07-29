@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -68,6 +68,7 @@ import isaacsim.core.utils.prims as prim_utils
 from isaacsim.core.api.simulation_context import SimulationContext
 from isaacsim.core.cloner import GridCloner
 from isaacsim.core.utils.carb import set_carb_setting
+from isaacsim.core.utils.stage import get_current_stage
 
 from isaaclab.utils import Timer
 from isaaclab.utils.assets import check_file_path
@@ -82,6 +83,10 @@ def main():
     sim = SimulationContext(
         stage_units_in_meters=1.0, physics_dt=0.01, rendering_dt=0.01, backend="torch", device="cuda:0"
     )
+
+    # get stage handle
+    stage = get_current_stage()
+
     # enable fabric which avoids passing data over to USD structure
     # this speeds up the read-write operation of GPU buffers
     if sim.get_physics_context().use_gpu_pipeline:
@@ -94,7 +99,7 @@ def main():
     set_carb_setting(sim._settings, "/persistent/omnihydra/useSceneGraphInstancing", True)
 
     # Create interface to clone the scene
-    cloner = GridCloner(spacing=args_cli.spacing)
+    cloner = GridCloner(spacing=args_cli.spacing, stage=stage)
     cloner.define_base_env("/World/envs")
     prim_utils.define_prim("/World/envs/env_0")
     # Spawn things into stage

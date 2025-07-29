@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -140,9 +140,10 @@ class RewardManager(ManagerBase):
         # reset computation
         self._reward_buf[:] = 0.0
         # iterate over all the reward terms
-        for name, term_cfg in zip(self._term_names, self._term_cfgs):
+        for term_idx, (name, term_cfg) in enumerate(zip(self._term_names, self._term_cfgs)):
             # skip if weight is zero (kind of a micro-optimization)
             if term_cfg.weight == 0.0:
+                self._step_reward[:, term_idx] = 0.0
                 continue
             # compute term's value
             value = term_cfg.func(self._env, **term_cfg.params) * term_cfg.weight * dt
@@ -152,7 +153,7 @@ class RewardManager(ManagerBase):
             self._episode_sums[name] += value
 
             # Update current reward for this step.
-            self._step_reward[:, self._term_names.index(name)] = value / dt
+            self._step_reward[:, term_idx] = value / dt
 
         return self._reward_buf
 

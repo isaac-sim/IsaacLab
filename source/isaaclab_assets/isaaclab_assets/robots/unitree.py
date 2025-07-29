@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -39,7 +39,7 @@ GO1_ACTUATOR_CFG = ActuatorNetMLPCfg(
     effort_limit=23.7,  # taken from spec sheet
     velocity_limit=30.0,  # taken from spec sheet
     saturation_effort=23.7,  # same as effort limit
-    armature=0.2
+    armature=0.2,
 )
 """Configuration of Go1 actuators using MLP model.
 
@@ -282,20 +282,19 @@ This configuration removes most collision meshes to speed up simulation.
 G1_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/Unitree/G1/g1.usd",
-		# usd_path="g1.usd",
-        # activate_contact_sensors=True,
-        # rigid_props=sim_utils.RigidBodyPropertiesCfg(
-        #     disable_gravity=False,
-        #     retain_accelerations=False,
-        #     linear_damping=0.0,
-        #     angular_damping=0.0,
-        #     max_linear_velocity=1000.0,
-        #     max_angular_velocity=1000.0,
-        #     max_depenetration_velocity=1.0,
-        # ),
-        # articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-        #     enabled_self_collisions=False, solver_position_iteration_count=8, solver_velocity_iteration_count=4
-        # ),
+        activate_contact_sensors=True,
+        rigid_props=sim_utils.RigidBodyPropertiesCfg(
+            disable_gravity=False,
+            retain_accelerations=False,
+            linear_damping=0.0,
+            angular_damping=0.0,
+            max_linear_velocity=1000.0,
+            max_angular_velocity=1000.0,
+            max_depenetration_velocity=1.0,
+        ),
+        articulation_props=sim_utils.ArticulationRootPropertiesCfg(
+            enabled_self_collisions=False, solver_position_iteration_count=8, solver_velocity_iteration_count=4
+        ),
     ),
     init_state=ArticulationCfg.InitialStateCfg(
         pos=(0.0, 0.0, 0.76),
@@ -395,7 +394,6 @@ G1_CFG = ArticulationCfg(
 
 G1_MINIMAL_CFG = G1_CFG.copy()
 G1_MINIMAL_CFG.spawn.usd_path = f"{ISAACLAB_NUCLEUS_DIR}/Robots/Unitree/G1/g1_minimal.usd"
-# G1_MINIMAL_CFG.spawn.usd_path = f"g1_minimal_modified.usd"
 
 """Configuration for the Unitree G1 Humanoid robot with fewer collision meshes.
 

@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -19,7 +19,6 @@ import re
 import signal
 import sys
 import toml
-import warnings
 from typing import Any, Literal
 
 import flatdict
@@ -112,7 +111,7 @@ class AppLauncher:
 
         # Define config members that are read from env-vars or keyword args
         self._headless: bool  # 0: GUI, 1: Headless
-        self._livestream: Literal[0, 1, 2]  # 0: Disabled, 1: Native, 2: WebRTC
+        self._livestream: Literal[0, 1, 2]  # 0: Disabled, 1: WebRTC public, 2: WebRTC private
         self._offscreen_render: bool  # 0: Disabled, 1: Enabled
         self._sim_experience_file: str  # Experience file to load
 
@@ -135,6 +134,8 @@ class AppLauncher:
         self._hide_stop_button()
         # Set settings from the given rendering mode
         self._set_rendering_mode_settings(launcher_args)
+        # Set animation recording settings
+        self._set_animation_recording_settings(launcher_args)
 
         # Hide play button callback if the timeline is stopped
         import omni.timeline
@@ -196,8 +197,8 @@ class AppLauncher:
           Valid options are:
 
           - ``0``: Disabled
-          - ``1``: `Native [DEPRECATED] <https://docs.isaacsim.omniverse.nvidia.com/latest/installation/manual_livestream_clients.html#omniverse-streaming-client-deprecated>`_
-          - ``2``: `WebRTC <https://docs.isaacsim.omniverse.nvidia.com/latest/installation/manual_livestream_clients.html#isaac-sim-short-webrtc-streaming-client>`_
+          - ``1``: `WebRTC <https://docs.isaacsim.omniverse.nvidia.com/latest/installation/manual_livestream_clients.html#isaac-sim-short-webrtc-streaming-client>`_ over public network
+          - ``2``: `WebRTC <https://docs.isaacsim.omniverse.nvidia.com/latest/installation/manual_livestream_clients.html#isaac-sim-short-webrtc-streaming-client>`_ over local/private network
 
         * ``enable_cameras`` (bool): If True, the app will enable camera sensors and render them, even when in
           headless mode. This flag must be set to True if the environments contains any camera sensors.
@@ -321,10 +322,10 @@ class AppLauncher:
             "--rendering_mode",
             type=str,
             action=ExplicitAction,
-            choices={"performance", "balanced", "quality", "xr"},
+            choices={"performance", "balanced", "quality"},
             help=(
                 "Sets the rendering mode. Preset settings files can be found in apps/rendering_modes."
-                ' Can be "performance", "balanced", "quality", or "xr".'
+                ' Can be "performance", "balanced", or "quality".'
                 " Individual settings can be overwritten by using the RenderCfg class."
             ),
         )
@@ -337,6 +338,30 @@ class AppLauncher:
                 ' Example usage: --kit_args "--ext-folder=/path/to/ext1 --ext-folder=/path/to/ext2"'
             ),
         )
+        arg_group.add_argument(
+            "--anim_recording_enabled",
+            action="store_true",
+            help="Enable recording time-sampled USD animations from IsaacLab PhysX simulations.",
+        )
+        arg_group.add_argument(
+            "--anim_recording_start_time",
+            type=float,
+            default=0,
+            help=(
+                "Set time that animation recording begins playing. If not set, the recording will start from the"
+                " beginning."
+            ),
+        )
+        arg_group.add_argument(
+            "--anim_recording_stop_time",
+            type=float,
+            default=10,
+            help=(
+                "Set time that animation recording stops playing. If the process is shutdown before the stop time is"
+                " exceeded, then the animation is not recorded."
+            ),
+        )
+        # special flag for backwards compatibility
 
         # Corresponding to the beginning of the function,
         # if we have removed -h/--help handling, we add it back.
@@ -463,6 +488,9 @@ class AppLauncher:
         # Handle experience file settings
         self._resolve_experience_file(launcher_args)
 
+        # Handle animation recording settings
+        self._resolve_anim_recording_settings(launcher_args)
+
         # Handle additional arguments
         self._resolve_kit_args(launcher_args)
 
@@ -501,29 +529,26 @@ class AppLauncher:
         else:
             self._livestream = livestream_env
 
+        # Set public IP address of a remote instance
+        public_ip_env = os.environ.get("PUBLIC_IP", "127.0.0.1")
+
         # Process livestream here before launching kit because some of the extensions only work when launched with the kit file
         self._livestream_args = []
         if self._livestream >= 1:
             # Note: Only one livestream extension can be enabled at a time
             if self._livestream == 1:
-                warnings.warn(
-                    "Native Livestream is deprecated. Please use WebRTC Livestream instead with --livestream 2."
-                )
+                # WebRTC public network
                 self._livestream_args += [
-                    '--/app/livestream/proto="ws"',
-                    "--/app/livestream/allowResize=true",
+                    f"--/app/livestream/publicEndpointAddress={public_ip_env}",
+                    "--/app/livestream/port=49100",
                     "--enable",
-                    "omni.kit.livestream.core-4.1.2",
-                    "--enable",
-                    "omni.kit.livestream.native-5.0.1",
-                    "--enable",
-                    "omni.kit.streamsdk.plugins-4.1.1",
+                    "omni.services.livestream.nvcf",
                 ]
             elif self._livestream == 2:
+                # WebRTC private network
                 self._livestream_args += [
-                    "--/app/livestream/allowResize=false",
                     "--enable",
-                    "omni.kit.livestream.webrtc",
+                    "omni.services.livestream.nvcf",
                 ]
             else:
                 raise ValueError(f"Invalid value for livestream: {self._livestream}. Expected: 1, 2 .")
@@ -571,7 +596,7 @@ class AppLauncher:
     def _resolve_camera_settings(self, launcher_args: dict):
         """Resolve camera related settings."""
         enable_cameras_env = int(os.environ.get("ENABLE_CAMERAS", 0))
-        enable_cameras_arg = launcher_args.pop("enable_cameras", AppLauncher._APPLAUNCHER_CFG_INFO["enable_cameras"][1])
+        enable_cameras_arg = launcher_args.get("enable_cameras", AppLauncher._APPLAUNCHER_CFG_INFO["enable_cameras"][1])
         enable_cameras_valid_vals = {0, 1}
         if enable_cameras_env not in enable_cameras_valid_vals:
             raise ValueError(
@@ -590,7 +615,7 @@ class AppLauncher:
     def _resolve_xr_settings(self, launcher_args: dict):
         """Resolve XR related settings."""
         xr_env = int(os.environ.get("XR", 0))
-        xr_arg = launcher_args.pop("xr", AppLauncher._APPLAUNCHER_CFG_INFO["xr"][1])
+        xr_arg = launcher_args.get("xr", AppLauncher._APPLAUNCHER_CFG_INFO["xr"][1])
         xr_valid_vals = {0, 1}
         if xr_env not in xr_valid_vals:
             raise ValueError(f"Invalid value for environment variable `XR`: {xr_env} .Expected: {xr_valid_vals} .")
@@ -650,6 +675,7 @@ class AppLauncher:
             self.global_rank = int(os.getenv("RANK", "0")) + int(os.getenv("JAX_RANK", "0"))
 
             self.device_id = self.local_rank
+            device = "cuda:" + str(self.device_id)
             launcher_args["multi_gpu"] = False
             # limit CPU threads to minimize thread context switching
             # this ensures processes do not take up all available threads and fight for resources
@@ -661,7 +687,8 @@ class AppLauncher:
             # pass command line variable to kit
             sys.argv.append(f"--/plugins/carb.tasking.plugin/threadCount={num_threads_per_process}")
 
-        # set physics and rendering device
+        # set rendering device. We do not need to set physics_gpu because it will automatically pick the same one
+        # as the active_gpu device. Setting physics_gpu explicitly may result in a different device to be used.
         launcher_args["physics_gpu"] = self.device_id
         launcher_args["active_gpu"] = self.device_id
 
@@ -676,9 +703,15 @@ class AppLauncher:
         # If nothing is provided resolve the experience file based on the headless flag
         kit_app_exp_path = os.environ["EXP_PATH"]
         isaaclab_app_exp_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), *[".."] * 4, "apps")
+        # For Isaac Sim 4.5 compatibility, we use the 4.5 app files in a different folder
+        # if launcher_args.get("use_isaacsim_45", False):
+        if self.is_isaac_sim_version_4_5():
+            isaaclab_app_exp_path = os.path.join(isaaclab_app_exp_path, "isaacsim_4_5")
+
         if self._sim_experience_file == "":
             # check if the headless flag is set
-            if self._enable_cameras:
+            # xr rendering overrides camera rendering settings
+            if self._enable_cameras and not self._xr:
                 if self._headless and not self._livestream:
                     self._sim_experience_file = os.path.join(
                         isaaclab_app_exp_path, "isaaclab.python.headless.rendering.kit"
@@ -716,40 +749,23 @@ class AppLauncher:
                 " The file does not exist."
             )
 
-        # Set public IP address of a remote instance
-        public_ip_env = os.environ.get("PUBLIC_IP", "127.0.0.1")
-
-        # Process livestream here before launching kit because some of the extensions only work when launched with the kit file
-        self._livestream_args = []
-        if self._livestream >= 1:
-            # Note: Only one livestream extension can be enabled at a time
-            if self._livestream == 1:
-                warnings.warn(
-                    "Native Livestream is deprecated. Please use WebRTC Livestream instead with --livestream 2."
-                )
-                self._livestream_args += [
-                    '--/app/livestream/proto="ws"',
-                    "--/app/livestream/allowResize=true",
-                    "--enable",
-                    "omni.kit.livestream.core-4.1.2",
-                    "--enable",
-                    "omni.kit.livestream.native-5.0.1",
-                    "--enable",
-                    "omni.kit.streamsdk.plugins-4.1.1",
-                ]
-            elif self._livestream == 2:
-                self._livestream_args += [
-                    f"--/app/livestream/publicEndpointAddress={public_ip_env}",
-                    "--/app/livestream/port=49100",
-                    "--enable",
-                    "omni.services.livestream.nvcf",
-                ]
-            else:
-                raise ValueError(f"Invalid value for livestream: {self._livestream}. Expected: 1, 2 .")
-            sys.argv += self._livestream_args
         # Resolve the absolute path of the experience file
         self._sim_experience_file = os.path.abspath(self._sim_experience_file)
         print(f"[INFO][AppLauncher]: Loading experience file: {self._sim_experience_file}")
+
+    def _resolve_anim_recording_settings(self, launcher_args: dict):
+        """Resolve animation recording settings."""
+
+        # Enable omni.physx.pvd extension if recording is enabled
+        recording_enabled = launcher_args.get("anim_recording_enabled", False)
+        if recording_enabled:
+            if self._headless:
+                raise ValueError("Animation recording is not supported in headless mode.")
+            if self.is_isaac_sim_version_4_5():
+                raise RuntimeError(
+                    "Animation recording is not supported in Isaac Sim 4.5. Please update to Isaac Sim 5.0."
+                )
+            sys.argv += ["--enable", "omni.physx.pvd"]
 
     def _resolve_kit_args(self, launcher_args: dict):
         """Resolve additional arguments passed to Kit."""
@@ -825,6 +841,10 @@ class AppLauncher:
         # set fabric update flag to disable updating transforms when rendering is disabled
         carb_settings_iface.set_bool("/physics/fabricUpdateTransformations", self._rendering_enabled())
 
+        # in theory, this should ensure that dt is consistent across time stepping, but this is not the case
+        # for now, we use the custom loop runner from Isaac Sim to achieve this
+        carb_settings_iface.set_bool("/app/player/useFixedTimeStepping", False)
+
     def _hide_stop_button(self):
         """Hide the stop button in the toolbar.
 
@@ -859,16 +879,10 @@ class AppLauncher:
         if rendering_mode is None:
             rendering_mode = "balanced"
 
-        rendering_mode_explicitly_passed = launcher_args.pop("rendering_mode_explicit", False)
-        if self._xr and not rendering_mode_explicitly_passed:
-            # If no rendering mode is specified, default to the xr mode if we are running in XR
-            rendering_mode = "xr"
-
-            # Overwrite for downstream consumers
-            launcher_args["rendering_mode"] = "xr"
-
         # parse preset file
         repo_path = os.path.join(carb.tokens.get_tokens_interface().resolve("${app}"), "..")
+        if self.is_isaac_sim_version_4_5():
+            repo_path = os.path.join(repo_path, "..")
         preset_filename = os.path.join(repo_path, f"apps/rendering_modes/{rendering_mode}.kit")
         with open(preset_filename) as file:
             preset_dict = toml.load(file)
@@ -880,12 +894,63 @@ class AppLauncher:
             key = "/" + key.replace(".", "/")  # convert to carb setting format
             set_carb_setting(carb_setting, key, value)
 
+    def _set_animation_recording_settings(self, launcher_args: dict) -> None:
+        """Set animation recording settings."""
+        import carb
+        from isaacsim.core.utils.carb import set_carb_setting
+
+        # check if recording is enabled
+        recording_enabled = launcher_args.get("anim_recording_enabled", False)
+        if not recording_enabled:
+            return
+
+        # arg checks
+        if launcher_args.get("anim_recording_start_time") >= launcher_args.get("anim_recording_stop_time"):
+            raise ValueError(
+                f"'anim_recording_start_time' {launcher_args.get('anim_recording_start_time')} must be less than"
+                f" 'anim_recording_stop_time' {launcher_args.get('anim_recording_stop_time')}"
+            )
+
+        # grab config
+        start_time = launcher_args.get("anim_recording_start_time")
+        stop_time = launcher_args.get("anim_recording_stop_time")
+
+        # store config in carb settings
+        carb_settings = carb.settings.get_settings()
+        set_carb_setting(carb_settings, "/isaaclab/anim_recording/enabled", recording_enabled)
+        set_carb_setting(carb_settings, "/isaaclab/anim_recording/start_time", start_time)
+        set_carb_setting(carb_settings, "/isaaclab/anim_recording/stop_time", stop_time)
+
     def _interrupt_signal_handle_callback(self, signal, frame):
         """Handle the interrupt signal from the keyboard."""
         # close the app
         self._app.close()
         # raise the error for keyboard interrupt
         raise KeyboardInterrupt
+
+    def is_isaac_sim_version_4_5(self) -> bool:
+        if not hasattr(self, "_is_sim_ver_4_5"):
+            # 1) Try to read the VERSION file (for manual / binary installs)
+            version_path = os.path.abspath(os.path.join(os.path.dirname(isaacsim.__file__), "../../VERSION"))
+            if os.path.isfile(version_path):
+                with open(version_path) as f:
+                    ver = f.readline().strip()
+                    if ver.startswith("4.5"):
+                        self._is_sim_ver_4_5 = True
+                        return True
+
+            # 2) Fall back to metadata (for pip installs)
+            from importlib.metadata import version as pkg_version
+
+            try:
+                ver = pkg_version("isaacsim")
+                if ver.startswith("4.5"):
+                    self._is_sim_ver_4_5 = True
+                else:
+                    self._is_sim_ver_4_5 = False
+            except Exception:
+                self._is_sim_ver_4_5 = False
+        return self._is_sim_ver_4_5
 
     def _hide_play_button(self, flag):
         """Hide/Unhide the play button in the toolbar.

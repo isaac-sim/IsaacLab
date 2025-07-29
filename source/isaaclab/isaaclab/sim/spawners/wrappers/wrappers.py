@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 import carb
 import isaacsim.core.utils.prims as prim_utils
 import isaacsim.core.utils.stage as stage_utils
+from isaacsim.core.utils.stage import get_current_stage
 from pxr import Sdf, Usd
 
 import isaaclab.sim as sim_utils
@@ -26,6 +27,8 @@ def spawn_multi_asset(
     cfg: wrappers_cfg.MultiAssetSpawnerCfg,
     translation: tuple[float, float, float] | None = None,
     orientation: tuple[float, float, float, float] | None = None,
+    clone_in_fabric: bool = False,
+    replicate_physics: bool = False,
 ) -> Usd.Prim:
     """Spawn multiple assets based on the provided configurations.
 
@@ -38,10 +41,15 @@ def spawn_multi_asset(
         cfg: The configuration for spawning the assets.
         translation: The translation of the spawned assets. Default is None.
         orientation: The orientation of the spawned assets in (w, x, y, z) order. Default is None.
+        clone_in_fabric: Whether to clone in fabric. Default is False.
+        replicate_physics: Whether to replicate physics. Default is False.
 
     Returns:
         The created prim at the first prim path.
     """
+    # get stage handle
+    stage = get_current_stage()
+
     # resolve: {SPAWN_NS}/AssetName
     # note: this assumes that the spawn namespace already exists in the stage
     root_path, asset_path = prim_path.rsplit("/", 1)
@@ -81,15 +89,19 @@ def spawn_multi_asset(
                 setattr(asset_cfg, attr_name, attr_value)
         # spawn single instance
         proto_prim_path = f"{template_prim_path}/Asset_{index:04d}"
-        asset_cfg.func(proto_prim_path, asset_cfg, translation=translation, orientation=orientation)
+        asset_cfg.func(
+            proto_prim_path,
+            asset_cfg,
+            translation=translation,
+            orientation=orientation,
+            clone_in_fabric=clone_in_fabric,
+            replicate_physics=replicate_physics,
+        )
         # append to proto prim paths
         proto_prim_paths.append(proto_prim_path)
 
     # resolve prim paths for spawning and cloning
     prim_paths = [f"{source_prim_path}/{asset_path}" for source_prim_path in source_prim_paths]
-
-    # acquire stage
-    stage = stage_utils.get_current_stage()
 
     # manually clone prims if the source prim path is a regex expression
     # note: unlike in the cloner API from Isaac Sim, we do not "reset" xforms on the copied prims.
@@ -124,6 +136,8 @@ def spawn_multi_usd_file(
     cfg: wrappers_cfg.MultiUsdFileCfg,
     translation: tuple[float, float, float] | None = None,
     orientation: tuple[float, float, float, float] | None = None,
+    clone_in_fabric: bool = False,
+    replicate_physics: bool = False,
 ) -> Usd.Prim:
     """Spawn multiple USD files based on the provided configurations.
 
@@ -135,6 +149,8 @@ def spawn_multi_usd_file(
         cfg: The configuration for spawning the assets.
         translation: The translation of the spawned assets. Default is None.
         orientation: The orientation of the spawned assets in (w, x, y, z) order. Default is None.
+        clone_in_fabric: Whether to clone in fabric. Default is False.
+        replicate_physics: Whether to replicate physics. Default is False.
 
     Returns:
         The created prim at the first prim path.
@@ -174,4 +190,4 @@ def spawn_multi_usd_file(
         multi_asset_cfg.activate_contact_sensors = cfg.activate_contact_sensors
 
     # call the original function
-    return spawn_multi_asset(prim_path, multi_asset_cfg, translation, orientation)
+    return spawn_multi_asset(prim_path, multi_asset_cfg, translation, orientation, clone_in_fabric, replicate_physics)

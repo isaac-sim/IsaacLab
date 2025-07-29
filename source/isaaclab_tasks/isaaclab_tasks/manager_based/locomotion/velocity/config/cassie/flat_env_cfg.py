@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -21,10 +21,10 @@ class CassieFlatEnvCfg(CassieRoughEnvCfg):
         self.scene.terrain.terrain_type = "plane"
         self.scene.terrain.terrain_generator = None
         # no height scan
-        self.scene.height_scanner = None
-        self.observations.policy.height_scan = None
+        # self.scene.height_scanner = None
+        # self.observations.policy.height_scan = None
         # no terrain curriculum
-        self.curriculum.terrain_levels = None
+        # self.curriculum.terrain_levels = None
 
 
 class CassieFlatEnvCfg_PLAY(CassieFlatEnvCfg):

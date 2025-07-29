@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -8,13 +8,13 @@ from __future__ import annotations
 
 import torch
 
-import omni.usd
-
 # from Isaac Sim 4.2 onwards, pxr.Semantics is deprecated
 try:
     import Semantics
 except ModuleNotFoundError:
     from pxr import Semantics
+
+from isaacsim.core.utils.stage import get_current_stage
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation, RigidObject
@@ -78,7 +78,7 @@ class ShadowHandVisionEnv(InHandManipulationEnv):
         self.object = RigidObject(self.cfg.object_cfg)
         self._tiled_camera = TiledCamera(self.cfg.tiled_camera)
         # get stage
-        stage = omni.usd.get_context().get_stage()
+        stage = get_current_stage()
         # add semantics for in-hand cube
         prim = stage.GetPrimAtPath("/World/envs/env_0/object")
         sem = Semantics.SemanticsAPI.Apply(prim, "Semantics")

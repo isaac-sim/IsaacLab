@@ -50,8 +50,7 @@ The Isaac Lab pip packages only provide the core framework extensions for Isaac 
 standalone training, inferencing, and example scripts. Therefore, this workflow is recommended for projects that are
 built as external extensions outside of Isaac Lab, which utilizes user-defined runner scripts.
 
-For Ubuntu 22.04 and Windows systems, we recommend using Isaac Sim pip installation.
-For Ubuntu 20.04 systems, we recommend installing Isaac Sim through binaries.
+We recommend using Isaac Sim pip installation for a simplified installation experience.
 
 For users getting started with Isaac Lab, we recommend installing Isaac Lab by cloning the repo.
 
@@ -59,7 +58,7 @@ For users getting started with Isaac Lab, we recommend installing Isaac Lab by c
 .. toctree::
     :maxdepth: 2
 
-    Pip installation (recommended for Ubuntu 22.04 and Windows) <pip_installation>
-    Binary installation (recommended for Ubuntu 20.04) <binaries_installation>
+    Pip installation (recommended) <pip_installation>
+    Binary installation <binaries_installation>
     Advanced installation (Isaac Lab pip) <isaaclab_pip_installation>
     Asset caching <asset_caching>

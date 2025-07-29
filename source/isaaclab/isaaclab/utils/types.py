@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -24,7 +24,7 @@ class ArticulationActions:
 
     joint_targets: torch.Tensor | None = None
     """The joint targets of the articulation. Defaults to None.
-    
+
     Depending on the control mode of the articulation, the joint targets can be either joint positions or joint\
     velocities.
     """

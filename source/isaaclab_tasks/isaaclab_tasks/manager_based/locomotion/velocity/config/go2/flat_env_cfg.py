@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -15,12 +15,12 @@ class UnitreeGo2FlatEnvCfg(UnitreeGo2RoughEnvCfg):
         super().__post_init__()
 
         # override rewards
-        # self.rewards.flat_orientation_l2.weight = -2.5
-        # self.rewards.feet_air_time.weight = 0.25
+        self.rewards.flat_orientation_l2.weight = -2.5
+        self.rewards.feet_air_time.weight = 0.25
 
         # change terrain to flat
         self.scene.terrain.terrain_type = "plane"
-        # self.scene.terrain.terrain_generator = None
+        self.scene.terrain.terrain_generator = None
         # no height scan
         # self.scene.height_scanner = None
         # self.observations.policy.height_scan = None
@@ -39,5 +39,5 @@ class UnitreeGo2FlatEnvCfg_PLAY(UnitreeGo2FlatEnvCfg):
         # disable randomization for play
         self.observations.policy.enable_corruption = False
         # remove random pushing event
-        # self.events.base_external_force_torque = None
-        # self.events.push_robot = None
+        self.events.base_external_force_torque = None
+        self.events.push_robot = None

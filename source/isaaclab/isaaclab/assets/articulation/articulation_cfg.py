@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -37,6 +37,12 @@ class ArticulationCfg(AssetBaseCfg):
     ##
 
     class_type: type = Articulation
+
+    articulation_root_prim_path: str | None = None
+    """Path to the articulation root prim in the USD file.
+
+    If not provided will search for a prim with the ArticulationRootAPI. Should start with a slash.
+    """
 
     init_state: InitialStateCfg = InitialStateCfg()
     """Initial state of the articulated object. Defaults to identity pose with zero velocity and zero joint state."""

@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -30,23 +30,23 @@ class H1Rewards(RewardsCfg):
     track_ang_vel_z_exp = RewTerm(
         func=mdp.track_ang_vel_z_world_exp, weight=1.0, params={"command_name": "base_velocity", "std": 0.5}
     )
-    #feet_air_time = RewTerm(
-    #    func=mdp.feet_air_time_positive_biped,
-    #    weight=0.25,
-    #    params={
-    #        "command_name": "base_velocity",
-    #        "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*ankle_link"),
-    #        "threshold": 0.4,
-    #    },
-    #)
-    #feet_slide = RewTerm(
-    #    func=mdp.feet_slide,
-    #    weight=-0.25,
-    #    params={
-    #        "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*ankle_link"),
-    #        "asset_cfg": SceneEntityCfg("robot", body_names=".*ankle_link"),
-    #    },
-    #)
+    feet_air_time = RewTerm(
+        func=mdp.feet_air_time_positive_biped,
+        weight=0.25,
+        params={
+            "command_name": "base_velocity",
+            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*ankle_link"),
+            "threshold": 0.4,
+        },
+    )
+    feet_slide = RewTerm(
+        func=mdp.feet_slide,
+        weight=-0.25,
+        params={
+            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*ankle_link"),
+            "asset_cfg": SceneEntityCfg("robot", body_names=".*ankle_link"),
+        },
+    )
     # Penalize ankle joint limits
     dof_pos_limits = RewTerm(
         func=mdp.joint_pos_limits, weight=-1.0, params={"asset_cfg": SceneEntityCfg("robot", joint_names=".*_ankle")}
@@ -81,7 +81,7 @@ class H1RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
 
         # Randomization
         # self.events.push_robot = None
-        # self.events.add_base_mass = None
+        self.events.add_base_mass = None
         self.events.reset_robot_joints.params["position_range"] = (1.0, 1.0)
         self.events.base_external_force_torque.params["asset_cfg"].body_names = [".*torso_link"]
         self.events.reset_base.params = {
@@ -95,12 +95,10 @@ class H1RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
                 "yaw": (0.0, 0.0),
             },
         }
-
-        # Terminations
-        #self.terminations.base_contact.params["sensor_cfg"].body_names = [".*torso_link"]
+        self.events.base_com = None
 
         # Rewards
-        #self.rewards.undesired_contacts = None
+        self.rewards.undesired_contacts = None
         self.rewards.flat_orientation_l2.weight = -1.0
         self.rewards.dof_torques_l2.weight = 0.0
         self.rewards.action_rate_l2.weight = -0.005
@@ -111,8 +109,8 @@ class H1RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         self.commands.base_velocity.ranges.lin_vel_y = (0.0, 0.0)
         self.commands.base_velocity.ranges.ang_vel_z = (-1.0, 1.0)
 
-        # terminations
-        #self.terminations.base_contact.params["sensor_cfg"].body_names = ".*torso_link"
+        # Terminations
+        self.terminations.base_contact.params["sensor_cfg"].body_names = ".*torso_link"
 
 
 @configclass

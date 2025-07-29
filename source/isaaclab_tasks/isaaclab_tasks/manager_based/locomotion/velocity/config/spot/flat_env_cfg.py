@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -111,17 +111,17 @@ class SpotEventCfg:
     """Configuration for randomization."""
 
     # startup
-    physics_material = EventTerm(
-        func=mdp.randomize_rigid_body_material,
-        mode="startup",
-        params={
-            "asset_cfg": SceneEntityCfg("robot", body_names=".*"),
-            "static_friction_range": (0.3, 1.0),
-            "dynamic_friction_range": (0.3, 0.8),
-            "restitution_range": (0.0, 0.0),
-            "num_buckets": 64,
-        },
-    )
+    # physics_material = EventTerm(
+    #    func=mdp.randomize_rigid_body_material,
+    #    mode="startup",
+    #    params={
+    #        "asset_cfg": SceneEntityCfg("robot", body_names=".*"),
+    #        "static_friction_range": (0.3, 1.0),
+    #        "dynamic_friction_range": (0.3, 0.8),
+    #        "restitution_range": (0.0, 0.0),
+    #        "num_buckets": 64,
+    #    },
+    # )
 
     add_base_mass = EventTerm(
         func=mdp.randomize_rigid_body_mass,
@@ -296,7 +296,7 @@ class SpotTerminationsCfg:
 @configclass
 class SpotFlatEnvCfg(LocomotionVelocityRoughEnvCfg):
 
-    # Basic settings'
+    # Basic settings
     observations: SpotObservationsCfg = SpotObservationsCfg()
     actions: SpotActionsCfg = SpotActionsCfg()
     commands: SpotCommandsCfg = SpotCommandsCfg()
@@ -331,25 +331,26 @@ class SpotFlatEnvCfg(LocomotionVelocityRoughEnvCfg):
         self.scene.robot = SPOT_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
 
         # terrain
-        self.scene.terrain = TerrainImporterCfg(
-            prim_path="/World/ground",
-            terrain_type="generator",
-            terrain_generator=COBBLESTONE_ROAD_CFG,
-            max_init_terrain_level=COBBLESTONE_ROAD_CFG.num_rows - 1,
-            collision_group=-1,
-            physics_material=sim_utils.RigidBodyMaterialCfg(
-                friction_combine_mode="multiply",
-                restitution_combine_mode="multiply",
-                static_friction=1.0,
-                dynamic_friction=1.0,
-            ),
-            visual_material=sim_utils.MdlFileCfg(
-                mdl_path=f"{ISAACLAB_NUCLEUS_DIR}/Materials/TilesMarbleSpiderWhiteBrickBondHoned/TilesMarbleSpiderWhiteBrickBondHoned.mdl",
-                project_uvw=True,
-                texture_scale=(0.25, 0.25),
-            ),
-            debug_vis=True,
-        )
+        self.scene.terrain.terrain_type = "plane"
+        # self.scene.terrain = TerrainImporterCfg(
+        #    prim_path="/World/ground",
+        #    terrain_type="generator",
+        #    terrain_generator=COBBLESTONE_ROAD_CFG,
+        #    max_init_terrain_level=COBBLESTONE_ROAD_CFG.num_rows - 1,
+        #    collision_group=-1,
+        #    physics_material=sim_utils.RigidBodyMaterialCfg(
+        #        friction_combine_mode="multiply",
+        #        restitution_combine_mode="multiply",
+        #        static_friction=1.0,
+        #        dynamic_friction=1.0,
+        #    ),
+        #    visual_material=sim_utils.MdlFileCfg(
+        #        mdl_path=f"{ISAACLAB_NUCLEUS_DIR}/Materials/TilesMarbleSpiderWhiteBrickBondHoned/TilesMarbleSpiderWhiteBrickBondHoned.mdl",
+        #        project_uvw=True,
+        #        texture_scale=(0.25, 0.25),
+        #    ),
+        #    debug_vis=True,
+        # )
 
         # no height scan
         self.scene.height_scanner = None
@@ -375,5 +376,3 @@ class SpotFlatEnvCfg_PLAY(SpotFlatEnvCfg):
         # disable randomization for play
         self.observations.policy.enable_corruption = False
         # remove random pushing event
-        # self.events.base_external_force_torque = None
-        # self.events.push_robot = None

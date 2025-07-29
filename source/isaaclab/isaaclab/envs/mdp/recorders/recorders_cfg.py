@@ -1,8 +1,7 @@
-# Copyright (c) 2024-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
-
 from isaaclab.managers.recorder_manager import RecorderManagerBaseCfg, RecorderTerm, RecorderTermCfg
 from isaaclab.utils import configclass
 
@@ -41,6 +40,13 @@ class PreStepFlatPolicyObservationsRecorderCfg(RecorderTermCfg):
     class_type: type[RecorderTerm] = recorders.PreStepFlatPolicyObservationsRecorder
 
 
+@configclass
+class PostStepProcessedActionsRecorderCfg(RecorderTermCfg):
+    """Configuration for the post step processed actions recorder term."""
+
+    class_type: type[RecorderTerm] = recorders.PostStepProcessedActionsRecorder
+
+
 ##
 # Recorder manager configurations.
 ##
@@ -54,3 +60,4 @@ class ActionStateRecorderManagerCfg(RecorderManagerBaseCfg):
     record_post_step_states = PostStepStatesRecorderCfg()
     record_pre_step_actions = PreStepActionsRecorderCfg()
     record_pre_step_flat_policy_observations = PreStepFlatPolicyObservationsRecorderCfg()
+    record_post_step_processed_actions = PostStepProcessedActionsRecorderCfg()

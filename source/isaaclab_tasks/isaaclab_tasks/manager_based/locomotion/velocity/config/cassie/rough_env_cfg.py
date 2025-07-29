@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -56,7 +56,7 @@ class CassieRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         super().__post_init__()
         # scene
         self.scene.robot = CASSIE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-        self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/pelvis"
+        # self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/pelvis"
 
         # actions
         self.actions.joint_pos.scale = 0.5
@@ -77,6 +77,7 @@ class CassieRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
                 "yaw": (0.0, 0.0),
             },
         }
+        self.events.base_com = None
 
         # terminations
         self.terminations.base_contact.params["sensor_cfg"].body_names = [".*pelvis"]
@@ -103,9 +104,9 @@ class CassieRoughEnvCfg_PLAY(CassieRoughEnvCfg):
         self.scene.terrain.max_init_terrain_level = None
         # reduce the number of terrains to save memory
         if self.scene.terrain.terrain_generator is not None:
-            self.scene.terrain.terrain_generator.num_rows = 5
-            self.scene.terrain.terrain_generator.num_cols = 5
-            self.scene.terrain.terrain_generator.curriculum = False
+           self.scene.terrain.terrain_generator.num_rows = 5
+           self.scene.terrain.terrain_generator.num_cols = 5
+           self.scene.terrain.terrain_generator.curriculum = False
 
         self.commands.base_velocity.ranges.lin_vel_x = (0.7, 1.0)
         self.commands.base_velocity.ranges.lin_vel_y = (0.0, 0.0)

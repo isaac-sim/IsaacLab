@@ -5,7 +5,7 @@
 [package]
 title = "Isaac Lab Python Headless"
 description = "An app for running Isaac Lab headlessly"
-version = "2.1.0"
+version = "2.2.0"
 
 # That makes it browsable in UI with "experience" filter
 keywords = ["experience", "app", "isaaclab", "python", "headless"]
@@ -26,11 +26,14 @@ app.version = "5.0.0"
 "omni.physx.fabric" = {}
 "omni.warp" = { version = "1.9.0-beta.3", exact = true }
 "omni.warp.core" = { version = "1.9.0-beta.3", exact = true }
+
 "usdrt.scenegraph" = {}
 "omni.kit.telemetry" = {}
 "omni.kit.loop" = {}
 # this is needed to create physics material through CreatePreviewSurfaceMaterialPrim
 "omni.kit.usd.mdl" = {}
+# this is used for converting assets that have the wrong units
+"omni.usd.metrics.assembler.ui" = {}
 
 [settings]
 app.content.emptyStageOnStart = false
@@ -72,6 +75,12 @@ app.hydraEngine.waitIdle = false
 # app.hydra.aperture.conform = 4 # in 105.1 pixels are square by default
 omni.replicator.asyncRendering = false
 
+### FSD
+# this .kit file is used for headless, no-rendering cases. There won't be a scene delegate
+# created, but setting useFSD to false here is done to not do full fabric population, but
+# instead to minimal population
+app.useFabricSceneDelegate = false
+
 # Enable Iray and pxr by setting this to "rtx,iray,pxr"
 renderer.enabled = "rtx"
 
@@ -88,21 +97,17 @@ exts."omni.kit.window.extensions".showFeatureOnly = false
 # set the default ros bridge to disable on startup
 isaac.startup.ros_bridge_extension = ""
 
+# disable the metrics assembler change listener, we don't want to do any runtime changes
+metricsAssembler.changeListenerEnabled = false
+
 # Extensions
 ###############################
 [settings.exts."omni.kit.registry.nucleus"]
-
 registries = [
     { name = "kit/default", url = "omniverse://kit-extensions.ov.nvidia.com/exts/kit/default" },
     { name = "kit/sdk", url = "omniverse://kit-extensions.ov.nvidia.com/exts/kit/sdk/${kit_version_short}/${kit_git_hash}" },
+    { name = "kit/community", url = "https://dw290v42wisod.cloudfront.net/exts/kit/community" },
 ]
-
-#FOR PRODUCTION
-#registries = [
-#    { name = "kit/default", url = "https://ovextensionsprod.blob.core.windows.net/exts/kit/prod/106/shared" },
-#    { name = "kit/sdk", url = "https://ovextensionsprod.blob.core.windows.net/exts/kit/prod/sdk/${kit_version_short}/${kit_git_hash}" },
-#    { name = "kit/community", url = "https://dw290v42wisod.cloudfront.net/exts/kit/community" },   
-#]
 
 [settings.app.extensions]
 skipPublishVerification = false
@@ -155,6 +160,8 @@ fabricUpdateTransformations = false
 fabricUpdateVelocities = false
 fabricUpdateForceSensors = false
 fabricUpdateJointStates = false
+### When Direct GPU mode is enabled (suppressReadback=true) use direct interop between PhysX GPU and Fabric
+fabricUseGPUInterop = true
 
 # Performance improvement
 resourcemonitor.timeBetweenQueries = 100
@@ -204,6 +211,6 @@ enabled=true # Enable this for DLSS
 # set the S3 directory manually to the latest published S3
 # note: this is done to ensure prior versions of Isaac Sim still use the latest assets
 [settings]
-persistent.isaac.asset_root.default = "http://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/4.5"
-persistent.isaac.asset_root.cloud = "http://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/4.5"
-persistent.isaac.asset_root.nvidia = "http://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/4.5"
+persistent.isaac.asset_root.default = "https://omniverse-content-staging.s3-us-west-2.amazonaws.com/Assets/Isaac/5.0"
+persistent.isaac.asset_root.cloud = "https://omniverse-content-staging.s3-us-west-2.amazonaws.com/Assets/Isaac/5.0"
+persistent.isaac.asset_root.nvidia = "https://omniverse-content-staging.s3-us-west-2.amazonaws.com/Assets/Isaac/5.0"
