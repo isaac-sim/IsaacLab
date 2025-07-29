@@ -19,6 +19,7 @@ from isaaclab.managers import RecorderManagerBaseCfg as DefaultEmptyRecorderMana
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
+from source.isaaclab.isaaclab.envs.utils import io_descriptors
 
 from .common import ViewerCfg
 from .ui import BaseEnvWindow
@@ -125,3 +126,9 @@ class ManagerBasedEnvCfg:
 
     teleop_devices: DevicesCfg = field(default_factory=DevicesCfg)
     """Configuration for teleoperation devices."""
+
+    export_io_descriptors: bool = False
+    """Whether to export the IO descriptors for the environment. Defaults to False."""
+    
+    io_descriptors_output_dir: str | None = None
+    """The directory to export the IO descriptors to. Defaults to None."""

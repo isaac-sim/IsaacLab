@@ -8,12 +8,13 @@
 """Launch Isaac Sim Simulator first."""
 
 import argparse
-
+import os
 from isaaclab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Random agent for Isaac Lab environments.")
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
+parser.add_argument("--output_dir", type=str, default=None, help="Path to the output directory.")
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
@@ -59,7 +60,11 @@ def main():
     name = args_cli.task.lower().replace("-", "_")
     name = name.replace(" ", "_")
 
-    with open(f"{name}_IO_descriptors.yaml", "w") as f:
+    if not os.path.exists(args_cli.output_dir):
+        os.makedirs(args_cli.output_dir)
+
+    with open(os.path.join(args_cli.output_dir, f'{name}_IO_descriptors.yaml'), "w") as f:
+        print(f"[INFO]: Exporting IO descriptors to {os.path.join(args_cli.output_dir, f'{name}_IO_descriptors.yaml')}")
         yaml.safe_dump(outs, f)
 
     for k in out_actions:
