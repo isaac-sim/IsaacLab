@@ -65,7 +65,7 @@ Prior to using CloudXR with Isaac Lab, please review the following system requir
     * Ubuntu 22.04 or Ubuntu 24.04
     * `Docker`_ 26.0.0+, `Docker Compose`_ 2.25.0+, and the `NVIDIA Container Toolkit`_. Refer to
       the Isaac Lab :ref:`deployment-docker` for how to install.
-    * NVIDIA Driver version 550 or greater
+    * For details on driver requirements, please see the `Technical Requirements <https://docs.omniverse.nvidia.com/materials-and-rendering/latest/common/technical-requirements.html>`_ guide
     * Required for best performance: 16 cores Intel Core i9, X-series or higher AMD Ryzen 9,
       Threadripper or higher
     * Required for best performance: 64GB RAM

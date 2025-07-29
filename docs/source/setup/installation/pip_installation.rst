@@ -24,10 +24,7 @@ If you encounter any issues, please report them to the
 
 .. attention::
 
-   On Windows with CUDA 12, the GPU driver version 552.86 is required.
-
-   Also, on Windows, it may be necessary to `enable long path <https://pip.pypa.io/warnings/enable-long-paths>`_
-   support to avoid installation errors due to OS limitations.
+   For details on driver requirements, please see the `Technical Requirements <https://docs.omniverse.nvidia.com/materials-and-rendering/latest/common/technical-requirements.html>`_ guide!
 
 .. attention::
 
