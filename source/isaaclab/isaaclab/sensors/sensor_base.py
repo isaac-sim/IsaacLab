@@ -193,6 +193,7 @@ class SensorBase(ABC):
 
     def update(self, dt: float, force_recompute: bool = False):
         # Update the timestamp for the sensors
+        self._sim_physics_dt = dt
         self._timestamp += dt
         self._is_outdated |= self._timestamp - self._timestamp_last_update + 1e-6 >= self.cfg.update_period
         # Update the buffers
