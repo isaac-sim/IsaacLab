@@ -71,11 +71,11 @@ if args_cli.distributed and version.parse(installed_version) < version.parse(RSL
 """Rest everything follows."""
 
 import gymnasium as gym
-import omni
 import os
 import torch
 from datetime import datetime
 
+import omni
 from rsl_rl.runners import OnPolicyRunner
 
 from isaaclab.envs import (
@@ -144,7 +144,9 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         env_cfg.export_io_descriptors = args_cli.export_io_descriptors
         env_cfg.io_descriptors_output_dir = log_dir
     else:
-        omni.log.warn("IO descriptors are only supported for manager based RL environments. No IO descriptors will be exported.")
+        omni.log.warn(
+            "IO descriptors are only supported for manager based RL environments. No IO descriptors will be exported."
+        )
 
     # create isaac environment
     env = gym.make(args_cli.task, cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None)

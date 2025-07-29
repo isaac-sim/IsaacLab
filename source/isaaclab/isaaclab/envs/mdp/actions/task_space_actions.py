@@ -152,7 +152,7 @@ class DifferentialInverseKinematicsAction(ActionTerm):
     @property
     def IO_descriptor(self) -> GenericActionIODescriptor:
         """The IO descriptor of the action term.
-        
+
         This descriptor is used to describe the action term of the pink inverse kinematics action.
         It adds the following information to the base descriptor:
         - body_name: The name of the body.
@@ -444,7 +444,7 @@ class OperationalSpaceControllerAction(ActionTerm):
     @property
     def IO_descriptor(self) -> GenericActionIODescriptor:
         """The IO descriptor of the action term.
-        
+
         This descriptor is used to describe the action term of the pink inverse kinematics action.
         It adds the following information to the base descriptor:
         - body_name: The name of the body.

@@ -9,6 +9,7 @@
 
 import argparse
 import os
+
 from isaaclab.app import AppLauncher
 
 # add argparse arguments
@@ -63,7 +64,7 @@ def main():
     if not os.path.exists(args_cli.output_dir):
         os.makedirs(args_cli.output_dir)
 
-    with open(os.path.join(args_cli.output_dir, f'{name}_IO_descriptors.yaml'), "w") as f:
+    with open(os.path.join(args_cli.output_dir, f"{name}_IO_descriptors.yaml"), "w") as f:
         print(f"[INFO]: Exporting IO descriptors to {os.path.join(args_cli.output_dir, f'{name}_IO_descriptors.yaml')}")
         yaml.safe_dump(outs, f)
 

@@ -127,7 +127,7 @@ class JointAction(ActionTerm):
     @property
     def IO_descriptor(self) -> GenericActionIODescriptor:
         """The IO descriptor of the action term.
-        
+
         This descriptor is used to describe the action term of the joint action.
         It adds the following information to the base descriptor:
         - joint_names: The names of the joints.

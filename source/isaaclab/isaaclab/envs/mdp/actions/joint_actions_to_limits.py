@@ -109,7 +109,7 @@ class JointPositionToLimitsAction(ActionTerm):
     @property
     def IO_descriptor(self) -> GenericActionIODescriptor:
         """The IO descriptor of the action term.
-        
+
         This descriptor is used to describe the action term of the joint position to limits action.
         It adds the following information to the base descriptor:
         - joint_names: The names of the joints.
@@ -230,7 +230,7 @@ class EMAJointPositionToLimitsAction(JointPositionToLimitsAction):
     @property
     def IO_descriptor(self) -> GenericActionIODescriptor:
         """The IO descriptor of the action term.
-        
+
         This descriptor is used to describe the action term of the EMA joint position to limits action.
         It adds the following information to the base descriptor:
         - joint_names: The names of the joints.

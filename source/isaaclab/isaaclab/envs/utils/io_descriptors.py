@@ -33,46 +33,46 @@ class GenericActionIODescriptor:
 
     name: str = None
     """The name of the action term.
-    
+
     By default, the name of the action term class is used.
     """
 
     full_path: str = None
     """The full path of the action term class.
-    
+
     By default, python's will retrieve the path from the file that the action term class is defined in
     and the name of the action term class.
     """
 
     description: str = None
     """The description of the action term.
-    
+
     By default, the docstring of the action term class is used.
     """
 
     shape: tuple[int, ...] = None
     """The shape of the action term.
-    
+
     This should be populated by the user."""
 
     dtype: str = None
     """The dtype of the action term.
-    
+
     This should be populated by the user."""
 
     action_type: str = None
     """The type of the action term.
-    
+
     This attribute is purely informative and should be populated by the user."""
 
     extras: dict[str, Any] = {}
     """Extra information about the action term.
-    
+
     This attribute is purely informative and should be populated by the user."""
 
     export: bool = True
     """Whether to export the action term.
-    
+
     Should be set to False if the class is not meant to be exported.
     """
 
@@ -230,7 +230,7 @@ def generic_io_descriptor(
 
 def record_shape(output: torch.Tensor, descriptor: GenericObservationIODescriptor, **kwargs) -> None:
     """Record the shape of the output tensor.
-    
+
     Args:
         output: The output tensor.
         descriptor: The descriptor to record the shape to.
@@ -241,7 +241,7 @@ def record_shape(output: torch.Tensor, descriptor: GenericObservationIODescripto
 
 def record_dtype(output: torch.Tensor, descriptor: GenericObservationIODescriptor, **kwargs) -> None:
     """Record the dtype of the output tensor.
-    
+
     Args:
         output: The output tensor.
         descriptor: The descriptor to record the dtype to.
@@ -254,7 +254,7 @@ def record_joint_names(output: torch.Tensor, descriptor: GenericObservationIODes
     """Record the joint names of the output tensor.
 
     Expects the `asset_cfg` keyword argument to be set.
-    
+
     Args:
         output: The output tensor.
         descriptor: The descriptor to record the joint names to.
@@ -269,9 +269,9 @@ def record_joint_names(output: torch.Tensor, descriptor: GenericObservationIODes
 
 def record_body_names(output: torch.Tensor, descriptor: GenericObservationIODescriptor, **kwargs) -> None:
     """Record the body names of the output tensor.
-    
+
     Expects the `asset_cfg` keyword argument to be set.
-    
+
     Args:
         output: The output tensor.
         descriptor: The descriptor to record the body names to.
@@ -286,9 +286,9 @@ def record_body_names(output: torch.Tensor, descriptor: GenericObservationIODesc
 
 def record_joint_pos_offsets(output: torch.Tensor, descriptor: GenericObservationIODescriptor, **kwargs):
     """Record the joint position offsets of the output tensor.
-    
+
     Expects the `asset_cfg` keyword argument to be set.
-    
+
     Args:
         output: The output tensor.
         descriptor: The descriptor to record the joint position offsets to.
@@ -303,9 +303,9 @@ def record_joint_pos_offsets(output: torch.Tensor, descriptor: GenericObservatio
 
 def record_joint_vel_offsets(output: torch.Tensor, descriptor: GenericObservationIODescriptor, **kwargs):
     """Record the joint velocity offsets of the output tensor.
-    
+
     Expects the `asset_cfg` keyword argument to be set.
-    
+
     Args:
         output: The output tensor.
         descriptor: The descriptor to record the joint velocity offsets to.
@@ -320,7 +320,7 @@ def record_joint_vel_offsets(output: torch.Tensor, descriptor: GenericObservatio
 
 def export_articulations_data(env: ManagerBasedEnv) -> dict[str, dict[str, list[float]]]:
     """Export the articulations data.
-    
+
     Args:
         env: The environment.
 
@@ -360,7 +360,7 @@ def export_articulations_data(env: ManagerBasedEnv) -> dict[str, dict[str, list[
 
 def export_scene_data(env: ManagerBasedEnv) -> dict[str, Any]:
     """Export the scene data.
-    
+
     Args:
         env: The environment.
 
@@ -368,8 +368,5 @@ def export_scene_data(env: ManagerBasedEnv) -> dict[str, Any]:
         A dictionary containing the scene data.
     """
     # Create a dictionary for the scene data.
-    scene_data = {}
-    scene_data["physics_dt"] = env.physics_dt
-    scene_data["dt"] = env.step_dt
-    scene_data["decimation"] = env.cfg.decimation
+    scene_data = {"physics_dt": env.physics_dt, "dt": env.step_dt, "decimation": env.cfg.decimation}
     return scene_data
