@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.44.5 (2025-07-28)
+0.44.6 (2025-07-28)
 ~~~~~~~~~~~~~~~~~~~
 
 Changed
@@ -9,7 +9,18 @@ Changed
 
 * Tweak default behavior for rendering preset modes.
 
-0.44.4 (2025-07-18)
+
+0.44.5 (2025-07-28)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :meth:`isaaclab.scene.reset_to` to properly accept None as valid argument.
+* Added tests to verify that argument types.
+
+
+0.44.4 (2025-07-22)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -91,7 +102,7 @@ Added
 Added
 ^^^^^
 
-* Added :attr:`omni.isaac.lab.sensors.ContactSensorData.force_matrix_w_history` that tracks the history of the filtered contact forces in the world frame.
+* Added :attr:`~isaaclab.sensors.ContactSensorData.force_matrix_w_history` that tracks the history of the filtered contact forces in the world frame.
 
 
 0.42.24 (2025-06-25)
