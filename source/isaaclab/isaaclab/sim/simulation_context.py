@@ -140,6 +140,10 @@ class SimulationContext(_SimulationContext):
         # acquire settings interface
         self.carb_settings = carb.settings.get_settings()
 
+        # read isaac sim version (this includes build tag, release tag etc.)
+        # note: we do it once here because it reads the VERSION file from disk and is not expected to change.
+        self._isaacsim_version = get_version()
+
         # apply carb physics settings
         self._apply_physics_settings()
 
@@ -217,9 +221,6 @@ class SimulationContext(_SimulationContext):
         # ref: https://docs.omniverse.nvidia.com/prod_extensions/prod_extensions/ext_physics.html
         # note: need to do this here because super().__init__ calls render and this variable is needed
         self._fabric_iface = None
-        # read isaac sim version (this includes build tag, release tag etc.)
-        # note: we do it once here because it reads the VERSION file from disk and is not expected to change.
-        self._isaacsim_version = get_version()
 
         # create a tensor for gravity
         # note: this line is needed to create a "tensor" in the device to avoid issues with torch 2.1 onwards.
@@ -344,8 +345,11 @@ class SimulationContext(_SimulationContext):
                 )
 
             # parse preset file
-            repo_path = os.path.join(carb.tokens.get_tokens_interface().resolve("${app}"), "..")
-            preset_filename = os.path.join(repo_path, f"apps/rendering_modes/{rendering_mode}.kit")
+            # check if using isaac sim 4.5 and adjust path accordingly
+            repo_path = os.path.join(carb.tokens.get_tokens_interface().resolve("${app}"))
+            if self._isaacsim_version[0] == 4 and self._isaacsim_version[1] == 5:
+                repo_path = os.path.join(repo_path, "isaacsim_4_5")
+            preset_filename = os.path.join(repo_path, f"rendering_modes/{rendering_mode}.kit")
             with open(preset_filename) as file:
                 preset_dict = toml.load(file)
             preset_dict = dict(flatdict.FlatDict(preset_dict, delimiter="."))

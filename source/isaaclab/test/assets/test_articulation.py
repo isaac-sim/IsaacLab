@@ -22,6 +22,7 @@ import torch
 
 import isaacsim.core.utils.prims as prim_utils
 import pytest
+from isaacsim.core.version import get_version
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
@@ -1866,6 +1867,10 @@ def test_spatial_tendons(sim, num_articulations, device):
         num_articulations: Number of articulations to test
         device: The device to run the simulation on
     """
+    # skip test if Isaac Sim version is less than 5.0
+    if int(get_version()[2]) < 5:
+        pytest.skip("Spatial tendons are not supported in Isaac Sim < 5.0. Please update to Isaac Sim 5.0 or later.")
+        return
     articulation_cfg = generate_articulation_cfg(articulation_type="spatial_tendon_test_asset")
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
 
@@ -1922,8 +1927,9 @@ def test_write_joint_frictions_to_sim(sim, num_articulations, device, add_ground
     dynamic_friction = torch.rand(num_articulations, articulation.num_joints, device=device)
     viscous_friction = torch.rand(num_articulations, articulation.num_joints, device=device)
     friction = torch.rand(num_articulations, articulation.num_joints, device=device)
-    articulation.write_joint_dynamic_friction_coefficient_to_sim(dynamic_friction)
-    articulation.write_joint_viscous_friction_coefficient_to_sim(viscous_friction)
+    if int(get_version()[2]) >= 5:
+        articulation.write_joint_dynamic_friction_coefficient_to_sim(dynamic_friction)
+        articulation.write_joint_viscous_friction_coefficient_to_sim(viscous_friction)
     articulation.write_joint_friction_coefficient_to_sim(friction)
     articulation.write_data_to_sim()
 
@@ -1933,8 +1939,9 @@ def test_write_joint_frictions_to_sim(sim, num_articulations, device, add_ground
         # update buffers
         articulation.update(sim.cfg.dt)
 
-    assert torch.allclose(articulation.data.joint_dynamic_friction_coeff, dynamic_friction)
-    assert torch.allclose(articulation.data.joint_viscous_friction_coeff, viscous_friction)
+    if int(get_version()[2]) >= 5:
+        assert torch.allclose(articulation.data.joint_dynamic_friction_coeff, dynamic_friction)
+        assert torch.allclose(articulation.data.joint_viscous_friction_coeff, viscous_friction)
     assert torch.allclose(articulation.data.joint_friction_coeff, friction)
 
 

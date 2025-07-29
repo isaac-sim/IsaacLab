@@ -1274,6 +1274,11 @@ class Articulation(AssetBase):
             spatial_tendon_ids: The tendon indices to set the stiffness for. Defaults to None (all spatial tendons).
             env_ids: The environment indices to set the stiffness for. Defaults to None (all environments).
         """
+        if int(get_version()[2]) < 5:
+            omni.log.warn(
+                "Spatial tendons are not supported in Isaac Sim < 5.0. Please update to Isaac Sim 5.0 or later."
+            )
+            return
         # resolve indices
         if env_ids is None:
             env_ids = slice(None)
@@ -1300,6 +1305,11 @@ class Articulation(AssetBase):
             spatial_tendon_ids: The tendon indices to set the damping for. Defaults to None (all spatial tendons).
             env_ids: The environment indices to set the damping for. Defaults to None (all environments).
         """
+        if int(get_version()[2]) < 5:
+            omni.log.warn(
+                "Spatial tendons are not supported in Isaac Sim < 5.0. Please update to Isaac Sim 5.0 or later."
+            )
+            return
         # resolve indices
         if env_ids is None:
             env_ids = slice(None)
@@ -1326,6 +1336,11 @@ class Articulation(AssetBase):
             spatial_tendon_ids: The tendon indices to set the limit stiffness for. Defaults to None (all spatial tendons).
             env_ids: The environment indices to set the limit stiffness for. Defaults to None (all environments).
         """
+        if int(get_version()[2]) < 5:
+            omni.log.warn(
+                "Spatial tendons are not supported in Isaac Sim < 5.0. Please update to Isaac Sim 5.0 or later."
+            )
+            return
         # resolve indices
         if env_ids is None:
             env_ids = slice(None)
@@ -1352,6 +1367,11 @@ class Articulation(AssetBase):
             spatial_tendon_ids: The tendon indices to set the offset for. Defaults to None (all spatial tendons).
             env_ids: The environment indices to set the offset for. Defaults to None (all environments).
         """
+        if int(get_version()[2]) < 5:
+            omni.log.warn(
+                "Spatial tendons are not supported in Isaac Sim < 5.0. Please update to Isaac Sim 5.0 or later."
+            )
+            return
         # resolve indices
         if env_ids is None:
             env_ids = slice(None)
@@ -1504,8 +1524,8 @@ class Articulation(AssetBase):
             self._data.default_joint_friction_coeff = (
                 self.root_physx_view.get_dof_friction_coefficients().to(self.device).clone()
             )
-            self._data.default_joint_dynamic_friction_coeff = None
-            self._data.default_joint_viscous_friction_coeff = None
+            self._data.default_joint_dynamic_friction_coeff = torch.zeros_like(self._data.default_joint_friction_coeff)
+            self._data.default_joint_viscous_friction_coeff = torch.zeros_like(self._data.default_joint_friction_coeff)
         else:
             friction_props = self.root_physx_view.get_dof_friction_properties()
             self._data.default_joint_friction_coeff = friction_props[:, :, 0].to(self.device).clone()
@@ -1519,12 +1539,8 @@ class Articulation(AssetBase):
         self._data.joint_damping = self._data.default_joint_damping.clone()
         self._data.joint_armature = self._data.default_joint_armature.clone()
         self._data.joint_friction_coeff = self._data.default_joint_friction_coeff.clone()
-        if int(get_version()[2]) < 5:
-            self._data.joint_dynamic_friction_coeff = None
-            self._data.joint_viscous_friction_coeff = None
-        else:
-            self._data.joint_dynamic_friction_coeff = self._data.default_joint_dynamic_friction_coeff.clone()
-            self._data.joint_viscous_friction_coeff = self._data.default_joint_viscous_friction_coeff.clone()
+        self._data.joint_dynamic_friction_coeff = self._data.default_joint_dynamic_friction_coeff.clone()
+        self._data.joint_viscous_friction_coeff = self._data.default_joint_viscous_friction_coeff.clone()
 
         # -- body properties
         self._data.default_mass = self.root_physx_view.get_masses().clone()
