@@ -19,7 +19,6 @@ from isaaclab.managers import RecorderManagerBaseCfg as DefaultEmptyRecorderMana
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
-from source.isaaclab.isaaclab.envs.utils import io_descriptors
 
 from .common import ViewerCfg
 from .ui import BaseEnvWindow
