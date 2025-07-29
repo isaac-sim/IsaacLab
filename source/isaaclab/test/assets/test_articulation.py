@@ -906,6 +906,7 @@ def test_external_force_on_single_body_at_position(sim, num_articulations, devic
     for _ in range(5):
         # reset root state
         root_state = articulation.data.default_root_state.clone()
+        root_state[0, 0] = 2.5  # space them apart by 2.5m
 
         articulation.write_root_pose_to_sim(root_state[:, :7])
         articulation.write_root_velocity_to_sim(root_state[:, 7:])

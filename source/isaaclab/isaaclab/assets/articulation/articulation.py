@@ -1717,8 +1717,21 @@ class Articulation(AssetBase):
                 f" joints available: {total_act_joints} != {self.num_joints - self.num_fixed_tendons}."
             )
 
+        if self.cfg.actuator_value_resolution_debug_print:
+            t = PrettyTable(["Group", "Property", "Name", "ID", "USD Value", "ActutatorCfg Value", "Applied"])
+            for actuator_group, actuator in self.actuators.items():
+                group_count = 0
+                for property, resolution_details in actuator.joint_property_resolution_table.items():
+                    for prop_idx, resolution_detail in enumerate(resolution_details):
+                        actuator_group_str = actuator_group if group_count == 0 else ""
+                        property_str = property if prop_idx == 0 else ""
+                        fmt = [f"{v:.2e}" if isinstance(v, float) else str(v) for v in resolution_detail]
+                        t.add_row([actuator_group_str, property_str, *fmt])
+                        group_count += 1
+            omni.log.warn(f"\nActuatorCfg-USD Value Discrepancy Resolution (matching values are skipped): \n{t}")
+
     def _process_tendons(self):
-        """Process fixed and spatialtendons."""
+        """Process fixed and spatial tendons."""
         # create a list to store the fixed tendon names
         self._fixed_tendon_names = list()
         self._spatial_tendon_names = list()
