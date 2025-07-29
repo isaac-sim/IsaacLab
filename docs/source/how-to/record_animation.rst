@@ -106,7 +106,13 @@ To record an animation:
     --anim_recording_start_time 1 \
     --anim_recording_stop_time 3
 
-**Note**, the provided ``--anim_recording_stop_time`` should be greater than the simulation time
+.. note::
+
+   The provided ``--anim_recording_stop_time`` should be greater than the simulation time.
+
+.. warning::
+
+   Currently, the final recording step can output many warning logs from [omni.usd]. This is a known issue, and these warning messages can be ignored.
 
 After the stop time is reached, a file will be saved to:
 
