@@ -6,10 +6,13 @@
 
 import glob
 import os
+import importlib
+import subprocess
+
+from tensorboard.backend.event_processing import event_accumulator
 
 from isaacsim.benchmark.services import BaseIsaacBenchmark
 from isaacsim.benchmark.services.metrics.measurements import DictMeasurement, ListMeasurement, SingleMeasurement
-from tensorboard.backend.event_processing import event_accumulator
 
 
 def parse_tf_logs(log_dir: str):
@@ -88,11 +91,25 @@ def log_runtime_step_times(benchmark: BaseIsaacBenchmark, value: dict, compute_s
         log_min_max_mean_stats(benchmark, value)
 
 
+def ema(value: list, alpha: float):
+    """Compute the exponential moving average of a list of values."""
+    ema_value = value[0]
+    for i in range(1, len(value)):
+        ema_value = alpha * value[i] + (1 - alpha) * ema_value
+    return ema_value
+
+
 def log_rl_policy_rewards(benchmark: BaseIsaacBenchmark, value: list):
     measurement = ListMeasurement(name="Rewards", value=value)
     benchmark.store_custom_measurement("train", measurement)
     # log max reward
     measurement = SingleMeasurement(name="Max Rewards", value=max(value), unit="float")
+    benchmark.store_custom_measurement("train", measurement)
+    # log last reward
+    measurement = SingleMeasurement(name="Last Reward", value=value[-1], unit="float")
+    benchmark.store_custom_measurement("train", measurement)
+    # log EMA 0.95 reward
+    measurement = SingleMeasurement(name="EMA 0.95 Reward", value=ema(value, 0.95), unit="float")
     benchmark.store_custom_measurement("train", measurement)
 
 
@@ -102,3 +119,80 @@ def log_rl_policy_episode_lengths(benchmark: BaseIsaacBenchmark, value: list):
     # log max episode length
     measurement = SingleMeasurement(name="Max Episode Lengths", value=max(value), unit="float")
     benchmark.store_custom_measurement("train", measurement)
+    # log last episode length
+    measurement = SingleMeasurement(name="Last Episode Length", value=value[-1], unit="float")
+    benchmark.store_custom_measurement("train", measurement)
+    # log EMA 0.95 episode length
+    measurement = SingleMeasurement(name="EMA 0.95 Episode Length", value=ema(value, 0.95), unit="float")
+    benchmark.store_custom_measurement("train", measurement)
+
+
+def get_newton_version() -> dict[str, str | None]:
+    """Get Newton version."""
+    try:
+        import newton
+
+        version = newton.__version__
+        commit = get_git_commit_from_module("newton")
+        branch = get_git_branch_from_module("newton")
+        return {"version": version, "commit": commit, "branch": branch}
+    except Exception as e:
+        print(f"[ERROR] Error getting Newton version: {e}")
+        return {"version": None, "commit": None, "branch": None}
+
+
+def get_isaaclab_version() -> dict[str, str | None]:
+    """Get Isaac Lab version."""
+    try:
+        import isaaclab
+
+        version = isaaclab.__version__
+        commit = get_git_commit_from_module("isaaclab")
+        branch = get_git_branch_from_module("isaaclab")
+        return {"version": version, "commit": commit, "branch": branch}
+    except Exception as e:
+        print(f"[ERROR] Error getting Isaac Lab version: {e}")
+        return {"version": None, "commit": None, "branch": None}
+
+
+def get_mujoco_warp_version() -> dict[str, str | None]:
+    """Get Mujoco Warp version."""
+    try:
+        import mujoco_warp
+
+        try:
+            version = mujoco_warp.__version__
+        except Exception:
+            version = None
+        commit = get_git_commit_from_module("mujoco_warp")
+        branch = get_git_branch_from_module("mujoco_warp")
+        return {"version": version, "commit": commit, "branch": branch}
+    except Exception as e:
+        print(f"[ERROR] Error getting Mujoco Warp version: {e}")
+        return {"version": None, "commit": None, "branch": None}
+
+
+def get_git_commit_from_module(module_name):
+    spec = importlib.util.find_spec(module_name)
+    if spec is None:
+        return None
+    module_path = spec.origin
+    repo_path = os.path.abspath(os.path.join(module_path, ".."))
+    try:
+        commit = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=repo_path).decode().strip()
+        return commit
+    except Exception:
+        return None
+
+
+def get_git_branch_from_module(module_name):
+    spec = importlib.util.find_spec(module_name)
+    if spec is None:
+        return None
+    module_path = spec.origin
+    repo_path = os.path.abspath(os.path.join(module_path, ".."))
+    try:
+        branch = subprocess.check_output(["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=repo_path).decode().strip()
+        return branch
+    except Exception:
+        return None

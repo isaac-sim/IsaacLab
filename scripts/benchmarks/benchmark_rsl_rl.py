@@ -41,11 +41,18 @@ parser.add_argument(
     choices=["LocalLogMetrics", "JSONFileMetrics", "OsmoKPIFile", "OmniPerfKPIFile"],
     help="Benchmarking backend options, defaults OmniPerfKPIFile",
 )
+parser.add_argument(
+    "--output_folder",
+    type=str,
+    default="/tmp",
+    help="Output folder for the benchmark metrics.",
+)
 
 # append RSL-RL cli arguments
 cli_args.add_rsl_rl_args(parser)
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
+
 # to ensure kit args don't break the benchmark arg parsing
 args_cli, hydra_args = parser.parse_known_args()
 
@@ -61,6 +68,7 @@ app_start_time_begin = time.perf_counter_ns()
 # launch omniverse app
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
+
 
 app_start_time_end = time.perf_counter_ns()
 
@@ -88,8 +96,15 @@ imports_time_end = time.perf_counter_ns()
 from isaacsim.core.utils.extensions import enable_extension
 
 enable_extension("isaacsim.benchmark.services")
-from isaacsim.benchmark.services import BaseIsaacBenchmark
 
+# Set the benchmark settings according to the inputs
+import carb
+settings = carb.settings.get_settings()
+settings.set("/exts/isaacsim.benchmark.services/metrics/metrics_output_folder", args_cli.output_folder)
+settings.set("/exts/isaacsim.benchmark.services/metrics/randomize_filename_prefix", True)
+
+
+from isaacsim.benchmark.services import BaseIsaacBenchmark
 from isaaclab.utils.timer import Timer
 from scripts.benchmarks.utils import (
     log_app_start_time,
@@ -102,6 +117,9 @@ from scripts.benchmarks.utils import (
     log_task_start_time,
     log_total_start_time,
     parse_tf_logs,
+    get_newton_version,
+    get_isaaclab_version,
+    get_mujoco_warp_version,
 )
 
 torch.backends.cuda.matmul.allow_tf32 = True
@@ -118,7 +136,10 @@ benchmark = BaseIsaacBenchmark(
             {"name": "seed", "data": args_cli.seed},
             {"name": "num_envs", "data": args_cli.num_envs},
             {"name": "max_iterations", "data": args_cli.max_iterations},
-        ]
+            {"name": "Mujoco Warp Info", "data": get_mujoco_warp_version()},
+            {"name": "Isaac Lab Info", "data": get_isaaclab_version()},
+            {"name": "Newton Info", "data": get_newton_version()},
+        ],
     },
     backend_type=args_cli.benchmark_backend,
 )

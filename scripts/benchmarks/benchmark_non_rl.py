@@ -33,6 +33,7 @@ parser.add_argument(
     choices=["LocalLogMetrics", "JSONFileMetrics", "OsmoKPIFile", "OmniPerfKPIFile"],
     help="Benchmarking backend options, defaults OmniPerfKPIFile",
 )
+parser.add_argument("--output_folder", type=str, default=None, help="Output folder for the benchmark.")
 
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
@@ -59,6 +60,13 @@ app_start_time_end = time.perf_counter_ns()
 from isaacsim.core.utils.extensions import enable_extension
 
 enable_extension("isaacsim.benchmark.services")
+
+# Set the benchmark settings according to the inputs
+import carb
+settings = carb.settings.get_settings()
+settings.set("/exts/isaacsim.benchmark.services/metrics/metrics_output_folder", args_cli.output_folder)
+settings.set("/exts/isaacsim.benchmark.services/metrics/randomize_filename_prefix", True)
+
 from isaacsim.benchmark.services import BaseIsaacBenchmark
 
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../.."))
@@ -72,6 +80,9 @@ from scripts.benchmarks.utils import (
     log_simulation_start_time,
     log_task_start_time,
     log_total_start_time,
+    get_newton_version,
+    get_isaaclab_version,
+    get_mujoco_warp_version,
 )
 
 imports_time_begin = time.perf_counter_ns()
@@ -100,6 +111,9 @@ benchmark = BaseIsaacBenchmark(
             {"name": "seed", "data": args_cli.seed},
             {"name": "num_envs", "data": args_cli.num_envs},
             {"name": "num_frames", "data": args_cli.num_frames},
+            {"name": "Mujoco Warp Info", "data": get_mujoco_warp_version()},
+            {"name": "Isaac Lab Info", "data": get_isaaclab_version()},
+            {"name": "Newton Info", "data": get_newton_version()},
         ]
     },
     backend_type=args_cli.benchmark_backend,
