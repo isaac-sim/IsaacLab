@@ -177,6 +177,10 @@ class ManagerBasedEnv:
         # initialize observation buffers
         self.obs_buf = {}
 
+        # export IO descriptors if requested
+        if self.cfg.export_io_descriptors:
+            self.export_IO_descriptors()
+
     def __del__(self):
         """Cleanup for the environment."""
         self.close()
@@ -224,6 +228,28 @@ class ManagerBasedEnv:
             "articulations": export_articulations_data(self),
             "scene": export_scene_data(self),
         }
+
+    def export_IO_descriptors(self, output_dir: str | None = None):
+        """Export the IO descriptors for the environment.
+
+        Args:
+            output_dir: The directory to export the IO descriptors to.
+        """
+        import yaml
+        import os
+        IO_descriptors = self.get_IO_descriptors
+        
+        if output_dir is None:
+            output_dir = self.cfg.io_descriptors_output_dir
+        if output_dir is None:
+            raise ValueError("Output directory is not set. Please set the output directory using the `io_descriptors_output_dir` configuration.")
+
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir, exist_ok=True)
+
+        with open(os.path.join(output_dir, 'IO_descriptors.yaml'), "w") as f:
+            print(f"[INFO]: Exporting IO descriptors to {os.path.join(output_dir, 'IO_descriptors.yaml')}")
+            yaml.safe_dump(IO_descriptors, f)
 
     """
     Operations - Setup.
