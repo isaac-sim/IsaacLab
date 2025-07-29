@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.1.0" />
-    <meta name="docbuild:last-update" content="Jul 28, 2025"/>
+    <meta name="docbuild:last-update" content="Jul 29, 2025"/>
   </head>
   
   
@@ -679,7 +679,8 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">env_prim_paths</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cloner</span><span class="o">.</span><span class="n">generate_paths</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">env_ns</span><span class="si">}</span><span class="s2">/env&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">num_envs</span><span class="p">)</span>
         <span class="c1"># create source prim</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">stage</span><span class="o">.</span><span class="n">DefinePrim</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">env_prim_paths</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="s2">&quot;Xform&quot;</span><span class="p">)</span>
-
+        <span class="c1"># allocate env indices</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_INDICES</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">long</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
         <span class="c1"># when replicate_physics=False, we assume heterogeneous environments and clone the xforms first.</span>
         <span class="c1"># this triggers per-object level cloning in the spawner.</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">replicate_physics</span><span class="p">:</span>
@@ -992,7 +993,7 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># resolve env_ids</span>
         <span class="k">if</span> <span class="n">env_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">env_ids</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+            <span class="n">env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_INDICES</span>
         <span class="c1"># articulations</span>
         <span class="k">for</span> <span class="n">asset_name</span><span class="p">,</span> <span class="n">articulation</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_articulations</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
             <span class="n">asset_state</span> <span class="o">=</span> <span class="n">state</span><span class="p">[</span><span class="s2">&quot;articulation&quot;</span><span class="p">][</span><span class="n">asset_name</span><span class="p">]</span>
@@ -1298,7 +1299,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jul 28, 2025.
+  Last updated on Jul 29, 2025.
   <br/>
 </p>
   </div>

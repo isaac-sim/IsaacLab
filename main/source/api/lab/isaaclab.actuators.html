@@ -63,7 +63,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.1.0" />
-    <meta name="docbuild:last-update" content="Jul 28, 2025"/>
+    <meta name="docbuild:last-update" content="Jul 29, 2025"/>
   </head>
   
   
@@ -616,14 +616,14 @@
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#actuator-base">Actuator Base</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.ActuatorBase"><code class="docutils literal notranslate"><span class="pre">ActuatorBase</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.ActuatorBase.is_implicit_model"><code class="docutils literal notranslate"><span class="pre">ActuatorBase.is_implicit_model</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.ActuatorBase.__init__"><code class="docutils literal notranslate"><span class="pre">ActuatorBase.__init__()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.ActuatorBase.effort_limit_sim"><code class="docutils literal notranslate"><span class="pre">ActuatorBase.effort_limit_sim</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.ActuatorBase.velocity_limit_sim"><code class="docutils literal notranslate"><span class="pre">ActuatorBase.velocity_limit_sim</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.ActuatorBase.stiffness"><code class="docutils literal notranslate"><span class="pre">ActuatorBase.stiffness</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.ActuatorBase.damping"><code class="docutils literal notranslate"><span class="pre">ActuatorBase.damping</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.ActuatorBase.armature"><code class="docutils literal notranslate"><span class="pre">ActuatorBase.armature</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.ActuatorBase.friction"><code class="docutils literal notranslate"><span class="pre">ActuatorBase.friction</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.ActuatorBase.velocity_limit_sim"><code class="docutils literal notranslate"><span class="pre">ActuatorBase.velocity_limit_sim</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.ActuatorBase.__init__"><code class="docutils literal notranslate"><span class="pre">ActuatorBase.__init__()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.ActuatorBase.velocity_limit"><code class="docutils literal notranslate"><span class="pre">ActuatorBase.velocity_limit</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.ActuatorBase.effort_limit_sim"><code class="docutils literal notranslate"><span class="pre">ActuatorBase.effort_limit_sim</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.ActuatorBase.effort_limit"><code class="docutils literal notranslate"><span class="pre">ActuatorBase.effort_limit</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.ActuatorBase.computed_effort"><code class="docutils literal notranslate"><span class="pre">ActuatorBase.computed_effort</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.ActuatorBase.applied_effort"><code class="docutils literal notranslate"><span class="pre">ActuatorBase.applied_effort</span></code></a></li>
@@ -1022,6 +1022,12 @@ are matched against the joint names in the articulation.</p>
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.actuators.ActuatorBase.is_implicit_model" title="isaaclab.actuators.ActuatorBase.is_implicit_model"><code class="xref py py-obj docutils literal notranslate"><span class="pre">is_implicit_model</span></code></a></p></td>
 <td><p>Flag indicating if the actuator is an implicit or explicit actuator model.</p></td>
 </tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.actuators.ActuatorBase.effort_limit_sim" title="isaaclab.actuators.ActuatorBase.effort_limit_sim"><code class="xref py py-obj docutils literal notranslate"><span class="pre">effort_limit_sim</span></code></a></p></td>
+<td><p>The effort limit for the actuator group in the simulation.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.actuators.ActuatorBase.velocity_limit_sim" title="isaaclab.actuators.ActuatorBase.velocity_limit_sim"><code class="xref py py-obj docutils literal notranslate"><span class="pre">velocity_limit_sim</span></code></a></p></td>
+<td><p>The velocity limit for the actuator group in the simulation.</p></td>
+</tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.actuators.ActuatorBase.stiffness" title="isaaclab.actuators.ActuatorBase.stiffness"><code class="xref py py-obj docutils literal notranslate"><span class="pre">stiffness</span></code></a></p></td>
 <td><p>The stiffness (P gain) of the PD controller.</p></td>
 </tr>
@@ -1034,14 +1040,8 @@ are matched against the joint names in the articulation.</p>
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.actuators.ActuatorBase.friction" title="isaaclab.actuators.ActuatorBase.friction"><code class="xref py py-obj docutils literal notranslate"><span class="pre">friction</span></code></a></p></td>
 <td><p>The joint friction of the actuator joints.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.actuators.ActuatorBase.velocity_limit_sim" title="isaaclab.actuators.ActuatorBase.velocity_limit_sim"><code class="xref py py-obj docutils literal notranslate"><span class="pre">velocity_limit_sim</span></code></a></p></td>
-<td><p>The velocity limit for the actuator group in the simulation.</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.actuators.ActuatorBase.velocity_limit" title="isaaclab.actuators.ActuatorBase.velocity_limit"><code class="xref py py-obj docutils literal notranslate"><span class="pre">velocity_limit</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.actuators.ActuatorBase.velocity_limit" title="isaaclab.actuators.ActuatorBase.velocity_limit"><code class="xref py py-obj docutils literal notranslate"><span class="pre">velocity_limit</span></code></a></p></td>
 <td><p>The velocity limit for the actuator group.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.actuators.ActuatorBase.effort_limit_sim" title="isaaclab.actuators.ActuatorBase.effort_limit_sim"><code class="xref py py-obj docutils literal notranslate"><span class="pre">effort_limit_sim</span></code></a></p></td>
-<td><p>The effort limit for the actuator group in the simulation.</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.actuators.ActuatorBase.effort_limit" title="isaaclab.actuators.ActuatorBase.effort_limit"><code class="xref py py-obj docutils literal notranslate"><span class="pre">effort_limit</span></code></a></p></td>
 <td><p>The effort limit for the actuator group.</p></td>
@@ -1086,6 +1086,44 @@ are matched against the joint names in the articulation.</p>
 <p>If a class inherits from <a class="reference internal" href="#isaaclab.actuators.ImplicitActuator" title="isaaclab.actuators.ImplicitActuator"><code class="xref py py-class docutils literal notranslate"><span class="pre">ImplicitActuator</span></code></a>, then this flag should be set to <a class="reference external" href="https://docs.python.org/3/library/constants.html#True" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">True</span></code></a>.</p>
 </dd></dl>
 
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab.actuators.ActuatorBase.effort_limit_sim">
+<span class="sig-name descname"><span class="pre">effort_limit_sim</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#isaaclab.actuators.ActuatorBase.effort_limit_sim" title="Permalink to this definition">#</a></dt>
+<dd><p>The effort limit for the actuator group in the simulation. Shape is (num_envs, num_joints).</p>
+<p>For implicit actuators, the <a class="reference internal" href="#isaaclab.actuators.ActuatorBase.effort_limit" title="isaaclab.actuators.ActuatorBase.effort_limit"><code class="xref py py-attr docutils literal notranslate"><span class="pre">effort_limit</span></code></a> and <a class="reference internal" href="#isaaclab.actuators.ActuatorBase.effort_limit_sim" title="isaaclab.actuators.ActuatorBase.effort_limit_sim"><code class="xref py py-attr docutils literal notranslate"><span class="pre">effort_limit_sim</span></code></a> are the same.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab.actuators.ActuatorBase.velocity_limit_sim">
+<span class="sig-name descname"><span class="pre">velocity_limit_sim</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#isaaclab.actuators.ActuatorBase.velocity_limit_sim" title="Permalink to this definition">#</a></dt>
+<dd><p>The velocity limit for the actuator group in the simulation. Shape is (num_envs, num_joints).</p>
+<p>For implicit actuators, the <a class="reference internal" href="#isaaclab.actuators.ActuatorBase.velocity_limit" title="isaaclab.actuators.ActuatorBase.velocity_limit"><code class="xref py py-attr docutils literal notranslate"><span class="pre">velocity_limit</span></code></a> and <a class="reference internal" href="#isaaclab.actuators.ActuatorBase.velocity_limit_sim" title="isaaclab.actuators.ActuatorBase.velocity_limit_sim"><code class="xref py py-attr docutils literal notranslate"><span class="pre">velocity_limit_sim</span></code></a> are the same.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab.actuators.ActuatorBase.stiffness">
+<span class="sig-name descname"><span class="pre">stiffness</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#isaaclab.actuators.ActuatorBase.stiffness" title="Permalink to this definition">#</a></dt>
+<dd><p>The stiffness (P gain) of the PD controller. Shape is (num_envs, num_joints).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab.actuators.ActuatorBase.damping">
+<span class="sig-name descname"><span class="pre">damping</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#isaaclab.actuators.ActuatorBase.damping" title="Permalink to this definition">#</a></dt>
+<dd><p>The damping (D gain) of the PD controller. Shape is (num_envs, num_joints).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab.actuators.ActuatorBase.armature">
+<span class="sig-name descname"><span class="pre">armature</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#isaaclab.actuators.ActuatorBase.armature" title="Permalink to this definition">#</a></dt>
+<dd><p>The armature of the actuator joints. Shape is (num_envs, num_joints).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab.actuators.ActuatorBase.friction">
+<span class="sig-name descname"><span class="pre">friction</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#isaaclab.actuators.ActuatorBase.friction" title="Permalink to this definition">#</a></dt>
+<dd><p>The joint friction of the actuator joints. Shape is (num_envs, num_joints).</p>
+</dd></dl>
+
 <dl class="py method">
 <dt class="sig sig-object py" id="isaaclab.actuators.ActuatorBase.__init__">
 <span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#isaaclab.actuators.ActuatorBaseCfg" title="isaaclab.actuators.ActuatorBaseCfg"><span class="pre">ActuatorBaseCfg</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">joint_names</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.13)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">joint_ids</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#slice" title="(in Python v3.13)"><span class="pre">slice</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">torch.Tensor</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_envs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">device</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">stiffness</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">damping</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">armature</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">friction</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">effort_limit</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">torch.inf</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">velocity_limit</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">torch.inf</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab/actuators/actuator_base.html#ActuatorBase.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.actuators.ActuatorBase.__init__" title="Permalink to this definition">#</a></dt>
@@ -1124,48 +1162,10 @@ If a tensor, then the shape is (num_envs, num_joints).</p></li>
 </dd></dl>
 
 <dl class="py attribute">
-<dt class="sig sig-object py" id="isaaclab.actuators.ActuatorBase.stiffness">
-<span class="sig-name descname"><span class="pre">stiffness</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#isaaclab.actuators.ActuatorBase.stiffness" title="Permalink to this definition">#</a></dt>
-<dd><p>The stiffness (P gain) of the PD controller. Shape is (num_envs, num_joints).</p>
-</dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="isaaclab.actuators.ActuatorBase.damping">
-<span class="sig-name descname"><span class="pre">damping</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#isaaclab.actuators.ActuatorBase.damping" title="Permalink to this definition">#</a></dt>
-<dd><p>The damping (D gain) of the PD controller. Shape is (num_envs, num_joints).</p>
-</dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="isaaclab.actuators.ActuatorBase.armature">
-<span class="sig-name descname"><span class="pre">armature</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#isaaclab.actuators.ActuatorBase.armature" title="Permalink to this definition">#</a></dt>
-<dd><p>The armature of the actuator joints. Shape is (num_envs, num_joints).</p>
-</dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="isaaclab.actuators.ActuatorBase.friction">
-<span class="sig-name descname"><span class="pre">friction</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#isaaclab.actuators.ActuatorBase.friction" title="Permalink to this definition">#</a></dt>
-<dd><p>The joint friction of the actuator joints. Shape is (num_envs, num_joints).</p>
-</dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="isaaclab.actuators.ActuatorBase.velocity_limit_sim">
-<span class="sig-name descname"><span class="pre">velocity_limit_sim</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#isaaclab.actuators.ActuatorBase.velocity_limit_sim" title="Permalink to this definition">#</a></dt>
-<dd><p>The velocity limit for the actuator group in the simulation. Shape is (num_envs, num_joints).</p>
-<p>For implicit actuators, the <a class="reference internal" href="#isaaclab.actuators.ActuatorBase.velocity_limit" title="isaaclab.actuators.ActuatorBase.velocity_limit"><code class="xref py py-attr docutils literal notranslate"><span class="pre">velocity_limit</span></code></a> and <a class="reference internal" href="#isaaclab.actuators.ActuatorBase.velocity_limit_sim" title="isaaclab.actuators.ActuatorBase.velocity_limit_sim"><code class="xref py py-attr docutils literal notranslate"><span class="pre">velocity_limit_sim</span></code></a> are the same.</p>
-</dd></dl>
-
-<dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab.actuators.ActuatorBase.velocity_limit">
 <span class="sig-name descname"><span class="pre">velocity_limit</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#isaaclab.actuators.ActuatorBase.velocity_limit" title="Permalink to this definition">#</a></dt>
 <dd><p>The velocity limit for the actuator group. Shape is (num_envs, num_joints).</p>
 <p>For implicit actuators, the <a class="reference internal" href="#isaaclab.actuators.ActuatorBase.velocity_limit" title="isaaclab.actuators.ActuatorBase.velocity_limit"><code class="xref py py-attr docutils literal notranslate"><span class="pre">velocity_limit</span></code></a> and <a class="reference internal" href="#isaaclab.actuators.ActuatorBase.velocity_limit_sim" title="isaaclab.actuators.ActuatorBase.velocity_limit_sim"><code class="xref py py-attr docutils literal notranslate"><span class="pre">velocity_limit_sim</span></code></a> are the same.</p>
-</dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="isaaclab.actuators.ActuatorBase.effort_limit_sim">
-<span class="sig-name descname"><span class="pre">effort_limit_sim</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#isaaclab.actuators.ActuatorBase.effort_limit_sim" title="Permalink to this definition">#</a></dt>
-<dd><p>The effort limit for the actuator group in the simulation. Shape is (num_envs, num_joints).</p>
-<p>For implicit actuators, the <a class="reference internal" href="#isaaclab.actuators.ActuatorBase.effort_limit" title="isaaclab.actuators.ActuatorBase.effort_limit"><code class="xref py py-attr docutils literal notranslate"><span class="pre">effort_limit</span></code></a> and <a class="reference internal" href="#isaaclab.actuators.ActuatorBase.effort_limit_sim" title="isaaclab.actuators.ActuatorBase.effort_limit_sim"><code class="xref py py-attr docutils literal notranslate"><span class="pre">effort_limit_sim</span></code></a> are the same.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -4640,14 +4640,14 @@ similar to static and Coulomb friction.</p>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#actuator-base">Actuator Base</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.ActuatorBase"><code class="docutils literal notranslate"><span class="pre">ActuatorBase</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.ActuatorBase.is_implicit_model"><code class="docutils literal notranslate"><span class="pre">ActuatorBase.is_implicit_model</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.ActuatorBase.__init__"><code class="docutils literal notranslate"><span class="pre">ActuatorBase.__init__()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.ActuatorBase.effort_limit_sim"><code class="docutils literal notranslate"><span class="pre">ActuatorBase.effort_limit_sim</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.ActuatorBase.velocity_limit_sim"><code class="docutils literal notranslate"><span class="pre">ActuatorBase.velocity_limit_sim</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.ActuatorBase.stiffness"><code class="docutils literal notranslate"><span class="pre">ActuatorBase.stiffness</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.ActuatorBase.damping"><code class="docutils literal notranslate"><span class="pre">ActuatorBase.damping</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.ActuatorBase.armature"><code class="docutils literal notranslate"><span class="pre">ActuatorBase.armature</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.ActuatorBase.friction"><code class="docutils literal notranslate"><span class="pre">ActuatorBase.friction</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.ActuatorBase.velocity_limit_sim"><code class="docutils literal notranslate"><span class="pre">ActuatorBase.velocity_limit_sim</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.ActuatorBase.__init__"><code class="docutils literal notranslate"><span class="pre">ActuatorBase.__init__()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.ActuatorBase.velocity_limit"><code class="docutils literal notranslate"><span class="pre">ActuatorBase.velocity_limit</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.ActuatorBase.effort_limit_sim"><code class="docutils literal notranslate"><span class="pre">ActuatorBase.effort_limit_sim</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.ActuatorBase.effort_limit"><code class="docutils literal notranslate"><span class="pre">ActuatorBase.effort_limit</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.ActuatorBase.computed_effort"><code class="docutils literal notranslate"><span class="pre">ActuatorBase.computed_effort</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.actuators.ActuatorBase.applied_effort"><code class="docutils literal notranslate"><span class="pre">ActuatorBase.applied_effort</span></code></a></li>
@@ -4972,7 +4972,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jul 28, 2025.
+  Last updated on Jul 29, 2025.
   <br/>
 </p>
   </div>
