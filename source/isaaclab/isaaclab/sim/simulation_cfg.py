@@ -94,7 +94,7 @@ class PhysxCfg:
 
         We recommend setting this flag to true only when the simulation step size is large (i.e., less than 30 Hz or more than 0.0333 seconds).
 
-    .. warn::
+    .. warning::
 
         Enabling this flag may lead to incorrect contact forces report from the contact sensor.
     """
