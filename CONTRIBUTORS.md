@@ -126,6 +126,7 @@ Guidelines for modifications:
 * Yang Jin
 * Yanzi Zhu
 * Yijie Guo
+* Yohan Choi
 * Yujian Zhang
 * Yun Liu
 * Ziqi Fan

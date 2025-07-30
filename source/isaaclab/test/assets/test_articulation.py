@@ -775,10 +775,14 @@ def test_external_force_buffer(sim, num_articulations, device):
                 external_wrench_b[..., 3:],
                 body_ids=body_ids,
                 positions=external_wrench_positions_b,
+                is_global=True,
             )
         else:
             articulation.set_external_force_and_torque(
-                external_wrench_b[..., :3], external_wrench_b[..., 3:], body_ids=body_ids
+                external_wrench_b[..., :3],
+                external_wrench_b[..., 3:],
+                body_ids=body_ids,
+                is_global=False,
             )
 
         # check if the articulation's force and torque buffers are correctly updated
@@ -786,6 +790,7 @@ def test_external_force_buffer(sim, num_articulations, device):
             assert articulation._external_force_b[i, 0, 0].item() == force
             assert articulation._external_torque_b[i, 0, 0].item() == force
             assert articulation._external_wrench_positions_b[i, 0, 0].item() == position
+            assert articulation._use_global_wrench_frame == (step == 0 or step == 3)
 
         # apply action to the articulation
         articulation.set_joint_position_target(articulation.data.default_joint_pos.clone())
