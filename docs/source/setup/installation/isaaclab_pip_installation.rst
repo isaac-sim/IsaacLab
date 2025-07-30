@@ -3,9 +3,9 @@ Installing Isaac Lab through Pip
 
 From Isaac Lab 2.0, pip packages are provided to install both Isaac Sim and Isaac Lab extensions from pip.
 Note that this installation process is only recommended for advanced users working on additional extension projects
-that are built on top of Isaac Lab. Isaac Lab pip packages **do not** include any standalone python scripts for
+that are built on top of Isaac Lab. Isaac Lab pip packages **does not** include any standalone python scripts for
 training, inferencing, or running standalone workflows such as demos and examples. Therefore, users are required
-to define your own runner scripts when installing Isaac Lab from pip.
+to define their own runner scripts when installing Isaac Lab from pip.
 
 To learn about how to set up your own project on top of Isaac Lab, see :ref:`template-generator`.
 
@@ -89,6 +89,12 @@ To learn about how to set up your own project on top of Isaac Lab, see :ref:`tem
    .. code-block:: none
 
       pip install isaaclab[isaacsim,all]==2.1.0 --extra-index-url https://pypi.nvidia.com
+
+.. note::
+
+   Currently, we only provide pip packages for every major release of Isaac Lab.
+   For example, we provide the pip package for release 2.0.0 and 2.1.0, but not 2.0.2.
+   In the future, we will provide pip packages for every minor release of Isaac Lab.
 
 
 Verifying the Isaac Sim installation
