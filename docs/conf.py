@@ -182,6 +182,9 @@ autodoc_mock_imports = [
     "pinocchio",
     "nvidia.srl",
     "flatdict",
+    "IPython",
+    "ipywidgets",
+    "mpl_toolkits",
 ]
 
 # List of zero or more Sphinx-specific warning categories to be squelched (i.e.,
