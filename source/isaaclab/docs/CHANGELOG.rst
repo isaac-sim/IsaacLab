@@ -1,6 +1,18 @@
 Changelog
 ---------
 
+0.41.3 (2025-07-30)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Improved handling of deprecated flag :attr:`~isaaclab.sensors.RayCasterCfg.attach_yaw_only`.
+  Previously, the flag was only handled if it was set to True. This led to a bug where the yaw was not accounted for
+  when the flag was set to False.
+* Fixed the handling of interval-based events inside :class:`~isaaclab.managers.EventManager` to properly handle
+  their resets. Previously, only class-based events were properly handled.
+
 
 0.41.2 (2025-07-28)
 ~~~~~~~~~~~~~~~~~~~~
