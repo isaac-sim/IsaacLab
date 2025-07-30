@@ -17,6 +17,7 @@ Multi-GPU Training
 ------------------
 
 Isaac Lab supports the following multi-GPU training frameworks:
+
 * `Torchrun <https://docs.pytorch.org/docs/stable/elastic/run.html>`_ through `PyTorch distributed <https://pytorch.org/docs/stable/distributed.html>`_
 * `JAX distributed <https://jax.readthedocs.io/en/latest/jax.distributed.html>`_
 
@@ -30,7 +31,7 @@ training. Torchrun manages the distributed training by:
 * **Script Execution**: Running the same training script (e.g., RL Games trainer) on each process.
 * **Environment Instances**: Each process creates its own instance of the Isaac Lab environment.
 * **Gradient Synchronization**: Aggregating gradients across all processes and broadcasting the synchronized
-gradients back to each process after each training step.
+  gradients back to each process after each training step.
 
 .. tip::
     Check out this `3 minute youtube video from PyTorch <https://www.youtube.com/watch?v=Cvdhwx-OBBo&list=PL_lsbAsL_o2CSuhUhJIiW0IkdT5C2wGWj&index=2>`_
@@ -48,9 +49,11 @@ module to manage the distributed training. When training with multiple GPUs usin
 * Each GPU runs an independent process
 * Each process executes the full training script
 * Each process maintains its own:
+
   * Isaac Lab environment instance (with *n* parallel environments)
   * Policy network copy
   * Experience buffer for rollout collection
+
 * All processes synchronize only for gradient updates
 
 For a deeper dive into how Torchrun works, checkout
