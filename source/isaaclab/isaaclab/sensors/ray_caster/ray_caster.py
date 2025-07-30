@@ -119,7 +119,7 @@ class RayCaster(SensorBase):
         self.drift[env_ids] = r.uniform_(*self.cfg.drift_range)
         # resample the height drift
         range_list = [self.cfg.ray_cast_drift_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z"]]
-        ranges = torch.tensor(range_list, device="cpu")
+        ranges = torch.tensor(range_list, device=self.device)
         self.ray_cast_drift[env_ids] = math_utils.sample_uniform(
             ranges[:, 0], ranges[:, 1], (num_envs_ids, 3), device=self.device
         )
