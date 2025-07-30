@@ -37,6 +37,7 @@ Guidelines for modifications:
 ## Contributors
 
 * Alessandro Assirelli
+* Alex Omar
 * Alice Zhou
 * Amr Mousa
 * Andrej Orsula
@@ -85,11 +86,13 @@ Guidelines for modifications:
 * Lionel Gulich
 * Louis Le Lay
 * Lorenz Wellhausen
+* Lukas Fröhlich
 * Manuel Schweiger
 * Masoud Moghani
 * Michael Gussert
 * Michael Noseworthy
 * Miguel Alonso Jr
+* Mingyu Lee
 * Muhong Guo
 * Nicola Loi
 * Norbert Cygiert
@@ -123,6 +126,7 @@ Guidelines for modifications:
 * Yang Jin
 * Yanzi Zhu
 * Yijie Guo
+* Yohan Choi
 * Yujian Zhang
 * Yun Liu
 * Ziqi Fan

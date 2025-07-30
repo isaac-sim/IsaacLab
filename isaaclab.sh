@@ -218,8 +218,8 @@ setup_conda_env() {
     echo -e "[INFO] Created conda environment named '${env_name}'.\n"
     echo -e "\t\t1. To activate the environment, run:                conda activate ${env_name}"
     echo -e "\t\t2. To install Isaac Lab extensions, run:            isaaclab -i"
-    echo -e "\t\t4. To perform formatting, run:                      isaaclab -f"
-    echo -e "\t\t5. To deactivate the environment, run:              conda deactivate"
+    echo -e "\t\t3. To perform formatting, run:                      isaaclab -f"
+    echo -e "\t\t4. To deactivate the environment, run:              conda deactivate"
     echo -e "\n"
 }
 
@@ -276,6 +276,23 @@ while [[ $# -gt 0 ]]; do
             # install the python packages in IsaacLab/source directory
             echo "[INFO] Installing extensions inside the Isaac Lab repository..."
             python_exe=$(extract_python_exe)
+            # check if pytorch is installed and its version
+            # install pytorch with cuda 12.8 for blackwell support
+            if ${python_exe} -m pip list 2>/dev/null | grep -q "torch"; then
+                torch_version=$(${python_exe} -m pip show torch 2>/dev/null | grep "Version:" | awk '{print $2}')
+                echo "[INFO] Found PyTorch version ${torch_version} installed."
+                if [[ "${torch_version}" != "2.7.0+cu128" ]]; then
+                    echo "[INFO] Uninstalling PyTorch version ${torch_version}..."
+                    ${python_exe} -m pip uninstall -y torch torchvision torchaudio
+                    echo "[INFO] Installing PyTorch 2.7.0 with CUDA 12.8 support..."
+                    ${python_exe} -m pip install torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
+                else
+                    echo "[INFO] PyTorch 2.7.0 is already installed."
+                fi
+            else
+                echo "[INFO] Installing PyTorch 2.7.0 with CUDA 12.8 support..."
+                ${python_exe} -m pip install torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
+            fi
             # recursively look into directories and install them
             # this does not check dependencies between extensions
             export -f extract_python_exe

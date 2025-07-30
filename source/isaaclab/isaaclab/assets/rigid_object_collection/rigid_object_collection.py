@@ -165,6 +165,7 @@ class RigidObjectCollection(AssetBase):
         # reset external wrench
         self._external_force_b[env_ids[:, None], object_ids] = 0.0
         self._external_torque_b[env_ids[:, None], object_ids] = 0.0
+        self._external_wrench_positions_b[env_ids[:, None], object_ids] = 0.0
 
     def write_data_to_sim(self):
         """Write external wrench to the simulation.
@@ -175,13 +176,22 @@ class RigidObjectCollection(AssetBase):
         """
         # write external wrench
         if self.has_external_wrench:
-            self.root_physx_view.apply_forces_and_torques_at_position(
-                force_data=self.reshape_data_to_view(self._external_force_b),
-                torque_data=self.reshape_data_to_view(self._external_torque_b),
-                position_data=None,
-                indices=self._env_obj_ids_to_view_ids(self._ALL_ENV_INDICES, self._ALL_OBJ_INDICES),
-                is_global=False,
-            )
+            if self.uses_external_wrench_positions:
+                self.root_physx_view.apply_forces_and_torques_at_position(
+                    force_data=self.reshape_data_to_view(self._external_force_b),
+                    torque_data=self.reshape_data_to_view(self._external_torque_b),
+                    position_data=self.reshape_data_to_view(self._external_wrench_positions_b),
+                    indices=self._env_obj_ids_to_view_ids(self._ALL_ENV_INDICES, self._ALL_OBJ_INDICES),
+                    is_global=self._use_global_wrench_frame,
+                )
+            else:
+                self.root_physx_view.apply_forces_and_torques_at_position(
+                    force_data=self.reshape_data_to_view(self._external_force_b),
+                    torque_data=self.reshape_data_to_view(self._external_torque_b),
+                    position_data=None,
+                    indices=self._env_obj_ids_to_view_ids(self._ALL_ENV_INDICES, self._ALL_OBJ_INDICES),
+                    is_global=self._use_global_wrench_frame,
+                )
 
     def update(self, dt: float):
         self._data.update(dt)
@@ -486,8 +496,10 @@ class RigidObjectCollection(AssetBase):
         self,
         forces: torch.Tensor,
         torques: torch.Tensor,
+        positions: torch.Tensor | None = None,
         object_ids: slice | torch.Tensor | None = None,
         env_ids: torch.Tensor | None = None,
+        is_global: bool = False,
     ):
         """Set external force and torque to apply on the objects' bodies in their local frame.
 
@@ -504,6 +516,17 @@ class RigidObjectCollection(AssetBase):
                 # example of disabling external wrench
                 asset.set_external_force_and_torque(forces=torch.zeros(0, 0, 3), torques=torch.zeros(0, 0, 3))
 
+        .. caution::
+            If the function is called consecutively with and with different values for ``is_global``, then the
+            all the external wrenches will be applied in the frame specified by the last call.
+
+            .. code-block:: python
+                # example of setting external wrench in the global frame
+                asset.set_external_force_and_torque(forces=torch.ones(1, 1, 3), env_ids=[0], is_global=True)
+                # example of setting external wrench in the link frame
+                asset.set_external_force_and_torque(forces=torch.ones(1, 1, 3), env_ids=[1], is_global=False)
+                # Both environments will have the external wrenches applied in the link frame
+
         .. note::
             This function does not apply the external wrench to the simulation. It only fills the buffers with
             the desired values. To apply the external wrench, call the :meth:`write_data_to_sim` function
@@ -512,8 +535,11 @@ class RigidObjectCollection(AssetBase):
         Args:
             forces: External forces in bodies' local frame. Shape is (len(env_ids), len(object_ids), 3).
             torques: External torques in bodies' local frame. Shape is (len(env_ids), len(object_ids), 3).
+            positions: External wrench positions in bodies' local frame. Shape is (len(env_ids), len(object_ids), 3).
             object_ids: Object indices to apply external wrench to. Defaults to None (all objects).
             env_ids: Environment indices to apply external wrench to. Defaults to None (all instances).
+            is_global: Whether to apply the external wrench in the global frame. Defaults to False. If set to False,
+                the external wrench is applied in the link frame of the bodies.
         """
         if forces.any() or torques.any():
             self.has_external_wrench = True
@@ -532,6 +558,20 @@ class RigidObjectCollection(AssetBase):
         # set into internal buffers
         self._external_force_b[env_ids[:, None], object_ids] = forces
         self._external_torque_b[env_ids[:, None], object_ids] = torques
+
+        if is_global != self._use_global_wrench_frame:
+            omni.log.warn(
+                f"The external wrench frame has been changed from {self._use_global_wrench_frame} to {is_global}. This"
+                " may lead to unexpected behavior."
+            )
+            self._use_global_wrench_frame = is_global
+
+        if positions is not None:
+            self.uses_external_wrench_positions = True
+            self._external_wrench_positions_b[env_ids[:, None], object_ids] = positions
+        else:
+            if self.uses_external_wrench_positions:
+                self._external_wrench_positions_b[env_ids[:, None], object_ids] = 0.0
 
     """
     Helper functions.
@@ -643,6 +683,9 @@ class RigidObjectCollection(AssetBase):
         self.has_external_wrench = False
         self._external_force_b = torch.zeros((self.num_instances, self.num_objects, 3), device=self.device)
         self._external_torque_b = torch.zeros_like(self._external_force_b)
+        self._external_wrench_positions_b = torch.zeros_like(self._external_force_b)
+        self.uses_external_wrench_positions = False
+        self._use_global_wrench_frame = False
 
         # set information about rigid body into data
         self._data.object_names = self.object_names
