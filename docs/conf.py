@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -26,6 +26,8 @@ sys.path.insert(0, os.path.abspath("../source/isaaclab_rl"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_rl/isaaclab_rl"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_mimic"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_mimic/isaaclab_mimic"))
+sys.path.insert(0, os.path.abspath("../source/isaaclab_assets"))
+sys.path.insert(0, os.path.abspath("../source/isaaclab_assets/isaaclab_assets"))
 
 # -- Project information -----------------------------------------------------
 
@@ -127,6 +129,7 @@ exclude_patterns = ["_build", "_redirect", "_templates", "Thumbs.db", ".DS_Store
 # Mock out modules that are not available on RTD
 autodoc_mock_imports = [
     "torch",
+    "torchvision",
     "numpy",
     "matplotlib",
     "scipy",
@@ -175,6 +178,10 @@ autodoc_mock_imports = [
     "tensordict",
     "trimesh",
     "toml",
+    "pink",
+    "pinocchio",
+    "nvidia.srl",
+    "flatdict",
 ]
 
 # List of zero or more Sphinx-specific warning categories to be squelched (i.e.,
@@ -222,6 +229,7 @@ html_static_path = ["source/_static/css"]
 html_css_files = ["custom.css"]
 
 html_theme_options = {
+    "path_to_docs": "docs/",
     "collapse_navigation": True,
     "repository_url": "https://github.com/isaac-sim/IsaacLab",
     "use_repository_button": True,

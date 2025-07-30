@@ -1,4 +1,4 @@
-# Copyright (c) 2024-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2024-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: Apache-2.0
@@ -80,16 +80,16 @@ import random
 import time
 import torch
 
-import isaaclab_mimic.envs  # noqa: F401
-from isaaclab_mimic.datagen.data_generator import DataGenerator
-from isaaclab_mimic.datagen.datagen_info_pool import DataGenInfoPool
-
 from isaaclab.devices import Se3Keyboard, Se3SpaceMouse
 from isaaclab.envs import ManagerBasedRLMimicEnv
 from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
 from isaaclab.managers import DatasetExportMode, RecorderTerm, RecorderTermCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.datasets import HDF5DatasetFileHandler
+
+import isaaclab_mimic.envs  # noqa: F401
+from isaaclab_mimic.datagen.data_generator import DataGenerator
+from isaaclab_mimic.datagen.datagen_info_pool import DataGenInfoPool
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
@@ -361,7 +361,7 @@ def main():
 
     # get the environment name
     if args_cli.task is not None:
-        env_name = args_cli.task
+        env_name = args_cli.task.split(":")[-1]
     elif args_cli.input_file:
         # if the environment name is not specified, try to get it from the dataset file
         dataset_file_handler = HDF5DatasetFileHandler()
@@ -401,7 +401,7 @@ def main():
         env_cfg.recorders.dataset_export_mode = DatasetExportMode.EXPORT_SUCCEEDED_ONLY
 
     # create environment
-    env = gym.make(env_name, cfg=env_cfg)
+    env = gym.make(args_cli.task, cfg=env_cfg)
 
     if not isinstance(env.unwrapped, ManagerBasedRLMimicEnv):
         raise ValueError("The environment should be derived from ManagerBasedRLMimicEnv")

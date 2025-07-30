@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -15,6 +15,7 @@ import omni.log
 import omni.physics.tensors.impl.api as physx
 import warp as wp
 from isaacsim.core.prims import XFormPrim
+from isaacsim.core.simulation_manager import SimulationManager
 from pxr import UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
@@ -106,8 +107,17 @@ class RayCaster(SensorBase):
         # resolve None
         if env_ids is None:
             env_ids = slice(None)
+            num_envs_ids = self._view.count
+        else:
+            num_envs_ids = len(env_ids)
         # resample the drift
-        self.drift[env_ids] = self.drift[env_ids].uniform_(*self.cfg.drift_range)
+        r = torch.empty(num_envs_ids, 3, device=self.device)
+        self.drift[env_ids] = r.uniform_(*self.cfg.drift_range)
+        # resample the height drift
+        r = torch.empty(num_envs_ids, device=self.device)
+        self.ray_cast_drift[env_ids, 0] = r.uniform_(*self.cfg.ray_cast_drift_range["x"])
+        self.ray_cast_drift[env_ids, 1] = r.uniform_(*self.cfg.ray_cast_drift_range["y"])
+        self.ray_cast_drift[env_ids, 2] = r.uniform_(*self.cfg.ray_cast_drift_range["z"])
 
     """
     Implementation.
@@ -115,9 +125,8 @@ class RayCaster(SensorBase):
 
     def _initialize_impl(self):
         super()._initialize_impl()
-        # create simulation view
-        self._physics_sim_view = physx.create_simulation_view(self._backend)
-        self._physics_sim_view.set_subspace_roots("/")
+        # obtain global simulation view
+        self._physics_sim_view = SimulationManager.get_physics_sim_view()
         # check if the prim at path is an articulated or rigid prim
         # we do this since for physics-based view classes we can access their data directly
         # otherwise we need to use the xform view class which is slower
@@ -221,7 +230,8 @@ class RayCaster(SensorBase):
         self.ray_starts = self.ray_starts.repeat(self._view.count, 1, 1)
         self.ray_directions = self.ray_directions.repeat(self._view.count, 1, 1)
         # prepare drift
-        self.drift = torch.zeros(self._view.count, 3, device=self._device)
+        self.drift = torch.zeros(self._view.count, 3, device=self.device)
+        self.ray_cast_drift = torch.zeros(self._view.count, 3, device=self.device)
         # fill the data buffer
         self._data.pos_w = torch.zeros(self._view.count, 3, device=self._device)
         self._data.quat_w = torch.zeros(self._view.count, 4, device=self._device)
@@ -243,23 +253,43 @@ class RayCaster(SensorBase):
         # note: we clone here because we are read-only operations
         pos_w = pos_w.clone()
         quat_w = quat_w.clone()
-        # apply drift
+        # apply drift to ray starting position in world frame
         pos_w += self.drift[env_ids]
         # store the poses
         self._data.pos_w[env_ids] = pos_w
         self._data.quat_w[env_ids] = quat_w
 
         # ray cast based on the sensor poses
-        if self.cfg.attach_yaw_only:
+        if self.cfg.ray_alignment == "world":
+            # apply horizontal drift to ray starting position in ray caster frame
+            pos_w[:, 0:2] += self.ray_cast_drift[env_ids, 0:2]
+            # no rotation is considered and directions are not rotated
+            ray_starts_w = self.ray_starts[env_ids]
+            ray_starts_w += pos_w.unsqueeze(1)
+            ray_directions_w = self.ray_directions[env_ids]
+        elif self.cfg.ray_alignment == "yaw" or self.cfg.attach_yaw_only:
+            if self.cfg.attach_yaw_only:
+                self.cfg.ray_alignment = "yaw"
+                omni.log.warn(
+                    "The `attach_yaw_only` property will be deprecated in a future release. Please use"
+                    " `ray_alignment='yaw'` instead."
+                )
+
+            # apply horizontal drift to ray starting position in ray caster frame
+            pos_w[:, 0:2] += quat_apply_yaw(quat_w, self.ray_cast_drift[env_ids])[:, 0:2]
             # only yaw orientation is considered and directions are not rotated
             ray_starts_w = quat_apply_yaw(quat_w.repeat(1, self.num_rays), self.ray_starts[env_ids])
             ray_starts_w += pos_w.unsqueeze(1)
             ray_directions_w = self.ray_directions[env_ids]
-        else:
+        elif self.cfg.ray_alignment == "base":
+            # apply horizontal drift to ray starting position in ray caster frame
+            pos_w[:, 0:2] += quat_apply(quat_w, self.ray_cast_drift[env_ids])[:, 0:2]
             # full orientation is considered
             ray_starts_w = quat_apply(quat_w.repeat(1, self.num_rays), self.ray_starts[env_ids])
             ray_starts_w += pos_w.unsqueeze(1)
             ray_directions_w = quat_apply(quat_w.repeat(1, self.num_rays), self.ray_directions[env_ids])
+        else:
+            raise RuntimeError(f"Unsupported ray_alignment type: {self.cfg.ray_alignment}.")
 
         num_env = ray_starts_w.shape[0]
         final_hits = torch.full((num_env, self.num_rays, 3), float("inf"), device=self._device)
@@ -275,7 +305,7 @@ class RayCaster(SensorBase):
                 indices = torch.arange(mesh_view.count, device=self._device)
                 # get the current world transforms for the mesh prim (for dynamic updates)
                 mesh_pos, mesh_quat = mesh_view.get_world_poses(indices)
-                base_points = torch.tensor(mesh_info["base_points"], device=self._device)
+                base_points = torch.tensor(mesh_info["base_points"], device=self._device, dtype=torch.float32)
                 # vectorize the transformation by applying the current rotation and translation to all base points using broadcasting
                 new_points = quat_apply(
                     mesh_quat, base_points.unsqueeze(0).repeat(mesh_view.count, 1, 1)
@@ -387,6 +417,9 @@ class RayCaster(SensorBase):
         # store the hits into the sensor data buffer
         self._data.ray_hits_w[env_ids] = final_hits
 
+        # apply vertical drift to ray starting position in ray caster frame
+        self._data.ray_hits_w[env_ids, :, 2] += self.ray_cast_drift[env_ids, 2].unsqueeze(-1)
+
     def _set_debug_vis_impl(self, debug_vis: bool):
         # set visibility of markers
         # note: parent only deals with callbacks. not their visibility
@@ -400,8 +433,11 @@ class RayCaster(SensorBase):
                 self.ray_visualizer.set_visibility(False)
 
     def _debug_vis_callback(self, event):
+        # remove possible inf values
+        viz_points = self._data.ray_hits_w.reshape(-1, 3)
+        viz_points = viz_points[~torch.any(torch.isinf(viz_points), dim=1)]
         # show ray hit positions
-        self.ray_visualizer.visualize(self._data.ray_hits_w.view(-1, 3))
+        self.ray_visualizer.visualize(viz_points)
 
     """
     Internal simulation callbacks.
@@ -412,5 +448,4 @@ class RayCaster(SensorBase):
         # call parent
         super()._invalidate_initialize_callback(event)
         # set all existing views to None to invalidate them
-        self._physics_sim_view = None
         self._view = None

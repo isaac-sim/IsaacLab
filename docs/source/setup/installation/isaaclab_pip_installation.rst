@@ -7,7 +7,7 @@ that are built on top of Isaac Lab. Isaac Lab pip packages **do not** include an
 training, inferencing, or running standalone workflows such as demos and examples. Therefore, users are required
 to define your own runner scripts when installing Isaac Lab from pip.
 
-To learn about how to set up your own extension project on top of Isaac Lab, visit `Extension Template <../../overview/developer-guide/template.html>`_.
+To learn about how to set up your own project on top of Isaac Lab, see :ref:`template-generator`.
 
 .. note::
 
@@ -51,22 +51,11 @@ To learn about how to set up your own extension project on top of Isaac Lab, vis
                   env_isaaclab\Scripts\activate
 
 
--  Next, install a CUDA-enabled PyTorch 2.5.1 build based on the CUDA version available on your system. This step is optional for Linux, but required for Windows to ensure a CUDA-compatible version of PyTorch is installed.
+-  Next, install a CUDA-enabled PyTorch 2.7.0 build. This step is optional for Linux, but required for Windows to ensure a CUDA-compatible version of PyTorch is installed.
 
-   .. tab-set::
+   .. code-block:: bash
 
-      .. tab-item:: CUDA 11
-
-         .. code-block:: bash
-
-            pip install torch==2.5.1 --index-url https://download.pytorch.org/whl/cu118
-
-      .. tab-item:: CUDA 12
-
-         .. code-block:: bash
-
-            pip install torch==2.5.1 --index-url https://download.pytorch.org/whl/cu121
-
+      pip install torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
 
 -  Before installing Isaac Lab, ensure the latest pip version is installed. To update pip, run
 
@@ -91,7 +80,7 @@ To learn about how to set up your own extension project on top of Isaac Lab, vis
 
    .. code-block:: none
 
-      pip install isaaclab[isaacsim,all]==2.0.1 --extra-index-url https://pypi.nvidia.com
+      pip install isaaclab[isaacsim,all]==2.1.0 --extra-index-url https://pypi.nvidia.com
 
 
 Verifying the Isaac Sim installation

@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -32,14 +32,7 @@ from pathlib import Path
 from prettytable import PrettyTable
 
 # Local imports
-from per_test_timeouts import PER_TEST_TIMEOUTS
-from tests_to_skip import TESTS_TO_SKIP
-
-ISAACLAB_PATH = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-"""Path to the root directory of the Isaac Lab repository."""
-
-DEFAULT_TIMEOUT = 120
-"""The default timeout for each test in seconds."""
+from test_settings import DEFAULT_TIMEOUT, ISAACLAB_PATH, PER_TEST_TIMEOUTS, TESTS_TO_SKIP
 
 
 def parse_args() -> argparse.Namespace:

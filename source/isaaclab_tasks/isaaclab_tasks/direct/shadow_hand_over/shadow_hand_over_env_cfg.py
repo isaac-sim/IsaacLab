@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -48,7 +48,7 @@ class EventCfg:
             "distribution": "log_uniform",
         },
     )
-    robot_joint_limits = EventTerm(
+    robot_joint_pos_limits = EventTerm(
         func=mdp.randomize_joint_parameters,
         min_step_count_between_reset=720,
         mode="reset",

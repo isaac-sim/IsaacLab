@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -73,6 +73,14 @@ class CameraCfg(SensorBaseCfg):
     height: int = MISSING
     """Height of the image in pixels."""
 
+    update_latest_camera_pose: bool = False
+    """Whether to update the latest camera pose when fetching the camera's data. Defaults to False.
+
+    If True, the latest camera pose is updated in the camera's data which will slow down performance
+    due to the use of :class:`XformPrimView`.
+    If False, the pose of the camera during initialization is returned.
+    """
+
     semantic_filter: str | list[str] = "*:*"
     """A string or a list specifying a semantic filter predicate. Defaults to ``"*:*"``.
 
@@ -113,4 +121,22 @@ class CameraCfg(SensorBaseCfg):
 
     If True, instance segmentation is converted to an image where instance IDs are mapped to colors.
     and returned as a ``uint8`` 4-channel array. If False, the output is returned as a ``int32`` array.
+    """
+
+    semantic_segmentation_mapping: dict = {}
+    """Dictionary mapping semantics to specific colours
+
+    Eg.
+
+    .. code-block:: python
+
+        {
+            "class:cube_1": (255, 36, 66, 255),
+            "class:cube_2": (255, 184, 48, 255),
+            "class:cube_3": (55, 255, 139, 255),
+            "class:table": (255, 237, 218, 255),
+            "class:ground": (100, 100, 100, 255),
+            "class:robot": (61, 178, 255, 255),
+        }
+
     """

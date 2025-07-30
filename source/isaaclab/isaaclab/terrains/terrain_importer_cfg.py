@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -65,18 +65,18 @@ class TerrainImporterCfg:
     """The spacing between environment origins when defined in a grid. Defaults to None.
 
     Note:
-      This parameter is used only when the ``terrain_type`` is ``"plane"`` or ``"usd"``.
+      This parameter is used only when the ``terrain_type`` is "plane" or "usd".
     """
 
-    visual_material: sim_utils.VisualMaterialCfg | None = sim_utils.PreviewSurfaceCfg(
-        diffuse_color=(0.065, 0.0725, 0.080)
-    )
+    visual_material: sim_utils.VisualMaterialCfg | None = sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 0.0))
     """The visual material of the terrain. Defaults to a dark gray color material.
 
-    The material is created at the path: ``{prim_path}/visualMaterial``. If `None`, then no material is created.
+    This parameter is used for both the "generator" and "plane" terrains.
 
-    .. note::
-        This parameter is used only when the ``terrain_type`` is ``"generator"``.
+    - If the ``terrain_type`` is "generator", then the material is created at the path
+      ``{prim_path}/visualMaterial`` and applied to all the sub-terrains.
+    - If the ``terrain_type`` is "plane", then the diffuse color of the material is set to
+      to the grid color of the imported ground plane.
     """
 
     physics_material: sim_utils.RigidBodyMaterialCfg = sim_utils.RigidBodyMaterialCfg()
@@ -85,7 +85,7 @@ class TerrainImporterCfg:
     The material is created at the path: ``{prim_path}/physicsMaterial``.
 
     .. note::
-        This parameter is used only when the ``terrain_type`` is ``"generator"`` or ``"plane"``.
+        This parameter is used only when the ``terrain_type`` is "generator" or "plane".
     """
 
     max_init_terrain_level: int | None = None

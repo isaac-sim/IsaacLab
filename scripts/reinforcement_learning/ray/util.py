@@ -1,14 +1,16 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 import argparse
 import os
 import re
+import select
 import subprocess
 import threading
 from datetime import datetime
 from math import isclose
+from time import time
 
 import ray
 from tensorboard.backend.event_processing.directory_watcher import DirectoryDeletedError
@@ -26,6 +28,12 @@ def load_tensorboard_logs(directory: str) -> dict:
         The latest available scalar values.
     """
 
+    # replace any non-alnum/underscore/dot with "_", then collapse runs of "_"
+    def replace_invalid_chars(t):
+        t2 = re.sub(r"[^0-9A-Za-z_./]", "_", t)
+        t2 = re.sub(r"_+", "_", t2)
+        return t2.strip("_")
+
     # Initialize the event accumulator with a size guidance for only the latest entry
     def get_latest_scalars(path: str) -> dict:
         event_acc = EventAccumulator(path, size_guidance={"scalars": 1})
@@ -33,7 +41,7 @@ def load_tensorboard_logs(directory: str) -> dict:
             event_acc.Reload()
             if event_acc.Tags()["scalars"]:
                 return {
-                    tag: event_acc.Scalars(tag)[-1].value
+                    replace_invalid_chars(tag): event_acc.Scalars(tag)[-1].value
                     for tag in event_acc.Tags()["scalars"]
                     if event_acc.Scalars(tag)
                 }
@@ -98,6 +106,12 @@ def remote_execute_job(
     )
 
 
+class LogExtractionError(Exception):
+    """Raised when we cannot extract experiment_name/logdir from the trainer output."""
+
+    pass
+
+
 def execute_job(
     job_cmd: str,
     identifier_string: str = "job 0",
@@ -105,6 +119,8 @@ def execute_job(
     extract_experiment: bool = False,
     persistent_dir: str | None = None,
     log_all_output: bool = False,
+    max_lines_to_search_logs: int = 1000,
+    max_time_to_search_logs: float = 200.0,
 ) -> str | dict:
     """Issue a job (shell command).
 
@@ -117,6 +133,8 @@ def execute_job(
         persistent_dir: When supplied, change to run the directory in a persistent
             directory. Can be used to avoid losing logs in the /tmp directory. Defaults to None.
         log_all_output: When true, print all output to the console. Defaults to False.
+        max_lines_to_search_logs: Maximum number of lines to search for experiment info. Defaults to 1000.
+        max_time_to_search_logs: Maximum time to wait for experiment info before giving up. Defaults to 200.0 seconds.
     Raises:
         ValueError: If the job is unable to start, or throws an error. Most likely to happen
             due to running out of memory.
@@ -190,6 +208,8 @@ def execute_job(
         process = subprocess.Popen(
             job_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, bufsize=1
         )
+        process_file_descriptor = process.stdout.fileno()
+
         if persistent_dir:
             os.chdir(og_dir)
         experiment_name = None
@@ -205,48 +225,80 @@ def execute_job(
                 if log_all_output:
                     print(f"{identifier_string}: {line}")
 
-        # Read stdout until we find experiment info
+        # Read stdout until we find exp. info, up to max_lines_to_search_logs lines, max_time_to_search_logs, or EOF.
         # Do some careful handling prevent overflowing the pipe reading buffer with error 141
-        for line in iter(process.stdout.readline, ""):
-            line = line.strip()
-            result_details.append(f"{identifier_string}: {line} \n")
-            if log_all_output:
-                print(f"{identifier_string}: {line}")
+        lines_read = 0
+        search_duration = 0.0
+        search_start_time = time()
+        while True:
+            new_line_ready, _, _ = select.select([process_file_descriptor], [], [], 1.0)  # Wait up to 1s for stdout
+            if new_line_ready:
+                line = process.stdout.readline()
+                if not line:  # EOF
+                    break
 
-            if extract_experiment:
-                exp_match = experiment_info_pattern.search(line)
-                log_match = logdir_pattern.search(line)
-                err_match = err_pattern.search(line)
+                lines_read += 1
+                line = line.strip()
+                result_details.append(f"{identifier_string}: {line} \n")
 
-                if err_match:
-                    raise ValueError(f"Encountered an error during trial run. {' '.join(result_details)}")
+                if log_all_output:
+                    print(f"{identifier_string}: {line}")
 
-                if exp_match:
-                    experiment_name = exp_match.group(1)
-                if log_match:
-                    logdir = log_match.group(1)
+                if extract_experiment:
+                    exp_match = experiment_info_pattern.search(line)
+                    log_match = logdir_pattern.search(line)
+                    err_match = err_pattern.search(line)
 
-                if experiment_name and logdir:
-                    # Start stderr reader after finding experiment info
-                    stderr_thread = threading.Thread(
-                        target=stream_reader, args=(process.stderr, identifier_string, result_details)
-                    )
-                    stderr_thread.daemon = True
-                    stderr_thread.start()
+                    if err_match:
+                        raise ValueError(f"Encountered an error during trial run. {' '.join(result_details)}")
 
-                    # Start stdout reader to continue reading to flush buffer
-                    stdout_thread = threading.Thread(
-                        target=stream_reader, args=(process.stdout, identifier_string, result_details)
-                    )
-                    stdout_thread.daemon = True
-                    stdout_thread.start()
+                    if exp_match:
+                        experiment_name = exp_match.group(1)
+                    if log_match:
+                        logdir = log_match.group(1)
 
-                    return {
-                        "experiment_name": experiment_name,
-                        "logdir": logdir,
-                        "proc": process,
-                        "result": " ".join(result_details),
-                    }
+                    if experiment_name and logdir:
+                        # Start stderr reader after finding experiment info
+                        stderr_thread = threading.Thread(
+                            target=stream_reader, args=(process.stderr, identifier_string, result_details)
+                        )
+                        stderr_thread.daemon = True
+                        stderr_thread.start()
+
+                        # Start stdout reader to continue reading to flush buffer
+                        stdout_thread = threading.Thread(
+                            target=stream_reader, args=(process.stdout, identifier_string, result_details)
+                        )
+                        stdout_thread.daemon = True
+                        stdout_thread.start()
+
+                        return {
+                            "experiment_name": experiment_name,
+                            "logdir": logdir,
+                            "proc": process,
+                            "result": " ".join(result_details),
+                        }
+
+            if extract_experiment:  # if we are looking for experiment info, check for timeouts and line limits
+                search_duration = time() - search_start_time
+                if search_duration > max_time_to_search_logs:
+                    print(f"[ERROR]: Could not find experiment logs within {max_time_to_search_logs} seconds.")
+                    break
+                if lines_read >= max_lines_to_search_logs:
+                    print(f"[ERROR]: Could not find experiment logs within first {max_lines_to_search_logs} lines.")
+                    break
+
+        # If we reach here, we didn't find experiment info in the output
+        if extract_experiment and not (experiment_name and logdir):
+            error_msg = (
+                "Could not extract experiment_name/logdir from trainer output "
+                f"(experiment_name={experiment_name!r}, logdir={logdir!r}).\n"
+                "\tMake sure your training script prints the following correctly:\n"
+                "\t\tExact experiment name requested from command line: <name>\n"
+                "\t\t[INFO] Logging experiment in directory: <logdir>\n\n"
+            )
+            print(f"[ERROR]: {error_msg}")
+            raise LogExtractionError("Could not extract experiment_name/logdir from training workflow output.")
         process.wait()
         now = datetime.now().strftime("%H:%M:%S.%f")
         completion_info = f"\n[INFO]: {identifier_string}: Job Started at {start_time}, completed at {now}\n"

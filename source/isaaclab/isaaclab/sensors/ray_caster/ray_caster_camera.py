@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -287,7 +287,7 @@ class RayCasterCamera(RayCaster):
                 mesh_view = mesh_info["xform_view"]
                 indices = torch.arange(mesh_view.count, device=self._device)
                 mesh_pos, mesh_quat = mesh_view.get_world_poses(indices)
-                base_points = torch.tensor(mesh_info["base_points"], device=self._device)
+                base_points = torch.tensor(mesh_info["base_points"], device=self._device, dtype=torch.float32)
                 new_points = math_utils.quat_apply(
                     mesh_quat, base_points.unsqueeze(0).repeat(mesh_view.count, 1, 1)
                 ) + mesh_pos.unsqueeze(1)
@@ -433,7 +433,8 @@ class RayCasterCamera(RayCaster):
     def _create_buffers(self):
         """Create buffers for storing data."""
         # prepare drift
-        self.drift = torch.zeros(self._view.count, 3, device=self._device)
+        self.drift = torch.zeros(self._view.count, 3, device=self.device)
+        self.ray_cast_drift = torch.zeros(self._view.count, 3, device=self.device)
         # create the data object
         # -- pose of the cameras
         self._data.pos_w = torch.zeros((self._view.count, 3), device=self._device)
@@ -489,6 +490,8 @@ class RayCasterCamera(RayCaster):
         # obtain the poses of the sensors
         # note: clone arg doesn't exist for xform prim view so we need to do this manually
         if isinstance(self._view, XFormPrim):
+            if isinstance(env_ids, slice):  # catch the case where env_ids is a slice
+                env_ids = self._ALL_INDICES
             pos_w, quat_w = self._view.get_world_poses(env_ids)
         elif isinstance(self._view, physx.ArticulationView):
             pos_w, quat_w = self._view.get_root_transforms()[env_ids].split([3, 4], dim=-1)

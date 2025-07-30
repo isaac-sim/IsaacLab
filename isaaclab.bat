@@ -120,7 +120,8 @@ if %errorlevel% equ 0 (
     echo [INFO] Conda environment named '%env_name%' already exists.
 ) else (
     echo [INFO] Creating conda environment named '%env_name%'...
-    call conda create -y --name %env_name% python=3.10
+    echo [INFO] Installing dependencies from %ISAACLAB_PATH%\environment.yml
+    call conda env create -y --file %ISAACLAB_PATH%\environment.yml -n %env_name%
 )
 rem cache current paths for later
 set "cache_pythonpath=%PYTHONPATH%"
@@ -199,10 +200,6 @@ rem remove variables from environment during deactivation
     echo $env:LD_LIBRARY_PATH="%cache_pythonpath%"
 ) > "%CONDA_PREFIX%\etc\conda\deactivate.d\unsetenv_vars.ps1"
 
-rem install some extra dependencies
-echo [INFO] Installing extra dependencies (this might take a few minutes)...
-call conda install -c conda-forge -y importlib_metadata >nul 2>&1
-
 rem deactivate the environment
 call conda deactivate
 rem add information to the user about alias
@@ -236,7 +233,7 @@ goto :eof
 rem Print the usage description
 :print_help
 echo.
-echo usage: %~nx0 [-h] [-i] [-f] [-p] [-s] [-v] [-d] [-c] -- Utility to manage extensions in Isaac Lab.
+echo usage: %~nx0 [-h] [-i] [-f] [-p] [-s] [-v] [-d] [-n] [-c] -- Utility to manage extensions in Isaac Lab.
 echo.
 echo optional arguments:
 echo     -h, --help           Display the help content.
@@ -244,9 +241,10 @@ echo     -i, --install [LIB]  Install the extensions inside Isaac Lab and learni
 echo     -f, --format         Run pre-commit to format the code and check lints.
 echo     -p, --python         Run the python executable (python.bat) provided by Isaac Sim.
 echo     -s, --sim            Run the simulator executable (isaac-sim.bat) provided by Isaac Sim.
-echo     -t, --test           Run all python unittest tests.
+echo     -t, --test           Run all python pytest tests.
 echo     -v, --vscode         Generate the VSCode settings file from template.
 echo     -d, --docs           Build the documentation from source using sphinx.
+echo     -n, --new            Create a new external project or internal task from template.
 echo     -c, --conda [NAME]   Create the conda environment for Isaac Lab. Default name is 'env_isaaclab'.
 echo.
 goto :eof
@@ -272,6 +270,27 @@ if "%arg%"=="-i" (
     rem install the python packages in isaaclab/source directory
     echo [INFO] Installing extensions inside the Isaac Lab repository...
     call :extract_python_exe
+
+    rem check if pytorch is installed and its version
+    rem install pytorch with cuda 12.8 for blackwell support
+    call !python_exe! -m pip list | findstr /C:"torch" >nul
+    if %errorlevel% equ 0 (
+        for /f "tokens=2" %%i in ('!python_exe! -m pip show torch ^| findstr /C:"Version:"') do (
+            set torch_version=%%i
+        )
+        if not "!torch_version!"=="2.7.0+cu128" (
+            echo [INFO] Uninstalling PyTorch version !torch_version!...
+            call !python_exe! -m pip uninstall -y torch torchvision torchaudio
+            echo [INFO] Installing PyTorch 2.7.0 with CUDA 12.8 support...
+            call !python_exe! -m pip install torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
+        ) else (
+            echo [INFO] PyTorch 2.7.0 is already installed.
+        )
+    ) else (
+        echo [INFO] Installing PyTorch 2.7.0 with CUDA 12.8 support...
+        call !python_exe! -m pip install torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
+    )
+
     for /d %%d in ("%ISAACLAB_PATH%\source\*") do (
         set ext_folder="%%d"
         call :install_isaaclab_extension
@@ -297,6 +316,27 @@ if "%arg%"=="-i" (
     rem install the python packages in source directory
     echo [INFO] Installing extensions inside the Isaac Lab repository...
     call :extract_python_exe
+
+    rem check if pytorch is installed and its version
+    rem install pytorch with cuda 12.8 for blackwell support
+    call !python_exe! -m pip list | findstr /C:"torch" >nul
+    if %errorlevel% equ 0 (
+        for /f "tokens=2" %%i in ('!python_exe! -m pip show torch ^| findstr /C:"Version:"') do (
+            set torch_version=%%i
+        )
+        if not "!torch_version!"=="2.7.0+cu128" (
+            echo [INFO] Uninstalling PyTorch version !torch_version!...
+            call !python_exe! -m pip uninstall -y torch torchvision torchaudio
+            echo [INFO] Installing PyTorch 2.7.0 with CUDA 12.8 support...
+            call !python_exe! -m pip install torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
+        ) else (
+            echo [INFO] PyTorch 2.7.0 is already installed.
+        )
+    ) else (
+        echo [INFO] Installing PyTorch 2.7.0 with CUDA 12.8 support...
+        call !python_exe! -m pip install torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
+    )
+
     for /d %%d in ("%ISAACLAB_PATH%\source\*") do (
         set ext_folder="%%d"
         call :install_isaaclab_extension
@@ -463,6 +503,44 @@ if "%arg%"=="-i" (
     )
     !isaacsim_exe! --ext-folder %ISAACLAB_PATH%\source !allArgs1
     goto :end
+) else if "%arg%"=="-n" (
+    rem run the template generator script
+    call :extract_python_exe
+    set "allArgs="
+    for %%a in (%*) do (
+        REM Append each argument to the variable, skip the first one
+        if defined skip (
+            set "allArgs=!allArgs! %%a"
+        ) else (
+            set "skip=1"
+        )
+    )
+    echo [INFO] Installing template dependencies...
+    !python_exe! -m pip install -q -r tools\template\requirements.txt
+    echo.
+    echo [INFO] Running template generator...
+    echo.
+    !python_exe! tools\template\cli.py !allArgs!
+    goto :end
+) else if "%arg%"=="--new" (
+    rem run the template generator script
+    call :extract_python_exe
+    set "allArgs="
+    for %%a in (%*) do (
+        REM Append each argument to the variable, skip the first one
+        if defined skip (
+            set "allArgs=!allArgs! %%a"
+        ) else (
+            set "skip=1"
+        )
+    )
+    echo [INFO] Installing template dependencies...
+    !python_exe! -m pip install -q -r tools\template\requirements.txt
+    echo.
+    echo [INFO] Running template generator...
+    echo.
+    !python_exe! tools\template\cli.py !allArgs!
+    goto :end
 ) else if "%arg%"=="-t" (
     rem run the python provided by Isaac Sim
     call :extract_python_exe
@@ -475,7 +553,7 @@ if "%arg%"=="-i" (
             set "skip=1"
         )
     )
-    !python_exe! tools\run_all_tests.py !allArgs!
+    !python_exe! -m pytest tools !allArgs!
     goto :end
 ) else if "%arg%"=="--test" (
     rem run the python provided by Isaac Sim
@@ -489,7 +567,7 @@ if "%arg%"=="-i" (
             set "skip=1"
         )
     )
-    !python_exe! tools\run_all_tests.py !allArgs!
+    !python_exe! -m pytest tools !allArgs!
     goto :end
 ) else if "%arg%"=="-v" (
     rem update the vscode settings

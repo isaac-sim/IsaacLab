@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -58,8 +58,7 @@ ALLEGRO_HAND_CFG = ArticulationCfg(
     actuators={
         "fingers": ImplicitActuatorCfg(
             joint_names_expr=[".*"],
-            effort_limit=0.5,
-            velocity_limit=100.0,
+            effort_limit_sim=0.5,
             stiffness=3.0,
             damping=0.1,
             friction=0.01,

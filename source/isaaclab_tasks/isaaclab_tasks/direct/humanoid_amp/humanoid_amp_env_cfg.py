@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -66,7 +66,6 @@ class HumanoidAmpEnvCfg(DirectRLEnvCfg):
         actuators={
             "body": ImplicitActuatorCfg(
                 joint_names_expr=[".*"],
-                velocity_limit=100.0,
                 stiffness=None,
                 damping=None,
             ),

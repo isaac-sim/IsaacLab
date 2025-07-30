@@ -1,9 +1,9 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Wrapper to configure a :class:`ManagerBasedRLEnv` or :class:`DirectRlEnv` instance to RL-Games vectorized environment.
+"""Wrapper to configure an environment instance to RL-Games vectorized environment.
 
 The following example shows how to wrap an environment for RL-Games and register the environment construction
 for RL-Games :class:`Runner` class:

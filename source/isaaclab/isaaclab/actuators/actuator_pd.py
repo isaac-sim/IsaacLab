@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -8,6 +8,8 @@ from __future__ import annotations
 import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
+
+import omni.log
 
 from isaaclab.utils import DelayBuffer, LinearInterpolation
 from isaaclab.utils.types import ArticulationActions
@@ -37,10 +39,10 @@ class ImplicitActuator(ActuatorBase):
     generally more accurate than the explicit PD control law used in :class:`IdealPDActuator` when the simulation
     time-step is large.
 
-    .. note::
-
-        The articulation class sets the stiffness and damping parameters from the configuration into the simulation.
-        Thus, the parameters are not used in this class.
+    The articulation class sets the stiffness and damping parameters from the implicit actuator configuration
+    into the simulation. Thus, the class does not perform its own computations on the joint action that
+    needs to be applied to the simulation. However, it computes the approximate torques for the actuated joint
+    since PhysX does not expose this quantity explicitly.
 
     .. caution::
 
@@ -50,6 +52,57 @@ class ImplicitActuator(ActuatorBase):
 
     cfg: ImplicitActuatorCfg
     """The configuration for the actuator model."""
+
+    def __init__(self, cfg: ImplicitActuatorCfg, *args, **kwargs):
+        # effort limits
+        if cfg.effort_limit_sim is None and cfg.effort_limit is not None:
+            # throw a warning that we have a replacement for the deprecated parameter
+            omni.log.warn(
+                "The <ImplicitActuatorCfg> object has a value for 'effort_limit'."
+                " This parameter will be removed in the future."
+                " To set the effort limit, please use 'effort_limit_sim' instead."
+            )
+            cfg.effort_limit_sim = cfg.effort_limit
+        elif cfg.effort_limit_sim is not None and cfg.effort_limit is None:
+            # TODO: Eventually we want to get rid of 'effort_limit' for implicit actuators.
+            #   We should do this once all parameters have an "_sim" suffix.
+            cfg.effort_limit = cfg.effort_limit_sim
+        elif cfg.effort_limit_sim is not None and cfg.effort_limit is not None:
+            if cfg.effort_limit_sim != cfg.effort_limit:
+                raise ValueError(
+                    "The <ImplicitActuatorCfg> object has set both 'effort_limit_sim' and 'effort_limit'"
+                    f" and they have different values {cfg.effort_limit_sim} != {cfg.effort_limit}."
+                    " Please only set 'effort_limit_sim' for implicit actuators."
+                )
+
+        # velocity limits
+        if cfg.velocity_limit_sim is None and cfg.velocity_limit is not None:
+            # throw a warning that previously this was not set
+            # it leads to different simulation behavior so we want to remain backwards compatible
+            omni.log.warn(
+                "The <ImplicitActuatorCfg> object has a value for 'velocity_limit'."
+                " Previously, although this value was specified, it was not getting used by implicit"
+                " actuators. Since this parameter affects the simulation behavior, we continue to not"
+                " use it. This parameter will be removed in the future."
+                " To set the velocity limit, please use 'velocity_limit_sim' instead."
+            )
+            cfg.velocity_limit = None
+        elif cfg.velocity_limit_sim is not None and cfg.velocity_limit is None:
+            # TODO: Eventually we want to get rid of 'velocity_limit' for implicit actuators.
+            #   We should do this once all parameters have an "_sim" suffix.
+            cfg.velocity_limit = cfg.velocity_limit_sim
+        elif cfg.velocity_limit_sim is not None and cfg.velocity_limit is not None:
+            if cfg.velocity_limit_sim != cfg.velocity_limit:
+                raise ValueError(
+                    "The <ImplicitActuatorCfg> object has set both 'velocity_limit_sim' and 'velocity_limit'"
+                    f" and they have different values {cfg.velocity_limit_sim} != {cfg.velocity_limit}."
+                    " Please only set 'velocity_limit_sim' for implicit actuators."
+                )
+
+        # set implicit actuator model flag
+        ImplicitActuator.is_implicit_model = True
+        # call the base class
+        super().__init__(cfg, *args, **kwargs)
 
     """
     Operations.
@@ -148,8 +201,8 @@ class IdealPDActuator(ActuatorBase):
 class DCMotor(IdealPDActuator):
     r"""Direct control (DC) motor actuator model with velocity-based saturation model.
 
-    It uses the same model as the :class:`IdealActuator` for computing the torques from input commands.
-    However, it implements a saturation model defined by DC motor characteristics.
+    It uses the same model as the :class:`IdealPDActuator` for computing the torques from input commands.
+    However, it implements a saturation model defined by a linear four quadrant DC motor torque-speed curve.
 
     A DC motor is a type of electric motor that is powered by direct current electricity. In most cases,
     the motor is connected to a constant source of voltage supply, and the current is controlled by a rheostat.
@@ -158,23 +211,28 @@ class DCMotor(IdealPDActuator):
 
     A DC motor characteristics are defined by the following parameters:
 
-    * Continuous-rated speed (:math:`\dot{q}_{motor, max}`) : The maximum-rated speed of the motor.
-    * Continuous-stall torque (:math:`\tau_{motor, max}`): The maximum-rated torque produced at 0 speed.
-    * Saturation torque (:math:`\tau_{motor, sat}`): The maximum torque that can be outputted for a short period.
+    * No-load speed (:math:`\dot{q}_{motor, max}`) : The maximum-rated speed of the motor at 0 Torque (:attr:`velocity_limit`).
+    * Stall torque (:math:`\tau_{motor, stall}`): The maximum-rated torque produced at 0 speed (:attr:`saturation_effort`).
+    * Continuous torque (:math:`\tau_{motor, con}`): The maximum torque that can be outputted for a short period. This
+      is often enforced on the current drives for a DC motor to limit overheating, prevent mechanical damage, or
+      enforced by electrical limitations.(:attr:`effort_limit`).
+    * Corner velocity (:math:`V_{c}`): The velocity where the torque-speed curve intersects with continuous torque.
+      Based on these parameters, the instantaneous minimum and maximum torques for velocities between corner velocities
+      (where torque-speed curve intersects with continuous torque) are defined as follows:
 
-    Based on these parameters, the instantaneous minimum and maximum torques are defined as follows:
+    Based on these parameters, the instantaneous minimum and maximum torques for velocities are defined as follows:
 
     .. math::
 
-        \tau_{j, max}(\dot{q}) & = clip \left (\tau_{j, sat} \times \left(1 -
-            \frac{\dot{q}}{\dot{q}_{j, max}}\right), 0.0, \tau_{j, max} \right) \\
-        \tau_{j, min}(\dot{q}) & = clip \left (\tau_{j, sat} \times \left( -1 -
-            \frac{\dot{q}}{\dot{q}_{j, max}}\right), - \tau_{j, max}, 0.0 \right)
+        \tau_{j, max}(\dot{q}) & = clip \left (\tau_{j, stall} \times \left(1 -
+            \frac{\dot{q}}{\dot{q}_{j, max}}\right), -∞, \tau_{j, con} \right) \\
+        \tau_{j, min}(\dot{q}) & = clip \left (\tau_{j, stall} \times \left( -1 -
+            \frac{\dot{q}}{\dot{q}_{j, max}}\right), - \tau_{j, con}, ∞ \right)
 
     where :math:`\gamma` is the gear ratio of the gear box connecting the motor and the actuated joint ends,
-    :math:`\dot{q}_{j, max} = \gamma^{-1} \times  \dot{q}_{motor, max}`, :math:`\tau_{j, max} =
-    \gamma \times \tau_{motor, max}` and :math:`\tau_{j, peak} = \gamma \times \tau_{motor, peak}`
-    are the maximum joint velocity, maximum joint torque and peak torque, respectively. These parameters
+    :math:`\dot{q}_{j, max} = \gamma^{-1} \times  \dot{q}_{motor, max}`, :math:`\tau_{j, con} =
+    \gamma \times \tau_{motor, con}` and :math:`\tau_{j, stall} = \gamma \times \tau_{motor, stall}`
+    are the maximum joint velocity, continuous joint torque and stall torque, respectively. These parameters
     are read from the configuration instance passed to the class.
 
     Using these values, the computed torques are clipped to the minimum and maximum values based on the
@@ -184,6 +242,10 @@ class DCMotor(IdealPDActuator):
 
         \tau_{j, applied} = clip(\tau_{computed}, \tau_{j, min}(\dot{q}), \tau_{j, max}(\dot{q}))
 
+    If the velocity of the joint is outside corner velocities (this would be due to external forces) the
+    applied output torque will be driven to the Continuous Torque (`effort_limit`).
+
+    The figure below demonstrates the clipping action for example (velocity, torque) pairs.
     """
 
     cfg: DCMotorCfg
@@ -192,10 +254,11 @@ class DCMotor(IdealPDActuator):
     def __init__(self, cfg: DCMotorCfg, *args, **kwargs):
         super().__init__(cfg, *args, **kwargs)
         # parse configuration
-        if self.cfg.saturation_effort is not None:
-            self._saturation_effort = self.cfg.saturation_effort
-        else:
-            self._saturation_effort = torch.inf
+        if self.cfg.saturation_effort is None:
+            raise ValueError("The saturation_effort must be provided for the DC motor actuator model.")
+        self._saturation_effort = self.cfg.saturation_effort
+        # find the velocity on the torque-speed curve that intersects effort_limit in the second and fourth quadrant
+        self._vel_at_effort_lim = self.velocity_limit * (1 + self.effort_limit / self._saturation_effort)
         # prepare joint vel buffer for max effort computation
         self._joint_vel = torch.zeros_like(self.computed_effort)
         # create buffer for zeros effort
@@ -221,16 +284,18 @@ class DCMotor(IdealPDActuator):
     """
 
     def _clip_effort(self, effort: torch.Tensor) -> torch.Tensor:
+        # save current joint vel
+        self._joint_vel[:] = torch.clip(self._joint_vel, min=-self._vel_at_effort_lim, max=self._vel_at_effort_lim)
         # compute torque limits
+        torque_speed_top = self._saturation_effort * (1.0 - self._joint_vel / self.velocity_limit)
+        torque_speed_bottom = self._saturation_effort * (-1.0 - self._joint_vel / self.velocity_limit)
         # -- max limit
-        max_effort = self._saturation_effort * (1.0 - self._joint_vel / self.velocity_limit)
-        max_effort = torch.clip(max_effort, min=self._zeros_effort, max=self.effort_limit)
+        max_effort = torch.clip(torque_speed_top, max=self.effort_limit)
         # -- min limit
-        min_effort = self._saturation_effort * (-1.0 - self._joint_vel / self.velocity_limit)
-        min_effort = torch.clip(min_effort, min=-self.effort_limit, max=self._zeros_effort)
-
+        min_effort = torch.clip(torque_speed_bottom, min=-self.effort_limit)
         # clip the torques based on the motor limits
-        return torch.clip(effort, min=min_effort, max=max_effort)
+        clamped = torch.clip(effort, min=min_effort, max=max_effort)
+        return clamped
 
 
 class DelayedPDActuator(IdealPDActuator):

@@ -1,9 +1,9 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Wrapper to configure an Isaac Lab environment instance to skrl environment.
+"""Wrapper to configure an environment instance to skrl environment.
 
 The following example shows how to wrap an environment for skrl:
 

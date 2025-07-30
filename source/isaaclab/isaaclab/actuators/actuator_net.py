@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -47,7 +47,7 @@ class ActuatorNetLSTM(DCMotor):
 
         # load the model from JIT file
         file_bytes = read_file(self.cfg.network_file)
-        self.network = torch.jit.load(file_bytes, map_location=self._device)
+        self.network = torch.jit.load(file_bytes, map_location=self._device).eval()
 
         # extract number of lstm layers and hidden dim from the shape of weights
         num_layers = len(self.network.lstm.state_dict()) // 4
@@ -79,8 +79,6 @@ class ActuatorNetLSTM(DCMotor):
         # compute network inputs
         self.sea_input[:, 0, 0] = (control_action.joint_positions - joint_pos).flatten()
         self.sea_input[:, 0, 1] = joint_vel.flatten()
-        # save current joint vel for dc-motor clipping
-        self._joint_vel[:] = joint_vel
 
         # run network inference
         with torch.inference_mode():
@@ -126,7 +124,7 @@ class ActuatorNetMLP(DCMotor):
 
         # load the model from JIT file
         file_bytes = read_file(self.cfg.network_file)
-        self.network = torch.jit.load(file_bytes, map_location=self._device)
+        self.network = torch.jit.load(file_bytes, map_location=self._device).eval()
 
         # create buffers for MLP history
         history_length = max(self.cfg.input_idx) + 1
@@ -175,7 +173,8 @@ class ActuatorNetMLP(DCMotor):
             )
 
         # run network inference
-        torques = self.network(network_input).view(self._num_envs, self.num_joints)
+        with torch.inference_mode():
+            torques = self.network(network_input).view(self._num_envs, self.num_joints)
         self.computed_effort = torques.view(self._num_envs, self.num_joints) * self.cfg.torque_scale
 
         # clip the computed effort based on the motor limits
