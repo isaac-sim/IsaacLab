@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.10.37 (2025-07-25)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :meth:`isaaclab_tasks.manager_based.manipulation.lift.mdp.observations.object_orient_rot_in_robot_root_frame`
+* Added :meth:`isaaclab_tasks.manager_based.manipulation.lift.mdp.rewards.object_goal_orient`
+
+
 0.10.36 (2025-06-26)
 ~~~~~~~~~~~~~~~~~~~~
 
