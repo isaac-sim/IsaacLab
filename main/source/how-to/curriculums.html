@@ -60,7 +60,7 @@
     <link rel="prev" title="Recording video clips during training" href="record_video.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="2.1.0" />
+  <meta name="docsearch:version" content="2.1.1" />
     <meta name="docbuild:last-update" content="Jul 30, 2025"/>
   </head>
   
@@ -655,37 +655,72 @@ object to enable dynamic modification of reward weights and environment paramete
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">re</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Sequence</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span><span class="p">,</span> <span class="n">ClassVar</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.managers</span><span class="w"> </span><span class="kn">import</span> <span class="n">ManagerTermBase</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.managers</span><span class="w"> </span><span class="kn">import</span> <span class="n">CurriculumTermCfg</span><span class="p">,</span> <span class="n">ManagerTermBase</span>
 
 <span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.envs</span><span class="w"> </span><span class="kn">import</span> <span class="n">ManagerBasedRLEnv</span>
 
 
-<span class="k">def</span><span class="w"> </span><span class="nf">modify_reward_weight</span><span class="p">(</span><span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedRLEnv</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span> <span class="n">term_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">weight</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">num_steps</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Curriculum that modifies a reward weight a given number of steps.</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">modify_reward_weight</span><span class="p">(</span><span class="n">ManagerTermBase</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Curriculum that modifies the reward weight based on a step-wise schedule.&quot;&quot;&quot;</span>
 
-<span class="sd">    Args:</span>
-<span class="sd">        env: The learning environment.</span>
-<span class="sd">        env_ids: Not used since all environments are affected.</span>
-<span class="sd">        term_name: The name of the reward term.</span>
-<span class="sd">        weight: The weight of the reward term.</span>
-<span class="sd">        num_steps: The number of steps after which the change should be applied.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="k">if</span> <span class="n">env</span><span class="o">.</span><span class="n">common_step_counter</span> <span class="o">&gt;</span> <span class="n">num_steps</span><span class="p">:</span>
-        <span class="c1"># obtain term settings</span>
-        <span class="n">term_cfg</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">reward_manager</span><span class="o">.</span><span class="n">get_term_cfg</span><span class="p">(</span><span class="n">term_name</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">CurriculumTermCfg</span><span class="p">,</span> <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedRLEnv</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">env</span><span class="p">)</span>
+
+        <span class="c1"># obtain term configuration</span>
+        <span class="n">term_name</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">params</span><span class="p">[</span><span class="s2">&quot;term_name&quot;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_term_cfg</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">reward_manager</span><span class="o">.</span><span class="n">get_term_cfg</span><span class="p">(</span><span class="n">term_name</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__call__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedRLEnv</span><span class="p">,</span>
+        <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span>
+        <span class="n">term_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">weight</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+        <span class="n">num_steps</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
         <span class="c1"># update term settings</span>
-        <span class="n">term_cfg</span><span class="o">.</span><span class="n">weight</span> <span class="o">=</span> <span class="n">weight</span>
-        <span class="n">env</span><span class="o">.</span><span class="n">reward_manager</span><span class="o">.</span><span class="n">set_term_cfg</span><span class="p">(</span><span class="n">term_name</span><span class="p">,</span> <span class="n">term_cfg</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">env</span><span class="o">.</span><span class="n">common_step_counter</span> <span class="o">&gt;</span> <span class="n">num_steps</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_term_cfg</span><span class="o">.</span><span class="n">weight</span> <span class="o">=</span> <span class="n">weight</span>
+            <span class="n">env</span><span class="o">.</span><span class="n">reward_manager</span><span class="o">.</span><span class="n">set_term_cfg</span><span class="p">(</span><span class="n">term_name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_term_cfg</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_term_cfg</span><span class="o">.</span><span class="n">weight</span>
 
 
 <span class="k">class</span><span class="w"> </span><span class="nc">modify_env_param</span><span class="p">(</span><span class="n">ManagerTermBase</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Curriculum term for dynamically modifying a single environment parameter at runtime.</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Curriculum term for modifying an environment parameter at runtime.</span>
 
-<span class="sd">    This term compiles getter/setter accessors for a target attribute (specified by</span>
-<span class="sd">    `cfg.params[&quot;address&quot;]`) the first time it is called, then on each invocation</span>
+<span class="sd">    This term helps modify an environment parameter (or attribute) at runtime.</span>
+<span class="sd">    This parameter can be any attribute of the environment, such as the physics material properties,</span>
+<span class="sd">    observation ranges, or any other configurable parameter that can be accessed via a dotted path.</span>
+
+<span class="sd">    The term uses the ``address`` parameter to specify the target attribute as a dotted path string.</span>
+<span class="sd">    For instance, &quot;event_manager.cfg.object_physics_material.func.material_buckets&quot; would</span>
+<span class="sd">    refer to the attribute ``material_buckets`` in the event manager&#39;s event term &quot;object_physics_material&quot;,</span>
+<span class="sd">    which is a tensor of sampled physics material properties.</span>
+
+<span class="sd">    The term uses the ``modify_fn`` parameter to specify the function that modifies the value of the target attribute.</span>
+<span class="sd">    The function should have the signature:</span>
+
+<span class="sd">    .. code-block:: python</span>
+
+<span class="sd">        def modify_fn(env, env_ids, old_value, **modify_params) -&gt; new_value | modify_env_param.NO_CHANGE:</span>
+<span class="sd">            ...</span>
+
+<span class="sd">    where ``env`` is the learning environment, ``env_ids`` are the sub-environment indices,</span>
+<span class="sd">    ``old_value`` is the current value of the target attribute, and ``modify_params``</span>
+<span class="sd">    are additional parameters that can be passed to the function. The function should return</span>
+<span class="sd">    the new value to be set for the target attribute, or the special token ``modify_env_param.NO_CHANGE``</span>
+<span class="sd">    to indicate that the value should not be changed.</span>
+
+<span class="sd">    At the first call to the term after initialization, it compiles getter and setter functions</span>
+<span class="sd">    for the target attribute specified by the ``address`` parameter. The getter retrieves the</span>
+<span class="sd">    current value, and the setter writes a new value back to the attribute.</span>
+
+<span class="sd">    This term processes getter/setter accessors for a target attribute in an(specified by</span>
+<span class="sd">    as an &quot;address&quot; in the term configuration`cfg.params[&quot;address&quot;]`) the first time it is called, then on each invocation</span>
 <span class="sd">    reads the current value, applies a user-provided `modify_fn`, and writes back</span>
 <span class="sd">    the result. Since None in this case can sometime be desirable value to write, we</span>
 <span class="sd">    use token, NO_CHANGE, as non-modification signal to this class, see usage below.</span>
@@ -701,6 +736,11 @@ object to enable dynamic modification of reward weights and environment paramete
 <span class="sd">                    ranges = torch.tensor(range_list, device=&quot;cpu&quot;)</span>
 <span class="sd">                    new_buckets = math_utils.sample_uniform(ranges[:, 0], ranges[:, 1], (len(data), 3), device=&quot;cpu&quot;)</span>
 <span class="sd">                    return new_buckets</span>
+
+<span class="sd">                # if the step counter is not reached, return NO_CHANGE to indicate no modification.</span>
+<span class="sd">                # we do this instead of returning None, since None is a valid value to set.</span>
+<span class="sd">                # additionally, returning the input data would not change the value but still lead</span>
+<span class="sd">                # to the setter being called, which may add overhead.</span>
 <span class="sd">                return mdp.modify_env_param.NO_CHANGE</span>
 
 <span class="sd">            object_physics_material_curriculum = CurrTerm(</span>
@@ -709,8 +749,8 @@ object to enable dynamic modification of reward weights and environment paramete
 <span class="sd">                    &quot;address&quot;: &quot;event_manager.cfg.object_physics_material.func.material_buckets&quot;,</span>
 <span class="sd">                    &quot;modify_fn&quot;: resample_bucket_range,</span>
 <span class="sd">                    &quot;modify_params&quot;: {</span>
-<span class="sd">                        &quot;static_friction_range&quot;: [.5, 1.],</span>
-<span class="sd">                        &quot;dynamic_friction_range&quot;: [.3, 1.],</span>
+<span class="sd">                        &quot;static_friction_range&quot;: [0.5, 1.0],</span>
+<span class="sd">                        &quot;dynamic_friction_range&quot;: [0.3, 1.0],</span>
 <span class="sd">                        &quot;restitution_range&quot;: [0.0, 0.5],</span>
 <span class="sd">                        &quot;num_step&quot;: 120000</span>
 <span class="sd">                    }</span>
@@ -718,22 +758,36 @@ object to enable dynamic modification of reward weights and environment paramete
 <span class="sd">            )</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">NO_CHANGE</span> <span class="o">=</span> <span class="nb">object</span><span class="p">()</span>
+    <span class="n">NO_CHANGE</span><span class="p">:</span> <span class="n">ClassVar</span> <span class="o">=</span> <span class="nb">object</span><span class="p">()</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Special token to indicate no change in the value to be set.</span>
 
-    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">,</span> <span class="n">env</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Initialize the ModifyEnvParam term.</span>
+<span class="sd">    This token is used to signal that the `modify_fn` did not produce a new value. It can</span>
+<span class="sd">    be returned by the `modify_fn` to indicate that the current value should remain unchanged.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
 
-<span class="sd">        Args:</span>
-<span class="sd">            cfg: A CurriculumTermCfg whose `params` dict must contain:</span>
-<span class="sd">                - &quot;address&quot; (str): dotted path into the env where the parameter lives.</span>
-<span class="sd">            env: The ManagerBasedRLEnv instance this term will act upon.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">CurriculumTermCfg</span><span class="p">,</span> <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedRLEnv</span><span class="p">):</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">env</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_INDEX_RE</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="sa">r</span><span class="s2">&quot;^(\w+)\[(\d+)\]$&quot;</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">get_fn</span><span class="p">:</span> <span class="nb">callable</span> <span class="o">=</span> <span class="kc">None</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">set_fn</span><span class="p">:</span> <span class="nb">callable</span> <span class="o">=</span> <span class="kc">None</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">address</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;address&quot;</span><span class="p">)</span>
+        <span class="c1"># resolve term configuration</span>
+        <span class="k">if</span> <span class="s2">&quot;address&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">cfg</span><span class="o">.</span><span class="n">params</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;The &#39;address&#39; parameter must be specified in the curriculum term configuration.&quot;</span><span class="p">)</span>
+
+        <span class="c1"># store current address</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_address</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">params</span><span class="p">[</span><span class="s2">&quot;address&quot;</span><span class="p">]</span>
+        <span class="c1"># store accessor functions</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_get_fn</span><span class="p">:</span> <span class="nb">callable</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_set_fn</span><span class="p">:</span> <span class="nb">callable</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__del__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Destructor to clean up the compiled functions.&quot;&quot;&quot;</span>
+        <span class="c1"># clear the getter and setter functions</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_get_fn</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_set_fn</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_container</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_last_path</span> <span class="o">=</span> <span class="kc">None</span>
+
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Operations.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">def</span><span class="w"> </span><span class="fm">__call__</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
@@ -741,99 +795,119 @@ object to enable dynamic modification of reward weights and environment paramete
         <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span>
         <span class="n">address</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
         <span class="n">modify_fn</span><span class="p">:</span> <span class="nb">callable</span><span class="p">,</span>
-        <span class="n">modify_params</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">=</span> <span class="p">{},</span>
+        <span class="n">modify_params</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Apply one curriculum step to the target parameter.</span>
+        <span class="c1"># fetch the getter and setter functions if not already compiled</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_fn</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_get_fn</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_set_fn</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_process_accessors</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_env</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_address</span><span class="p">)</span>
 
-<span class="sd">        On the first call, compiles and caches the getter and setter accessors.</span>
-<span class="sd">        Then, retrieves the current value, passes it through `modify_fn`, and</span>
-<span class="sd">        writes back the new value.</span>
+        <span class="c1"># resolve none type</span>
+        <span class="n">modify_params</span> <span class="o">=</span> <span class="p">{}</span> <span class="k">if</span> <span class="n">modify_params</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">modify_params</span>
 
-<span class="sd">        Args:</span>
-<span class="sd">            env: The learning environment.</span>
-<span class="sd">            env_ids: Sub-environment indices (unused by default).</span>
-<span class="sd">            address: dotted path of the value retrieved from env.</span>
-<span class="sd">            modify_fn: Function signature `fn(env, env_ids, old_value, **modify_params) -&gt; new_value`.</span>
-<span class="sd">            modify_params: Extra keyword arguments for `modify_fn`.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_fn</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">get_fn</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">set_fn</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_compile_accessors</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_env</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">address</span><span class="p">)</span>
-
-        <span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_fn</span><span class="p">()</span>
+        <span class="c1"># get the current value of the target attribute</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_fn</span><span class="p">()</span>
+        <span class="c1"># modify the value using the provided function</span>
         <span class="n">new_val</span> <span class="o">=</span> <span class="n">modify_fn</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_env</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="o">**</span><span class="n">modify_params</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">new_val</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">NO_CHANGE</span><span class="p">:</span>  <span class="c1"># if the modify_fn return NO_CHANGE signal, do not invoke self.set_fn</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">set_fn</span><span class="p">(</span><span class="n">new_val</span><span class="p">)</span>
+        <span class="c1"># set the modified value back to the target attribute</span>
+        <span class="c1"># note: if the modify_fn return NO_CHANGE signal, we do not invoke self.set_fn</span>
+        <span class="k">if</span> <span class="n">new_val</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">NO_CHANGE</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_set_fn</span><span class="p">(</span><span class="n">new_val</span><span class="p">)</span>
 
-    <span class="k">def</span><span class="w"> </span><span class="nf">_compile_accessors</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">root</span><span class="p">,</span> <span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Build and return (getter, setter) functions for a dotted attribute path.</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Helper functions.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
 
-<span class="sd">        Supports nested attributes, dict keys, and sequence indexing via &quot;name[idx]&quot;.</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_process_accessors</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">root</span><span class="p">:</span> <span class="n">ManagerBasedRLEnv</span><span class="p">,</span> <span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">callable</span><span class="p">,</span> <span class="nb">callable</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Process and return the (getter, setter) functions for a dotted attribute path.</span>
+
+<span class="sd">        This function resolves a dotted path string to an attribute in the given root object.</span>
+<span class="sd">        The dotted path can include nested attributes, dictionary keys, and sequence indexing.</span>
+
+<span class="sd">        For instance, the path &quot;foo.bar[2].baz&quot; would resolve to `root.foo.bar[2].baz`. This</span>
+<span class="sd">        allows accessing attributes in a nested structure, such as a dictionary or a list.</span>
 
 <span class="sd">        Args:</span>
-<span class="sd">            root: Base object (usually `self._env`) from which to resolve `path`.</span>
-<span class="sd">            path: Dotted path string, e.g. &quot;foo.bar[2].baz&quot;.</span>
+<span class="sd">            root: The main object from which to resolve the attribute.</span>
+<span class="sd">            path: Dotted path string to the attribute variable. For e.g., &quot;foo.bar[2].baz&quot;.</span>
 
 <span class="sd">        Returns:</span>
-<span class="sd">            tuple:</span>
-<span class="sd">              - getter: () -&gt; current value</span>
-<span class="sd">              - setter: (new_value) -&gt; None (writes new_value back into the object)</span>
+<span class="sd">            A tuple of two functions (getter, setter), where:</span>
+<span class="sd">            the getter retrieves the current value of the attribute, and</span>
+<span class="sd">            the setter writes a new value back to the attribute.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="c1"># Turn &quot;a.b[2].c&quot; into [&quot;a&quot;, (&quot;b&quot;,2), &quot;c&quot;] and store in parts</span>
-        <span class="n">parts</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="c1"># Turn &quot;a.b[2].c&quot; into [&quot;a&quot;, (&quot;b&quot;, 2), &quot;c&quot;] and store in parts</span>
+        <span class="n">path_parts</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span> <span class="o">|</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">]]</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="k">for</span> <span class="n">part</span> <span class="ow">in</span> <span class="n">path</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;.&quot;</span><span class="p">):</span>
-            <span class="n">m</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_INDEX_RE</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">part</span><span class="p">)</span>
+            <span class="n">m</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="sa">r</span><span class="s2">&quot;^(\w+)\[(\d+)\]$&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">part</span><span class="p">)</span>
             <span class="k">if</span> <span class="n">m</span><span class="p">:</span>
-                <span class="n">parts</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">1</span><span class="p">),</span> <span class="nb">int</span><span class="p">(</span><span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">2</span><span class="p">))))</span>
+                <span class="n">path_parts</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">1</span><span class="p">),</span> <span class="nb">int</span><span class="p">(</span><span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">2</span><span class="p">))))</span>
             <span class="k">else</span><span class="p">:</span>
-                <span class="n">parts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">part</span><span class="p">)</span>
+                <span class="n">path_parts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">part</span><span class="p">)</span>
 
-        <span class="n">cur</span> <span class="o">=</span> <span class="n">root</span>
-        <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">parts</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]:</span>
-            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">):</span>
-                <span class="n">name</span><span class="p">,</span> <span class="n">idx</span> <span class="o">=</span> <span class="n">p</span>
-                <span class="n">container</span> <span class="o">=</span> <span class="n">cur</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">cur</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)</span> <span class="k">else</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">cur</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span>
-                <span class="n">cur</span> <span class="o">=</span> <span class="n">container</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span>
+        <span class="c1"># Traverse the parts to find the container</span>
+        <span class="n">container</span> <span class="o">=</span> <span class="n">root</span>
+        <span class="k">for</span> <span class="n">container_path</span> <span class="ow">in</span> <span class="n">path_parts</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]:</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">container_path</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">):</span>
+                <span class="c1"># we are accessing a list element</span>
+                <span class="n">name</span><span class="p">,</span> <span class="n">idx</span> <span class="o">=</span> <span class="n">container_path</span>
+                <span class="c1"># find underlying attribute</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">container_path</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+                    <span class="n">seq</span> <span class="o">=</span> <span class="n">container</span><span class="p">[</span><span class="n">name</span><span class="p">]</span>  <span class="c1"># type: ignore[assignment]</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">seq</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">container</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span>
+                <span class="c1"># save the container for the next iteration</span>
+                <span class="n">container</span> <span class="o">=</span> <span class="n">seq</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span>
             <span class="k">else</span><span class="p">:</span>
-                <span class="n">cur</span> <span class="o">=</span> <span class="n">cur</span><span class="p">[</span><span class="n">p</span><span class="p">]</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">cur</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)</span> <span class="k">else</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">cur</span><span class="p">,</span> <span class="n">p</span><span class="p">)</span>
+                <span class="c1"># we are accessing a dictionary key or an attribute</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">container</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+                    <span class="n">container</span> <span class="o">=</span> <span class="n">container</span><span class="p">[</span><span class="n">container_path</span><span class="p">]</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">container</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">container</span><span class="p">,</span> <span class="n">container_path</span><span class="p">)</span>
 
-        <span class="bp">self</span><span class="o">.</span><span class="n">container</span> <span class="o">=</span> <span class="n">cur</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">last</span> <span class="o">=</span> <span class="n">parts</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+        <span class="c1"># save the container and the last part of the path</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_container</span> <span class="o">=</span> <span class="n">container</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_last_path</span> <span class="o">=</span> <span class="n">path_parts</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>  <span class="c1"># for &quot;a.b[2].c&quot;, this is &quot;c&quot;, while for &quot;a.b[2]&quot; it is 2</span>
+
         <span class="c1"># build the getter and setter</span>
-        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">container</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">):</span>
-            <span class="n">getter</span> <span class="o">=</span> <span class="k">lambda</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">container</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">last</span><span class="p">]</span>  <span class="c1"># noqa: E731</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_container</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">):</span>
+            <span class="n">get_value</span> <span class="o">=</span> <span class="k">lambda</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_container</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_last_path</span><span class="p">]</span>  <span class="c1"># noqa: E731</span>
 
-            <span class="k">def</span><span class="w"> </span><span class="nf">setter</span><span class="p">(</span><span class="n">val</span><span class="p">):</span>
-                <span class="n">tuple_list</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">container</span><span class="p">)</span>
-                <span class="n">tuple_list</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">last</span><span class="p">]</span> <span class="o">=</span> <span class="n">val</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">container</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">tuple_list</span><span class="p">)</span>
+            <span class="k">def</span><span class="w"> </span><span class="nf">set_value</span><span class="p">(</span><span class="n">val</span><span class="p">):</span>
+                <span class="n">tuple_list</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_container</span><span class="p">)</span>
+                <span class="n">tuple_list</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_last_path</span><span class="p">]</span> <span class="o">=</span> <span class="n">val</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_container</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">tuple_list</span><span class="p">)</span>
 
-        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">container</span><span class="p">,</span> <span class="p">(</span><span class="nb">list</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)):</span>
-            <span class="n">getter</span> <span class="o">=</span> <span class="k">lambda</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">container</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">last</span><span class="p">]</span>  <span class="c1"># noqa: E731</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_container</span><span class="p">,</span> <span class="p">(</span><span class="nb">list</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)):</span>
+            <span class="n">get_value</span> <span class="o">=</span> <span class="k">lambda</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_container</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_last_path</span><span class="p">]</span>  <span class="c1"># noqa: E731</span>
 
-            <span class="k">def</span><span class="w"> </span><span class="nf">setter</span><span class="p">(</span><span class="n">val</span><span class="p">):</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">container</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">last</span><span class="p">]</span> <span class="o">=</span> <span class="n">val</span>
+            <span class="k">def</span><span class="w"> </span><span class="nf">set_value</span><span class="p">(</span><span class="n">val</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_container</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_last_path</span><span class="p">]</span> <span class="o">=</span> <span class="n">val</span>
 
-        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">container</span><span class="p">,</span> <span class="nb">object</span><span class="p">):</span>
-            <span class="n">getter</span> <span class="o">=</span> <span class="k">lambda</span><span class="p">:</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">container</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">last</span><span class="p">)</span>  <span class="c1"># noqa: E731</span>
-
-            <span class="k">def</span><span class="w"> </span><span class="nf">setter</span><span class="p">(</span><span class="n">val</span><span class="p">):</span>
-                <span class="nb">setattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">container</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">last</span><span class="p">,</span> <span class="n">val</span><span class="p">)</span>
-
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_container</span><span class="p">,</span> <span class="nb">object</span><span class="p">):</span>
+            <span class="n">get_value</span> <span class="o">=</span> <span class="k">lambda</span><span class="p">:</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_container</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_last_path</span><span class="p">)</span>  <span class="c1"># noqa: E731</span>
+            <span class="n">set_value</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">val</span><span class="p">:</span> <span class="nb">setattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_container</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_last_path</span><span class="p">,</span> <span class="n">val</span><span class="p">)</span>  <span class="c1"># noqa: E731</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;getter does not recognize the type </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">container</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Unable to build accessors for address &#39;</span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">&#39;. Unknown type found for access variable:&quot;</span>
+                <span class="sa">f</span><span class="s2">&quot; &#39;</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_container</span><span class="p">)</span><span class="si">}</span><span class="s2">&#39;. Expected a list, dict, or object with attributes.&quot;</span>
+            <span class="p">)</span>
 
-        <span class="k">return</span> <span class="n">getter</span><span class="p">,</span> <span class="n">setter</span>
+        <span class="k">return</span> <span class="n">get_value</span><span class="p">,</span> <span class="n">set_value</span>
 
 
 <span class="k">class</span><span class="w"> </span><span class="nc">modify_term_cfg</span><span class="p">(</span><span class="n">modify_env_param</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Subclass of ModifyEnvParam that maps a simplified &#39;s.&#39;-style address</span>
-<span class="sd">    to the full manager path. This is a more natural style for writing configurations</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Curriculum for modifying a manager term configuration at runtime.</span>
 
-<span class="sd">    Reads `cfg.params[&quot;address&quot;]`, replaces only the first occurrence of &quot;s.&quot;</span>
-<span class="sd">    with &quot;_manager.cfg.&quot;, and then behaves identically to ModifyEnvParam.</span>
-<span class="sd">    for example: command_manager.cfg.object_pose.ranges.xpos -&gt; commands.object_pose.ranges.xpos</span>
+<span class="sd">    This class inherits from :class:`modify_env_param` and is specifically designed to modify</span>
+<span class="sd">    the configuration of a manager term in the environment. It mainly adds the convenience of</span>
+<span class="sd">    using a simplified address style that uses &quot;s.&quot; as a prefix to refer to the manager&#39;s configuration.</span>
+
+<span class="sd">    For instance, instead of writing &quot;event_manager.cfg.object_physics_material.func.material_buckets&quot;,</span>
+<span class="sd">    you can write &quot;events.object_physics_material.func.material_buckets&quot; to refer to the same term configuration.</span>
+<span class="sd">    The same applies to other managers, such as &quot;observations&quot;, &quot;commands&quot;, &quot;rewards&quot;, and &quot;terminations&quot;.</span>
+
+<span class="sd">    Internally, it replaces the first occurrence of &quot;s.&quot; in the address with &quot;_manager.cfg.&quot;,</span>
+<span class="sd">    thus transforming the simplified address into a full manager path.</span>
 
 <span class="sd">    Usage:</span>
 <span class="sd">        .. code-block:: python</span>
@@ -846,7 +920,7 @@ object to enable dynamic modification of reward weights and environment paramete
 <span class="sd">            command_object_pose_xrange_adr = CurrTerm(</span>
 <span class="sd">                func=mdp.modify_term_cfg,</span>
 <span class="sd">                params={</span>
-<span class="sd">                    &quot;address&quot;: &quot;commands.object_pose.ranges.pos_x&quot;,   # note that `_manager.cfg` is omitted</span>
+<span class="sd">                    &quot;address&quot;: &quot;commands.object_pose.ranges.pos_x&quot;,   # note: `_manager.cfg` is omitted</span>
 <span class="sd">                    &quot;modify_fn&quot;: override_value,</span>
 <span class="sd">                    &quot;modify_params&quot;: {&quot;value&quot;: (-.75, -.25), &quot;num_steps&quot;: 12000}</span>
 <span class="sd">                }</span>
@@ -854,17 +928,10 @@ object to enable dynamic modification of reward weights and environment paramete
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">,</span> <span class="n">env</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Initialize the ModifyTermCfg term.</span>
-
-<span class="sd">        Args:</span>
-<span class="sd">            cfg: A CurriculumTermCfg whose `params[&quot;address&quot;]` is a simplified</span>
-<span class="sd">                 path using &quot;s.&quot; as separator, e.g. instead of write &quot;observation_manager.cfg&quot;, writes &quot;observations&quot;.</span>
-<span class="sd">            env: The ManagerBasedRLEnv instance this term will act upon.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># initialize the parent</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">env</span><span class="p">)</span>
-        <span class="n">input_address</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;address&quot;</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">address</span> <span class="o">=</span> <span class="n">input_address</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;s.&quot;</span><span class="p">,</span> <span class="s2">&quot;_manager.cfg.&quot;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="c1"># overwrite the simplified address with the full manager path</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_address</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_address</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;s.&quot;</span><span class="p">,</span> <span class="s2">&quot;_manager.cfg.&quot;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
 </pre></div>
 </div>
 </div>
@@ -872,22 +939,30 @@ object to enable dynamic modification of reward weights and environment paramete
 <h2>Modifying Reward Weights<a class="headerlink" href="#modifying-reward-weights" title="Permalink to this heading">#</a></h2>
 <p>The function <code class="xref py py-func docutils literal notranslate"><span class="pre">modify_reward_weight()</span></code> updates the weight of a reward term after a specified number of simulation
 steps. This can be passed directly as the <code class="docutils literal notranslate"><span class="pre">func</span></code> in a <code class="docutils literal notranslate"><span class="pre">CurriculumTermCfg</span></code>.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">modify_reward_weight</span><span class="p">(</span><span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedRLEnv</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span> <span class="n">term_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">weight</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">num_steps</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Curriculum that modifies a reward weight a given number of steps.</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span><span class="w"> </span><span class="nc">modify_reward_weight</span><span class="p">(</span><span class="n">ManagerTermBase</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Curriculum that modifies the reward weight based on a step-wise schedule.&quot;&quot;&quot;</span>
 
-<span class="sd">    Args:</span>
-<span class="sd">        env: The learning environment.</span>
-<span class="sd">        env_ids: Not used since all environments are affected.</span>
-<span class="sd">        term_name: The name of the reward term.</span>
-<span class="sd">        weight: The weight of the reward term.</span>
-<span class="sd">        num_steps: The number of steps after which the change should be applied.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="k">if</span> <span class="n">env</span><span class="o">.</span><span class="n">common_step_counter</span> <span class="o">&gt;</span> <span class="n">num_steps</span><span class="p">:</span>
-        <span class="c1"># obtain term settings</span>
-        <span class="n">term_cfg</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">reward_manager</span><span class="o">.</span><span class="n">get_term_cfg</span><span class="p">(</span><span class="n">term_name</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">CurriculumTermCfg</span><span class="p">,</span> <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedRLEnv</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">env</span><span class="p">)</span>
+
+        <span class="c1"># obtain term configuration</span>
+        <span class="n">term_name</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">params</span><span class="p">[</span><span class="s2">&quot;term_name&quot;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_term_cfg</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">reward_manager</span><span class="o">.</span><span class="n">get_term_cfg</span><span class="p">(</span><span class="n">term_name</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__call__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedRLEnv</span><span class="p">,</span>
+        <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span>
+        <span class="n">term_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">weight</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+        <span class="n">num_steps</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
         <span class="c1"># update term settings</span>
-        <span class="n">term_cfg</span><span class="o">.</span><span class="n">weight</span> <span class="o">=</span> <span class="n">weight</span>
-        <span class="n">env</span><span class="o">.</span><span class="n">reward_manager</span><span class="o">.</span><span class="n">set_term_cfg</span><span class="p">(</span><span class="n">term_name</span><span class="p">,</span> <span class="n">term_cfg</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">env</span><span class="o">.</span><span class="n">common_step_counter</span> <span class="o">&gt;</span> <span class="n">num_steps</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_term_cfg</span><span class="o">.</span><span class="n">weight</span> <span class="o">=</span> <span class="n">weight</span>
+            <span class="n">env</span><span class="o">.</span><span class="n">reward_manager</span><span class="o">.</span><span class="n">set_term_cfg</span><span class="p">(</span><span class="n">term_name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_term_cfg</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_term_cfg</span><span class="o">.</span><span class="n">weight</span>
 </pre></div>
 </div>
 <p><strong>Usage example</strong>:</p>
@@ -913,10 +988,37 @@ dotted attribute path in the environment and apply a user-supplied function to c
 handles nested attributes, dictionary keys, list or tuple indexing, and respects a <code class="docutils literal notranslate"><span class="pre">NO_CHANGE</span></code> sentinel if no update
 is desired.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span><span class="w"> </span><span class="nc">modify_env_param</span><span class="p">(</span><span class="n">ManagerTermBase</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Curriculum term for dynamically modifying a single environment parameter at runtime.</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Curriculum term for modifying an environment parameter at runtime.</span>
 
-<span class="sd">    This term compiles getter/setter accessors for a target attribute (specified by</span>
-<span class="sd">    `cfg.params[&quot;address&quot;]`) the first time it is called, then on each invocation</span>
+<span class="sd">    This term helps modify an environment parameter (or attribute) at runtime.</span>
+<span class="sd">    This parameter can be any attribute of the environment, such as the physics material properties,</span>
+<span class="sd">    observation ranges, or any other configurable parameter that can be accessed via a dotted path.</span>
+
+<span class="sd">    The term uses the ``address`` parameter to specify the target attribute as a dotted path string.</span>
+<span class="sd">    For instance, &quot;event_manager.cfg.object_physics_material.func.material_buckets&quot; would</span>
+<span class="sd">    refer to the attribute ``material_buckets`` in the event manager&#39;s event term &quot;object_physics_material&quot;,</span>
+<span class="sd">    which is a tensor of sampled physics material properties.</span>
+
+<span class="sd">    The term uses the ``modify_fn`` parameter to specify the function that modifies the value of the target attribute.</span>
+<span class="sd">    The function should have the signature:</span>
+
+<span class="sd">    .. code-block:: python</span>
+
+<span class="sd">        def modify_fn(env, env_ids, old_value, **modify_params) -&gt; new_value | modify_env_param.NO_CHANGE:</span>
+<span class="sd">            ...</span>
+
+<span class="sd">    where ``env`` is the learning environment, ``env_ids`` are the sub-environment indices,</span>
+<span class="sd">    ``old_value`` is the current value of the target attribute, and ``modify_params``</span>
+<span class="sd">    are additional parameters that can be passed to the function. The function should return</span>
+<span class="sd">    the new value to be set for the target attribute, or the special token ``modify_env_param.NO_CHANGE``</span>
+<span class="sd">    to indicate that the value should not be changed.</span>
+
+<span class="sd">    At the first call to the term after initialization, it compiles getter and setter functions</span>
+<span class="sd">    for the target attribute specified by the ``address`` parameter. The getter retrieves the</span>
+<span class="sd">    current value, and the setter writes a new value back to the attribute.</span>
+
+<span class="sd">    This term processes getter/setter accessors for a target attribute in an(specified by</span>
+<span class="sd">    as an &quot;address&quot; in the term configuration`cfg.params[&quot;address&quot;]`) the first time it is called, then on each invocation</span>
 <span class="sd">    reads the current value, applies a user-provided `modify_fn`, and writes back</span>
 <span class="sd">    the result. Since None in this case can sometime be desirable value to write, we</span>
 <span class="sd">    use token, NO_CHANGE, as non-modification signal to this class, see usage below.</span>
@@ -932,6 +1034,11 @@ is desired.</p>
 <span class="sd">                    ranges = torch.tensor(range_list, device=&quot;cpu&quot;)</span>
 <span class="sd">                    new_buckets = math_utils.sample_uniform(ranges[:, 0], ranges[:, 1], (len(data), 3), device=&quot;cpu&quot;)</span>
 <span class="sd">                    return new_buckets</span>
+
+<span class="sd">                # if the step counter is not reached, return NO_CHANGE to indicate no modification.</span>
+<span class="sd">                # we do this instead of returning None, since None is a valid value to set.</span>
+<span class="sd">                # additionally, returning the input data would not change the value but still lead</span>
+<span class="sd">                # to the setter being called, which may add overhead.</span>
 <span class="sd">                return mdp.modify_env_param.NO_CHANGE</span>
 
 <span class="sd">            object_physics_material_curriculum = CurrTerm(</span>
@@ -940,8 +1047,8 @@ is desired.</p>
 <span class="sd">                    &quot;address&quot;: &quot;event_manager.cfg.object_physics_material.func.material_buckets&quot;,</span>
 <span class="sd">                    &quot;modify_fn&quot;: resample_bucket_range,</span>
 <span class="sd">                    &quot;modify_params&quot;: {</span>
-<span class="sd">                        &quot;static_friction_range&quot;: [.5, 1.],</span>
-<span class="sd">                        &quot;dynamic_friction_range&quot;: [.3, 1.],</span>
+<span class="sd">                        &quot;static_friction_range&quot;: [0.5, 1.0],</span>
+<span class="sd">                        &quot;dynamic_friction_range&quot;: [0.3, 1.0],</span>
 <span class="sd">                        &quot;restitution_range&quot;: [0.0, 0.5],</span>
 <span class="sd">                        &quot;num_step&quot;: 120000</span>
 <span class="sd">                    }</span>
@@ -949,22 +1056,36 @@ is desired.</p>
 <span class="sd">            )</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">NO_CHANGE</span> <span class="o">=</span> <span class="nb">object</span><span class="p">()</span>
+    <span class="n">NO_CHANGE</span><span class="p">:</span> <span class="n">ClassVar</span> <span class="o">=</span> <span class="nb">object</span><span class="p">()</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Special token to indicate no change in the value to be set.</span>
 
-    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">,</span> <span class="n">env</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Initialize the ModifyEnvParam term.</span>
+<span class="sd">    This token is used to signal that the `modify_fn` did not produce a new value. It can</span>
+<span class="sd">    be returned by the `modify_fn` to indicate that the current value should remain unchanged.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
 
-<span class="sd">        Args:</span>
-<span class="sd">            cfg: A CurriculumTermCfg whose `params` dict must contain:</span>
-<span class="sd">                - &quot;address&quot; (str): dotted path into the env where the parameter lives.</span>
-<span class="sd">            env: The ManagerBasedRLEnv instance this term will act upon.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">CurriculumTermCfg</span><span class="p">,</span> <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedRLEnv</span><span class="p">):</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">env</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_INDEX_RE</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="sa">r</span><span class="s2">&quot;^(\w+)\[(\d+)\]$&quot;</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">get_fn</span><span class="p">:</span> <span class="nb">callable</span> <span class="o">=</span> <span class="kc">None</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">set_fn</span><span class="p">:</span> <span class="nb">callable</span> <span class="o">=</span> <span class="kc">None</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">address</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;address&quot;</span><span class="p">)</span>
+        <span class="c1"># resolve term configuration</span>
+        <span class="k">if</span> <span class="s2">&quot;address&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">cfg</span><span class="o">.</span><span class="n">params</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;The &#39;address&#39; parameter must be specified in the curriculum term configuration.&quot;</span><span class="p">)</span>
+
+        <span class="c1"># store current address</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_address</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">params</span><span class="p">[</span><span class="s2">&quot;address&quot;</span><span class="p">]</span>
+        <span class="c1"># store accessor functions</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_get_fn</span><span class="p">:</span> <span class="nb">callable</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_set_fn</span><span class="p">:</span> <span class="nb">callable</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__del__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Destructor to clean up the compiled functions.&quot;&quot;&quot;</span>
+        <span class="c1"># clear the getter and setter functions</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_get_fn</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_set_fn</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_container</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_last_path</span> <span class="o">=</span> <span class="kc">None</span>
+
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Operations.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">def</span><span class="w"> </span><span class="fm">__call__</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
@@ -972,90 +1093,104 @@ is desired.</p>
         <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span>
         <span class="n">address</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
         <span class="n">modify_fn</span><span class="p">:</span> <span class="nb">callable</span><span class="p">,</span>
-        <span class="n">modify_params</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">=</span> <span class="p">{},</span>
+        <span class="n">modify_params</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Apply one curriculum step to the target parameter.</span>
+        <span class="c1"># fetch the getter and setter functions if not already compiled</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_fn</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_get_fn</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_set_fn</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_process_accessors</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_env</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_address</span><span class="p">)</span>
 
-<span class="sd">        On the first call, compiles and caches the getter and setter accessors.</span>
-<span class="sd">        Then, retrieves the current value, passes it through `modify_fn`, and</span>
-<span class="sd">        writes back the new value.</span>
+        <span class="c1"># resolve none type</span>
+        <span class="n">modify_params</span> <span class="o">=</span> <span class="p">{}</span> <span class="k">if</span> <span class="n">modify_params</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">modify_params</span>
 
-<span class="sd">        Args:</span>
-<span class="sd">            env: The learning environment.</span>
-<span class="sd">            env_ids: Sub-environment indices (unused by default).</span>
-<span class="sd">            address: dotted path of the value retrieved from env.</span>
-<span class="sd">            modify_fn: Function signature `fn(env, env_ids, old_value, **modify_params) -&gt; new_value`.</span>
-<span class="sd">            modify_params: Extra keyword arguments for `modify_fn`.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_fn</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">get_fn</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">set_fn</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_compile_accessors</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_env</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">address</span><span class="p">)</span>
-
-        <span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_fn</span><span class="p">()</span>
+        <span class="c1"># get the current value of the target attribute</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_fn</span><span class="p">()</span>
+        <span class="c1"># modify the value using the provided function</span>
         <span class="n">new_val</span> <span class="o">=</span> <span class="n">modify_fn</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_env</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="o">**</span><span class="n">modify_params</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">new_val</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">NO_CHANGE</span><span class="p">:</span>  <span class="c1"># if the modify_fn return NO_CHANGE signal, do not invoke self.set_fn</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">set_fn</span><span class="p">(</span><span class="n">new_val</span><span class="p">)</span>
+        <span class="c1"># set the modified value back to the target attribute</span>
+        <span class="c1"># note: if the modify_fn return NO_CHANGE signal, we do not invoke self.set_fn</span>
+        <span class="k">if</span> <span class="n">new_val</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">NO_CHANGE</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_set_fn</span><span class="p">(</span><span class="n">new_val</span><span class="p">)</span>
 
-    <span class="k">def</span><span class="w"> </span><span class="nf">_compile_accessors</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">root</span><span class="p">,</span> <span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Build and return (getter, setter) functions for a dotted attribute path.</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Helper functions.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
 
-<span class="sd">        Supports nested attributes, dict keys, and sequence indexing via &quot;name[idx]&quot;.</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_process_accessors</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">root</span><span class="p">:</span> <span class="n">ManagerBasedRLEnv</span><span class="p">,</span> <span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">callable</span><span class="p">,</span> <span class="nb">callable</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Process and return the (getter, setter) functions for a dotted attribute path.</span>
+
+<span class="sd">        This function resolves a dotted path string to an attribute in the given root object.</span>
+<span class="sd">        The dotted path can include nested attributes, dictionary keys, and sequence indexing.</span>
+
+<span class="sd">        For instance, the path &quot;foo.bar[2].baz&quot; would resolve to `root.foo.bar[2].baz`. This</span>
+<span class="sd">        allows accessing attributes in a nested structure, such as a dictionary or a list.</span>
 
 <span class="sd">        Args:</span>
-<span class="sd">            root: Base object (usually `self._env`) from which to resolve `path`.</span>
-<span class="sd">            path: Dotted path string, e.g. &quot;foo.bar[2].baz&quot;.</span>
+<span class="sd">            root: The main object from which to resolve the attribute.</span>
+<span class="sd">            path: Dotted path string to the attribute variable. For e.g., &quot;foo.bar[2].baz&quot;.</span>
 
 <span class="sd">        Returns:</span>
-<span class="sd">            tuple:</span>
-<span class="sd">              - getter: () -&gt; current value</span>
-<span class="sd">              - setter: (new_value) -&gt; None (writes new_value back into the object)</span>
+<span class="sd">            A tuple of two functions (getter, setter), where:</span>
+<span class="sd">            the getter retrieves the current value of the attribute, and</span>
+<span class="sd">            the setter writes a new value back to the attribute.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="c1"># Turn &quot;a.b[2].c&quot; into [&quot;a&quot;, (&quot;b&quot;,2), &quot;c&quot;] and store in parts</span>
-        <span class="n">parts</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="c1"># Turn &quot;a.b[2].c&quot; into [&quot;a&quot;, (&quot;b&quot;, 2), &quot;c&quot;] and store in parts</span>
+        <span class="n">path_parts</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span> <span class="o">|</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">]]</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="k">for</span> <span class="n">part</span> <span class="ow">in</span> <span class="n">path</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;.&quot;</span><span class="p">):</span>
-            <span class="n">m</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_INDEX_RE</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">part</span><span class="p">)</span>
+            <span class="n">m</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="sa">r</span><span class="s2">&quot;^(\w+)\[(\d+)\]$&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">part</span><span class="p">)</span>
             <span class="k">if</span> <span class="n">m</span><span class="p">:</span>
-                <span class="n">parts</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">1</span><span class="p">),</span> <span class="nb">int</span><span class="p">(</span><span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">2</span><span class="p">))))</span>
+                <span class="n">path_parts</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">1</span><span class="p">),</span> <span class="nb">int</span><span class="p">(</span><span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">2</span><span class="p">))))</span>
             <span class="k">else</span><span class="p">:</span>
-                <span class="n">parts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">part</span><span class="p">)</span>
+                <span class="n">path_parts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">part</span><span class="p">)</span>
 
-        <span class="n">cur</span> <span class="o">=</span> <span class="n">root</span>
-        <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">parts</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]:</span>
-            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">):</span>
-                <span class="n">name</span><span class="p">,</span> <span class="n">idx</span> <span class="o">=</span> <span class="n">p</span>
-                <span class="n">container</span> <span class="o">=</span> <span class="n">cur</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">cur</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)</span> <span class="k">else</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">cur</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span>
-                <span class="n">cur</span> <span class="o">=</span> <span class="n">container</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span>
+        <span class="c1"># Traverse the parts to find the container</span>
+        <span class="n">container</span> <span class="o">=</span> <span class="n">root</span>
+        <span class="k">for</span> <span class="n">container_path</span> <span class="ow">in</span> <span class="n">path_parts</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]:</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">container_path</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">):</span>
+                <span class="c1"># we are accessing a list element</span>
+                <span class="n">name</span><span class="p">,</span> <span class="n">idx</span> <span class="o">=</span> <span class="n">container_path</span>
+                <span class="c1"># find underlying attribute</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">container_path</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+                    <span class="n">seq</span> <span class="o">=</span> <span class="n">container</span><span class="p">[</span><span class="n">name</span><span class="p">]</span>  <span class="c1"># type: ignore[assignment]</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">seq</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">container</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span>
+                <span class="c1"># save the container for the next iteration</span>
+                <span class="n">container</span> <span class="o">=</span> <span class="n">seq</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span>
             <span class="k">else</span><span class="p">:</span>
-                <span class="n">cur</span> <span class="o">=</span> <span class="n">cur</span><span class="p">[</span><span class="n">p</span><span class="p">]</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">cur</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)</span> <span class="k">else</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">cur</span><span class="p">,</span> <span class="n">p</span><span class="p">)</span>
+                <span class="c1"># we are accessing a dictionary key or an attribute</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">container</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+                    <span class="n">container</span> <span class="o">=</span> <span class="n">container</span><span class="p">[</span><span class="n">container_path</span><span class="p">]</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">container</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">container</span><span class="p">,</span> <span class="n">container_path</span><span class="p">)</span>
 
-        <span class="bp">self</span><span class="o">.</span><span class="n">container</span> <span class="o">=</span> <span class="n">cur</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">last</span> <span class="o">=</span> <span class="n">parts</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+        <span class="c1"># save the container and the last part of the path</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_container</span> <span class="o">=</span> <span class="n">container</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_last_path</span> <span class="o">=</span> <span class="n">path_parts</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>  <span class="c1"># for &quot;a.b[2].c&quot;, this is &quot;c&quot;, while for &quot;a.b[2]&quot; it is 2</span>
+
         <span class="c1"># build the getter and setter</span>
-        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">container</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">):</span>
-            <span class="n">getter</span> <span class="o">=</span> <span class="k">lambda</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">container</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">last</span><span class="p">]</span>  <span class="c1"># noqa: E731</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_container</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">):</span>
+            <span class="n">get_value</span> <span class="o">=</span> <span class="k">lambda</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_container</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_last_path</span><span class="p">]</span>  <span class="c1"># noqa: E731</span>
 
-            <span class="k">def</span><span class="w"> </span><span class="nf">setter</span><span class="p">(</span><span class="n">val</span><span class="p">):</span>
-                <span class="n">tuple_list</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">container</span><span class="p">)</span>
-                <span class="n">tuple_list</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">last</span><span class="p">]</span> <span class="o">=</span> <span class="n">val</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">container</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">tuple_list</span><span class="p">)</span>
+            <span class="k">def</span><span class="w"> </span><span class="nf">set_value</span><span class="p">(</span><span class="n">val</span><span class="p">):</span>
+                <span class="n">tuple_list</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_container</span><span class="p">)</span>
+                <span class="n">tuple_list</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_last_path</span><span class="p">]</span> <span class="o">=</span> <span class="n">val</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_container</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">tuple_list</span><span class="p">)</span>
 
-        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">container</span><span class="p">,</span> <span class="p">(</span><span class="nb">list</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)):</span>
-            <span class="n">getter</span> <span class="o">=</span> <span class="k">lambda</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">container</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">last</span><span class="p">]</span>  <span class="c1"># noqa: E731</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_container</span><span class="p">,</span> <span class="p">(</span><span class="nb">list</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)):</span>
+            <span class="n">get_value</span> <span class="o">=</span> <span class="k">lambda</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_container</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_last_path</span><span class="p">]</span>  <span class="c1"># noqa: E731</span>
 
-            <span class="k">def</span><span class="w"> </span><span class="nf">setter</span><span class="p">(</span><span class="n">val</span><span class="p">):</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">container</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">last</span><span class="p">]</span> <span class="o">=</span> <span class="n">val</span>
+            <span class="k">def</span><span class="w"> </span><span class="nf">set_value</span><span class="p">(</span><span class="n">val</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_container</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_last_path</span><span class="p">]</span> <span class="o">=</span> <span class="n">val</span>
 
-        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">container</span><span class="p">,</span> <span class="nb">object</span><span class="p">):</span>
-            <span class="n">getter</span> <span class="o">=</span> <span class="k">lambda</span><span class="p">:</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">container</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">last</span><span class="p">)</span>  <span class="c1"># noqa: E731</span>
-
-            <span class="k">def</span><span class="w"> </span><span class="nf">setter</span><span class="p">(</span><span class="n">val</span><span class="p">):</span>
-                <span class="nb">setattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">container</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">last</span><span class="p">,</span> <span class="n">val</span><span class="p">)</span>
-
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_container</span><span class="p">,</span> <span class="nb">object</span><span class="p">):</span>
+            <span class="n">get_value</span> <span class="o">=</span> <span class="k">lambda</span><span class="p">:</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_container</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_last_path</span><span class="p">)</span>  <span class="c1"># noqa: E731</span>
+            <span class="n">set_value</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">val</span><span class="p">:</span> <span class="nb">setattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_container</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_last_path</span><span class="p">,</span> <span class="n">val</span><span class="p">)</span>  <span class="c1"># noqa: E731</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;getter does not recognize the type </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">container</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Unable to build accessors for address &#39;</span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">&#39;. Unknown type found for access variable:&quot;</span>
+                <span class="sa">f</span><span class="s2">&quot; &#39;</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_container</span><span class="p">)</span><span class="si">}</span><span class="s2">&#39;. Expected a list, dict, or object with attributes.&quot;</span>
+            <span class="p">)</span>
 
-        <span class="k">return</span> <span class="n">getter</span><span class="p">,</span> <span class="n">setter</span>
+        <span class="k">return</span> <span class="n">get_value</span><span class="p">,</span> <span class="n">set_value</span>
 </pre></div>
 </div>
 <p><strong>Usage example</strong>:</p>
@@ -1089,12 +1224,18 @@ is desired.</p>
 <p>The subclass <code class="xref py py-class docutils literal notranslate"><span class="pre">modify_term_cfg</span></code> provides a more concise style address syntax, using consistent with hydra config
 syntax. It otherwise behaves identically to <code class="xref py py-class docutils literal notranslate"><span class="pre">modify_env_param</span></code>.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span><span class="w"> </span><span class="nc">modify_term_cfg</span><span class="p">(</span><span class="n">modify_env_param</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Subclass of ModifyEnvParam that maps a simplified &#39;s.&#39;-style address</span>
-<span class="sd">    to the full manager path. This is a more natural style for writing configurations</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Curriculum for modifying a manager term configuration at runtime.</span>
 
-<span class="sd">    Reads `cfg.params[&quot;address&quot;]`, replaces only the first occurrence of &quot;s.&quot;</span>
-<span class="sd">    with &quot;_manager.cfg.&quot;, and then behaves identically to ModifyEnvParam.</span>
-<span class="sd">    for example: command_manager.cfg.object_pose.ranges.xpos -&gt; commands.object_pose.ranges.xpos</span>
+<span class="sd">    This class inherits from :class:`modify_env_param` and is specifically designed to modify</span>
+<span class="sd">    the configuration of a manager term in the environment. It mainly adds the convenience of</span>
+<span class="sd">    using a simplified address style that uses &quot;s.&quot; as a prefix to refer to the manager&#39;s configuration.</span>
+
+<span class="sd">    For instance, instead of writing &quot;event_manager.cfg.object_physics_material.func.material_buckets&quot;,</span>
+<span class="sd">    you can write &quot;events.object_physics_material.func.material_buckets&quot; to refer to the same term configuration.</span>
+<span class="sd">    The same applies to other managers, such as &quot;observations&quot;, &quot;commands&quot;, &quot;rewards&quot;, and &quot;terminations&quot;.</span>
+
+<span class="sd">    Internally, it replaces the first occurrence of &quot;s.&quot; in the address with &quot;_manager.cfg.&quot;,</span>
+<span class="sd">    thus transforming the simplified address into a full manager path.</span>
 
 <span class="sd">    Usage:</span>
 <span class="sd">        .. code-block:: python</span>
@@ -1107,7 +1248,7 @@ syntax. It otherwise behaves identically to <code class="xref py py-class docuti
 <span class="sd">            command_object_pose_xrange_adr = CurrTerm(</span>
 <span class="sd">                func=mdp.modify_term_cfg,</span>
 <span class="sd">                params={</span>
-<span class="sd">                    &quot;address&quot;: &quot;commands.object_pose.ranges.pos_x&quot;,   # note that `_manager.cfg` is omitted</span>
+<span class="sd">                    &quot;address&quot;: &quot;commands.object_pose.ranges.pos_x&quot;,   # note: `_manager.cfg` is omitted</span>
 <span class="sd">                    &quot;modify_fn&quot;: override_value,</span>
 <span class="sd">                    &quot;modify_params&quot;: {&quot;value&quot;: (-.75, -.25), &quot;num_steps&quot;: 12000}</span>
 <span class="sd">                }</span>
@@ -1115,17 +1256,10 @@ syntax. It otherwise behaves identically to <code class="xref py py-class docuti
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">,</span> <span class="n">env</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Initialize the ModifyTermCfg term.</span>
-
-<span class="sd">        Args:</span>
-<span class="sd">            cfg: A CurriculumTermCfg whose `params[&quot;address&quot;]` is a simplified</span>
-<span class="sd">                 path using &quot;s.&quot; as separator, e.g. instead of write &quot;observation_manager.cfg&quot;, writes &quot;observations&quot;.</span>
-<span class="sd">            env: The ManagerBasedRLEnv instance this term will act upon.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># initialize the parent</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">env</span><span class="p">)</span>
-        <span class="n">input_address</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;address&quot;</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">address</span> <span class="o">=</span> <span class="n">input_address</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;s.&quot;</span><span class="p">,</span> <span class="s2">&quot;_manager.cfg.&quot;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="c1"># overwrite the simplified address with the full manager path</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_address</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_address</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;s.&quot;</span><span class="p">,</span> <span class="s2">&quot;_manager.cfg.&quot;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
 </pre></div>
 </div>
 <p><strong>Usage example</strong>:</p>

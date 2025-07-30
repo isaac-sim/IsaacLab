@@ -62,7 +62,7 @@
     <link rel="prev" title="isaaclab.app" href="isaaclab.app.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="2.1.0" />
+  <meta name="docsearch:version" content="2.1.1" />
     <meta name="docbuild:last-update" content="Jul 30, 2025"/>
   </head>
   
@@ -2286,9 +2286,6 @@ similar to static and Coulomb friction.</p>
 </section>
 <section id="dc-motor-actuator">
 <h2>DC Motor Actuator<a class="headerlink" href="#dc-motor-actuator" title="Permalink to this heading">#</a></h2>
-<figure class="align-center" style="width: 100%">
-<img alt="The effort clipping as a function of joint velocity for a linear DC Motor." src="_static/overview/actuator-group/dc_motor_clipping.jpg" />
-</figure>
 <dl class="py class">
 <dt class="sig sig-object py" id="isaaclab.actuators.DCMotor">
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab.actuators.</span></span><span class="sig-name descname"><span class="pre">DCMotor</span></span><a class="reference internal" href="../../../_modules/isaaclab/actuators/actuator_pd.html#DCMotor"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.actuators.DCMotor" title="Permalink to this definition">#</a></dt>
@@ -2329,6 +2326,9 @@ instantaneous joint velocity:</p>
 <p>If the velocity of the joint is outside corner velocities (this would be due to external forces) the
 applied output torque will be driven to the Continuous Torque (<cite>effort_limit</cite>).</p>
 <p>The figure below demonstrates the clipping action for example (velocity, torque) pairs.</p>
+<figure class="align-center" style="width: 100%">
+<img alt="The effort clipping as a function of joint velocity for a linear DC Motor." src="../../../_images/dc_motor_clipping.jpg" />
+</figure>
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>

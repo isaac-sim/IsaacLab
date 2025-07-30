@@ -62,7 +62,7 @@
     <link rel="prev" title="isaaclab.scene" href="isaaclab.scene.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="2.1.0" />
+  <meta name="docsearch:version" content="2.1.1" />
     <meta name="docbuild:last-update" content="Jul 30, 2025"/>
   </head>
   
@@ -3820,13 +3820,15 @@ static meshes and dynamic meshes.</p>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab.sensors.RayCasterCfg.attach_yaw_only">
-<span class="sig-name descname"><span class="pre">attach_yaw_only</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></em><a class="headerlink" href="#isaaclab.sensors.RayCasterCfg.attach_yaw_only" title="Permalink to this definition">#</a></dt>
-<dd><p>Whether the rays’ starting positions and directions only track the yaw orientation.</p>
+<span class="sig-name descname"><span class="pre">attach_yaw_only</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab.sensors.RayCasterCfg.attach_yaw_only" title="Permalink to this definition">#</a></dt>
+<dd><p>Whether the rays’ starting positions and directions only track the yaw orientation.
+Defaults to None, which doesn’t raise a warning of deprecated usage.</p>
 <p>This is useful for ray-casting height maps, where only yaw rotation is needed.</p>
-<div class="admonition warning">
-<p class="admonition-title">Warning</p>
-<p>This attribute is deprecated. Use <code class="xref py py-attr docutils literal notranslate"><span class="pre">ray_alignment</span></code> instead.
-To get the same behavior, set <cite>ray_alignment</cite> to <cite>“yaw”</cite>.</p>
+<div class="deprecated">
+<p><span class="versionmodified deprecated">Deprecated since version 2.1.1: </span>This attribute is deprecated and will be removed in the future. Please use
+<a class="reference internal" href="#isaaclab.sensors.RayCasterCfg.ray_alignment" title="isaaclab.sensors.RayCasterCfg.ray_alignment"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ray_alignment</span></code></a> instead.</p>
+<p>To get the same behavior as setting this parameter to <code class="docutils literal notranslate"><span class="pre">True</span></code> or <code class="docutils literal notranslate"><span class="pre">False</span></code>, set
+<a class="reference internal" href="#isaaclab.sensors.RayCasterCfg.ray_alignment" title="isaaclab.sensors.RayCasterCfg.ray_alignment"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ray_alignment</span></code></a> to <code class="docutils literal notranslate"><span class="pre">&quot;yaw&quot;</span></code> or “base” respectively.</p>
 </div>
 </dd></dl>
 
@@ -3864,10 +3866,15 @@ the current data is stored (no history).</p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab.sensors.RayCasterCfg.ray_alignment">
 <span class="sig-name descname"><span class="pre">ray_alignment</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.13)"><span class="pre">Literal</span></a><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'base'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'yaw'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'world'</span></span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#isaaclab.sensors.RayCasterCfg.ray_alignment" title="Permalink to this definition">#</a></dt>
-<dd><p>Specify in what frame the rays are projected onto the ground. Default is <cite>world</cite>.
-* <cite>base</cite> if the rays’ starting positions and directions track the full root position and orientation.
-* <cite>yaw</cite> if the rays’ starting positions and directions track root position and only yaw component of orientation. This is useful for ray-casting height maps.
-* <cite>world</cite> if rays’ starting positions and directions are always fixed. This is useful in combination with the grid map package.</p>
+<dd><p>Specify in what frame the rays are projected onto the ground. Default is “base”.</p>
+<p>The options are:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">base</span></code> if the rays’ starting positions and directions track the full root position and orientation.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">yaw</span></code> if the rays’ starting positions and directions track root position and only yaw component of orientation.
+This is useful for ray-casting height maps.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">world</span></code> if rays’ starting positions and directions are always fixed. This is useful in combination with a mapping
+package on the robot and querying ray-casts in a global frame.</p></li>
+</ul>
 </dd></dl>
 
 <dl class="py attribute">
@@ -3892,7 +3899,8 @@ the current data is stored (no history).</p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab.sensors.RayCasterCfg.ray_cast_drift_range">
 <span class="sig-name descname"><span class="pre">ray_cast_drift_range</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#isaaclab.sensors.RayCasterCfg.ray_cast_drift_range" title="Permalink to this definition">#</a></dt>
-<dd><p>The range of drift (in meters) to add to the projected ray points in local projection frame. Defaults to (0.0, 0.0) for x, y, and z drift.</p>
+<dd><p>The range of drift (in meters) to add to the projected ray points in local projection frame. Defaults to
+a dictionary with zero drift for each x, y and z axis.</p>
 <p>For floating base robots, this is useful for simulating drift in the robot’s pose estimation.</p>
 </dd></dl>
 
@@ -4324,23 +4332,30 @@ static meshes and dynamic meshes.</p>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab.sensors.RayCasterCameraCfg.attach_yaw_only">
-<span class="sig-name descname"><span class="pre">attach_yaw_only</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></em><a class="headerlink" href="#isaaclab.sensors.RayCasterCameraCfg.attach_yaw_only" title="Permalink to this definition">#</a></dt>
-<dd><p>Whether the rays’ starting positions and directions only track the yaw orientation.</p>
+<span class="sig-name descname"><span class="pre">attach_yaw_only</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab.sensors.RayCasterCameraCfg.attach_yaw_only" title="Permalink to this definition">#</a></dt>
+<dd><p>Whether the rays’ starting positions and directions only track the yaw orientation.
+Defaults to None, which doesn’t raise a warning of deprecated usage.</p>
 <p>This is useful for ray-casting height maps, where only yaw rotation is needed.</p>
-<div class="admonition warning">
-<p class="admonition-title">Warning</p>
-<p>This attribute is deprecated. Use <code class="xref py py-attr docutils literal notranslate"><span class="pre">ray_alignment</span></code> instead.
-To get the same behavior, set <cite>ray_alignment</cite> to <cite>“yaw”</cite>.</p>
+<div class="deprecated">
+<p><span class="versionmodified deprecated">Deprecated since version 2.1.1: </span>This attribute is deprecated and will be removed in the future. Please use
+<a class="reference internal" href="#isaaclab.sensors.RayCasterCameraCfg.ray_alignment" title="isaaclab.sensors.RayCasterCameraCfg.ray_alignment"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ray_alignment</span></code></a> instead.</p>
+<p>To get the same behavior as setting this parameter to <code class="docutils literal notranslate"><span class="pre">True</span></code> or <code class="docutils literal notranslate"><span class="pre">False</span></code>, set
+<a class="reference internal" href="#isaaclab.sensors.RayCasterCameraCfg.ray_alignment" title="isaaclab.sensors.RayCasterCameraCfg.ray_alignment"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ray_alignment</span></code></a> to <code class="docutils literal notranslate"><span class="pre">&quot;yaw&quot;</span></code> or “base” respectively.</p>
 </div>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab.sensors.RayCasterCameraCfg.ray_alignment">
 <span class="sig-name descname"><span class="pre">ray_alignment</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.13)"><span class="pre">Literal</span></a><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'base'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'yaw'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'world'</span></span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#isaaclab.sensors.RayCasterCameraCfg.ray_alignment" title="Permalink to this definition">#</a></dt>
-<dd><p>Specify in what frame the rays are projected onto the ground. Default is <cite>world</cite>.
-* <cite>base</cite> if the rays’ starting positions and directions track the full root position and orientation.
-* <cite>yaw</cite> if the rays’ starting positions and directions track root position and only yaw component of orientation. This is useful for ray-casting height maps.
-* <cite>world</cite> if rays’ starting positions and directions are always fixed. This is useful in combination with the grid map package.</p>
+<dd><p>Specify in what frame the rays are projected onto the ground. Default is “base”.</p>
+<p>The options are:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">base</span></code> if the rays’ starting positions and directions track the full root position and orientation.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">yaw</span></code> if the rays’ starting positions and directions track root position and only yaw component of orientation.
+This is useful for ray-casting height maps.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">world</span></code> if rays’ starting positions and directions are always fixed. This is useful in combination with a mapping
+package on the robot and querying ray-casts in a global frame.</p></li>
+</ul>
 </dd></dl>
 
 <dl class="py attribute">
@@ -4359,7 +4374,8 @@ To get the same behavior, set <cite>ray_alignment</cite> to <cite>“yaw”</cit
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab.sensors.RayCasterCameraCfg.ray_cast_drift_range">
 <span class="sig-name descname"><span class="pre">ray_cast_drift_range</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#isaaclab.sensors.RayCasterCameraCfg.ray_cast_drift_range" title="Permalink to this definition">#</a></dt>
-<dd><p>The range of drift (in meters) to add to the projected ray points in local projection frame. Defaults to (0.0, 0.0) for x, y, and z drift.</p>
+<dd><p>The range of drift (in meters) to add to the projected ray points in local projection frame. Defaults to
+a dictionary with zero drift for each x, y and z axis.</p>
 <p>For floating base robots, this is useful for simulating drift in the robot’s pose estimation.</p>
 </dd></dl>
 

@@ -57,7 +57,7 @@
     <link rel="search" title="Search" href="../../../../search.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="2.1.0" />
+  <meta name="docsearch:version" content="2.1.1" />
     <meta name="docbuild:last-update" content="Jul 30, 2025"/>
   </head>
   
@@ -1049,6 +1049,7 @@
         <span class="n">positions</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">object_ids</span><span class="p">:</span> <span class="nb">slice</span> <span class="o">|</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">env_ids</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">is_global</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
     <span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Set external force and torque to apply on the objects&#39; bodies in their local frame.</span>
 
@@ -1065,6 +1066,17 @@
 <span class="sd">                # example of disabling external wrench</span>
 <span class="sd">                asset.set_external_force_and_torque(forces=torch.zeros(0, 0, 3), torques=torch.zeros(0, 0, 3))</span>
 
+<span class="sd">        .. caution::</span>
+<span class="sd">            If the function is called consecutively with and with different values for ``is_global``, then the</span>
+<span class="sd">            all the external wrenches will be applied in the frame specified by the last call.</span>
+
+<span class="sd">            .. code-block:: python</span>
+<span class="sd">                # example of setting external wrench in the global frame</span>
+<span class="sd">                asset.set_external_force_and_torque(forces=torch.ones(1, 1, 3), env_ids=[0], is_global=True)</span>
+<span class="sd">                # example of setting external wrench in the link frame</span>
+<span class="sd">                asset.set_external_force_and_torque(forces=torch.ones(1, 1, 3), env_ids=[1], is_global=False)</span>
+<span class="sd">                # Both environments will have the external wrenches applied in the link frame</span>
+
 <span class="sd">        .. note::</span>
 <span class="sd">            This function does not apply the external wrench to the simulation. It only fills the buffers with</span>
 <span class="sd">            the desired values. To apply the external wrench, call the :meth:`write_data_to_sim` function</span>
@@ -1076,6 +1088,8 @@
 <span class="sd">            positions: External wrench positions in bodies&#39; local frame. Shape is (len(env_ids), len(object_ids), 3).</span>
 <span class="sd">            object_ids: Object indices to apply external wrench to. Defaults to None (all objects).</span>
 <span class="sd">            env_ids: Environment indices to apply external wrench to. Defaults to None (all instances).</span>
+<span class="sd">            is_global: Whether to apply the external wrench in the global frame. Defaults to False. If set to False,</span>
+<span class="sd">                the external wrench is applied in the link frame of the bodies.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="n">forces</span><span class="o">.</span><span class="n">any</span><span class="p">()</span> <span class="ow">or</span> <span class="n">torques</span><span class="o">.</span><span class="n">any</span><span class="p">():</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">has_external_wrench</span> <span class="o">=</span> <span class="kc">True</span>
@@ -1094,6 +1108,14 @@
         <span class="c1"># set into internal buffers</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_external_force_b</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">object_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">forces</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_external_torque_b</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">object_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">torques</span>
+
+        <span class="k">if</span> <span class="n">is_global</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_use_global_wrench_frame</span><span class="p">:</span>
+            <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;The external wrench frame has been changed from </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_use_global_wrench_frame</span><span class="si">}</span><span class="s2"> to </span><span class="si">{</span><span class="n">is_global</span><span class="si">}</span><span class="s2">. This&quot;</span>
+                <span class="s2">&quot; may lead to unexpected behavior.&quot;</span>
+            <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_use_global_wrench_frame</span> <span class="o">=</span> <span class="n">is_global</span>
+
         <span class="k">if</span> <span class="n">positions</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">uses_external_wrench_positions</span> <span class="o">=</span> <span class="kc">True</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_external_wrench_positions_b</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">object_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">positions</span>
@@ -1213,6 +1235,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">_external_torque_b</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_external_force_b</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_external_wrench_positions_b</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_external_force_b</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">uses_external_wrench_positions</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_use_global_wrench_frame</span> <span class="o">=</span> <span class="kc">False</span>
 
         <span class="c1"># set information about rigid body into data</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">object_names</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">object_names</span>
@@ -1240,15 +1263,6 @@
         <span class="c1"># concatenate the default state for each object</span>
         <span class="n">default_object_states</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">(</span><span class="n">default_object_states</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">default_object_state</span> <span class="o">=</span> <span class="n">default_object_states</span>
-
-        <span class="c1"># -- external wrench</span>
-        <span class="n">external_wrench_frame</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">objects_external_wrench_frame</span>
-        <span class="k">if</span> <span class="n">external_wrench_frame</span> <span class="o">==</span> <span class="s2">&quot;local&quot;</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_use_global_wrench_frame</span> <span class="o">=</span> <span class="kc">False</span>
-        <span class="k">elif</span> <span class="n">external_wrench_frame</span> <span class="o">==</span> <span class="s2">&quot;world&quot;</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_use_global_wrench_frame</span> <span class="o">=</span> <span class="kc">True</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Invalid external wrench frame: </span><span class="si">{</span><span class="n">external_wrench_frame</span><span class="si">}</span><span class="s2">. Must be &#39;local&#39; or &#39;world&#39;.&quot;</span><span class="p">)</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_env_obj_ids_to_view_ids</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">object_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="nb">slice</span> <span class="o">|</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>

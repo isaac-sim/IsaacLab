@@ -57,7 +57,7 @@
     <link rel="search" title="Search" href="../../../search.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="2.1.0" />
+  <meta name="docsearch:version" content="2.1.1" />
     <meta name="docbuild:last-update" content="Jul 30, 2025"/>
   </head>
   
@@ -685,7 +685,7 @@
         <span class="c1"># when the episode starts. otherwise the counter will start from the last time</span>
         <span class="c1"># for that environment</span>
         <span class="k">if</span> <span class="s2">&quot;interval&quot;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_mode_term_cfgs</span><span class="p">:</span>
-            <span class="k">for</span> <span class="n">index</span><span class="p">,</span> <span class="n">term_cfg</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_mode_class_term_cfgs</span><span class="p">[</span><span class="s2">&quot;interval&quot;</span><span class="p">]):</span>
+            <span class="k">for</span> <span class="n">index</span><span class="p">,</span> <span class="n">term_cfg</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_mode_term_cfgs</span><span class="p">[</span><span class="s2">&quot;interval&quot;</span><span class="p">]):</span>
                 <span class="c1"># sample a new interval and set that as time left</span>
                 <span class="c1"># note: global time events are based on simulation time and not episode time</span>
                 <span class="c1">#   so we do not reset them</span>

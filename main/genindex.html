@@ -57,7 +57,7 @@
     <link rel="search" title="Search" href="search.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="2.1.0" />
+  <meta name="docsearch:version" content="2.1.1" />
     <meta name="docbuild:last-update" content="Jul 30, 2025"/>
   </head>
   
@@ -660,6 +660,8 @@
 </li>
         <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.curriculums.modify_env_param.__init__">(isaaclab.envs.mdp.curriculums.modify_env_param method)</a>
 </li>
+        <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.curriculums.modify_reward_weight.__init__">(isaaclab.envs.mdp.curriculums.modify_reward_weight method)</a>
+</li>
         <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.curriculums.modify_term_cfg.__init__">(isaaclab.envs.mdp.curriculums.modify_term_cfg method)</a>
 </li>
         <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.events.randomize_rigid_body_material.__init__">(isaaclab.envs.mdp.events.randomize_rigid_body_material method)</a>
@@ -1094,8 +1096,6 @@
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.Articulation">Articulation (class in isaaclab.assets)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.sim.schemas.html#isaaclab.sim.schemas.ArticulationRootPropertiesCfg.articulation_enabled">articulation_enabled (isaaclab.sim.schemas.ArticulationRootPropertiesCfg attribute)</a>
-</li>
-      <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationCfg.articulation_external_wrench_frame">articulation_external_wrench_frame (isaaclab.assets.ArticulationCfg attribute)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.sim.spawners.html#isaaclab.sim.spawners.from_files.UrdfFileCfg.articulation_props">articulation_props (isaaclab.sim.spawners.from_files.UrdfFileCfg attribute)</a>
 
@@ -4824,7 +4824,7 @@
 </li>
       <li><a href="source/api/lab/isaaclab.sim.schemas.html#isaaclab.sim.schemas.modify_mass_properties">modify_mass_properties() (in module isaaclab.sim.schemas)</a>
 </li>
-      <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.curriculums.modify_reward_weight">modify_reward_weight() (in module isaaclab.envs.mdp.curriculums)</a>
+      <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.curriculums.modify_reward_weight">modify_reward_weight (class in isaaclab.envs.mdp.curriculums)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.sim.schemas.html#isaaclab.sim.schemas.modify_rigid_body_properties">modify_rigid_body_properties() (in module isaaclab.sim.schemas)</a>
 </li>
@@ -4998,6 +4998,8 @@
 </li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.envs.html#isaaclab.envs.SubTaskConfig.next_subtask_description">next_subtask_description (isaaclab.envs.SubTaskConfig attribute)</a>
+</li>
+      <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.curriculums.modify_env_param.NO_CHANGE">NO_CHANGE (isaaclab.envs.mdp.curriculums.modify_env_param attribute)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.sim.html#isaaclab.sim.SimulationContext.RenderMode.NO_GUI_OR_RENDERING">NO_GUI_OR_RENDERING (isaaclab.sim.SimulationContext.RenderMode attribute)</a>
 </li>
@@ -5313,8 +5315,6 @@
 </li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectCollectionData.object_com_vel_w">object_com_vel_w (isaaclab.assets.RigidObjectCollectionData property)</a>
 </li>
-      <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectCfg.object_external_wrench_frame">object_external_wrench_frame (isaaclab.assets.RigidObjectCfg attribute)</a>
-</li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectCollectionData.object_lin_acc_w">object_lin_acc_w (isaaclab.assets.RigidObjectCollectionData property)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectCollectionData.object_lin_vel_b">object_lin_vel_b (isaaclab.assets.RigidObjectCollectionData property)</a>
@@ -5388,8 +5388,6 @@
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectCollectionData.object_vel_w">object_vel_w (isaaclab.assets.RigidObjectCollectionData property)</a>
-</li>
-      <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectCollectionCfg.objects_external_wrench_frame">objects_external_wrench_frame (isaaclab.assets.RigidObjectCollectionCfg attribute)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.envs.html#isaaclab.envs.DirectMARLEnvCfg.observation_noise_model">observation_noise_model (isaaclab.envs.DirectMARLEnvCfg attribute)</a>
 

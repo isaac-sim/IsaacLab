@@ -57,7 +57,7 @@
     <link rel="search" title="Search" href="../../../../search.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="2.1.0" />
+  <meta name="docsearch:version" content="2.1.1" />
     <meta name="docbuild:last-update" content="Jul 30, 2025"/>
   </head>
   
@@ -664,12 +664,14 @@
 <span class="sd">        asset_cfg: The SceneEntity associated with this observation.</span>
 
 <span class="sd">    Returns:</span>
-<span class="sd">        The poses of bodies in articulation [num_env, 7*num_bodies]. Pose order is [x,y,z,qw,qx,qy,qz]. Output is</span>
-<span class="sd">            stacked horizontally per body.</span>
+<span class="sd">        The poses of bodies in articulation [num_env, 7 * num_bodies]. Pose order is [x,y,z,qw,qx,qy,qz].</span>
+<span class="sd">        Output is stacked horizontally per body.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="c1"># extract the used quantities (to enable type-hinting)</span>
     <span class="n">asset</span><span class="p">:</span> <span class="n">Articulation</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">scene</span><span class="p">[</span><span class="n">asset_cfg</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>
-    <span class="n">pose</span> <span class="o">=</span> <span class="n">asset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">body_state_w</span><span class="p">[:,</span> <span class="n">asset_cfg</span><span class="o">.</span><span class="n">body_ids</span><span class="p">,</span> <span class="p">:</span><span class="mi">7</span><span class="p">]</span>
+
+    <span class="c1"># access the body poses in world frame</span>
+    <span class="n">pose</span> <span class="o">=</span> <span class="n">asset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">body_pose_w</span><span class="p">[:,</span> <span class="n">asset_cfg</span><span class="o">.</span><span class="n">body_ids</span><span class="p">,</span> <span class="p">:</span><span class="mi">7</span><span class="p">]</span>
     <span class="n">pose</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="n">pose</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span> <span class="o">-</span> <span class="n">env</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">env_origins</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">pose</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span></div>
 
@@ -688,7 +690,7 @@
 
 <span class="sd">    Returns:</span>
 <span class="sd">        The unit vector direction of gravity projected onto body_name&#39;s frame. Gravity projection vector order is</span>
-<span class="sd">            [x,y,z]. Output is stacked horizontally per body.</span>
+<span class="sd">        [x,y,z]. Output is stacked horizontally per body.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="c1"># extract the used quantities (to enable type-hinting)</span>
     <span class="n">asset</span><span class="p">:</span> <span class="n">Articulation</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">scene</span><span class="p">[</span><span class="n">asset_cfg</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>

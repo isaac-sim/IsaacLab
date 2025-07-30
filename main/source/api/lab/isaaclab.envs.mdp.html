@@ -60,7 +60,7 @@
     <link rel="prev" title="isaaclab.utils" href="isaaclab.utils.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="2.1.0" />
+  <meta name="docsearch:version" content="2.1.1" />
     <meta name="docbuild:last-update" content="Jul 30, 2025"/>
   </head>
   
@@ -968,8 +968,12 @@
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-isaaclab.envs.mdp.curriculums">Curriculum</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.mdp.curriculums.modify_reward_weight"><code class="docutils literal notranslate"><span class="pre">modify_reward_weight()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.mdp.curriculums.modify_reward_weight"><code class="docutils literal notranslate"><span class="pre">modify_reward_weight</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.mdp.curriculums.modify_reward_weight.__init__"><code class="docutils literal notranslate"><span class="pre">modify_reward_weight.__init__()</span></code></a></li>
+</ul>
+</li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.mdp.curriculums.modify_env_param"><code class="docutils literal notranslate"><span class="pre">modify_env_param</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.mdp.curriculums.modify_env_param.NO_CHANGE"><code class="docutils literal notranslate"><span class="pre">modify_env_param.NO_CHANGE</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.mdp.curriculums.modify_env_param.__init__"><code class="docutils literal notranslate"><span class="pre">modify_env_param.__init__()</span></code></a></li>
 </ul>
 </li>
@@ -1164,11 +1168,8 @@ the same orientation.</p>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p><dl class="simple">
-<dt>The poses of bodies in articulation [num_env, 7*num_bodies]. Pose order is [x,y,z,qw,qx,qy,qz]. Output is</dt><dd><p>stacked horizontally per body.</p>
-</dd>
-</dl>
-</p>
+<dd class="field-even"><p>The poses of bodies in articulation [num_env, 7 * num_bodies]. Pose order is [x,y,z,qw,qx,qy,qz].
+Output is stacked horizontally per body.</p>
 </dd>
 </dl>
 </dd></dl>
@@ -1186,11 +1187,8 @@ the same orientation.</p>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p><dl class="simple">
-<dt>The unit vector direction of gravity projected onto body_name’s frame. Gravity projection vector order is</dt><dd><p>[x,y,z]. Output is stacked horizontally per body.</p>
-</dd>
-</dl>
-</p>
+<dd class="field-even"><p>The unit vector direction of gravity projected onto body_name’s frame. Gravity projection vector order is
+[x,y,z]. Output is stacked horizontally per body.</p>
 </dd>
 </dl>
 </dd></dl>
@@ -2801,7 +2799,7 @@ the event introduced by the function.</p>
 <tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.events.reset_nodal_state_uniform" title="isaaclab.envs.mdp.events.reset_nodal_state_uniform"><code class="xref py py-obj docutils literal notranslate"><span class="pre">reset_nodal_state_uniform</span></code></a>(env, env_ids, ...)</p></td>
 <td><p>Reset the asset nodal state to a random position and velocity uniformly within the given ranges.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.events.reset_scene_to_default" title="isaaclab.envs.mdp.events.reset_scene_to_default"><code class="xref py py-obj docutils literal notranslate"><span class="pre">reset_scene_to_default</span></code></a>(env, env_ids)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.events.reset_scene_to_default" title="isaaclab.envs.mdp.events.reset_scene_to_default"><code class="xref py py-obj docutils literal notranslate"><span class="pre">reset_scene_to_default</span></code></a>(env, env_ids[, ...])</p></td>
 <td><p>Reset the scene to the default state specified in the scene configuration.</p></td>
 </tr>
 </tbody>
@@ -3133,8 +3131,12 @@ If the dictionary does not contain a key, the position or velocity is set to zer
 
 <dl class="py function">
 <dt class="sig sig-object py" id="isaaclab.envs.mdp.events.reset_scene_to_default">
-<span class="sig-prename descclassname"><span class="pre">isaaclab.envs.mdp.events.</span></span><span class="sig-name descname"><span class="pre">reset_scene_to_default</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="isaaclab.envs.html#isaaclab.envs.ManagerBasedEnv" title="isaaclab.envs.ManagerBasedEnv"><span class="pre">ManagerBasedEnv</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">env_ids</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">torch.Tensor</span></a></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab/envs/mdp/events.html#reset_scene_to_default"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.envs.mdp.events.reset_scene_to_default" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">isaaclab.envs.mdp.events.</span></span><span class="sig-name descname"><span class="pre">reset_scene_to_default</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="isaaclab.envs.html#isaaclab.envs.ManagerBasedEnv" title="isaaclab.envs.ManagerBasedEnv"><span class="pre">ManagerBasedEnv</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">env_ids</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">torch.Tensor</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">reset_joint_targets</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab/envs/mdp/events.html#reset_scene_to_default"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.envs.mdp.events.reset_scene_to_default" title="Permalink to this definition">#</a></dt>
 <dd><p>Reset the scene to the default state specified in the scene configuration.</p>
+<p>If <code class="xref py py-attr docutils literal notranslate"><span class="pre">reset_joint_targets</span></code> is True, the joint position and velocity targets of the articulations are
+also reset to their default values. This might be useful for some cases to clear out any previously set targets.
+However, this is not the default behavior as based on our experience, it is not always desired to reset
+targets to default values, especially when the targets should be handled by action terms and not event terms.</p>
 </dd></dl>
 
 <dl class="py class">
@@ -4386,50 +4388,77 @@ torques.</p>
 <p>Common functions that can be used to create curriculum for the learning environment.</p>
 <p>The functions can be passed to the <a class="reference internal" href="isaaclab.managers.html#isaaclab.managers.CurriculumTermCfg" title="isaaclab.managers.CurriculumTermCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">isaaclab.managers.CurriculumTermCfg</span></code></a> object to enable
 the curriculum introduced by the function.</p>
-<p><strong>Functions:</strong></p>
-<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
-<tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.curriculums.modify_reward_weight" title="isaaclab.envs.mdp.curriculums.modify_reward_weight"><code class="xref py py-obj docutils literal notranslate"><span class="pre">modify_reward_weight</span></code></a>(env, env_ids, ...)</p></td>
-<td><p>Curriculum that modifies a reward weight a given number of steps.</p></td>
-</tr>
-</tbody>
-</table>
-</div>
 <p><strong>Classes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.curriculums.modify_env_param" title="isaaclab.envs.mdp.curriculums.modify_env_param"><code class="xref py py-obj docutils literal notranslate"><span class="pre">modify_env_param</span></code></a></p></td>
-<td><p>Curriculum term for dynamically modifying a single environment parameter at runtime.</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.curriculums.modify_reward_weight" title="isaaclab.envs.mdp.curriculums.modify_reward_weight"><code class="xref py py-obj docutils literal notranslate"><span class="pre">modify_reward_weight</span></code></a></p></td>
+<td><p>Curriculum that modifies the reward weight based on a step-wise schedule.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.curriculums.modify_term_cfg" title="isaaclab.envs.mdp.curriculums.modify_term_cfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">modify_term_cfg</span></code></a></p></td>
-<td><p>Subclass of ModifyEnvParam that maps a simplified 's.'-style address to the full manager path.</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.curriculums.modify_env_param" title="isaaclab.envs.mdp.curriculums.modify_env_param"><code class="xref py py-obj docutils literal notranslate"><span class="pre">modify_env_param</span></code></a></p></td>
+<td><p>Curriculum term for modifying an environment parameter at runtime.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.curriculums.modify_term_cfg" title="isaaclab.envs.mdp.curriculums.modify_term_cfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">modify_term_cfg</span></code></a></p></td>
+<td><p>Curriculum for modifying a manager term configuration at runtime.</p></td>
 </tr>
 </tbody>
 </table>
 </div>
-<dl class="py function">
+<dl class="py class">
 <dt class="sig sig-object py" id="isaaclab.envs.mdp.curriculums.modify_reward_weight">
-<span class="sig-prename descclassname"><span class="pre">isaaclab.envs.mdp.curriculums.</span></span><span class="sig-name descname"><span class="pre">modify_reward_weight</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="isaaclab.envs.html#isaaclab.envs.ManagerBasedRLEnv" title="isaaclab.envs.ManagerBasedRLEnv"><span class="pre">ManagerBasedRLEnv</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">env_ids</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Sequence</span><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">term_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">weight</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_steps</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab/envs/mdp/curriculums.html#modify_reward_weight"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.envs.mdp.curriculums.modify_reward_weight" title="Permalink to this definition">#</a></dt>
-<dd><p>Curriculum that modifies a reward weight a given number of steps.</p>
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab.envs.mdp.curriculums.</span></span><span class="sig-name descname"><span class="pre">modify_reward_weight</span></span><a class="reference internal" href="../../../_modules/isaaclab/envs/mdp/curriculums.html#modify_reward_weight"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.envs.mdp.curriculums.modify_reward_weight" title="Permalink to this definition">#</a></dt>
+<dd><p>Curriculum that modifies the reward weight based on a step-wise schedule.</p>
+<p><strong>Methods:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.curriculums.modify_reward_weight.__init__" title="isaaclab.envs.mdp.curriculums.modify_reward_weight.__init__"><code class="xref py py-obj docutils literal notranslate"><span class="pre">__init__</span></code></a>(cfg, env)</p></td>
+<td><p>Initialize the manager term.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab.envs.mdp.curriculums.modify_reward_weight.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="isaaclab.managers.html#isaaclab.managers.CurriculumTermCfg" title="isaaclab.managers.CurriculumTermCfg"><span class="pre">CurriculumTermCfg</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">env</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="isaaclab.envs.html#isaaclab.envs.ManagerBasedRLEnv" title="isaaclab.envs.ManagerBasedRLEnv"><span class="pre">ManagerBasedRLEnv</span></a></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab/envs/mdp/curriculums.html#modify_reward_weight.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.envs.mdp.curriculums.modify_reward_weight.__init__" title="Permalink to this definition">#</a></dt>
+<dd><p>Initialize the manager term.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>env</strong> – The learning environment.</p></li>
-<li><p><strong>env_ids</strong> – Not used since all environments are affected.</p></li>
-<li><p><strong>term_name</strong> – The name of the reward term.</p></li>
-<li><p><strong>weight</strong> – The weight of the reward term.</p></li>
-<li><p><strong>num_steps</strong> – The number of steps after which the change should be applied.</p></li>
+<li><p><strong>cfg</strong> – The configuration object.</p></li>
+<li><p><strong>env</strong> – The environment instance.</p></li>
 </ul>
 </dd>
 </dl>
 </dd></dl>
 
+</dd></dl>
+
 <dl class="py class">
 <dt class="sig sig-object py" id="isaaclab.envs.mdp.curriculums.modify_env_param">
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab.envs.mdp.curriculums.</span></span><span class="sig-name descname"><span class="pre">modify_env_param</span></span><a class="reference internal" href="../../../_modules/isaaclab/envs/mdp/curriculums.html#modify_env_param"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.envs.mdp.curriculums.modify_env_param" title="Permalink to this definition">#</a></dt>
-<dd><p>Curriculum term for dynamically modifying a single environment parameter at runtime.</p>
-<p>This term compiles getter/setter accessors for a target attribute (specified by
-<cite>cfg.params[“address”]</cite>) the first time it is called, then on each invocation
+<dd><p>Curriculum term for modifying an environment parameter at runtime.</p>
+<p>This term helps modify an environment parameter (or attribute) at runtime.
+This parameter can be any attribute of the environment, such as the physics material properties,
+observation ranges, or any other configurable parameter that can be accessed via a dotted path.</p>
+<p>The term uses the <code class="docutils literal notranslate"><span class="pre">address</span></code> parameter to specify the target attribute as a dotted path string.
+For instance, “event_manager.cfg.object_physics_material.func.material_buckets” would
+refer to the attribute <code class="docutils literal notranslate"><span class="pre">material_buckets</span></code> in the event manager’s event term “object_physics_material”,
+which is a tensor of sampled physics material properties.</p>
+<p>The term uses the <code class="docutils literal notranslate"><span class="pre">modify_fn</span></code> parameter to specify the function that modifies the value of the target attribute.
+The function should have the signature:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">modify_fn</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">,</span> <span class="n">old_value</span><span class="p">,</span> <span class="o">**</span><span class="n">modify_params</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">new_value</span> <span class="o">|</span> <span class="n">modify_env_param</span><span class="o">.</span><span class="n">NO_CHANGE</span><span class="p">:</span>
+    <span class="o">...</span>
+</pre></div>
+</div>
+<p>where <code class="docutils literal notranslate"><span class="pre">env</span></code> is the learning environment, <code class="docutils literal notranslate"><span class="pre">env_ids</span></code> are the sub-environment indices,
+<code class="docutils literal notranslate"><span class="pre">old_value</span></code> is the current value of the target attribute, and <code class="docutils literal notranslate"><span class="pre">modify_params</span></code>
+are additional parameters that can be passed to the function. The function should return
+the new value to be set for the target attribute, or the special token <code class="docutils literal notranslate"><span class="pre">modify_env_param.NO_CHANGE</span></code>
+to indicate that the value should not be changed.</p>
+<p>At the first call to the term after initialization, it compiles getter and setter functions
+for the target attribute specified by the <code class="docutils literal notranslate"><span class="pre">address</span></code> parameter. The getter retrieves the
+current value, and the setter writes a new value back to the attribute.</p>
+<p>This term processes getter/setter accessors for a target attribute in an(specified by
+as an “address” in the term configuration`cfg.params[“address”]`) the first time it is called, then on each invocation
 reads the current value, applies a user-provided <cite>modify_fn</cite>, and writes back
 the result. Since None in this case can sometime be desirable value to write, we
 use token, NO_CHANGE, as non-modification signal to this class, see usage below.</p>
@@ -4442,6 +4471,11 @@ use token, NO_CHANGE, as non-modification signal to this class, see usage below.
         <span class="n">ranges</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">range_list</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="s2">&quot;cpu&quot;</span><span class="p">)</span>
         <span class="n">new_buckets</span> <span class="o">=</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">sample_uniform</span><span class="p">(</span><span class="n">ranges</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">],</span> <span class="n">ranges</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">],</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">data</span><span class="p">),</span> <span class="mi">3</span><span class="p">),</span> <span class="n">device</span><span class="o">=</span><span class="s2">&quot;cpu&quot;</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">new_buckets</span>
+
+    <span class="c1"># if the step counter is not reached, return NO_CHANGE to indicate no modification.</span>
+    <span class="c1"># we do this instead of returning None, since None is a valid value to set.</span>
+    <span class="c1"># additionally, returning the input data would not change the value but still lead</span>
+    <span class="c1"># to the setter being called, which may add overhead.</span>
     <span class="k">return</span> <span class="n">mdp</span><span class="o">.</span><span class="n">modify_env_param</span><span class="o">.</span><span class="n">NO_CHANGE</span>
 
 <span class="n">object_physics_material_curriculum</span> <span class="o">=</span> <span class="n">CurrTerm</span><span class="p">(</span>
@@ -4450,8 +4484,8 @@ use token, NO_CHANGE, as non-modification signal to this class, see usage below.
         <span class="s2">&quot;address&quot;</span><span class="p">:</span> <span class="s2">&quot;event_manager.cfg.object_physics_material.func.material_buckets&quot;</span><span class="p">,</span>
         <span class="s2">&quot;modify_fn&quot;</span><span class="p">:</span> <span class="n">resample_bucket_range</span><span class="p">,</span>
         <span class="s2">&quot;modify_params&quot;</span><span class="p">:</span> <span class="p">{</span>
-            <span class="s2">&quot;static_friction_range&quot;</span><span class="p">:</span> <span class="p">[</span><span class="mf">.5</span><span class="p">,</span> <span class="mf">1.</span><span class="p">],</span>
-            <span class="s2">&quot;dynamic_friction_range&quot;</span><span class="p">:</span> <span class="p">[</span><span class="mf">.3</span><span class="p">,</span> <span class="mf">1.</span><span class="p">],</span>
+            <span class="s2">&quot;static_friction_range&quot;</span><span class="p">:</span> <span class="p">[</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">],</span>
+            <span class="s2">&quot;dynamic_friction_range&quot;</span><span class="p">:</span> <span class="p">[</span><span class="mf">0.3</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">],</span>
             <span class="s2">&quot;restitution_range&quot;</span><span class="p">:</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">],</span>
             <span class="s2">&quot;num_step&quot;</span><span class="p">:</span> <span class="mi">120000</span>
         <span class="p">}</span>
@@ -4461,25 +4495,41 @@ use token, NO_CHANGE, as non-modification signal to this class, see usage below.
 </div>
 </dd>
 </dl>
-<p><strong>Methods:</strong></p>
+<p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.curriculums.modify_env_param.__init__" title="isaaclab.envs.mdp.curriculums.modify_env_param.__init__"><code class="xref py py-obj docutils literal notranslate"><span class="pre">__init__</span></code></a>(cfg, env)</p></td>
-<td><p>Initialize the ModifyEnvParam term.</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.curriculums.modify_env_param.NO_CHANGE" title="isaaclab.envs.mdp.curriculums.modify_env_param.NO_CHANGE"><code class="xref py py-obj docutils literal notranslate"><span class="pre">NO_CHANGE</span></code></a></p></td>
+<td><p>Special token to indicate no change in the value to be set.</p></td>
 </tr>
 </tbody>
 </table>
 </div>
+<p><strong>Methods:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.curriculums.modify_env_param.__init__" title="isaaclab.envs.mdp.curriculums.modify_env_param.__init__"><code class="xref py py-obj docutils literal notranslate"><span class="pre">__init__</span></code></a>(cfg, env)</p></td>
+<td><p>Initialize the manager term.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab.envs.mdp.curriculums.modify_env_param.NO_CHANGE">
+<span class="sig-name descname"><span class="pre">NO_CHANGE</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ClassVar</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">&lt;object</span> <span class="pre">object&gt;</span></em><a class="headerlink" href="#isaaclab.envs.mdp.curriculums.modify_env_param.NO_CHANGE" title="Permalink to this definition">#</a></dt>
+<dd><p>Special token to indicate no change in the value to be set.</p>
+<p>This token is used to signal that the <cite>modify_fn</cite> did not produce a new value. It can
+be returned by the <cite>modify_fn</cite> to indicate that the current value should remain unchanged.</p>
+</dd></dl>
+
 <dl class="py method">
 <dt class="sig sig-object py" id="isaaclab.envs.mdp.curriculums.modify_env_param.__init__">
-<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cfg</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">env</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab/envs/mdp/curriculums.html#modify_env_param.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.envs.mdp.curriculums.modify_env_param.__init__" title="Permalink to this definition">#</a></dt>
-<dd><p>Initialize the ModifyEnvParam term.</p>
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="isaaclab.managers.html#isaaclab.managers.CurriculumTermCfg" title="isaaclab.managers.CurriculumTermCfg"><span class="pre">CurriculumTermCfg</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">env</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="isaaclab.envs.html#isaaclab.envs.ManagerBasedRLEnv" title="isaaclab.envs.ManagerBasedRLEnv"><span class="pre">ManagerBasedRLEnv</span></a></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab/envs/mdp/curriculums.html#modify_env_param.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.envs.mdp.curriculums.modify_env_param.__init__" title="Permalink to this definition">#</a></dt>
+<dd><p>Initialize the manager term.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>cfg</strong> – A CurriculumTermCfg whose <cite>params</cite> dict must contain:
-- “address” (str): dotted path into the env where the parameter lives.</p></li>
-<li><p><strong>env</strong> – The ManagerBasedRLEnv instance this term will act upon.</p></li>
+<li><p><strong>cfg</strong> – The configuration object.</p></li>
+<li><p><strong>env</strong> – The environment instance.</p></li>
 </ul>
 </dd>
 </dl>
@@ -4490,11 +4540,15 @@ use token, NO_CHANGE, as non-modification signal to this class, see usage below.
 <dl class="py class">
 <dt class="sig sig-object py" id="isaaclab.envs.mdp.curriculums.modify_term_cfg">
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab.envs.mdp.curriculums.</span></span><span class="sig-name descname"><span class="pre">modify_term_cfg</span></span><a class="reference internal" href="../../../_modules/isaaclab/envs/mdp/curriculums.html#modify_term_cfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.envs.mdp.curriculums.modify_term_cfg" title="Permalink to this definition">#</a></dt>
-<dd><p>Subclass of ModifyEnvParam that maps a simplified ‘s.’-style address
-to the full manager path. This is a more natural style for writing configurations</p>
-<p>Reads <cite>cfg.params[“address”]</cite>, replaces only the first occurrence of “s.”
-with “_manager.cfg.”, and then behaves identically to ModifyEnvParam.
-for example: command_manager.cfg.object_pose.ranges.xpos -&gt; commands.object_pose.ranges.xpos</p>
+<dd><p>Curriculum for modifying a manager term configuration at runtime.</p>
+<p>This class inherits from <a class="reference internal" href="#isaaclab.envs.mdp.curriculums.modify_env_param" title="isaaclab.envs.mdp.curriculums.modify_env_param"><code class="xref py py-class docutils literal notranslate"><span class="pre">modify_env_param</span></code></a> and is specifically designed to modify
+the configuration of a manager term in the environment. It mainly adds the convenience of
+using a simplified address style that uses “s.” as a prefix to refer to the manager’s configuration.</p>
+<p>For instance, instead of writing “event_manager.cfg.object_physics_material.func.material_buckets”,
+you can write “events.object_physics_material.func.material_buckets” to refer to the same term configuration.
+The same applies to other managers, such as “observations”, “commands”, “rewards”, and “terminations”.</p>
+<p>Internally, it replaces the first occurrence of “s.” in the address with “_manager.cfg.”,
+thus transforming the simplified address into a full manager path.</p>
 <dl>
 <dt>Usage:</dt><dd><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">override_value</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">num_steps</span><span class="p">):</span>
     <span class="k">if</span> <span class="n">env</span><span class="o">.</span><span class="n">common_step_counter</span> <span class="o">&gt;</span> <span class="n">num_steps</span><span class="p">:</span>
@@ -4504,7 +4558,7 @@ for example: command_manager.cfg.object_pose.ranges.xpos -&gt; commands.object_p
 <span class="n">command_object_pose_xrange_adr</span> <span class="o">=</span> <span class="n">CurrTerm</span><span class="p">(</span>
     <span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">modify_term_cfg</span><span class="p">,</span>
     <span class="n">params</span><span class="o">=</span><span class="p">{</span>
-        <span class="s2">&quot;address&quot;</span><span class="p">:</span> <span class="s2">&quot;commands.object_pose.ranges.pos_x&quot;</span><span class="p">,</span>   <span class="c1"># note that `_manager.cfg` is omitted</span>
+        <span class="s2">&quot;address&quot;</span><span class="p">:</span> <span class="s2">&quot;commands.object_pose.ranges.pos_x&quot;</span><span class="p">,</span>   <span class="c1"># note: `_manager.cfg` is omitted</span>
         <span class="s2">&quot;modify_fn&quot;</span><span class="p">:</span> <span class="n">override_value</span><span class="p">,</span>
         <span class="s2">&quot;modify_params&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;value&quot;</span><span class="p">:</span> <span class="p">(</span><span class="o">-</span><span class="mf">.75</span><span class="p">,</span> <span class="o">-</span><span class="mf">.25</span><span class="p">),</span> <span class="s2">&quot;num_steps&quot;</span><span class="p">:</span> <span class="mi">12000</span><span class="p">}</span>
     <span class="p">}</span>
@@ -4517,7 +4571,7 @@ for example: command_manager.cfg.object_pose.ranges.xpos -&gt; commands.object_p
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.curriculums.modify_term_cfg.__init__" title="isaaclab.envs.mdp.curriculums.modify_term_cfg.__init__"><code class="xref py py-obj docutils literal notranslate"><span class="pre">__init__</span></code></a>(cfg, env)</p></td>
-<td><p>Initialize the ModifyTermCfg term.</p></td>
+<td><p>Initialize the manager term.</p></td>
 </tr>
 </tbody>
 </table>
@@ -4525,13 +4579,12 @@ for example: command_manager.cfg.object_pose.ranges.xpos -&gt; commands.object_p
 <dl class="py method">
 <dt class="sig sig-object py" id="isaaclab.envs.mdp.curriculums.modify_term_cfg.__init__">
 <span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cfg</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">env</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab/envs/mdp/curriculums.html#modify_term_cfg.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.envs.mdp.curriculums.modify_term_cfg.__init__" title="Permalink to this definition">#</a></dt>
-<dd><p>Initialize the ModifyTermCfg term.</p>
+<dd><p>Initialize the manager term.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>cfg</strong> – A CurriculumTermCfg whose <cite>params[“address”]</cite> is a simplified
-path using “s.” as separator, e.g. instead of write “observation_manager.cfg”, writes “observations”.</p></li>
-<li><p><strong>env</strong> – The ManagerBasedRLEnv instance this term will act upon.</p></li>
+<li><p><strong>cfg</strong> – The configuration object.</p></li>
+<li><p><strong>env</strong> – The environment instance.</p></li>
 </ul>
 </dd>
 </dl>
@@ -4945,8 +4998,12 @@ path using “s.” as separator, e.g. instead of write “observation_manager.c
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-isaaclab.envs.mdp.curriculums">Curriculum</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.mdp.curriculums.modify_reward_weight"><code class="docutils literal notranslate"><span class="pre">modify_reward_weight()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.mdp.curriculums.modify_reward_weight"><code class="docutils literal notranslate"><span class="pre">modify_reward_weight</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.mdp.curriculums.modify_reward_weight.__init__"><code class="docutils literal notranslate"><span class="pre">modify_reward_weight.__init__()</span></code></a></li>
+</ul>
+</li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.mdp.curriculums.modify_env_param"><code class="docutils literal notranslate"><span class="pre">modify_env_param</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.mdp.curriculums.modify_env_param.NO_CHANGE"><code class="docutils literal notranslate"><span class="pre">modify_env_param.NO_CHANGE</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.mdp.curriculums.modify_env_param.__init__"><code class="docutils literal notranslate"><span class="pre">modify_env_param.__init__()</span></code></a></li>
 </ul>
 </li>

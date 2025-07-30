@@ -57,7 +57,7 @@
     <link rel="search" title="Search" href="../../../../search.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="2.1.0" />
+  <meta name="docsearch:version" content="2.1.1" />
     <meta name="docbuild:last-update" content="Jul 30, 2025"/>
   </head>
   
@@ -1694,8 +1694,14 @@
     <span class="n">asset</span><span class="o">.</span><span class="n">write_nodal_state_to_sim</span><span class="p">(</span><span class="n">nodal_state</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">)</span></div>
 
 
-<div class="viewcode-block" id="reset_scene_to_default"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.events.reset_scene_to_default">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">reset_scene_to_default</span><span class="p">(</span><span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Reset the scene to the default state specified in the scene configuration.&quot;&quot;&quot;</span>
+<div class="viewcode-block" id="reset_scene_to_default"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.events.reset_scene_to_default">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">reset_scene_to_default</span><span class="p">(</span><span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">reset_joint_targets</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Reset the scene to the default state specified in the scene configuration.</span>
+
+<span class="sd">    If :attr:`reset_joint_targets` is True, the joint position and velocity targets of the articulations are</span>
+<span class="sd">    also reset to their default values. This might be useful for some cases to clear out any previously set targets.</span>
+<span class="sd">    However, this is not the default behavior as based on our experience, it is not always desired to reset</span>
+<span class="sd">    targets to default values, especially when the targets should be handled by action terms and not event terms.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
     <span class="c1"># rigid bodies</span>
     <span class="k">for</span> <span class="n">rigid_object</span> <span class="ow">in</span> <span class="n">env</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">rigid_objects</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
         <span class="c1"># obtain default and deal with the offset for env origins</span>
@@ -1716,9 +1722,11 @@
         <span class="n">default_joint_pos</span> <span class="o">=</span> <span class="n">articulation_asset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_pos</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
         <span class="n">default_joint_vel</span> <span class="o">=</span> <span class="n">articulation_asset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_vel</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
         <span class="c1"># set into the physics simulation</span>
-        <span class="n">articulation_asset</span><span class="o">.</span><span class="n">set_joint_position_target</span><span class="p">(</span><span class="n">default_joint_pos</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">)</span>
-        <span class="n">articulation_asset</span><span class="o">.</span><span class="n">set_joint_velocity_target</span><span class="p">(</span><span class="n">default_joint_vel</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">)</span>
         <span class="n">articulation_asset</span><span class="o">.</span><span class="n">write_joint_state_to_sim</span><span class="p">(</span><span class="n">default_joint_pos</span><span class="p">,</span> <span class="n">default_joint_vel</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">)</span>
+        <span class="c1"># reset joint targets if required</span>
+        <span class="k">if</span> <span class="n">reset_joint_targets</span><span class="p">:</span>
+            <span class="n">articulation_asset</span><span class="o">.</span><span class="n">set_joint_position_target</span><span class="p">(</span><span class="n">default_joint_pos</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">)</span>
+            <span class="n">articulation_asset</span><span class="o">.</span><span class="n">set_joint_velocity_target</span><span class="p">(</span><span class="n">default_joint_vel</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">)</span>
     <span class="c1"># deformable objects</span>
     <span class="k">for</span> <span class="n">deformable_object</span> <span class="ow">in</span> <span class="n">env</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">deformable_objects</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
         <span class="c1"># obtain default and set into the physics simulation</span>

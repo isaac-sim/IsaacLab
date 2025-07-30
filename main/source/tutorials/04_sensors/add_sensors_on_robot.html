@@ -60,7 +60,7 @@
     <link rel="prev" title="Policy Inference in USD Environment" href="../03_envs/policy_inference_in_usd.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="2.1.0" />
+  <meta name="docsearch:version" content="2.1.1" />
     <meta name="docbuild:last-update" content="Jul 30, 2025"/>
   </head>
   
@@ -899,7 +899,7 @@ used to specify the location of the sensor.</p>
 The pattern of rays is specified using the <code class="xref py py-attr docutils literal notranslate"><span class="pre">pattern</span></code> attribute. For
 a uniform grid pattern, we specify the pattern using <a class="reference internal" href="../../api/lab/isaaclab.sensors.patterns.html#isaaclab.sensors.patterns.GridPatternCfg" title="isaaclab.sensors.patterns.GridPatternCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">GridPatternCfg</span></code></a>.
 Since we only care about the height information, we do not need to consider the roll and pitch
-of the robot. Hence, we set the <a class="reference internal" href="../../api/lab/isaaclab.sensors.html#isaaclab.sensors.RayCasterCfg.attach_yaw_only" title="isaaclab.sensors.RayCasterCfg.attach_yaw_only"><code class="xref py py-attr docutils literal notranslate"><span class="pre">attach_yaw_only</span></code></a> to true.</p>
+of the robot. Hence, we set the <a class="reference internal" href="../../api/lab/isaaclab.sensors.html#isaaclab.sensors.RayCasterCfg.ray_alignment" title="isaaclab.sensors.RayCasterCfg.ray_alignment"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ray_alignment</span></code></a> to “yaw”.</p>
 <p>For the height-scanner, you can visualize the points where the rays hit the mesh. This is done
 by setting the <a class="reference internal" href="../../api/lab/isaaclab.sensors.html#isaaclab.sensors.SensorBaseCfg.debug_vis" title="isaaclab.sensors.SensorBaseCfg.debug_vis"><code class="xref py py-attr docutils literal notranslate"><span class="pre">debug_vis</span></code></a> attribute to true.</p>
 <p>The entire configuration of the height-scanner is as follows:</p>

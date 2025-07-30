@@ -62,7 +62,7 @@
     <link rel="prev" title="Training the Jetbot: Ground Truth" href="training_jetbot_gt.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="2.1.0" />
+  <meta name="docsearch:version" content="2.1.1" />
     <meta name="docbuild:last-update" content="Jul 30, 2025"/>
   </head>
   
@@ -633,16 +633,15 @@ this command. To start, <strong>edit the ``IsaacLabTutorialEnvCfg`` to set the o
 of the robot, which is 6 dimensions and if we append the command to this vector, that’s 9 dimensions for the observation space in total.</p>
 <p>Next, we just need to do that appending when we get the observations.  We also need to calculate our forward vectors for later use. The forward vector for the Jetbot is
 the x axis, so we apply the <code class="docutils literal notranslate"><span class="pre">root_link_quat_w</span></code> to <code class="docutils literal notranslate"><span class="pre">[1,0,0]</span></code> to get the forward vector in the world frame. Replace the <code class="docutils literal notranslate"><span class="pre">_get_observations</span></code> method with the following:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span>   def _get_observations(self) -&gt; dict:
-       self.velocity = self.robot.data.root_com_vel_w
-       self.forwards = math_utils.quat_apply(self.robot.data.root_link_quat_w, self.robot.data.FORWARD_VEC_B)
-       obs = torch.hstack((self.velocity, self.commands))
-       observations = {&quot;policy&quot;: obs}
-       return observations
-
-So now what should the reward be?
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">_get_observations</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">velocity</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">root_com_vel_w</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">forwards</span> <span class="o">=</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">quat_apply</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">root_link_quat_w</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">FORWARD_VEC_B</span><span class="p">)</span>
+    <span class="n">obs</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">hstack</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">velocity</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">commands</span><span class="p">))</span>
+    <span class="n">observations</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;policy&quot;</span><span class="p">:</span> <span class="n">obs</span><span class="p">}</span>
+    <span class="k">return</span> <span class="n">observations</span>
 </pre></div>
 </div>
+<p>So now what should the reward be?</p>
 <p>When the robot is behaving as desired, it will be driving at full speed in the direction of the command. If we reward both
 “driving forward” and “alignment to the command”, then maximizing that combined signal should result in driving to the command… right?</p>
 <p>Let’s give it a try! Replace the <code class="docutils literal notranslate"><span class="pre">_get_rewards</span></code> method with the following:</p>

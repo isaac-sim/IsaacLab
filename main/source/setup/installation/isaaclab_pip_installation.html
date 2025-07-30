@@ -60,7 +60,7 @@
     <link rel="prev" title="Installation using Isaac Sim Binaries" href="binaries_installation.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="2.1.0" />
+  <meta name="docsearch:version" content="2.1.1" />
     <meta name="docbuild:last-update" content="Jul 30, 2025"/>
   </head>
   
@@ -628,9 +628,9 @@
 <h1>Installing Isaac Lab through Pip<a class="headerlink" href="#installing-isaac-lab-through-pip" title="Permalink to this heading">#</a></h1>
 <p>From Isaac Lab 2.0, pip packages are provided to install both Isaac Sim and Isaac Lab extensions from pip.
 Note that this installation process is only recommended for advanced users working on additional extension projects
-that are built on top of Isaac Lab. Isaac Lab pip packages <strong>do not</strong> include any standalone python scripts for
+that are built on top of Isaac Lab. Isaac Lab pip packages <strong>does not</strong> include any standalone python scripts for
 training, inferencing, or running standalone workflows such as demos and examples. Therefore, users are required
-to define your own runner scripts when installing Isaac Lab from pip.</p>
+to define their own runner scripts when installing Isaac Lab from pip.</p>
 <p>To learn about how to set up your own project on top of Isaac Lab, see <a class="reference internal" href="../../overview/developer-guide/template.html#template-generator"><span class="std std-ref">Build your Own Project or Task</span></a>.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
@@ -705,6 +705,12 @@ env_isaaclab\Scripts\activate
 </div>
 </li>
 </ul>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Currently, we only provide pip packages for every major release of Isaac Lab.
+For example, we provide the pip package for release 2.0.0 and 2.1.0, but not 2.0.2.
+In the future, we will provide pip packages for every minor release of Isaac Lab.</p>
+</div>
 <section id="verifying-the-isaac-sim-installation">
 <h2>Verifying the Isaac Sim installation<a class="headerlink" href="#verifying-the-isaac-sim-installation" title="Permalink to this heading">#</a></h2>
 <ul>

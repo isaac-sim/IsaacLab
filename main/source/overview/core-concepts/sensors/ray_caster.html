@@ -60,7 +60,7 @@
     <link rel="prev" title="Inertial Measurement Unit (IMU)" href="imu.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="2.1.0" />
+  <meta name="docsearch:version" content="2.1.1" />
     <meta name="docbuild:last-update" content="Jul 30, 2025"/>
   </head>
   
@@ -647,7 +647,7 @@
         <span class="n">update_period</span><span class="o">=</span><span class="mi">1</span> <span class="o">/</span> <span class="mi">60</span><span class="p">,</span>
         <span class="n">offset</span><span class="o">=</span><span class="n">RayCasterCfg</span><span class="o">.</span><span class="n">OffsetCfg</span><span class="p">(</span><span class="n">pos</span><span class="o">=</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">)),</span>
         <span class="n">mesh_prim_paths</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;/World/Ground&quot;</span><span class="p">],</span>
-        <span class="n">attach_yaw_only</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">ray_alignment</span><span class="o">=</span><span class="s2">&quot;yaw&quot;</span><span class="p">,</span>
         <span class="n">pattern_cfg</span><span class="o">=</span><span class="n">patterns</span><span class="o">.</span><span class="n">LidarPatternCfg</span><span class="p">(</span>
             <span class="n">channels</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span> <span class="n">vertical_fov_range</span><span class="o">=</span><span class="p">[</span><span class="o">-</span><span class="mi">90</span><span class="p">,</span> <span class="mi">90</span><span class="p">],</span> <span class="n">horizontal_fov_range</span><span class="o">=</span><span class="p">[</span><span class="o">-</span><span class="mi">90</span><span class="p">,</span> <span class="mi">90</span><span class="p">],</span> <span class="n">horizontal_res</span><span class="o">=</span><span class="mf">1.0</span>
         <span class="p">),</span>
@@ -763,7 +763,7 @@ Ray<span class="w"> </span>cast<span class="w"> </span>hit<span class="w"> </spa
 <span class="linenos"> 63</span>        <span class="n">update_period</span><span class="o">=</span><span class="mi">1</span> <span class="o">/</span> <span class="mi">60</span><span class="p">,</span>
 <span class="linenos"> 64</span>        <span class="n">offset</span><span class="o">=</span><span class="n">RayCasterCfg</span><span class="o">.</span><span class="n">OffsetCfg</span><span class="p">(</span><span class="n">pos</span><span class="o">=</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">)),</span>
 <span class="linenos"> 65</span>        <span class="n">mesh_prim_paths</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;/World/Ground&quot;</span><span class="p">],</span>
-<span class="linenos"> 66</span>        <span class="n">attach_yaw_only</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+<span class="linenos"> 66</span>        <span class="n">ray_alignment</span><span class="o">=</span><span class="s2">&quot;yaw&quot;</span><span class="p">,</span>
 <span class="linenos"> 67</span>        <span class="n">pattern_cfg</span><span class="o">=</span><span class="n">patterns</span><span class="o">.</span><span class="n">LidarPatternCfg</span><span class="p">(</span>
 <span class="linenos"> 68</span>            <span class="n">channels</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span> <span class="n">vertical_fov_range</span><span class="o">=</span><span class="p">[</span><span class="o">-</span><span class="mi">90</span><span class="p">,</span> <span class="mi">90</span><span class="p">],</span> <span class="n">horizontal_fov_range</span><span class="o">=</span><span class="p">[</span><span class="o">-</span><span class="mi">90</span><span class="p">,</span> <span class="mi">90</span><span class="p">],</span> <span class="n">horizontal_res</span><span class="o">=</span><span class="mf">1.0</span>
 <span class="linenos"> 69</span>        <span class="p">),</span>
