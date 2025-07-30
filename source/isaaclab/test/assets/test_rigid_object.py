@@ -230,10 +230,12 @@ def test_external_force_buffer(device):
                 # set a non-zero force
                 force = 1
                 position = 1
+                is_global = True
             else:
                 # set a zero force
                 force = 0
                 position = 0
+                is_global = False
 
             # set force value
             external_wrench_b[:, :, 0] = force
@@ -247,16 +249,21 @@ def test_external_force_buffer(device):
                     external_wrench_b[..., 3:],
                     body_ids=body_ids,
                     positions=external_wrench_positions_b,
+                    is_global=is_global,
                 )
             else:
                 cube_object.set_external_force_and_torque(
-                    external_wrench_b[..., :3], external_wrench_b[..., 3:], body_ids=body_ids
+                    external_wrench_b[..., :3],
+                    external_wrench_b[..., 3:],
+                    body_ids=body_ids,
+                    is_global=is_global,
                 )
 
             # check if the cube's force and torque buffers are correctly updated
             assert cube_object._external_force_b[0, 0, 0].item() == force
             assert cube_object._external_torque_b[0, 0, 0].item() == force
             assert cube_object._external_wrench_positions_b[0, 0, 0].item() == position
+            assert cube_object._use_global_wrench_frame == (step == 0 or step == 3)
 
             # apply action to the object
             cube_object.write_data_to_sim()

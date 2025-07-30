@@ -435,7 +435,7 @@ class RigidObject(AssetBase):
         self._external_torque_b[env_ids, body_ids] = torques
 
         if is_global != self._use_global_wrench_frame:
-            omni.log.warning(
+            omni.log.warn(
                 f"The external wrench frame has been changed from {self._use_global_wrench_frame} to {is_global}. This"
                 " may lead to unexpected behavior."
             )
