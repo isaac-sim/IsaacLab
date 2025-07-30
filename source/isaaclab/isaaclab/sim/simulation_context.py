@@ -330,10 +330,15 @@ class SimulationContext(_SimulationContext):
 
         not_carb_settings = ["rendering_mode", "carb_settings", "antialiasing_mode"]
 
-        # grab rendering mode, defaulting first to the CLI arg --rendering_mode
+        # grab the rendering mode using the following priority:
+        # 1. command line argument --rendering_mode, if provided
+        # 2. rendering_mode from Render Config, if set
+        # 3. lastly, default to "balanced" mode, if neither is specified
         rendering_mode = get_carb_setting(self.carb_settings, "/isaaclab/rendering/rendering_mode")
-        if rendering_mode is None:
+        if not rendering_mode:
             rendering_mode = self.cfg.render.rendering_mode
+        if not rendering_mode:
+            rendering_mode = "balanced"
 
         # set preset settings (same behavior as the CLI arg --rendering_mode)
         if rendering_mode is not None:
@@ -345,11 +350,10 @@ class SimulationContext(_SimulationContext):
                 )
 
             # parse preset file
-            # check if using isaac sim 4.5 and adjust path accordingly
-            repo_path = os.path.join(carb.tokens.get_tokens_interface().resolve("${app}"))
-            if self._isaacsim_version[0] == 4 and self._isaacsim_version[1] == 5:
-                repo_path = os.path.join(repo_path, "isaacsim_4_5")
-            preset_filename = os.path.join(repo_path, f"rendering_modes/{rendering_mode}.kit")
+            repo_path = os.path.join(carb.tokens.get_tokens_interface().resolve("${app}"), "..")
+            if float(".".join(self._isaacsim_version[2])) < 5:
+                repo_path = os.path.join(repo_path, "..")
+            preset_filename = os.path.join(repo_path, f"apps/rendering_modes/{rendering_mode}.kit")
             with open(preset_filename) as file:
                 preset_dict = toml.load(file)
             preset_dict = dict(flatdict.FlatDict(preset_dict, delimiter="."))

@@ -1,6 +1,14 @@
 Changelog
 ---------
 
+0.44.5 (2025-07-28)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Tweak default behavior for rendering preset modes.
+
 0.44.4 (2025-07-18)
 ~~~~~~~~~~~~~~~~~~~
 
