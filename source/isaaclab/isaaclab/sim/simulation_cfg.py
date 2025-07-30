@@ -40,7 +40,7 @@ class PhysxCfg:
     Available solvers:
 
     * :obj:`0`: PGS (Projective Gauss-Seidel)
-    * :obj:`1`: TGS (Truncated Gauss-Seidel)
+    * :obj:`1`: TGS (Temporal Gauss-Seidel)
     """
 
     min_position_iteration_count: int = 1
