@@ -40,7 +40,7 @@ PYTORCH_INDEX_URL = ["https://download.pytorch.org/whl/cu128"]
 # Extra dependencies for RL agents
 EXTRAS_REQUIRE = {
     "sb3": ["stable-baselines3>=2.6", "tqdm", "rich"],  # tqdm/rich for progress bar
-    "skrl": ["skrl>=1.4.2"],
+    "skrl": ["skrl>=1.4.3"],
     "rl-games": [
         "rl-games @ git+https://github.com/isaac-sim/rl_games.git@python3.11",
         "gym",
