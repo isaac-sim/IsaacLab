@@ -680,9 +680,9 @@ multiple sphere prims in the scene at different locations. Thus, prototype prims
 for creating multiple instances of the same prim in the scene.</p>
 <p>The class parses the configuration to create different the marker prototypes into the stage. Each marker
 prototype prim is created as a child of the <code class="xref py py-class docutils literal notranslate"><span class="pre">UsdGeom.PointInstancer</span></code> prim. The prim path for the
-the marker prim is resolved using the key of the marker in the <a class="reference internal" href="#isaaclab.markers.VisualizationMarkersCfg.markers" title="isaaclab.markers.VisualizationMarkersCfg.markers"><code class="xref py py-attr docutils literal notranslate"><span class="pre">VisualizationMarkersCfg.markers</span></code></a>
+marker prim is resolved using the key of the marker in the <a class="reference internal" href="#isaaclab.markers.VisualizationMarkersCfg.markers" title="isaaclab.markers.VisualizationMarkersCfg.markers"><code class="xref py py-attr docutils literal notranslate"><span class="pre">VisualizationMarkersCfg.markers</span></code></a>
 dictionary. The marker prototypes are created using the <code class="xref py py-meth docutils literal notranslate"><span class="pre">isaacsim.core.utils.create_prim()</span></code>
-function, and then then instanced using <code class="xref py py-class docutils literal notranslate"><span class="pre">UsdGeom.PointInstancer</span></code> prim to allow creating multiple
+function, and then instanced using <code class="xref py py-class docutils literal notranslate"><span class="pre">UsdGeom.PointInstancer</span></code> prim to allow creating multiple
 instances of the marker prims.</p>
 <p>Switching between different marker prototypes is possible by calling the <a class="reference internal" href="#isaaclab.markers.VisualizationMarkers.visualize" title="isaaclab.markers.VisualizationMarkers.visualize"><code class="xref py py-meth docutils literal notranslate"><span class="pre">visualize()</span></code></a> method with
 the prototype indices corresponding to the marker prototype. The prototype indices are based on the order

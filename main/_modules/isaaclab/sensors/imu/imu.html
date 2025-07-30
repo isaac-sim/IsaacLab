@@ -769,7 +769,7 @@
         <span class="c1"># set visibility of markers</span>
         <span class="c1"># note: parent only deals with callbacks. not their visibility</span>
         <span class="k">if</span> <span class="n">debug_vis</span><span class="p">:</span>
-            <span class="c1"># create markers if necessary for the first tome</span>
+            <span class="c1"># create markers if necessary for the first time</span>
             <span class="k">if</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;acceleration_visualizer&quot;</span><span class="p">):</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">acceleration_visualizer</span> <span class="o">=</span> <span class="n">VisualizationMarkers</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">visualizer_cfg</span><span class="p">)</span>
             <span class="c1"># set their visibility to true</span>

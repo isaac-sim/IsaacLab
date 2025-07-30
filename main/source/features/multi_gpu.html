@@ -611,7 +611,12 @@
             </div>
             <nav aria-label="Page">
                 <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#multi-gpu-training">Multi-GPU Training</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#multi-gpu-training">Multi-GPU Training</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#pytorch-torchrun-implementation">Pytorch Torchrun Implementation</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jax-implementation">Jax Implementation</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#running-multi-gpu-training">Running Multi-GPU Training</a></li>
+</ul>
+</li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#multi-node-training">Multi-Node Training</a></li>
 </ul>
             </nav>
@@ -636,23 +641,62 @@ This is due to limitations of the NCCL library on Windows.</p>
 </div>
 <section id="multi-gpu-training">
 <h2>Multi-GPU Training<a class="headerlink" href="#multi-gpu-training" title="Permalink to this heading">#</a></h2>
-<p>For complex reinforcement learning environments, it may be desirable to scale up training across multiple GPUs.
-This is possible in Isaac Lab through the use of the
-<a class="reference external" href="https://pytorch.org/docs/stable/distributed.html">PyTorch distributed</a> framework or the
-<a class="reference external" href="https://jax.readthedocs.io/en/latest/jax.distributed.html">JAX distributed</a> module respectively.</p>
-<p>In PyTorch, the <code class="xref py py-meth docutils literal notranslate"><span class="pre">torch.distributed()</span></code> API is used to launch multiple processes of training, where the number of
-processes must be equal to or less than the number of GPUs available. Each process runs on
-a dedicated GPU and launches its own instance of Isaac Sim and the Isaac Lab environment.
-Each process collects its own rollouts during the training process and has its own copy of the policy
-network. During training, gradients are aggregated across the processes and broadcasted back to the process
-at the end of the epoch.</p>
-<p>In JAX, since the ML framework doesn’t automatically start multiple processes from a single program invocation,
+<p>Isaac Lab supports the following multi-GPU training frameworks:
+* <a class="reference external" href="https://docs.pytorch.org/docs/stable/elastic/run.html">Torchrun</a> through <a class="reference external" href="https://pytorch.org/docs/stable/distributed.html">PyTorch distributed</a>
+* <a class="reference external" href="https://jax.readthedocs.io/en/latest/jax.distributed.html">JAX distributed</a></p>
+<section id="pytorch-torchrun-implementation">
+<h3>Pytorch Torchrun Implementation<a class="headerlink" href="#pytorch-torchrun-implementation" title="Permalink to this heading">#</a></h3>
+<p>We are using <a class="reference external" href="https://docs.pytorch.org/docs/stable/elastic/run.html">Pytorch Torchrun</a> to manage multi-GPU
+training. Torchrun manages the distributed training by:</p>
+<ul class="simple">
+<li><p><strong>Process Management</strong>: Launching one process per GPU, where each process is assigned to a specific GPU.</p></li>
+<li><p><strong>Script Execution</strong>: Running the same training script (e.g., RL Games trainer) on each process.</p></li>
+<li><p><strong>Environment Instances</strong>: Each process creates its own instance of the Isaac Lab environment.</p></li>
+<li><p><strong>Gradient Synchronization</strong>: Aggregating gradients across all processes and broadcasting the synchronized</p></li>
+</ul>
+<p>gradients back to each process after each training step.</p>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>Check out this <a class="reference external" href="https://www.youtube.com/watch?v=Cvdhwx-OBBo&amp;list=PL_lsbAsL_o2CSuhUhJIiW0IkdT5C2wGWj&amp;index=2">3 minute youtube video from PyTorch</a>
+to understand how Torchrun works.</p>
+</div>
+<p>The key components in this setup are:</p>
+<ul class="simple">
+<li><p><strong>Torchrun</strong>: Handles process spawning, communication, and gradient synchronization.</p></li>
+<li><p><strong>RL Library</strong>: The reinforcement learning library that runs the actual training algorithm.</p></li>
+<li><p><strong>Isaac Lab</strong>: Provides the simulation environment that each process instantiates independently.</p></li>
+</ul>
+<p>Under the hood, Torchrun uses the <a class="reference external" href="https://docs.pytorch.org/docs/2.7/notes/ddp.html#internal-design">DistributedDataParallel</a>
+module to manage the distributed training. When training with multiple GPUs using Torchrun, the following happens:</p>
+<ul class="simple">
+<li><p>Each GPU runs an independent process</p></li>
+<li><p>Each process executes the full training script</p></li>
+<li><p>Each process maintains its own:
+* Isaac Lab environment instance (with <em>n</em> parallel environments)
+* Policy network copy
+* Experience buffer for rollout collection</p></li>
+<li><p>All processes synchronize only for gradient updates</p></li>
+</ul>
+<p>For a deeper dive into how Torchrun works, checkout
+<a class="reference external" href="https://pytorch.org/docs/stable/notes/ddp.html#internal-design">PyTorch Docs: DistributedDataParallel - Internal Design</a>.</p>
+</section>
+<section id="jax-implementation">
+<h3>Jax Implementation<a class="headerlink" href="#jax-implementation" title="Permalink to this heading">#</a></h3>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>JAX is only supported with the skrl library.</p>
+</div>
+<p>With JAX, we are using <a class="reference external" href="https://skrl.readthedocs.io/en/latest/api/utils/distributed.html">skrl.utils.distributed.jax</a>
+Since the ML framework doesn’t automatically start multiple processes from a single program invocation,
 the skrl library provides a module to start them.</p>
 <a class="only-light reference internal image-reference" href="../../_images/a3c-light.svg"><img alt="Multi-GPU training paradigm" class="only-light align-center" src="../../_images/a3c-light.svg" width="80%" /></a>
 <a class="only-dark reference internal image-reference" href="../../_images/a3c-dark.svg"><img alt="Multi-GPU training paradigm" class="only-dark align-center" src="../../_images/a3c-dark.svg" width="80%" /></a>
 <div class="line-block">
 <div class="line"><br /></div>
 </div>
+</section>
+<section id="running-multi-gpu-training">
+<h3>Running Multi-GPU Training<a class="headerlink" href="#running-multi-gpu-training" title="Permalink to this heading">#</a></h3>
 <p>To train with multiple GPUs, use the following command, where <code class="docutils literal notranslate"><span class="pre">--nproc_per_node</span></code> represents the number of available GPUs:</p>
 <div class="sd-tab-set docutils">
 <input checked="checked" id="sd-tab-item-0" name="sd-tab-set-0" type="radio">
@@ -690,6 +734,7 @@ JAX</label><div class="sd-tab-content docutils">
 </div>
 </div>
 </div>
+</section>
 </section>
 <section id="multi-node-training">
 <h2>Multi-Node Training<a class="headerlink" href="#multi-node-training" title="Permalink to this heading">#</a></h2>
@@ -831,7 +876,12 @@ a single node instance.</p>
   </div>
   <nav class="bd-toc-nav page-toc">
     <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#multi-gpu-training">Multi-GPU Training</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#multi-gpu-training">Multi-GPU Training</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#pytorch-torchrun-implementation">Pytorch Torchrun Implementation</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jax-implementation">Jax Implementation</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#running-multi-gpu-training">Running Multi-GPU Training</a></li>
+</ul>
+</li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#multi-node-training">Multi-Node Training</a></li>
 </ul>
   </nav></div>

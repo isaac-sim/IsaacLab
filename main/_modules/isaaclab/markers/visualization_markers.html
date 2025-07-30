@@ -613,9 +613,9 @@
 
 <span class="sd">    The class parses the configuration to create different the marker prototypes into the stage. Each marker</span>
 <span class="sd">    prototype prim is created as a child of the :class:`UsdGeom.PointInstancer` prim. The prim path for the</span>
-<span class="sd">    the marker prim is resolved using the key of the marker in the :attr:`VisualizationMarkersCfg.markers`</span>
+<span class="sd">    marker prim is resolved using the key of the marker in the :attr:`VisualizationMarkersCfg.markers`</span>
 <span class="sd">    dictionary. The marker prototypes are created using the :meth:`isaacsim.core.utils.create_prim`</span>
-<span class="sd">    function, and then then instanced using :class:`UsdGeom.PointInstancer` prim to allow creating multiple</span>
+<span class="sd">    function, and then instanced using :class:`UsdGeom.PointInstancer` prim to allow creating multiple</span>
 <span class="sd">    instances of the marker prims.</span>
 
 <span class="sd">    Switching between different marker prototypes is possible by calling the :meth:`visualize` method with</span>
@@ -919,9 +919,7 @@
 <span class="sd">        to see the marker prims on camera images.</span>
 
 <span class="sd">        Args:</span>
-<span class="sd">            prim_path: The prim path to check.</span>
-<span class="sd">            stage: The stage where the prim exists.</span>
-<span class="sd">                Defaults to None, in which case the current stage is used.</span>
+<span class="sd">            prim: The prim to check.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># check if prim is valid</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">prim</span><span class="o">.</span><span class="n">IsValid</span><span class="p">():</span>
