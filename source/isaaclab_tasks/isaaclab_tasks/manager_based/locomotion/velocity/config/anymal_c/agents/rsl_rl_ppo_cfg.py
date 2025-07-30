@@ -5,8 +5,9 @@
 
 from isaaclab.utils import configclass
 
-from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlPpoActorCriticCfg, RslRlPpoAlgorithmCfg
+from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlPpoActorCriticCfg, RslRlPpoAlgorithmCfg, RslRlSymmetryCfg
 
+from isaaclab_tasks.manager_based.locomotion.velocity.mdp.symmetry import anymal
 
 @configclass
 class AnymalCRoughPPORunnerCfg(RslRlOnPolicyRunnerCfg):
@@ -46,3 +47,24 @@ class AnymalCFlatPPORunnerCfg(AnymalCRoughPPORunnerCfg):
         self.experiment_name = "anymal_c_flat"
         self.policy.actor_hidden_dims = [128, 128, 128]
         self.policy.critic_hidden_dims = [128, 128, 128]
+
+
+
+@configclass
+class AnymalCFlatPPORunnerWithSymmetryCfg(AnymalCFlatPPORunnerCfg):    
+    def __post_init__(self):
+        super().__post_init__()
+
+        self.algorithm.symmetry_cfg = RslRlSymmetryCfg(
+            use_data_augmentation=True, data_augmentation_func=anymal.compute_symmetric_states
+        )
+
+
+@configclass
+class AnymalCRoughPPORunnerWithSymmetryCfg(AnymalCRoughPPORunnerCfg):
+    def __post_init__(self):
+        super().__post_init__()
+
+        self.algorithm.symmetry_cfg = RslRlSymmetryCfg(
+            use_data_augmentation=True, data_augmentation_func=anymal.compute_symmetric_states
+        )
