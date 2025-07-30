@@ -241,9 +241,11 @@ def test_external_force_buffer(sim, device):
         if step == 0 or step == 3:
             force = 1.0
             position = 1.0
+            is_global = True
         else:
             force = 0.0
             position = 0.0
+            is_global = False
 
         # apply force to the object
         external_wrench_b[:, :, 0] = force
@@ -255,6 +257,7 @@ def test_external_force_buffer(sim, device):
             external_wrench_b[..., 3:],
             object_ids=object_ids,
             positions=external_wrench_positions_b,
+            is_global=is_global,
         )
 
         # check if the object collection's force and torque buffers are correctly updated
@@ -262,6 +265,7 @@ def test_external_force_buffer(sim, device):
             assert object_collection._external_force_b[i, 0, 0].item() == force
             assert object_collection._external_torque_b[i, 0, 0].item() == force
             assert object_collection._external_wrench_positions_b[i, 0, 0].item() == position
+            assert object_collection._use_global_wrench_frame == (step == 0 or step == 3)
 
         # apply action to the object collection
         object_collection.write_data_to_sim()
