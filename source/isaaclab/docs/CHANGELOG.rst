@@ -12,6 +12,11 @@ Added
   :meth:`~isaaclab.assets.RigidObjectCollection.set_external_force_and_torque` allowing to set external wrenches
   in the global frame directly from the method call rather than having to set the frame in the configuration.
 
+Removed
+^^^^^^^^
+
+* Removed :attr:`xxx_external_wrench_frame` flag from asset configuration classes in favor of direct argument
+  passed to the :meth:`set_external_force_and_torque` function.
 
 0.41.2 (2025-07-28)
 ~~~~~~~~~~~~~~~~~~~~
