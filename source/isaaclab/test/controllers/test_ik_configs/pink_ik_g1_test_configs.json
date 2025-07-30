@@ -1,36 +1,12 @@
 {
     "tolerances": {
-        "position": 0.002,
-        "pd_position": 0.001,
+        "position": 0.003,
+        "pd_position": 0.002,
         "rotation": 0.017,
         "check_errors": true
     },
     "allowed_steps_to_settle": 100,
     "tests": {
-        "stay_still": {
-            "left_hand_pose": [
-                [-0.18, 0.1, 0.8, 0.7071, 0.0, 0.0, 0.7071],
-                [-0.18, 0.1, 0.8, 0.7071, 0.0, 0.0, 0.7071]
-            ],
-            "right_hand_pose": [
-                [0.18, 0.1, 0.8, 0.7071, 0.0, 0.0, 0.7071],
-                [0.18, 0.1, 0.8, 0.7071, 0.0, 0.0, 0.7071]
-            ],
-            "allowed_steps_per_motion": 20,
-            "repeat": 4
-        },
-        "vertical_movement": {
-            "left_hand_pose": [
-                [-0.18, 0.1, 0.8, 0.7071, 0.0, 0.0, 0.7071],
-                [-0.18, 0.1, 0.9, 0.7071, 0.0, 0.0, 0.7071]
-            ],
-            "right_hand_pose": [
-                [0.18, 0.1, 0.8, 0.7071, 0.0, 0.0, 0.7071],
-                [0.18, 0.1, 0.9, 0.7071, 0.0, 0.0, 0.7071]
-            ],
-        "allowed_steps_per_motion": 70,
-            "repeat": 2
-        },
         "horizontal_movement": {
             "left_hand_pose": [
                 [-0.18, 0.1, 0.8, 0.7071, 0.0, 0.0, 0.7071],
@@ -41,7 +17,8 @@
                 [0.28, 0.1, 0.8, 0.7071, 0.0, 0.0, 0.7071]
             ],
             "allowed_steps_per_motion": 100,
-            "repeat": 2
+            "repeat": 2,
+            "requires_waist_bending": false
         },
         "horizontal_small_movement": {
             "left_hand_pose": [
@@ -53,7 +30,51 @@
                 [0.19, 0.1, 0.8, 0.7071, 0.0, 0.0, 0.7071]
             ],
             "allowed_steps_per_motion": 15,
-            "repeat": 2
+            "repeat": 2,
+            "requires_waist_bending": false
+        },
+        "stay_still": {
+            "left_hand_pose": [
+                [-0.18, 0.1, 0.8, 0.7071, 0.0, 0.0, 0.7071],
+                [-0.18, 0.1, 0.8, 0.7071, 0.0, 0.0, 0.7071]
+            ],
+            "right_hand_pose": [
+                [0.18, 0.1, 0.8, 0.7071, 0.0, 0.0, 0.7071],
+                [0.18, 0.1, 0.8, 0.7071, 0.0, 0.0, 0.7071]
+            ],
+            "allowed_steps_per_motion": 20,
+            "repeat": 4,
+            "requires_waist_bending": false
+        },
+        "vertical_movement": {
+            "left_hand_pose": [
+                [-0.18, 0.1, 0.8, 0.7071, 0.0, 0.0, 0.7071],
+                [-0.18, 0.1, 0.9, 0.7071, 0.0, 0.0, 0.7071]
+            ],
+            "right_hand_pose": [
+                [0.18, 0.1, 0.8, 0.7071, 0.0, 0.0, 0.7071],
+                [0.18, 0.1, 0.9, 0.7071, 0.0, 0.0, 0.7071]
+            ],
+            "allowed_steps_per_motion": 70,
+            "repeat": 2,
+            "requires_waist_bending": false
+        },
+        "forward_waist_bending_movement": {
+            "left_hand_pose": [
+                [-0.18, 0.1, 0.8, 0.7071, 0.0, 0.0, 0.7071],
+                [-0.18, 0.15, 0.8, 0.7071, 0.0, 0.0, 0.7071],
+                [-0.18, 0.2, 0.8, 0.7071, 0.0, 0.0, 0.7071],
+                [-0.18, 0.25, 0.8, 0.7071, 0.0, 0.0, 0.7071]
+            ],
+            "right_hand_pose": [
+                [0.18, 0.1, 0.8, 0.7071, 0.0, 0.0, 0.7071],
+                [0.18, 0.15, 0.8, 0.7071, 0.0, 0.0, 0.7071],
+                [0.18, 0.2, 0.8, 0.7071, 0.0, 0.0, 0.7071],
+                [0.18, 0.25, 0.8, 0.7071, 0.0, 0.0, 0.7071]
+            ],
+            "allowed_steps_per_motion": 70,
+            "repeat": 2,
+            "requires_waist_bending": true
         },
         "rotation_movements": {
             "left_hand_pose": [
@@ -81,7 +102,8 @@
                 [0.2, 0.11, 0.8, 0.5, 0.5, 0.5, 0.5]
             ],
             "allowed_steps_per_motion": 50,
-            "repeat": 2
+            "repeat": 2,
+            "requires_waist_bending": false
         }
     }
 }

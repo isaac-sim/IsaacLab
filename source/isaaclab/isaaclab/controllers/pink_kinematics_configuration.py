@@ -1,11 +1,15 @@
-from typing import Optional
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
 
 import numpy as np
-import pinocchio as pin
-from pinocchio.robot_wrapper import RobotWrapper
 
+import pinocchio as pin
 from pink.configuration import Configuration
 from pink.exceptions import FrameNotFound
+from pinocchio.robot_wrapper import RobotWrapper
+
 
 class PinkKinematicsConfiguration(Configuration):
     """
@@ -64,14 +68,20 @@ class PinkKinematicsConfiguration(Configuration):
             if joint_name not in self._controlled_joint_names:
                 joints_to_lock.append(self.full_model.getJointId(joint_name))
 
-        self.controlled_model = pin.buildReducedModel(self.full_model, joints_to_lock, self.full_q)
-        self.controlled_data = self.controlled_model.createData()
-        self.controlled_q = self.full_q[self._controlled_joint_indices]
+        if len(joints_to_lock) == 0:
+            # No joints to lock, controlled model is the same as full model
+            self.controlled_model = self.full_model
+            self.controlled_data = self.full_data
+            self.controlled_q = self.full_q
+        else:
+            self.controlled_model = pin.buildReducedModel(self.full_model, joints_to_lock, self.full_q)
+            self.controlled_data = self.controlled_model.createData()
+            self.controlled_q = self.full_q[self._controlled_joint_indices]
 
         # Pink will should only have the controlled model
         super().__init__(self.controlled_model, self.controlled_data, self.controlled_q, copy_data, forward_kinematics)
 
-    def update(self, q: Optional[np.ndarray] = None) -> None:
+    def update(self, q: np.ndarray | None = None) -> None:
         """Update configuration to a new vector.
 
         Calling this function runs forward kinematics and computes
@@ -84,6 +94,10 @@ class PinkKinematicsConfiguration(Configuration):
             raise ValueError("q must have the same length as the number of joints in the model")
         if q is not None:
             super().update(q[self._controlled_joint_indices])
+
+            q_readonly = q.copy()
+            q_readonly.setflags(write=False)
+            self.full_q = q_readonly
             pin.computeJointJacobians(self.full_model, self.full_data, q)
             pin.updateFramePlacements(self.full_model, self.full_data)
         else:
@@ -121,14 +135,12 @@ class PinkKinematicsConfiguration(Configuration):
         if not self.full_model.existFrame(frame):
             raise FrameNotFound(frame, self.full_model.frames)
         frame_id = self.full_model.getFrameId(frame)
-        J: np.ndarray = pin.getFrameJacobian(
-            self.full_model, self.full_data, frame_id, pin.ReferenceFrame.LOCAL
-        )
+        J: np.ndarray = pin.getFrameJacobian(self.full_model, self.full_data, frame_id, pin.ReferenceFrame.LOCAL)
         return J[:, self._controlled_joint_indices]
 
     def get_transform_frame_to_world(self, frame: str) -> pin.SE3:
         """Get the pose of a frame in the current configuration.
-        We override this method from the super class to solve the issue that in the default 
+        We override this method from the super class to solve the issue that in the default
         Pink implementation, the frame placements do not take into account the non-controlled joints
         being not at initial pose (which is a bad assumption when they are controlled by other controllers like a lower body controller).
 

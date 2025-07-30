@@ -4,18 +4,16 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 
-import tempfile
-import torch
 from pathlib import Path
 
-import isaaclab.controllers.utils as ControllerUtils
+from isaaclab_assets.robots.unitree import G1_LOCOMANIPULATION_ROBOT_CFG
+
 import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
-from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
-from isaaclab.controllers.pink_ik import PinkIKControllerCfg
 from isaaclab.devices.device_base import DevicesCfg
 from isaaclab.devices.openxr import OpenXRDeviceCfg, XrCfg
+from isaaclab.devices.openxr.retargeters.humanoid.unitree.g1_lower_body_retargeter import G1LowerBodyRetargeterCfg
 from isaaclab.devices.openxr.retargeters.humanoid.unitree.g1_upper_body_retargeter import G1UpperBodyRetargeterCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
@@ -25,15 +23,16 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
 from isaaclab.utils import configclass
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 
-from isaaclab_tasks.manager_based.locomanipulation.pick_place_locomanipulation import mdp as locomanip_mdp
+from isaaclab_tasks.manager_based.locomanipulation.pick_place import mdp as locomanip_mdp
+from isaaclab_tasks.manager_based.locomanipulation.pick_place.configs.action_cfg import LowerBodyActionCfg
+from isaaclab_tasks.manager_based.locomanipulation.pick_place.configs.agile_locomotion_observation_cfg import (
+    AgileTeacherPolicyObservationsCfg,
+)
 from isaaclab_tasks.manager_based.manipulation.pick_place import mdp as manip_mdp
 
-from source.isaaclab_tasks.isaaclab_tasks.manager_based.locomanipulation.pick_place_locomanipulation.configs.g1_locomanipulation_robot_cfg import (  # isort: skip
-    G1_LOCOMANIPULATION_ROBOT_CFG,
-)
-from source.isaaclab_tasks.isaaclab_tasks.manager_based.locomanipulation.pick_place_locomanipulation.configs.pink_controller_cfg import (  # isort: skip
+from isaaclab_tasks.manager_based.locomanipulation.pick_place.configs.pink_controller_cfg import (  # isort: skip
     G1_UPPER_BODY_IK_ACTION_CFG,
 )
 
@@ -42,12 +41,12 @@ from source.isaaclab_tasks.isaaclab_tasks.manager_based.locomanipulation.pick_pl
 # Scene definition
 ##
 @configclass
-class FixedBaseUpperBodyIKG1SceneCfg(InteractiveSceneCfg):
-    """Scene configuration for fixed base upper body IK environment with G1 robot.
+class LocomanipulationG1SceneCfg(InteractiveSceneCfg):
+    """Scene configuration for locomanipulation environment with G1 robot.
 
-    This configuration sets up the G1 humanoid robot with fixed pelvis and legs,
-    allowing only arm manipulation while the base remains stationary. The robot is
-    controlled using upper body IK.
+    This configuration sets up the G1 humanoid robot for locomanipulation tasks,
+    allowing both locomotion and manipulation capabilities. The robot can move its
+    base and use its arms for manipulation tasks.
     """
 
     # Table
@@ -62,25 +61,15 @@ class FixedBaseUpperBodyIKG1SceneCfg(InteractiveSceneCfg):
 
     object = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/Object",
-        init_state=RigidObjectCfg.InitialStateCfg(pos=[0.0, 0.30, 1.0413-0.3], rot=[1, 0, 0, 0]),
-        spawn=sim_utils.CylinderCfg(
-            radius=0.018,
-            height=0.35,
+        init_state=RigidObjectCfg.InitialStateCfg(pos=[-0.35, 0.45, 0.6996], rot=[1, 0, 0, 0]),
+        spawn=UsdFileCfg(
+            usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Mimic/pick_place_task/pick_place_assets/steering_wheel.usd",
+            scale=(0.75, 0.75, 0.75),
             rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(mass=0.3),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.15, 0.15, 0.15), metallic=1.0),
-            physics_material=sim_utils.RigidBodyMaterialCfg(
-                friction_combine_mode="max",
-                restitution_combine_mode="min",
-                static_friction=0.9,
-                dynamic_friction=0.9,
-                restitution=0.0,
-            ),
         ),
     )
 
-    # Unitree G1 Humanoid robot - fixed base configuration
+    # Humanoid robot w/ arms higher
     robot: ArticulationCfg = G1_LOCOMANIPULATION_ROBOT_CFG
 
     # Ground plane
@@ -95,19 +84,6 @@ class FixedBaseUpperBodyIKG1SceneCfg(InteractiveSceneCfg):
         spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), intensity=3000.0),
     )
 
-    def __post_init__(self):
-        """Post initialization."""
-        # Set the robot to fixed base
-        self.robot.spawn.articulation_props.fix_root_link = True
-
-        # Increase the stiffness of the waist to keep it locked
-        self.robot.actuators["waist"].stiffness["waist_yaw_joint"] = 4000.0
-        self.robot.actuators["waist"].stiffness["waist_roll_joint"] = 4000.0
-        self.robot.actuators["waist"].stiffness["waist_pitch_joint"] = 4000.0
-        self.robot.actuators["waist"].damping["waist_yaw_joint"] = 20.0
-        self.robot.actuators["waist"].damping["waist_roll_joint"] = 20.0
-        self.robot.actuators["waist"].damping["waist_pitch_joint"] = 20.0
-
 
 @configclass
 class ActionsCfg:
@@ -115,12 +91,28 @@ class ActionsCfg:
 
     upper_body_ik = G1_UPPER_BODY_IK_ACTION_CFG
 
+    lower_body_joint_pos = LowerBodyActionCfg(
+        asset_name="robot",
+        joint_names=[
+            # "waist_.*_joint",
+            ".*_hip_.*_joint",
+            ".*_knee_joint",
+            ".*_ankle_.*_joint",
+        ],
+        scale=0.25,
+        obs_group_name="lower_body_policy",  # need to be the same name as the on in ObservationCfg
+        # policy_path=Path(__file__).parent.parent / "policy/standing_g1" / "policy_with_waist.pt",
+        # policy_path=Path(__file__).parent.parent / "policy/standing_g1" / "policy_no_waist.pt",
+        policy_path=Path(__file__).parent.parent / "policy/locomotion" / "agile_locomotion.pt",
+    )
+
 
 @configclass
 class ObservationsCfg:
     """Observation specifications for the MDP.
     This class is required by the environment configuration but not used in this implementation
     """
+
     @configclass
     class PolicyCfg(ObsGroup):
         """Observations for policy group with state values."""
@@ -142,9 +134,12 @@ class ObservationsCfg:
         right_eef_quat = ObsTerm(func=manip_mdp.get_right_eef_quat, params={"link_name": "right_wrist_yaw_link"})
 
         hand_joint_state = ObsTerm(func=manip_mdp.get_hand_state, params={"hand_joint_names": [".*_hand.*"]})
-        head_joint_state = ObsTerm(func=manip_mdp.get_head_state, params={"head_joint_names": []})
+        # head_joint_state = ObsTerm(func=manip_mdp.get_head_state, params={"head_joint_names": []})
 
-        object = ObsTerm(func=manip_mdp.object_obs, params={"left_eef_link_name": "left_wrist_yaw_link", "right_eef_link_name": "right_wrist_yaw_link"})
+        object = ObsTerm(
+            func=manip_mdp.object_obs,
+            params={"left_eef_link_name": "left_wrist_yaw_link", "right_eef_link_name": "right_wrist_yaw_link"},
+        )
 
         def __post_init__(self):
             self.enable_corruption = False
@@ -152,6 +147,8 @@ class ObservationsCfg:
 
     # observation groups
     policy: PolicyCfg = PolicyCfg()
+    # lower_body_policy: AgileObservationsWithHistoryCfg = AgileObservationsWithHistoryCfg()
+    lower_body_policy: AgileTeacherPolicyObservationsCfg = AgileTeacherPolicyObservationsCfg()
 
 
 @configclass
@@ -160,7 +157,12 @@ class TerminationsCfg:
 
     time_out = DoneTerm(func=locomanip_mdp.time_out, time_out=True)
 
-    success = DoneTerm(func=manip_mdp.task_done_pick_place)
+    object_dropping = DoneTerm(
+        func=base_mdp.root_height_below_minimum, params={"minimum_height": 0.5, "asset_cfg": SceneEntityCfg("object")}
+    )
+
+    success = DoneTerm(func=manip_mdp.task_done_pick_place, params={"task_link_name": "right_wrist_yaw_link"})
+
 
 ##
 # MDP settings
@@ -168,31 +170,30 @@ class TerminationsCfg:
 
 
 @configclass
-class FixedBaseUpperBodyIKG1EnvCfg(ManagerBasedRLEnvCfg):
-    """Configuration for the G1 fixed base upper body IK environment.
+class LocomanipulationG1EnvCfg(ManagerBasedRLEnvCfg):
+    """Configuration for the G1 locomanipulation environment.
 
-    This environment is designed for manipulation tasks where the G1 humanoid robot
-    has a fixed pelvis and legs, allowing only arm and hand movements for manipulation. The robot is
-    controlled using upper body IK.
+    This environment is designed for locomanipulation tasks where the G1 humanoid robot
+    can perform both locomotion and manipulation simultaneously. The robot can move its
+    base and use its arms for manipulation tasks, enabling complex mobile manipulation
+    behaviors.
     """
 
     # Scene settings
-    scene: FixedBaseUpperBodyIKG1SceneCfg = FixedBaseUpperBodyIKG1SceneCfg(
-        num_envs=1, env_spacing=2.5, replicate_physics=True
-    )
+    scene: LocomanipulationG1SceneCfg = LocomanipulationG1SceneCfg(num_envs=1, env_spacing=2.5, replicate_physics=True)
     # MDP settings
-    terminations: TerminationsCfg = TerminationsCfg()
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
+    commands = None
+    terminations: TerminationsCfg = TerminationsCfg()
 
     # Unused managers
-    commands = None
     rewards = None
     curriculum = None
 
     # Position of the XR anchor in the world frame
     xr: XrCfg = XrCfg(
-        anchor_pos=(0.0, 0.0, 0.2),
+        anchor_pos=(0.0, 0.0, 0.3),
         anchor_rot=(1.0, 0.0, 0.0, 0.0),
     )
 
@@ -205,13 +206,13 @@ class FixedBaseUpperBodyIKG1EnvCfg(ManagerBasedRLEnvCfg):
         self.sim.dt = 1 / 200  # 200Hz
         self.sim.render_interval = 2
 
-        temp_urdf_output_path, temp_urdf_meshes_output_path = ControllerUtils.convert_usd_to_urdf(
-            self.scene.robot.spawn.usd_path, tempfile.gettempdir(), force_conversion=True
-        )
-
         # Set the URDF and mesh paths for the IK controller
-        self.actions.upper_body_ik.controller.urdf_path = "source/isaaclab_tasks/isaaclab_tasks/manager_based/locomanipulation/assets/robots/g1/g1_minimal_with_leg_hand_collision_corrected.urdf"
-        self.actions.upper_body_ik.controller.mesh_path = temp_urdf_meshes_output_path
+        urdf_omniverse_path = "omniverse://isaac-dev.ov.nvidia.com/Projects/agile/Robots/urdf/g1/g1_minimal_with_leg_hand_collision_corrected.urdf"
+        mesh_omniverse_path = "omniverse://isaac-dev.ov.nvidia.com/Projects/agile/Robots/urdf/g1/meshes"
+
+        # Retrieve local paths for the URDF and mesh files. Will be cached for call after the first time.
+        self.actions.upper_body_ik.controller.urdf_path = retrieve_file_path(urdf_omniverse_path)
+        self.actions.upper_body_ik.controller.mesh_path = retrieve_file_path(mesh_omniverse_path)
 
         self.teleop_devices = DevicesCfg(
             devices={
@@ -223,6 +224,9 @@ class FixedBaseUpperBodyIKG1EnvCfg(ManagerBasedRLEnvCfg):
                             num_open_xr_hand_joints=2 * 26,
                             sim_device=self.sim.device,
                             hand_joint_names=self.actions.upper_body_ik.hand_joint_names,
+                        ),
+                        G1LowerBodyRetargeterCfg(
+                            sim_device=self.sim.device,
                         ),
                     ],
                     sim_device=self.sim.device,

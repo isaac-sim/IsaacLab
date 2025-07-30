@@ -1,0 +1,88 @@
+<?xml version="1.0"?>
+<robot name="test_two_link_robot">
+    <link name="world">
+        <inertial>
+            <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/>
+            <mass value="0.001"/>
+            <inertia ixx="0.00001" ixy="0.0" ixz="0.0" iyy="0.00001" iyz="0.0" izz="0.00001"/>
+        </inertial>
+    </link>
+    <!-- Base link -->
+    <link name="base_link">
+        <inertial>
+            <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/>
+            <mass value="1.0"/>
+            <inertia ixx="0.01" ixy="0.0" ixz="0.0" iyy="0.01" iyz="0.0" izz="0.01"/>
+        </inertial>
+        <visual>
+            <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/>
+            <geometry>
+                <box size="0.1 0.1 0.1"/>
+            </geometry>
+            <material name="blue">
+                <color rgba="0.0 0.0 0.8 1.0"/>
+            </material>
+        </visual>
+    </link>
+
+    <!-- First link -->
+    <link name="link_1">
+        <inertial>
+            <origin xyz="0.0 0.0 0.2" rpy="0.0 0.0 0.0"/>
+            <mass value="1.0"/>
+            <inertia ixx="0.01" ixy="0.0" ixz="0.0" iyy="0.01" iyz="0.0" izz="0.01"/>
+        </inertial>
+        <visual>
+            <origin xyz="0.0 0.0 0.2" rpy="0.0 0.0 0.0"/>
+            <geometry>
+                <cylinder length="0.4" radius="0.02"/>
+            </geometry>
+            <material name="red">
+                <color rgba="0.8 0.0 0.0 1.0"/>
+            </material>
+        </visual>
+    </link>
+
+    <!-- Second link -->
+    <link name="link_2">
+        <inertial>
+            <origin xyz="0.0 0.0 0.2" rpy="0.0 0.0 0.0"/>
+            <mass value="1.0"/>
+            <inertia ixx="0.01" ixy="0.0" ixz="0.0" iyy="0.01" iyz="0.0" izz="0.01"/>
+        </inertial>
+        <visual>
+            <origin xyz="0.0 0.0 0.2" rpy="0.0 0.0 0.0"/>
+            <geometry>
+                <cylinder length="0.4" radius="0.02"/>
+            </geometry>
+            <material name="green">
+                <color rgba="0.0 0.8 0.0 1.0"/>
+            </material>
+        </visual>
+    </link>
+
+    <!-- Fixed joint to world (this is the first joint in Pinocchio) -->
+    <joint name="universe" type="fixed">
+        <parent link="world"/>
+        <child link="base_link"/>
+        <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/>
+    </joint>
+
+    <!-- First revolute joint -->
+    <joint name="joint_1" type="revolute">
+        <parent link="base_link"/>
+        <child link="link_1"/>
+        <origin xyz="0.0 0.0 0.05" rpy="0.0 0.0 0.0"/>
+        <axis xyz="0.0 0.0 1.0"/>
+        <limit effort="100.0" velocity="10.0" lower="-3.14" upper="3.14"/>
+    </joint>
+
+    <!-- Second revolute joint -->
+    <joint name="joint_2" type="revolute">
+        <parent link="link_1"/>
+        <child link="link_2"/>
+        <origin xyz="0.0 0.0 0.4" rpy="0.0 0.0 0.0"/>
+        <axis xyz="0.0 1.0 0.0"/>
+        <limit effort="100.0" velocity="10.0" lower="-3.14" upper="3.14"/>
+    </joint>
+</robot>

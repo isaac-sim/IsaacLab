@@ -126,8 +126,7 @@ class NutPourGR1T2PinkIKEnvCfg(NutPourGR1T2BaseEnvCfg):
                         },
                     ),
                 ],
-                fixed_input_tasks=[
-                ],
+                fixed_input_tasks=[],
             ),
         )
         # Convert USD to URDF and change revolute joints to fixed

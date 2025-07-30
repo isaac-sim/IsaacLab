@@ -13,10 +13,12 @@ import numpy as np
 import torch
 
 from pink import solve_ik
+
 from isaaclab.assets import ArticulationCfg
 from isaaclab.controllers.null_space_posture_task import NullSpacePostureTask
 from isaaclab.controllers.pink_kinematics_configuration import PinkKinematicsConfiguration
 from isaaclab.utils.string import resolve_matching_names_values
+
 from .pink_ik_cfg import PinkIKControllerCfg
 
 
@@ -77,7 +79,7 @@ class PinkIKController:
         """Setup joint ordering mappings between Isaac Lab and Pink conventions."""
         pink_joint_names = self.pink_configuration.all_joint_names_pinocchio_order
         isaac_lab_joint_names = self.cfg.all_joint_names
-        
+
         # Type assertions for linter clarity
         assert pink_joint_names is not None, "pink_joint_names should not be None"
         assert isaac_lab_joint_names is not None, "isaac_lab_joint_names should not be None"
@@ -93,7 +95,7 @@ class PinkIKController:
         # Create reordering arrays for controlled joints only
         pink_controlled_joint_names = self.pink_configuration.controlled_joint_names_pinocchio_order
         isaac_lab_controlled_joint_names = self.cfg.controlled_joint_names
-        
+
         # Type assertions for linter clarity
         assert pink_controlled_joint_names is not None, "pink_controlled_joint_names should not be None"
         assert isaac_lab_controlled_joint_names is not None, "isaac_lab_controlled_joint_names should not be None"
@@ -104,7 +106,6 @@ class PinkIKController:
         self.pink_to_isaac_lab_controlled_ordering = np.array(
             [pink_controlled_joint_names.index(isaac_lab_joint) for isaac_lab_joint in isaac_lab_controlled_joint_names]
         )
-
 
     """
     Operations.
@@ -168,9 +169,9 @@ class PinkIKController:
         # Solve IK using Pink's solver
         try:
             velocity = solve_ik(
-                self.pink_configuration, 
-                self.cfg.variable_input_tasks + self.cfg.fixed_input_tasks, 
-                dt, 
+                self.pink_configuration,
+                self.cfg.variable_input_tasks + self.cfg.fixed_input_tasks,
+                dt,
                 solver="osqp",
                 safety_break=self.cfg.fail_on_joint_limit_violation,
             )
@@ -194,8 +195,7 @@ class PinkIKController:
 
         # Add the velocity changes to the current joint positions to get the target joint positions
         target_joint_pos = torch.add(
-            joint_vel_isaac_lab, 
-            torch.tensor(curr_controlled_joint_pos, device=self.device, dtype=torch.float32)
+            joint_vel_isaac_lab, torch.tensor(curr_controlled_joint_pos, device=self.device, dtype=torch.float32)
         )
 
         return target_joint_pos

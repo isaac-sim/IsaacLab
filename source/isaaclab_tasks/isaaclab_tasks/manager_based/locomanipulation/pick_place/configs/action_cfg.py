@@ -4,11 +4,13 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from dataclasses import MISSING
+
 from isaaclab.envs.mdp.actions import actions_cfg as mdp
 from isaaclab.managers.action_manager import ActionTerm, ActionTermCfg
 from isaaclab.utils import configclass
 
 from ..mdp.actions import JointPositionPolicyAction, LowerBodyAction
+
 
 @configclass
 class LowerBodyActionCfg(ActionTermCfg):
@@ -25,7 +27,10 @@ class LowerBodyActionCfg(ActionTermCfg):
 
     scale: float = 1.0
     """The scale of the action."""
-    
+
+    obs_group_name: str = MISSING
+    """The name of the observation group to use."""
+
     offset: float = 0.0
     """The offset of the action."""
 

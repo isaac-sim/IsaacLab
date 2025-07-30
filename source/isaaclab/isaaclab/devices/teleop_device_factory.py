@@ -15,22 +15,18 @@ from isaaclab.devices import DeviceBase, DeviceCfg
 from isaaclab.devices.gamepad import Se2Gamepad, Se2GamepadCfg, Se3Gamepad, Se3GamepadCfg
 from isaaclab.devices.keyboard import Se2Keyboard, Se2KeyboardCfg, Se3Keyboard, Se3KeyboardCfg
 from isaaclab.devices.openxr.retargeters import (
-    GR1T2Retargeter,
-    GR1T2RetargeterCfg,
-    G1UpperBodyRetargeter,
-    G1UpperBodyRetargeterCfg,
     G1LowerBodyRetargeter,
     G1LowerBodyRetargeterCfg,
+    G1UpperBodyRetargeter,
+    G1UpperBodyRetargeterCfg,
+    GR1T2Retargeter,
+    GR1T2RetargeterCfg,
     GripperRetargeter,
     GripperRetargeterCfg,
     Se3AbsRetargeter,
     Se3AbsRetargeterCfg,
     Se3RelRetargeter,
     Se3RelRetargeterCfg,
-    G1UpperBodyRetargeter,
-    G1UpperBodyRetargeterCfg,
-    G1LowerBodyRetargeter,
-    G1LowerBodyRetargeterCfg,
 )
 from isaaclab.devices.retargeter_base import RetargeterBase, RetargeterCfg
 from isaaclab.devices.spacemouse import Se2SpaceMouse, Se2SpaceMouseCfg, Se3SpaceMouse, Se3SpaceMouseCfg

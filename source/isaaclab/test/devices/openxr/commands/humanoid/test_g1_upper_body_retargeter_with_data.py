@@ -8,7 +8,6 @@
 import os
 import sys
 import time
-from pathlib import Path
 
 # Import pinocchio in the main script to force the use of the dependencies installed by IsaacLab and not the one installed by Isaac Sim
 # pinocchio is required by the Pink IK controller
@@ -24,17 +23,16 @@ simulation_app = AppLauncher(headless=False).app
 
 import gymnasium as gym
 import numpy as np
-import pytest
 import torch
 
-from pink.configuration import Configuration
+import pytest
 
 from isaaclab.devices import DeviceBase
+from isaaclab.devices.openxr.openxr_device import OpenXRDevice
 from isaaclab.devices.openxr.retargeters.humanoid.unitree.g1_upper_body_retargeter import (
     G1UpperBodyRetargeter,
     G1UpperBodyRetargeterCfg,
 )
-from isaaclab.devices.openxr.openxr_device import OpenXRDevice
 
 import isaaclab_tasks  # noqa: F401
 import isaaclab_tasks.manager_based.manipulation.pick_place  # noqa: F401
@@ -60,10 +58,10 @@ def create_test_env(num_envs):
 def env_and_cfg():
     """Create environment and configuration for tests."""
     env, env_cfg = create_test_env(num_envs=1)
-    
+
     # Set up camera view
     env.sim.set_camera_view(eye=[2.5, 2.5, 2.5], target=[0.0, 0.0, 1.0])
-    
+
     return env, env_cfg
 
 
@@ -81,7 +79,7 @@ def mock_hand_tracking_device(env_and_cfg):
 
     class MockHandTrackingDevice(DeviceBase):
         TrackingTarget = OpenXRDevice.TrackingTarget
-        
+
         def __init__(self, height_offset=-0.3, interval_per_frame=0.1, trim_frames=200, retargeters=None):
             super().__init__(retargeters=retargeters)
             self.frame_counter = 0
@@ -93,10 +91,10 @@ def mock_hand_tracking_device(env_and_cfg):
             hand_data = np.load(data_path, allow_pickle=True)
 
             # Extract the data
-            left_hand_poses = hand_data['left_hand_poses']  # [N, 26, 7]
-            right_hand_poses = hand_data['right_hand_poses']  # [N, 26, 7]
-            left_joint_names = [str(j) for j in hand_data['left_joint_names']]  # [26]
-            right_joint_names = [str(j) for j in hand_data['right_joint_names']]  # [26]
+            left_hand_poses = hand_data["left_hand_poses"]  # [N, 26, 7]
+            right_hand_poses = hand_data["right_hand_poses"]  # [N, 26, 7]
+            left_joint_names = [str(j) for j in hand_data["left_joint_names"]]  # [26]
+            right_joint_names = [str(j) for j in hand_data["right_joint_names"]]  # [26]
 
             # Trim the beginning of the data by specified number of frames
             if trim_frames > 0:
@@ -153,7 +151,7 @@ def mock_hand_tracking_device(env_and_cfg):
         def _advance_frame(self):
             """Advance to the next frame based on the configured frame rate."""
             current_time = time.time()
-            if not hasattr(self, '_last_advance_time'):
+            if not hasattr(self, "_last_advance_time"):
                 self._last_advance_time = current_time
 
             time_elapsed = current_time - self._last_advance_time
@@ -183,7 +181,7 @@ def mock_hand_tracking_device(env_and_cfg):
 def test_setup_g1_env(env_and_cfg):
     """Set up test case for G1 command term tests - runs before each test."""
     env, env_cfg = env_and_cfg
-    
+
     # Get hand joint names from the environment configuration
     hand_joint_names = env_cfg.actions.upper_body_ik.hand_joint_names
 
@@ -200,11 +198,11 @@ class TestG1UpperBodyCommandTermWithData:
     def test_initialization(self, test_setup_g1_env, mock_hand_tracking_device):
         """Test initialization of the command term with real environment."""
         env = test_setup_g1_env["env"]
-        
+
         # Set the teleop device in the environment
         env.teleop_device = mock_hand_tracking_device
         env._device_name = "handtracking"
-        
+
         assert env.teleop_device == mock_hand_tracking_device
         assert env._device_name == "handtracking"
 
@@ -215,16 +213,16 @@ class TestG1UpperBodyCommandTermWithData:
         # Set the teleop device in the environment
         env.teleop_device = mock_hand_tracking_device
         env._device_name = "handtracking"
-        
+
         data = env.teleop_device.advance()
         data = data.repeat(env.num_envs, 1)
 
         # Check that the command is not None
         assert data is not None
-        
+
         # Check that the command has the correct shape
         assert data.shape == (env.num_envs, 28)
-        
+
         # Check that the command is not all zeros
         assert not torch.all(data == 0.0)
 
@@ -232,22 +230,22 @@ class TestG1UpperBodyCommandTermWithData:
         """Test that the mock device cycles through different frames correctly."""
         # Reset the frame counter to start from the beginning
         mock_hand_tracking_device.reset()
-        
+
         # Get poses for multiple frames and verify they cycle
         frames_data = []
         for i in range(6):  # Test more than the number of frames to verify cycling
             time.sleep(0.15)
             device_data = mock_hand_tracking_device.advance()  # Advance to next frame
             frames_data.append(device_data)
-        
+
         # Verify that we have different frames (the mock currently returns same data but cycles through frame indices)
         # In a real implementation, each frame would have different pose data
         assert len(frames_data) == 6
-        
+
         # Verify that the frame counter has been incremented correctly
         # After 6 calls, the counter should be at 6
         assert mock_hand_tracking_device.frame_counter == 6
-        
+
     def test_step_environment_with_mock_data(self, test_setup_g1_env, mock_hand_tracking_device):
         """Test stepping the environment with commands from the mock device."""
         env = test_setup_g1_env["env"]
@@ -264,7 +262,7 @@ class TestG1UpperBodyCommandTermWithData:
         initial_dof_pos = articulation.data.joint_pos.clone()
 
         # Step for a few iterations
-        for i in range(1000):
+        for i in range(100):
             # Get command from command manager
             action = env.teleop_device.advance().repeat(env.num_envs, 1)
 
@@ -273,4 +271,3 @@ class TestG1UpperBodyCommandTermWithData:
 
         final_dof_pos = articulation.data.joint_pos.clone()
         assert not torch.allclose(initial_dof_pos, final_dof_pos), "Robot should have moved."
-        

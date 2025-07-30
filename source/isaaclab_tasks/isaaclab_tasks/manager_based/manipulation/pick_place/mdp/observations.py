@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 import torch
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
@@ -48,10 +48,7 @@ def object_obs(
     )
 
 
-def get_left_eef_pos(
-    env: ManagerBasedRLEnv,
-    link_name: str
-) -> torch.Tensor:
+def get_left_eef_pos(env: ManagerBasedRLEnv, link_name: str) -> torch.Tensor:
     body_pos_w = env.scene["robot"].data.body_pos_w
     left_eef_idx = env.scene["robot"].data.body_names.index(link_name)
     left_eef_pos = body_pos_w[:, left_eef_idx] - env.scene.env_origins
@@ -59,10 +56,7 @@ def get_left_eef_pos(
     return left_eef_pos
 
 
-def get_left_eef_quat(
-    env: ManagerBasedRLEnv,
-    link_name: str
-) -> torch.Tensor:
+def get_left_eef_quat(env: ManagerBasedRLEnv, link_name: str) -> torch.Tensor:
     body_quat_w = env.scene["robot"].data.body_quat_w
     left_eef_idx = env.scene["robot"].data.body_names.index(link_name)
     left_eef_quat = body_quat_w[:, left_eef_idx]
@@ -70,10 +64,7 @@ def get_left_eef_quat(
     return left_eef_quat
 
 
-def get_right_eef_pos(
-    env: ManagerBasedRLEnv,
-    link_name: str
-) -> torch.Tensor:
+def get_right_eef_pos(env: ManagerBasedRLEnv, link_name: str) -> torch.Tensor:
     body_pos_w = env.scene["robot"].data.body_pos_w
     right_eef_idx = env.scene["robot"].data.body_names.index(link_name)
     right_eef_pos = body_pos_w[:, right_eef_idx] - env.scene.env_origins
@@ -81,10 +72,7 @@ def get_right_eef_pos(
     return right_eef_pos
 
 
-def get_right_eef_quat(
-    env: ManagerBasedRLEnv,
-    link_name: str
-) -> torch.Tensor:
+def get_right_eef_quat(env: ManagerBasedRLEnv, link_name: str) -> torch.Tensor:
     body_quat_w = env.scene["robot"].data.body_quat_w
     right_eef_idx = env.scene["robot"].data.body_names.index(link_name)
     right_eef_quat = body_quat_w[:, right_eef_idx]
@@ -94,7 +82,7 @@ def get_right_eef_quat(
 
 def get_hand_state(
     env: ManagerBasedRLEnv,
-    hand_joint_names: List[str],
+    hand_joint_names: list[str],
 ) -> torch.Tensor:
     # hand_joint_names is a list of regex, use find_joints
     indexes, _ = env.scene["robot"].find_joints(hand_joint_names)
@@ -104,10 +92,7 @@ def get_hand_state(
     return hand_joint_states
 
 
-def get_head_state(
-    env: ManagerBasedRLEnv,
-    head_joint_names: List[str]
-) -> torch.Tensor:
+def get_head_state(env: ManagerBasedRLEnv, head_joint_names: list[str]) -> torch.Tensor:
     robot_joint_names = env.scene["robot"].data.joint_names
     indexes = torch.tensor([robot_joint_names.index(name) for name in head_joint_names], dtype=torch.long)
     head_joint_states = env.scene["robot"].data.joint_pos[:, indexes]

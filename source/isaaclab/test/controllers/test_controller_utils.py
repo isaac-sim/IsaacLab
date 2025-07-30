@@ -15,10 +15,8 @@ simulation_app = AppLauncher(headless=True).app
 import os
 
 # Import the function to test
-import sys
 import tempfile
 import torch
-from unittest.mock import patch
 
 import pytest
 
@@ -503,7 +501,7 @@ def test_regex_special_characters(test_urdf_file, mock_urdf_content):
 @pytest.fixture
 def policy_model_path():
     """Path to the test TorchScript model."""
-    return "source/isaaclab_tasks/isaaclab_tasks/manager_based/locomanipulation/data/policy/standing_g1/policy.pt"
+    return "source/isaaclab_tasks/isaaclab_tasks/manager_based/locomanipulation/policy/locomotion/agile_locomotion.pt"
 
 
 def test_load_torchscript_model_success(policy_model_path):
@@ -637,7 +635,7 @@ def test_load_torchscript_model_inference_capability(policy_model_path):
                 # Expected if input shape doesn't match model expectations
                 # This is acceptable for this test
                 pass
-    except Exception as e:
+    except Exception:
         # If model doesn't accept this input format, that's okay for this test
         # The main goal is to ensure the model loads without crashing
         pass

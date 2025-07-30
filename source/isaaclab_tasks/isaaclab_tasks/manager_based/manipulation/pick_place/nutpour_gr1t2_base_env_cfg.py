@@ -258,7 +258,10 @@ class ObservationsCfg:
         right_eef_quat = ObsTerm(func=mdp.get_right_eef_quat, params={"link_name": "right_hand_roll_link"})
 
         hand_joint_state = ObsTerm(func=mdp.get_hand_state, params={"hand_joint_names": ["R_.*", "L_.*"]})
-        head_joint_state = ObsTerm(func=mdp.get_head_state, params={"head_joint_names": ["head_pitch_joint", "head_roll_joint", "head_yaw_joint"]})
+        head_joint_state = ObsTerm(
+            func=mdp.get_head_state,
+            params={"head_joint_names": ["head_pitch_joint", "head_roll_joint", "head_yaw_joint"]},
+        )
 
         robot_pov_cam = ObsTerm(
             func=mdp.image,

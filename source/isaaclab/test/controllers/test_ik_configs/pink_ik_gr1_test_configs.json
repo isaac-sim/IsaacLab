@@ -7,18 +7,6 @@
     },
     "allowed_steps_to_settle": 100,
     "tests": {
-        "stay_still": {
-            "left_hand_pose": [
-                [-0.23, 0.28, 1.1, 0.7071, 0.0, 0.0, 0.7071],
-                [-0.23, 0.28, 1.1, 0.7071, 0.0, 0.0, 0.7071]
-            ],
-            "right_hand_pose": [
-                [0.23, 0.28, 1.1, 0.7071, 0.0, 0.0, 0.7071],
-                [0.23, 0.28, 1.1, 0.7071, 0.0, 0.0, 0.7071]
-            ],
-            "allowed_steps_per_motion": 10,
-            "repeat": 4
-        },
         "vertical_movement": {
             "left_hand_pose": [
                 [-0.23, 0.28, 1.1, 0.7071, 0.0, 0.0, 0.7071],
@@ -29,7 +17,21 @@
                 [0.23, 0.32, 1.2, 0.7071, 0.0, 0.0, 0.7071]
             ],
             "allowed_steps_per_motion": 15,
-            "repeat": 2
+            "repeat": 2,
+            "requires_waist_bending": false
+        },
+        "stay_still": {
+            "left_hand_pose": [
+                [-0.23, 0.28, 1.1, 0.7071, 0.0, 0.0, 0.7071],
+                [-0.23, 0.28, 1.1, 0.7071, 0.0, 0.0, 0.7071]
+            ],
+            "right_hand_pose": [
+                [0.23, 0.28, 1.1, 0.7071, 0.0, 0.0, 0.7071],
+                [0.23, 0.28, 1.1, 0.7071, 0.0, 0.0, 0.7071]
+            ],
+            "allowed_steps_per_motion": 10,
+            "repeat": 4,
+            "requires_waist_bending": false
         },
         "horizontal_movement": {
             "left_hand_pose": [
@@ -41,7 +43,8 @@
                 [0.13, 0.32, 1.1, 0.7071, 0.0, 0.0, 0.7071]
             ],
             "allowed_steps_per_motion": 30,
-            "repeat": 2
+            "repeat": 2,
+            "requires_waist_bending": false
         },
         "horizontal_small_movement": {
             "left_hand_pose": [
@@ -53,7 +56,8 @@
                 [0.22, 0.32, 1.1, 0.7071, 0.0, 0.0, 0.7071]
             ],
             "allowed_steps_per_motion": 15,
-            "repeat": 2
+            "repeat": 2,
+            "requires_waist_bending": false
         },
         "forward_waist_bending_movement": {
             "left_hand_pose": [
@@ -65,7 +69,8 @@
                 [0.23, 0.5, 1.05, 0.7071, 0.0, 0.0, 0.7071]
             ],
             "allowed_steps_per_motion": 70,
-            "repeat": 3
+            "repeat": 3,
+            "requires_waist_bending": true
         },
         "rotation_movements": {
             "left_hand_pose": [
@@ -81,7 +86,8 @@
                 [0.23, 0.28, 1.1, 0.7071, 0.0, 0.0, 0.7071]
             ],
             "allowed_steps_per_motion": 25,
-            "repeat": 2
+            "repeat": 2,
+            "requires_waist_bending": false
         }
     }
 }

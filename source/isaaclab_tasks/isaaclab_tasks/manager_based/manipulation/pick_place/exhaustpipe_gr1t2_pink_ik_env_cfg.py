@@ -128,8 +128,7 @@ class ExhaustPipeGR1T2PinkIKEnvCfg(ExhaustPipeGR1T2BaseEnvCfg):
                         },
                     ),
                 ],
-                fixed_input_tasks=[
-                ],
+                fixed_input_tasks=[],
             ),
         )
         # Convert USD to URDF and change revolute joints to fixed

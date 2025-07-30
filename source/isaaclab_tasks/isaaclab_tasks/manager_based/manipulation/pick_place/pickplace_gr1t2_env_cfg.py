@@ -102,8 +102,8 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
                 ],
                 effort_limit=None,
                 velocity_limit=None,
-                stiffness=4400,
-                damping=40.0,
+                stiffness=3000,
+                damping=20.0,
                 armature=0.01,
             ),
             "right-arm": ImplicitActuatorCfg(
@@ -112,8 +112,8 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
                     "right_elbow_.*",
                     "right_wrist_.*",
                 ],
-                stiffness=4400.0,
-                damping=40.0,
+                stiffness=3000.0,
+                damping=20.0,
                 armature=0.01,
             ),
             "left-arm": ImplicitActuatorCfg(
@@ -122,8 +122,8 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
                     "left_elbow_.*",
                     "left_wrist_.*",
                 ],
-                stiffness=4400.0,
-                damping=40.0,
+                stiffness=3000.0,
+                damping=20.0,
                 armature=0.01,
             ),
             "right-hand": ImplicitActuatorCfg(
@@ -238,7 +238,7 @@ class ActionsCfg:
                     cost=0.5,  # [cost] * [s] / [rad]
                 ),
                 NullSpacePostureTask(
-                    cost=0.1,
+                    cost=0.2,
                     lm_damping=1,
                     frame_task_controlled_joints={
                         "GR1T2_fourier_hand_6dof_left_hand_pitch_link": [
@@ -266,14 +266,8 @@ class ActionsCfg:
                     },
                 ),
             ],
-            fixed_input_tasks=[
-                # COMMENT OUT IF LOCKING WAIST/HEAD
-                # FrameTask(
-                #     "GR1T2_fourier_hand_6dof_head_yaw_link",
-                #     position_cost=1.0,  # [cost] / [m]
-                #     orientation_cost=0.05,  # [cost] / [rad]
-                # ),
-            ],
+            fixed_input_tasks=[],
+            hand_rotational_offset=(0.7071, 0.0, -0.7071, 0.0),
         ),
     )
 
@@ -308,9 +302,15 @@ class ObservationsCfg:
         right_eef_quat = ObsTerm(func=mdp.get_right_eef_quat, params={"link_name": "right_hand_roll_link"})
 
         hand_joint_state = ObsTerm(func=mdp.get_hand_state, params={"hand_joint_names": ["R_.*", "L_.*"]})
-        head_joint_state = ObsTerm(func=mdp.get_head_state, params={"head_joint_names": ["head_pitch_joint", "head_roll_joint", "head_yaw_joint"]})
+        head_joint_state = ObsTerm(
+            func=mdp.get_head_state,
+            params={"head_joint_names": ["head_pitch_joint", "head_roll_joint", "head_yaw_joint"]},
+        )
 
-        object = ObsTerm(func=mdp.object_obs, params={"left_eef_link_name": "left_hand_roll_link", "right_eef_link_name": "right_hand_roll_link"})
+        object = ObsTerm(
+            func=mdp.object_obs,
+            params={"left_eef_link_name": "left_hand_roll_link", "right_eef_link_name": "right_hand_roll_link"},
+        )
 
         def __post_init__(self):
             self.enable_corruption = False
@@ -330,7 +330,7 @@ class TerminationsCfg:
         func=mdp.root_height_below_minimum, params={"minimum_height": 0.5, "asset_cfg": SceneEntityCfg("object")}
     )
 
-    success = DoneTerm(func=mdp.task_done_pick_place)
+    success = DoneTerm(func=mdp.task_done_pick_place, params={"task_link_name": "right_hand_roll_link"})
 
 
 @configclass
