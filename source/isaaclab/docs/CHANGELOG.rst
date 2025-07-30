@@ -18,6 +18,7 @@ Removed
 * Removed :attr:`xxx_external_wrench_frame` flag from asset configuration classes in favor of direct argument
   passed to the :meth:`set_external_force_and_torque` function.
 
+
 0.41.2 (2025-07-28)
 ~~~~~~~~~~~~~~~~~~~~
 
