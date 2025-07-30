@@ -3,11 +3,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-# Copyright (c) 2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: Apache-2.0
-
 from isaaclab.envs.mimic_env_cfg import MimicEnvCfg, SubTaskConfig
 from isaaclab.utils import configclass
 

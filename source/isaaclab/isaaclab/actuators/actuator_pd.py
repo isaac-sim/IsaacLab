@@ -246,6 +246,12 @@ class DCMotor(IdealPDActuator):
     applied output torque will be driven to the Continuous Torque (`effort_limit`).
 
     The figure below demonstrates the clipping action for example (velocity, torque) pairs.
+
+    .. figure:: ../../_static/actuator-group/dc_motor_clipping.jpg
+        :align: center
+        :figwidth: 100%
+        :alt: The effort clipping as a function of joint velocity for a linear DC Motor.
+
     """
 
     cfg: DCMotorCfg
