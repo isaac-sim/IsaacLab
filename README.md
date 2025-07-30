@@ -46,6 +46,7 @@ Below, we outline the recent Isaac Lab releases and GitHub branches and their co
 | Isaac Lab Version             | Isaac Sim Version |
 | ----------------------------- | ----------------- |
 | `main` branch                 | Isaac Sim 4.5     |
+| `v2.1.1`                      | Isaac Sim 4.5     |
 | `v2.1.0`                      | Isaac Sim 4.5     |
 | `v2.0.2`                      | Isaac Sim 4.5     |
 | `v2.0.1`                      | Isaac Sim 4.5     |
