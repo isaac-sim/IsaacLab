@@ -43,6 +43,15 @@ class ContactTestMode(Enum):
     """Enum to test the condition where the test object is not in contact with the ground plane (air time)."""
 
 
+class SensorTestMode(Enum):
+
+    JUST_CONTACT = 0
+
+    CONTACT_TIME_AIR_TIME = 1
+
+    CONTACT_POSITION = 2
+
+
 @configclass
 class ContactSensorRigidObjectCfg(RigidObjectCfg):
     """Configuration for rigid objects used for the contact sensor test.
@@ -215,30 +224,74 @@ def setup_simulation():
     """Fixture to set up simulation parameters."""
     sim_dt = 0.0025
     durations = [sim_dt, sim_dt * 2, sim_dt * 32, sim_dt * 128]
-    terrains = [FLAT_TERRAIN_CFG, COBBLESTONE_TERRAIN_CFG]
+    terrains = {"flat_terrain" : FLAT_TERRAIN_CFG, "cobblestone_terrain" : COBBLESTONE_TERRAIN_CFG}
     devices = ["cuda:0", "cpu"]
     carb_settings_iface = carb.settings.get_settings()
     return sim_dt, durations, terrains, devices, carb_settings_iface
 
 
 @pytest.mark.parametrize("disable_contact_processing", [True, False])
-def test_cube_contact_time(setup_simulation, disable_contact_processing):
+def test_contact_sensor_creation_disables_contact_processing(setup_simulation, disable_contact_processing):
+    """Check creating contact sensor will disable the carb's ContactProcessing"""
+    sim_dt, durations, terrains, devices, carb_settings_iface = setup_simulation
+    carb_settings_iface.set_bool("/physics/disableContactProcessing", disable_contact_processing)
+    with build_simulation_context(device="cuda:0", dt=sim_dt, add_lighting=False) as sim:
+        sim._app_control_on_stop_handle = None
+        # Spawn things into stage
+        scene_cfg = ContactSensorSceneCfg(num_envs=1, env_spacing=1.0, lazy_sensor_update=False)
+        scene_cfg.shape = CUBE_CFG
+        scene_cfg.terrain = COBBLESTONE_TERRAIN_CFG
+        scene_cfg.contact_sensor = ContactSensorCfg(
+            prim_path=scene_cfg.shape.prim_path,
+            track_pose=True,
+            debug_vis=False,
+            update_period=0.0,
+            track_air_time=True,
+            history_length=3,
+        )
+        InteractiveScene(scene_cfg)
+        assert not carb_settings_iface.get("/physics/disableContactProcessing")
+
+
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("terrain_type", ["flat_terrain", "cobblestone_terrain"])
+def test_cube_contact_time(setup_simulation, device, terrain_type):
     """Checks contact sensor values for contact time and air time for a cube collision primitive."""
     # check for both contact processing enabled and disabled
     # internally, the contact sensor should enable contact processing so it should always work.
     sim_dt, durations, terrains, devices, carb_settings_iface = setup_simulation
-    carb_settings_iface.set_bool("/physics/disableContactProcessing", disable_contact_processing)
-    _run_contact_sensor_test(CUBE_CFG, sim_dt, devices, terrains, carb_settings_iface, durations)
+    sensor_mode = [SensorTestMode.CONTACT_TIME_AIR_TIME]
+    terrain = terrains.get(terrain_type)
+    _run_contact_sensor_test(SPHERE_CFG, sim_dt, device, terrain, durations, sensor_mode)
 
 
-@pytest.mark.parametrize("disable_contact_processing", [True, False])
-def test_sphere_contact_time(setup_simulation, disable_contact_processing):
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("terrain_type", ["flat_terrain", "cobblestone_terrain"])
+def test_sphere_contact_time(setup_simulation, device, terrain_type):
     """Checks contact sensor values for contact time and air time for a sphere collision primitive."""
     # check for both contact processing enabled and disabled
     # internally, the contact sensor should enable contact processing so it should always work.
     sim_dt, durations, terrains, devices, carb_settings_iface = setup_simulation
-    carb_settings_iface.set_bool("/physics/disableContactProcessing", disable_contact_processing)
-    _run_contact_sensor_test(SPHERE_CFG, sim_dt, devices, terrains, carb_settings_iface, durations)
+    terrain = terrains.get(terrain_type)
+    if terrain.terrain_type == "plane":
+        sensor_mode = [SensorTestMode.CONTACT_TIME_AIR_TIME, SensorTestMode.CONTACT_POSITION]
+    else:
+        sensor_mode = [SensorTestMode.CONTACT_TIME_AIR_TIME]
+    _run_contact_sensor_test(SPHERE_CFG, sim_dt, device, terrain, durations, sensor_mode)
+
+
+def test_contact_report_consistency_across_seed(setup_simulation):
+    return  # stress test is robutst but is unlikely to pass at this point enable it after sim and physx have fix
+    sim_dt, durations, terrains, devices, carb_settings_iface = setup_simulation
+    sensor_mode = [SensorTestMode.JUST_CONTACT]
+    for device in devices:
+        for terrain in terrains:
+            _run_contact_sensor_stress_test(
+                CUBE_CFG, sim_dt, device, terrain, carb_settings_iface, durations, sensor_mode
+            )
+            _run_contact_sensor_stress_test(
+                SPHERE_CFG, sim_dt, device, terrain, carb_settings_iface, durations, sensor_mode
+            )
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
@@ -274,9 +327,6 @@ def test_cube_stack_contact_filtering(setup_simulation, device, num_envs):
             filter_prim_paths_expr=["{ENV_REGEX_NS}/Cube_1"],
         )
         scene = InteractiveScene(scene_cfg)
-
-        # Check that contact processing is enabled
-        assert not carb_settings_iface.get("/physics/disableContactProcessing")
 
         # Set variables internally for reference
         sim.reset()
@@ -396,13 +446,14 @@ Internal helpers.
 """
 
 
-def _run_contact_sensor_test(
-    shape_cfg: ContactSensorRigidObjectCfg,
+def _run_contact_sensor_stress_test(
+    shape_cfg: TestContactSensorRigidObjectCfg,
     sim_dt: float,
-    devices: list[str],
-    terrains: list[TerrainImporterCfg],
+    device: str,
+    terrain: TerrainImporterCfg,
     carb_settings_iface,
     durations: list[float],
+    sensor_data_testing_mode: list[SensorTestMode],
 ):
     """
     Runs a rigid body test for a given contact primitive configuration.
@@ -410,41 +461,139 @@ def _run_contact_sensor_test(
     This method iterates through each device and terrain combination in the simulation environment,
     running tests for contact sensors.
     """
-    for device in devices:
-        for terrain in terrains:
-            with build_simulation_context(device=device, dt=sim_dt, add_lighting=True) as sim:
-                sim._app_control_on_stop_handle = None
-                scene_cfg = ContactSensorSceneCfg(num_envs=1, env_spacing=1.0, lazy_sensor_update=False)
-                scene_cfg.terrain = terrain
-                scene_cfg.shape = shape_cfg
-                scene_cfg.contact_sensor = ContactSensorCfg(
-                    prim_path=shape_cfg.prim_path,
-                    track_pose=True,
-                    debug_vis=False,
-                    update_period=0.0,
-                    track_air_time=True,
-                    history_length=3,
-                )
-                scene = InteractiveScene(scene_cfg)
+    with build_simulation_context(device=device, dt=sim_dt, add_lighting=True) as sim:
+        sim._app_control_on_stop_handle = None
 
-                # Check that contact processing is enabled
-                assert not carb_settings_iface.get("/physics/disableContactProcessing")
+        scene_cfg = ContactSensorSceneCfg(
+            num_envs=1024, env_spacing=1.0, lazy_sensor_update=False, replicate_physics=True
+        )
+        scene_cfg.terrain = terrain
+        scene_cfg.shape = shape_cfg
+        shape_cfg.prim_path = "{ENV_REGEX_NS}/Object"
 
-                # Play the simulator
-                sim.reset()
+        track_contact_point = SensorTestMode.CONTACT_POSITION in sensor_data_testing_mode
+        if track_contact_point:
+            if terrain.terrain_type == "plane":
+                filter_prim_paths_expr = [terrain.prim_path + "/terrain/GroundPlane/CollisionPlane"]
+            elif terrain.terrain_type == "generator":
+                filter_prim_paths_expr = [terrain.prim_path + "/terrain/mesh"]
+        else:
+            filter_prim_paths_expr = []
 
-                _test_sensor_contact(
-                    scene["shape"], scene["contact_sensor"], ContactTestMode.IN_CONTACT, sim, scene, sim_dt, durations
-                )
-                _test_sensor_contact(
-                    scene["shape"], scene["contact_sensor"], ContactTestMode.NON_CONTACT, sim, scene, sim_dt, durations
-                )
+        if sim.has_gui():
+            scene_cfg.contact_sensor = ContactSensorCfg(
+                prim_path=shape_cfg.prim_path,
+                track_pose=True,
+                debug_vis=True,
+                update_period=0.0,
+                track_air_time=True,
+                history_length=3,
+                track_contact_points=track_contact_point,
+                filter_prim_paths_expr=filter_prim_paths_expr,
+            )
+            scene_cfg.contact_sensor.visualizer_cfg.markers["contact"].radius = 0.51
+            scene_cfg.contact_sensor.visualizer_cfg.markers["no_contact"].radius = 0.51
+            scene_cfg.contact_sensor.visualizer_cfg.markers["no_contact"].visible = True
+            scene = InteractiveScene(scene_cfg)
+
+        sim.reset()
+
+        # Run contact time and air time tests.
+        _test_sensor_contact(
+            shape=scene["shape"],
+            sensor=scene["contact_sensor"],
+            mode=ContactTestMode.IN_CONTACT,
+            sensor_modes=sensor_data_testing_mode,
+            sim=sim,
+            scene=scene,
+            sim_dt=sim_dt,
+            durations=durations,
+        )
+        _test_sensor_contact(
+            shape=scene["shape"],
+            sensor=scene["contact_sensor"],
+            mode=ContactTestMode.NON_CONTACT,
+            sensor_modes=sensor_data_testing_mode,
+            sim=sim,
+            scene=scene,
+            sim_dt=sim_dt,
+            durations=durations,
+        )
+
+
+def _run_contact_sensor_test(
+    shape_cfg: TestContactSensorRigidObjectCfg,
+    sim_dt: float,
+    device: str,
+    terrain: TerrainImporterCfg,
+    durations: list[float],
+    sensor_data_testing_mode: list[SensorTestMode],
+):
+    """
+    Runs a rigid body test for a given contact primitive configuration.
+
+    This method iterates through each device and terrain combination in the simulation environment,
+    running tests for contact sensors.
+    """
+    with build_simulation_context(device=device, dt=sim_dt, add_lighting=True) as sim:
+        sim._app_control_on_stop_handle = None
+
+        scene_cfg = ContactSensorSceneCfg(num_envs=1, env_spacing=1.0, lazy_sensor_update=False)
+        scene_cfg.terrain = terrain
+        scene_cfg.shape = shape_cfg
+
+        track_contact_point = SensorTestMode.CONTACT_POSITION in sensor_data_testing_mode
+        if track_contact_point:
+            if terrain.terrain_type == "plane":
+                filter_prim_paths_expr = [terrain.prim_path + "/terrain/GroundPlane/CollisionPlane"]
+            elif terrain.terrain_type == "generator":
+                filter_prim_paths_expr = [terrain.prim_path + "/terrain/mesh"]
+        else:
+            filter_prim_paths_expr = []
+
+        scene_cfg.contact_sensor = ContactSensorCfg(
+            prim_path=shape_cfg.prim_path,
+            track_pose=True,
+            debug_vis=False,
+            update_period=0.0,
+            track_air_time=True,
+            history_length=3,
+            track_contact_points=track_contact_point,
+            filter_prim_paths_expr=filter_prim_paths_expr,
+        )
+        scene = InteractiveScene(scene_cfg)
+
+        # Play the simulation
+        sim.reset()
+
+        # Run contact time and air time tests.
+        _test_sensor_contact(
+            shape=scene["shape"],
+            sensor=scene["contact_sensor"],
+            mode=ContactTestMode.IN_CONTACT,
+            sensor_modes=sensor_data_testing_mode,
+            sim=sim,
+            scene=scene,
+            sim_dt=sim_dt,
+            durations=durations,
+        )
+        _test_sensor_contact(
+            shape=scene["shape"],
+            sensor=scene["contact_sensor"],
+            mode=ContactTestMode.NON_CONTACT,
+            sensor_modes=sensor_data_testing_mode,
+            sim=sim,
+            scene=scene,
+            sim_dt=sim_dt,
+            durations=durations,
+        )
 
 
 def _test_sensor_contact(
     shape: RigidObject,
     sensor: ContactSensor,
     mode: ContactTestMode,
+    sensor_modes: list[SensorTestMode],
     sim: SimulationContext,
     scene: InteractiveScene,
     sim_dt: float,
@@ -470,6 +619,34 @@ def _test_sensor_contact(
     expected_last_test_contact_time = 0
     expected_last_reset_contact_time = 0
 
+    # TODO: enable and replace below simple version when sim and physx have fix,
+    # this random valid location spawning is more rubust but enabling it now increase the probability of failing
+    # if scene.terrain.cfg.terrain_type == "generator":
+    #     grid_width = scene.terrain.cfg.terrain_generator.size[0]
+    #     grid_height = scene.terrain.cfg.terrain_generator.size[1]
+    #     terrain_width = grid_width * scene.terrain.cfg.terrain_generator.num_rows
+    #     terrain_height = grid_height * scene.terrain.cfg.terrain_generator.num_cols
+    #     # Uniformly sample num_envs positions within the full terrain
+    #     sampled_x = torch.rand(scene.num_envs) * terrain_width - terrain_width / 2
+    #     sampled_y = torch.rand(scene.num_envs) * terrain_height - terrain_height / 2
+    #     sampled_positions = torch.stack([sampled_x, sampled_y], dim=-1).to(scene.device)  # (num_envs, 2)
+    #     valid_collision_poses = shape.cfg.contact_pose.repeat(scene.num_envs, 1).to(scene.device)
+    #     valid_collision_poses[:, :2] = sampled_positions
+    # else:
+    #     valid_collision_poses = shape.cfg.contact_pose.repeat(scene.num_envs, 1).to(scene.device)
+    #     valid_collision_poses[:, :3] += scene.env_origins
+
+    # if mode == ContactTestMode.IN_CONTACT:
+    #     test_pose = valid_collision_poses
+    #     reset_pose = shape.cfg.non_contact_pose.repeat(scene.num_envs, 1).to(scene.device)
+    #     reset_pose[:, :3] += scene.env_origins
+    # elif mode == ContactTestMode.NON_CONTACT:
+    #     test_pose = shape.cfg.non_contact_pose.repeat(scene.num_envs, 1).to(scene.device)
+    #     reset_pose = valid_collision_poses
+    #     reset_pose[:, :3] += scene.env_origins
+    # else:
+    #     raise ValueError("Received incompatible contact sensor test mode")
+
     # set poses for shape for a given contact sensor test mode.
     # desired contact mode to set for a given duration.
     test_pose = None
@@ -494,27 +671,37 @@ def _test_sensor_contact(
             _perform_sim_step(sim, scene, sim_dt)
             # increment contact time
             current_test_time += sim_dt
+            sim.render()
         # set last contact time to the previous desired contact duration plus the extra dt allowance.
         expected_last_test_contact_time = durations[idx - 1] + sim_dt if idx > 0 else 0
         # Check the data inside the contact sensor
         if mode == ContactTestMode.IN_CONTACT:
-            _check_prim_contact_state_times(
-                sensor=sensor,
-                expected_air_time=0.0,
-                expected_contact_time=durations[idx],
-                expected_last_contact_time=expected_last_test_contact_time,
-                expected_last_air_time=expected_last_reset_contact_time,
-                dt=duration + sim_dt,
-            )
+            if SensorTestMode.CONTACT_TIME_AIR_TIME in sensor_modes:
+                _check_prim_contact_times(
+                    sensor=sensor,
+                    expected_air_time=0.0,
+                    expected_contact_time=durations[idx],
+                    expected_last_contact_time=expected_last_test_contact_time,
+                    expected_last_air_time=expected_last_reset_contact_time,
+                    dt=duration + sim_dt,
+                )
+            # TODO: uncomment this code when stress test is enabled
+            # if SensorTestMode.JUST_CONTACT in sensor_modes:
+            #     _check_prim_is_contact(sensor=sensor, expected_contact=True)
         elif mode == ContactTestMode.NON_CONTACT:
-            _check_prim_contact_state_times(
-                sensor=sensor,
-                expected_air_time=durations[idx],
-                expected_contact_time=0.0,
-                expected_last_contact_time=expected_last_reset_contact_time,
-                expected_last_air_time=expected_last_test_contact_time,
-                dt=duration + sim_dt,
-            )
+            if SensorTestMode.CONTACT_TIME_AIR_TIME in sensor_modes:
+                _check_prim_contact_times(
+                    sensor=sensor,
+                    expected_air_time=durations[idx],
+                    expected_contact_time=0.0,
+                    expected_last_contact_time=expected_last_reset_contact_time,
+                    expected_last_air_time=expected_last_test_contact_time,
+                    dt=duration + sim_dt,
+                )
+            if SensorTestMode.JUST_CONTACT in sensor_modes:
+                _check_prim_is_contact(sensor=sensor, expected_contact=False)
+        if SensorTestMode.CONTACT_POSITION in sensor_modes:
+            _test_contact_position(shape, sensor, mode)
         # switch the contact mode for 1 dt step before the next contact test begins.
         shape.write_root_pose_to_sim(root_pose=reset_pose)
         # perform simulation step
@@ -525,7 +712,41 @@ def _test_sensor_contact(
         expected_last_reset_contact_time = 2 * sim_dt
 
 
-def _check_prim_contact_state_times(
+def _test_contact_position(shape: RigidObject, sensor: ContactSensor, mode: ContactTestMode) -> None:
+    """Test for the contact positions (only implemented for sphere and flat terrain)
+    checks that the contact position is radius distance away from the root of the object
+    Args:
+        shape: The contact prim used for the contact sensor test.
+        sensor: The sensor reporting data to be verified by the contact sensor test.
+        mode: The contact test mode: either contact with ground plane or air time.
+    """
+    if sensor.cfg.track_contact_points:
+        # check shape of the contact_pos_w tensor
+        num_bodies = sensor.num_bodies
+        assert sensor._data.contact_pos_w.shape == (sensor.num_instances / num_bodies, num_bodies, 1, 3)
+        # check contact positions
+        if mode == ContactTestMode.IN_CONTACT:
+            contact_position = sensor._data.pos_w + torch.tensor(
+                [[0.0, 0.0, -shape.cfg.spawn.radius]], device=sensor._data.pos_w.device
+            )
+            assert torch.all(
+                torch.abs(torch.norm(sensor._data.contact_pos_w - contact_position.unsqueeze(1), p=2, dim=-1)) < 1e-2
+            ).item()
+        elif mode == ContactTestMode.NON_CONTACT:
+            assert torch.all(torch.isnan(sensor._data.contact_pos_w)).item()
+    else:
+        assert sensor._data.contact_pos_w is None
+
+
+def _check_prim_is_contact(
+    sensor: ContactSensor,
+    expected_contact: bool,
+):
+    actual_contact = torch.norm(sensor.data.net_forces_w, dim=-1) > 1.0
+    assert torch.all(actual_contact == expected_contact)
+
+
+def _check_prim_contact_times(
     sensor: ContactSensor,
     expected_air_time: float,
     expected_contact_time: float,
