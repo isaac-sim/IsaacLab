@@ -51,20 +51,6 @@ To learn about how to set up your own project on top of Isaac Lab, see :ref:`tem
                   env_isaaclab\Scripts\activate
 
 
--  Next, install a CUDA-enabled PyTorch 2.7.0 build for CUDA 12.8.
-
-   .. code-block:: bash
-
-      pip install torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
-
-
--  If using rl_games for training and inferencing, install the following python 3.11 enabled rl_games fork.
-
-   .. code-block:: bash
-
-      pip install git+https://github.com/kellyguo11/rl_games.git@python3.11
-
-
 -  Before installing Isaac Lab, ensure the latest pip version is installed. To update pip, run
 
    .. tab-set::
@@ -83,6 +69,20 @@ To learn about how to set up your own project on top of Isaac Lab, see :ref:`tem
          .. code-block:: batch
 
             python -m pip install --upgrade pip
+
+
+-  Next, install a CUDA-enabled PyTorch 2.7.0 build for CUDA 12.8.
+
+   .. code-block:: bash
+
+      pip install torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
+
+
+-  If using rl_games for training and inferencing, install the following python 3.11 enabled rl_games fork.
+
+   .. code-block:: bash
+
+      pip install git+https://github.com/isaac-sim/rl_games.git@python3.11
 
 -  Then, install the Isaac Lab packages, this will also install Isaac Sim.
 
