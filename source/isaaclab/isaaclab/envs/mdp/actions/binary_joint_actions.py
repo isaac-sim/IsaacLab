@@ -13,6 +13,7 @@ import omni.log
 
 import isaaclab.utils.string as string_utils
 from isaaclab.assets.articulation import Articulation
+from isaaclab.assets.surface_gripper import SurfaceGripper
 from isaaclab.managers.action_manager import ActionTerm
 
 if TYPE_CHECKING:
@@ -154,3 +155,110 @@ class BinaryJointVelocityAction(BinaryJointAction):
 
     def apply_actions(self):
         self._asset.set_joint_velocity_target(self._processed_actions, joint_ids=self._joint_ids)
+
+
+class SurfaceGripperAction(ActionTerm):
+    """Base class for surface gripper actions.
+
+    This action term maps a binary action to the *open* or *close* surface gripper configurations.
+    The surface gripper behavior is as follows:
+    - [-1, -0.3] --> Gripper is Opening
+    - [-0.3, 0.3] --> Gripper is Idle (do nothing)
+    - [0.3, 1] --> Gripper is Closing
+
+    Based on above, we follow the following convention for the binary action:
+
+    1. Open action: 1 (bool) or positive values (float).
+    2. Close action: 0 (bool) or negative values (float).
+
+    The action term is specifically designed for surface grippers, which use a different
+    interface than joint-based grippers.
+    """
+
+    cfg: actions_cfg.SurfaceGripperActionCfg
+    """The configuration of the action term."""
+    _asset: SurfaceGripper
+    """The surface gripper asset on which the action term is applied."""
+
+    def __init__(self, cfg: actions_cfg.SurfaceGripperActionCfg, env: ManagerBasedEnv) -> None:
+        # initialize the action term
+        super().__init__(cfg, env)
+
+        # log the resolved asset name for debugging
+        omni.log.info(
+            f"Resolved surface gripper asset for the action term {self.__class__.__name__}: {self.cfg.asset_name}"
+        )
+
+        # create tensors for raw and processed actions
+        self._raw_actions = torch.zeros(self.num_envs, 1, device=self.device)
+        self._processed_actions = torch.zeros(self.num_envs, 1, device=self.device)
+
+        # parse open command
+        self._open_command = torch.tensor(self.cfg.open_command, device=self.device)
+        # parse close command
+        self._close_command = torch.tensor(self.cfg.close_command, device=self.device)
+
+    """
+    Properties.
+    """
+
+    @property
+    def action_dim(self) -> int:
+        return 1
+
+    @property
+    def raw_actions(self) -> torch.Tensor:
+        return self._raw_actions
+
+    @property
+    def processed_actions(self) -> torch.Tensor:
+        return self._processed_actions
+
+    """
+    Operations.
+    """
+
+    def process_actions(self, actions: torch.Tensor):
+        # store the raw actions
+        self._raw_actions[:] = actions
+        # compute the binary mask
+        if actions.dtype == torch.bool:
+            # true: close, false: open
+            binary_mask = actions == 0
+        else:
+            # true: close, false: open
+            binary_mask = actions < 0
+        # compute the command
+        self._processed_actions = torch.where(binary_mask, self._close_command, self._open_command)
+
+    def apply_actions(self):
+        """Apply the processed actions to the surface gripper."""
+        self._asset.set_grippers_command(self._processed_actions)
+        self._asset.write_data_to_sim()
+
+    def reset(self, env_ids: Sequence[int] | None = None) -> None:
+        if env_ids is None:
+            self._raw_actions[:] = 0.0
+        else:
+            self._raw_actions[env_ids] = 0.0
+
+
+class SurfaceGripperBinaryAction(SurfaceGripperAction):
+    """Surface gripper action that maps binary actions to open/close commands."""
+
+    cfg: actions_cfg.SurfaceGripperBinaryActionCfg
+    """The configuration of the action term."""
+
+
+class SurfaceGripperContinuousAction(SurfaceGripperAction):
+    """Surface gripper action that maps continuous actions to gripper commands."""
+
+    cfg: actions_cfg.SurfaceGripperContinuousActionCfg
+    """The configuration of the action term."""
+
+    def process_actions(self, actions: torch.Tensor):
+        # store the raw actions
+        self._raw_actions[:] = actions
+        # For continuous actions, we directly use the input values
+        # but clamp them to the valid range [-1, 1]
+        self._processed_actions = torch.clamp(actions, min=-1.0, max=1.0)
