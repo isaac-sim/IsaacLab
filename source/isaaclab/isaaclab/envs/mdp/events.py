@@ -35,6 +35,30 @@ if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
 
 
+def _validate_scale_range(
+    params: tuple[float, float] | None,
+    name: str,
+    *,
+    allow_negative: bool = False,
+    allow_zero: bool = True,
+) -> None:
+    """Sanity–check (low, high) tuples used with `operation=="scale"`.
+
+    * `low` < 0         → ValueError  (unless `allow_negative=True`)
+    * `high` < `low`    → ValueError
+    """
+    if params is None:  # caller didn’t request randomisation for this field
+        return
+    low, high = params
+
+    if not allow_negative and not allow_zero and low <= 0:
+        raise ValueError(f"{name}: lower bound must be > 0 when using the 'scale' operation (got {low}).")
+    if not allow_negative and allow_zero and low < 0:
+        raise ValueError(f"{name}: lower bound must be ≥ 0 when using the 'scale' operation (got {low}).")
+    if high < low:
+        raise ValueError(f"{name}: upper bound ({high}) must be ≥ lower bound ({low}).")
+
+
 def randomize_rigid_body_scale(
     env: ManagerBasedEnv,
     env_ids: torch.Tensor | None,
@@ -299,6 +323,10 @@ def randomize_rigid_body_mass(
         This function uses CPU tensors to assign the body masses. It is recommended to use this function
         only during the initialization of the environment.
     """
+    # check for valid operation
+    if operation == "scale":
+        _validate_scale_range(mass_distribution_params, "mass_distribution_params", allow_zero=False)
+
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject | Articulation = env.scene[asset_cfg.name]
 
@@ -513,6 +541,11 @@ def randomize_actuator_gains(
         For implicit actuators, this function uses CPU tensors to assign the actuator gains into the simulation.
         In such cases, it is recommended to use this function only during the initialization of the environment.
     """
+    # Check for valid operation
+    if operation == "scale":
+        _validate_scale_range(stiffness_distribution_params, "stiffness_distribution_params", allow_zero=False)
+        _validate_scale_range(damping_distribution_params, "damping_distribution_params")
+
     # Extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
 
@@ -590,6 +623,11 @@ def randomize_joint_parameters(
         This function uses CPU tensors to assign the joint properties. It is recommended to use this function
         only during the initialization of the environment.
     """
+    # check for valid operation
+    if operation == "scale":
+        _validate_scale_range(friction_distribution_params, "friction_distribution_params")
+        _validate_scale_range(armature_distribution_params, "armature_distribution_params")
+
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
 
@@ -691,6 +729,14 @@ def randomize_fixed_tendon_parameters(
     particular property, the function does not modify the property.
 
     """
+    # check for valid operation
+    if operation == "scale":
+        _validate_scale_range(stiffness_distribution_params, "stiffness_distribution_params", allow_zero=False)
+        _validate_scale_range(damping_distribution_params, "damping_distribution_params")
+        _validate_scale_range(
+            limit_stiffness_distribution_params, "limit_stiffness_distribution_params", allow_zero=False
+        )
+
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
 
