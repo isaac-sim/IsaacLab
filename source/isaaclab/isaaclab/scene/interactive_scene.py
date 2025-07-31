@@ -649,6 +649,10 @@ class InteractiveScene:
             # resolve regex
             if hasattr(asset_cfg, "prim_path"):
                 asset_cfg.prim_path = asset_cfg.prim_path.format(ENV_REGEX_NS=self.env_regex_ns)
+            if hasattr(asset_cfg, "mesh_prim_paths"):
+                asset_cfg.mesh_prim_paths = [
+                    path.format(ENV_REGEX_NS=self.env_regex_ns) for path in asset_cfg.mesh_prim_paths
+                ]
             # create asset
             if isinstance(asset_cfg, TerrainImporterCfg):
                 # terrains are special entities since they define environment origins
