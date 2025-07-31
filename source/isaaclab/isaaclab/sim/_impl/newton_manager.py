@@ -8,6 +8,7 @@ import re
 import newton.sim.articulation
 import newton.utils
 import usdrt
+from newton.solvers import MuJoCoSolver, XPBDSolver, FeatherstoneSolver, SolverBase
 import warp as wp
 from isaacsim.core.utils.stage import get_current_stage
 from newton import Control, Model, State
@@ -29,7 +30,6 @@ def flipped_match(x: str, y: str) -> re.Match | None:
         The match object if the body/shape name is found in the contact view, otherwise None.
     """
     return re.match(y, x)
-
 
 @wp.kernel(enable_backward=False)
 def set_vec3d_array(
@@ -133,7 +133,12 @@ class NewtonManager:
                 xformable_prim.SetWorldXformFromUsd()
 
     @classmethod
+    def set_solver_settings(cls, newton_params: dict):
+        NewtonManager._solver_cfg = newton_params
+
+    @classmethod
     def initialize_solver(cls):
+        
         """Initializes the solver.
 
         This function initializes the solver based on the specified solver type. Currently, only XPBD and MuJoCoWarp
@@ -145,21 +150,7 @@ class NewtonManager:
             simulation once to capture the graph. Hence, this function should only be called after everything else in
             the simulation is initialized.
         """
-        if NewtonManager._solver_type == "xpbd":
-            NewtonManager._solver = newton.solvers.XPBDSolver(NewtonManager._model, iterations=20)
-        elif NewtonManager._solver_type == "mjwarp":
-            NewtonManager._solver = newton.solvers.MuJoCoSolver(
-                NewtonManager._model,
-                solver="newton",
-                ls_iterations=50,
-                iterations=100,
-                ncon_per_env=300,
-                contact_stiffness_time_const=0.01,
-                impratio=100,
-                cone="elliptic",
-            )
-        else:
-            raise ValueError(f"Unknown solver type: {NewtonManager._solver_type}")
+        NewtonManager._solver = NewtonManager._get_solver(NewtonManager._model, NewtonManager._solver_cfg)
 
         NewtonManager._use_cuda_graph = wp.get_device().is_cuda
         if NewtonManager._use_cuda_graph:
@@ -316,6 +307,18 @@ class NewtonManager:
             selection.articulation_mask,
         )
 
+    @classmethod
+    def _get_solver(cls, model: Model, solver_cfg: dict) -> SolverBase:
+        solver_type = solver_cfg.pop("solver_type")
+        if solver_type == "mujoco_warp":
+            return MuJoCoSolver(model, **solver_cfg)
+        elif solver_type == "xpbd":
+            return XPBDSolver(model, **solver_cfg)
+        elif solver_type == "featherstone":
+            return FeatherstoneSolver(model, **solver_cfg)
+        else:
+            raise ValueError(f"Invalid solver type: {solver_type}")
+        
     @classmethod
     def add_contact_view(
         cls,

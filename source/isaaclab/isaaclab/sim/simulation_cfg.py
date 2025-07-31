@@ -12,7 +12,7 @@ configuring the environment instances, viewer settings, and simulation parameter
 from typing import Literal
 
 from isaaclab.utils import configclass
-
+from ._impl.solvers_cfg import NewtonSolverCfg, MJWarpSolverCfg
 from .spawners.materials import RigidBodyMaterialCfg
 
 
@@ -327,6 +327,9 @@ class SimulationCfg:
 
     physx: PhysxCfg = PhysxCfg()
     """PhysX solver settings. Default is PhysxCfg()."""
+
+    newton_solver: NewtonSolverCfg = MJWarpSolverCfg()
+    """Newton solver settings. Default is NewtonCfg()."""
 
     physics_material: RigidBodyMaterialCfg = RigidBodyMaterialCfg()
     """Default physics material settings for rigid bodies. Default is RigidBodyMaterialCfg().
