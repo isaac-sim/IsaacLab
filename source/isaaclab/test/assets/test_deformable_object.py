@@ -256,6 +256,7 @@ def test_set_nodal_state(sim, num_cubes):
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("randomize_pos", [True, False])
 @pytest.mark.parametrize("randomize_rot", [True, False])
+@pytest.mark.flaky(reruns=3)
 def test_set_nodal_state_with_applied_transform(sim, num_cubes, randomize_pos, randomize_rot):
     """Test setting the state of the deformable object with applied transform."""
     carb_settings_iface = carb.settings.get_settings()

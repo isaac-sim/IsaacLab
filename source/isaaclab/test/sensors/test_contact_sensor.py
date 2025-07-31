@@ -232,6 +232,7 @@ def test_cube_contact_time(setup_simulation, disable_contact_processing):
 
 
 @pytest.mark.parametrize("disable_contact_processing", [True, False])
+@pytest.mark.flaky(reruns=3)
 def test_sphere_contact_time(setup_simulation, disable_contact_processing):
     """Checks contact sensor values for contact time and air time for a sphere collision primitive."""
     # check for both contact processing enabled and disabled

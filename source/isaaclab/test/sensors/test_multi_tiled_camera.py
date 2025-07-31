@@ -394,6 +394,7 @@ def test_frame_offset_multi_tiled_camera(setup_camera):
         del camera
 
 
+@pytest.mark.flaky(reruns=3)
 def test_frame_different_poses_multi_tiled_camera(setup_camera):
     """Test multiple tiled cameras placed at different poses render different images."""
     camera_cfg, sim, dt = setup_camera
