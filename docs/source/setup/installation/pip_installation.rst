@@ -76,21 +76,11 @@ If you encounter any issues, please report them to the
                   env_isaaclab\Scripts\activate
 
 
--  Next, install a CUDA-enabled PyTorch 2.5.1 build based on the CUDA version available on your system. This step is optional for Linux, but required for Windows to ensure a CUDA-compatible version of PyTorch is installed.
+-  Next, install a CUDA-enabled PyTorch 2.7.0 build. This step is optional for Linux, but required for Windows to ensure a CUDA-compatible version of PyTorch is installed.
 
-   .. tab-set::
+   .. code-block:: bash
 
-      .. tab-item:: CUDA 11
-
-         .. code-block:: bash
-
-            pip install torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/cu118
-
-      .. tab-item:: CUDA 12
-
-         .. code-block:: bash
-
-            pip install torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/cu121
+      pip install torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
 
 -  Before installing Isaac Sim, ensure the latest pip version is installed. To update pip, run
 
@@ -219,7 +209,7 @@ Clone the Isaac Lab repository into your workspace:
                -f, --format         Run pre-commit to format the code and check lints.
                -p, --python         Run the python executable provided by Isaac Sim or virtual environment (if active).
                -s, --sim            Run the simulator executable (isaac-sim.sh) provided by Isaac Sim.
-               -t, --test           Run all python unittest tests.
+               -t, --test           Run all python pytest tests.
                -o, --docker         Run the docker container helper script (docker/container.sh).
                -v, --vscode         Generate the VSCode settings file from template.
                -d, --docs           Build the documentation from source using sphinx.
@@ -241,7 +231,7 @@ Clone the Isaac Lab repository into your workspace:
                -f, --format         Run pre-commit to format the code and check lints.
                -p, --python         Run the python executable provided by Isaac Sim or virtual environment (if active).
                -s, --sim            Run the simulator executable (isaac-sim.bat) provided by Isaac Sim.
-               -t, --test           Run all python unittest tests.
+               -t, --test           Run all python pytest tests.
                -v, --vscode         Generate the VSCode settings file from template.
                -d, --docs           Build the documentation from source using sphinx.
                -n, --new            Create a new external project or internal task from template.
@@ -300,13 +290,6 @@ Installation
 
    The valid options are ``rl_games``, ``rsl_rl``, ``sb3``, ``skrl``, ``robomimic``, ``none``.
 
-.. attention::
-
-   For 50 series GPUs, please use the latest PyTorch nightly build instead of PyTorch 2.5.1, which comes with Isaac Sim:
-
-   .. code:: bash
-
-      pip install --upgrade --pre torch torchvision --index-url https://download.pytorch.org/whl/nightly/cu128
 
 Verifying the Isaac Lab installation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

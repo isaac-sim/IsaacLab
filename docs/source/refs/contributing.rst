@@ -416,7 +416,7 @@ We summarize the key points below:
 Unit Testing
 ^^^^^^^^^^^^
 
-We use `unittest <https://docs.python.org/3/library/unittest.html>`__ for unit testing.
+We use `pytest <https://docs.pytest.org>`__ for unit testing.
 Good tests not only cover the basic functionality of the code but also the edge cases.
 They should be able to catch regressions and ensure that the code is working as expected.
 Please make sure that you add tests for your changes.
