@@ -121,3 +121,9 @@ class ManagerBasedEnvCfg:
 
     xr: XrCfg | None = None
     """Configuration for viewing and interacting with the environment through an XR device."""
+
+    export_io_descriptors: bool = False
+    """Whether to export the IO descriptors for the environment. Defaults to False."""
+
+    io_descriptors_output_dir: str | None = None
+    """The directory to export the IO descriptors to. Defaults to None."""
