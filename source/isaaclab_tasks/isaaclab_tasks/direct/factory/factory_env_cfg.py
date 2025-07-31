@@ -164,6 +164,7 @@ class FactoryEnvCfg(DirectRLEnvCfg):
                 friction=0.0,
                 armature=0.0,
                 effort_limit_sim=87,
+                velocity_limit_sim=124.6,
             ),
             "panda_arm2": ImplicitActuatorCfg(
                 joint_names_expr=["panda_joint[5-7]"],
@@ -172,10 +173,12 @@ class FactoryEnvCfg(DirectRLEnvCfg):
                 friction=0.0,
                 armature=0.0,
                 effort_limit_sim=12,
+                velocity_limit_sim=149.5,
             ),
             "panda_hand": ImplicitActuatorCfg(
                 joint_names_expr=["panda_finger_joint[1-2]"],
                 effort_limit_sim=40.0,
+                velocity_limit_sim=0.04,
                 stiffness=7500.0,
                 damping=173.0,
                 friction=0.1,
