@@ -68,7 +68,7 @@ from isaaclab.envs import ManagerBasedRLMimicEnv
 from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
 from isaaclab.managers import RecorderTerm, RecorderTermCfg, TerminationTermCfg
 from isaaclab.utils import configclass
-from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
+from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler, LeRobotDatasetFileHandler
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
@@ -156,6 +156,13 @@ def main():
     dataset_file_handler.open(args_cli.input_file)
     env_name = dataset_file_handler.get_env_name()
     episode_count = dataset_file_handler.get_num_episodes()
+     # Configure dataset format based on file extension
+    use_lerobot_format = args_cli.output_file.endswith('.lerobot')
+    
+    if use_lerobot_format:
+        print(f"Recording dataset in LeRobot format: {args_cli.output_file}")
+    else:
+        print(f"Recording dataset in HDF5 format: {args_cli.dataset_file}")
 
     if episode_count == 0:
         print("No episodes found in the dataset.")
@@ -188,11 +195,31 @@ def main():
     # Disable all termination terms
     env_cfg.terminations = None
 
+    # Store existing LeRobot configuration if present
+    existing_observation_keys = getattr(env_cfg.recorders, 'observation_keys_to_record', None) if hasattr(env_cfg, 'recorders') and env_cfg.recorders is not None else None
+    existing_state_keys = getattr(env_cfg.recorders, 'state_observation_keys', None) if hasattr(env_cfg, 'recorders') and env_cfg.recorders is not None else None
+    existing_task_description = getattr(env_cfg.recorders, 'task_description', None) if hasattr(env_cfg, 'recorders') and env_cfg.recorders is not None else None
+    
     # Set up recorder terms for mimic annotations
-    env_cfg.recorders: MimicRecorderManagerCfg = MimicRecorderManagerCfg()
+    env_cfg.recorders = MimicRecorderManagerCfg()
+    
+    # Restore LeRobot configuration if it existed
+    if existing_observation_keys is not None:
+        env_cfg.recorders.observation_keys_to_record = existing_observation_keys
+    if existing_state_keys is not None:
+        env_cfg.recorders.state_observation_keys = existing_state_keys
+    if existing_task_description is not None:
+        env_cfg.recorders.task_description = existing_task_description
+    
     if not args_cli.auto:
         # disable subtask term signals recorder term if in manual mode
         env_cfg.recorders.record_pre_step_subtask_term_signals = None
+    
+    # Set dataset file handler based on format
+    if use_lerobot_format:
+        env_cfg.recorders.dataset_file_handler_class_type = LeRobotDatasetFileHandler
+    else:
+        env_cfg.recorders.dataset_file_handler_class_type = HDF5DatasetFileHandler
 
     env_cfg.recorders.dataset_export_dir_path = output_dir
     env_cfg.recorders.dataset_filename = output_file_name
@@ -313,6 +340,7 @@ def replay_episode(
                 continue
         action_tensor = torch.Tensor(action).reshape([1, action.shape[0]])
         env.step(torch.Tensor(action_tensor))
+        # input("Press Enter to continue...")
     if success_term is not None:
         if not bool(success_term.func(env, **success_term.params)[0]):
             return False
