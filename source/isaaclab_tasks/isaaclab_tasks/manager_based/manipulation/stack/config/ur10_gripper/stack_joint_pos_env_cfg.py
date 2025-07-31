@@ -1,10 +1,11 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
-import torch
 
-from isaaclab.assets import RigidObjectCfg
+
+from isaaclab.assets import RigidObjectCfg, SurfaceGripperCfg
+from isaaclab.envs.mdp.actions.actions_cfg import SurfaceGripperBinaryActionCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import FrameTransformerCfg
@@ -23,8 +24,6 @@ from isaaclab_assets.robots.universal_robots import (  # isort: skip
     UR10_PARALLEL_GRIPPER_CFG,
     UR10_SHORT_SUCTION_CFG,
 )
-from isaaclab.assets import SurfaceGripperCfg
-from isaaclab.envs.mdp.actions.actions_cfg import SurfaceGripperBinaryActionCfg
 
 ##
 # Pre-defined configs
@@ -61,37 +60,6 @@ class EventCfgParallelGripper:
             "pose_range": {"x": (0.4, 0.6), "y": (-0.10, 0.10), "z": (0.0203, 0.0203), "yaw": (-1.0, 1, 0)},
             "min_separation": 0.1,
             "asset_cfgs": [SceneEntityCfg("cube_1"), SceneEntityCfg("cube_2"), SceneEntityCfg("cube_3")],
-        },
-    )
-
-
-@configclass
-class EventCfgUR10eParallelGripper(EventCfgParallelGripper):
-    """Configuration for events."""
-
-    init_franka_arm_pose = EventTerm(
-        func=franka_stack_events.set_default_joint_pose,
-        mode="startup",
-        params={
-            ## ["left_inner_knuckle_joint", "right_inner_knuckle_joint"] are excluded from closed-loop articulation
-            ## ['shoulder_pan_joint', 'shoulder_lift_joint', 'elbow_joint', 'wrist_1_joint', 'wrist_2_joint', 'wrist_3_joint',
-            ## 'finger_joint', 'right_outer_knuckle_joint', 'left_outer_finger_joint', 'right_outer_finger_joint', 'left_inner_finger_joint', 'right_inner_finger_joint', 'left_inner_finger_pad_joint', 'right_inner_finger_pad_joint']
-            "default_pose": [
-                0.0,
-                -1.5707,
-                1.5707,
-                -1.5707,
-                -1.5707,
-                0.0,
-                0.785,
-                0.785,
-                0.0,
-                0.0,
-                -0.785,
-                -0.785,
-                0.0,
-                0.0,
-            ],
         },
     )
 
@@ -218,7 +186,6 @@ class UR10ParallelGripperCubeStackEnvCfg(StackEnvCfg):
         # simulation settings
         self.sim.dt = 0.01  # 100Hz
         self.sim.render_interval = 5
-
 
 
 @configclass
