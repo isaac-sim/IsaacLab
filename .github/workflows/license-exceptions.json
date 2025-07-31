@@ -360,5 +360,10 @@
     "package": "referencing",
     "license": "UNKNOWN",
     "comment": "MIT"
+  },
+  {
+    "package": "regex",
+    "license": "UNKNOWN",
+    "comment": "Apache 2.0"
   }
 ]
