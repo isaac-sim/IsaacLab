@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.10.38 (2025-07-31)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``from __future__ import annotations`` to isaaclab_tasks files to fix Sphinx
+  doc warnings for IsaacLab Mimic docs.
+
+
 0.10.37 (2025-07-16)
 ~~~~~~~~~~~~~~~~~~~~
 
