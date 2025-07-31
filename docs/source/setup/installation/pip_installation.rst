@@ -26,6 +26,8 @@ If you encounter any issues, please report them to the
 
    For details on driver requirements, please see the `Technical Requirements <https://docs.omniverse.nvidia.com/materials-and-rendering/latest/common/technical-requirements.html>`_ guide!
 
+   On Windows, it may be necessary to `enable long path support <https://learn.microsoft.com/en-us/windows/win32/fileio/maximum-file-path-limitation?tabs=registry#enable-long-paths-in-windows-10-version-1607-and-later>`_ to avoid installation errors due to OS limitations.
+
 .. attention::
 
    If you plan to :ref:`Set up Visual Studio Code <setup-vs-code>` later, we recommend following the
