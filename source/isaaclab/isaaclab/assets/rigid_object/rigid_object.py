@@ -56,6 +56,8 @@ class RigidObject(AssetBase):
             cfg: A configuration instance.
         """
         super().__init__(cfg)
+        prim = sim_utils.find_matching_prims(self.cfg.prim_path)
+        self.is_kinamtic_enabled = prim[0].GetAttribute("physics:kinematicEnabled").Get()
 
     """
     Properties
@@ -292,6 +294,8 @@ class RigidObject(AssetBase):
             root_velocity: Root center of mass velocities in simulation world frame. Shape is (len(env_ids), 6).
             env_ids: Environment indices. If None, then all indices are used.
         """
+        if self.is_kinamtic_enabled:
+            return
         self.write_root_com_velocity_to_sim(root_velocity=root_velocity, env_ids=env_ids)
 
     def write_root_com_velocity_to_sim(self, root_velocity: torch.Tensor, env_ids: Sequence[int] | None = None):
@@ -304,6 +308,8 @@ class RigidObject(AssetBase):
             root_velocity: Root center of mass velocities in simulation world frame. Shape is (len(env_ids), 6).
             env_ids: Environment indices. If None, then all indices are used.
         """
+        if self.is_kinamtic_enabled:
+            return
         # resolve all indices
         physx_env_ids = env_ids
         if env_ids is None:
@@ -335,6 +341,8 @@ class RigidObject(AssetBase):
             root_velocity: Root frame velocities in simulation world frame. Shape is (len(env_ids), 6).
             env_ids: Environment indices. If None, then all indices are used.
         """
+        if self.is_kinamtic_enabled:
+            return
         # resolve all indices
         if env_ids is None:
             local_env_ids = slice(env_ids)
