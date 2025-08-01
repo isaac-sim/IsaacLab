@@ -95,8 +95,6 @@ if not exist "%python_exe%" (
     echo %tab%2. Python executable is not available at the default path: %ISAACLAB_PATH%\_isaac_sim\python.bat
     exit /b 1
 )
-echo [DEBUG] python_exe is set to: !python_exe!
-
 goto :eof
 
 
@@ -317,7 +315,7 @@ goto :eof
 
 rem Main
 :main
-setlocal EnableDelayedExpansion
+
 rem check argument provided
 if "%~1"=="" (
     echo [Error] No arguments provided.
