@@ -752,27 +752,45 @@ def test_external_force_buffer(sim, num_articulations, device):
     for step in range(5):
         # initiate force tensor
         external_wrench_b = torch.zeros(articulation.num_instances, len(body_ids), 6, device=sim.device)
+        external_wrench_positions_b = torch.zeros(articulation.num_instances, len(body_ids), 3, device=sim.device)
 
         if step == 0 or step == 3:
             # set a non-zero force
             force = 1
+            position = 1
         else:
             # set a zero force
             force = 0
+            position = 0
 
         # set force value
         external_wrench_b[:, :, 0] = force
         external_wrench_b[:, :, 3] = force
+        external_wrench_positions_b[:, :, 0] = position
 
         # apply force
-        articulation.set_external_force_and_torque(
-            external_wrench_b[..., :3], external_wrench_b[..., 3:], body_ids=body_ids
-        )
+        if step == 0 or step == 3:
+            articulation.set_external_force_and_torque(
+                external_wrench_b[..., :3],
+                external_wrench_b[..., 3:],
+                body_ids=body_ids,
+                positions=external_wrench_positions_b,
+                is_global=True,
+            )
+        else:
+            articulation.set_external_force_and_torque(
+                external_wrench_b[..., :3],
+                external_wrench_b[..., 3:],
+                body_ids=body_ids,
+                is_global=False,
+            )
 
         # check if the articulation's force and torque buffers are correctly updated
         for i in range(num_articulations):
             assert articulation._external_force_b[i, 0, 0].item() == force
             assert articulation._external_torque_b[i, 0, 0].item() == force
+            assert articulation._external_wrench_positions_b[i, 0, 0].item() == position
+            assert articulation._use_global_wrench_frame == (step == 0 or step == 3)
 
         # apply action to the articulation
         articulation.set_joint_position_target(articulation.data.default_joint_pos.clone())
@@ -845,6 +863,71 @@ def test_external_force_on_single_body(sim, num_articulations, device):
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+def test_external_force_on_single_body_at_position(sim, num_articulations, device):
+    """Test application of external force on the base of the articulation at a given position.
+
+    This test verifies that:
+    1. External forces can be applied to specific bodies
+    2. The forces affect the articulation's motion correctly
+    3. The articulation responds to the forces as expected
+
+    Args:
+        sim: The simulation fixture
+        num_articulations: Number of articulations to test
+    """
+    articulation_cfg = generate_articulation_cfg(articulation_type="anymal")
+    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=sim.device)
+    # Play the simulator
+    sim.reset()
+
+    # Find bodies to apply the force
+    body_ids, _ = articulation.find_bodies("base")
+    # Sample a large force
+    external_wrench_b = torch.zeros(articulation.num_instances, len(body_ids), 6, device=sim.device)
+    external_wrench_b[..., 2] = 1000.0
+    external_wrench_positions_b = torch.zeros(articulation.num_instances, len(body_ids), 3, device=sim.device)
+    external_wrench_positions_b[..., 0] = 0.0
+    external_wrench_positions_b[..., 1] = 1.0
+    external_wrench_positions_b[..., 2] = 0.0
+
+    # Now we are ready!
+    for _ in range(5):
+        # reset root state
+        root_state = articulation.data.default_root_state.clone()
+
+        articulation.write_root_pose_to_sim(root_state[:, :7])
+        articulation.write_root_velocity_to_sim(root_state[:, 7:])
+        # reset dof state
+        joint_pos, joint_vel = (
+            articulation.data.default_joint_pos,
+            articulation.data.default_joint_vel,
+        )
+        articulation.write_joint_state_to_sim(joint_pos, joint_vel)
+        # reset articulation
+        articulation.reset()
+        # apply force
+        articulation.set_external_force_and_torque(
+            external_wrench_b[..., :3],
+            external_wrench_b[..., 3:],
+            body_ids=body_ids,
+            positions=external_wrench_positions_b,
+        )
+        # perform simulation
+        for _ in range(100):
+            # apply action to the articulation
+            articulation.set_joint_position_target(articulation.data.default_joint_pos.clone())
+            articulation.write_data_to_sim()
+            # perform step
+            sim.step()
+            # update buffers
+            articulation.update(sim.cfg.dt)
+        # check condition that the articulations have fallen down
+        for i in range(num_articulations):
+            assert articulation.data.root_pos_w[i, 2].item() < 0.2
+
+
+@pytest.mark.parametrize("num_articulations", [1, 2])
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_external_force_on_multiple_bodies(sim, num_articulations, device):
     """Test application of external force on the legs of the articulation.
 
@@ -899,6 +982,71 @@ def test_external_force_on_multiple_bodies(sim, num_articulations, device):
         for i in range(num_articulations):
             # since there is a moment applied on the articulation, the articulation should rotate
             assert articulation.data.root_ang_vel_w[i, 2].item() > 0.1
+
+
+@pytest.mark.parametrize("num_articulations", [1, 2])
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+def test_external_force_on_multiple_bodies_at_position(sim, num_articulations, device):
+    """Test application of external force on the legs of the articulation at a given position.
+
+    This test verifies that:
+    1. External forces can be applied to multiple bodies
+    2. The forces affect the articulation's motion correctly
+    3. The articulation responds to the forces as expected
+
+    Args:
+        sim: The simulation fixture
+        num_articulations: Number of articulations to test
+    """
+    articulation_cfg = generate_articulation_cfg(articulation_type="anymal")
+    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=sim.device)
+
+    # Play the simulator
+    sim.reset()
+
+    # Find bodies to apply the force
+    body_ids, _ = articulation.find_bodies(".*_SHANK")
+    # Sample a large force
+    external_wrench_b = torch.zeros(articulation.num_instances, len(body_ids), 6, device=sim.device)
+    external_wrench_b[..., 2] = 1000.0
+    external_wrench_positions_b = torch.zeros(articulation.num_instances, len(body_ids), 3, device=sim.device)
+    external_wrench_positions_b[..., 0] = 0.0
+    external_wrench_positions_b[..., 1] = 1.0
+    external_wrench_positions_b[..., 2] = 0.0
+
+    # Now we are ready!
+    for _ in range(5):
+        # reset root state
+        articulation.write_root_pose_to_sim(articulation.data.default_root_state.clone()[:, :7])
+        articulation.write_root_velocity_to_sim(articulation.data.default_root_state.clone()[:, 7:])
+        # reset dof state
+        joint_pos, joint_vel = (
+            articulation.data.default_joint_pos,
+            articulation.data.default_joint_vel,
+        )
+        articulation.write_joint_state_to_sim(joint_pos, joint_vel)
+        # reset articulation
+        articulation.reset()
+        # apply force
+        articulation.set_external_force_and_torque(
+            external_wrench_b[..., :3],
+            external_wrench_b[..., 3:],
+            body_ids=body_ids,
+            positions=external_wrench_positions_b,
+        )
+        # perform simulation
+        for _ in range(100):
+            # apply action to the articulation
+            articulation.set_joint_position_target(articulation.data.default_joint_pos.clone())
+            articulation.write_data_to_sim()
+            # perform step
+            sim.step()
+            # update buffers
+            articulation.update(sim.cfg.dt)
+        # check condition
+        for i in range(num_articulations):
+            # since there is a moment applied on the articulation, the articulation should rotate
+            assert torch.abs(articulation.data.root_ang_vel_w[i, 2]).item() > 0.1
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
@@ -1572,40 +1720,42 @@ def test_body_incoming_joint_wrench_b_single_joint(sim, num_articulations, devic
         rtol=1e-3,
     )
 
-    def test_setting_articulation_root_prim_path(self):
-        """Test that the articulation root prim path can be set explicitly."""
-        with build_simulation_context(device="cuda:0", add_ground_plane=False, auto_add_lighting=True) as sim:
-            sim._app_control_on_stop_handle = None
-            # Create articulation
-            articulation_cfg = generate_articulation_cfg(articulation_type="humanoid")
-            print(articulation_cfg.spawn.usd_path)
-            articulation_cfg.articulation_root_prim_path = "/torso"
-            articulation, _ = generate_articulation(articulation_cfg, 1, "cuda:0")
 
-            # Check that boundedness of articulation is correct
-            self.assertEqual(ctypes.c_long.from_address(id(articulation)).value, 1)
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+def test_setting_articulation_root_prim_path(sim, device):
+    """Test that the articulation root prim path can be set explicitly."""
+    sim._app_control_on_stop_handle = None
+    # Create articulation
+    articulation_cfg = generate_articulation_cfg(articulation_type="humanoid")
+    print(articulation_cfg.spawn.usd_path)
+    articulation_cfg.articulation_root_prim_path = "/torso"
+    articulation, _ = generate_articulation(articulation_cfg, 1, device)
 
-            # Play sim
-            sim.reset()
-            # Check if articulation is initialized
-            self.assertTrue(articulation._is_initialized)
+    # Check that boundedness of articulation is correct
+    assert ctypes.c_long.from_address(id(articulation)).value == 1
 
-    def test_setting_invalid_articulation_root_prim_path(self):
-        """Test that the articulation root prim path can be set explicitly."""
-        with build_simulation_context(device="cuda:0", add_ground_plane=False, auto_add_lighting=True) as sim:
-            sim._app_control_on_stop_handle = None
-            # Create articulation
-            articulation_cfg = generate_articulation_cfg(articulation_type="humanoid")
-            print(articulation_cfg.spawn.usd_path)
-            articulation_cfg.articulation_root_prim_path = "/non_existing_prim_path"
-            articulation, _ = generate_articulation(articulation_cfg, 1, "cuda:0")
+    # Play sim
+    sim.reset()
+    # Check if articulation is initialized
+    assert articulation._is_initialized
 
-            # Check that boundedness of articulation is correct
-            self.assertEqual(ctypes.c_long.from_address(id(articulation)).value, 1)
 
-            # Play sim
-            with pytest.raises(RuntimeError):
-                sim.reset()
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+def test_setting_invalid_articulation_root_prim_path(sim, device):
+    """Test that the articulation root prim path can be set explicitly."""
+    sim._app_control_on_stop_handle = None
+    # Create articulation
+    articulation_cfg = generate_articulation_cfg(articulation_type="humanoid")
+    print(articulation_cfg.spawn.usd_path)
+    articulation_cfg.articulation_root_prim_path = "/non_existing_prim_path"
+    articulation, _ = generate_articulation(articulation_cfg, 1, device=device)
+
+    # Check that boundedness of articulation is correct
+    assert ctypes.c_long.from_address(id(articulation)).value == 1
+
+    # Play sim
+    with pytest.raises(RuntimeError):
+        sim.reset()
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])

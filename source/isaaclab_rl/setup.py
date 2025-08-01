@@ -19,8 +19,8 @@ EXTENSION_TOML_DATA = toml.load(os.path.join(EXTENSION_PATH, "config", "extensio
 # Minimum dependencies required prior to installation
 INSTALL_REQUIRES = [
     # generic
-    "numpy",
-    "torch==2.5.1",
+    "numpy<2",
+    "torch>=2.5.1",
     "torchvision>=0.14.1",  # ensure compatibility with torch 1.13.1
     "protobuf>=3.20.2,!=5.26.0",
     # configuration management
@@ -32,15 +32,15 @@ INSTALL_REQUIRES = [
     # video recording
     "moviepy",
     # make sure this is consistent with isaac sim version
-    "pillow==11.0.0",
+    "pillow==11.2.1",
 ]
 
-PYTORCH_INDEX_URL = ["https://download.pytorch.org/whl/cu118"]
+PYTORCH_INDEX_URL = ["https://download.pytorch.org/whl/cu128"]
 
 # Extra dependencies for RL agents
 EXTRAS_REQUIRE = {
     "sb3": ["stable-baselines3>=2.6", "tqdm", "rich"],  # tqdm/rich for progress bar
-    "skrl": ["skrl>=1.4.2"],
+    "skrl": ["skrl>=1.4.3"],
     "rl-games": ["rl-games==1.6.1", "gym"],  # rl-games still needs gym :(
     "rsl-rl": ["rsl-rl-lib==2.3.3"],
 }

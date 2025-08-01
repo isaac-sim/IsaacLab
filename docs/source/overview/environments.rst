@@ -225,7 +225,7 @@ We provide environments for both disassembly and assembly.
 * |disassembly-link|: The plug starts inserted in the socket. A low-level controller lifts the plug out and moves it to a random position. This process is purely scripted and does not involve any learned policy. Therefore, it does not require policy training or evaluation. The resulting trajectories serve as demonstrations for the reverse process, i.e., learning to assemble. To run disassembly for a specific task: ``python source/isaaclab_tasks/isaaclab_tasks/direct/automate/run_disassembly_w_id.py --assembly_id=ASSEMBLY_ID --disassembly_dir=DISASSEMBLY_DIR``. All generated trajectories are saved to a local directory ``DISASSEMBLY_DIR``.
 * |assembly-link|: The goal is to insert the plug into the socket. You can use this environment to train a policy via reinforcement learning or evaluate a pre-trained checkpoint.
 
-  * To train an assembly policy, we run the command ``python source/isaaclab_tasks/isaaclab_tasks/direct/automate/run_w_id.py --assembly_id=ASSEMBLY_ID --train``. We can customize the training process using the optional flags: ``--headless`` to run without opening the GUI windows, ``--max_iterations=MAX_ITERATIONS`` to set the number of training iterations, ``--num_envs=NUM_ENVS`` to set the number of parallel environments during training, ``--seed=SEED`` to assign the random seed, ``--wandb`` to enable logging to WandB (requires a WandB account). The policy checkpoints will be saved automatically during training in the directory ``logs/rl_games/Assembly/test``.
+  * To train an assembly policy, we run the command ``python source/isaaclab_tasks/isaaclab_tasks/direct/automate/run_w_id.py --assembly_id=ASSEMBLY_ID --train``. We can customize the training process using the optional flags: ``--headless`` to run without opening the GUI windows, ``--max_iterations=MAX_ITERATIONS`` to set the number of training iterations, ``--num_envs=NUM_ENVS`` to set the number of parallel environments during training, ``--seed=SEED`` to assign the random seed. The policy checkpoints will be saved automatically during training in the directory ``logs/rl_games/Assembly/test``.
   * To evaluate an assembly policy, we run the command ``python source/isaaclab_tasks/isaaclab_tasks/direct/automate/run_w_id.py --assembly_id=ASSEMBLY_ID --checkpoint=CHECKPOINT --log_eval``. The evaluation results are stored in ``evaluation_{ASSEMBLY_ID}.h5``.
 
 .. table::
@@ -244,6 +244,44 @@ We provide environments for both disassembly and assembly.
 
 .. |assembly-link| replace:: `Isaac-AutoMate-Assembly-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/automate/assembly_env_cfg.py>`__
 .. |disassembly-link| replace:: `Isaac-AutoMate-Disassembly-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/automate/disassembly_env_cfg.py>`__
+
+FORGE
+~~~~~~~~
+
+FORGE environments extend Factory environments with:
+
+* Force sensing: Add observations for force experienced by the end-effector.
+* Excessive force penalty: Add an option to penalize the agent for excessive contact forces.
+* Dynamics randomization: Randomize controller gains, asset properties (friction, mass), and dead-zone.
+* Success prediction: Add an extra action that predicts task success.
+
+These tasks share the same task configurations and control options. You can switch between them by specifying the task name.
+
+* |forge-peg-link|: Peg insertion with the Franka arm
+* |forge-gear-link|: Gear meshing with the Franka arm
+* |forge-nut-link|: Nut-Bolt fastening with the Franka arm
+
+.. table::
+    :widths: 33 37 30
+
+    +--------------------+-------------------------+-----------------------------------------------------------------------------+
+    | World              | Environment ID          | Description                                                                 |
+    +====================+=========================+=============================================================================+
+    | |forge-peg|        | |forge-peg-link|        | Insert peg into the socket with the Franka robot                            |
+    +--------------------+-------------------------+-----------------------------------------------------------------------------+
+    | |forge-gear|       | |forge-gear-link|       | Insert and mesh gear into the base with other gears, using the Franka robot |
+    +--------------------+-------------------------+-----------------------------------------------------------------------------+
+    | |forge-nut|        | |forge-nut-link|        | Thread the nut onto the first 2 threads of the bolt, using the Franka robot |
+    +--------------------+-------------------------+-----------------------------------------------------------------------------+
+
+.. |forge-peg| image:: ../_static/tasks/factory/peg_insert.jpg
+.. |forge-gear| image:: ../_static/tasks/factory/gear_mesh.jpg
+.. |forge-nut| image:: ../_static/tasks/factory/nut_thread.jpg
+
+.. |forge-peg-link| replace:: `Isaac-Forge-PegInsert-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/forge/forge_env_cfg.py>`__
+.. |forge-gear-link| replace:: `Isaac-Forge-GearMesh-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/forge/forge_env_cfg.py>`__
+.. |forge-nut-link| replace:: `Isaac-Forge-NutThread-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/forge/forge_env_cfg.py>`__
+
 
 Locomotion
 ~~~~~~~~~~
@@ -743,6 +781,18 @@ inferencing, including reading from an already trained checkpoint and disabling 
       -
       - Direct
       -
+    * - Isaac-Forge-GearMesh-Direct-v0
+      -
+      - Direct
+      - **rl_games** (PPO)
+    * - Isaac-Forge-NutThread-Direct-v0
+      -
+      - Direct
+      - **rl_games** (PPO)
+    * - Isaac-Forge-PegInsert-Direct-v0
+      -
+      - Direct
+      - **rl_games** (PPO)
     * - Isaac-Franka-Cabinet-Direct-v0
       -
       - Direct

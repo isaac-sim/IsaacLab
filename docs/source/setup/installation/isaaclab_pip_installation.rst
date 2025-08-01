@@ -3,9 +3,9 @@ Installing Isaac Lab through Pip
 
 From Isaac Lab 2.0, pip packages are provided to install both Isaac Sim and Isaac Lab extensions from pip.
 Note that this installation process is only recommended for advanced users working on additional extension projects
-that are built on top of Isaac Lab. Isaac Lab pip packages **do not** include any standalone python scripts for
+that are built on top of Isaac Lab. Isaac Lab pip packages **does not** include any standalone python scripts for
 training, inferencing, or running standalone workflows such as demos and examples. Therefore, users are required
-to define your own runner scripts when installing Isaac Lab from pip.
+to define their own runner scripts when installing Isaac Lab from pip.
 
 To learn about how to set up your own project on top of Isaac Lab, see :ref:`template-generator`.
 
@@ -51,22 +51,11 @@ To learn about how to set up your own project on top of Isaac Lab, see :ref:`tem
                   env_isaaclab\Scripts\activate
 
 
--  Next, install a CUDA-enabled PyTorch 2.5.1 build based on the CUDA version available on your system. This step is optional for Linux, but required for Windows to ensure a CUDA-compatible version of PyTorch is installed.
+-  Next, install a CUDA-enabled PyTorch 2.7.0 build. This step is optional for Linux, but required for Windows to ensure a CUDA-compatible version of PyTorch is installed.
 
-   .. tab-set::
+   .. code-block:: bash
 
-      .. tab-item:: CUDA 11
-
-         .. code-block:: bash
-
-            pip install torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/cu118
-
-      .. tab-item:: CUDA 12
-
-         .. code-block:: bash
-
-            pip install torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/cu121
-
+      pip install torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
 
 -  Before installing Isaac Lab, ensure the latest pip version is installed. To update pip, run
 
@@ -93,14 +82,11 @@ To learn about how to set up your own project on top of Isaac Lab, see :ref:`tem
 
       pip install isaaclab[isaacsim,all]==2.1.0 --extra-index-url https://pypi.nvidia.com
 
+.. note::
 
-.. attention::
-
-   For 50 series GPUs, please use the latest PyTorch nightly build instead of PyTorch 2.5.1, which comes with Isaac Sim:
-
-   .. code:: bash
-
-      pip install --upgrade --pre torch torchvision --index-url https://download.pytorch.org/whl/nightly/cu128
+   Currently, we only provide pip packages for every major release of Isaac Lab.
+   For example, we provide the pip package for release 2.0.0 and 2.1.0, but not 2.0.2.
+   In the future, we will provide pip packages for every minor release of Isaac Lab.
 
 
 Verifying the Isaac Sim installation
