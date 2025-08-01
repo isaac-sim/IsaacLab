@@ -67,6 +67,7 @@ rem -----------------------------------------------------------------------
 
 rem extract the python from isaacsim
 :extract_python_exe
+setlocal EnableDelayedExpansion
 rem check if using conda
 if not "%CONDA_PREFIX%"=="" (
     rem use conda python
