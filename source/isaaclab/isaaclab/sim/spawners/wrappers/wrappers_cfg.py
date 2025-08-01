@@ -37,8 +37,31 @@ class MultiAssetSpawnerCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
     random_choice: bool = True
     """Whether to randomly select an asset configuration. Default is True.
 
-    If False, the asset configurations are spawned in the order they are provided in the list.
     If True, a random asset configuration is selected for each spawn.
+
+    If False, asset configurations are assigned in a deterministic order based on the `choice_method` setting.
+    This allows for controlled and repeatable assignment patterns across environment instances.
+    """
+
+    choice_method_dir: str = "isaaclab.sim.spawners.wrappers.utils"
+    """Python module path where the choice method functions are defined.
+
+    This path is used to dynamically load the selection function via `get_method()`.
+    """
+
+    choice_method: str = "sequential"
+    """Name of the deterministic asset selection method to use when :attr:`random_choice` is False.
+
+    Available methods are ``sequential`` and ``split``, where ``sequential`` assigns assets in a round-robin manner
+    (e.g., 0, 1, 2, 0, 1, 2, ...) and ``split`` divides the environments evenly among the assets
+    (e.g., 0, 0, 1, 1, 2, 2, ...).
+
+    Custom asset selection methods can be implemented in the module specified by :attr:`choice_method_dir`,
+    and refer to it by name in :attr:`choice_method`.
+
+    Note:
+        Each method must follow the standard signature:
+         ``(current_idx: int, total_prim_path: int, num_assets: int) -> int``
     """
 
 
@@ -62,6 +85,29 @@ class MultiUsdFileCfg(UsdFileCfg):
     random_choice: bool = True
     """Whether to randomly select an asset configuration. Default is True.
 
-    If False, the asset configurations are spawned in the order they are provided in the list.
     If True, a random asset configuration is selected for each spawn.
+
+    If False, asset configurations are assigned in a deterministic order based on the `choice_method` setting.
+    This allows for controlled and repeatable assignment patterns across environment instances.
+    """
+
+    choice_method_dir: str = "isaaclab.sim.spawners.wrappers.utils"
+    """Python module path where the choice method functions are defined.
+
+    This path is used to dynamically load the selection function via `get_method()`.
+    """
+
+    choice_method: str = "sequential"
+    """Name of the deterministic asset selection method to use when :attr:`random_choice` is False.
+
+    Available methods are ``sequential`` and ``split``, where ``sequential`` assigns assets in a round-robin manner
+    (e.g., 0, 1, 2, 0, 1, 2, ...) and ``split`` divides the environments evenly among the assets
+    (e.g., 0, 0, 1, 1, 2, 2, ...).
+
+    Custom asset selection methods can be implemented in the module specified by :attr:`choice_method_dir`,
+    and refer to it by name in :attr:`choice_method`.
+
+    Note:
+        Each method must follow the standard signature:
+         ``(current_idx: int, total_prim_path: int, num_assets: int) -> int``
     """
