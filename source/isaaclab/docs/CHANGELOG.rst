@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+
+0.41.5 (2025-07-30)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Skip operation to set velocity in :meth:`~isaaclab.assets.RigidObject` if KinematicEnabled is detected to be True
+
+
+
 0.41.4 (2025-07-30)
 ~~~~~~~~~~~~~~~~~~~
 
