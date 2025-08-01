@@ -1,6 +1,11 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 import bpy
-import os
 import math
+import os
 
 remesh = False  # set to False to skip remeshing
 kit = False  # set to False to convert models instead of kits
@@ -14,9 +19,7 @@ input_folder = (
 
 if remesh:
     output_folder = (
-        r"/home/johann/Downloads/assembly_kit/kits"
-        if kit
-        else r"/home/johann/Downloads/assembly_kit/models"
+        r"/home/johann/Downloads/assembly_kit/kits" if kit else r"/home/johann/Downloads/assembly_kit/models"
     )
 else:
     output_folder = (
@@ -94,9 +97,7 @@ for fn in os.listdir(input_folder):
         # # Option A) Voxel Remesh modifier
         if remesh:
             remesh_mod = obj.modifiers.new(name="Remesh", type="REMESH")
-            remesh_mod.mode = (
-                "VOXEL"  # 'VOXEL' fills holes best; 'BLOCKS' also available
-            )
+            remesh_mod.mode = "VOXEL"  # 'VOXEL' fills holes best; 'BLOCKS' also available
             # remesh_mod.adaptivity = 0.05
             # remesh_mod.voxel_size = 0.0005  # tune this: smaller = higher resolution
             remesh_mod.adaptivity = 0.05

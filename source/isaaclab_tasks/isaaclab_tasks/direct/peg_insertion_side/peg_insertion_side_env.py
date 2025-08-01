@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
@@ -6,27 +11,20 @@
 
 from __future__ import annotations
 
+import glob
+import math
+import os
+import random
 import torch
 from collections.abc import Sequence
-import random
-import glob
-import os
-import math
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import Articulation, RigidObjectCfg, RigidObject
-from isaaclab.sensors import Camera
+from isaaclab.assets import Articulation, RigidObject, RigidObjectCfg
 from isaaclab.envs import DirectRLEnv
-from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
-from isaaclab.utils.math import transform_points, normalize, quat_from_euler_xyz
-from isaaclab.sensors import (
-    FrameTransformer,
-    FrameTransformerCfg,
-    OffsetCfg,
-    ContactSensorCfg,
-    ContactSensor,
-)
 from isaaclab.markers.config import FRAME_MARKER_CFG
+from isaaclab.sensors import Camera, ContactSensor, ContactSensorCfg, FrameTransformer, FrameTransformerCfg, OffsetCfg
+from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
+from isaaclab.utils.math import normalize, quat_from_euler_xyz, transform_points
 
 from .peg_insertion_side_env_cfg import PegInsertionSideEnvCfg
 
@@ -65,17 +63,11 @@ class PegInsertionSideEnv(DirectRLEnv):
         rs = torch.tensor(rs, device=device)
         Cs = torch.tensor(Cs, device=device)
 
-        self.peg_head_offset = torch.stack(
-            [Ls, torch.zeros_like(Ls), torch.zeros_like(Ls)], dim=1
-        )  # (N,3)
-        self.box_hole_offset = torch.stack(
-            [torch.zeros_like(Ls), Cs[:, 0], Cs[:, 1]], dim=1
-        )  # (N,3)
+        self.peg_head_offset = torch.stack([Ls, torch.zeros_like(Ls), torch.zeros_like(Ls)], dim=1)  # (N,3)
+        self.box_hole_offset = torch.stack([torch.zeros_like(Ls), Cs[:, 0], Cs[:, 1]], dim=1)  # (N,3)
         self.box_hole_radius = rs + 0.003  # clearance
 
-    def __init__(
-        self, cfg: PegInsertionSideEnvCfg, render_mode: str | None = None, **kwargs
-    ):
+    def __init__(self, cfg: PegInsertionSideEnvCfg, render_mode: str | None = None, **kwargs):
         super().__init__(cfg, render_mode, **kwargs)
 
         random.seed(self.cfg.seed)
@@ -120,9 +112,7 @@ class PegInsertionSideEnv(DirectRLEnv):
     def _load_default_scene(self):
 
         # Creating the default scene
-        spawn_ground_plane(
-            prim_path="/World/ground", cfg=GroundPlaneCfg(), translation=(0, 0, 0)
-        )
+        spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg(), translation=(0, 0, 0))
 
         self.robot = Articulation(self.cfg.robot_cfg)
 
@@ -144,15 +134,11 @@ class PegInsertionSideEnv(DirectRLEnv):
 
         self._sample_asset_pairs()
 
-        self.peg_cfg: RigidObjectCfg = self.cfg.get_multi_cfg(
-            self.pegs_list, "/World/envs/env_.*/Peg", False
-        )
+        self.peg_cfg: RigidObjectCfg = self.cfg.get_multi_cfg(self.pegs_list, "/World/envs/env_.*/Peg", False)
         self.peg: RigidObject = RigidObject(self.peg_cfg)
         self.scene.rigid_objects["Peg"] = self.peg
 
-        self.box_cfg: RigidObjectCfg = self.cfg.get_multi_cfg(
-            self.boxes_list, "/World/envs/env_.*/Box", False
-        )
+        self.box_cfg: RigidObjectCfg = self.cfg.get_multi_cfg(self.boxes_list, "/World/envs/env_.*/Box", False)
         self.box: RigidObject = RigidObject(self.box_cfg)
         self.scene.rigid_objects["Box"] = self.box
 
@@ -201,11 +187,9 @@ class PegInsertionSideEnv(DirectRLEnv):
         self.scene.sensors["right_contact"] = ContactSensor(cfg=right_contact_cfg)
 
         # Filtering collisions for optimization of collisions between environment instances
-        self.scene.filter_collisions(
-            [
-                "/World/ground",
-            ]
-        )
+        self.scene.filter_collisions([
+            "/World/ground",
+        ])
 
     def _pre_physics_step(self, actions: torch.Tensor) -> None:
         self.actions = actions.clone()
@@ -267,9 +251,7 @@ class PegInsertionSideEnv(DirectRLEnv):
         Returns an (N,7) tensor [x, y, z, qx, qy, qz, qw]
         """
         quat = self.tcp_transformer.data.target_quat_w.squeeze(1)  # (N,4)
-        pos = (
-            self.tcp_transformer.data.target_pos_w.squeeze(1) - self.scene.env_origins
-        )  # (N,3)
+        pos = self.tcp_transformer.data.target_pos_w.squeeze(1) - self.scene.env_origins  # (N,3)
         return torch.cat((pos, quat), dim=1)  # now (N,7)
 
     # TODO test in simulation
@@ -360,14 +342,8 @@ class PegInsertionSideEnv(DirectRLEnv):
 
         # 3) Reach & grasp
         # peg tail = head_offset * (−1,0,0)
-        tail_offset = torch.cat(
-            [-self.peg_head_offset[:, :1], self.peg_head_offset[:, 1:]], dim=1
-        )  # (N,3)
-        tail_world = transform_points(
-            points=tail_offset.unsqueeze(1), pos=peg_p, quat=peg_q
-        ).squeeze(
-            1
-        )  # (N,3)
+        tail_offset = torch.cat([-self.peg_head_offset[:, :1], self.peg_head_offset[:, 1:]], dim=1)  # (N,3)
+        tail_world = transform_points(points=tail_offset.unsqueeze(1), pos=peg_p, quat=peg_q).squeeze(1)  # (N,3)
 
         d_tcp_peg = torch.linalg.norm(tcp_p - tail_world, dim=1)
         reach_rew = 1.0 - torch.tanh(4.0 * d_tcp_peg)
@@ -376,47 +352,28 @@ class PegInsertionSideEnv(DirectRLEnv):
         reward = reach_rew + is_grasped.to(dtype=reach_rew.dtype)
 
         # 4) Pre-insertion alignment
-        head_world = transform_points(
-            points=self.peg_head_offset.unsqueeze(1), pos=peg_p, quat=peg_q
-        ).squeeze(
+        head_world = transform_points(points=self.peg_head_offset.unsqueeze(1), pos=peg_p, quat=peg_q).squeeze(
             1
         )  # (N,3)
-        hole_world = transform_points(
-            points=self.box_hole_offset.unsqueeze(1), pos=box_p, quat=box_q
-        ).squeeze(1)
+        hole_world = transform_points(points=self.box_hole_offset.unsqueeze(1), pos=box_p, quat=box_q).squeeze(1)
 
         # rotate into hole frame using inverse box quaternion
         inv_box_q = torch.cat([-box_q[:, :3], box_q[:, 3:4]], dim=1)  # (N,4)
         rel_head = head_world - hole_world
         rel_base = peg_p - hole_world
 
-        head_local = transform_points(
-            points=rel_head.unsqueeze(1), quat=inv_box_q
-        ).squeeze(
-            1
-        )  # (N,3)
-        base_local = transform_points(
-            points=rel_base.unsqueeze(1), quat=inv_box_q
-        ).squeeze(1)
+        head_local = transform_points(points=rel_head.unsqueeze(1), quat=inv_box_q).squeeze(1)  # (N,3)
+        base_local = transform_points(points=rel_base.unsqueeze(1), quat=inv_box_q).squeeze(1)
 
         head_yz = torch.linalg.norm(head_local[:, 1:], dim=1)
         base_yz = torch.linalg.norm(base_local[:, 1:], dim=1)
-        pre_ins = 3.0 * (
-            1.0
-            - torch.tanh(
-                0.5 * (head_yz + base_yz) + 4.5 * torch.maximum(head_yz, base_yz)
-            )
-        )
+        pre_ins = 3.0 * (1.0 - torch.tanh(0.5 * (head_yz + base_yz) + 4.5 * torch.maximum(head_yz, base_yz)))
         reward = reward + pre_ins * is_grasped.to(reward.dtype)
         pre_inserted = (head_yz < 0.01) & (base_yz < 0.01)
 
         # 5) Insertion depth
-        rel_insert = transform_points(
-            points=rel_head.unsqueeze(1), quat=inv_box_q
-        ).squeeze(1)
-        insertion_rew = 5.0 * (
-            1.0 - torch.tanh(5.0 * torch.linalg.norm(rel_insert, dim=1))
-        )
+        rel_insert = transform_points(points=rel_head.unsqueeze(1), quat=inv_box_q).squeeze(1)
+        insertion_rew = 5.0 * (1.0 - torch.tanh(5.0 * torch.linalg.norm(rel_insert, dim=1)))
         reward = (reward + insertion_rew) * (is_grasped & pre_inserted).to(reward.dtype)
 
         # 6) Success bonus
@@ -521,9 +478,7 @@ class PegInsertionSideEnv(DirectRLEnv):
         angles_b = torch.empty(b, device=device).uniform_(min_b, max_b)  # box yaw
 
         # convert to quaternion (x, y, z, w) using IsaacLab helper
-        peg_quat = quat_from_euler_xyz(
-            torch.zeros(b, device=device), torch.zeros(b, device=device), angles
-        )  # -> (b,4)
+        peg_quat = quat_from_euler_xyz(torch.zeros(b, device=device), torch.zeros(b, device=device), angles)  # -> (b,4)
         box_quat = quat_from_euler_xyz(
             torch.zeros(b, device=device), torch.zeros(b, device=device), angles_b
         )  # -> (b,4)

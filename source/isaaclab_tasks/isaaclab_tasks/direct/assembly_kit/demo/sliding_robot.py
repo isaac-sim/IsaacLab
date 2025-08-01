@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
@@ -19,9 +24,7 @@ parser.add_argument(
     default=False,
     help="Disable fabric and use USD I/O operations.",
 )
-parser.add_argument(
-    "--num_envs", type=int, default=None, help="Number of environments to simulate."
-)
+parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
@@ -82,9 +85,7 @@ def main():
             actions = default_joint_pos
             # apply actions
             env.step(torch.zeros_like(actions))
-            env.unwrapped.robot.write_joint_state_to_sim(
-                actions, torch.zeros_like(actions), None
-            )
+            env.unwrapped.robot.write_joint_state_to_sim(actions, torch.zeros_like(actions), None)
 
     # close the simulator
     env.close()

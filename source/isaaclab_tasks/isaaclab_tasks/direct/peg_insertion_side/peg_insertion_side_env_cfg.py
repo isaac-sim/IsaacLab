@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
@@ -6,15 +11,15 @@
 
 import torch
 
-from isaaclab.envs import DirectRLEnvCfg
-from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sim import SimulationCfg, PhysxCfg, PinholeCameraCfg
-from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialCfg
-from isaaclab.utils import configclass
-from isaaclab.sensors import CameraCfg
-from isaaclab.utils.math import quat_from_euler_xyz
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
+from isaaclab.envs import DirectRLEnvCfg
+from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.sensors import CameraCfg
+from isaaclab.sim import PhysxCfg, PinholeCameraCfg, SimulationCfg
+from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialCfg
+from isaaclab.utils import configclass
+from isaaclab.utils.math import quat_from_euler_xyz
 
 from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG  # isort: skip
 
@@ -105,9 +110,7 @@ class PegInsertionSideEnvCfg(DirectRLEnvCfg):
 
     asset_dir = "/home/johann/Downloads/peg_insertion_side"
 
-    def get_multi_cfg(
-        self, usd_paths: list[str], prim_path: str, kinematic_enabled
-    ) -> RigidObjectCfg:
+    def get_multi_cfg(self, usd_paths: list[str], prim_path: str, kinematic_enabled) -> RigidObjectCfg:
         cfg: RigidObjectCfg = RigidObjectCfg(
             prim_path=prim_path,
             spawn=sim_utils.MultiUsdFileCfg(
@@ -131,9 +134,7 @@ class PegInsertionSideEnvCfg(DirectRLEnvCfg):
                     opacity=1.0,
                 ),
             ),
-            init_state=RigidObjectCfg.InitialStateCfg(
-                pos=(0.55, 0.0, 0.05), rot=(0.0, 0.0, 0.0, 1.0)
-            ),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.55, 0.0, 0.05), rot=(0.0, 0.0, 0.0, 1.0)),
         )
 
         return cfg

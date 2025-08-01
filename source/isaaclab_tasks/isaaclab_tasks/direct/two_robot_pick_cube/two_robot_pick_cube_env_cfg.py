@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
@@ -6,27 +11,26 @@
 
 import torch
 
-from isaaclab.envs import DirectRLEnvCfg
-from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sim import SimulationCfg, PhysxCfg, PinholeCameraCfg
-from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialCfg
-from isaaclab.utils import configclass
-from isaaclab.sensors import CameraCfg
-from isaaclab.utils.math import quat_from_euler_xyz
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
+from isaaclab.envs import DirectRLEnvCfg
+from isaaclab.markers.config import CUBOID_MARKER_CFG, FRAME_MARKER_CFG
+from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import (
+    CameraCfg,
+    ContactSensor,
+    ContactSensorCfg,
     FrameTransformer,
     FrameTransformerCfg,
     OffsetCfg,
-    ContactSensorCfg,
-    ContactSensor,
 )
-from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-from isaaclab.markers.config import FRAME_MARKER_CFG, CUBOID_MARKER_CFG
+from isaaclab.sim import PhysxCfg, PinholeCameraCfg, SimulationCfg
 from isaaclab.sim.schemas.schemas_cfg import RigidBodyPropertiesCfg
-
+from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
+from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialCfg
+from isaaclab.utils import configclass
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+from isaaclab.utils.math import quat_from_euler_xyz
 
 from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG  # isort: skip
 
@@ -81,9 +85,7 @@ class TwoRobotPickCubeCfg(DirectRLEnvCfg):
             torch.tensor(-torch.pi / 2.0),
         ).tolist()
     )  # identity quaternion
-    robot_right_cfg = FRANKA_PANDA_CFG.replace(
-        prim_path="/World/envs/env_.*/Robot_right"
-    )
+    robot_right_cfg = FRANKA_PANDA_CFG.replace(prim_path="/World/envs/env_.*/Robot_right")
     robot_right_cfg.spawn.activate_contact_sensors = True
     robot_right_cfg.init_state.pos = (0, -0.75, 0)
     robot_right_cfg.init_state.rot = tuple(
@@ -196,9 +198,7 @@ class TwoRobotPickCubeCfg(DirectRLEnvCfg):
     # Set Cube as object
     cube_cfg = RigidObjectCfg(
         prim_path="/World/envs/env_.*/Cube",
-        init_state=RigidObjectCfg.InitialStateCfg(
-            pos=(0.0, 0.3, 0.0), rot=(1, 0, 0, 0)
-        ),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.3, 0.0), rot=(1, 0, 0, 0)),
         spawn=UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
             scale=(0.8, 0.8, 0.8),

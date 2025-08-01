@@ -1,6 +1,12 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 import bpy
-import os
 import math
+import os
+
 from mathutils import Vector
 
 # ─── USER SETTINGS ──────────────────────────────────────────────────────────────
@@ -62,14 +68,8 @@ def export_usd(name):
 
 # ─── SAMPLING GRIDS ──────────────────────────────────────────────────────────────
 
-lengths = [
-    min_length + i * (max_length - min_length) / (num_lengths - 1)
-    for i in range(num_lengths)
-]
-radii = [
-    min_radius + j * (max_radius - min_radius) / (num_radii - 1)
-    for j in range(num_radii)
-]
+lengths = [min_length + i * (max_length - min_length) / (num_lengths - 1) for i in range(num_lengths)]
+radii = [min_radius + j * (max_radius - min_radius) / (num_radii - 1) for j in range(num_radii)]
 
 # ─── MAIN LOOP ─────────────────────────────────────────────────────────────────
 
