@@ -12,9 +12,9 @@ from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlPpoActorCriticCfg, R
 class HumanoidPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     num_steps_per_env = 32
     max_iterations = 1000
-    save_interval = 50
+    save_interval = 100
     experiment_name = "humanoid"
-    empirical_normalization = False
+    empirical_normalization = True
     policy = RslRlPpoActorCriticCfg(
         init_noise_std=1.0,
         actor_hidden_dims=[400, 200, 100],
@@ -22,7 +22,7 @@ class HumanoidPPORunnerCfg(RslRlOnPolicyRunnerCfg):
         activation="elu",
     )
     algorithm = RslRlPpoAlgorithmCfg(
-        value_loss_coef=1.0,
+        value_loss_coef=2.0,
         use_clipped_value_loss=True,
         clip_param=0.2,
         entropy_coef=0.0,
