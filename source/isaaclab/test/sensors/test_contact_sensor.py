@@ -20,6 +20,7 @@ from enum import Enum
 
 import carb
 import pytest
+from flaky import flaky
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObject, RigidObjectCfg
@@ -232,7 +233,7 @@ def test_cube_contact_time(setup_simulation, disable_contact_processing):
 
 
 @pytest.mark.parametrize("disable_contact_processing", [True, False])
-@pytest.mark.flaky(reruns=3)
+@flaky(max_runs=3, min_passes=1)
 def test_sphere_contact_time(setup_simulation, disable_contact_processing):
     """Checks contact sensor values for contact time and air time for a sphere collision primitive."""
     # check for both contact processing enabled and disabled
