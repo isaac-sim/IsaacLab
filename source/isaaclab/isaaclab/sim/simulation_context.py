@@ -25,6 +25,7 @@ import isaacsim.core.utils.stage as stage_utils
 import omni.log
 import omni.physx
 import omni.usd
+from omni.physics.stageupdate import get_physics_stage_update_node_interface
 from isaacsim.core.api.simulation_context import SimulationContext as _SimulationContext
 from isaacsim.core.simulation_manager import SimulationManager
 from isaacsim.core.utils.carb import get_carb_setting, set_carb_setting
@@ -293,6 +294,9 @@ class SimulationContext(_SimulationContext):
         self.set_setting("/app/player/playSimulations", False)
         NewtonManager.set_simulation_dt(self.cfg.dt, 1)
         NewtonManager.set_solver_settings(newton_params)
+        physx_sim_interface = omni.physx.get_physx_simulation_interface()
+        physx_sim_interface.detach_stage()
+        get_physics_stage_update_node_interface().detach_node()
 
     def _apply_physics_settings(self):
         """Sets various carb physics settings."""
