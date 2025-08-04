@@ -213,9 +213,11 @@ class NonHolonomicActionCfg(ActionTermCfg):
 ##
 @configclass
 class DifferentialInverseKinematicsActionCfg(ActionTermCfg):
-    raise NotImplementedError("Not implemented")
+    def __post_init__(self):
+        raise NotImplementedError("Not implemented")
 
 
 @configclass
 class OperationalSpaceControllerActionCfg(ActionTermCfg):
-    raise NotImplementedError("Not implemented")
+    def __post_init__(self):
+        raise NotImplementedError("Not implemented")
