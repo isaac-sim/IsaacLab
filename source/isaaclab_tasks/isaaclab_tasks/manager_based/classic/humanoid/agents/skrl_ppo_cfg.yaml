@@ -1,3 +1,7 @@
+# This file defines the agent configuration used to generate the "Training Performance" table in
+# https://isaac-sim.github.io/IsaacLab/main/source/overview/reinforcement-learning/rl_frameworks.html.
+# Ensure that the configurations for the other RL libraries are updated if this one is modified.
+
 seed: 42
 
 
