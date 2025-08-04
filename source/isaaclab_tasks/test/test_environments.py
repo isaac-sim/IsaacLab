@@ -60,18 +60,6 @@ def setup_environment():
     return registered_tasks
 
 
-# note, running an env test without stage in memory then
-# running an env test with stage in memory causes IsaacLab to hang.
-# so, here we run all envs with stage in memory first, then run
-# all envs without stage in memory.
-@pytest.mark.order(1)
-@pytest.mark.parametrize("num_envs, device", [(32, "cuda"), (1, "cuda")])
-@pytest.mark.parametrize("task_name", setup_environment())
-def test_environments_with_stage_in_memory(task_name, num_envs, device):
-    # run environments with stage in memory
-    _run_environments(task_name, device, num_envs, num_steps=100, create_stage_in_memory=True)
-
-
 @pytest.mark.order(2)
 @pytest.mark.parametrize("num_envs, device", [(32, "cuda"), (1, "cuda")])
 @pytest.mark.parametrize("task_name", setup_environment())

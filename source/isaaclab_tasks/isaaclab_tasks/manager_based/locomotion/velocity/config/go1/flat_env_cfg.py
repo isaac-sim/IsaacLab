@@ -25,7 +25,7 @@ class UnitreeGo1FlatEnvCfg(UnitreeGo1RoughEnvCfg):
         # self.scene.height_scanner = None
         # self.observations.policy.height_scan = None
         # no terrain curriculum
-        # self.curriculum.terrain_levels = None
+        self.curriculum.terrain_levels = None
 
 
 class UnitreeGo1FlatEnvCfg_PLAY(UnitreeGo1FlatEnvCfg):

@@ -7,7 +7,7 @@
 
 from dataclasses import MISSING
 
-from isaaclab.assets import Articulation, RigidObject, RigidObjectCollection
+from isaaclab.assets import Articulation
 from isaaclab.scene import InteractiveScene
 from isaaclab.utils import configclass
 
@@ -133,14 +133,8 @@ class SceneEntityCfg:
         # convert joint names to indices based on regex
         self._resolve_joint_names(scene)
 
-        # convert fixed tendon names to indices based on regex
-        self._resolve_fixed_tendon_names(scene)
-
         # convert body names to indices based on regex
         self._resolve_body_names(scene)
-
-        # convert object collection names to indices based on regex
-        self._resolve_object_collection_names(scene)
 
     def _resolve_joint_names(self, scene: InteractiveScene):
         # convert joint names to indices based on regex
@@ -178,49 +172,12 @@ class SceneEntityCfg:
 
     def _resolve_fixed_tendon_names(self, scene: InteractiveScene):
         # convert tendon names to indices based on regex
-        if self.fixed_tendon_names is not None or self.fixed_tendon_ids != slice(None):
-            entity: Articulation = scene[self.name]
-            # -- if both are not their default values, check if they are valid
-            if self.fixed_tendon_names is not None and self.fixed_tendon_ids != slice(None):
-                if isinstance(self.fixed_tendon_names, str):
-                    self.fixed_tendon_names = [self.fixed_tendon_names]
-                if isinstance(self.fixed_tendon_ids, int):
-                    self.fixed_tendon_ids = [self.fixed_tendon_ids]
-                fixed_tendon_ids, _ = entity.find_fixed_tendons(
-                    self.fixed_tendon_names, preserve_order=self.preserve_order
-                )
-                fixed_tendon_names = [entity.fixed_tendon_names[i] for i in self.fixed_tendon_ids]
-                if fixed_tendon_ids != self.fixed_tendon_ids or fixed_tendon_names != self.fixed_tendon_names:
-                    raise ValueError(
-                        "Both 'fixed_tendon_names' and 'fixed_tendon_ids' are specified, and are not consistent."
-                        f"\n\tfrom joint names: {self.fixed_tendon_names} [{fixed_tendon_ids}]"
-                        f"\n\tfrom joint ids: {fixed_tendon_names} [{self.fixed_tendon_ids}]"
-                        "\nHint: Use either 'fixed_tendon_names' or 'fixed_tendon_ids' to avoid confusion."
-                    )
-            # -- from fixed tendon names to fixed tendon indices
-            elif self.fixed_tendon_names is not None:
-                if isinstance(self.fixed_tendon_names, str):
-                    self.fixed_tendon_names = [self.fixed_tendon_names]
-                self.fixed_tendon_ids, _ = entity.find_fixed_tendons(
-                    self.fixed_tendon_names, preserve_order=self.preserve_order
-                )
-                # performance optimization (slice offers faster indexing than list of indices)
-                # only all fixed tendon in the entity order are selected
-                if (
-                    len(self.fixed_tendon_ids) == entity.num_fixed_tendons
-                    and self.fixed_tendon_names == entity.fixed_tendon_names
-                ):
-                    self.fixed_tendon_ids = slice(None)
-            # -- from fixed tendon indices to fixed tendon names
-            elif self.fixed_tendon_ids != slice(None):
-                if isinstance(self.fixed_tendon_ids, int):
-                    self.fixed_tendon_ids = [self.fixed_tendon_ids]
-                self.fixed_tendon_names = [entity.fixed_tendon_names[i] for i in self.fixed_tendon_ids]
+        raise NotImplementedError("Fixed tendons are not supported in IsaacLab for Newton.")
 
     def _resolve_body_names(self, scene: InteractiveScene):
         # convert body names to indices based on regex
         if self.body_names is not None or self.body_ids != slice(None):
-            entity: RigidObject = scene[self.name]
+            entity: Articulation = scene[self.name]
             # -- if both are not their default values, check if they are valid
             if self.body_names is not None and self.body_ids != slice(None):
                 if isinstance(self.body_names, str):
@@ -253,33 +210,4 @@ class SceneEntityCfg:
 
     def _resolve_object_collection_names(self, scene: InteractiveScene):
         # convert object names to indices based on regex
-        if self.object_collection_names is not None or self.object_collection_ids != slice(None):
-            entity: RigidObjectCollection = scene[self.name]
-            # -- if both are not their default values, check if they are valid
-            if self.object_collection_names is not None and self.object_collection_ids != slice(None):
-                if isinstance(self.object_collection_names, str):
-                    self.object_collection_names = [self.object_collection_names]
-                if isinstance(self.object_collection_ids, int):
-                    self.object_collection_ids = [self.object_collection_ids]
-                object_ids, _ = entity.find_objects(self.object_collection_names, preserve_order=self.preserve_order)
-                object_names = [entity.object_names[i] for i in self.object_collection_ids]
-                if object_ids != self.object_collection_ids or object_names != self.object_collection_names:
-                    raise ValueError(
-                        "Both 'object_collection_names' and 'object_collection_ids' are specified, and are not"
-                        " consistent.\n\tfrom object collection names:"
-                        f" {self.object_collection_names} [{object_ids}]\n\tfrom object collection ids:"
-                        f" {object_names} [{self.object_collection_ids}]\nHint: Use either 'object_collection_names' or"
-                        " 'object_collection_ids' to avoid confusion."
-                    )
-            # -- from object names to object indices
-            elif self.object_collection_names is not None:
-                if isinstance(self.object_collection_names, str):
-                    self.object_collection_names = [self.object_collection_names]
-                self.object_collection_ids, _ = entity.find_objects(
-                    self.object_collection_names, preserve_order=self.preserve_order
-                )
-            # -- from object indices to object names
-            elif self.object_collection_ids != slice(None):
-                if isinstance(self.object_collection_ids, int):
-                    self.object_collection_ids = [self.object_collection_ids]
-                self.object_collection_names = [entity.object_names[i] for i in self.object_collection_ids]
+        raise NotImplementedError("Object collections are not supported in IsaacLab for Newton.")

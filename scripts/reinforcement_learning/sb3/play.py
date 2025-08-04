@@ -61,7 +61,6 @@ import torch
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import VecNormalize
 
-from isaaclab.envs import DirectMARLEnv, multi_agent_to_single_agent
 from isaaclab.utils.dict import print_dict
 from isaaclab.utils.io import load_yaml
 from isaaclab.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
@@ -111,10 +110,6 @@ def main():
     agent_cfg = load_yaml(os.path.join(log_dir, "params", "agent.yaml"))
     # post-process agent configuration
     agent_cfg = process_sb3_cfg(agent_cfg, env.unwrapped.num_envs)
-
-    # convert to single-agent instance if required by the RL algorithm
-    if isinstance(env.unwrapped, DirectMARLEnv):
-        env = multi_agent_to_single_agent(env)
 
     # wrap for video recording
     if args_cli.video:

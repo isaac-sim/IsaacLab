@@ -63,6 +63,7 @@ enable_extension("isaacsim.benchmark.services")
 
 # Set the benchmark settings according to the inputs
 import carb
+
 settings = carb.settings.get_settings()
 settings.set("/exts/isaacsim.benchmark.services/metrics/metrics_output_folder", args_cli.output_folder)
 settings.set("/exts/isaacsim.benchmark.services/metrics/randomize_filename_prefix", True)
@@ -73,6 +74,9 @@ sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../.."
 
 from isaaclab.utils.timer import Timer
 from scripts.benchmarks.utils import (
+    get_isaaclab_version,
+    get_mujoco_warp_version,
+    get_newton_version,
     log_app_start_time,
     log_python_imports_time,
     log_runtime_step_times,
@@ -80,9 +84,6 @@ from scripts.benchmarks.utils import (
     log_simulation_start_time,
     log_task_start_time,
     log_total_start_time,
-    get_newton_version,
-    get_isaaclab_version,
-    get_mujoco_warp_version,
 )
 
 imports_time_begin = time.perf_counter_ns()

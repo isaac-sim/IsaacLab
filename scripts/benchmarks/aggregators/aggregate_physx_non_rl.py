@@ -7,7 +7,7 @@ import argparse
 import json
 import numpy as np
 
-from utils import bar_plot, check_info_consistency, load_json_files, rework_data
+from utils import check_info_consistency, load_json_files, rework_data
 
 parser = argparse.ArgumentParser()
 # A list of benchmark folders
@@ -32,8 +32,8 @@ class NumpyEncoder(json.JSONEncoder):
                 return float(obj)
             elif isinstance(obj, (np.ndarray,)):
                 return obj.tolist()
-        except ImportError:
-            pass
+        except Exception as e:
+            print(f"Error: {e}")
         return super().default(obj)
 
 

@@ -57,7 +57,6 @@ class BaseEnvWindow:
         self._viewer_assets_options = [
             "World",
             "Env",
-            *self.env.scene.rigid_objects.keys(),
             *self.env.scene.articulations.keys(),
         ]
 
@@ -236,13 +235,11 @@ class BaseEnvWindow:
             with self.ui_window_elements["debug_vstack"]:
                 elements = [
                     self.env.scene.terrain,
-                    *self.env.scene.rigid_objects.values(),
                     *self.env.scene.articulations.values(),
                     *self.env.scene.sensors.values(),
                 ]
                 names = [
                     "terrain",
-                    *self.env.scene.rigid_objects.keys(),
                     *self.env.scene.articulations.keys(),
                     *self.env.scene.sensors.keys(),
                 ]

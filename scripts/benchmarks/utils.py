@@ -5,14 +5,13 @@
 
 
 import glob
-import os
 import importlib
+import os
 import subprocess
-
-from tensorboard.backend.event_processing import event_accumulator
 
 from isaacsim.benchmark.services import BaseIsaacBenchmark
 from isaacsim.benchmark.services.metrics.measurements import DictMeasurement, ListMeasurement, SingleMeasurement
+from tensorboard.backend.event_processing import event_accumulator
 
 
 def parse_tf_logs(log_dir: str):

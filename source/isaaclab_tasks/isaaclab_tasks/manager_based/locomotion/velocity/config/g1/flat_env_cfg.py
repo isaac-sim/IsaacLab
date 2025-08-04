@@ -22,7 +22,7 @@ class G1FlatEnvCfg(G1RoughEnvCfg):
         # self.scene.height_scanner = None
         # self.observations.policy.height_scan = None
         # no terrain curriculum
-        # self.curriculum.terrain_levels = None
+        self.curriculum.terrain_levels = None
 
         # Rewards
         self.rewards.track_ang_vel_z_exp.weight = 1.0

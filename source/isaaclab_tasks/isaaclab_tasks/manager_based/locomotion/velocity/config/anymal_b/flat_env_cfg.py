@@ -24,8 +24,8 @@ class AnymalBFlatEnvCfg(AnymalBRoughEnvCfg):
         # # no height scan
         # self.scene.height_scanner = None
         # self.observations.policy.height_scan = None
-        # # no terrain curriculum
-        # self.curriculum.terrain_levels = None
+        # no terrain curriculum
+        self.curriculum.terrain_levels = None
 
 
 class AnymalBFlatEnvCfg_PLAY(AnymalBFlatEnvCfg):

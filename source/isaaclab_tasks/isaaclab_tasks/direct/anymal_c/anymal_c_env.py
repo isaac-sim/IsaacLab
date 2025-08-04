@@ -83,7 +83,7 @@ class AnymalCEnv(DirectRLEnv):
 
     def _get_observations(self) -> dict:
         self._previous_actions = self._actions.clone()
-        height_data = None
+        # height_data = None
         # if isinstance(self.cfg, AnymalCRoughEnvCfg):
         #    height_data = (
         #        self._height_scanner.data.pos_w[:, 2].unsqueeze(1) - self._height_scanner.data.ray_hits_w[..., 2] - 0.5

@@ -14,11 +14,11 @@ from __future__ import annotations
 import torch
 from typing import TYPE_CHECKING
 
-from isaaclab.assets import Articulation, RigidObject
+from isaaclab.assets import Articulation
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers.manager_base import ManagerTermBase
 from isaaclab.managers.manager_term_cfg import RewardTermCfg
-from isaaclab.sensors import ContactSensor, RayCaster
+from isaaclab.sensors import ContactSensor
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
@@ -76,14 +76,14 @@ Root penalties.
 def lin_vel_z_l2(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """Penalize z-axis base linear velocity using L2 squared kernel."""
     # extract the used quantities (to enable type-hinting)
-    asset: RigidObject = env.scene[asset_cfg.name]
+    asset: Articulation = env.scene[asset_cfg.name]
     return torch.square(asset.data.root_lin_vel_b[:, 2])
 
 
 def ang_vel_xy_l2(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """Penalize xy-axis base angular velocity using L2 squared kernel."""
     # extract the used quantities (to enable type-hinting)
-    asset: RigidObject = env.scene[asset_cfg.name]
+    asset: Articulation = env.scene[asset_cfg.name]
     return torch.sum(torch.square(asset.data.root_ang_vel_b[:, :2]), dim=1)
 
 
@@ -93,7 +93,7 @@ def flat_orientation_l2(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = Scen
     This is computed by penalizing the xy-components of the projected gravity vector.
     """
     # extract the used quantities (to enable type-hinting)
-    asset: RigidObject = env.scene[asset_cfg.name]
+    asset: Articulation = env.scene[asset_cfg.name]
     return torch.sum(torch.square(asset.data.projected_gravity_b[:, :2]), dim=1)
 
 
@@ -110,11 +110,12 @@ def base_height_l2(
         sensor readings can adjust the target height to account for the terrain.
     """
     # extract the used quantities (to enable type-hinting)
-    asset: RigidObject = env.scene[asset_cfg.name]
-    if sensor_cfg is not None:
-        sensor: RayCaster = env.scene[sensor_cfg.name]
+    asset: Articulation = env.scene[asset_cfg.name]
+    if sensor_cfg is not None:  # noqa: R506
+        raise NotImplementedError("Height scan is not implemented in IsaacLab for Newton.")
+        # sensor: RayCaster = env.scene[sensor_cfg.name]
         # Adjust the target height using the sensor data
-        adjusted_target_height = target_height + torch.mean(sensor.data.ray_hits_w[..., 2], dim=1)
+        # adjusted_target_height = target_height + torch.mean(sensor.data.ray_hits_w[..., 2], dim=1)
     else:
         # Use the provided target height directly for flat terrain
         adjusted_target_height = target_height
@@ -299,7 +300,7 @@ def track_lin_vel_xy_exp(
 ) -> torch.Tensor:
     """Reward tracking of linear velocity commands (xy axes) using exponential kernel."""
     # extract the used quantities (to enable type-hinting)
-    asset: RigidObject = env.scene[asset_cfg.name]
+    asset: Articulation = env.scene[asset_cfg.name]
     # compute the error
     lin_vel_error = torch.sum(
         torch.square(env.command_manager.get_command(command_name)[:, :2] - asset.data.root_lin_vel_b[:, :2]),
@@ -313,7 +314,7 @@ def track_ang_vel_z_exp(
 ) -> torch.Tensor:
     """Reward tracking of angular velocity commands (yaw) using exponential kernel."""
     # extract the used quantities (to enable type-hinting)
-    asset: RigidObject = env.scene[asset_cfg.name]
+    asset: Articulation = env.scene[asset_cfg.name]
     # compute the error
     ang_vel_error = torch.square(env.command_manager.get_command(command_name)[:, 2] - asset.data.root_ang_vel_b[:, 2])
     return torch.exp(-ang_vel_error / std**2)

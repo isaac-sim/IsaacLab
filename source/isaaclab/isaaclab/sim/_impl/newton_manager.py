@@ -8,12 +8,12 @@ import re
 import newton.sim.articulation
 import newton.utils
 import usdrt
-from newton.solvers import MuJoCoSolver, XPBDSolver, FeatherstoneSolver, SolverBase
 import warp as wp
 from isaacsim.core.utils.stage import get_current_stage
 from newton import Control, Model, State
 from newton.sim import ModelBuilder
 from newton.sim.contacts import ContactInfo
+from newton.solvers import FeatherstoneSolver, MuJoCoSolver, SolverBase, XPBDSolver
 from newton.utils.contact_sensor import ContactView, convert_contact_info
 
 
@@ -30,6 +30,7 @@ def flipped_match(x: str, y: str) -> re.Match | None:
         The match object if the body/shape name is found in the contact view, otherwise None.
     """
     return re.match(y, x)
+
 
 @wp.kernel(enable_backward=False)
 def set_vec3d_array(
@@ -138,7 +139,6 @@ class NewtonManager:
 
     @classmethod
     def initialize_solver(cls):
-        
         """Initializes the solver.
 
         This function initializes the solver based on the specified solver type. Currently, only XPBD and MuJoCoWarp
@@ -318,7 +318,7 @@ class NewtonManager:
             return FeatherstoneSolver(model, **solver_cfg)
         else:
             raise ValueError(f"Invalid solver type: {solver_type}")
-        
+
     @classmethod
     def add_contact_view(
         cls,

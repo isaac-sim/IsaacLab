@@ -25,7 +25,7 @@ class AnymalCFlatEnvCfg(AnymalCRoughEnvCfg):
         # self.scene.height_scanner = None
         # self.observations.policy.height_scan = None
         # no terrain curriculum
-        # self.curriculum.terrain_levels = None
+        self.curriculum.terrain_levels = None
 
 
 class AnymalCFlatEnvCfg_PLAY(AnymalCFlatEnvCfg):

@@ -17,9 +17,7 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sensors import ContactSensorCfg  # , RayCasterCfg, patterns
-
-# from isaaclab.sensors import RayCasterCfg, patterns
+from isaaclab.sensors import ContactSensorCfg
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
@@ -46,7 +44,7 @@ class MySceneCfg(InteractiveSceneCfg):
     terrain = TerrainImporterCfg(
         prim_path="/World/ground",
         terrain_type="generator",
-        # terrain_generator=ROUGH_TERRAINS_CFG,
+        terrain_generator=ROUGH_TERRAINS_CFG,
         max_init_terrain_level=5,
         collision_group=-1,
         physics_material=sim_utils.RigidBodyMaterialCfg(
@@ -65,17 +63,9 @@ class MySceneCfg(InteractiveSceneCfg):
     # robots
     robot: ArticulationCfg = MISSING
     # sensors
-    # height_scanner = RayCasterCfg(
-    #     prim_path="{ENV_REGEX_NS}/Robot/base",
-    #     offset=RayCasterCfg.OffsetCfg(pos=(0.0, 0.0, 20.0)),
-    #     ray_alignment="yaw",
-    #     pattern_cfg=patterns.GridPatternCfg(resolution=0.1, size=[1.6, 1.0]),
-    #     debug_vis=False,
-    #     mesh_prim_paths=["/World/ground"],
-    # )
     contact_forces = ContactSensorCfg(
         prim_path="{ENV_REGEX_NS}/Robot/.*",
-        filter_shape_paths_expr=["/World/ground/terrain/GroundPlane/CollisionPlane"],
+        filter_shape_paths_expr=None,  # ["/World/ground/terrain/GroundPlane/CollisionPlane"],
         history_length=3,
         track_air_time=True,
     )
@@ -138,12 +128,6 @@ class ObservationsCfg:
         joint_pos = ObsTerm(func=mdp.joint_pos_rel, noise=Unoise(n_min=-0.01, n_max=0.01))
         joint_vel = ObsTerm(func=mdp.joint_vel_rel, noise=Unoise(n_min=-1.5, n_max=1.5))
         actions = ObsTerm(func=mdp.last_action)
-        # height_scan = ObsTerm(
-        #     func=mdp.height_scan,
-        #     params={"sensor_cfg": SceneEntityCfg("height_scanner")},
-        #     noise=Unoise(n_min=-0.1, n_max=0.1),
-        #     clip=(-1.0, 1.0),
-        # )
 
         def __post_init__(self):
             self.enable_corruption = True
@@ -181,12 +165,12 @@ class EventCfg:
     )
 
     base_com = EventTerm(
-       func=mdp.randomize_rigid_body_com,
-       mode="startup",
-       params={
-           "asset_cfg": SceneEntityCfg("robot", body_names="base"),
-           "com_range": {"x": (-0.05, 0.05), "y": (-0.05, 0.05), "z": (-0.01, 0.01)},
-       },
+        func=mdp.randomize_rigid_body_com,
+        mode="startup",
+        params={
+            "asset_cfg": SceneEntityCfg("robot", body_names="base"),
+            "com_range": {"x": (-0.05, 0.05), "y": (-0.05, 0.05), "z": (-0.01, 0.01)},
+        },
     )
 
     # reset
@@ -307,7 +291,7 @@ class LocomotionVelocityRoughEnvCfg(ManagerBasedRLEnvCfg):
     rewards: RewardsCfg = RewardsCfg()
     terminations: TerminationsCfg = TerminationsCfg()
     events: EventCfg = EventCfg()
-    # curriculum: CurriculumCfg = CurriculumCfg()
+    curriculum: CurriculumCfg = CurriculumCfg()
 
     def __post_init__(self):
         """Post initialization."""
@@ -323,14 +307,14 @@ class LocomotionVelocityRoughEnvCfg(ManagerBasedRLEnvCfg):
         # we tick all the sensors based on the smallest update period (physics update period)
         # if self.scene.height_scanner is not None:
         #     self.scene.height_scanner.update_period = self.decimation * self.sim.dt
-        # if self.scene.contact_forces is not None:
-        #    self.scene.contact_forces.update_period = self.sim.dt
+        if self.scene.contact_forces is not None:
+            self.scene.contact_forces.update_period = self.sim.dt
 
         # check if terrain levels curriculum is enabled - if so, enable curriculum for terrain generator
         # this generates terrains with increasing difficulty and is useful for training
-        # if getattr(self.curriculum, "terrain_levels", None) is not None:
-        #     if self.scene.terrain.terrain_generator is not None:
-        #         self.scene.terrain.terrain_generator.curriculum = True
-        # else:
-        #     if self.scene.terrain.terrain_generator is not None:
-        #         self.scene.terrain.terrain_generator.curriculum = False
+        if getattr(self.curriculum, "terrain_levels", None) is not None:
+            if self.scene.terrain.terrain_generator is not None:
+                self.scene.terrain.terrain_generator.curriculum = True
+        else:
+            if self.scene.terrain.terrain_generator is not None:
+                self.scene.terrain.terrain_generator.curriculum = False

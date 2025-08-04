@@ -293,7 +293,7 @@ class SimulationContext(_SimulationContext):
         self.set_setting("/app/player/playSimulations", False)
         NewtonManager.set_simulation_dt(self.cfg.dt, 1)
         NewtonManager.set_solver_settings(newton_params)
-        
+
     def _apply_physics_settings(self):
         """Sets various carb physics settings."""
         # enable hydra scene-graph instancing
@@ -645,10 +645,10 @@ class SimulationContext(_SimulationContext):
             raise Exception("There is no stage currently opened, init_stage needed before calling this func")
         if render:
             # physics dt is zero, no need to step physics, just render
-            if self.get_physics_dt() == 0:
+            if self.get_physics_dt() == 0:  # noqa: SIM114
                 SimulationContext.render(self)
             # rendering dt is zero, but physics is not, call step and then render
-            elif self.get_rendering_dt() == 0 and self.get_physics_dt() != 0:
+            elif self.get_rendering_dt() == 0 and self.get_physics_dt() != 0:  # noqa: SIM114
                 # if self.is_playing():
                 # self._physics_context._step(current_time=self.current_time)
                 SimulationContext.render(self)

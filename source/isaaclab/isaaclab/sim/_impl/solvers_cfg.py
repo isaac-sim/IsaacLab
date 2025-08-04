@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 from isaaclab.utils import configclass
 
 
@@ -12,7 +17,7 @@ class NewtonSolverCfg:
 
     solver_type: str = "None"
     """Solver type.
-    
+
     Used to select the right solver class.
     """
 
@@ -30,7 +35,7 @@ class MJWarpSolverCfg(NewtonSolverCfg):
     solver_type: str = "mujoco_warp"
     """Solver type. Can be "mujoco_warp"."""
 
-    nefc_per_env: int = 100
+    nefc_per_env: int = 300
     """Number of constraints per environment (world)."""
 
     ncon_per_env: int | None = None
@@ -62,13 +67,13 @@ class MJWarpSolverCfg(NewtonSolverCfg):
 
     update_data_interval: int = 1
     """Frequency (in simulation steps) at which to update the MuJoCo Data object from the Newton state.
-    
+
     If 0, Data is never updated after initialization.
     """
 
     save_to_mjcf: str | None = None
     """Optional path to save the generated MJCF model file.
-    
+
     If None, the MJCF model is not saved.
     """
 
@@ -84,6 +89,9 @@ class MJWarpSolverCfg(NewtonSolverCfg):
 
     cone: str = "elliptic"
     """The type of contact friction cone. Can be "pyramidal" or "elliptic"."""
+
+    ls_parallel: bool = False
+    """Whether to use parallel line search."""
 
 
 @configclass
@@ -142,16 +150,16 @@ class XPBOSolverCfg(NewtonSolverCfg):
 class FeatherstoneSolverCfg(NewtonSolverCfg):
     """A semi-implicit integrator using symplectic Euler.
 
-        It operates on reduced (also called generalized) coordinates to simulate articulated rigid body dynamics
-        based on Featherstone's composite rigid body algorithm (CRBA).
+    It operates on reduced (also called generalized) coordinates to simulate articulated rigid body dynamics
+    based on Featherstone's composite rigid body algorithm (CRBA).
 
-        See: Featherstone, Roy. Rigid Body Dynamics Algorithms. Springer US, 2014.
+    See: Featherstone, Roy. Rigid Body Dynamics Algorithms. Springer US, 2014.
 
-        Semi-implicit time integration is a variational integrator that
-        preserves energy, however it not unconditionally stable, and requires a time-step
-        small enough to support the required stiffness and damping forces.
+    Semi-implicit time integration is a variational integrator that
+    preserves energy, however it not unconditionally stable, and requires a time-step
+    small enough to support the required stiffness and damping forces.
 
-        See: https://en.wikipedia.org/wiki/Semi-implicit_Euler_method
+    See: https://en.wikipedia.org/wiki/Semi-implicit_Euler_method
     """
 
     angular_damping: float = 0.05

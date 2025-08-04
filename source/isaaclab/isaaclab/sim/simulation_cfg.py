@@ -12,7 +12,8 @@ configuring the environment instances, viewer settings, and simulation parameter
 from typing import Literal
 
 from isaaclab.utils import configclass
-from ._impl.solvers_cfg import NewtonSolverCfg, MJWarpSolverCfg
+
+from ._impl.solvers_cfg import MJWarpSolverCfg, NewtonSolverCfg
 from .spawners.materials import RigidBodyMaterialCfg
 
 

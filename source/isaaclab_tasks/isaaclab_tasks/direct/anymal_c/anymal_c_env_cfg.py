@@ -10,7 +10,7 @@ from isaaclab.envs import DirectRLEnvCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sensors import ContactSensorCfg, RayCasterCfg, patterns
+from isaaclab.sensors import ContactSensorCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass
@@ -93,9 +93,12 @@ class AnymalCFlatEnvCfg(DirectRLEnvCfg):
 
     # robot
     robot: ArticulationCfg = ANYMAL_C_CFG.replace(prim_path="/World/envs/env_.*/Robot")
-    # contact_sensor: ContactSensorCfg = ContactSensorCfg(
-    #    prim_path="/World/envs/env_.*/Robot/.*", history_length=3, update_period=0.005, track_air_time=True
-    # )
+    contact_sensor: ContactSensorCfg = ContactSensorCfg(
+        prim_path="/World/envs/env_.*/Robot/.*",
+        filter_shape_paths_expr=None,
+        history_length=3,
+        track_air_time=True,
+    )
 
     # reward scales
     lin_vel_reward_scale = 1.0
@@ -135,14 +138,14 @@ class AnymalCRoughEnvCfg(AnymalCFlatEnvCfg):
     )
 
     # we add a height scanner for perceptive locomotion
-    height_scanner = RayCasterCfg(
-        prim_path="/World/envs/env_.*/Robot/base",
-        offset=RayCasterCfg.OffsetCfg(pos=(0.0, 0.0, 20.0)),
-        attach_yaw_only=True,
-        pattern_cfg=patterns.GridPatternCfg(resolution=0.1, size=[1.6, 1.0]),
-        debug_vis=False,
-        mesh_prim_paths=["/World/ground"],
-    )
+    # height_scanner = RayCasterCfg(
+    #    prim_path="/World/envs/env_.*/Robot/base",
+    #    offset=RayCasterCfg.OffsetCfg(pos=(0.0, 0.0, 20.0)),
+    #    attach_yaw_only=True,
+    #    pattern_cfg=patterns.GridPatternCfg(resolution=0.1, size=[1.6, 1.0]),
+    #    debug_vis=False,
+    #    mesh_prim_paths=["/World/ground"],
+    # )
 
     # reward scales (override from flat config)
     flat_orientation_reward_scale = 0.0

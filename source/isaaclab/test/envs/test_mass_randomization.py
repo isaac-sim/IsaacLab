@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
@@ -206,7 +211,7 @@ class TestMassRandomization(unittest.TestCase):
         self.assertTrue((np.abs(masses[1, 0] - masses[2, 0]) > 0.0).all())
         self.assertTrue((np.abs(masses_mjwarp[0, 1] - masses_mjwarp[1, 1]) > 0.0).all())
         self.assertTrue((np.abs(masses_mjwarp[1, 1] - masses_mjwarp[2, 1]) > 0.0).all())
-        # environement should have differnt heights
+        # environment should have different heights
         heights = obs["policy"].cpu().numpy()
         self.assertTrue(np.abs(heights[0] - heights[1]) > 0.0)
         self.assertTrue(np.abs(heights[1] - heights[2]) > 0.0)
@@ -229,7 +234,7 @@ class TestMassRandomization(unittest.TestCase):
         self.assertTrue((np.abs(masses[1, :] - masses[2, :]) == 0.0).all())
         self.assertTrue((np.abs(masses_mjwarp[0, :] - masses_mjwarp[1, :]) == 0.0).all())
         self.assertTrue((np.abs(masses_mjwarp[1, :] - masses_mjwarp[2, :]) == 0.0).all())
-        # environement should have differnt heights
+        # environment should have different heights
         # heights = obs["policy"].cpu().numpy()
         # self.assertTrue(np.abs(heights[0]- heights[1]) < 1e-2)
         # self.assertTrue(np.abs(heights[1]- heights[2]) < 1e-2)

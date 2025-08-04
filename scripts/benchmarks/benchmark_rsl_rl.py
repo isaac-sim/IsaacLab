@@ -99,14 +99,19 @@ enable_extension("isaacsim.benchmark.services")
 
 # Set the benchmark settings according to the inputs
 import carb
+
 settings = carb.settings.get_settings()
 settings.set("/exts/isaacsim.benchmark.services/metrics/metrics_output_folder", args_cli.output_folder)
 settings.set("/exts/isaacsim.benchmark.services/metrics/randomize_filename_prefix", True)
 
 
 from isaacsim.benchmark.services import BaseIsaacBenchmark
+
 from isaaclab.utils.timer import Timer
 from scripts.benchmarks.utils import (
+    get_isaaclab_version,
+    get_mujoco_warp_version,
+    get_newton_version,
     log_app_start_time,
     log_python_imports_time,
     log_rl_policy_episode_lengths,
@@ -117,9 +122,6 @@ from scripts.benchmarks.utils import (
     log_task_start_time,
     log_total_start_time,
     parse_tf_logs,
-    get_newton_version,
-    get_isaaclab_version,
-    get_mujoco_warp_version,
 )
 
 torch.backends.cuda.matmul.allow_tf32 = True
