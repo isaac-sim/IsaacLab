@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+1.0.8 (2025-07-31)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``from __future__ import annotations`` to utils.py to fix Sphinx
+  doc warnings for IsaacLab Mimic docs.
+
+
 1.0.7 (2025-03-19)
 ~~~~~~~~~~~~~~~~~~
 
