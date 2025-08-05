@@ -132,28 +132,28 @@ class TwoRobotStackCubeCfg(DirectRLEnvCfg):
             update_period=0.0,
             history_length=1,
             debug_vis=False,
-            filter_prim_paths_expr=[".*/Peg"],  # only peg contacts
+            filter_prim_paths_expr=[".*/Cube_green"],
         ),
         ContactSensorCfg(
             prim_path="/World/envs/env_.*/Robot_left/panda_rightfinger",
             update_period=0.0,
             history_length=1,
             debug_vis=False,
-            filter_prim_paths_expr=[".*/Peg"],
+            filter_prim_paths_expr=[".*/Cube_green"],
         ),
         ContactSensorCfg(
             prim_path="/World/envs/env_.*/Robot_right/panda_leftfinger",
             update_period=0.0,
             history_length=1,
             debug_vis=False,
-            filter_prim_paths_expr=[".*/Peg"],  # only peg contacts
+            filter_prim_paths_expr=[".*/Cube_red"],
         ),
         ContactSensorCfg(
             prim_path="/World/envs/env_.*/Robot_right/panda_rightfinger",
             update_period=0.0,
             history_length=1,
             debug_vis=False,
-            filter_prim_paths_expr=[".*/Peg"],
+            filter_prim_paths_expr=[".*/Cube_red"],
         ),
     )
 
