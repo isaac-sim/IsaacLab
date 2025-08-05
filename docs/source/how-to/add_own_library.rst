@@ -68,7 +68,7 @@ Isaac Lab, you will first need to make a wrapper for the library, as explained i
 
 The following steps can be followed to integrate a new library with Isaac Lab:
 
-1. Add your library as an extra-dependency in the ``setup.py`` for the extension ``isaaclab_tasks``.
+1. Add your library as an extra-dependency in the ``setup.py`` for the extension ``isaaclab_rl``.
    This will ensure that the library is installed when you install Isaac Lab or it will complain if the library is not
    installed or available.
 2. Install your library in the Python environment used by Isaac Lab. You can do this by following the steps mentioned
@@ -86,6 +86,15 @@ works as expected and can guide users on how to use the wrapper.
 * Add some tests to ensure that the wrapper works as expected and remains compatible with the library.
   These tests can be added to the ``source/isaaclab_rl/test`` directory.
 * Add some documentation for the wrapper. You can add the API documentation to the
-  ``docs/source/api/lab_tasks/isaaclab_rl.rst`` file.
+  :ref:`API documentation<api-isaaclab-rl>` for the ``isaaclab_rl`` module.
+
+
+Configuring an RL Agent
+-----------------------
+
+Once you have integrated a new library with Isaac Lab, you can configure the example environment to use the new library.
+You can check the :ref:`tutorial-configure-rl-training` for an example of how to configure the training process to use a
+different library.
+
 
 .. _rsl-rl: https://github.com/leggedrobotics/rsl_rl
