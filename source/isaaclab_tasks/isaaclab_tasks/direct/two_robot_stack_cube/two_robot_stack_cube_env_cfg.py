@@ -132,7 +132,7 @@ class TwoRobotStackCubeCfg(DirectRLEnvCfg):
             update_period=0.0,
             history_length=1,
             debug_vis=False,
-            filter_prim_paths_expr=[".*/Cube_green"],
+            filter_prim_paths_expr=[".*/Cube_green"],  # TODO debug
         ),
         ContactSensorCfg(
             prim_path="/World/envs/env_.*/Robot_left/panda_rightfinger",
@@ -279,7 +279,7 @@ class TwoRobotStackCubeCfg(DirectRLEnvCfg):
             0.1,
             0.0,
             0.0,
-            0.0,
+            torch.pi / 2,
             -torch.pi,
         ],
         [
@@ -287,7 +287,7 @@ class TwoRobotStackCubeCfg(DirectRLEnvCfg):
             0.2,
             0.0,
             0.0,
-            0.0,
+            torch.pi / 2,
             torch.pi,
         ],
     ]
@@ -297,16 +297,16 @@ class TwoRobotStackCubeCfg(DirectRLEnvCfg):
             -0.05,
             -0.1,
             0.0,
+            -torch.pi / 2,
             0.0,
-            torch.pi,
             -torch.pi,
         ],
         [
             0.05,
             -0.2,
             0.0,
+            -torch.pi / 2,
             0.0,
-            torch.pi,
             torch.pi,
         ],
     ]
