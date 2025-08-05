@@ -42,7 +42,9 @@ gym.register(
     kwargs={
         "env_cfg_entry_point": f"{__name__}.rough_env_cfg:AnymalDRoughEnvCfg",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:AnymalDRoughPPORunnerCfg",
-        "rsl_rl_with_symmetry_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:AnymalDRoughPPORunnerWithSymmetryCfg",
+        "rsl_rl_with_symmetry_cfg_entry_point": (
+            f"{agents.__name__}.rsl_rl_ppo_cfg:AnymalDRoughPPORunnerWithSymmetryCfg"
+        ),
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_rough_ppo_cfg.yaml",
     },
 )
@@ -54,7 +56,9 @@ gym.register(
     kwargs={
         "env_cfg_entry_point": f"{__name__}.rough_env_cfg:AnymalDRoughEnvCfg_PLAY",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:AnymalDRoughPPORunnerCfg",
-        "rsl_rl_with_symmetry_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:AnymalDRoughPPORunnerWithSymmetryCfg",
+        "rsl_rl_with_symmetry_cfg_entry_point": (
+            f"{agents.__name__}.rsl_rl_ppo_cfg:AnymalDRoughPPORunnerWithSymmetryCfg"
+        ),
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_rough_ppo_cfg.yaml",
     },
 )
