@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.41.5 (2025-07-31)
+0.44.9 (2025-07-30)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -11,7 +11,7 @@ Added
   doc warnings for IsaacLab Mimic docs.
 
 
-0.41.4 (2025-07-30)
+0.44.8 (2025-07-30)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -24,7 +24,7 @@ Fixed
   their resets. Previously, only class-based events were properly handled.
 
 
-0.41.3 (2025-07-30)
+0.44.7 (2025-07-30)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -42,8 +42,18 @@ Removed
   passed to the :meth:`set_external_force_and_torque` function.
 
 
-0.41.2 (2025-07-28)
+0.44.6 (2025-07-28)
 ~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Tweak default behavior for rendering preset modes.
+
+
+0.44.5 (2025-07-28)
+~~~~~~~~~~~~~~~~~~~
+
 Fixed
 ^^^^^
 
@@ -51,14 +61,45 @@ Fixed
 * Added tests to verify that argument types.
 
 
-0.41.1 (2025-07-22)
+0.44.4 (2025-07-22)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
 ^^^^^
 
-* Added unit tests for :class:`~isaaclab.actuator.ImplicitActuator`, :class:`~isaaclab.actuator.IdealPDActuator`,
-  and :class:`~isaaclab.actuator.DCMotor` independent of :class:`~isaaclab.assets.Articulation`
+* Added safe callbacks for stage in memory attaching.
+* Remove on prim deletion callback workaround
+
+
+0.44.3 (2025-07-21)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed rendering preset mode regression.
+
+
+0.44.2 (2025-07-22)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated teleop scripts to print to console vs omni log.
+
+
+0.44.1 (2025-07-17)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated test_pink_ik.py test case to pytest format.
+
+
+0.44.0 (2025-07-21)
+~~~~~~~~~~~~~~~~~~~
 
 Changed
 ^^^^^^^
@@ -66,8 +107,14 @@ Changed
 * Changed the way clipping is handled for :class:`~isaaclab.actuator.DCMotor` for torque-speed points in when in
   negative power regions.
 
+Added
+^^^^^
 
-0.41.0 (2025-07-21)
+* Added unit tests for :class:`~isaaclab.actuator.ImplicitActuator`, :class:`~isaaclab.actuator.IdealPDActuator`,
+  and :class:`~isaaclab.actuator.DCMotor` independent of :class:`~isaaclab.assets.Articulation`
+
+
+0.43.0 (2025-07-21)
 ~~~~~~~~~~~~~~~~~~~
 
 Changed
@@ -79,7 +126,7 @@ Changed
   torch version, we are now overwriting the torch installation step in isaaclab.sh when running ``./isaaclab.sh -i``.
 
 
-0.40.23 (2025-06-29)
+0.42.26 (2025-06-29)
 ~~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -90,7 +137,7 @@ Added
   are correctly configured base on the clip.
 
 
-0.40.22 (2025-07-11)
+0.42.25 (2025-07-11)
 ~~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -100,7 +147,7 @@ Added
   contact forces in the world frame.
 
 
-0.40.21 (2025-06-25)
+0.42.24 (2025-06-25)
 ~~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -111,7 +158,7 @@ Added
   env instance
 
 
-0.40.20 (2025-07-11)
+0.42.23 (2025-07-11)
 ~~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -121,7 +168,7 @@ Fixed
   restricting the resetting joint indices be that user defined joint indices.
 
 
-0.40.19 (2025-07-11)
+0.42.22 (2025-07-11)
 ~~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -131,7 +178,7 @@ Fixed
   env_ids are passed.
 
 
-0.40.18 (2025-07-09)
+0.42.21 (2025-07-09)
 ~~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -148,7 +195,7 @@ Fixed
   buffer on recording.
 
 
-0.40.17 (2025-07-10)
+0.42.20 (2025-07-10)
 ~~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -179,7 +226,26 @@ Changed
 * Changed the implementation of :func:`~isaaclab.utils.math.copysign` to better reflect the documented functionality.
 
 
-0.40.16 (2025-07-08)
+0.42.19 (2025-07-09)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Added clone_in_fabric config flag to :class:`~isaaclab.scene.interactive_scene_cfg.InteractiveSceneCfg`
+* Enable clone_in_fabric for envs which work with limited benchmark_non_rl.py script
+
+
+0.42.18 (2025-07-07)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed texture and color randomization to use new replicator functional APIs.
+
+
+0.42.17 (2025-07-08)
 ~~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -189,7 +255,7 @@ Fixed
   :class:`~isaaclab.assets.articulation.RigidObjectCollectionData`
 
 
-0.40.15 (2025-07-08)
+0.42.16 (2025-07-08)
 ~~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -198,7 +264,7 @@ Added
 * Added ability to set platform height independent of object height for trimesh terrains.
 
 
-0.40.14 (2025-07-01)
+0.42.15 (2025-07-01)
 ~~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -209,7 +275,7 @@ Added
 * Added deprecation warnings to the existing :attr:`max_height_noise` but still functions.
 
 
-0.40.13 (2025-07-03)
+0.42.14 (2025-07-03)
 ~~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -218,7 +284,7 @@ Fixed
 * Fixed unittest tests that are floating inside pytests for articulation and rendering
 
 
-0.40.12 (2025-07-03)
+0.42.13 (2025-07-07)
 ~~~~~~~~~~~~~~~~~~~~
 
 Changed
@@ -228,7 +294,7 @@ Changed
   videos with the ``--video`` flag.
 
 
-0.40.11 (2025-06-27)
+0.42.12 (2025-06-27)
 ~~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -243,7 +309,7 @@ Fixed
 * Fixed the implementation mistake in :func:`~isaaclab.utils.math.quat_inv`.
 
 
-0.40.10 (2025-06-25)
+0.42.11 (2025-06-25)
 ~~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -252,8 +318,8 @@ Fixed
 * Fixed :func:`~isaaclab.utils.dict.update_class_from_dict` preventing setting flat Iterables with different lengths.
 
 
-0.40.9 (2025-06-25)
-~~~~~~~~~~~~~~~~~~~
+0.42.10 (2025-06-25)
+~~~~~~~~~~~~~~~~~~~~
 
 Added
 ^^^^^
@@ -263,7 +329,7 @@ Added
   behavior of sharing the same bias value across all components is retained.
 
 
-0.40.8 (2025-06-18)
+0.42.9 (2025-06-18)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -275,7 +341,7 @@ Fixed
 * added pytest that check against these data consistencies
 
 
-0.40.7 (2025-06-24)
+0.42.8 (2025-06-24)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -289,8 +355,7 @@ Changed
 * Renamed :func:`~isaaclab.utils.noise.NoiseModel.apply` method to :func:`~isaaclab.utils.noise.NoiseModel.__call__`.
 
 
-
-0.40.6 (2025-06-12)
+0.42.7 (2025-06-12)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -300,7 +365,16 @@ Fixed
   visual prims during texture randomization.
 
 
-0.40.5 (2025-05-22)
+0.42.6 (2025-06-11)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Remove deprecated usage of quat_rotate from articulation data class and replace with quat_apply.
+
+
+0.42.5 (2025-05-22)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -311,7 +385,7 @@ Fixed
   CPU simulation.
 
 
-0.40.4 (2025-06-03)
+0.42.4 (2025-06-03)
 ~~~~~~~~~~~~~~~~~~~
 
 Changed
@@ -322,7 +396,7 @@ Changed
   passed in the ``TerrainGeneratorCfg``.
 
 
-0.40.3 (2025-03-20)
+0.42.3 (2025-03-20)
 ~~~~~~~~~~~~~~~~~~~
 
 Changed
@@ -337,7 +411,7 @@ Changed
   more readable.
 
 
-0.40.2 (2025-05-10)
+0.42.2 (2025-05-31)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -347,7 +421,7 @@ Added
 * Added support for specifying module:task_name as task name to avoid module import for ``gym.make``
 
 
-0.40.1 (2025-06-02)
+0.42.1 (2025-06-02)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -363,8 +437,29 @@ Changed
   :class:`~isaaclab.envs.ManagerBasedRLEnv` to make it available for mdp functions.
 
 
-0.40.0 (2025-05-16)
+0.42.0 (2025-06-02)
 ~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added support for stage in memory and cloning in fabric. This will help improve performance for scene setup and lower
+  overall startup time.
+
+
+0.41.0 (2025-05-19)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added simulation schemas for spatial tendons. These can be configured for assets imported
+  from file formats.
+* Added support for spatial tendons.
+
+
+0.40.14 (2025-05-29)
+~~~~~~~~~~~~~~~~~~~~
 
 Added
 ^^^^^
@@ -379,18 +474,18 @@ Changed
   :meth:`~isaaclab.utils.math.quat_apply` and :meth:`~isaaclab.utils.math.quat_apply_inverse` for speed.
 
 
-0.39.7 (2025-05-19)
-~~~~~~~~~~~~~~~~~~~
+0.40.13 (2025-05-19)
+~~~~~~~~~~~~~~~~~~~~
 
 Fixed
-^^^^^^
+^^^^^
 
 * Raising exceptions in step, render and reset if they occurred inside the initialization callbacks
   of assets and sensors.used from the experience files and the double definition is removed.
 
 
-0.39.6 (2025-01-30)
-~~~~~~~~~~~~~~~~~~~
+0.40.12 (2025-01-30)
+~~~~~~~~~~~~~~~~~~~~
 
 Added
 ^^^^^
@@ -399,8 +494,8 @@ Added
   in the simulation.
 
 
-0.39.5 (2025-05-16)
-~~~~~~~~~~~~~~~~~~~
+0.40.11 (2025-05-16)
+~~~~~~~~~~~~~~~~~~~~
 
 Added
 ^^^^^
@@ -415,8 +510,8 @@ Changed
   resampling call.
 
 
-0.39.4 (2025-05-16)
-~~~~~~~~~~~~~~~~~~~
+0.40.10 (2025-05-16)
+~~~~~~~~~~~~~~~~~~~~
 
 Fixed
 ^^^^^
@@ -424,7 +519,7 @@ Fixed
 * Fixed penetration issue for negative border height in :class:`~isaaclab.terrains.terrain_generator.TerrainGeneratorCfg`.
 
 
-0.39.3 (2025-05-16)
+0.40.9 (2025-05-20)
 ~~~~~~~~~~~~~~~~~~~
 
 Changed
@@ -439,7 +534,7 @@ Added
 * Added :meth:`~isaaclab.utils.math.rigid_body_twist_transform`
 
 
-0.39.2 (2025-05-15)
+0.40.8 (2025-05-15)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -453,14 +548,68 @@ Fixed
   unused USD camera parameters.
 
 
-0.39.1 (2025-05-14)
+0.40.7 (2025-05-14)
 ~~~~~~~~~~~~~~~~~~~
 
 * Added a new attribute :attr:`articulation_root_prim_path` to the :class:`~isaaclab.assets.ArticulationCfg` class
   to allow explicitly specifying the prim path of the articulation root.
 
 
-0.39.0 (2025-05-03)
+0.40.6 (2025-05-14)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Enabled external cameras in XR.
+
+
+0.40.5 (2025-05-23)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added feature for animation recording through baking physics operations into OVD files.
+
+
+0.40.4 (2025-05-17)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed livestreaming options to use ``LIVESTREAM=1`` for WebRTC over public networks and ``LIVESTREAM=2`` for WebRTC over private networks.
+
+
+0.40.3 (2025-05-20)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Made modifications to :func:`isaaclab.envs.mdp.image` to handle image normalization for normal maps.
+
+
+0.40.2 (2025-05-14)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Refactored remove_camera_configs to be a function that can be used in the record_demos and teleop scripts.
+
+
+0.40.1 (2025-05-14)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed spacemouse device add callback function to work with record_demos/teleop_se3_agent scripts.
+
+
+0.40.0 (2025-05-03)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -471,16 +620,16 @@ Added
   This allows for :attr:`semantic_segmentation_mapping` to be used when using the ground plane spawner.
 
 
-0.38.0 (2025-04-01)
+0.39.0 (2025-04-01)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
-~~~~~
+^^^^^
 
 * Added the :meth:`~isaaclab.env.mdp.observations.joint_effort`
 
 
-0.37.0 (2025-04-01)
+0.38.0 (2025-04-01)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -488,6 +637,67 @@ Added
 
 * Added :meth:`~isaaclab.envs.mdp.observations.body_pose_w`
 * Added :meth:`~isaaclab.envs.mdp.observations.body_projected_gravity_b`
+
+
+0.37.5 (2025-05-12)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a new teleop configuration class :class:`~isaaclab.devices.DevicesCfg` to support multiple teleoperation
+  devices declared in the environment configuration file.
+* Implemented a factory function to create teleoperation devices based on the device configuration.
+
+
+0.37.4 (2025-05-12)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Remove isaacsim.xr.openxr from openxr experience file.
+* Use Performance AR profile for XR rendering.
+
+
+0.37.3 (2025-05-08)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Updated PINK task space action to record processed actions.
+* Added new recorder term for recording post step processed actions.
+
+
+0.37.2 (2025-05-06)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Migrated OpenXR device to use the new OpenXR handtracking API from omni.kit.xr.core.
+
+
+0.37.1 (2025-05-05)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Removed xr rendering mode.
+
+
+0.37.0 (2025-04-24)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated pytorch to latest 2.7.0 with cuda 12.8 for Blackwell support.
+  Torch is now installed as part of the isaaclab.sh/bat scripts to ensure the correct version is installed.
+* Removed :attr:`~isaaclab.sim.spawners.PhysicsMaterialCfg.improve_patch_friction` as it has been deprecated and removed from the simulation.
+  The simulation will always behave as if this attribute is set to true.
 
 
 0.36.23 (2025-04-24)

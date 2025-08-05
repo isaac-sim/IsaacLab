@@ -123,7 +123,7 @@ def sim():
         [
             [0.0, torch.pi / 2, 0.0],  # for [0.707, 0, 0.707, 0]
             [torch.pi / 2, 0.0, 0.0],  # for [0.707, 0.707, 0, 0]
-            [torch.pi, 0.0, 0.0],  # for [0.0, 1.0, 0, 0]
+            [torch.pi / 2, torch.pi / 2, 0.0],  # for [0.0, 1.0, 0, 0]
         ],
         device=sim.device,
     )

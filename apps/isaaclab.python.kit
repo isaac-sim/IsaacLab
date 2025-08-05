@@ -5,7 +5,7 @@
 [package]
 title = "Isaac Lab Python"
 description = "An app for running Isaac Lab"
-version = "2.1.1"
+version = "2.2.0"
 
 # That makes it browsable in UI with "experience" filter
 keywords = ["experience", "app", "usd"]
@@ -27,7 +27,6 @@ keywords = ["experience", "app", "usd"]
 "isaacsim.robot.manipulators" = {}
 "isaacsim.robot.policy.examples" = {}
 "isaacsim.robot.schema" = {}
-"isaacsim.robot.surface_gripper" = {}
 "isaacsim.robot.wheeled_robots" = {}
 "isaacsim.sensors.camera" = {}
 "isaacsim.sensors.physics" = {}
@@ -57,7 +56,6 @@ keywords = ["experience", "app", "usd"]
 "omni.graph.ui_nodes" = {}
 "omni.hydra.engine.stats" = {}
 "omni.hydra.rtx" = {}
-"omni.kit.loop" = {}
 "omni.kit.mainwindow" = {}
 "omni.kit.manipulator.camera" = {}
 "omni.kit.manipulator.prim" = {}
@@ -65,15 +63,13 @@ keywords = ["experience", "app", "usd"]
 "omni.kit.material.library" = {}
 "omni.kit.menu.common" = { order = 1000 }
 "omni.kit.menu.create" = {}
-"omni.kit.menu.edit" = {}
-"omni.kit.menu.file" = {}
 "omni.kit.menu.stage" = {}
 "omni.kit.menu.utils" = {}
 "omni.kit.primitive.mesh" = {}
 "omni.kit.property.bundle" = {}
 "omni.kit.raycast.query" = {}
-"omni.kit.stage_template.core" = {}
 "omni.kit.stagerecorder.bundle" = {}
+"omni.kit.stage_template.core" = {}
 "omni.kit.telemetry" = {}
 "omni.kit.tool.asset_importer" = {}
 "omni.kit.tool.collect" = {}
@@ -88,10 +84,11 @@ keywords = ["experience", "app", "usd"]
 "omni.kit.window.console" = {}
 "omni.kit.window.content_browser" = {}
 "omni.kit.window.property" = {}
+"omni.kit.window.script_editor" = {}
 "omni.kit.window.stage" = {}
 "omni.kit.window.status_bar" = {}
 "omni.kit.window.toolbar" = {}
-"omni.physx.stageupdate" = {}
+"omni.physics.stageupdate" = {}
 "omni.rtx.settings.core" = {}
 "omni.uiaudio" = {}
 "omni.usd.metrics.assembler.ui" = {}
@@ -130,6 +127,9 @@ omni.replicator.asyncRendering = false # Async rendering must be disabled for SD
 exts."omni.kit.test".includeTests = ["*isaac*"] # Add isaac tests to test runner
 foundation.verifyOsVersion.enabled = false
 
+# disable the metrics assembler change listener, we don't want to do any runtime changes
+metricsAssembler.changeListenerEnabled = false
+
 # set the default ros bridge to disable on startup
 isaac.startup.ros_bridge_extension = ""
 
@@ -161,7 +161,7 @@ show_menu_titles = true
 
 [settings.app]
 name = "Isaac-Sim"
-version = "4.5.0"
+version = "5.0.0"
 versionFile = "${exe-path}/VERSION"
 content.emptyStageOnStart = true
 fastShutdown = true
@@ -241,6 +241,10 @@ omni.replicator.asyncRendering = false
 app.asyncRendering = false
 app.asyncRenderingLowLatency = false
 
+### FSD
+app.useFabricSceneDelegate = true
+rtx.hydra.readTransformsFromFabricInRenderDelegate = true
+
 # disable replicator orchestrator for better runtime perf
 exts."omni.replicator.core".Orchestrator.enabled = false
 
@@ -291,11 +295,13 @@ fabricUpdateTransformations = false
 fabricUpdateVelocities = false
 fabricUpdateForceSensors = false
 fabricUpdateJointStates = false
+### When Direct GPU mode is enabled (suppressReadback=true) use direct interop between PhysX GPU and Fabric
+fabricUseGPUInterop = true
 
 # Asset path
 # set the S3 directory manually to the latest published S3
 # note: this is done to ensure prior versions of Isaac Sim still use the latest assets
 [settings]
-persistent.isaac.asset_root.default = "http://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/4.5"
-persistent.isaac.asset_root.cloud = "http://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/4.5"
-persistent.isaac.asset_root.nvidia = "http://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/4.5"
+persistent.isaac.asset_root.default = "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.0"
+persistent.isaac.asset_root.cloud = "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.0"
+persistent.isaac.asset_root.nvidia = "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.0"
