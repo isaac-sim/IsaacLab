@@ -22,7 +22,7 @@ INSTALL_REQUIRES = [
     "numpy<2",
     "torch>=2.7",
     "torchvision>=0.14.1",  # ensure compatibility with torch 1.13.1
-    "protobuf>=3.20.2,!=5.26.0",
+    "protobuf>=4.25.8,!=5.26.0",
     # configuration management
     "hydra-core",
     # data collection

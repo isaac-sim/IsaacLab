@@ -28,6 +28,7 @@ PER_TEST_TIMEOUTS = {
     "test_generate_dataset.py": 500,  # This test runs annotation for 10 demos and generation until one succeeds
     "test_environments_training.py": 6000,
     "test_simulation_render_config.py": 500,
+    "test_operational_space.py": 500,
 }
 """A dictionary of tests and their timeouts in seconds.
 

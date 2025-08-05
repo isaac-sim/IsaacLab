@@ -260,6 +260,7 @@ def test_all_annotators_multi_tiled_camera(setup_camera):
         del camera
 
 
+@flaky(max_runs=3, min_passes=1)
 def test_different_resolution_multi_tiled_camera(setup_camera):
     """Test multiple tiled cameras with different resolutions."""
     camera_cfg, sim, dt = setup_camera

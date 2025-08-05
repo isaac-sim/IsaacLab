@@ -365,5 +365,10 @@
     "package": "regex",
     "license": "UNKNOWN",
     "comment": "Apache 2.0"
+  },
+  {
+    "package": "anyio",
+    "license": "UNKNOWN",
+    "comment": "MIT"
   }
 ]
