@@ -11,11 +11,17 @@
 
 import torch
 
+import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
 from isaaclab.envs import DirectRLEnvCfg
 from isaaclab.markers.config import CUBOID_MARKER_CFG, FRAME_MARKER_CFG
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sensors import CameraCfg, FrameTransformerCfg, OffsetCfg
+from isaaclab.sensors import (
+    CameraCfg,
+    ContactSensorCfg,
+    FrameTransformerCfg,
+    OffsetCfg,
+)
 from isaaclab.sim import PhysxCfg, PinholeCameraCfg, SimulationCfg
 from isaaclab.sim.schemas.schemas_cfg import RigidBodyPropertiesCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
@@ -28,16 +34,18 @@ from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG  # isort: skip
 
 
 @configclass
-class TwoRobotPickCubeCfg(DirectRLEnvCfg):
+class TwoRobotStackCubeCfg(DirectRLEnvCfg):
     # env
     decimation = 2
     episode_length_s = 4  # 4 / (decimation * dt) = 200 steps
     # - spaces definition
     action_space = 18
-    observation_space = 30
+    observation_space = 40
     state_space = 0
 
     obs_mode: str = "state"
+
+    goal_radius = 0.06
 
     # simulation
     sim: SimulationCfg = SimulationCfg(
@@ -77,7 +85,9 @@ class TwoRobotPickCubeCfg(DirectRLEnvCfg):
             torch.tensor(-torch.pi / 2.0),
         ).tolist()
     )  # identity quaternion
-    robot_right_cfg = FRANKA_PANDA_CFG.replace(prim_path="/World/envs/env_.*/Robot_right")
+    robot_right_cfg = FRANKA_PANDA_CFG.replace(
+        prim_path="/World/envs/env_.*/Robot_right"
+    )
     robot_right_cfg.spawn.activate_contact_sensors = True
     robot_right_cfg.init_state.pos = (0, -0.75, 0)
     robot_right_cfg.init_state.rot = tuple(
@@ -117,6 +127,34 @@ class TwoRobotPickCubeCfg(DirectRLEnvCfg):
                 convention="ros",  # right-handed, X-forward, Z-up
             ),
         ),
+        ContactSensorCfg(
+            prim_path="/World/envs/env_.*/Robot_left/panda_leftfinger",
+            update_period=0.0,
+            history_length=1,
+            debug_vis=False,
+            filter_prim_paths_expr=[".*/Peg"],  # only peg contacts
+        ),
+        ContactSensorCfg(
+            prim_path="/World/envs/env_.*/Robot_left/panda_rightfinger",
+            update_period=0.0,
+            history_length=1,
+            debug_vis=False,
+            filter_prim_paths_expr=[".*/Peg"],
+        ),
+        ContactSensorCfg(
+            prim_path="/World/envs/env_.*/Robot_right/panda_leftfinger",
+            update_period=0.0,
+            history_length=1,
+            debug_vis=False,
+            filter_prim_paths_expr=[".*/Peg"],  # only peg contacts
+        ),
+        ContactSensorCfg(
+            prim_path="/World/envs/env_.*/Robot_right/panda_rightfinger",
+            update_period=0.0,
+            history_length=1,
+            debug_vis=False,
+            filter_prim_paths_expr=[".*/Peg"],
+        ),
     )
 
     tcp_marker_cfg = FRAME_MARKER_CFG.copy()
@@ -124,7 +162,13 @@ class TwoRobotPickCubeCfg(DirectRLEnvCfg):
     tcp_marker_cfg.prim_path = "/Visuals/FrameTransformer"
 
     target_marker_cfg = CUBOID_MARKER_CFG.copy()
-    target_marker_cfg.markers["cuboid"].size = (0.05, 0.05, 0.05)
+    target_marker_cfg.markers = {
+        "cylinder": sim_utils.CylinderCfg(
+            radius=goal_radius,
+            height=0.001,
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0)),
+        ),
+    }
     target_marker_cfg.prim_path = "/Visuals/TargetMarker"
 
     tcp_left_cfg = FrameTransformerCfg(
@@ -188,9 +232,31 @@ class TwoRobotPickCubeCfg(DirectRLEnvCfg):
     )
 
     # Set Cube as object
-    cube_cfg = RigidObjectCfg(
-        prim_path="/World/envs/env_.*/Cube",
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.3, 0.0), rot=(1, 0, 0, 0)),
+    cube_green_cfg = RigidObjectCfg(
+        prim_path="/World/envs/env_.*/Cube_green",
+        init_state=RigidObjectCfg.InitialStateCfg(
+            pos=(0.0, 0.3, 0.0), rot=(1, 0, 0, 0)
+        ),
+        spawn=UsdFileCfg(
+            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
+            scale=(0.8, 0.8, 0.8),
+            rigid_props=RigidBodyPropertiesCfg(
+                solver_position_iteration_count=16,
+                solver_velocity_iteration_count=1,
+                max_angular_velocity=1000.0,
+                max_linear_velocity=1000.0,
+                max_depenetration_velocity=5.0,
+                disable_gravity=False,
+            ),
+        ),
+    )
+
+    # Set Cube as object
+    cube_red_cfg = RigidObjectCfg(
+        prim_path="/World/envs/env_.*/Cube_red",
+        init_state=RigidObjectCfg.InitialStateCfg(
+            pos=(0.0, 0.3, 0.0), rot=(1, 0, 0, 0)
+        ),
         spawn=UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
             scale=(0.8, 0.8, 0.8),
@@ -207,46 +273,65 @@ class TwoRobotPickCubeCfg(DirectRLEnvCfg):
 
     success_distance_threshold = 0.025
 
-    cube_sample_range = [
+    cube_green_sample_range = [
         [
-            -0.2,
-            0.2,
+            -0.05,
+            0.1,
             0.0,
             0.0,
             0.0,
             -torch.pi,
         ],
         [
+            0.05,
             0.2,
-            0.3,
             0.0,
             0.0,
             0.0,
+            torch.pi,
+        ],
+    ]
+
+    cube_red_sample_range = [
+        [
+            -0.05,
+            -0.1,
+            0.0,
+            0.0,
+            torch.pi,
+            -torch.pi,
+        ],
+        [
+            0.05,
+            -0.2,
+            0.0,
+            0.0,
+            torch.pi,
             torch.pi,
         ],
     ]
 
     target_sample_range = [
         [
-            -0.2,
-            -0.2,
-            0.1,
-            -torch.pi,
-            -torch.pi,
+            -0.05,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
             -torch.pi,
         ],
         [
-            0.2,
-            -0.3,
-            0.3,
-            torch.pi,
-            torch.pi,
+            0.05,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
             torch.pi,
         ],
     ]
 
 
 @configclass
-class TwoRobotPickCubeCameraCfg(TwoRobotPickCubeCfg):
+class TwoRobotStackCubeCameraCfg(TwoRobotStackCubeCfg):
 
     obs_mode: str = "camera"

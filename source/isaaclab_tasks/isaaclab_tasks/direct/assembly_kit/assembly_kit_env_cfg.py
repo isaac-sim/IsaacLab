@@ -11,19 +11,15 @@
 
 import torch
 
-from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
 from isaaclab.envs import DirectRLEnvCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg
-from isaaclab.sim import PhysxCfg, PinholeCameraCfg, RigidBodyPropertiesCfg, SimulationCfg, UsdFileCfg
+from isaaclab.sim import PhysxCfg, PinholeCameraCfg, SimulationCfg
 from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialCfg
 from isaaclab.utils import configclass
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.math import quat_from_euler_xyz
 
 from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG  # isort: skip
-
-
 
 
 @configclass

@@ -4,10 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import bpy
-import math
 import os
-
-from mathutils import Vector
 
 # ─── USER SETTINGS ──────────────────────────────────────────────────────────────
 
