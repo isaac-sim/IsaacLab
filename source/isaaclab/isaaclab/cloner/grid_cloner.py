@@ -162,6 +162,7 @@ class GridCloner(Cloner):
         """
 
         num_clones = len(prim_paths)
+        NewtonManager._num_envs = num_clones
 
         positions, orientations = self.get_clone_transforms(num_clones, position_offsets, orientation_offsets)
         if replicate_physics:
@@ -190,5 +191,4 @@ class GridCloner(Cloner):
                 copy_from_source=copy_from_source,
                 enable_env_ids=enable_env_ids,
             )
-
         return positions

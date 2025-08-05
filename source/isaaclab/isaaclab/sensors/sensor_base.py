@@ -27,6 +27,7 @@ from isaacsim.core.utils.stage import get_current_stage
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationContext
+from isaaclab.sim._impl.newton_manager import NewtonManager
 
 if TYPE_CHECKING:
     from .sensor_base_cfg import SensorBaseCfg
@@ -208,6 +209,7 @@ class SensorBase(ABC):
             env_ids = slice(None)
         # Reset the timestamp for the sensors
         self._timestamp[env_ids] = 0.0
+
         self._timestamp_last_update[env_ids] = 0.0
         # Set all reset sensors to outdated so that they are updated when data is called the next time.
         self._is_outdated[env_ids] = True
@@ -237,10 +239,7 @@ class SensorBase(ABC):
         self._device = sim.device
         self._backend = sim.backend
         self._sim_physics_dt = sim.get_physics_dt()
-        # Count number of environments
-        env_prim_path_expr = self.cfg.prim_path.rsplit("/", 1)[0]
-        self._parent_prims = sim_utils.find_matching_prims(env_prim_path_expr)
-        self._num_envs = len(self._parent_prims)
+        self._num_envs = NewtonManager._num_envs
         # Boolean tensor indicating whether the sensor data has to be refreshed
         self._is_outdated = torch.ones(self._num_envs, dtype=torch.bool, device=self._device)
         # Current timestamp (in seconds)

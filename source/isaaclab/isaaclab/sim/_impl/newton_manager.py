@@ -70,6 +70,7 @@ class NewtonManager:
     _newton_index_attr = "newton:index"
     _env_offsets = None
     _clone_physics_only = False
+    _num_envs = None
 
     @property
     def model(self) -> Model:

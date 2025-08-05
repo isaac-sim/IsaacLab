@@ -169,27 +169,6 @@ class InteractiveScene:
                 self.clone_environments(copy_from_source=False)
             # replicate physics if we have more than one environment
             # this is done to make scene initialization faster at play time
-            if self.cfg.replicate_physics and self.cfg.num_envs > 1:
-                # check version of Isaac Sim to determine whether clone_in_fabric is valid
-                isaac_sim_version = float(".".join(get_version()[2]))
-                if isaac_sim_version < 5:
-                    self.cloner.replicate_physics(
-                        source_prim_path=self.env_prim_paths[0],
-                        prim_paths=self.env_prim_paths,
-                        base_env_path=self.env_ns,
-                        root_path=self.env_regex_ns.replace(".*", ""),
-                        enable_env_ids=self.cfg.filter_collisions if self.device != "cpu" else False,
-                    )
-                else:
-                    self.cloner.replicate_physics(
-                        source_prim_path=self.env_prim_paths[0],
-                        prim_paths=self.env_prim_paths,
-                        base_env_path=self.env_ns,
-                        root_path=self.env_regex_ns.replace(".*", ""),
-                        enable_env_ids=self.cfg.filter_collisions if self.device != "cpu" else False,
-                        clone_in_fabric=self.cfg.clone_in_fabric,
-                    )
-
             # since env_ids is only applicable when replicating physics, we have to fallback to the previous method
             # to filter collisions if replicate_physics is not enabled
             # additionally, env_ids is only supported in GPU simulation
