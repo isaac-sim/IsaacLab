@@ -46,7 +46,7 @@ Improvements
 ------------
 
 Core API
-^^^^^^^^
+~~~~~~~~
 
 * **Actuator Interfaces**
   * Fixes implicit actuator limits configs for assets by @ooctipus
@@ -90,7 +90,7 @@ Core API
   * Allows slicing from list values in dicts by @LinghengMeng @kellyguo11
 
 Tasks API
-^^^^^^^^^
+~~~~~~~~~
 
 * Adds support for ``module:task`` and gymnasium >=1.0 by @kellyguo11
 * Adds RL library error hints by @Toni-SM
@@ -104,7 +104,7 @@ Tasks API
 * Pre-processes SB3 env image obs-space for CNN pipeline by @ooctipus
 
 Infrastructure
-^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~
 
 * **Dependencies**
   * Updates torch to 2.7.0 with CUDA 12.8 by @kellyguo11
@@ -131,7 +131,7 @@ Bug Fixes
 ---------
 
 Core API
-^^^^^^^^
+~~~~~~~~
 
 * **Actuator Interfaces**
   * Fixes DCMotor clipping for negative power by @jtigue-bdai
@@ -159,12 +159,12 @@ Core API
   * Fixes ``quat_inv()`` implementation by @ozhanozen
 
 Tasks API
-^^^^^^^^^
+~~~~~~~~~
 
 * Fixes LSTM to ONNX export by @jtigue-bdai
 
 Example Tasks
-^^^^^^^^^^^^^
+~~~~~~~~~~~~~
 
 * Removes contact termination redundancy by @louislelay
 * Fixes memory leak in SDF by @leondavi

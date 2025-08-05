@@ -84,9 +84,6 @@ The second code block is equivalent to the first one, but it leads to import of 
 class which slows down the import time. This is why we recommend using strings for the configuration
 entry point.
 
-The Code Execution
-------------------
-
 All the scripts in the ``scripts/reinforcement_learning`` directory are configured by default to read the
 ``<library_name>_cfg_entry_point`` from the ``kwargs`` dictionary to retrieve the configuration instance.
 
@@ -105,7 +102,11 @@ The argument ``--agent`` is used to specify the learning library to use. This is
 retrieve the configuration instance from the ``kwargs`` dictionary. You can manually specify
 alternate configuration instances by passing the ``--agent`` argument.
 
-This also holds true for the RSL-RL library, for which we have two configuration instances.
+The Code Execution
+------------------
+
+Since for the cartpole balancing task, RSL-RL library offers two configuration instances,
+we can use the ``--agent`` argument to specify the configuration instance to use.
 
 * Training with the standard PPO configuration:
 
