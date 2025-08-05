@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 
 import isaacsim.core.utils.stage as stage_utils
 from isaacsim.core.simulation_manager import SimulationManager
-from pxr import Usd, UsdGeom, UsdPhysics, Gf, Sdf
+from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
@@ -186,7 +186,6 @@ class Imu(SensorBase):
         - Otherwise, the rigid source is the closest ancestor with RigidBodyAPI.
           The fixed transform is computed as ancestor->target (in ancestor/body frame).
         """
-        stage = target_prim.GetStage()
 
         # If target prim itself is a rigid body, we can use it directly.
         if target_prim.HasAPI(UsdPhysics.RigidBodyAPI):
@@ -199,9 +198,7 @@ class Imu(SensorBase):
                 break
             ancestor = ancestor.GetParent()
         if not ancestor or not ancestor.IsValid():
-            raise RuntimeError(
-                f"Path '{target_prim.GetPath()}' has no rigid-body ancestor; cannot attach IMU."
-            )
+            raise RuntimeError(f"Path '{target_prim.GetPath()}' has no rigid-body ancestor; cannot attach IMU.")
 
         # Compute fixed transform ancestor->target at default time
         xcache = UsdGeom.XformCache(Usd.TimeCode.Default())
@@ -220,7 +217,9 @@ class Imu(SensorBase):
 
         return ancestor, fixed_pos_b, fixed_quat_b
 
-    def _derive_rigid_parent_expression(self, original_expr: str, concrete_child_prim: Usd.Prim, rigid_parent_prim: Usd.Prim) -> str:
+    def _derive_rigid_parent_expression(
+        self, original_expr: str, concrete_child_prim: Usd.Prim, rigid_parent_prim: Usd.Prim
+    ) -> str:
         """Derive a prim path expression for the rigid parent from the original expression.
 
         Assumes the relative suffix from the rigid ancestor to the target prim is the same for all instances.
@@ -228,7 +227,7 @@ class Imu(SensorBase):
         concrete ancestor path (with wildcard normalization). This keeps required changes minimal.
         """
         child_path = concrete_child_prim.GetPath().pathString  # e.g., /World/Env_0/Robot/arm/link/my_sensor
-        parent_path = rigid_parent_prim.GetPath().pathString   # e.g., /World/Env_0/Robot/arm/link
+        parent_path = rigid_parent_prim.GetPath().pathString  # e.g., /World/Env_0/Robot/arm/link
         # Compute relative suffix: child relative to parent (e.g., "my_sensor")
         rel = Sdf.Path(child_path).MakeRelativePath(Sdf.Path(parent_path)).pathString  # e.g., "my_sensor" or "a/b"
 
@@ -239,7 +238,7 @@ class Imu(SensorBase):
             if trimmed.endswith("/" + rel):
                 trimmed = trimmed[: -(cut_len + 1)]
             else:
-                trimmed = trimmed[: -cut_len]
+                trimmed = trimmed[:-cut_len]
             return trimmed
 
         # Fallback: use the concrete parent path, but normalize ".*" usage by mirroring user choice
@@ -280,7 +279,9 @@ class Imu(SensorBase):
 
         # batch rotate world->body using current sensor orientation
         dynamics_data = torch.stack((lin_vel_w, ang_vel_w, lin_acc_w, ang_acc_w, self.GRAVITY_VEC_W[env_ids]), dim=0)
-        dynamics_data_rot = math_utils.quat_apply_inverse(self._data.quat_w[env_ids].repeat(5, 1), dynamics_data).chunk(5, dim=0)
+        dynamics_data_rot = math_utils.quat_apply_inverse(self._data.quat_w[env_ids].repeat(5, 1), dynamics_data).chunk(
+            5, dim=0
+        )
 
         # store the velocities.
         self._data.lin_vel_b[env_ids] = dynamics_data_rot[0]
