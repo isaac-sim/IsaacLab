@@ -47,10 +47,10 @@ INSTALL_REQUIRES = [
     "junitparser",
     "flatdict==4.0.1",
     "usd-core==25.05.0",
-    "mujoco-mjx", 
-    "mujoco", 
+    "mujoco-mjx",
+    "mujoco",
     "mujoco-warp @ git+https://github.com/google-deepmind/mujoco_warp.git@d8c00ccb0344b1f5d2def79abb5113ccce669ba4",
-    "newton-physics @ git+https://github.com/camevor/newton.git@force-contact-sensors-mjforce2d"
+    "newton-physics @ git+https://github.com/camevor/newton.git@force-contact-sensors-mjforce2d",
 ]
 
 

@@ -297,7 +297,6 @@ class DirectRLEnv(gym.Env):
 
         # update articulation kinematics
         self.scene.write_data_to_sim()
-        self.sim.forward()
 
         # if sensors are added to the scene, make sure we render to reflect changes in reset
         if self.sim.has_rtx_sensors() and self.cfg.rerender_on_reset:
@@ -378,7 +377,6 @@ class DirectRLEnv(gym.Env):
             self._reset_idx(reset_env_ids)
             # update articulation kinematics
             self.scene.write_data_to_sim()
-            self.sim.forward()
             # if sensors are added to the scene, make sure we render to reflect changes in reset
             if self.sim.has_rtx_sensors() and self.cfg.rerender_on_reset:
                 self.sim.render()

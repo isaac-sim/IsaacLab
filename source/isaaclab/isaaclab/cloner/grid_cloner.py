@@ -178,17 +178,17 @@ class GridCloner(Cloner):
                 joint_drive_gains_scaling=1.0,
             )
             NewtonManager.set_builder(builder)
-
-        super().clone(
-            source_prim_path=source_prim_path,
-            prim_paths=prim_paths,
-            positions=positions,
-            orientations=orientations,
-            replicate_physics=replicate_physics,
-            base_env_path=base_env_path,
-            root_path=root_path,
-            copy_from_source=copy_from_source,
-            enable_env_ids=enable_env_ids,
-        )
+        if not NewtonManager._clone_physics_only:
+            super().clone(
+                source_prim_path=source_prim_path,
+                prim_paths=prim_paths,
+                positions=positions,
+                orientations=orientations,
+                replicate_physics=replicate_physics,
+                base_env_path=base_env_path,
+                root_path=root_path,
+                copy_from_source=copy_from_source,
+                enable_env_ids=enable_env_ids,
+            )
 
         return positions

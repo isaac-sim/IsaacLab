@@ -25,12 +25,12 @@ import isaacsim.core.utils.stage as stage_utils
 import omni.log
 import omni.physx
 import omni.usd
-from omni.physics.stageupdate import get_physics_stage_update_node_interface
 from isaacsim.core.api.simulation_context import SimulationContext as _SimulationContext
 from isaacsim.core.simulation_manager import SimulationManager
 from isaacsim.core.utils.carb import get_carb_setting, set_carb_setting
 from isaacsim.core.utils.viewports import set_camera_view
 from isaacsim.core.version import get_version
+from omni.physics.stageupdate import get_physics_stage_update_node_interface
 from pxr import Gf, PhysxSchema, Usd, UsdPhysics
 
 from isaaclab.sim._impl.newton_manager import NewtonManager
@@ -297,6 +297,7 @@ class SimulationContext(_SimulationContext):
         physx_sim_interface = omni.physx.get_physx_simulation_interface()
         physx_sim_interface.detach_stage()
         get_physics_stage_update_node_interface().detach_node()
+        NewtonManager._clone_physics_only = not (self.has_gui() or self.has_rtx_sensors())
 
     def _apply_physics_settings(self):
         """Sets various carb physics settings."""
@@ -559,11 +560,6 @@ class SimulationContext(_SimulationContext):
 
     def forward(self) -> None:
         """Updates articulation kinematics and fabric for rendering."""
-        # if self._fabric_iface is not None:
-        #     if self.physics_sim_view is not None and self.is_playing():
-        #         # Update the articulations' link's poses before rendering
-        #         self.physics_sim_view.update_articulations_kinematic()
-        #     self._update_fabric(0.0, 0.0)
         NewtonManager.sync_fabric_transforms()
 
     def get_initial_stage(self) -> Usd.Stage:
@@ -709,7 +705,6 @@ class SimulationContext(_SimulationContext):
             #  and we don't want to do it twice. We may remove it once we drop support for Isaac Sim 2022.2.
             self.set_setting("/app/player/playSimulations", False)
             self._app.update()
-            # NewtonManager.render()
 
         # app.update() may be changing the cuda device, so we force it back to our desired device here
         if "cuda" in self.device:

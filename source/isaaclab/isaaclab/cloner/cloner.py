@@ -19,9 +19,7 @@ import carb
 import carb.settings
 import omni.log
 import omni.usd
-from isaacsim.core.simulation_manager import SimulationManager
-from omni.physx import get_physx_replicator_interface
-from pxr import Gf, PhysxSchema, Sdf, Usd, UsdGeom, UsdUtils, Vt
+from pxr import Gf, Sdf, Usd, UsdGeom, Vt
 
 
 class Cloner:
@@ -68,98 +66,6 @@ class Cloner:
         self._root_path = root_path + "_"
         return [f"{root_path}_{i}" for i in range(num_paths)]
 
-    def replicate_physics(
-        self,
-        source_prim_path: str,
-        prim_paths: list,
-        base_env_path: str,
-        root_path: str,
-        enable_env_ids: bool = False,
-        clone_in_fabric: bool = False,
-    ):
-        """Replicates physics properties directly in omni.physics to avoid performance bottlenecks when parsing physics.
-
-        Args:
-            source_prim_path (str): Path of source object.
-            prim_paths (List[str]): List of destination paths.
-            base_env_path (str): Path to namespace for all environments.
-            root_path (str): Prefix path for each environment.
-            useEnvIds (bool): Whether to use envIDs functionality in physics to enable co-location of clones. Clones will be filtered automatically.
-            clone_in_fabric (bool): Not supported in Newton. This is here for compatibility with IL 2.2.
-        Raises:
-            Exception: Raises exception if base_env_path is None or root_path is None.
-
-        """
-        if base_env_path is None and self._base_env_path is None:
-            raise ValueError("base_env_path needs to be specified!")
-        if root_path is None and self._root_path is None:
-            raise ValueError("root_path needs to be specified!")
-
-        # resolve number of replications being made
-        replicate_first = source_prim_path not in prim_paths
-        # resolve inputs
-        clone_base_path = self._root_path if root_path is None else root_path
-        clone_root = self._base_env_path if base_env_path is None else base_env_path
-        num_replications = len(prim_paths) if replicate_first else len(prim_paths) - 1
-
-        def replicationAttachFn(stageId):
-            exclude_paths = [clone_root]
-            return exclude_paths
-
-        def replicationAttachEndFn(stageId):
-            get_physx_replicator_interface().replicate(stageId, source_prim_path, num_replications, enable_env_ids)
-
-        def hierarchyRenameFn(replicatePath, index):
-            if replicate_first:
-                stringPath = clone_base_path + str(index)
-            else:
-                stringPath = clone_base_path + str(index + 1)
-            return stringPath
-
-        stageId = UsdUtils.StageCache.Get().Insert(self._stage).ToLongInt()
-
-        get_physx_replicator_interface().register_replicator(
-            stageId, replicationAttachFn, replicationAttachEndFn, hierarchyRenameFn
-        )
-
-    def disable_change_listener(self):
-
-        # first try to disable omni physx UI notice handler
-        try:
-            from omni.physxui import get_physxui_interface
-
-            self._physx_ui_notice_enabled = get_physxui_interface().is_usd_notice_handler_enabled()
-            if self._physx_ui_notice_enabled:
-                get_physxui_interface().block_usd_notice_handler(True)
-        except Exception as e:
-            omni.log.info(f"Error disabling change listener: {e}")
-
-        # second disable Fabric USD notice handler
-        # A.B. Needs a fix first on Fabric side
-        # stage_id = UsdUtils.StageCache.Get().Insert(self._stage).ToLongInt()
-        # self._fabric_usd_notice_enabled = SimulationManager.is_fabric_usd_notice_handler_enabled(stage_id)
-        # if self._fabric_usd_notice_enabled:
-        #     SimulationManager.enable_fabric_usd_notice_handler(stage_id, False)
-
-        # third disable SimulationManager notice handler
-        SimulationManager.enable_usd_notice_handler(False)
-
-    def enable_change_listener(self):
-        try:
-            from omni.physxui import get_physxui_interface
-
-            if self._physx_ui_notice_enabled:
-                get_physxui_interface().block_usd_notice_handler(False)
-        except Exception as e:
-            omni.log.info(f"Error enabling change listener: {e}")
-
-        # A.B. Needs a fix first on Fabric side
-        # if self._fabric_usd_notice_enabled:
-        #     stage_id = UsdUtils.StageCache.Get().Insert(self._stage).ToLongInt()
-        #     SimulationManager.enable_fabric_usd_notice_handler(stage_id, True)
-
-        SimulationManager.enable_usd_notice_handler(True)
-
     def clone(  # noqa: C901
         self,
         source_prim_path: str,
@@ -196,8 +102,6 @@ class Cloner:
             Exception: Raises exception if source prim path is not valid.
 
         """
-        self.disable_change_listener()
-
         # check if inputs are valid
         if positions is not None:
             if len(positions) != len(prim_paths):
@@ -305,12 +209,9 @@ class Cloner:
             prim.GetPrim().GetAttribute("xformOp:translate").Set(translation)
             prim.GetPrim().GetAttribute("xformOp:orient").Set(orientation)
 
-        has_clones = False
         with Sdf.ChangeBlock():
             for i, prim_path in enumerate(prim_paths):
                 if prim_path != source_prim_path:
-                    has_clones = True
-
                     env_spec = Sdf.CreatePrimInLayer(self._stage.GetRootLayer(), prim_path)
 
                     if copy_from_source:
@@ -361,15 +262,6 @@ class Cloner:
                         )
                     op_order_spec.default = Vt.TokenArray(["xformOp:translate", "xformOp:orient", "xformOp:scale"])
 
-        if replicate_physics and has_clones:
-            self.replicate_physics(source_prim_path, prim_paths, base_env_path, root_path, enable_env_ids)
-        elif unregister_physics_replication:
-            get_physx_replicator_interface().unregister_replicator(
-                UsdUtils.StageCache.Get().Insert(self._stage).ToLongInt()
-            )
-
-        self.enable_change_listener()
-
     def filter_collisions(
         self, physicsscene_path: str, collision_root_path: str, prim_paths: list[str], global_paths: list[str] = []
     ):
@@ -383,85 +275,4 @@ class Cloner:
 
         """
 
-        physx_scene = PhysxSchema.PhysxSceneAPI(self._stage.GetPrimAtPath(physicsscene_path))
-
-        # We invert the collision group filters for more efficient collision filtering across environments
-        physx_scene.CreateInvertCollisionGroupFilterAttr().Set(True)
-
-        # Make sure we create the collision_scope in the RootLayer since the edit target may be a live layer in the case of Live Sync.
-        with Usd.EditContext(self._stage, Usd.EditTarget(self._stage.GetRootLayer())):
-            _ = UsdGeom.Scope.Define(self._stage, collision_root_path)
-
-        with Sdf.ChangeBlock():
-            if len(global_paths) > 0:
-                global_collision_group_path = collision_root_path + "/global_group"
-                # add collision group prim
-                global_collision_group = Sdf.PrimSpec(
-                    self._stage.GetRootLayer().GetPrimAtPath(collision_root_path),
-                    "global_group",
-                    Sdf.SpecifierDef,
-                    "PhysicsCollisionGroup",
-                )
-                # prepend collision API schema
-                global_collision_group.SetInfo(
-                    Usd.Tokens.apiSchemas, Sdf.TokenListOp.Create({"CollectionAPI:colliders"})
-                )
-
-                # expansion rule
-                expansion_rule = Sdf.AttributeSpec(
-                    global_collision_group,
-                    "collection:colliders:expansionRule",
-                    Sdf.ValueTypeNames.Token,
-                    Sdf.VariabilityUniform,
-                )
-                expansion_rule.default = "expandPrims"
-
-                # includes rel
-                global_includes_rel = Sdf.RelationshipSpec(
-                    global_collision_group, "collection:colliders:includes", False
-                )
-                for global_path in global_paths:
-                    global_includes_rel.targetPathList.Append(global_path)
-
-                # filteredGroups rel
-                global_filtered_groups = Sdf.RelationshipSpec(global_collision_group, "physics:filteredGroups", False)
-                # We are using inverted collision group filtering, which means objects by default don't collide across
-                # groups. We need to add this group as a filtered group, so that objects within this group collide with
-                # each other.
-                global_filtered_groups.targetPathList.Append(global_collision_group_path)
-
-            # set collision groups and filters
-            for i, prim_path in enumerate(prim_paths):
-                collision_group_path = collision_root_path + f"/group{i}"
-                # add collision group prim
-                collision_group = Sdf.PrimSpec(
-                    self._stage.GetRootLayer().GetPrimAtPath(collision_root_path),
-                    f"group{i}",
-                    Sdf.SpecifierDef,
-                    "PhysicsCollisionGroup",
-                )
-                # prepend collision API schema
-                collision_group.SetInfo(Usd.Tokens.apiSchemas, Sdf.TokenListOp.Create({"CollectionAPI:colliders"}))
-
-                # expansion rule
-                expansion_rule = Sdf.AttributeSpec(
-                    collision_group,
-                    "collection:colliders:expansionRule",
-                    Sdf.ValueTypeNames.Token,
-                    Sdf.VariabilityUniform,
-                )
-                expansion_rule.default = "expandPrims"
-
-                # includes rel
-                includes_rel = Sdf.RelationshipSpec(collision_group, "collection:colliders:includes", False)
-                includes_rel.targetPathList.Append(prim_path)
-
-                # filteredGroups rel
-                filtered_groups = Sdf.RelationshipSpec(collision_group, "physics:filteredGroups", False)
-                # We are using inverted collision group filtering, which means objects by default don't collide across
-                # groups. We need to add this group as a filtered group, so that objects within this group collide with
-                # each other.
-                filtered_groups.targetPathList.Append(collision_group_path)
-                if len(global_paths) > 0:
-                    filtered_groups.targetPathList.Append(global_collision_group_path)
-                    global_filtered_groups.targetPathList.Append(collision_group_path)
+        return

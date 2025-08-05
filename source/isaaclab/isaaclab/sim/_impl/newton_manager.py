@@ -69,6 +69,7 @@ class NewtonManager:
     _usdrt_stage = None
     _newton_index_attr = "newton:index"
     _env_offsets = None
+    _clone_physics_only = False
 
     @property
     def model(self) -> Model:
@@ -124,14 +125,15 @@ class NewtonManager:
             NewtonManager._state_0,
             None,
         )
-        NewtonManager._usdrt_stage = get_current_stage(fabric=True)
-        for i, prim_path in enumerate(NewtonManager._model.body_key):
-            prim = NewtonManager._usdrt_stage.GetPrimAtPath(prim_path)
-            prim.CreateAttribute(NewtonManager._newton_index_attr, usdrt.Sdf.ValueTypeNames.UInt, True)
-            prim.GetAttribute(NewtonManager._newton_index_attr).Set(i)
-            xformable_prim = usdrt.Rt.Xformable(prim)
-            if not xformable_prim.HasWorldXform():
-                xformable_prim.SetWorldXformFromUsd()
+        if not NewtonManager._clone_physics_only:
+            NewtonManager._usdrt_stage = get_current_stage(fabric=True)
+            for i, prim_path in enumerate(NewtonManager._model.body_key):
+                prim = NewtonManager._usdrt_stage.GetPrimAtPath(prim_path)
+                prim.CreateAttribute(NewtonManager._newton_index_attr, usdrt.Sdf.ValueTypeNames.UInt, True)
+                prim.GetAttribute(NewtonManager._newton_index_attr).Set(i)
+                xformable_prim = usdrt.Rt.Xformable(prim)
+                if not xformable_prim.HasWorldXform():
+                    xformable_prim.SetWorldXformFromUsd()
 
     @classmethod
     def set_solver_settings(cls, newton_params: dict):
