@@ -1581,7 +1581,8 @@ def _validate_scale_range(
     if params is None:  # caller didn’t request randomisation for this field
         return
     low, high = params
-
+    if not isinstance(low, (int, float)) or not isinstance(high, (int, float)):
+        raise TypeError(f"{name}: expected (low, high) to be a tuple of numbers, got {params}.")
     if not allow_negative and not allow_zero and low <= 0:
         raise ValueError(f"{name}: lower bound must be > 0 when using the 'scale' operation (got {low}).")
     if not allow_negative and allow_zero and low < 0:
