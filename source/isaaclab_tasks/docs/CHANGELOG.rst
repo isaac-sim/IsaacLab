@@ -1,6 +1,28 @@
 Changelog
 ---------
 
+0.10.38 (2025-07-31)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``from __future__ import annotations`` to isaaclab_tasks files to fix Sphinx
+  doc warnings for IsaacLab Mimic docs.
+
+
+0.10.37 (2025-07-16)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``Isaac-Forge-PegInsert-Direct-v0``, ``Isaac-Forge-GearMesh-Direct-v0``,
+  and ``Isaac-Forge-NutThread-Direct-v0`` environments as direct RL envs. These
+  environments extend ``Isaac-Factory-*-v0`` with force sensing, an excessive force
+  penalty, dynamics randomization, and success prediction.
+
+
 0.10.36 (2025-06-26)
 ~~~~~~~~~~~~~~~~~~~~
 
