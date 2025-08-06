@@ -1183,6 +1183,7 @@ def reset_scene_to_default(env: ManagerBasedEnv, env_ids: torch.Tensor, reset_jo
         nodal_state = deformable_object.data.default_nodal_state_w[env_ids].clone()
         deformable_object.write_nodal_state_to_sim(nodal_state, env_ids=env_ids)
 
+
 def populate_non_actuated_joint_targets(
     env: ManagerBasedEnv,
     env_ids: torch.Tensor,
@@ -1190,7 +1191,7 @@ def populate_non_actuated_joint_targets(
 ):
     """Populate the non-actuated joint targets for the robot.
 
-    This function uses the default joint positions of the asset and sets the 
+    This function uses the default joint positions of the asset and sets the
     joint position targets to these values. It is useful when you don't want to actuate all joints
     but still want them to be in a specific position.
     """
@@ -1205,6 +1206,7 @@ def populate_non_actuated_joint_targets(
         joint_ids=asset_cfg.joint_ids,
         env_ids=env_ids,
     )
+
 
 class randomize_visual_texture_material(ManagerTermBase):
     """Randomize the visual texture of bodies on an asset using Replicator API.
