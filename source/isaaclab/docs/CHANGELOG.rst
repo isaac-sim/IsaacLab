@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+
+0.41.6 (2025-08-06)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed IndexError in :meth:`isaaclab.envs.mdp.events.reset_joints_by_scale`,
+  :meth:`isaaclab.envs.mdp.events.reset_joints_by_offsets` by adding dimension to env_ids when indexing.
+
+
 0.41.5 (2025-07-31)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -49,6 +60,7 @@ Fixed
 
 * Fixed :meth:`isaaclab.scene.reset_to` to properly accept None as valid argument.
 * Added tests to verify that argument types.
+
 
 
 0.41.1 (2025-07-22)
