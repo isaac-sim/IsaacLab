@@ -50,6 +50,7 @@ def define_sensor() -> RayCaster:
         mesh_prim_paths=["/World/ground"],
         pattern_cfg=patterns.GridPatternCfg(resolution=0.1, size=(2.0, 2.0)),
         ray_alignment="yaw",
+        track_ray_distance=True,
         debug_vis=not args_cli.headless,
     )
     ray_caster = RayCaster(cfg=ray_caster_cfg)
@@ -118,9 +119,12 @@ def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
         # Step simulation
         sim.step()
         # Update the ray-caster
+        print("-------------------------------")
         with Timer(
             f"Ray-caster update with {4} x {ray_caster.num_rays} rays with max height of"
             f" {torch.max(ray_caster.data.pos_w).item():.2f}"
+            f"\nMax ray_distance per sensor: "
+            + ", ".join([f"{dist:.2f}m" for i, dist in enumerate(ray_caster.data.ray_distance.max(dim=-1)[0].tolist())])
         ):
             ray_caster.update(dt=sim.get_physics_dt(), force_recompute=True)
         # Update counter

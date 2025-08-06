@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.41.6 (2025-08-07)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Add a new optional property :attr:`~isaaclab.sensors.RayCasterCfg.track_ray_distance`.
+  Along with :attr:`~isaaclab.sensors.RayCasterData.ray_distance`.
+  Now, the distance information of each ray to the obstacle can be obtained directly from RayCasterData.
+
+
 0.41.5 (2025-07-31)
 ~~~~~~~~~~~~~~~~~~~
 
