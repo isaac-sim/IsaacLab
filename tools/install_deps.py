@@ -152,7 +152,7 @@ def run_and_print(args: list[str]):
         args: A list of arguments to pass to Popen.
     """
     print(f'Running "{args}"')
-    with Popen(args, stdout=PIPE, env=os.environ) as p:
+    with Popen(args, stdout=PIPE, stderr=STDOUT, env=os.environ) as p:
         while p.poll() is None:
             text = p.stdout.read1().decode("utf-8")
             print(text, end="", flush=True)
