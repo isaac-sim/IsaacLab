@@ -299,7 +299,8 @@ class randomize_rigid_body_mass(ManagerTermBase):
             env: The environment instance.
 
         Raises:
-            ValueError: If the asset is not a RigidObject or an Articulation.
+            ValueError: If the operation is not supported.
+            ValueError: If the body mass range is invalid (lower limit greater than upper limit).
         """
         super().__init__(cfg, env)
 
@@ -309,7 +310,10 @@ class randomize_rigid_body_mass(ManagerTermBase):
         # check for valid operation
         if cfg.params["operation"] == "scale":
             _validate_scale_range(cfg.params["mass_distribution_params"], "mass_distribution_params", allow_zero=False)
-
+        elif cfg.params["operation"] is not "abs" and cfg.params["operation"] is not "add":
+            raise ValueError(
+                f"Randomization term 'randomize_rigid_body_mass' does not support operation: '{cfg.params['operation']}'."
+            )
 
     def __call__(
         self,
@@ -533,7 +537,8 @@ class randomize_actuator_gains(ManagerTermBase):
             env: The environment instance.
 
         Raises:
-            ValueError: If the asset is not a RigidObject or an Articulation.
+            ValueError: If the operation is not supported.
+            ValueError: If the actuator gains range is invalid (lower limit greater than upper limit).
         """
         super().__init__(cfg, env)
 
@@ -544,7 +549,11 @@ class randomize_actuator_gains(ManagerTermBase):
         if cfg.params["operation"] == "scale":
             _validate_scale_range(cfg.params["stiffness_distribution_params"], "stiffness_distribution_params", allow_zero=False)
             _validate_scale_range(cfg.params["damping_distribution_params"], "damping_distribution_params")
-
+        elif cfg.params["operation"] is not "abs" and cfg.params["operation"] is not "add":
+            raise ValueError(
+                f"Randomization term 'randomize_actuator_gains' does not support operation: '{cfg.params['operation']}'."
+            )
+        
     def __call__(
         self,
         env: ManagerBasedEnv,
@@ -627,7 +636,8 @@ class randomize_joint_parameters(ManagerTermBase):
             env: The environment instance.
 
         Raises:
-            ValueError: If the asset is not a RigidObject or an Articulation.
+            ValueError: If the operation is not supported.
+            ValueError: If the joint parameters range is invalid (lower limit greater than upper limit).
         """
         super().__init__(cfg, env)
 
@@ -638,7 +648,10 @@ class randomize_joint_parameters(ManagerTermBase):
         if cfg.params["operation"] == "scale":
             _validate_scale_range(cfg.params["friction_distribution_params"], "friction_distribution_params")
             _validate_scale_range(cfg.params["armature_distribution_params"], "armature_distribution_params")
-
+        elif cfg.params["operation"] is not "abs" and cfg.params["operation"] is not "add":
+            raise ValueError(
+                f"Randomization term 'randomize_fixed_tendon_parameters' does not support operation: '{cfg.params['operation']}'."
+            )
 
     def __call__(
         self,
@@ -747,7 +760,8 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
             env: The environment instance.
 
         Raises:
-            ValueError: If the asset is not a RigidObject or an Articulation.
+            ValueError: If the operation is not supported.
+            ValueError: If the tendon range is invalid (lower limit greater than upper limit).
         """
         super().__init__(cfg, env)
 
@@ -760,6 +774,10 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
             _validate_scale_range(cfg.params["damping_distribution_params"], "damping_distribution_params")
             _validate_scale_range(
                 cfg.params["limit_stiffness_distribution_params"], "limit_stiffness_distribution_params", allow_zero=False
+            )
+        elif cfg.params["operation"] is not "abs" and cfg.params["operation"] is not "add":
+            raise ValueError(
+                f"Randomization term 'randomize_fixed_tendon_parameters' does not support operation: '{cfg.params['operation']}'."
             )
 
     def __call__(
