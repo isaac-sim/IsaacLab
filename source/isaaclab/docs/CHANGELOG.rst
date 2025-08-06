@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.41.5 (2025-07-31)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``from __future__ import annotations`` to manager_based_rl_mimic_env.py to fix Sphinx
+  doc warnings for IsaacLab Mimic docs.
+
+
 0.41.4 (2025-07-30)
 ~~~~~~~~~~~~~~~~~~~
 
