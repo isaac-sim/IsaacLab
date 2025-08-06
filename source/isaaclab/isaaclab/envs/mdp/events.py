@@ -1573,10 +1573,29 @@ def _validate_scale_range(
     allow_negative: bool = False,
     allow_zero: bool = True,
 ) -> None:
-    """Sanity–check (low, high) tuples used with `operation=="scale"`.
+    """
+    Validates a (low, high) tuple used in scale-based randomization.
 
-    * `low` < 0         → ValueError  (unless `allow_negative=True`)
-    * `high` < `low`    → ValueError
+    This function ensures the tuple follows expected rules when applying a 'scale' 
+    operation. It performs type and value checks, optionally allowing negative or 
+    zero lower bounds.
+
+    Args:
+        params (tuple[float, float] | None): The (low, high) range to validate. If None, 
+            validation is skipped.
+        name (str): The name of the parameter being validated, used for error messages.
+        allow_negative (bool, optional): If True, allows the lower bound to be negative.
+            Defaults to False.
+        allow_zero (bool, optional): If True, allows the lower bound to be zero.
+            Defaults to True.
+
+    Raises:
+        TypeError: If `params` is not a tuple of two numbers.
+        ValueError: If the lower bound is negative or zero when not allowed.
+        ValueError: If the upper bound is less than the lower bound.
+    
+    Example:
+        _validate_scale_range((0.5, 1.5), "mass_scale")
     """
     if params is None:  # caller didn’t request randomisation for this field
         return
