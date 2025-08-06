@@ -299,8 +299,10 @@ class randomize_rigid_body_mass(ManagerTermBase):
             env: The environment instance.
 
         Raises:
+            TypeError: If `params` is not a tuple of two numbers.
             ValueError: If the operation is not supported.
-            ValueError: If the body mass range is invalid (lower limit greater than upper limit).
+            ValueError: If the lower bound is negative or zero when not allowed.
+            ValueError: If the upper bound is less than the lower bound.
         """
         super().__init__(cfg, env)
 
@@ -537,8 +539,10 @@ class randomize_actuator_gains(ManagerTermBase):
             env: The environment instance.
 
         Raises:
+            TypeError: If `params` is not a tuple of two numbers.
             ValueError: If the operation is not supported.
-            ValueError: If the actuator gains range is invalid (lower limit greater than upper limit).
+            ValueError: If the lower bound is negative or zero when not allowed.
+            ValueError: If the upper bound is less than the lower bound.
         """
         super().__init__(cfg, env)
 
@@ -636,8 +640,10 @@ class randomize_joint_parameters(ManagerTermBase):
             env: The environment instance.
 
         Raises:
+            TypeError: If `params` is not a tuple of two numbers.
             ValueError: If the operation is not supported.
-            ValueError: If the joint parameters range is invalid (lower limit greater than upper limit).
+            ValueError: If the lower bound is negative or zero when not allowed.
+            ValueError: If the upper bound is less than the lower bound.
         """
         super().__init__(cfg, env)
 
@@ -760,8 +766,10 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
             env: The environment instance.
 
         Raises:
+            TypeError: If `params` is not a tuple of two numbers.
             ValueError: If the operation is not supported.
-            ValueError: If the tendon range is invalid (lower limit greater than upper limit).
+            ValueError: If the lower bound is negative or zero when not allowed.
+            ValueError: If the upper bound is less than the lower bound.
         """
         super().__init__(cfg, env)
 
