@@ -31,7 +31,7 @@ import argparse
 import os
 import shutil
 import toml
-from subprocess import PIPE, Popen
+from subprocess import PIPE, Popen, STDOUT
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="A utility to install dependencies based on extension.toml files.")
