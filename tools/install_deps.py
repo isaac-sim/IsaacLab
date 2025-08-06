@@ -156,8 +156,9 @@ def run_and_print(args: list[str]):
         while p.poll() is None:
             text = p.stdout.read1().decode("utf-8")
             print(text, end="", flush=True)
-        if p.poll() != 0:
-            raise RuntimeError(f'Subprocess with args: "{args}" failed. The returned error code was: {p.poll()}')
+        return_code = p.poll()
+        if return_code != 0:
+            raise RuntimeError(f'Subprocess with args: "{args}" failed. The returned error code was: {return_code}')
 
 
 def main():
