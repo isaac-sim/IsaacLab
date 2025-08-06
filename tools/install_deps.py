@@ -32,6 +32,7 @@ import os
 import shutil
 import toml
 from subprocess import PIPE, Popen
+
 # add argparse arguments
 parser = argparse.ArgumentParser(description="A utility to install dependencies based on extension.toml files.")
 parser.add_argument("type", type=str, choices=["all", "apt", "rosdep"], help="The type of packages to install.")
