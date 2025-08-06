@@ -291,6 +291,7 @@ class randomize_rigid_body_mass(ManagerTermBase):
         This function uses CPU tensors to assign the body masses. It is recommended to use this function
         only during the initialization of the environment.
     """
+
     def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):
         """Initialize the term.
 
@@ -312,9 +313,10 @@ class randomize_rigid_body_mass(ManagerTermBase):
         # check for valid operation
         if cfg.params["operation"] == "scale":
             _validate_scale_range(cfg.params["mass_distribution_params"], "mass_distribution_params", allow_zero=False)
-        elif cfg.params["operation"] is not "abs" and cfg.params["operation"] is not "add":
+        elif cfg.params["operation"] != "abs" and cfg.params["operation"] != "add":
             raise ValueError(
-                f"Randomization term 'randomize_rigid_body_mass' does not support operation: '{cfg.params['operation']}'."
+                "Randomization term 'randomize_rigid_body_mass' does not support operation:"
+                f" '{cfg.params['operation']}'."
             )
 
     def __call__(
@@ -517,7 +519,6 @@ def randomize_physics_scene_gravity(
     physics_sim_view.set_gravity(carb.Float3(*gravity))
 
 
-
 class randomize_actuator_gains(ManagerTermBase):
     """Randomize the actuator gains in an articulation by adding, scaling, or setting random values.
 
@@ -531,6 +532,7 @@ class randomize_actuator_gains(ManagerTermBase):
         For implicit actuators, this function uses CPU tensors to assign the actuator gains into the simulation.
         In such cases, it is recommended to use this function only during the initialization of the environment.
     """
+
     def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):
         """Initialize the term.
 
@@ -551,13 +553,16 @@ class randomize_actuator_gains(ManagerTermBase):
         self.asset: RigidObject | Articulation = env.scene[self.asset_cfg.name]
         # check for valid operation
         if cfg.params["operation"] == "scale":
-            _validate_scale_range(cfg.params["stiffness_distribution_params"], "stiffness_distribution_params", allow_zero=False)
-            _validate_scale_range(cfg.params["damping_distribution_params"], "damping_distribution_params")
-        elif cfg.params["operation"] is not "abs" and cfg.params["operation"] is not "add":
-            raise ValueError(
-                f"Randomization term 'randomize_actuator_gains' does not support operation: '{cfg.params['operation']}'."
+            _validate_scale_range(
+                cfg.params["stiffness_distribution_params"], "stiffness_distribution_params", allow_zero=False
             )
-        
+            _validate_scale_range(cfg.params["damping_distribution_params"], "damping_distribution_params")
+        elif cfg.params["operation"] != "abs" and cfg.params["operation"] != "add":
+            raise ValueError(
+                "Randomization term 'randomize_actuator_gains' does not support operation:"
+                f" '{cfg.params['operation']}'."
+            )
+
     def __call__(
         self,
         env: ManagerBasedEnv,
@@ -602,11 +607,15 @@ class randomize_actuator_gains(ManagerTermBase):
             # Randomize stiffness
             if stiffness_distribution_params is not None:
                 stiffness = actuator.stiffness[env_ids].clone()
-                stiffness[:, actuator_indices] = self.asset.data.default_joint_stiffness[env_ids][:, global_indices].clone()
+                stiffness[:, actuator_indices] = self.asset.data.default_joint_stiffness[env_ids][
+                    :, global_indices
+                ].clone()
                 randomize(stiffness, stiffness_distribution_params)
                 actuator.stiffness[env_ids] = stiffness
                 if isinstance(actuator, ImplicitActuator):
-                    self.asset.write_joint_stiffness_to_sim(stiffness, joint_ids=actuator.joint_indices, env_ids=env_ids)
+                    self.asset.write_joint_stiffness_to_sim(
+                        stiffness, joint_ids=actuator.joint_indices, env_ids=env_ids
+                    )
             # Randomize damping
             if damping_distribution_params is not None:
                 damping = actuator.damping[env_ids].clone()
@@ -632,6 +641,7 @@ class randomize_joint_parameters(ManagerTermBase):
         This function uses CPU tensors to assign the joint properties. It is recommended to use this function
         only during the initialization of the environment.
     """
+
     def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):
         """Initialize the term.
 
@@ -654,9 +664,10 @@ class randomize_joint_parameters(ManagerTermBase):
         if cfg.params["operation"] == "scale":
             _validate_scale_range(cfg.params["friction_distribution_params"], "friction_distribution_params")
             _validate_scale_range(cfg.params["armature_distribution_params"], "armature_distribution_params")
-        elif cfg.params["operation"] is not "abs" and cfg.params["operation"] is not "add":
+        elif cfg.params["operation"] != "abs" and cfg.params["operation"] != "add":
             raise ValueError(
-                f"Randomization term 'randomize_fixed_tendon_parameters' does not support operation: '{cfg.params['operation']}'."
+                "Randomization term 'randomize_fixed_tendon_parameters' does not support operation:"
+                f" '{cfg.params['operation']}'."
             )
 
     def __call__(
@@ -706,7 +717,9 @@ class randomize_joint_parameters(ManagerTermBase):
                 operation=operation,
                 distribution=distribution,
             )
-            self.asset.write_joint_armature_to_sim(armature[env_ids[:, None], joint_ids], joint_ids=joint_ids, env_ids=env_ids)
+            self.asset.write_joint_armature_to_sim(
+                armature[env_ids[:, None], joint_ids], joint_ids=joint_ids, env_ids=env_ids
+            )
 
         # joint position limits
         if lower_limit_distribution_params is not None or upper_limit_distribution_params is not None:
@@ -736,15 +749,13 @@ class randomize_joint_parameters(ManagerTermBase):
             joint_pos_limits = joint_pos_limits[env_ids[:, None], joint_ids]
             if (joint_pos_limits[..., 0] > joint_pos_limits[..., 1]).any():
                 raise ValueError(
-                    "Randomization term 'randomize_joint_parameters' is setting lower joint limits that are greater than"
-                    " upper joint limits. Please check the distribution parameters for the joint position limits."
+                    "Randomization term 'randomize_joint_parameters' is setting lower joint limits that are greater"
+                    " than upper joint limits. Please check the distribution parameters for the joint position limits."
                 )
             # set the position limits into the physics simulation
             self.asset.write_joint_position_limit_to_sim(
                 joint_pos_limits, joint_ids=joint_ids, env_ids=env_ids, warn_limit_violation=False
             )
-
-
 
 
 class randomize_fixed_tendon_parameters(ManagerTermBase):
@@ -758,6 +769,7 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
     particular property, the function does not modify the property.
 
     """
+
     def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):
         """Initialize the term.
 
@@ -778,14 +790,19 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
         self.asset: RigidObject | Articulation = env.scene[self.asset_cfg.name]
         # check for valid operation
         if cfg.params["operation"] == "scale":
-            _validate_scale_range(cfg.params["stiffness_distribution_params"], "stiffness_distribution_params", allow_zero=False)
+            _validate_scale_range(
+                cfg.params["stiffness_distribution_params"], "stiffness_distribution_params", allow_zero=False
+            )
             _validate_scale_range(cfg.params["damping_distribution_params"], "damping_distribution_params")
             _validate_scale_range(
-                cfg.params["limit_stiffness_distribution_params"], "limit_stiffness_distribution_params", allow_zero=False
+                cfg.params["limit_stiffness_distribution_params"],
+                "limit_stiffness_distribution_params",
+                allow_zero=False,
             )
-        elif cfg.params["operation"] is not "abs" and cfg.params["operation"] is not "add":
+        elif cfg.params["operation"] != "abs" and cfg.params["operation"] != "add":
             raise ValueError(
-                f"Randomization term 'randomize_fixed_tendon_parameters' does not support operation: '{cfg.params['operation']}'."
+                "Randomization term 'randomize_fixed_tendon_parameters' does not support operation:"
+                f" '{cfg.params['operation']}'."
             )
 
     def __call__(
@@ -848,7 +865,9 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
                 operation=operation,
                 distribution=distribution,
             )
-            self.asset.set_fixed_tendon_limit_stiffness(limit_stiffness[env_ids[:, None], tendon_ids], tendon_ids, env_ids)
+            self.asset.set_fixed_tendon_limit_stiffness(
+                limit_stiffness[env_ids[:, None], tendon_ids], tendon_ids, env_ids
+            )
 
         # position limits
         if lower_limit_distribution_params is not None or upper_limit_distribution_params is not None:
@@ -878,8 +897,8 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
             tendon_limits = limit[env_ids[:, None], tendon_ids]
             if (tendon_limits[..., 0] > tendon_limits[..., 1]).any():
                 raise ValueError(
-                    "Randomization term 'randomize_fixed_tendon_parameters' is setting lower tendon limits that are greater"
-                    " than upper tendon limits."
+                    "Randomization term 'randomize_fixed_tendon_parameters' is setting lower tendon limits that are"
+                    " greater than upper tendon limits."
                 )
             self.asset.set_fixed_tendon_position_limit(tendon_limits, tendon_ids, env_ids)
 
@@ -1574,6 +1593,7 @@ def _randomize_prop_by_op(
         )
     return data
 
+
 def _validate_scale_range(
     params: tuple[float, float] | None,
     name: str,
@@ -1584,12 +1604,12 @@ def _validate_scale_range(
     """
     Validates a (low, high) tuple used in scale-based randomization.
 
-    This function ensures the tuple follows expected rules when applying a 'scale' 
-    operation. It performs type and value checks, optionally allowing negative or 
+    This function ensures the tuple follows expected rules when applying a 'scale'
+    operation. It performs type and value checks, optionally allowing negative or
     zero lower bounds.
 
     Args:
-        params (tuple[float, float] | None): The (low, high) range to validate. If None, 
+        params (tuple[float, float] | None): The (low, high) range to validate. If None,
             validation is skipped.
         name (str): The name of the parameter being validated, used for error messages.
         allow_negative (bool, optional): If True, allows the lower bound to be negative.
@@ -1601,7 +1621,7 @@ def _validate_scale_range(
         TypeError: If `params` is not a tuple of two numbers.
         ValueError: If the lower bound is negative or zero when not allowed.
         ValueError: If the upper bound is less than the lower bound.
-    
+
     Example:
         _validate_scale_range((0.5, 1.5), "mass_scale")
     """
