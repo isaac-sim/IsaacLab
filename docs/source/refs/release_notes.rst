@@ -36,6 +36,7 @@ Isaac Sim 5.0 Updates
 * Native Livestreaming support has been removed. ``LIVESTREAM=1`` can now be used for WebRTC streaming over public networks and
   ``LIVESTREAM=2`` for private and local networks with WebRTC streaming.
 * Some assets in Isaac Sim have been reworked and restructured. Notably, the following asset paths were updated:
+
   * ``Robots/Ant/ant_instanceable.usd`` --> ``Robots/IsaacSim/Ant/ant_instanceable.usd``
   * ``Robots/Humanoid/humanoid_instanceable.usd`` --> ``Robots/IsaacSim/Humanoid/humanoid_instanceable.usd``
   * ``Robots/ANYbotics/anymal_instanceable.usd`` --> ``Robots/ANYbotics/anymal_c/anymal_c.usd``
