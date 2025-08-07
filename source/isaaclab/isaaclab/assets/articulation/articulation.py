@@ -865,7 +865,7 @@ class Articulation(AssetBase):
             )
         else:
             friction_props = self.root_physx_view.get_dof_friction_properties()
-            friction_props[physx_env_ids.cpu(), :, 0] = self._data.joint_friction_coeff.cpu()
+            friction_props[physx_env_ids.cpu(), :, 0] = self._data.joint_friction_coeff[physx_env_ids, :].cpu()
 
     def write_joint_dynamic_friction_coefficient_to_sim(
         self,
@@ -890,7 +890,7 @@ class Articulation(AssetBase):
         self._data.joint_dynamic_friction_coeff[env_ids, joint_ids] = joint_dynamic_friction_coeff
         # set into simulation
         friction_props = self.root_physx_view.get_dof_friction_properties()
-        friction_props[physx_env_ids.cpu(), :, 1] = self._data.joint_dynamic_friction_coeff.cpu()
+        friction_props[physx_env_ids.cpu(), :, 1] = self._data.joint_dynamic_friction_coeff[physx_env_ids, :].cpu()
 
     def write_joint_viscous_friction_coefficient_to_sim(
         self,
@@ -915,7 +915,7 @@ class Articulation(AssetBase):
         self._data.joint_viscous_friction_coeff[env_ids, joint_ids] = joint_viscous_friction_coeff
         # set into simulation
         friction_props = self.root_physx_view.get_dof_friction_properties()
-        friction_props[physx_env_ids.cpu(), :, 2] = self._data.joint_viscous_friction_coeff.cpu()
+        friction_props[physx_env_ids.cpu(), :, 2] = self._data.joint_viscous_friction_coeff[physx_env_ids, :].cpu()
 
     """
     Operations - Setters.
