@@ -141,8 +141,12 @@ class TwoRobotStackCubeEnv(DirectRLEnv):
         """
         left_effort = self.actions[:, 0:9]
         right_effort = self.actions[:, 9:18]
-        self.robot_left.set_joint_effort_target(left_effort, joint_ids=self.joint_ids)
-        self.robot_right.set_joint_effort_target(right_effort, joint_ids=self.joint_ids)
+        # self.robot_left.set_joint_effort_target(left_effort, joint_ids=self.joint_ids)
+        # self.robot_right.set_joint_effort_target(right_effort, joint_ids=self.joint_ids)
+        self.robot_left.set_joint_position_target(left_effort, joint_ids=self.joint_ids)
+        self.robot_right.set_joint_position_target(
+            right_effort, joint_ids=self.joint_ids
+        )
 
     def _get_observations(self) -> dict:
         """
