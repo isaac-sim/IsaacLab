@@ -33,7 +33,7 @@
 
     <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css" />
     <link rel="stylesheet" href="../../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
-    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.10.18/x64/lib/python3.10/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
+    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.11.13/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/custom.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.4cbf315f70debaebd550c87a6162cf0f.min.css" />
@@ -47,7 +47,7 @@
     <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
     <script src="../../../_static/doctools.js"></script>
     <script src="../../../_static/sphinx_highlight.js"></script>
-    <script src="/opt/hostedtoolcache/Python/3.10.18/x64/lib/python3.10/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
+    <script src="/opt/hostedtoolcache/Python/3.11.13/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
     <script src="../../../_static/clipboard.min.js"></script>
     <script src="../../../_static/copybutton.js"></script>
     <script src="../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
@@ -60,8 +60,8 @@
     <link rel="prev" title="Training with an RL Agent" href="run_rl_training.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="2.1.1" />
-    <meta name="docbuild:last-update" content="Aug 05, 2025"/>
+  <meta name="docsearch:version" content="2.2.0" />
+    <meta name="docbuild:last-update" content="Aug 07, 2025"/>
   </head>
   
   
@@ -197,7 +197,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.5.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.0.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -233,8 +233,8 @@
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../../setup/ecosystem.html">Isaac Lab Ecosystem</a></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../setup/installation/index.html">Local Installation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/pip_installation.html">Pip installation (recommended for Ubuntu 22.04 and Windows)</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/binaries_installation.html">Binary installation (recommended for Ubuntu 20.04)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/pip_installation.html">Pip installation (recommended)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/binaries_installation.html">Binary installation</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../setup/installation/isaaclab_pip_installation.html">Advanced installation (Isaac Lab pip)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../setup/installation/asset_caching.html">Asset caching</a></li>
 </ul>
@@ -242,6 +242,7 @@
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../deployment/index.html">Container Deployment</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../deployment/docker.html">Docker Guide</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../deployment/cluster.html">Cluster Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../deployment/cloudxr_teleoperation_cluster.html">Deploying CloudXR Teleoperation on Kubernetes</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../deployment/run_docker_example.html">Running an example with Docker</a></li>
 </ul>
 </details></li>
@@ -267,6 +268,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../01_assets/run_rigid_object.html">Interacting with a rigid object</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../01_assets/run_articulation.html">Interacting with an articulation</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../01_assets/run_deformable_object.html">Interacting with a deformable object</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../01_assets/run_surface_gripper.html">Interacting with a surface gripper</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../02_scene/create_scene.html">Using the Interactive Scene</a></li>
 <li class="toctree-l2"><a class="reference internal" href="create_manager_base_env.html">Creating a Manager-Based Base Environment</a></li>
 <li class="toctree-l2"><a class="reference internal" href="create_manager_rl_env.html">Creating a Manager-Based RL Environment</a></li>
@@ -297,6 +299,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../how-to/master_omniverse.html">Mastering Omniverse for Robotics</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../how-to/cloudxr_teleoperation.html">Setting up CloudXR Teleoperation</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../how-to/simulation_performance.html">Simulation Performance</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/optimize_stage_creation.html">Optimize Stage Creation</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../overview/developer-guide/index.html">Developer’s Guide</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
@@ -333,7 +336,8 @@
 <li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/training_guide.html">Debugging and Training Guide</a></li>
 </ul>
 </details></li>
-<li class="toctree-l1"><a class="reference internal" href="../../overview/teleop_imitation.html">Teleoperation and Imitation Learning</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../overview/teleop_imitation.html">Teleoperation and Imitation Learning with Isaac Lab Mimic</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../overview/augmented_imitation.html">Augmented Imitation Learning</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../overview/showroom.html">Showroom Demos</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../overview/simple_agents.html">Simple Agents</a></li>
 </ul>
@@ -693,54 +697,56 @@ humanoid model to the Unitree H1 humanoid robot without affecting the original c
 <span class="linenos">45</span>    <span class="p">)</span>
 <span class="linenos">46</span>
 <span class="linenos">47</span>    <span class="c1"># scene</span>
-<span class="linenos">48</span>    <span class="n">scene</span><span class="p">:</span> <span class="n">InteractiveSceneCfg</span> <span class="o">=</span> <span class="n">InteractiveSceneCfg</span><span class="p">(</span><span class="n">num_envs</span><span class="o">=</span><span class="mi">4096</span><span class="p">,</span> <span class="n">env_spacing</span><span class="o">=</span><span class="mf">4.0</span><span class="p">,</span> <span class="n">replicate_physics</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-<span class="linenos">49</span>
-<span class="linenos">50</span>    <span class="c1"># robot</span>
-<span class="linenos">51</span>    <span class="n">robot</span><span class="p">:</span> <span class="n">ArticulationCfg</span> <span class="o">=</span> <span class="n">HUMANOID_CFG</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;/World/envs/env_.*/Robot&quot;</span><span class="p">)</span>
-<span class="linenos">52</span>    <span class="n">joint_gears</span><span class="p">:</span> <span class="nb">list</span> <span class="o">=</span> <span class="p">[</span>
-<span class="linenos">53</span>        <span class="mf">67.5000</span><span class="p">,</span>  <span class="c1"># lower_waist</span>
-<span class="linenos">54</span>        <span class="mf">67.5000</span><span class="p">,</span>  <span class="c1"># lower_waist</span>
-<span class="linenos">55</span>        <span class="mf">67.5000</span><span class="p">,</span>  <span class="c1"># right_upper_arm</span>
-<span class="linenos">56</span>        <span class="mf">67.5000</span><span class="p">,</span>  <span class="c1"># right_upper_arm</span>
-<span class="linenos">57</span>        <span class="mf">67.5000</span><span class="p">,</span>  <span class="c1"># left_upper_arm</span>
-<span class="linenos">58</span>        <span class="mf">67.5000</span><span class="p">,</span>  <span class="c1"># left_upper_arm</span>
-<span class="linenos">59</span>        <span class="mf">67.5000</span><span class="p">,</span>  <span class="c1"># pelvis</span>
-<span class="linenos">60</span>        <span class="mf">45.0000</span><span class="p">,</span>  <span class="c1"># right_lower_arm</span>
-<span class="linenos">61</span>        <span class="mf">45.0000</span><span class="p">,</span>  <span class="c1"># left_lower_arm</span>
-<span class="linenos">62</span>        <span class="mf">45.0000</span><span class="p">,</span>  <span class="c1"># right_thigh: x</span>
-<span class="linenos">63</span>        <span class="mf">135.0000</span><span class="p">,</span>  <span class="c1"># right_thigh: y</span>
-<span class="linenos">64</span>        <span class="mf">45.0000</span><span class="p">,</span>  <span class="c1"># right_thigh: z</span>
-<span class="linenos">65</span>        <span class="mf">45.0000</span><span class="p">,</span>  <span class="c1"># left_thigh: x</span>
-<span class="linenos">66</span>        <span class="mf">135.0000</span><span class="p">,</span>  <span class="c1"># left_thigh: y</span>
-<span class="linenos">67</span>        <span class="mf">45.0000</span><span class="p">,</span>  <span class="c1"># left_thigh: z</span>
-<span class="linenos">68</span>        <span class="mf">90.0000</span><span class="p">,</span>  <span class="c1"># right_knee</span>
-<span class="linenos">69</span>        <span class="mf">90.0000</span><span class="p">,</span>  <span class="c1"># left_knee</span>
-<span class="linenos">70</span>        <span class="mf">22.5</span><span class="p">,</span>  <span class="c1"># right_foot</span>
-<span class="linenos">71</span>        <span class="mf">22.5</span><span class="p">,</span>  <span class="c1"># right_foot</span>
-<span class="linenos">72</span>        <span class="mf">22.5</span><span class="p">,</span>  <span class="c1"># left_foot</span>
-<span class="linenos">73</span>        <span class="mf">22.5</span><span class="p">,</span>  <span class="c1"># left_foot</span>
-<span class="linenos">74</span>    <span class="p">]</span>
-<span class="linenos">75</span>
-<span class="linenos">76</span>    <span class="n">heading_weight</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.5</span>
-<span class="linenos">77</span>    <span class="n">up_weight</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.1</span>
-<span class="linenos">78</span>
-<span class="linenos">79</span>    <span class="n">energy_cost_scale</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.05</span>
-<span class="linenos">80</span>    <span class="n">actions_cost_scale</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.01</span>
-<span class="linenos">81</span>    <span class="n">alive_reward_scale</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">2.0</span>
-<span class="linenos">82</span>    <span class="n">dof_vel_scale</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.1</span>
-<span class="linenos">83</span>
-<span class="linenos">84</span>    <span class="n">death_cost</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="o">-</span><span class="mf">1.0</span>
-<span class="linenos">85</span>    <span class="n">termination_height</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.8</span>
-<span class="linenos">86</span>
-<span class="linenos">87</span>    <span class="n">angular_velocity_scale</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.25</span>
-<span class="linenos">88</span>    <span class="n">contact_force_scale</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.01</span>
-<span class="linenos">89</span>
-<span class="linenos">90</span>
-<span class="linenos">91</span><span class="k">class</span><span class="w"> </span><span class="nc">HumanoidEnv</span><span class="p">(</span><span class="n">LocomotionEnv</span><span class="p">):</span>
-<span class="linenos">92</span>    <span class="n">cfg</span><span class="p">:</span> <span class="n">HumanoidEnvCfg</span>
-<span class="linenos">93</span>
-<span class="linenos">94</span>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">HumanoidEnvCfg</span><span class="p">,</span> <span class="n">render_mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-<span class="linenos">95</span>        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">render_mode</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+<span class="linenos">48</span>    <span class="n">scene</span><span class="p">:</span> <span class="n">InteractiveSceneCfg</span> <span class="o">=</span> <span class="n">InteractiveSceneCfg</span><span class="p">(</span>
+<span class="linenos">49</span>        <span class="n">num_envs</span><span class="o">=</span><span class="mi">4096</span><span class="p">,</span> <span class="n">env_spacing</span><span class="o">=</span><span class="mf">4.0</span><span class="p">,</span> <span class="n">replicate_physics</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">clone_in_fabric</span><span class="o">=</span><span class="kc">True</span>
+<span class="linenos">50</span>    <span class="p">)</span>
+<span class="linenos">51</span>
+<span class="linenos">52</span>    <span class="c1"># robot</span>
+<span class="linenos">53</span>    <span class="n">robot</span><span class="p">:</span> <span class="n">ArticulationCfg</span> <span class="o">=</span> <span class="n">HUMANOID_CFG</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;/World/envs/env_.*/Robot&quot;</span><span class="p">)</span>
+<span class="linenos">54</span>    <span class="n">joint_gears</span><span class="p">:</span> <span class="nb">list</span> <span class="o">=</span> <span class="p">[</span>
+<span class="linenos">55</span>        <span class="mf">67.5000</span><span class="p">,</span>  <span class="c1"># lower_waist</span>
+<span class="linenos">56</span>        <span class="mf">67.5000</span><span class="p">,</span>  <span class="c1"># lower_waist</span>
+<span class="linenos">57</span>        <span class="mf">67.5000</span><span class="p">,</span>  <span class="c1"># right_upper_arm</span>
+<span class="linenos">58</span>        <span class="mf">67.5000</span><span class="p">,</span>  <span class="c1"># right_upper_arm</span>
+<span class="linenos">59</span>        <span class="mf">67.5000</span><span class="p">,</span>  <span class="c1"># left_upper_arm</span>
+<span class="linenos">60</span>        <span class="mf">67.5000</span><span class="p">,</span>  <span class="c1"># left_upper_arm</span>
+<span class="linenos">61</span>        <span class="mf">67.5000</span><span class="p">,</span>  <span class="c1"># pelvis</span>
+<span class="linenos">62</span>        <span class="mf">45.0000</span><span class="p">,</span>  <span class="c1"># right_lower_arm</span>
+<span class="linenos">63</span>        <span class="mf">45.0000</span><span class="p">,</span>  <span class="c1"># left_lower_arm</span>
+<span class="linenos">64</span>        <span class="mf">45.0000</span><span class="p">,</span>  <span class="c1"># right_thigh: x</span>
+<span class="linenos">65</span>        <span class="mf">135.0000</span><span class="p">,</span>  <span class="c1"># right_thigh: y</span>
+<span class="linenos">66</span>        <span class="mf">45.0000</span><span class="p">,</span>  <span class="c1"># right_thigh: z</span>
+<span class="linenos">67</span>        <span class="mf">45.0000</span><span class="p">,</span>  <span class="c1"># left_thigh: x</span>
+<span class="linenos">68</span>        <span class="mf">135.0000</span><span class="p">,</span>  <span class="c1"># left_thigh: y</span>
+<span class="linenos">69</span>        <span class="mf">45.0000</span><span class="p">,</span>  <span class="c1"># left_thigh: z</span>
+<span class="linenos">70</span>        <span class="mf">90.0000</span><span class="p">,</span>  <span class="c1"># right_knee</span>
+<span class="linenos">71</span>        <span class="mf">90.0000</span><span class="p">,</span>  <span class="c1"># left_knee</span>
+<span class="linenos">72</span>        <span class="mf">22.5</span><span class="p">,</span>  <span class="c1"># right_foot</span>
+<span class="linenos">73</span>        <span class="mf">22.5</span><span class="p">,</span>  <span class="c1"># right_foot</span>
+<span class="linenos">74</span>        <span class="mf">22.5</span><span class="p">,</span>  <span class="c1"># left_foot</span>
+<span class="linenos">75</span>        <span class="mf">22.5</span><span class="p">,</span>  <span class="c1"># left_foot</span>
+<span class="linenos">76</span>    <span class="p">]</span>
+<span class="linenos">77</span>
+<span class="linenos">78</span>    <span class="n">heading_weight</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.5</span>
+<span class="linenos">79</span>    <span class="n">up_weight</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.1</span>
+<span class="linenos">80</span>
+<span class="linenos">81</span>    <span class="n">energy_cost_scale</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.05</span>
+<span class="linenos">82</span>    <span class="n">actions_cost_scale</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.01</span>
+<span class="linenos">83</span>    <span class="n">alive_reward_scale</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">2.0</span>
+<span class="linenos">84</span>    <span class="n">dof_vel_scale</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.1</span>
+<span class="linenos">85</span>
+<span class="linenos">86</span>    <span class="n">death_cost</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="o">-</span><span class="mf">1.0</span>
+<span class="linenos">87</span>    <span class="n">termination_height</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.8</span>
+<span class="linenos">88</span>
+<span class="linenos">89</span>    <span class="n">angular_velocity_scale</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.25</span>
+<span class="linenos">90</span>    <span class="n">contact_force_scale</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.01</span>
+<span class="linenos">91</span>
+<span class="linenos">92</span>
+<span class="linenos">93</span><span class="k">class</span><span class="w"> </span><span class="nc">HumanoidEnv</span><span class="p">(</span><span class="n">LocomotionEnv</span><span class="p">):</span>
+<span class="linenos">94</span>    <span class="n">cfg</span><span class="p">:</span> <span class="n">HumanoidEnvCfg</span>
+<span class="linenos">95</span>
+<span class="linenos">96</span>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">HumanoidEnvCfg</span><span class="p">,</span> <span class="n">render_mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+<span class="linenos">97</span>        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">render_mode</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 </pre></div>
 </div>
 </div>
@@ -942,7 +948,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Aug 05, 2025.
+  Last updated on Aug 07, 2025.
   <br/>
 </p>
   </div>

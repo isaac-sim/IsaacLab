@@ -4,6 +4,42 @@ Release Notes
 The release notes are now available in the `Isaac Lab GitHub repository <https://github.com/isaac-sim/IsaacLab/releases>`_.
 We summarize the release notes here for convenience.
 
+v2.2.0
+======
+
+Updates and Changes
+-------------------
+
+* Python version has been updated to 3.11 from 3.10.
+* PyTorch version is updated to torch 2.7.0+cu128, which will include Blackwell support.
+* Rendering issues have been resolved on Blackwell GPUs that previously resulted in overly noisy renders.
+* Official support for Ubuntu 20.04 has been dropped. We now officially support Ubuntu 22.04 and 24.04 Linux platforms.
+* Updated gymnasium to be at least v1.0.0 to allow for specifying module name with task name in the form of module:task.
+* New Spatial Tendon APIs are introduced to allow simulation and actuation of assets with spatial tendons.
+* :attr:`~isaaclab.sim.spawners.PhysicsMaterialCfg.improve_patch_friction` is now removed. The simulation will always behave as if this attribute is set to true.
+* Native Livestreaming support has been removed. ``LIVESTREAM=1`` can now be used for WebRTC streaming over public networks and
+  ``LIVESTREAM=2`` for private and local networks with WebRTC streaming.
+* Isaac Sim 5.0 no longer sets ``/app/player/useFixedTimeStepping=False`` by default. We now do this in Isaac Lab.
+* We are leveraging the latest Fabric implementations to allow for faster scene creation and interop between the simulator and rendering. This should help improve rendering performance as well as startup time.
+* Some assets in Isaac Sim have been reworked and restructured. Notably, the following asset paths were updated:
+  * ``Robots/Ant/ant_instanceable.usd`` --> ``Robots/IsaacSim/Ant/ant_instanceable.usd``
+  * ``Robots/Humanoid/humanoid_instanceable.usd`` --> ``Robots/IsaacSim/Humanoid/humanoid_instanceable.usd``
+  * ``Robots/ANYbotics/anymal_instanceable.usd`` --> ``Robots/ANYbotics/anymal_c/anymal_c.usd``
+  * ``Robots/ANYbotics/anymal_c.usd`` --> ``Robots/ANYbotics/anymal_c/anymal_c.usd``
+  * ``Robots/Franka/franka.usd`` --> ``Robots/FrankaRobotics/FrankaPanda/franka.usd``
+  * ``Robots/AllegroHand/allegro_hand_instanceable.usd`` --> ``Robots/WonikRobotics/AllegroHand/allegro_hand_instanceable.usd``
+  * ``Robots/Crazyflie/cf2x.usd`` --> ``Robots/Bitcraze/Crazyflie/cf2x.usd``
+  * ``Robots/RethinkRobotics/sawyer_instanceable.usd`` --> ``Robots/RethinkRobotics/Sawyer/sawyer_instanceable.usd``
+  * ``Robots/ShadowHand/shadow_hand_instanceable.usd`` --> ``Robots/ShadowRobot/ShadowHand/shadow_hand_instanceable.usd``
+
+
+Current Known Issues
+--------------------
+
+* Some environments, such as ``Isaac-Repose-Cube-Allegro-v0`` is taking a significant long time to create the scene.
+  We are looking into this and will try to reduce down the scene creation time to be less than previous releases.
+
+
 v2.1.1
 ======
 

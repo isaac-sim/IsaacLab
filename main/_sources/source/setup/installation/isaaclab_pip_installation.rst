@@ -14,7 +14,7 @@ To learn about how to set up your own project on top of Isaac Lab, see :ref:`tem
    If you use Conda, we recommend using `Miniconda <https://docs.anaconda.com/miniconda/miniconda-other-installer-links/>`_.
 
 -  To use the pip installation approach for Isaac Lab, we recommend first creating a virtual environment.
-   Ensure that the python version of the virtual environment is **Python 3.10**.
+   Ensure that the python version of the virtual environment is **Python 3.11**.
 
    .. tab-set::
 
@@ -22,7 +22,7 @@ To learn about how to set up your own project on top of Isaac Lab, see :ref:`tem
 
          .. code-block:: bash
 
-            conda create -n env_isaaclab python=3.10
+            conda create -n env_isaaclab python=3.11
             conda activate env_isaaclab
 
       .. tab-item:: venv environment
@@ -35,8 +35,8 @@ To learn about how to set up your own project on top of Isaac Lab, see :ref:`tem
 
                .. code-block:: bash
 
-                  # create a virtual environment named env_isaaclab with python3.10
-                  python3.10 -m venv env_isaaclab
+                  # create a virtual environment named env_isaaclab with python3.11
+                  python3.11 -m venv env_isaaclab
                   # activate the virtual environment
                   source env_isaaclab/bin/activate
 
@@ -45,17 +45,11 @@ To learn about how to set up your own project on top of Isaac Lab, see :ref:`tem
 
                .. code-block:: batch
 
-                  # create a virtual environment named env_isaaclab with python3.10
-                  python3.10 -m venv env_isaaclab
+                  # create a virtual environment named env_isaaclab with python3.11
+                  python3.11 -m venv env_isaaclab
                   # activate the virtual environment
                   env_isaaclab\Scripts\activate
 
-
--  Next, install a CUDA-enabled PyTorch 2.7.0 build. This step is optional for Linux, but required for Windows to ensure a CUDA-compatible version of PyTorch is installed.
-
-   .. code-block:: bash
-
-      pip install torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
 
 -  Before installing Isaac Lab, ensure the latest pip version is installed. To update pip, run
 
@@ -75,6 +69,20 @@ To learn about how to set up your own project on top of Isaac Lab, see :ref:`tem
          .. code-block:: batch
 
             python -m pip install --upgrade pip
+
+
+-  Next, install a CUDA-enabled PyTorch 2.7.0 build for CUDA 12.8.
+
+   .. code-block:: bash
+
+      pip install torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
+
+
+-  If using rl_games for training and inferencing, install the following python 3.11 enabled rl_games fork.
+
+   .. code-block:: bash
+
+      pip install git+https://github.com/isaac-sim/rl_games.git@python3.11
 
 -  Then, install the Isaac Lab packages, this will also install Isaac Sim.
 
@@ -146,3 +154,18 @@ To run a user-defined script for Isaac Lab, simply run
 .. code:: bash
 
     python my_awesome_script.py
+
+Generating VS Code Settings
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Due to the structure resulting from the installation, VS Code IntelliSense (code completion, parameter info and member lists, etc.) will not work by default.
+To set it up (define the search paths for import resolution, the path to the default Python interpreter, and other settings), for a given workspace folder, run the following command:
+
+    .. code-block:: bash
+
+        python -m isaaclab --generate-vscode-settings
+
+    .. warning::
+
+        The command will generate a ``.vscode/settings.json`` file in the workspace folder.
+        If the file already exists, it will be overwritten (a confirmation prompt will be shown first).

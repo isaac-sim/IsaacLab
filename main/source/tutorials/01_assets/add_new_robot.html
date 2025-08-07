@@ -33,7 +33,7 @@
 
     <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css" />
     <link rel="stylesheet" href="../../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
-    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.10.18/x64/lib/python3.10/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
+    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.11.13/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/custom.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.4cbf315f70debaebd550c87a6162cf0f.min.css" />
@@ -47,7 +47,7 @@
     <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
     <script src="../../../_static/doctools.js"></script>
     <script src="../../../_static/sphinx_highlight.js"></script>
-    <script src="/opt/hostedtoolcache/Python/3.10.18/x64/lib/python3.10/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
+    <script src="/opt/hostedtoolcache/Python/3.11.13/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
     <script src="../../../_static/clipboard.min.js"></script>
     <script src="../../../_static/copybutton.js"></script>
     <script src="../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
@@ -60,8 +60,8 @@
     <link rel="prev" title="Deep-dive into AppLauncher" href="../00_sim/launch_app.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="2.1.1" />
-    <meta name="docbuild:last-update" content="Aug 05, 2025"/>
+  <meta name="docsearch:version" content="2.2.0" />
+    <meta name="docbuild:last-update" content="Aug 07, 2025"/>
   </head>
   
   
@@ -197,7 +197,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.5.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.0.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -233,8 +233,8 @@
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../../setup/ecosystem.html">Isaac Lab Ecosystem</a></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../setup/installation/index.html">Local Installation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/pip_installation.html">Pip installation (recommended for Ubuntu 22.04 and Windows)</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/binaries_installation.html">Binary installation (recommended for Ubuntu 20.04)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/pip_installation.html">Pip installation (recommended)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/binaries_installation.html">Binary installation</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../setup/installation/isaaclab_pip_installation.html">Advanced installation (Isaac Lab pip)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../setup/installation/asset_caching.html">Asset caching</a></li>
 </ul>
@@ -242,6 +242,7 @@
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../deployment/index.html">Container Deployment</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../deployment/docker.html">Docker Guide</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../deployment/cluster.html">Cluster Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../deployment/cloudxr_teleoperation_cluster.html">Deploying CloudXR Teleoperation on Kubernetes</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../deployment/run_docker_example.html">Running an example with Docker</a></li>
 </ul>
 </details></li>
@@ -267,6 +268,7 @@
 <li class="toctree-l2"><a class="reference internal" href="run_rigid_object.html">Interacting with a rigid object</a></li>
 <li class="toctree-l2"><a class="reference internal" href="run_articulation.html">Interacting with an articulation</a></li>
 <li class="toctree-l2"><a class="reference internal" href="run_deformable_object.html">Interacting with a deformable object</a></li>
+<li class="toctree-l2"><a class="reference internal" href="run_surface_gripper.html">Interacting with a surface gripper</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../02_scene/create_scene.html">Using the Interactive Scene</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../03_envs/create_manager_base_env.html">Creating a Manager-Based Base Environment</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../03_envs/create_manager_rl_env.html">Creating a Manager-Based RL Environment</a></li>
@@ -297,6 +299,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../how-to/master_omniverse.html">Mastering Omniverse for Robotics</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../how-to/cloudxr_teleoperation.html">Setting up CloudXR Teleoperation</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../how-to/simulation_performance.html">Simulation Performance</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/optimize_stage_creation.html">Optimize Stage Creation</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../overview/developer-guide/index.html">Developer’s Guide</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
@@ -333,7 +336,8 @@
 <li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/training_guide.html">Debugging and Training Guide</a></li>
 </ul>
 </details></li>
-<li class="toctree-l1"><a class="reference internal" href="../../overview/teleop_imitation.html">Teleoperation and Imitation Learning</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../overview/teleop_imitation.html">Teleoperation and Imitation Learning with Isaac Lab Mimic</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../overview/augmented_imitation.html">Augmented Imitation Learning</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../overview/showroom.html">Showroom Demos</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../overview/simple_agents.html">Simple Agents</a></li>
 </ul>
@@ -675,13 +679,13 @@ the interface between the USD articulation of the robot and the learning algorit
 <span class="linenos"> 32</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">ISAAC_NUCLEUS_DIR</span>
 <span class="linenos"> 33</span>
 <span class="linenos"> 34</span><span class="n">JETBOT_CONFIG</span> <span class="o">=</span> <span class="n">ArticulationCfg</span><span class="p">(</span>
-<span class="linenos"> 35</span>    <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">UsdFileCfg</span><span class="p">(</span><span class="n">usd_path</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">ISAAC_NUCLEUS_DIR</span><span class="si">}</span><span class="s2">/Robots/Jetbot/jetbot.usd&quot;</span><span class="p">),</span>
+<span class="linenos"> 35</span>    <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">UsdFileCfg</span><span class="p">(</span><span class="n">usd_path</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">ISAAC_NUCLEUS_DIR</span><span class="si">}</span><span class="s2">/Robots/NVIDIA/Jetbot/jetbot.usd&quot;</span><span class="p">),</span>
 <span class="linenos"> 36</span>    <span class="n">actuators</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;wheel_acts&quot;</span><span class="p">:</span> <span class="n">ImplicitActuatorCfg</span><span class="p">(</span><span class="n">joint_names_expr</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;.*&quot;</span><span class="p">],</span> <span class="n">damping</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">stiffness</span><span class="o">=</span><span class="kc">None</span><span class="p">)},</span>
 <span class="linenos"> 37</span><span class="p">)</span>
 <span class="linenos"> 38</span>
 <span class="linenos"> 39</span><span class="n">DOFBOT_CONFIG</span> <span class="o">=</span> <span class="n">ArticulationCfg</span><span class="p">(</span>
 <span class="linenos"> 40</span>    <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">UsdFileCfg</span><span class="p">(</span>
-<span class="linenos"> 41</span>        <span class="n">usd_path</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">ISAAC_NUCLEUS_DIR</span><span class="si">}</span><span class="s2">/Robots/Dofbot/dofbot.usd&quot;</span><span class="p">,</span>
+<span class="linenos"> 41</span>        <span class="n">usd_path</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">ISAAC_NUCLEUS_DIR</span><span class="si">}</span><span class="s2">/Robots/Yahboom/Dofbot/dofbot.usd&quot;</span><span class="p">,</span>
 <span class="linenos"> 42</span>        <span class="n">rigid_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">RigidBodyPropertiesCfg</span><span class="p">(</span>
 <span class="linenos"> 43</span>            <span class="n">disable_gravity</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
 <span class="linenos"> 44</span>            <span class="n">max_depenetration_velocity</span><span class="o">=</span><span class="mf">5.0</span><span class="p">,</span>
@@ -805,22 +809,21 @@ the interface between the USD articulation of the robot and the learning algorit
 <span class="linenos">162</span>    <span class="c1"># Initialize the simulation context</span>
 <span class="linenos">163</span>    <span class="n">sim_cfg</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationCfg</span><span class="p">(</span><span class="n">device</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
 <span class="linenos">164</span>    <span class="n">sim</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationContext</span><span class="p">(</span><span class="n">sim_cfg</span><span class="p">)</span>
-<span class="linenos">165</span>
-<span class="linenos">166</span>    <span class="n">sim</span><span class="o">.</span><span class="n">set_camera_view</span><span class="p">([</span><span class="mf">3.5</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">3.2</span><span class="p">],</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">])</span>
-<span class="linenos">167</span>    <span class="c1"># design scene</span>
-<span class="linenos">168</span>    <span class="n">scene_cfg</span> <span class="o">=</span> <span class="n">NewRobotsSceneCfg</span><span class="p">(</span><span class="n">args_cli</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="n">env_spacing</span><span class="o">=</span><span class="mf">2.0</span><span class="p">)</span>
-<span class="linenos">169</span>    <span class="n">scene</span> <span class="o">=</span> <span class="n">InteractiveScene</span><span class="p">(</span><span class="n">scene_cfg</span><span class="p">)</span>
-<span class="linenos">170</span>    <span class="c1"># Play the simulator</span>
-<span class="linenos">171</span>    <span class="n">sim</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
-<span class="linenos">172</span>    <span class="c1"># Now we are ready!</span>
-<span class="linenos">173</span>    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO]: Setup complete...&quot;</span><span class="p">)</span>
-<span class="linenos">174</span>    <span class="c1"># Run the simulator</span>
-<span class="linenos">175</span>    <span class="n">run_simulator</span><span class="p">(</span><span class="n">sim</span><span class="p">,</span> <span class="n">scene</span><span class="p">)</span>
+<span class="linenos">165</span>    <span class="n">sim</span><span class="o">.</span><span class="n">set_camera_view</span><span class="p">([</span><span class="mf">3.5</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">3.2</span><span class="p">],</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">])</span>
+<span class="linenos">166</span>    <span class="c1"># Design scene</span>
+<span class="linenos">167</span>    <span class="n">scene_cfg</span> <span class="o">=</span> <span class="n">NewRobotsSceneCfg</span><span class="p">(</span><span class="n">args_cli</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="n">env_spacing</span><span class="o">=</span><span class="mf">2.0</span><span class="p">)</span>
+<span class="linenos">168</span>    <span class="n">scene</span> <span class="o">=</span> <span class="n">InteractiveScene</span><span class="p">(</span><span class="n">scene_cfg</span><span class="p">)</span>
+<span class="linenos">169</span>    <span class="c1"># Play the simulator</span>
+<span class="linenos">170</span>    <span class="n">sim</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+<span class="linenos">171</span>    <span class="c1"># Now we are ready!</span>
+<span class="linenos">172</span>    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO]: Setup complete...&quot;</span><span class="p">)</span>
+<span class="linenos">173</span>    <span class="c1"># Run the simulator</span>
+<span class="linenos">174</span>    <span class="n">run_simulator</span><span class="p">(</span><span class="n">sim</span><span class="p">,</span> <span class="n">scene</span><span class="p">)</span>
+<span class="linenos">175</span>
 <span class="linenos">176</span>
-<span class="linenos">177</span>
-<span class="linenos">178</span><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
-<span class="linenos">179</span>    <span class="n">main</span><span class="p">()</span>
-<span class="linenos">180</span>    <span class="n">simulation_app</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+<span class="linenos">177</span><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
+<span class="linenos">178</span>    <span class="n">main</span><span class="p">()</span>
+<span class="linenos">179</span>    <span class="n">simulation_app</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
 </pre></div>
 </div>
 </div>
@@ -845,7 +848,7 @@ Because a robot is an articulation with joint drives, we define an <code class="
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">ISAAC_NUCLEUS_DIR</span>
 
 <span class="n">JETBOT_CONFIG</span> <span class="o">=</span> <span class="n">ArticulationCfg</span><span class="p">(</span>
-    <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">UsdFileCfg</span><span class="p">(</span><span class="n">usd_path</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">ISAAC_NUCLEUS_DIR</span><span class="si">}</span><span class="s2">/Robots/Jetbot/jetbot.usd&quot;</span><span class="p">),</span>
+    <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">UsdFileCfg</span><span class="p">(</span><span class="n">usd_path</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">ISAAC_NUCLEUS_DIR</span><span class="si">}</span><span class="s2">/Robots/NVIDIA/Jetbot/jetbot.usd&quot;</span><span class="p">),</span>
     <span class="n">actuators</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;wheel_acts&quot;</span><span class="p">:</span> <span class="n">ImplicitActuatorCfg</span><span class="p">(</span><span class="n">joint_names_expr</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;.*&quot;</span><span class="p">],</span> <span class="n">damping</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">stiffness</span><span class="o">=</span><span class="kc">None</span><span class="p">)},</span>
 <span class="p">)</span>
 
@@ -870,7 +873,7 @@ Other regex can also be used to group joints and associated configurations.</p>
 <p>While this is the minimal configuration, there are a number of other parameters we could specify</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">DOFBOT_CONFIG</span> <span class="o">=</span> <span class="n">ArticulationCfg</span><span class="p">(</span>
     <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">UsdFileCfg</span><span class="p">(</span>
-        <span class="n">usd_path</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">ISAAC_NUCLEUS_DIR</span><span class="si">}</span><span class="s2">/Robots/Dofbot/dofbot.usd&quot;</span><span class="p">,</span>
+        <span class="n">usd_path</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">ISAAC_NUCLEUS_DIR</span><span class="si">}</span><span class="s2">/Robots/Yahboom/Dofbot/dofbot.usd&quot;</span><span class="p">,</span>
         <span class="n">rigid_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">RigidBodyPropertiesCfg</span><span class="p">(</span>
             <span class="n">disable_gravity</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
             <span class="n">max_depenetration_velocity</span><span class="o">=</span><span class="mf">5.0</span><span class="p">,</span>
@@ -1098,7 +1101,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Aug 05, 2025.
+  Last updated on Aug 07, 2025.
   <br/>
 </p>
   </div>
