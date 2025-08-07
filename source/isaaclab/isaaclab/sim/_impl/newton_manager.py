@@ -72,7 +72,7 @@ class NewtonManager:
     _usdrt_stage = None
     _newton_index_attr = "newton:index"
     _env_offsets = None
-    _debug_mode = True
+    _debug_mode = False
     _clone_physics_only = False
     _num_envs = None
 
@@ -249,9 +249,9 @@ class NewtonManager:
             mean_niter = np.mean(niter)
             min_niter = np.min(niter)
             std_niter = np.std(niter)
-            omni.log.info(f"solver niter: max={max_niter}, mean={mean_niter}, min={min_niter}, std={std_niter}")
+            print(f"solver niter: max={max_niter}, mean={mean_niter}, min={min_niter}, std={std_niter}")
             if max_niter == NewtonManager._solver.mjw_model.opt.iterations:
-                omni.log.warn("solver didn't converge!", max_niter)
+                print("solver didn't converge!", max_niter)
 
         NewtonManager._sim_time += NewtonManager._solver_dt * NewtonManager._num_substeps
 
