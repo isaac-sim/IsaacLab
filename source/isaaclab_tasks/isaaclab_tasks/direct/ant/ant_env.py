@@ -12,6 +12,7 @@ from isaaclab.assets import ArticulationCfg
 from isaaclab.envs import DirectRLEnvCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
+from isaaclab.sim._impl.solvers_cfg import MJWarpSolverCfg, NewtonSolverCfg
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass
 
@@ -28,8 +29,14 @@ class AntEnvCfg(DirectRLEnvCfg):
     observation_space = 36
     state_space = 0
 
+    solver_cfg: NewtonSolverCfg = MJWarpSolverCfg(
+        nefc_per_env=30,
+        ls_iterations=5,
+        cone="pyramidal",
+    )
+
     # simulation
-    sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation)
+    sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation, solver_cfg=solver_cfg)
     terrain = TerrainImporterCfg(
         prim_path="/World/ground",
         terrain_type="plane",

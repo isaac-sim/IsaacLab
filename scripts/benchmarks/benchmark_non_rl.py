@@ -94,7 +94,7 @@ import os
 import torch
 from datetime import datetime
 
-from isaaclab.envs import DirectMARLEnvCfg, DirectRLEnvCfg, ManagerBasedRLEnvCfg
+from isaaclab.envs import DirectRLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.utils.dict import print_dict
 
 import isaaclab_tasks  # noqa: F401
@@ -122,7 +122,7 @@ benchmark = BaseIsaacBenchmark(
 
 
 @hydra_task_config(args_cli.task, None)
-def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agent_cfg: dict):
+def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg, agent_cfg: dict):
     """Benchmark without RL in the loop."""
 
     # override configurations with non-hydra CLI arguments

@@ -3,10 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import numpy as np
 import re
 
 import newton.sim.articulation
 import newton.utils
+import omni.log
 import usdrt
 import warp as wp
 from isaacsim.core.utils.stage import get_current_stage
@@ -48,7 +50,8 @@ class NewtonManager:
     _builder: ModelBuilder = None
     _model: Model = None
     _device: str = "cuda:0"
-    _sim_dt: float = 1.0 / 200.0
+    _dt: float = 1.0 / 200.0
+    _solver_dt: float = 1.0 / 200.0
     _solver_type: str = "mjwarp"  # "xpbd, mjwarp
     _num_substeps: int = 1
     _solver = None
@@ -69,6 +72,7 @@ class NewtonManager:
     _usdrt_stage = None
     _newton_index_attr = "newton:index"
     _env_offsets = None
+    _debug_mode = True
     _clone_physics_only = False
     _num_envs = None
 
@@ -178,29 +182,45 @@ class NewtonManager:
         if NewtonManager._solver_type != "mjwarp":
             contacts = NewtonManager._model.collide(NewtonManager._state_0)
 
-        for i in range(NewtonManager._num_substeps):
-            NewtonManager._solver.step(
-                NewtonManager._state_0, NewtonManager._state_1, NewtonManager._control, contacts, NewtonManager._sim_dt
-            )
-
-            # FIXME: Ask Lukasz help to deal with non-even number of substeps. This should not be needed.
-            if i < NewtonManager._num_substeps - 1 or not NewtonManager._use_cuda_graph:
-                # we can just swap the state references
+        if NewtonManager._num_substeps % 2 == 0:
+            for i in range(NewtonManager._num_substeps):
+                NewtonManager._state_0.clear_forces()
+                NewtonManager._solver.step(
+                    NewtonManager._state_0,
+                    NewtonManager._state_1,
+                    NewtonManager._control,
+                    contacts,
+                    NewtonManager._solver_dt,
+                )
                 NewtonManager._state_0, NewtonManager._state_1 = NewtonManager._state_1, NewtonManager._state_0
-            elif NewtonManager._use_cuda_graph:
-                # swap states by actually copying the state arrays to make sure the graph capture works
-                for key, value in state_0_dict.items():
-                    if isinstance(value, wp.array):
-                        if key not in state_temp_dict:
-                            state_temp_dict[key] = wp.empty_like(value)
-                        state_temp_dict[key].assign(value)
-                        state_0_dict[key].assign(state_1_dict[key])
-                        state_1_dict[key].assign(state_temp_dict[key])
+        else:
+            for i in range(NewtonManager._num_substeps):
+                NewtonManager._state_0.clear_forces()
+                NewtonManager._solver.step(
+                    NewtonManager._state_0,
+                    NewtonManager._state_1,
+                    NewtonManager._control,
+                    contacts,
+                    NewtonManager._solver_dt,
+                )
+
+                # FIXME: Ask Lukasz help to deal with non-even number of substeps. This should not be needed.
+                if i < NewtonManager._num_substeps - 1 or not NewtonManager._use_cuda_graph:
+                    # we can just swap the state references
+                    NewtonManager._state_0, NewtonManager._state_1 = NewtonManager._state_1, NewtonManager._state_0
+                elif NewtonManager._use_cuda_graph:
+                    # swap states by actually copying the state arrays to make sure the graph capture works
+                    for key, value in state_0_dict.items():
+                        if isinstance(value, wp.array):
+                            if key not in state_temp_dict:
+                                state_temp_dict[key] = wp.empty_like(value)
+                            state_temp_dict[key].assign(value)
+                            state_0_dict[key].assign(state_1_dict[key])
+                            state_1_dict[key].assign(state_temp_dict[key])
 
         if NewtonManager._report_contacts:
             convert_contact_info(NewtonManager._model, NewtonManager._contact_info, NewtonManager._solver)
             NewtonManager._model.eval_contact_sensors(NewtonManager._contact_info)
-        NewtonManager._state_0.clear_forces()
 
     @classmethod
     def set_device(cls, device: str) -> None:
@@ -217,25 +237,32 @@ class NewtonManager:
 
         This function steps the simulation by the specified time step in the simulation configuration.
         """
-        with wp.ScopedTimer("step", active=False):
-            if NewtonManager._use_cuda_graph:
-                wp.capture_launch(NewtonManager._graph)
-            else:
-                NewtonManager.simulate()
 
-        NewtonManager._sim_time += NewtonManager._sim_dt * NewtonManager._num_substeps
+        if NewtonManager._use_cuda_graph:
+            wp.capture_launch(NewtonManager._graph)
+        else:
+            NewtonManager.simulate()
+
+        if NewtonManager._debug_mode:
+            niter = NewtonManager._solver.mjw_data.solver_niter.numpy()
+            max_niter = np.max(niter)
+            mean_niter = np.mean(niter)
+            min_niter = np.min(niter)
+            std_niter = np.std(niter)
+            omni.log.info(f"solver niter: max={max_niter}, mean={mean_niter}, min={min_niter}, std={std_niter}")
+            if max_niter == NewtonManager._solver.mjw_model.opt.iterations:
+                omni.log.warn("solver didn't converge!", max_niter)
+
+        NewtonManager._sim_time += NewtonManager._solver_dt * NewtonManager._num_substeps
 
     @classmethod
-    def set_simulation_dt(cls, sim_dt: float, substeps: int | None = None) -> None:
+    def set_simulation_dt(cls, dt: float) -> None:
         """Sets the simulation time step and the number of substeps.
 
         Args:
-            sim_dt (float): The simulation time step.
-            substeps (int | None): The number of substeps. If None, the number of substeps will be set to the default value.
+            dt (float): The simulation time step.
         """
-        if substeps is not None:
-            NewtonManager._num_substeps = substeps
-        NewtonManager._sim_dt = sim_dt / NewtonManager._num_substeps
+        NewtonManager._dt = dt
 
     @classmethod
     def render(cls) -> None:
@@ -313,6 +340,8 @@ class NewtonManager:
     @classmethod
     def _get_solver(cls, model: Model, solver_cfg: dict) -> SolverBase:
         solver_type = solver_cfg.pop("solver_type")
+        NewtonManager._num_substeps = solver_cfg.pop("num_substeps")
+        NewtonManager._solver_dt = NewtonManager._solver_dt / NewtonManager._num_substeps
         if solver_type == "mujoco_warp":
             return MuJoCoSolver(model, **solver_cfg)
         elif solver_type == "xpbd":

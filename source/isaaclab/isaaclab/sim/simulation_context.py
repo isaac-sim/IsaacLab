@@ -257,8 +257,8 @@ class SimulationContext(_SimulationContext):
             if "physx" in sim_params:
                 physx_params = sim_params.pop("physx")
                 sim_params.update(physx_params)
-            if "newton_solver" in sim_params:
-                newton_params = sim_params.pop("newton_solver")
+            if "solver_cfg" in sim_params:
+                solver_params = sim_params.pop("solver_cfg")
 
         # add warning about enabling stabilization for large step sizes
         if not self.cfg.physx.enable_stabilization and (self.cfg.dt > 0.0333):
@@ -292,8 +292,8 @@ class SimulationContext(_SimulationContext):
                 stage=self._initial_stage,
             )
         self.set_setting("/app/player/playSimulations", False)
-        NewtonManager.set_simulation_dt(self.cfg.dt, 1)
-        NewtonManager.set_solver_settings(newton_params)
+        NewtonManager.set_simulation_dt(self.cfg.dt)
+        NewtonManager.set_solver_settings(solver_params)
         physx_sim_interface = omni.physx.get_physx_simulation_interface()
         physx_sim_interface.detach_stage()
         get_physics_stage_update_node_interface().detach_node()

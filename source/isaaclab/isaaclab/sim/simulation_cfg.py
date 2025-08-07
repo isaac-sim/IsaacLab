@@ -329,7 +329,7 @@ class SimulationCfg:
     physx: PhysxCfg = PhysxCfg()
     """PhysX solver settings. Default is PhysxCfg()."""
 
-    newton_solver: NewtonSolverCfg = MJWarpSolverCfg()
+    solver_cfg: NewtonSolverCfg = MJWarpSolverCfg()
     """Newton solver settings. Default is NewtonCfg()."""
 
     physics_material: RigidBodyMaterialCfg = RigidBodyMaterialCfg()

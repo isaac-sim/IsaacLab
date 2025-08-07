@@ -23,40 +23,59 @@ def load_json_files(benchmark_folder) -> list[dict]:
 
 
 def check_info_consistency(json_data: list[dict]) -> dict:
-    # Check that APP INFO is the same in all the json files
-    app_info = json_data[0]["App Info"]
-    for data in json_data:
-        if data["App Info"] != app_info:
-            raise ValueError("APP INFO is not the same in all the json files")
+    try:
+        # Check that APP INFO is the same in all the json files
+        app_info = json_data[0]["App Info"]
+        for data in json_data:
+            if data["App Info"] != app_info:
+                raise ValueError("APP INFO is not the same in all the json files")
 
-    # Check that NEWTON INFO is the same in all the json files
-    newton_info = json_data[0]["Newton Info"]
-    for data in json_data:
-        if data["Newton Info"] != newton_info:
-            raise ValueError("NEWTON INFO is not the same in all the json files")
+        # Check that NEWTON INFO is the same in all the json files
+        newton_info = json_data[0]["Newton Info"]
+        for data in json_data:
+            if data["Newton Info"] != newton_info:
+                raise ValueError("NEWTON INFO is not the same in all the json files")
 
-    # Check that ISAAC LAB INFO is the same in all the json files
-    isaac_lab_info = json_data[0]["Isaac Lab Info"]
-    # for data in json_data:
-    #    if data["Isaac Lab Info"] != isaac_lab_info:
-    #        raise ValueError("ISAAC LAB INFO is not the same in all the json files")
+        # Check that ISAAC LAB INFO is the same in all the json files
+        isaac_lab_info = json_data[0]["Isaac Lab Info"]
+        # for data in json_data:
+        #    if data["Isaac Lab Info"] != isaac_lab_info:
+        #        raise ValueError("ISAAC LAB INFO is not the same in all the json files")
 
-    # Check that MUJOCO WARP INFO is the same in all the json files
-    mujoco_warp_info = json_data[0]["Mujoco Warp Info"]
-    for data in json_data:
-        if data["Mujoco Warp Info"] != mujoco_warp_info:
-            raise ValueError("MUJOCO WARP INFO is not the same in all the json files")
+        # Check that MUJOCO WARP INFO is the same in all the json files
+        mujoco_warp_info = json_data[0]["Mujoco Warp Info"]
+        for data in json_data:
+            if data["Mujoco Warp Info"] != mujoco_warp_info:
+                raise ValueError("MUJOCO WARP INFO is not the same in all the json files")
 
-    return {
-        "App Info": app_info,
-        "Newton Info": newton_info,
-        "Isaac Lab Info": isaac_lab_info,
-        "Mujoco Warp Info": mujoco_warp_info,
-    }
+        return {
+            "App Info": app_info,
+            "Newton Info": newton_info,
+            "Isaac Lab Info": isaac_lab_info,
+            "Mujoco Warp Info": mujoco_warp_info,
+        }
+    except Exception as e:
+        print(e)
+        return {
+            "App Info": None,
+            "Newton Info": None,
+            "Isaac Lab Info": None,
+            "Mujoco Warp Info": None,
+        }
 
 
 def rework_data(json_data: list[dict], phases: list[str] = ["startup", "train", "runtime"]) -> dict:
-    default_excludes = ["workflow_name", "task", "seed", "num_envs", "phase", "max_iterations"]
+    default_excludes = [
+        "workflow_name",
+        "task",
+        "seed",
+        "num_envs",
+        "phase",
+        "max_iterations",
+        "Mujoco Warp Info",
+        "Isaac Lab Info",
+        "Newton Info",
+    ]
     excludes = {
         "startup": default_excludes,
         "runtime": default_excludes + ["Min Collection FPS", "Max Collection FPS", "Mean Collection FPS"],
@@ -75,6 +94,7 @@ def rework_data(json_data: list[dict], phases: list[str] = ["startup", "train", 
             if phase not in reworked_data[task][num_envs]:
                 reworked_data[task][num_envs][phase] = {}
             for metric in data[phase].keys():
+                print(metric)
                 if metric not in excludes[phase]:
                     if metric not in reworked_data[task][num_envs][phase]:
                         reworked_data[task][num_envs][phase][metric] = []

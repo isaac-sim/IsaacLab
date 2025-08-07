@@ -16,6 +16,7 @@ from isaaclab.assets import Articulation, ArticulationCfg
 from isaaclab.envs import DirectRLEnv, DirectRLEnvCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
+from isaaclab.sim._impl.solvers_cfg import MJWarpSolverCfg, NewtonSolverCfg
 from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
 from isaaclab.utils import configclass
 from isaaclab.utils.math import sample_uniform
@@ -31,8 +32,14 @@ class CartpoleEnvCfg(DirectRLEnvCfg):
     observation_space = 4
     state_space = 0
 
+    solver_cfg: NewtonSolverCfg = MJWarpSolverCfg(
+        nefc_per_env=5,
+        ls_iterations=3,
+        cone="pyramidal",
+    )
+
     # simulation
-    sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation)
+    sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation, solver_cfg=solver_cfg)
 
     # robot
     robot_cfg: ArticulationCfg = CARTPOLE_CFG.replace(prim_path="/World/envs/env_.*/Robot")

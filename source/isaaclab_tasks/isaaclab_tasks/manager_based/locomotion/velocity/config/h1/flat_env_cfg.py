@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from isaaclab.sim import SimulationCfg
+from isaaclab.sim._impl.solvers_cfg import MJWarpSolverCfg
 from isaaclab.utils import configclass
 
 from .rough_env_cfg import H1RoughEnvCfg
@@ -10,6 +12,8 @@ from .rough_env_cfg import H1RoughEnvCfg
 
 @configclass
 class H1FlatEnvCfg(H1RoughEnvCfg):
+    sim: SimulationCfg = SimulationCfg(solver_cfg=MJWarpSolverCfg(nefc_per_env=40, ls_iterations=5, cone="pyramidal"))
+
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
