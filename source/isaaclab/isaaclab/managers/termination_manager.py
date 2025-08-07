@@ -61,9 +61,7 @@ class TerminationManager(ManagerBase):
         # call the base class constructor (this will parse the terms config)
         super().__init__(cfg, env)
         # prepare extra info to store individual termination term information
-        self._term_dones = dict()
-        for term_name in self._term_names:
-            self._term_dones[term_name] = torch.zeros(self.num_envs, device=self.device, dtype=torch.bool)
+        self._term_dones = torch.zeros((self.num_envs, len(self._term_names)), device=self.device, dtype=torch.bool)
         # create buffer for managing termination per environment
         self._truncated_buf = torch.zeros(self.num_envs, device=self.device, dtype=torch.bool)
         self._terminated_buf = torch.zeros_like(self._truncated_buf)
@@ -139,9 +137,10 @@ class TerminationManager(ManagerBase):
             env_ids = slice(None)
         # add to episode dict
         extras = {}
-        for key in self._term_dones.keys():
+        last_episode_done_stats = self._term_dones.float().mean(dim=0)
+        for i, key in enumerate(self._term_names):
             # store information
-            extras["Episode_Termination/" + key] = torch.count_nonzero(self._term_dones[key][env_ids]).item()
+            extras["Episode_Termination/" + key] = last_episode_done_stats[i].item()
         # reset all the reward terms
         for term_cfg in self._class_term_cfgs:
             term_cfg.func.reset(env_ids=env_ids)
@@ -161,7 +160,7 @@ class TerminationManager(ManagerBase):
         self._truncated_buf[:] = False
         self._terminated_buf[:] = False
         # iterate over all the termination terms
-        for name, term_cfg in zip(self._term_names, self._term_cfgs):
+        for i, term_cfg in enumerate(self._term_cfgs):
             value = term_cfg.func(self._env, **term_cfg.params)
             # store timeout signal separately
             if term_cfg.time_out:
@@ -169,7 +168,8 @@ class TerminationManager(ManagerBase):
             else:
                 self._terminated_buf |= value
             # add to episode dones
-            self._term_dones[name][:] = value
+            self._term_dones[value] = False
+            self._term_dones[value, i] = True
         # return combined termination signal
         return self._truncated_buf | self._terminated_buf
 
@@ -182,7 +182,7 @@ class TerminationManager(ManagerBase):
         Returns:
             The corresponding termination term value. Shape is (num_envs,).
         """
-        return self._term_dones[name]
+        return self._term_dones[name, self._term_names.index(name)]
 
     def get_active_iterable_terms(self, env_idx: int) -> Sequence[tuple[str, Sequence[float]]]:
         """Returns the active terms as iterable sequence of tuples.
@@ -196,8 +196,8 @@ class TerminationManager(ManagerBase):
             The active terms.
         """
         terms = []
-        for key in self._term_dones.keys():
-            terms.append((key, [self._term_dones[key][env_idx].float().cpu().item()]))
+        for i, key in enumerate(self._term_names):
+            terms.append((key, [self._term_dones[env_idx, i].float().cpu().item()]))
         return terms
 
     """
