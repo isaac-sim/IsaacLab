@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.1.9 (2025-08-07)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Disallowing string value written in sb3_ppo_cfg.yaml gets eval() in :meth:`~isaaclab_rl.sb3.process_sb3_cfg`.
+
+
 0.1.8 (2025-06-29)
 ~~~~~~~~~~~~~~~~~~
 
