@@ -82,7 +82,7 @@ def process_sb3_cfg(cfg: dict, num_envs: int) -> dict:
         return hyperparams
 
     # parse agent configuration and convert to classes
-    return update_dict(cfg, 0)
+    return update_dict(cfg, depth=0)
 
 
 """
