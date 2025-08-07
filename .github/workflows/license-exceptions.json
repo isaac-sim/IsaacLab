@@ -370,5 +370,10 @@
     "package": "anyio",
     "license": "UNKNOWN",
     "comment": "MIT"
+  },
+  {
+    "package" : "hf-xet",
+    "license" : "UNKNOWN",
+    "comment": "Apache 2.0"
   }
 ]
