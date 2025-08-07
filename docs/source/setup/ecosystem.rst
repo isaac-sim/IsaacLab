@@ -96,7 +96,7 @@ simulation and provide parsing capabilities of different scene description forma
 Various recent works combine these physics engines with different rendering engines to provide
 a more complete simulation environment. They include APIs that allow reading and writing to the
 physics and rendering engines. In some cases, they support ROS and hardware-in-the-loop simulation
-for more robotic-specific applications.An example of these include `AirSim`_, `DoorGym`_, `ManiSkill`_,
+for more robotic-specific applications. An example of these include `AirSim`_, `DoorGym`_, `ManiSkill`_,
 `ThreeDWorld`_ and lastly, `Isaac Sim`_.
 
 At its core, Isaac Lab is **not** a robotics simulator, but a framework for building robot learning
