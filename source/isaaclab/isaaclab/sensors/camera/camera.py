@@ -154,9 +154,8 @@ class Camera(SensorBase):
                     " will be disabled in the current workflow and may lead to longer load times and increased memory"
                     " usage."
                 )
-                stage = omni.usd.get_context().get_stage()
                 with Sdf.ChangeBlock():
-                    for prim in stage.Traverse():
+                    for prim in self.stage.Traverse():
                         prim.SetInstanceable(False)
 
     def __del__(self):
@@ -421,12 +420,10 @@ class Camera(SensorBase):
         self._render_product_paths: list[str] = list()
         self._rep_registry: dict[str, list[rep.annotators.Annotator]] = {name: list() for name in self.cfg.data_types}
 
-        # Obtain current stage
-        stage = omni.usd.get_context().get_stage()
         # Convert all encapsulated prims to Camera
         for cam_prim_path in self._view.prim_paths:
             # Get camera prim
-            cam_prim = stage.GetPrimAtPath(cam_prim_path)
+            cam_prim = self.stage.GetPrimAtPath(cam_prim_path)
             # Check if prim is a camera
             if not cam_prim.IsA(UsdGeom.Camera):
                 raise RuntimeError(f"Prim at path '{cam_prim_path}' is not a Camera.")

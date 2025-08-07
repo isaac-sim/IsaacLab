@@ -13,37 +13,72 @@ from __future__ import annotations
 
 import re
 from collections.abc import Sequence
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
-from isaaclab.managers import ManagerTermBase
+from isaaclab.managers import CurriculumTermCfg, ManagerTermBase
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
 
 
-def modify_reward_weight(env: ManagerBasedRLEnv, env_ids: Sequence[int], term_name: str, weight: float, num_steps: int):
-    """Curriculum that modifies a reward weight a given number of steps.
+class modify_reward_weight(ManagerTermBase):
+    """Curriculum that modifies the reward weight based on a step-wise schedule."""
 
-    Args:
-        env: The learning environment.
-        env_ids: Not used since all environments are affected.
-        term_name: The name of the reward term.
-        weight: The weight of the reward term.
-        num_steps: The number of steps after which the change should be applied.
-    """
-    if env.common_step_counter > num_steps:
-        # obtain term settings
-        term_cfg = env.reward_manager.get_term_cfg(term_name)
+    def __init__(self, cfg: CurriculumTermCfg, env: ManagerBasedRLEnv):
+        super().__init__(cfg, env)
+
+        # obtain term configuration
+        term_name = cfg.params["term_name"]
+        self._term_cfg = env.reward_manager.get_term_cfg(term_name)
+
+    def __call__(
+        self,
+        env: ManagerBasedRLEnv,
+        env_ids: Sequence[int],
+        term_name: str,
+        weight: float,
+        num_steps: int,
+    ) -> float:
         # update term settings
-        term_cfg.weight = weight
-        env.reward_manager.set_term_cfg(term_name, term_cfg)
+        if env.common_step_counter > num_steps:
+            self._term_cfg.weight = weight
+            env.reward_manager.set_term_cfg(term_name, self._term_cfg)
+
+        return self._term_cfg.weight
 
 
 class modify_env_param(ManagerTermBase):
-    """Curriculum term for dynamically modifying a single environment parameter at runtime.
+    """Curriculum term for modifying an environment parameter at runtime.
 
-    This term compiles getter/setter accessors for a target attribute (specified by
-    `cfg.params["address"]`) the first time it is called, then on each invocation
+    This term helps modify an environment parameter (or attribute) at runtime.
+    This parameter can be any attribute of the environment, such as the physics material properties,
+    observation ranges, or any other configurable parameter that can be accessed via a dotted path.
+
+    The term uses the ``address`` parameter to specify the target attribute as a dotted path string.
+    For instance, "event_manager.cfg.object_physics_material.func.material_buckets" would
+    refer to the attribute ``material_buckets`` in the event manager's event term "object_physics_material",
+    which is a tensor of sampled physics material properties.
+
+    The term uses the ``modify_fn`` parameter to specify the function that modifies the value of the target attribute.
+    The function should have the signature:
+
+    .. code-block:: python
+
+        def modify_fn(env, env_ids, old_value, **modify_params) -> new_value | modify_env_param.NO_CHANGE:
+            ...
+
+    where ``env`` is the learning environment, ``env_ids`` are the sub-environment indices,
+    ``old_value`` is the current value of the target attribute, and ``modify_params``
+    are additional parameters that can be passed to the function. The function should return
+    the new value to be set for the target attribute, or the special token ``modify_env_param.NO_CHANGE``
+    to indicate that the value should not be changed.
+
+    At the first call to the term after initialization, it compiles getter and setter functions
+    for the target attribute specified by the ``address`` parameter. The getter retrieves the
+    current value, and the setter writes a new value back to the attribute.
+
+    This term processes getter/setter accessors for a target attribute in an(specified by
+    as an "address" in the term configuration`cfg.params["address"]`) the first time it is called, then on each invocation
     reads the current value, applies a user-provided `modify_fn`, and writes back
     the result. Since None in this case can sometime be desirable value to write, we
     use token, NO_CHANGE, as non-modification signal to this class, see usage below.
@@ -59,6 +94,11 @@ class modify_env_param(ManagerTermBase):
                     ranges = torch.tensor(range_list, device="cpu")
                     new_buckets = math_utils.sample_uniform(ranges[:, 0], ranges[:, 1], (len(data), 3), device="cpu")
                     return new_buckets
+
+                # if the step counter is not reached, return NO_CHANGE to indicate no modification.
+                # we do this instead of returning None, since None is a valid value to set.
+                # additionally, returning the input data would not change the value but still lead
+                # to the setter being called, which may add overhead.
                 return mdp.modify_env_param.NO_CHANGE
 
             object_physics_material_curriculum = CurrTerm(
@@ -67,8 +107,8 @@ class modify_env_param(ManagerTermBase):
                     "address": "event_manager.cfg.object_physics_material.func.material_buckets",
                     "modify_fn": resample_bucket_range,
                     "modify_params": {
-                        "static_friction_range": [.5, 1.],
-                        "dynamic_friction_range": [.3, 1.],
+                        "static_friction_range": [0.5, 1.0],
+                        "dynamic_friction_range": [0.3, 1.0],
                         "restitution_range": [0.0, 0.5],
                         "num_step": 120000
                     }
@@ -76,22 +116,36 @@ class modify_env_param(ManagerTermBase):
             )
     """
 
-    NO_CHANGE = object()
+    NO_CHANGE: ClassVar = object()
+    """Special token to indicate no change in the value to be set.
 
-    def __init__(self, cfg, env):
-        """
-        Initialize the ModifyEnvParam term.
+    This token is used to signal that the `modify_fn` did not produce a new value. It can
+    be returned by the `modify_fn` to indicate that the current value should remain unchanged.
+    """
 
-        Args:
-            cfg: A CurriculumTermCfg whose `params` dict must contain:
-                - "address" (str): dotted path into the env where the parameter lives.
-            env: The ManagerBasedRLEnv instance this term will act upon.
-        """
+    def __init__(self, cfg: CurriculumTermCfg, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
-        self._INDEX_RE = re.compile(r"^(\w+)\[(\d+)\]$")
-        self.get_fn: callable = None
-        self.set_fn: callable = None
-        self.address: str = self.cfg.params.get("address")
+        # resolve term configuration
+        if "address" not in cfg.params:
+            raise ValueError("The 'address' parameter must be specified in the curriculum term configuration.")
+
+        # store current address
+        self._address: str = cfg.params["address"]
+        # store accessor functions
+        self._get_fn: callable = None
+        self._set_fn: callable = None
+
+    def __del__(self):
+        """Destructor to clean up the compiled functions."""
+        # clear the getter and setter functions
+        self._get_fn = None
+        self._set_fn = None
+        self._container = None
+        self._last_path = None
+
+    """
+    Operations.
+    """
 
     def __call__(
         self,
@@ -99,99 +153,119 @@ class modify_env_param(ManagerTermBase):
         env_ids: Sequence[int],
         address: str,
         modify_fn: callable,
-        modify_params: dict = {},
+        modify_params: dict | None = None,
     ):
-        """
-        Apply one curriculum step to the target parameter.
+        # fetch the getter and setter functions if not already compiled
+        if not self._get_fn:
+            self._get_fn, self._set_fn = self._process_accessors(self._env, self._address)
 
-        On the first call, compiles and caches the getter and setter accessors.
-        Then, retrieves the current value, passes it through `modify_fn`, and
-        writes back the new value.
+        # resolve none type
+        modify_params = {} if modify_params is None else modify_params
 
-        Args:
-            env: The learning environment.
-            env_ids: Sub-environment indices (unused by default).
-            address: dotted path of the value retrieved from env.
-            modify_fn: Function signature `fn(env, env_ids, old_value, **modify_params) -> new_value`.
-            modify_params: Extra keyword arguments for `modify_fn`.
-        """
-        if not self.get_fn:
-            self.get_fn, self.set_fn = self._compile_accessors(self._env, self.address)
-
-        data = self.get_fn()
+        # get the current value of the target attribute
+        data = self._get_fn()
+        # modify the value using the provided function
         new_val = modify_fn(self._env, env_ids, data, **modify_params)
-        if new_val is not self.NO_CHANGE:  # if the modify_fn return NO_CHANGE signal, do not invoke self.set_fn
-            self.set_fn(new_val)
+        # set the modified value back to the target attribute
+        # note: if the modify_fn return NO_CHANGE signal, we do not invoke self.set_fn
+        if new_val is not self.NO_CHANGE:
+            self._set_fn(new_val)
 
-    def _compile_accessors(self, root, path: str):
-        """
-        Build and return (getter, setter) functions for a dotted attribute path.
+    """
+    Helper functions.
+    """
 
-        Supports nested attributes, dict keys, and sequence indexing via "name[idx]".
+    def _process_accessors(self, root: ManagerBasedRLEnv, path: str) -> tuple[callable, callable]:
+        """Process and return the (getter, setter) functions for a dotted attribute path.
+
+        This function resolves a dotted path string to an attribute in the given root object.
+        The dotted path can include nested attributes, dictionary keys, and sequence indexing.
+
+        For instance, the path "foo.bar[2].baz" would resolve to `root.foo.bar[2].baz`. This
+        allows accessing attributes in a nested structure, such as a dictionary or a list.
 
         Args:
-            root: Base object (usually `self._env`) from which to resolve `path`.
-            path: Dotted path string, e.g. "foo.bar[2].baz".
+            root: The main object from which to resolve the attribute.
+            path: Dotted path string to the attribute variable. For e.g., "foo.bar[2].baz".
 
         Returns:
-            tuple:
-              - getter: () -> current value
-              - setter: (new_value) -> None (writes new_value back into the object)
+            A tuple of two functions (getter, setter), where:
+            the getter retrieves the current value of the attribute, and
+            the setter writes a new value back to the attribute.
         """
-        # Turn "a.b[2].c" into ["a", ("b",2), "c"] and store in parts
-        parts = []
+        # Turn "a.b[2].c" into ["a", ("b", 2), "c"] and store in parts
+        path_parts: list[str | tuple[str, int]] = []
         for part in path.split("."):
-            m = self._INDEX_RE.match(part)
+            m = re.compile(r"^(\w+)\[(\d+)\]$").match(part)
             if m:
-                parts.append((m.group(1), int(m.group(2))))
+                path_parts.append((m.group(1), int(m.group(2))))
             else:
-                parts.append(part)
+                path_parts.append(part)
 
-        cur = root
-        for p in parts[:-1]:
-            if isinstance(p, tuple):
-                name, idx = p
-                container = cur[name] if isinstance(cur, dict) else getattr(cur, name)
-                cur = container[idx]
+        # Traverse the parts to find the container
+        container = root
+        for container_path in path_parts[:-1]:
+            if isinstance(container_path, tuple):
+                # we are accessing a list element
+                name, idx = container_path
+                # find underlying attribute
+                if isinstance(container_path, dict):
+                    seq = container[name]  # type: ignore[assignment]
+                else:
+                    seq = getattr(container, name)
+                # save the container for the next iteration
+                container = seq[idx]
             else:
-                cur = cur[p] if isinstance(cur, dict) else getattr(cur, p)
+                # we are accessing a dictionary key or an attribute
+                if isinstance(container, dict):
+                    container = container[container_path]
+                else:
+                    container = getattr(container, container_path)
 
-        self.container = cur
-        self.last = parts[-1]
+        # save the container and the last part of the path
+        self._container = container
+        self._last_path = path_parts[-1]  # for "a.b[2].c", this is "c", while for "a.b[2]" it is 2
+
         # build the getter and setter
-        if isinstance(self.container, tuple):
-            getter = lambda: self.container[self.last]  # noqa: E731
+        if isinstance(self._container, tuple):
+            get_value = lambda: self._container[self._last_path]  # noqa: E731
 
-            def setter(val):
-                tuple_list = list(self.container)
-                tuple_list[self.last] = val
-                self.container = tuple(tuple_list)
+            def set_value(val):
+                tuple_list = list(self._container)
+                tuple_list[self._last_path] = val
+                self._container = tuple(tuple_list)
 
-        elif isinstance(self.container, (list, dict)):
-            getter = lambda: self.container[self.last]  # noqa: E731
+        elif isinstance(self._container, (list, dict)):
+            get_value = lambda: self._container[self._last_path]  # noqa: E731
 
-            def setter(val):
-                self.container[self.last] = val
+            def set_value(val):
+                self._container[self._last_path] = val
 
-        elif isinstance(self.container, object):
-            getter = lambda: getattr(self.container, self.last)  # noqa: E731
-
-            def setter(val):
-                setattr(self.container, self.last, val)
-
+        elif isinstance(self._container, object):
+            get_value = lambda: getattr(self._container, self._last_path)  # noqa: E731
+            set_value = lambda val: setattr(self._container, self._last_path, val)  # noqa: E731
         else:
-            raise TypeError(f"getter does not recognize the type {type(self.container)}")
+            raise TypeError(
+                f"Unable to build accessors for address '{path}'. Unknown type found for access variable:"
+                f" '{type(self._container)}'. Expected a list, dict, or object with attributes."
+            )
 
-        return getter, setter
+        return get_value, set_value
 
 
 class modify_term_cfg(modify_env_param):
-    """Subclass of ModifyEnvParam that maps a simplified 's.'-style address
-    to the full manager path. This is a more natural style for writing configurations
+    """Curriculum for modifying a manager term configuration at runtime.
 
-    Reads `cfg.params["address"]`, replaces only the first occurrence of "s."
-    with "_manager.cfg.", and then behaves identically to ModifyEnvParam.
-    for example: command_manager.cfg.object_pose.ranges.xpos -> commands.object_pose.ranges.xpos
+    This class inherits from :class:`modify_env_param` and is specifically designed to modify
+    the configuration of a manager term in the environment. It mainly adds the convenience of
+    using a simplified address style that uses "s." as a prefix to refer to the manager's configuration.
+
+    For instance, instead of writing "event_manager.cfg.object_physics_material.func.material_buckets",
+    you can write "events.object_physics_material.func.material_buckets" to refer to the same term configuration.
+    The same applies to other managers, such as "observations", "commands", "rewards", and "terminations".
+
+    Internally, it replaces the first occurrence of "s." in the address with "_manager.cfg.",
+    thus transforming the simplified address into a full manager path.
 
     Usage:
         .. code-block:: python
@@ -204,7 +278,7 @@ class modify_term_cfg(modify_env_param):
             command_object_pose_xrange_adr = CurrTerm(
                 func=mdp.modify_term_cfg,
                 params={
-                    "address": "commands.object_pose.ranges.pos_x",   # note that `_manager.cfg` is omitted
+                    "address": "commands.object_pose.ranges.pos_x",   # note: `_manager.cfg` is omitted
                     "modify_fn": override_value,
                     "modify_params": {"value": (-.75, -.25), "num_steps": 12000}
                 }
@@ -212,14 +286,7 @@ class modify_term_cfg(modify_env_param):
     """
 
     def __init__(self, cfg, env):
-        """
-        Initialize the ModifyTermCfg term.
-
-        Args:
-            cfg: A CurriculumTermCfg whose `params["address"]` is a simplified
-                 path using "s." as separator, e.g. instead of write "observation_manager.cfg", writes "observations".
-            env: The ManagerBasedRLEnv instance this term will act upon.
-        """
+        # initialize the parent
         super().__init__(cfg, env)
-        input_address: str = self.cfg.params.get("address")
-        self.address = input_address.replace("s.", "_manager.cfg.", 1)
+        # overwrite the simplified address with the full manager path
+        self._address = self._address.replace("s.", "_manager.cfg.", 1)

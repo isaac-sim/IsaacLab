@@ -78,7 +78,7 @@ Table of Contents
 
    source/setup/ecosystem
    source/setup/installation/index
-   source/setup/installation/cloud_installation
+   source/deployment/index
    source/refs/reference_architecture/index
 
 
@@ -104,6 +104,7 @@ Table of Contents
    source/overview/environments
    source/overview/reinforcement-learning/index
    source/overview/teleop_imitation
+   source/overview/augmented_imitation
    source/overview/showroom
    source/overview/simple_agents
 
@@ -122,7 +123,7 @@ Table of Contents
    :caption: Resources
    :titlesonly:
 
-   source/deployment/index
+   source/setup/installation/cloud_installation
    source/policy_deployment/index
 
 .. toctree::

@@ -67,7 +67,7 @@ def evaluate_job(workflow, task, env_config, duration):
 
     # evaluate all thresholds from the config
     for threshold_name, threshold_val in thresholds.items():
-        uses_lower_threshold = threshold_name in env_config["lower_thresholds"]
+        uses_lower_threshold = threshold_name in env_config.get("lower_thresholds", {})
         if threshold_name == "duration":
             val = duration
         else:
@@ -150,6 +150,10 @@ def _retrieve_logs(workflow, task):
     """Retrieve training logs."""
     # first grab all log files
     repo_path = os.path.join(carb.tokens.get_tokens_interface().resolve("${app}"), "..")
+    from isaacsim.core.version import get_version
+
+    if int(get_version()[2]) < 5:
+        repo_path = os.path.join(repo_path, "..")
     if workflow == "rl_games":
         log_files_path = os.path.join(repo_path, f"logs/{workflow}/{task}/*/summaries/*")
     else:

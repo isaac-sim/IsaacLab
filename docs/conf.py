@@ -116,6 +116,7 @@ intersphinx_mapping = {
     "isaac": ("https://docs.omniverse.nvidia.com/py/isaacsim", None),
     "gymnasium": ("https://gymnasium.farama.org/", None),
     "warp": ("https://nvidia.github.io/warp/", None),
+    "dev-guide": ("https://docs.omniverse.nvidia.com/dev-guide/latest", None),
 }
 
 # Add any paths that contain templates here, relative to this directory.
@@ -182,6 +183,9 @@ autodoc_mock_imports = [
     "pinocchio",
     "nvidia.srl",
     "flatdict",
+    "IPython",
+    "ipywidgets",
+    "mpl_toolkits",
 ]
 
 # List of zero or more Sphinx-specific warning categories to be squelched (i.e.,
@@ -252,7 +256,7 @@ html_theme_options = {
         {
             "name": "Isaac Sim",
             "url": "https://developer.nvidia.com/isaac-sim",
-            "icon": "https://img.shields.io/badge/IsaacSim-4.5.0-silver.svg",
+            "icon": "https://img.shields.io/badge/IsaacSim-5.0.0-silver.svg",
             "type": "url",
         },
         {
