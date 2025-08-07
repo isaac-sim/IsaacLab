@@ -360,5 +360,20 @@
     "package": "referencing",
     "license": "UNKNOWN",
     "comment": "MIT"
+  },
+  {
+    "package": "regex",
+    "license": "UNKNOWN",
+    "comment": "Apache 2.0"
+  },
+  {
+    "package": "anyio",
+    "license": "UNKNOWN",
+    "comment": "MIT"
+  },
+  {
+    "package" : "hf-xet",
+    "license" : "UNKNOWN",
+    "comment": "Apache 2.0"
   }
 ]

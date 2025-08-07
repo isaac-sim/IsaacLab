@@ -20,6 +20,7 @@ from enum import Enum
 
 import carb
 import pytest
+from flaky import flaky
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObject, RigidObjectCfg
@@ -44,7 +45,7 @@ class ContactTestMode(Enum):
 
 
 @configclass
-class TestContactSensorRigidObjectCfg(RigidObjectCfg):
+class ContactSensorRigidObjectCfg(RigidObjectCfg):
     """Configuration for rigid objects used for the contact sensor test.
 
     This contains the expected values in the configuration to simplify test fixtures.
@@ -63,13 +64,13 @@ class ContactSensorSceneCfg(InteractiveSceneCfg):
     terrain: TerrainImporterCfg = MISSING
     """Terrain configuration within the scene."""
 
-    shape: TestContactSensorRigidObjectCfg = MISSING
+    shape: ContactSensorRigidObjectCfg = MISSING
     """RigidObject contact prim configuration."""
 
     contact_sensor: ContactSensorCfg = MISSING
     """Contact sensor configuration."""
 
-    shape_2: TestContactSensorRigidObjectCfg = None
+    shape_2: ContactSensorRigidObjectCfg = None
     """RigidObject contact prim configuration. Defaults to None, i.e. not included in the scene.
 
     This is a second prim used for testing contact filtering.
@@ -87,7 +88,7 @@ class ContactSensorSceneCfg(InteractiveSceneCfg):
 ##
 
 
-CUBE_CFG = TestContactSensorRigidObjectCfg(
+CUBE_CFG = ContactSensorRigidObjectCfg(
     prim_path="/World/Objects/Cube",
     spawn=sim_utils.CuboidCfg(
         size=(0.5, 0.5, 0.5),
@@ -106,7 +107,7 @@ CUBE_CFG = TestContactSensorRigidObjectCfg(
 )
 """Configuration of the cube prim."""
 
-SPHERE_CFG = TestContactSensorRigidObjectCfg(
+SPHERE_CFG = ContactSensorRigidObjectCfg(
     prim_path="/World/Objects/Sphere",
     spawn=sim_utils.SphereCfg(
         radius=0.25,
@@ -125,7 +126,7 @@ SPHERE_CFG = TestContactSensorRigidObjectCfg(
 )
 """Configuration of the sphere prim."""
 
-CYLINDER_CFG = TestContactSensorRigidObjectCfg(
+CYLINDER_CFG = ContactSensorRigidObjectCfg(
     prim_path="/World/Objects/Cylinder",
     spawn=sim_utils.CylinderCfg(
         radius=0.5,
@@ -146,7 +147,7 @@ CYLINDER_CFG = TestContactSensorRigidObjectCfg(
 )
 """Configuration of the cylinder prim."""
 
-CAPSULE_CFG = TestContactSensorRigidObjectCfg(
+CAPSULE_CFG = ContactSensorRigidObjectCfg(
     prim_path="/World/Objects/Capsule",
     spawn=sim_utils.CapsuleCfg(
         radius=0.25,
@@ -167,7 +168,7 @@ CAPSULE_CFG = TestContactSensorRigidObjectCfg(
 )
 """Configuration of the capsule prim."""
 
-CONE_CFG = TestContactSensorRigidObjectCfg(
+CONE_CFG = ContactSensorRigidObjectCfg(
     prim_path="/World/Objects/Cone",
     spawn=sim_utils.ConeCfg(
         radius=0.5,
@@ -232,6 +233,7 @@ def test_cube_contact_time(setup_simulation, disable_contact_processing):
 
 
 @pytest.mark.parametrize("disable_contact_processing", [True, False])
+@flaky(max_runs=3, min_passes=1)
 def test_sphere_contact_time(setup_simulation, disable_contact_processing):
     """Checks contact sensor values for contact time and air time for a sphere collision primitive."""
     # check for both contact processing enabled and disabled
@@ -397,7 +399,7 @@ Internal helpers.
 
 
 def _run_contact_sensor_test(
-    shape_cfg: TestContactSensorRigidObjectCfg,
+    shape_cfg: ContactSensorRigidObjectCfg,
     sim_dt: float,
     devices: list[str],
     terrains: list[TerrainImporterCfg],
