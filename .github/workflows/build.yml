@@ -1,0 +1,190 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+name: Build and Test
+
+on:
+  pull_request:
+    branches:
+      - devel
+      - main
+
+# Concurrency control to prevent parallel runs on the same PR
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  checks: write
+  issues: read
+
+env:
+  NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
+  ISAACSIM_BASE_IMAGE: ${{ vars.ISAACSIM_BASE_IMAGE || 'nvcr.io/nvidia/isaac-sim' }}
+  ISAACSIM_BASE_VERSION: ${{ vars.ISAACSIM_BASE_VERSION || '5.0.0' }}
+  DOCKER_IMAGE_TAG: isaac-lab-dev:${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.ref_name }}-${{ github.sha }}
+
+jobs:
+  test-isaaclab-tasks:
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 180
+    continue-on-error: true
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        lfs: true
+
+    - name: Build Docker Image
+      uses: ./.github/actions/docker-build
+      with:
+        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
+        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
+        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+
+    - name: Run IsaacLab Tasks Tests
+      uses: ./.github/actions/run-tests
+      with:
+        test-path: "tools"
+        result-file: "isaaclab-tasks-report.xml"
+        container-name: "isaac-lab-tasks-test-$$"
+        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
+        pytest-options: ""
+        filter-pattern: "isaaclab_tasks"
+
+    - name: Copy Test Results from IsaacLab Tasks Container
+      run: |
+        CONTAINER_NAME="isaac-lab-tasks-test-$$"
+        if docker ps -a | grep -q $CONTAINER_NAME; then
+          echo "Copying test results from IsaacLab Tasks container..."
+          docker cp $CONTAINER_NAME:/workspace/isaaclab/tests/isaaclab-tasks-report.xml reports/ 2>/dev/null || echo "No test results to copy from IsaacLab Tasks container"
+        fi
+
+    - name: Upload IsaacLab Tasks Test Results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: isaaclab-tasks-test-results
+        path: reports/isaaclab-tasks-report.xml
+        retention-days: 1
+        compression-level: 9
+
+  test-general:
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 180
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        lfs: true
+
+    - name: Build Docker Image
+      uses: ./.github/actions/docker-build
+      with:
+        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
+        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
+        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+
+    - name: Run General Tests
+      uses: ./.github/actions/run-tests
+      with:
+        test-path: "tools"
+        result-file: "general-tests-report.xml"
+        container-name: "isaac-lab-general-test-$$"
+        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
+        pytest-options: ""
+        filter-pattern: "not isaaclab_tasks"
+
+    - name: Copy Test Results from General Tests Container
+      run: |
+        CONTAINER_NAME="isaac-lab-general-test-$$"
+        if docker ps -a | grep -q $CONTAINER_NAME; then
+          echo "Copying test results from General Tests container..."
+          docker cp $CONTAINER_NAME:/workspace/isaaclab/tests/general-tests-report.xml reports/ 2>/dev/null || echo "No test results to copy from General Tests container"
+        fi
+
+    - name: Upload General Test Results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: general-test-results
+        path: reports/general-tests-report.xml
+        retention-days: 1
+        compression-level: 9
+
+  combine-results:
+    needs: [test-isaaclab-tasks, test-general]
+    runs-on: [self-hosted, gpu]
+    if: always()
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        lfs: false
+
+    - name: Create Reports Directory
+      run: |
+        mkdir -p reports
+
+    - name: Download Test Results
+      uses: actions/download-artifact@v4
+      with:
+        name: isaaclab-tasks-test-results
+        path: reports/
+      continue-on-error: true
+
+    - name: Download General Test Results
+      uses: actions/download-artifact@v4
+      with:
+        name: general-test-results
+        path: reports/
+
+    - name: Combine All Test Results
+      uses: ./.github/actions/combine-results
+      with:
+        tests-dir: "reports"
+        output-file: "reports/combined-results.xml"
+
+    - name: Upload Combined Test Results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: pr-${{ github.event.pull_request.number }}-combined-test-results
+        path: reports/combined-results.xml
+        retention-days: 7
+        compression-level: 9
+
+    - name: Comment on Test Results
+      id: test-reporter
+      uses: EnricoMi/publish-unit-test-result-action@v2
+      with:
+        files: "reports/combined-results.xml"
+        check_name: "Tests Summary"
+        comment_mode: changes
+        comment_title: "Test Results Summary"
+        report_individual_runs: false
+        deduplicate_classes_by_file_name: true
+        compare_to_earlier_commit: true
+        fail_on: errors
+        action_fail_on_inconclusive: true
+
+    - name: Report Test Results
+      uses: dorny/test-reporter@v1
+      with:
+        name: IsaacLab Build and Test Results
+        path: reports/combined-results.xml
+        reporter: java-junit
+        fail-on-error: true
+        only-summary: false
+        max-annotations: '50'
+        report-title: "IsaacLab Test Results - ${{ github.workflow }}"

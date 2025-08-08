@@ -29,7 +29,7 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 ALLEGRO_HAND_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/AllegroHand/allegro_hand_instanceable.usd",
+        usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/WonikRobotics/AllegroHand/allegro_hand_instanceable.usd",
         activate_contact_sensors=False,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=True,

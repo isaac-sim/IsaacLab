@@ -110,7 +110,7 @@ def main():
         usd_path = f"{ISAACLAB_NUCLEUS_DIR}/Robots/ANYbotics/ANYmal-C/anymal_c.usd"
         root_prim_path = "/World/envs/env_.*/Robot/base"
     elif args_cli.asset == "oige":
-        usd_path = f"{ISAAC_NUCLEUS_DIR}/Robots/ANYbotics/anymal_instanceable.usd"
+        usd_path = f"{ISAAC_NUCLEUS_DIR}/Robots/ANYbotics/anymal_c/anymal_c.usd"
         root_prim_path = "/World/envs/env_.*/Robot"
     elif os.path.exists(args_cli.asset):
         usd_path = args_cli.asset
