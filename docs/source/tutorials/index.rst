@@ -79,6 +79,7 @@ different aspects of the framework to create a simulation environment for agent 
     03_envs/create_direct_rl_env
     03_envs/register_rl_env_gym
     03_envs/run_rl_training
+    03_envs/configuring_rl_training
     03_envs/modify_direct_rl_env
     03_envs/policy_inference_in_usd
 
