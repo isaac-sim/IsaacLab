@@ -126,14 +126,14 @@ def replicate_environment(
     # geometry are used as collision meshes.
     if simplify_meshes:
         simplified_meshes = {}
-        meshes = tqdm.tqdm(prototype_builder.shape_geo_src, desc="Simplifying meshes")
+        meshes = tqdm.tqdm(prototype_builder.shape_source, desc="Simplifying meshes")
 
         for i, m in enumerate(meshes):
             if m is None:
                 continue
             hash_m = hash(m)
             if hash_m in simplified_meshes:
-                prototype_builder.shape_geo_src[i] = simplified_meshes[hash_m]
+                prototype_builder.shape_source[i] = simplified_meshes[hash_m]
             else:
                 simplified = newton.geometry.utils.remesh_mesh(
                     m, visualize=False, method="convex_hull", recompute_inertia=False
@@ -145,7 +145,7 @@ def replicate_environment(
                 except Exception as e:
                     omni.log.warn(f"Error simplifying mesh {i}: {e}")
                     simplified = m
-                prototype_builder.shape_geo_src[i] = simplified
+                prototype_builder.shape_source[i] = simplified
                 simplified_meshes[hash_m] = simplified
 
     # compute the environment offsets

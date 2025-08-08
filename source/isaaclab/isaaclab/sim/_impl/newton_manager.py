@@ -8,15 +8,15 @@ import re
 
 import newton.sim.articulation
 import newton.utils
-import omni.log
 import usdrt
 import warp as wp
 from isaacsim.core.utils.stage import get_current_stage
 from newton import Control, Model, State
 from newton.sim import ModelBuilder
-from newton.sim.contacts import ContactInfo
+from newton.sim.contacts import Contacts
 from newton.solvers import FeatherstoneSolver, MuJoCoSolver, SolverBase, XPBDSolver
-from newton.utils.contact_sensor import ContactView, convert_contact_info
+from newton.utils.contact_sensor import ContactSensor as NewtonContactSensor
+from newton.utils.contact_sensor import populate_contacts
 
 
 def flipped_match(x: str, y: str) -> re.Match | None:
@@ -61,7 +61,8 @@ class NewtonManager:
     _control: Control = None
     _on_init_callbacks: list = []
     _on_start_callbacks: list = []
-    _contact_info: ContactInfo = None
+    _contacts: Contacts = None
+    _newton_contact_sensor: NewtonContactSensor = None  # TODO: allow several contact sensors
     _report_contacts: bool = False
     _use_cuda_graph: bool = False
     _graph = None
@@ -122,7 +123,7 @@ class NewtonManager:
         NewtonManager._state_1 = NewtonManager._model.state()
         NewtonManager._state_temp = NewtonManager._model.state()
         NewtonManager._control = NewtonManager._model.control()
-        NewtonManager._contact_info = ContactInfo()
+        NewtonManager._contacts = Contacts(0, 0)
         newton.sim.articulation.eval_fk(
             NewtonManager._model,
             NewtonManager._model.joint_q,
@@ -219,8 +220,8 @@ class NewtonManager:
                             state_1_dict[key].assign(state_temp_dict[key])
 
         if NewtonManager._report_contacts:
-            convert_contact_info(NewtonManager._model, NewtonManager._contact_info, NewtonManager._solver)
-            NewtonManager._model.eval_contact_sensors(NewtonManager._contact_info)
+            populate_contacts(NewtonManager._contacts, NewtonManager._solver)
+            NewtonManager._newton_contact_sensor.eval(NewtonManager._contacts)
 
     @classmethod
     def set_device(cls, device: str) -> None:
@@ -352,14 +353,15 @@ class NewtonManager:
             raise ValueError(f"Invalid solver type: {solver_type}")
 
     @classmethod
-    def add_contact_view(
+    def add_contact_sensor(
         cls,
-        body_names_expr: str | None = None,
-        shape_names_expr: str | None = None,
-        contact_partners_body_expr: str | None = None,
-        contact_partners_shape_expr: str | None = None,
+        body_names_expr: str | list[str] | None = None,
+        shape_names_expr: str | list[str] | None = None,
+        contact_partners_body_expr: str | list[str] | None = None,
+        contact_partners_shape_expr: str | list[str] | None = None,
+        prune_noncolliding: bool = False,
         verbose: bool = False,
-    ) -> ContactView:
+    ):
         """Adds a contact view.
 
         Adds a contact view to the simulation allowing to report contacts between the specified bodies/shapes and the
@@ -376,10 +378,8 @@ class NewtonManager:
             shape_names_expr (str | None): The expression for the shape names.
             contact_partners_body_expr (str | None): The expression for the contact partners' body names.
             contact_partners_shape_expr (str | None): The expression for the contact partners' shape names.
+            prune_noncolliding (bool): Make the force matrix sparse using the collision pairs in the model.
             verbose (bool): Whether to print verbose information.
-
-        Returns:
-            ContactView: The contact view.
         """
         if body_names_expr is None and shape_names_expr is None:
             raise ValueError("At least one of body_names_expr or shape_names_expr must be provided")
@@ -405,14 +405,15 @@ class NewtonManager:
                         f"[INFO] Adding contact view for {shape_names_expr} with filter {contact_partners_shape_expr}."
                     )
 
-        contact_sensor = NewtonManager._builder.add_contact_sensor(
-            sensor_body=body_names_expr,
-            sensor_shape=shape_names_expr,
-            contact_partners_body=contact_partners_body_expr,
-            contact_partners_shape=contact_partners_shape_expr,
-            match_fun=flipped_match,
+        NewtonManager._newton_contact_sensor = NewtonContactSensor(
+            NewtonManager._model,
+            sensing_obj_bodies=body_names_expr,
+            sensing_obj_shapes=shape_names_expr,
+            counterpart_bodies=contact_partners_body_expr,
+            counterpart_shapes=contact_partners_shape_expr,
+            match_fn=flipped_match,
             include_total=True,
+            prune_noncolliding=prune_noncolliding,
             verbose=verbose,
         )
         NewtonManager._report_contacts = True
-        return contact_sensor
