@@ -63,7 +63,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.2.0" />
-    <meta name="docbuild:last-update" content="Aug 07, 2025"/>
+    <meta name="docbuild:last-update" content="Aug 08, 2025"/>
   </head>
   
   
@@ -4654,6 +4654,13 @@ of external wrench to the simulation.</p>
 <p class="admonition-title">Caution</p>
 <p>If the function is called consecutively with and with different values for <code class="docutils literal notranslate"><span class="pre">is_global</span></code>, then the
 all the external wrenches will be applied in the frame specified by the last call.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># example of setting external wrench in the global frame</span>
+<span class="n">asset</span><span class="o">.</span><span class="n">set_external_force_and_torque</span><span class="p">(</span><span class="n">forces</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span> <span class="n">env_ids</span><span class="o">=</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">is_global</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="c1"># example of setting external wrench in the link frame</span>
+<span class="n">asset</span><span class="o">.</span><span class="n">set_external_force_and_torque</span><span class="p">(</span><span class="n">forces</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span> <span class="n">env_ids</span><span class="o">=</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">is_global</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+<span class="c1"># Both environments will have the external wrenches applied in the link frame</span>
+</pre></div>
+</div>
 </div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
@@ -7795,7 +7802,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Aug 07, 2025.
+  Last updated on Aug 08, 2025.
   <br/>
 </p>
   </div>
