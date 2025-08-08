@@ -115,7 +115,11 @@ def load_cfg_from_registry(task_name: str, entry_point_key: str) -> dict | objec
 
 
 def parse_env_cfg(
-    task_name: str, device: str = "cuda:0", num_envs: int | None = None, use_fabric: bool | None = None
+    task_name: str,
+    device: str = "cuda:0",
+    num_envs: int | None = None,
+    use_fabric: bool | None = None,
+    newton_renderer: bool | None = None,
 ) -> ManagerBasedRLEnvCfg | DirectRLEnvCfg:
     """Parse configuration for an environment and override based on inputs.
 
@@ -126,6 +130,7 @@ def parse_env_cfg(
         use_fabric: Whether to enable/disable fabric interface. If false, all read/write operations go through USD.
             This slows down the simulation but allows seeing the changes in the USD through the USD stage.
             Defaults to None, in which case it is left unchanged.
+        newton_renderer: Whether to enable/disable Newton rendering. Defaults to None, in which case it is left unchanged.
 
     Returns:
         The parsed configuration object.
@@ -150,6 +155,9 @@ def parse_env_cfg(
     # number of environments
     if num_envs is not None:
         cfg.scene.num_envs = num_envs
+    # newton rendering
+    if newton_renderer is not None:
+        cfg.sim.enable_newton_rendering = newton_renderer
 
     return cfg
 

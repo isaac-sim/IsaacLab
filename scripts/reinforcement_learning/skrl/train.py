@@ -44,6 +44,7 @@ parser.add_argument(
     choices=["AMP", "PPO", "IPPO", "MAPPO"],
     help="The RL algorithm used for training the skrl agent.",
 )
+parser.add_argument("--newton_renderer", action="store_true", default=False, help="Enable Newton rendering.")
 
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
@@ -107,6 +108,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg, agent_cfg: dict):
     # override configurations with non-hydra CLI arguments
     env_cfg.scene.num_envs = args_cli.num_envs if args_cli.num_envs is not None else env_cfg.scene.num_envs
     env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
+    env_cfg.sim.enable_newton_rendering = args_cli.newton_renderer
 
     # multi-gpu training config
     if args_cli.distributed:
