@@ -62,19 +62,39 @@ def main():
     env = gym.make(args_cli.task, cfg=env_cfg)
     env.reset()
 
-    # 2) Grab the underlying Franka articulation and its indices
-    franka = env.unwrapped.robot_left  # name comes from the env's config
+    # after you build the env
+    franka_L = env.unwrapped.robot_left
+    franka_R = env.unwrapped.robot_right  # use it to hold the right arm
+
+    left_arm_ids = franka_L.find_joints(["panda_joint[1-7]"])[0]
+    left_finger_ids = franka_L.find_joints(["panda_finger_joint.*"])[0]
+    right_arm_ids = franka_R.find_joints(["panda_joint[1-7]"])[0]
+    right_finger_ids = franka_R.find_joints(["panda_finger_joint.*"])[0]
+
+    # derive safe open/close from soft limits (works across assets)
+    lims_low = franka_L.data.soft_joint_pos_limits[0, left_finger_ids, 0]
+    lims_high = franka_L.data.soft_joint_pos_limits[0, left_finger_ids, 1]
+    F_OPEN = float(torch.min(lims_high).clamp(min=0.03, max=0.05))  # ~0.04 m typical
+    F_CLOSED = float(torch.max(lims_low)) + 0.001
+
+    # LATCHED hold targets (don’t overwrite these every frame)
+    qR_hold = franka_R.data.joint_pos[:, right_arm_ids].clone()
+    qRf_hold = franka_R.data.joint_pos[:, right_finger_ids].clone()
+
+    num_envs = env.unwrapped.num_envs
+    act_dim = env.action_space.shape[-1]
+
     # resolve the end-effector body index:
-    ee_body_id = franka.find_bodies([".*hand"])[0][0]
+    ee_body_id = franka_L.find_bodies([".*hand"])[0][0]
     # for fixed-base robots, jacobian index = body_id - 1
-    ee_jacobian_idx = ee_body_id - 1 if franka.is_fixed_base else ee_body_id
+    ee_jacobian_idx = ee_body_id - 1 if franka_L.is_fixed_base else ee_body_id
     # get joint IDs for the arm (exclude fingers)
-    franka_joint_ids = franka.find_joints(["panda_joint.*"])[0]
+    franka_joint_ids = franka_L.find_joints(["panda_joint.*"])[0]
 
     # 3) Set up your teleop device
 
     if args_cli.teleop_device == "gamepad":
-        teleop = Se3Gamepad(pos_sensitivity=1.0, rot_sensitivity=1.6, dead_zone=0.01)
+        teleop = Se3Gamepad(pos_sensitivity=1.0, rot_sensitivity=1.6, dead_zone=0.07)
     elif args_cli.teleop_device == "keyboard":
         teleop = Se3Keyboard(pos_sensitivity=0.4, rot_sensitivity=0.8)
     else:  # spacemouse
@@ -99,40 +119,56 @@ def main():
 
     # 5) Main teleop loop
     while simulation_app.is_running():
-        # read teleop device: (6-vector delta pose, bool gripper)
-        delta_pose, gripper_cmd = (
-            teleop.advance()
-        )  # :contentReference[oaicite:3]{index=3}
+        # 1) read device
+        delta_pose, grip_cmd = teleop.advance()
+        print(f"[INFO]: Delta pose: {delta_pose}, Grip command: {grip_cmd}")
+        delta = torch.tensor(delta_pose, device=args_cli.device)
+        idle = torch.all(delta.abs() < 1e-3).item()
+        print(f"[INFO]: Idle: {idle}")
 
-        # get current world-frame quantities
-        ee_pose_w = franka.data.body_pose_w[:, ee_body_id, :7]  # (N,7)
-        root_pose_w = franka.data.root_pose_w  # (N,7)
-        joint_pos = franka.data.joint_pos[:, franka_joint_ids]  # (N, num_joints)
-        jacobian = franka.root_physx_view.get_jacobians()[
-            :, ee_jacobian_idx, :, franka_joint_ids
-        ]  # (N,6,num_joints)
+        f_target = F_CLOSED if grip_cmd else F_OPEN
+        f_target_vec = torch.full(
+            (env.unwrapped.num_envs, 1), f_target, device=env.unwrapped.device
+        )
 
-        # transform EE pose into base frame
+        # 2) current states
+        qL = franka_L.data.joint_pos[:, left_arm_ids]
+        qR = franka_R.data.joint_pos[:, right_arm_ids]
 
+        # 3) ee in base frame
+        ee_pose_w = franka_L.data.body_pose_w[:, ee_body_id, :7]
+        root_pose_w = franka_L.data.root_pose_w
         ee_pos_b, ee_quat_b = subtract_frame_transforms(
             root_pose_w[:, :3],
             root_pose_w[:, 3:7],
             ee_pose_w[:, :3],
             ee_pose_w[:, 3:7],
         )
+        jacobian = franka_L.root_physx_view.get_jacobians()[
+            :, ee_jacobian_idx, :, franka_joint_ids
+        ]  # (N,6,num_joints)
 
-        # set and solve IK (differential)
-        ik_ctrl.reset()  # clear controller state
-        ik_ctrl.set_command(
-            torch.tensor(delta_pose[None, :], device=args_cli.device),
-            ee_pos=ee_pos_b,
-            ee_quat=ee_quat_b,
-        )  # :contentReference[oaicite:4]{index=4}
-        joint_pos_des = ik_ctrl.compute(ee_pos_b, ee_quat_b, jacobian, joint_pos)
-        actions = torch.zeros(env.action_space.shape, device=env.unwrapped.device)
-        actions[:, :7] = joint_pos_des
+        # 4) target for left arm
+        if not idle:
+            ik_ctrl.set_command(delta.unsqueeze(0), ee_pos=ee_pos_b, ee_quat=ee_quat_b)
+            qL_des = ik_ctrl.compute(ee_pos_b, ee_quat_b, jacobian, qL)
+        else:
+            qL_des = qL  # HOLD
 
-        # advance the sim
+        # 5) build actions: (N, 18)
+        actions = torch.zeros((num_envs, act_dim), device=env.unwrapped.device)
+
+        # left arm (7 joints)
+        actions[:, 0:7] = qL_des
+        # left fingers (keep open at current, or set a value)
+        actions[:, 7:9] = f_target_vec.expand(
+            -1, 2
+        )  # command both left finger joints equally
+
+        # right: HOLD (latched)
+        actions[:, 9:16] = qR_hold
+        actions[:, 16:18] = qRf_hold
+
         env.step(actions)
 
     # cleanup
