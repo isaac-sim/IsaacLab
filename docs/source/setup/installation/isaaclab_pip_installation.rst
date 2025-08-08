@@ -88,12 +88,12 @@ To learn about how to set up your own project on top of Isaac Lab, see :ref:`tem
 
    .. code-block:: none
 
-      pip install isaaclab[isaacsim,all]==2.1.0 --extra-index-url https://pypi.nvidia.com
+      pip install isaaclab[isaacsim,all]==2.2.0 --extra-index-url https://pypi.nvidia.com
 
 .. note::
 
    Currently, we only provide pip packages for every major release of Isaac Lab.
-   For example, we provide the pip package for release 2.0.0 and 2.1.0, but not 2.0.2.
+   For example, we provide the pip package for release 2.1.0 and 2.2.0, but not 2.1.1.
    In the future, we will provide pip packages for every minor release of Isaac Lab.
 
 
