@@ -30,8 +30,8 @@ class HumanoidEnvCfg(DirectRLEnvCfg):
     state_space = 0
 
     solver_cfg: NewtonSolverCfg = MJWarpSolverCfg(
-        nefc_per_env=200,
-        ls_iterations=5,
+        nefc_per_env=70,
+        ls_iterations=7,
         cone="pyramidal",
         num_substeps=2,
     )
