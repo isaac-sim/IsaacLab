@@ -354,7 +354,7 @@ def image(
     if (data_type == "distance_to_camera") and convert_perspective_to_orthogonal:
         images = math_utils.orthogonalize_perspective_depth(images, sensor.data.intrinsic_matrices)
 
-    # rgb/depth image normalization
+    # rgb/depth/normals image normalization
     if normalize:
         if data_type == "rgb":
             images = images.float() / 255.0
@@ -362,6 +362,8 @@ def image(
             images -= mean_tensor
         elif "distance_to" in data_type or "depth" in data_type:
             images[images == float("inf")] = 0
+        elif "normals" in data_type:
+            images = (images + 1.0) * 0.5
 
     return images.clone()
 

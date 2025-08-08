@@ -160,3 +160,14 @@ Omniverse Physics.
     :maxdepth: 1
 
     simulation_performance
+
+
+Optimize Stage Creation
+-----------------------
+
+This guide explains 2 features that can speed up stage initialization, **fabric cloning** and **stage in memory**.
+
+.. toctree::
+    :maxdepth: 1
+
+    optimize_stage_creation

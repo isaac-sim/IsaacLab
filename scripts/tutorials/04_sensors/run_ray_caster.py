@@ -134,7 +134,7 @@ def main():
     sim = sim_utils.SimulationContext(sim_cfg)
     # Set main camera
     sim.set_camera_view([0.0, 15.0, 15.0], [0.0, 0.0, -2.5])
-    # Design the scene
+    # Design scene
     scene_entities = design_scene()
     # Play simulator
     sim.reset()

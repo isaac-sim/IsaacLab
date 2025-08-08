@@ -37,7 +37,7 @@ simulation_app = app_launcher.app
 
 import random
 
-import omni.usd
+from isaacsim.core.utils.stage import get_current_stage
 from pxr import Gf, Sdf
 
 import isaaclab.sim as sim_utils
@@ -69,8 +69,8 @@ from isaaclab_assets.robots.anymal import ANYDRIVE_3_LSTM_ACTUATOR_CFG  # isort:
 
 def randomize_shape_color(prim_path_expr: str):
     """Randomize the color of the geometry."""
-    # acquire stage
-    stage = omni.usd.get_context().get_stage()
+    # get stage handle
+    stage = get_current_stage()
     # resolve prim paths for spawning and cloning
     prim_paths = sim_utils.find_matching_prim_paths(prim_path_expr)
     # manually clone prims if the source prim path is a regex expression
