@@ -1,0 +1,150 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+name: Test Results Reporter
+
+on:
+  workflow_run:
+    workflows: ["Build and Test"]
+    types: [completed]
+
+# This workflow runs with repository permissions
+permissions:
+  contents: read
+  pull-requests: write
+  checks: write
+  issues: read
+
+jobs:
+  report-test-results:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event.workflow_run.conclusion == 'failure' }}
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Extract Workflow Information
+      id: workflow-info
+      run: |
+        if [ "${{ github.event.workflow_run.event }}" == "pull_request" ]; then
+          PR_NUMBER=$(echo "${{ github.event.workflow_run.head_branch }}" | grep -oE 'pr-([0-9]+)' | cut -d'-' -f2 || echo "")
+          if [ -z "$PR_NUMBER" ]; then
+            # Try to get PR number from workflow run data
+            PR_NUMBER="${{ github.event.workflow_run.pull_requests[0].number }}"
+          fi
+          echo "pr-number=$PR_NUMBER" >> $GITHUB_OUTPUT
+          echo "is-pr=true" >> $GITHUB_OUTPUT
+          echo "Found PR number: $PR_NUMBER"
+        else
+          echo "is-pr=false" >> $GITHUB_OUTPUT
+          echo "Not a PR event: ${{ github.event.workflow_run.event }}"
+        fi
+
+    - name: Download Test Artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: test-results-pr-${{ steps.workflow-info.outputs.pr-number }}
+        path: reports/
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        run-id: ${{ github.event.workflow_run.id }}
+      continue-on-error: true
+      if: steps.workflow-info.outputs.is-pr == 'true'
+
+    - name: Validate Test Results
+      id: validate-results
+      run: |
+        if [ -f "reports/combined-results.xml" ]; then
+          echo "results-exist=true" >> $GITHUB_OUTPUT
+          echo "✅ Test results found"
+        else
+          echo "results-exist=false" >> $GITHUB_OUTPUT
+          echo "❌ No test results found"
+        fi
+
+    - name: Publish Test Results Report
+      if: steps.validate-results.outputs.results-exist == 'true' && steps.workflow-info.outputs.is-pr == 'true'
+      uses: dorny/test-reporter@v1
+      with:
+        name: IsaacLab Test Results
+        path: reports/combined-results.xml
+        reporter: java-junit
+        fail-on-error: false
+        only-summary: false
+        max-annotations: '25'
+        report-title: "IsaacLab Test Results (PR #${{ steps.workflow-info.outputs.pr-number }})"
+
+    - name: Create Test Summary Comment
+      if: steps.validate-results.outputs.results-exist == 'true' && steps.workflow-info.outputs.is-pr == 'true'
+      uses: EnricoMi/publish-unit-test-result-action@v2
+      with:
+        files: "reports/combined-results.xml"
+        check_name: "Tests Summary"
+        comment_mode: changes
+        comment_title: "Test Results Summary (PR #${{ steps.workflow-info.outputs.pr-number }})"
+        report_individual_runs: false
+        deduplicate_classes_by_file_name: true
+        compare_to_earlier_commit: false
+        fail_on: errors
+        action_fail_on_inconclusive: true
+
+    - name: Monitor Failed Workflows
+      if: steps.workflow-info.outputs.is-pr == 'false' && github.event.workflow_run.conclusion == 'failure'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          console.log('Non-PR workflow failed:', '${{ github.event.workflow_run.html_url }}');
+          console.log('Branch:', '${{ github.event.workflow_run.head_branch }}');
+          console.log('Event:', '${{ github.event.workflow_run.event }}');
+
+          // Could add logic here to:
+          // - Create issues for failed main/devel builds
+          // - Send notifications
+          // - Generate reports for scheduled runs
+
+    - name: Handle Missing Test Results
+      if: steps.validate-results.outputs.results-exist == 'false' && steps.workflow-info.outputs.is-pr == 'true'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const prNumber = ${{ steps.workflow-info.outputs.pr-number }};
+          if (!prNumber) {
+            console.log('No PR number found, skipping comment');
+            return;
+          }
+
+          const { data: comments } = await github.rest.issues.listComments({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: prNumber
+          });
+
+          const botComment = comments.find(comment =>
+            comment.user.type === 'Bot' &&
+            comment.body.includes('Test Results Summary')
+          );
+
+          if (!botComment) {
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body: `## Test Results Summary (PR #${prNumber})
+
+              ⚠️ **No test results found**
+
+              The build completed, but no test results were uploaded as artifacts.
+
+              This could be due to:
+              - Tests not running in this PR
+              - Test results not being generated
+              - Artifact upload issues
+              - Workflow failure before test completion
+
+              Please check the original workflow run for more details: ${{ github.event.workflow_run.html_url }}`
+            });
+          }

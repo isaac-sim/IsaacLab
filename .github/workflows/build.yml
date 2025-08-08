@@ -155,36 +155,11 @@ jobs:
         tests-dir: "reports"
         output-file: "reports/combined-results.xml"
 
-    - name: Upload Combined Test Results
+    - name: Upload Test Results
       uses: actions/upload-artifact@v4
       if: always()
       with:
-        name: pr-${{ github.event.pull_request.number }}-combined-test-results
+        name: test-results-pr-${{ github.event.pull_request.number }}
         path: reports/combined-results.xml
         retention-days: 7
         compression-level: 9
-
-    - name: Comment on Test Results
-      id: test-reporter
-      uses: EnricoMi/publish-unit-test-result-action@v2
-      with:
-        files: "reports/combined-results.xml"
-        check_name: "Tests Summary"
-        comment_mode: changes
-        comment_title: "Test Results Summary"
-        report_individual_runs: false
-        deduplicate_classes_by_file_name: true
-        compare_to_earlier_commit: true
-        fail_on: errors
-        action_fail_on_inconclusive: true
-
-    - name: Report Test Results
-      uses: dorny/test-reporter@v1
-      with:
-        name: IsaacLab Build and Test Results
-        path: reports/combined-results.xml
-        reporter: java-junit
-        fail-on-error: true
-        only-summary: false
-        max-annotations: '50'
-        report-title: "IsaacLab Test Results - ${{ github.workflow }}"
