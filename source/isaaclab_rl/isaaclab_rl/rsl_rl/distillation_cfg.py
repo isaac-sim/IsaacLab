@@ -10,6 +10,8 @@ from typing import Literal
 
 from isaaclab.utils import configclass
 
+from .rl_cfg import RslRlBaseRunnerCfg
+
 #########################
 # Policy configurations #
 #########################
@@ -93,3 +95,22 @@ class RslRlDistillationAlgorithmCfg:
 
     loss_type: Literal["mse", "huber"] = "mse"
     """The loss type to use for the student policy."""
+
+
+#########################
+# Runner configurations #
+#########################
+
+
+@configclass
+class RslRlDistillationRunnerCfg(RslRlBaseRunnerCfg):
+    """Configuration of the runner for distillation algorithms."""
+
+    class_name: str = "DistillationRunner"
+    """The runner class name. Default is DistillationRunner."""
+
+    policy: RslRlDistillationStudentTeacherCfg = MISSING
+    """The policy configuration."""
+
+    algorithm: RslRlDistillationAlgorithmCfg = MISSING
+    """The algorithm configuration."""
