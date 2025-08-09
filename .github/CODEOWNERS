@@ -22,31 +22,31 @@
 /source/isaaclab/isaaclab/actuators @Mayankm96 @jtigue-bdai
 /source/isaaclab/isaaclab/app @hhansen-bdai @kellyguo11
 /source/isaaclab/isaaclab/assets @kellyguo11 @Mayankm96 @jtigue-bdai
-/source/isaaclab/isaaclab/assets/deformable_object @masoudmoghani
+/source/isaaclab/isaaclab/assets/deformable_object @masoudmoghani @ooctipus
 /source/isaaclab/isaaclab/controllers @Mayankm96
-/source/isaaclab/isaaclab/envs/manager_based_* @Mayankm96 @jtigue-bdai
+/source/isaaclab/isaaclab/envs/manager_based_* @Mayankm96 @jtigue-bdai @ooctipus
 /source/isaaclab/isaaclab/envs/direct_* @kellyguo11
-/source/isaaclab/isaaclab/envs/mdp @occtipus
+/source/isaaclab/isaaclab/envs/mdp @ooctipus
 /source/isaaclab/isaaclab/envs/mimic_* @peterd-NV
-/source/isaaclab/isaaclab/envs/ui @occtipus
+/source/isaaclab/isaaclab/envs/ui @ooctipus @ossamaAhmed
 /source/isaaclab/isaaclab/envs/utils @Toni-SM
-/source/isaaclab/isaaclab/managers @jtigue-bdai @Mayankm96
+/source/isaaclab/isaaclab/managers @jtigue-bdai @Mayankm96 @ooctipus
 /source/isaaclab/isaaclab/sensors/sensor_base* @pascal-roth
 /source/isaaclab/isaaclab/sensors/camera @kellyguo11 @pascal-roth
-/source/isaaclab/isaaclab/sensors/contact_sensor @jtigue-bdai
+/source/isaaclab/isaaclab/sensors/contact_sensor @jtigue-bdai @ooctipus
 /source/isaaclab/isaaclab/sensors/imu @jtigue-bdai @pascal-roth
 /source/isaaclab/isaaclab/sensors/ray_caster @pascal-roth
-/source/isaaclab/isaaclab/sensors/frame_transformer @jtigue-bdai  # added by RAI, maybe someone else wants to take over
-/source/isaaclab/isaaclab/sim/converters @Mayankm96 @jtigue-bdai
-/source/isaaclab/isaaclab/sim/schemas @Mayankm96 @jtigue-bdai
-/source/isaaclab/isaaclab/sim/spawners @Mayankm96 @jtigue-bdai
-/source/isaaclab/isaaclab/sim/simulation_* @matthewtrepte @ossamaAhmed
+/source/isaaclab/isaaclab/sensors/frame_transformer @jtigue-bdai
+/source/isaaclab/isaaclab/sim/converters @Mayankm96 @jtigue-bdai @kellyguo11
+/source/isaaclab/isaaclab/sim/schemas @Mayankm96 @jtigue-bdai @kellyguo11
+/source/isaaclab/isaaclab/sim/spawners @Mayankm96 @jtigue-bdai @ooctipus
+/source/isaaclab/isaaclab/sim/simulation_* @matthewtrepte @ossamaAhmed @kellyguo11
 /source/isaaclab/isaaclab/terrains @Mayankm96
 /source/isaaclab/isaaclab/ui @pascal-roth @jtigue-bdai
-/source/isaaclab/isaaclab/utils/buffers @occtipus
-/source/isaaclab/isaaclab/utils/datasets @occtipus
+/source/isaaclab/isaaclab/utils/buffers @ooctipus @jtigue-bdai
+/source/isaaclab/isaaclab/utils/datasets @Peter-NV
 /source/isaaclab/isaaclab/utils/interpolation @jtigue-bdai
-/source/isaaclab/isaaclab/utils/io @occtipus
+/source/isaaclab/isaaclab/utils/io @ooctipus
 /source/isaaclab/isaaclab/utils/modifiers @jtigue-bdai
 /source/isaaclab/isaaclab/utils/noise @jtigue-bdai @kellyguo11
 /source/isaaclab/isaaclab/utils/warp @pascal-roth
@@ -73,12 +73,11 @@
 /source/isaaclab_rl/isaaclab_rl/skrl @Toni-SM
 
 # Standalone Scripts
-/scripts/benchmarks/ @occtipus
-/scripts/demos/ @occtipus
-/scripts/environments/ @occtipus
+/scripts/benchmarks/ @ooctipus @kellyguo11
+/scripts/demos/ @ooctipus
+/scripts/environments/ @ooctipus
 /scripts/imitation_learning/ @Peter-NV
-/scripts/reinforcement_learning/ @occtipus @Toni-NV
-/scripts/imitation_learning/ @Peter-NV
+/scripts/reinforcement_learning/ @ooctipus @Toni-NV
 /scripts/tools/ @jtigue-bdai @Mayankm96
 /scripts/tutorials/ @jtigue-bdai @pascal-roth
 
