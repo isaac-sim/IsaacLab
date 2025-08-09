@@ -1,0 +1,41 @@
+##
+# Adapted from: apps/isaaclab.python.xr.openxr.kit
+##
+
+[package]
+title = "Isaac Lab Python OpenXR Headless"
+description = "An app for running Isaac Lab with OpenXR in headless mode"
+version = "2.2.0"
+
+# That makes it browsable in UI with "experience" filter
+keywords = ["experience", "app", "usd", "headless"]
+
+[settings]
+# Note: This path was adapted to be respective to the kit-exe file location
+app.versionFile = "${exe-path}/VERSION"
+app.folder = "${exe-path}/"
+app.name = "Isaac-Sim"
+app.version = "4.5.0"
+
+[dependencies]
+"isaaclab.python.xr.openxr" = {}
+
+[settings]
+xr.profile.ar.enabled = true
+
+# Register extension folder from this repo in kit
+[settings.app.exts]
+folders = [
+    "${exe-path}/exts",  # kit extensions
+    "${exe-path}/extscore",  # kit core extensions
+    "${exe-path}/../exts",  # isaac extensions
+    "${exe-path}/../extsDeprecated",  # deprecated isaac extensions
+    "${exe-path}/../extscache",  # isaac cache extensions
+    "${exe-path}/../extsPhysics",  # isaac physics extensions
+    "${exe-path}/../isaacsim/exts",  # isaac extensions for pip
+    "${exe-path}/../isaacsim/extsDeprecated",  # deprecated isaac extensions
+    "${exe-path}/../isaacsim/extscache",  # isaac cache extensions for pip
+    "${exe-path}/../isaacsim/extsPhysics",  # isaac physics extensions for pip
+    "${app}", # needed to find other app files
+    "${app}/../../source", # needed to find extensions in Isaac Lab
+]

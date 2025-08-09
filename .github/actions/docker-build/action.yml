@@ -1,0 +1,78 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+name: 'Build Docker Image'
+description: 'Builds a Docker image with IsaacSim and IsaacLab dependencies'
+
+inputs:
+  image-tag:
+    description: 'Docker image tag to use'
+    required: true
+  isaacsim-base-image:
+    description: 'IsaacSim base image'
+    required: true
+  isaacsim-version:
+    description: 'IsaacSim version'
+    required: true
+  dockerfile-path:
+    description: 'Path to Dockerfile'
+    default: 'docker/Dockerfile.base'
+    required: false
+  context-path:
+    description: 'Build context path'
+    default: '.'
+    required: false
+
+runs:
+  using: composite
+  steps:
+    - name: NGC Login
+      shell: sh
+      run: |
+        # Only attempt NGC login if API key is available
+        if [ -n "${{ env.NGC_API_KEY }}" ]; then
+          echo "Logging into NGC registry..."
+          docker login -u \$oauthtoken -p ${{ env.NGC_API_KEY }} nvcr.io
+          echo "✅ Successfully logged into NGC registry"
+        else
+          echo "⚠️ NGC_API_KEY not available - skipping NGC login"
+          echo "This is normal for PRs from forks or when secrets are not configured"
+        fi
+
+    - name: Build Docker Image
+      shell: sh
+      run: |
+        # Function to build Docker image
+        build_docker_image() {
+          local image_tag="$1"
+          local isaacsim_base_image="$2"
+          local isaacsim_version="$3"
+          local dockerfile_path="$4"
+          local context_path="$5"
+
+          echo "Building Docker image: $image_tag"
+          echo "Using Dockerfile: $dockerfile_path"
+          echo "Build context: $context_path"
+
+          # Build Docker image
+          docker buildx build --progress=plain --platform linux/amd64 \
+            -t isaac-lab-dev \
+            -t $image_tag \
+            --build-arg ISAACSIM_BASE_IMAGE_ARG="$isaacsim_base_image" \
+            --build-arg ISAACSIM_VERSION_ARG="$isaacsim_version" \
+            --build-arg ISAACSIM_ROOT_PATH_ARG=/isaac-sim \
+            --build-arg ISAACLAB_PATH_ARG=/workspace/isaaclab \
+            --build-arg DOCKER_USER_HOME_ARG=/root \
+            --cache-from type=gha \
+            --cache-to type=gha,mode=max \
+            -f $dockerfile_path \
+            --load $context_path
+
+          echo "✅ Docker image built successfully: $image_tag"
+          docker images | grep isaac-lab-dev
+        }
+
+        # Call the function with provided parameters
+        build_docker_image "${{ inputs.image-tag }}" "${{ inputs.isaacsim-base-image }}" "${{ inputs.isaacsim-version }}" "${{ inputs.dockerfile-path }}" "${{ inputs.context-path }}"
