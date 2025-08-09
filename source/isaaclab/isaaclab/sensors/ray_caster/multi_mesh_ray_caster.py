@@ -1,7 +1,8 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
+
 
 from __future__ import annotations
 
@@ -13,13 +14,13 @@ from typing import TYPE_CHECKING
 import omni.log
 import omni.physics.tensors.impl.api as physx
 import warp as wp
-from omni.isaac.core.prims import XFormPrimView
+from isaacsim.core.prims import XFormPrim
 from pxr import UsdPhysics
 
-import omni.isaac.lab.sim as sim_utils
-from omni.isaac.lab.utils.math import quat_apply, quat_apply_yaw
-from omni.isaac.lab.utils.mesh import PRIMITIVE_MESH_TYPES, create_mesh_from_geom_shape, create_trimesh_from_geom_mesh
-from omni.isaac.lab.utils.warp import convert_to_warp_mesh, raycast_dynamic_meshes
+import isaaclab.sim as sim_utils
+from isaaclab.utils.math import quat_apply, quat_apply_yaw
+from isaaclab.utils.mesh import PRIMITIVE_MESH_TYPES, create_mesh_from_geom_shape, create_trimesh_from_geom_mesh
+from isaaclab.utils.warp import convert_to_warp_mesh, raycast_dynamic_meshes
 
 from ..utils import compute_world_poses
 from .ray_caster import RayCaster
@@ -67,7 +68,7 @@ class MultiMeshRayCaster(RayCaster):
                 self._raycast_targets_cfg.append(target)
 
         # store the views of the meshes available for raycasting to allow movement tracking
-        self.mesh_views: dict[str, physx.RigidBodyView | physx.ArticulationView | XFormPrimView] = {}
+        self.mesh_views: dict[str, physx.RigidBodyView | physx.ArticulationView | XFormPrim] = {}
         # store the warp meshes available for raycasting
         self.meshes: dict[str, list[list[wp.Mesh]]] = {}
 
@@ -179,10 +180,10 @@ class MultiMeshRayCaster(RayCaster):
                     )
                     omni.log.info(f"Created rigid body view for mesh prim at path: {mesh_prim_path}")
                 else:
-                    self.mesh_views[mesh_prim_path] = XFormPrimView(mesh_prim_path, reset_xform_properties=False)
+                    self.mesh_views[mesh_prim_path] = XFormPrim(mesh_prim_path, reset_xform_properties=False)
                     omni.log.warn(
                         f"The prim at path {mesh_prim_path} is not a physics prim, but track_mesh_transforms is"
-                        " enabled! Defaulting to XFormPrimView. \n The pose of the mesh will most likely not"
+                        " enabled! Defaulting to XFormPrim. \n The pose of the mesh will most likely not"
                         " be updated correctly when running in headless mode."
                     )
 

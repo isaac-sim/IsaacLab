@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # Copyright (c) 2022-2024, The Isaac Lab Project Developers.
 # All rights reserved.
 #
@@ -9,7 +14,6 @@ import torch
 
 import omni.physics.tensors.impl.api as physx
 from omni.isaac.core.prims import XFormPrimView
-
 from omni.isaac.lab.utils.math import convert_quat
 
 

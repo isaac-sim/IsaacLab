@@ -1,14 +1,15 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
+
 
 """Configuration for the ray-cast sensor."""
 
 
 from dataclasses import MISSING
 
-from omni.isaac.lab.utils import configclass
+from isaaclab.utils import configclass
 
 from .multi_mesh_ray_caster import MultiMeshRayCaster
 from .ray_caster_cfg import RayCasterCfg

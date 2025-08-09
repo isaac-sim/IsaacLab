@@ -23,8 +23,7 @@ import isaaclab.utils.math as math_utils
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.terrains.trimesh.utils import make_plane
 from isaaclab.utils.math import convert_quat, quat_apply, quat_apply_yaw
-from isaaclab.utils.mesh import PRIMITIVE_MESH_TYPES, create_mesh_from_geom_shape, create_trimesh_from_geom_mesh
-from isaaclab.utils.warp import convert_to_warp_mesh, raycast_dynamic_meshes
+from isaaclab.utils.warp import convert_to_warp_mesh, raycast_mesh
 
 from ..sensor_base import SensorBase
 from .ray_caster_data import RayCasterData
@@ -51,14 +50,6 @@ class RayCaster(SensorBase):
 
     cfg: RayCasterCfg
     """The configuration parameters."""
-    meshes: ClassVar[dict[str, wp.Mesh]] = {}
-    """The warp meshes available for raycasting.
-
-    The keys correspond to the prim path for the meshes, and values are the corresponding warp Mesh objects.
-
-    Note:
-           We store a global dictionary of all warp meshes to prevent re-loading the mesh for different ray-cast sensor instances.
-    """
 
     def __init__(self, cfg: RayCasterCfg):
         """Initializes the ray-caster object.
@@ -80,6 +71,8 @@ class RayCaster(SensorBase):
         super().__init__(cfg)
         # Create empty variables for storing output data
         self._data = RayCasterData()
+        # the warp meshes used for raycasting.
+        self.meshes: dict[str, wp.Mesh] = {}
 
     def __str__(self) -> str:
         """Returns: A string containing information about the instance."""
@@ -87,7 +80,7 @@ class RayCaster(SensorBase):
             f"Ray-caster @ '{self.cfg.prim_path}': \n"
             f"\tview type            : {self._view.__class__}\n"
             f"\tupdate period (s)    : {self.cfg.update_period}\n"
-            f"\tnumber of meshes     : {len(RayCaster.meshes)}\n"
+            f"\tnumber of meshes     : {len(self.meshes)}\n"
             f"\tnumber of sensors    : {self._view.count}\n"
             f"\tnumber of rays/sensor: {self.num_rays}\n"
             f"\ttotal number of rays : {self.num_rays * self._view.count}"
@@ -156,7 +149,10 @@ class RayCaster(SensorBase):
         else:
             self._view = XFormPrim(self.cfg.prim_path, reset_xform_properties=False)
             found_supported_prim_class = True
-            omni.log.warn(f"The prim at path {prim.GetPath().pathString} is not a physics prim! Using XFormPrim.")
+            omni.log.warn(
+                f"The prim at path {prim.GetPath().pathString} is not a physics prim. Defaulting to XFormPrim. \n"
+                " The pose of this prim will most likely not be updated correctly when running in headless mode."
+            )
         # check if prim view class is found
         if not found_supported_prim_class:
             raise RuntimeError(f"Failed to find a valid prim view class for the prim paths: {self.cfg.prim_path}")
@@ -175,10 +171,6 @@ class RayCaster(SensorBase):
 
         # read prims to ray-cast
         for mesh_prim_path in self.cfg.mesh_prim_paths:
-            # check if mesh already casted into warp mesh
-            if mesh_prim_path in RayCaster.meshes:
-                continue
-
             # check if the prim is a plane - handle PhysX plane as a special case
             # if a plane exists then we need to create an infinite mesh that is a plane
             mesh_prim = sim_utils.get_first_matching_child_prim(
@@ -197,6 +189,9 @@ class RayCaster(SensorBase):
                 mesh_prim = UsdGeom.Mesh(mesh_prim)
                 # read the vertices and faces
                 points = np.asarray(mesh_prim.GetPointsAttr().Get())
+                transform_matrix = np.array(omni.usd.get_world_transform_matrix(mesh_prim)).T
+                points = np.matmul(points, transform_matrix[:3, :3].T)
+                points += transform_matrix[:3, 3]
                 indices = np.asarray(mesh_prim.GetFaceVertexIndicesAttr().Get())
                 wp_mesh = convert_to_warp_mesh(points, indices, device=self.device)
                 # print info
@@ -209,10 +204,10 @@ class RayCaster(SensorBase):
                 # print info
                 omni.log.info(f"Created infinite plane mesh prim: {mesh_prim.GetPath()}.")
             # add the warp mesh to the list
-            RayCaster.meshes[mesh_prim_path] = wp_mesh
+            self.meshes[mesh_prim_path] = wp_mesh
 
         # throw an error if no meshes are found
-        if all([mesh_prim_path not in RayCaster.meshes for mesh_prim_path in self.cfg.mesh_prim_paths]):
+        if all([mesh_prim_path not in self.meshes for mesh_prim_path in self.cfg.mesh_prim_paths]):
             raise RuntimeError(
                 f"No meshes found for ray-casting! Please check the mesh prim paths: {self.cfg.mesh_prim_paths}"
             )
@@ -240,7 +235,7 @@ class RayCaster(SensorBase):
     def _update_buffers_impl(self, env_ids: Sequence[int]):
         """Fills the buffers of the sensor data."""
         # obtain the poses of the sensors
-        if isinstance(self._view, XFormPrimView):
+        if isinstance(self._view, XFormPrim):
             pos_w, quat_w = self._view.get_world_poses(env_ids)
         elif isinstance(self._view, physx.ArticulationView):
             pos_w, quat_w = self._view.get_root_transforms()[env_ids].split([3, 4], dim=-1)
@@ -296,13 +291,16 @@ class RayCaster(SensorBase):
             ray_starts_w = quat_apply(quat_w.repeat(1, self.num_rays), self.ray_starts[env_ids])
             ray_starts_w += pos_w.unsqueeze(1)
             ray_directions_w = quat_apply(quat_w.repeat(1, self.num_rays), self.ray_directions[env_ids])
+        else:
+            raise RuntimeError(f"Unsupported ray_alignment type: {self.cfg.ray_alignment}.")
+
         # ray cast and store the hits
         # TODO: Make this work for multiple meshes?
         self._data.ray_hits_w[env_ids] = raycast_mesh(
             ray_starts_w,
             ray_directions_w,
             max_dist=self.cfg.max_distance,
-            mesh=RayCaster.meshes[self.cfg.mesh_prim_paths[0]],
+            mesh=self.meshes[self.cfg.mesh_prim_paths[0]],
         )[0]
 
         # apply vertical drift to ray starting position in ray caster frame

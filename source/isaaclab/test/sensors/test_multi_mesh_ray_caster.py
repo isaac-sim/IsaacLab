@@ -1,7 +1,8 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
+
 
 from __future__ import annotations
 
@@ -16,7 +17,6 @@ import trimesh
 import unittest
 
 import warp as wp
-
 from omni.isaac.lab.utils.math import matrix_from_quat, quat_from_euler_xyz, random_orientation
 from omni.isaac.lab.utils.warp.ops import convert_to_warp_mesh, raycast_dynamic_meshes, raycast_single_mesh
 

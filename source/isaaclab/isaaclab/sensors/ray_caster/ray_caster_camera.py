@@ -15,8 +15,7 @@ from isaacsim.core.prims import XFormPrim
 
 import isaaclab.utils.math as math_utils
 from isaaclab.sensors.camera import CameraData
-from omni.isaac.lab.sensors.camera.utils import convert_orientation_convention, create_rotation_matrix_from_view
-from omni.isaac.lab.utils.warp import raycast_mesh
+from isaaclab.utils.warp import raycast_mesh
 
 from .ray_caster import RayCaster
 
@@ -281,7 +280,7 @@ class RayCasterCamera(RayCaster):
         self.ray_hits_w, ray_depth, ray_normal, _ = raycast_mesh(
             ray_starts_w,
             ray_directions_w,
-            mesh=RayCasterCamera.meshes[self.cfg.mesh_prim_paths[0]],
+            mesh=self.meshes[self.cfg.mesh_prim_paths[0]],
             max_dist=1e6,
             return_distance=any(
                 [name in self.cfg.data_types for name in ["distance_to_image_plane", "distance_to_camera"]]

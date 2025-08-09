@@ -1,7 +1,8 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
+
 
 from __future__ import annotations
 
@@ -9,9 +10,9 @@ import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-import omni.isaac.lab.utils.math as math_utils
-from omni.isaac.lab.sensors.camera import CameraData
-from omni.isaac.lab.utils.warp import raycast_dynamic_meshes
+import isaaclab.utils.math as math_utils
+from isaaclab.sensors.camera import CameraData
+from isaaclab.utils.warp import raycast_dynamic_meshes
 
 from ..utils import compute_world_poses
 from .multi_mesh_ray_caster import MultiMeshRayCaster
@@ -26,7 +27,7 @@ class MultiMeshRayCasterCamera(RayCasterCamera, MultiMeshRayCaster):
 
     The ray-caster camera uses a set of rays to get the distances to meshes in the scene. The rays are
     defined in the sensor's local coordinate frame. The sensor has the same interface as the
-    :class:`omni.isaac.lab.sensors.Camera` that implements the camera class through USD camera prims.
+    :class:`isaaclab.sensors.Camera` that implements the camera class through USD camera prims.
     However, this class provides a faster image generation. The sensor converts meshes from the list of
     primitive paths provided in the configuration to Warp meshes. The camera then ray-casts against these
     Warp meshes only.

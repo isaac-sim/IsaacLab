@@ -1,7 +1,8 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
+
 
 """
 This script shows how to use the ray caster from the Isaac Lab framework.
@@ -44,13 +45,12 @@ import random
 import torch
 
 import omni.isaac.core.utils.prims as prim_utils
+import omni.isaac.lab.sim as sim_utils
+import omni.isaac.lab.terrains as terrain_gen
 from omni.isaac.cloner import GridCloner
 from omni.isaac.core.prims import RigidPrimView
 from omni.isaac.core.simulation_context import SimulationContext
 from omni.isaac.core.utils.viewports import set_camera_view
-
-import omni.isaac.lab.sim as sim_utils
-import omni.isaac.lab.terrains as terrain_gen
 from omni.isaac.lab.sensors.ray_caster import MultiMeshRayCaster, MultiMeshRayCasterCfg, patterns
 from omni.isaac.lab.terrains.config.rough import ROUGH_TERRAINS_CFG
 from omni.isaac.lab.terrains.terrain_importer import TerrainImporter

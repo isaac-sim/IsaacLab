@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -24,10 +24,8 @@ import unittest
 
 import omni.isaac.core.utils.prims as prim_utils
 import omni.isaac.core.utils.stage as stage_utils
-import omni.replicator.core as rep
-from pxr import Gf
-
 import omni.isaac.lab.sim as sim_utils
+import omni.replicator.core as rep
 from omni.isaac.lab.sensors.camera import Camera, CameraCfg
 from omni.isaac.lab.sensors.ray_caster import MultiMeshRayCasterCamera, MultiMeshRayCasterCameraCfg, patterns
 from omni.isaac.lab.sim import PinholeCameraCfg
@@ -35,6 +33,7 @@ from omni.isaac.lab.terrains.trimesh.utils import make_plane
 from omni.isaac.lab.terrains.utils import create_prim_from_mesh
 from omni.isaac.lab.utils import convert_dict_to_backend
 from omni.isaac.lab.utils.timer import Timer
+from pxr import Gf
 
 # sample camera poses
 POSITION = [2.5, 2.5, 2.5]
