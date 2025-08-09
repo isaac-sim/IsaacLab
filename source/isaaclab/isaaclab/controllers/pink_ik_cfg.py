@@ -26,8 +26,15 @@ class PinkIKControllerCfg:
     """Path to the mesh files associated with the robot. These files are also loaded by Pinocchio's `robot_wrapper.BuildFromURDF`."""
 
     num_hand_joints: int = 0
-    """The number of hand joints in the robot. The action space for the controller contains the pose_dim(7)*num_controlled_frames + num_hand_joints.
-    The last num_hand_joints values of the action are the hand joint angles."""
+    """The number of hand joints in the robot. The action space for the controller contains pose_dim*num_controlled_frames + num_hand_joints.
+    Where pose_dim is 6 in relative mode or 7 in absolute mode. The last num_hand_joints values of the action are the hand joint angles."""
+
+    use_relative_mode: bool = False
+    """Whether to use relative mode for the controller. Defaults to False.
+
+    If True, then the controller treats the input command as a delta change in the position/pose.
+    Otherwise, the controller treats the input command as the absolute position/pose.
+    """
 
     variable_input_tasks: list[FrameTask] = MISSING
     """
