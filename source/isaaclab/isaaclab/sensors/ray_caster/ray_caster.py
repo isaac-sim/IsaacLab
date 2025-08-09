@@ -14,7 +14,6 @@ from typing import TYPE_CHECKING
 import omni.log
 import omni.physics.tensors.impl.api as physx
 import warp as wp
-<<<<<<< HEAD:source/isaaclab/isaaclab/sensors/ray_caster/ray_caster.py
 from isaacsim.core.prims import XFormPrim
 from isaacsim.core.simulation_manager import SimulationManager
 from pxr import UsdGeom, UsdPhysics
@@ -26,16 +25,6 @@ from isaaclab.terrains.trimesh.utils import make_plane
 from isaaclab.utils.math import convert_quat, quat_apply, quat_apply_yaw
 from isaaclab.utils.mesh import PRIMITIVE_MESH_TYPES, create_mesh_from_geom_shape, create_trimesh_from_geom_mesh
 from isaaclab.utils.warp import convert_to_warp_mesh, raycast_dynamic_meshes
-=======
-from omni.isaac.core.prims import XFormPrimView
-from pxr import UsdGeom, UsdPhysics
-
-import omni.isaac.lab.sim as sim_utils
-from omni.isaac.lab.markers import VisualizationMarkers
-from omni.isaac.lab.terrains.trimesh.utils import make_plane
-from omni.isaac.lab.utils.math import convert_quat, quat_apply, quat_apply_yaw
-from omni.isaac.lab.utils.warp import convert_to_warp_mesh, raycast_mesh
->>>>>>> 99d12115a3 (Separates our multi-mesh raycaster as its own file (#63)):source/extensions/omni.isaac.lab/omni/isaac/lab/sensors/ray_caster/ray_caster.py
 
 from ..sensor_base import SensorBase
 from .ray_caster_data import RayCasterData
@@ -133,7 +122,6 @@ class RayCaster(SensorBase):
         else:
             num_envs_ids = len(env_ids)
         # resample the drift
-<<<<<<< HEAD:source/isaaclab/isaaclab/sensors/ray_caster/ray_caster.py
         r = torch.empty(num_envs_ids, 3, device=self.device)
         self.drift[env_ids] = r.uniform_(*self.cfg.drift_range)
         # resample the height drift
@@ -142,9 +130,6 @@ class RayCaster(SensorBase):
         self.ray_cast_drift[env_ids] = math_utils.sample_uniform(
             ranges[:, 0], ranges[:, 1], (num_envs_ids, 3), device=self.device
         )
-=======
-        self.drift[env_ids].uniform_(*self.cfg.drift_range)
->>>>>>> 99d12115a3 (Separates our multi-mesh raycaster as its own file (#63)):source/extensions/omni.isaac.lab/omni/isaac/lab/sensors/ray_caster/ray_caster.py
 
     """
     Implementation.
