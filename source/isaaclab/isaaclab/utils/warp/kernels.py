@@ -76,6 +76,78 @@ def raycast_mesh_kernel(
 
 
 @wp.kernel(enable_backward=False)
+def multi_mesh_raycast_kernel(
+    env_offsets: wp.array(dtype=wp.int32),
+    mesh_ids: wp.array(dtype=wp.uint64),
+    ray_starts: wp.array(dtype=wp.vec3),
+    ray_directions: wp.array(dtype=wp.vec3),
+    out_hits: wp.array(dtype=wp.vec3),
+    out_distance: wp.array(dtype=wp.float32),
+    out_normal: wp.array(dtype=wp.vec3),
+    rays_per_env: int,
+    max_dist: float = 1e6,
+    return_distance: int = False,
+    return_normal: int = False,
+):
+    """
+    Performs batched ray-casting against multiple meshes across environments.
+
+    This kernel processes a batch of rays, where each ray is cast against all meshes within its associated
+    environment. Meshes are grouped by environment using the provided environment offsets and sorted mesh IDs.
+    For each ray, the kernel iterates through the relevant meshes to determine the closest intersection. If an
+    intersection is found within the maximum distance, the corresponding hit data (position, and optionally,
+    distance and surface normal) is recorded. If no intersection occurs, the ray hit position is computed as
+    ray_start + max_dist * ray_direction.
+
+    Args:
+        env_offsets (wp.array(dtype=wp.int32)): Offsets for each environment. This array has size (num_envs + 1)
+            and delineates the start and end indices in the sorted `mesh_ids` array for each environment.
+        mesh_ids (wp.array(dtype=wp.uint64)): Sorted warp mesh IDs corresponding to the meshes in each environment.
+        ray_starts (wp.array(dtype=wp.vec3)): Flattened array of ray start positions. Shape is (N, 3),
+            where N is the total number of rays.
+        ray_directions (wp.array(dtype=wp.vec3)): Flattened array of normalized ray direction vectors. Shape is (N, 3).
+        out_hits (wp.array(dtype=wp.vec3)): Output array for storing computed ray hit positions. Shape is (N, 3).
+        out_distance (wp.array(dtype=wp.float32)): Output array for storing the distance from the ray start to the hit point.
+            Shape is (N,). This array is used only if `return_distance` is set to True.
+        out_normal (wp.array(dtype=wp.vec3)): Output array for storing surface normals at the hit point.
+            Shape is (N, 3). This array is used only if `return_normal` is set to True.
+        rays_per_env (int): The number of rays to be processed per environment.
+        max_dist (float): The maximum distance to search for ray intersections. Defaults to 1e6.
+        return_distance (int): Flag indicating whether to output the hit distance in `out_distance`. Defaults to False.
+        return_normal (int): Flag indicating whether to output the surface normal at the hit point in `out_normal`. Defaults to False.
+    """
+    tid = wp.tid()
+    env = tid // rays_per_env
+    best_distance = max_dist
+    best_hit = ray_starts[tid] + max_dist * ray_directions[tid]
+    best_normal = wp.vec3(0.0, 0.0, 0.0)
+
+    # get the range of mesh indices for this environment
+    start_idx = env_offsets[env]
+    end_idx = env_offsets[env + 1]
+
+    for i in range(start_idx, end_idx):
+        mesh_id = mesh_ids[i]
+        t = float(0.0)  # hit distance along ray
+        u = float(0.0)  # hit face barycentric u
+        v = float(0.0)  # hit face barycentric v
+        sign = float(0.0)  # hit face sign
+        n = wp.vec3(0.0, 0.0, 0.0)  # hit face normal
+        f = int(0)  # hit face index
+        hit_success = wp.mesh_query_ray(mesh_id, ray_starts[tid], ray_directions[tid], max_dist, t, u, v, sign, n, f)
+        if hit_success and (t < best_distance):
+            best_distance = t
+            best_hit = ray_starts[tid] + t * ray_directions[tid]
+            best_normal = n
+
+    out_hits[tid] = best_hit
+    if return_distance == 1:
+        out_distance[tid] = best_distance
+    if return_normal == 1:
+        out_normal[tid] = best_normal
+
+
+@wp.kernel(enable_backward=False)
 def reshape_tiled_image(
     tiled_image_buffer: Any,
     batched_image: Any,

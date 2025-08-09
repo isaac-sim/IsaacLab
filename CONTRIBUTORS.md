@@ -118,6 +118,7 @@ Guidelines for modifications:
 * Shundo Kishi
 * Stefan Van de Mosselaer
 * Stephan Pleines
+* Tim Kobiolka
 * Tyler Lum
 * Victor Khaustov
 * Virgilio Gómez Lambo
