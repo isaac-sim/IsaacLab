@@ -105,15 +105,33 @@ class PinkInverseKinematicsAction(ActionTerm):
         return 4
 
     @property
+    def relative_orientation_dim(self) -> int:
+        """Dimension for relative orientation (droll, dpitch, dyaw)."""
+        return 3
+
+    @property
     def pose_dim(self) -> int:
-        """Total pose dimension (position + orientation)."""
-        return self.position_dim + self.orientation_dim
+        """Total pose dimension (position + orientation).
+        
+        Returns:
+            Always 7 dimensions: (x, y, z, qw, qx, qy, qz)
+        """
+        return self.position_dim + self.orientation_dim  # (x, y, z, qw, qx, qy, qz)
 
     @property
     def action_dim(self) -> int:
-        """Dimension of the action space (based on number of tasks and pose dimension)."""
+        """Dimension of the action space (based on number of tasks and mode).
+        
+        Returns:
+            Total action space dimension = (num_tasks * task_dim) + hand_joint_dim
+            Where task_dim is 6 for relative mode (dx, dy, dz, droll, dpitch, dyaw) or 7 for absolute mode (x, y, z, qw, qx, qy, qz).
+        """
         # The tasks for all the controllers are the same, hence just using the first one to calculate the action_dim
-        return len(self._ik_controllers[0].cfg.variable_input_tasks) * self.pose_dim + self.hand_joint_dim
+        if self.cfg.controller.use_relative_mode:
+            task_dim = self.position_dim + self.relative_orientation_dim  # 6 dimensions
+        else:
+            task_dim = self.pose_dim  # 7 dimensions
+        return len(self._ik_controllers[0].cfg.variable_input_tasks) * task_dim + self.hand_joint_dim
 
     @property
     def raw_actions(self) -> torch.Tensor:
@@ -137,51 +155,86 @@ class PinkInverseKinematicsAction(ActionTerm):
         """
         # Store the raw actions
         self._raw_actions[:] = actions
-        self._processed_actions[:] = self.raw_actions
+        self._processed_actions = self.raw_actions
 
         # Make a copy of actions before modifying so that raw actions are not modified
         actions_clone = actions.clone()
 
-        # Extract hand joint positions (last 22 values)
-        self._target_hand_joint_positions = actions_clone[:, -self.hand_joint_dim :]
+        # Extract hand joint positions (last values)
+        if self.hand_joint_dim > 0:
+            self._target_hand_joint_positions = actions_clone[:, -self.hand_joint_dim :]
+        else:
+            self._target_hand_joint_positions = torch.empty(self.num_envs, 0, device=self.device, dtype=actions.dtype)
 
-        # The action tensor provides the desired pose of the controlled_frame with respect to the env origin frame
-        # But the pink IK controller expects the desired pose of the controlled_frame with respect to the base_link_frame
-        # So we need to transform the desired pose of the controlled_frame to be with respect to the base_link_frame
+        if self.cfg.controller.use_relative_mode:
+            # In relative mode, actions represent delta changes (dx, dy, dz, droll, dpitch, dyaw)
+            # Apply these deltas to the current target poses
+            task_dim = self.position_dim + self.relative_orientation_dim  # 6 dimensions
+            for env_index, ik_controller in enumerate(self._ik_controllers):
+                for task_index, task in enumerate(ik_controller.cfg.variable_input_tasks):
+                    # Extract delta values for this task from actions
+                    delta_pos = actions_clone[
+                        env_index, task_index * task_dim : task_index * task_dim + self.position_dim
+                    ]
+                    delta_rot = actions_clone[
+                        env_index, task_index * task_dim + self.position_dim : (task_index + 1) * task_dim
+                    ]
+                    
+                    # Get current target pose
+                    current_target = task.transform_target_to_world
+                    current_pos = torch.tensor(current_target.translation, device=self.device, dtype=actions.dtype)
+                    current_rot_mat = torch.tensor(current_target.rotation, device=self.device, dtype=actions.dtype)
+                    
+                    # Apply position delta
+                    new_pos = current_pos + delta_pos.cpu()
+                    
+                    # Apply rotation delta (convert euler angles to rotation matrix and combine)
+                    delta_rot_mat = math_utils.matrix_from_euler(delta_rot, "XYZ")
+                    new_rot_mat = torch.matmul(current_rot_mat, delta_rot_mat.cpu())
+                    
+                    # Set the updated target
+                    current_target.translation = new_pos.numpy()
+                    current_target.rotation = new_rot_mat.numpy()
+                    task.set_target(current_target)
+        else:
+            # Absolute mode - existing logic
+            # The action tensor provides the desired pose of the controlled_frame with respect to the env origin frame
+            # But the pink IK controller expects the desired pose of the controlled_frame with respect to the base_link_frame
+            # So we need to transform the desired pose of the controlled_frame to be with respect to the base_link_frame
 
-        # Get the controlled_frame pose wrt to the env origin frame
-        all_controlled_frames_in_env_origin = []
-        # The contrllers for all envs are the same, hence just using the first one to get the number of variable_input_tasks
-        for task_index in range(len(self._ik_controllers[0].cfg.variable_input_tasks)):
-            controlled_frame_in_env_origin_pos = actions_clone[
-                :, task_index * self.pose_dim : task_index * self.pose_dim + self.position_dim
-            ]
-            controlled_frame_in_env_origin_quat = actions_clone[
-                :, task_index * self.pose_dim + self.position_dim : (task_index + 1) * self.pose_dim
-            ]
-            controlled_frame_in_env_origin = math_utils.make_pose(
-                controlled_frame_in_env_origin_pos, math_utils.matrix_from_quat(controlled_frame_in_env_origin_quat)
+            # Get the controlled_frame pose wrt to the env origin frame
+            all_controlled_frames_in_env_origin = []
+            # The contrllers for all envs are the same, hence just using the first one to get the number of variable_input_tasks
+            for task_index in range(len(self._ik_controllers[0].cfg.variable_input_tasks)):
+                controlled_frame_in_env_origin_pos = actions_clone[
+                    :, task_index * self.pose_dim : task_index * self.pose_dim + self.position_dim
+                ]
+                controlled_frame_in_env_origin_quat = actions_clone[
+                    :, task_index * self.pose_dim + self.position_dim : (task_index + 1) * self.pose_dim
+                ]
+                controlled_frame_in_env_origin = math_utils.make_pose(
+                    controlled_frame_in_env_origin_pos, math_utils.matrix_from_quat(controlled_frame_in_env_origin_quat)
+                )
+                all_controlled_frames_in_env_origin.append(controlled_frame_in_env_origin)
+            # Stack all the controlled_frame poses in the env origin frame. Shape is (num_tasks, num_envs , 4, 4)
+            all_controlled_frames_in_env_origin = torch.stack(all_controlled_frames_in_env_origin)
+
+            # Transform the controlled_frame to be with respect to the base_link_frame using batched matrix multiplication
+            controlled_frame_in_base_link_frame = math_utils.pose_in_A_to_pose_in_B(
+                all_controlled_frames_in_env_origin, math_utils.pose_inv(self.base_link_frame_in_env_origin)
             )
-            all_controlled_frames_in_env_origin.append(controlled_frame_in_env_origin)
-        # Stack all the controlled_frame poses in the env origin frame. Shape is (num_tasks, num_envs , 4, 4)
-        all_controlled_frames_in_env_origin = torch.stack(all_controlled_frames_in_env_origin)
 
-        # Transform the controlled_frame to be with respect to the base_link_frame using batched matrix multiplication
-        controlled_frame_in_base_link_frame = math_utils.pose_in_A_to_pose_in_B(
-            all_controlled_frames_in_env_origin, math_utils.pose_inv(self.base_link_frame_in_env_origin)
-        )
+            controlled_frame_in_base_link_frame_pos, controlled_frame_in_base_link_frame_mat = math_utils.unmake_pose(
+                controlled_frame_in_base_link_frame
+            )
 
-        controlled_frame_in_base_link_frame_pos, controlled_frame_in_base_link_frame_mat = math_utils.unmake_pose(
-            controlled_frame_in_base_link_frame
-        )
-
-        # Loop through each task and set the target
-        for env_index, ik_controller in enumerate(self._ik_controllers):
-            for task_index, task in enumerate(ik_controller.cfg.variable_input_tasks):
-                target = task.transform_target_to_world
-                target.translation = controlled_frame_in_base_link_frame_pos[task_index, env_index, :].cpu().numpy()
-                target.rotation = controlled_frame_in_base_link_frame_mat[task_index, env_index, :].cpu().numpy()
-                task.set_target(target)
+            # Loop through each task and set the target
+            for env_index, ik_controller in enumerate(self._ik_controllers):
+                for task_index, task in enumerate(ik_controller.cfg.variable_input_tasks):
+                    target = task.transform_target_to_world
+                    target.translation = controlled_frame_in_base_link_frame_pos[task_index, env_index, :].cpu().numpy()
+                    target.rotation = controlled_frame_in_base_link_frame_mat[task_index, env_index, :].cpu().numpy()
+                    task.set_target(target)
 
     def apply_actions(self):
         # start_time = time.time()  # Capture the time before the step
@@ -205,4 +258,21 @@ class PinkInverseKinematicsAction(ActionTerm):
         Args:
             env_ids: A list of environment IDs to reset. If None, all environments are reset.
         """
+        # Set initial controlled frame poses as targets during initialization
+        self._set_initial_frame_targets(env_ids)
         self._raw_actions[env_ids] = torch.zeros(self.action_dim, device=self.device)
+
+    def _set_initial_frame_targets(self, env_ids: Sequence[int] | None = None) -> None:
+        """Set the initial pose of each controlled frame as the target during initialization.
+        
+        This method uses the current joint positions to set targets for all tasks using the
+        PinkIKController's set_targets_from_joint_positions method.
+        """
+        # Get initial controlled frame poses for all environments
+        for env_index, ik_controller in enumerate(self._ik_controllers):
+            if env_ids is None or env_index in env_ids:
+                # Get current joint positions for this environment
+                curr_joint_pos = self._asset.data.joint_pos[:, self._pink_controlled_joint_ids].cpu().numpy()[env_index]
+                
+                # Use the new method to set targets based on current joint positions
+                ik_controller.set_targets_from_joint_positions(curr_joint_pos)
