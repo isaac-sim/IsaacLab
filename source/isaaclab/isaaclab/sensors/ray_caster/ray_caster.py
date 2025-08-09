@@ -228,9 +228,9 @@ class RayCaster(SensorBase):
         self.drift = torch.zeros(self._view.count, 3, device=self.device)
         self.ray_cast_drift = torch.zeros(self._view.count, 3, device=self.device)
         # fill the data buffer
-        self._data.pos_w = torch.zeros(self._view.count, 3, device=self.device)
-        self._data.quat_w = torch.zeros(self._view.count, 4, device=self.device)
-        self._data.ray_hits_w = torch.zeros(self._view.count, self.num_rays, 3, device=self.device)
+        self._data.pos_w = torch.zeros(self._view.count, 3, device=self._device)
+        self._data.quat_w = torch.zeros(self._view.count, 4, device=self._device)
+        self._data.ray_hits_w = torch.zeros(self._view.count, self.num_rays, 3, device=self._device)
 
     def _update_buffers_impl(self, env_ids: Sequence[int]):
         """Fills the buffers of the sensor data."""
