@@ -15,7 +15,7 @@ from .factory_env_cfg import FactoryTaskGearMeshCfg, FactoryTaskNutThreadCfg, Fa
 
 gym.register(
     id="Isaac-Factory-PegInsert-Direct-v0",
-    entry_point="isaaclab_tasks.direct.factory:FactoryEnv",
+    vector_entry_point="isaaclab_tasks.direct.factory:FactoryEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": FactoryTaskPegInsertCfg,
@@ -25,7 +25,7 @@ gym.register(
 
 gym.register(
     id="Isaac-Factory-GearMesh-Direct-v0",
-    entry_point="isaaclab_tasks.direct.factory:FactoryEnv",
+    vector_entry_point="isaaclab_tasks.direct.factory:FactoryEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": FactoryTaskGearMeshCfg,
@@ -35,7 +35,7 @@ gym.register(
 
 gym.register(
     id="Isaac-Factory-NutThread-Direct-v0",
-    entry_point="isaaclab_tasks.direct.factory:FactoryEnv",
+    vector_entry_point="isaaclab_tasks.direct.factory:FactoryEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": FactoryTaskNutThreadCfg,

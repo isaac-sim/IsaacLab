@@ -188,7 +188,7 @@ generator, you will find at least one ``__init__.py`` file with something that l
 
     gym.register(
         id="Template-isaaclabtutorial_env-v0",
-        entry_point=f"{__name__}.isaaclabtutorial_env:IsaaclabtutorialEnv",
+        vector_entry_point=f"{__name__}.isaaclabtutorial_env:IsaaclabtutorialEnv",
         disable_env_checker=True,
         kwargs={
             "env_cfg_entry_point": f"{__name__}.isaaclabtutorial_env_cfg:IsaaclabtutorialEnvCfg",

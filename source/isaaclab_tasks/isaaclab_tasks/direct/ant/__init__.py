@@ -17,7 +17,7 @@ from . import agents
 
 gym.register(
     id="Isaac-Ant-Direct-v0",
-    entry_point=f"{__name__}.ant_env:AntEnv",
+    vector_entry_point=f"{__name__}.ant_env:AntEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.ant_env:AntEnvCfg",

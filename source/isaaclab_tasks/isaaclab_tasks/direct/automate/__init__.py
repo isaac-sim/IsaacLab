@@ -13,7 +13,7 @@ from . import agents
 
 gym.register(
     id="Isaac-AutoMate-Assembly-Direct-v0",
-    entry_point=f"{__name__}.assembly_env:AssemblyEnv",
+    vector_entry_point=f"{__name__}.assembly_env:AssemblyEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.assembly_env:AssemblyEnvCfg",
@@ -24,7 +24,7 @@ gym.register(
 
 gym.register(
     id="Isaac-AutoMate-Disassembly-Direct-v0",
-    entry_point=f"{__name__}.disassembly_env:DisassemblyEnv",
+    vector_entry_point=f"{__name__}.disassembly_env:DisassemblyEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.disassembly_env:DisassemblyEnvCfg",

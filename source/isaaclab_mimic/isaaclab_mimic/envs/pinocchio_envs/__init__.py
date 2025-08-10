@@ -14,7 +14,7 @@ from .pickplace_gr1t2_mimic_env_cfg import PickPlaceGR1T2MimicEnvCfg
 
 gym.register(
     id="Isaac-PickPlace-GR1T2-Abs-Mimic-v0",
-    entry_point="isaaclab_mimic.envs.pinocchio_envs:PickPlaceGR1T2MimicEnv",
+    vector_entry_point="isaaclab_mimic.envs.pinocchio_envs:PickPlaceGR1T2MimicEnv",
     kwargs={
         "env_cfg_entry_point": pickplace_gr1t2_mimic_env_cfg.PickPlaceGR1T2MimicEnvCfg,
     },
@@ -23,14 +23,14 @@ gym.register(
 
 gym.register(
     id="Isaac-NutPour-GR1T2-Pink-IK-Abs-Mimic-v0",
-    entry_point="isaaclab_mimic.envs.pinocchio_envs:PickPlaceGR1T2MimicEnv",
+    vector_entry_point="isaaclab_mimic.envs.pinocchio_envs:PickPlaceGR1T2MimicEnv",
     kwargs={"env_cfg_entry_point": nutpour_gr1t2_mimic_env_cfg.NutPourGR1T2MimicEnvCfg},
     disable_env_checker=True,
 )
 
 gym.register(
     id="Isaac-ExhaustPipe-GR1T2-Pink-IK-Abs-Mimic-v0",
-    entry_point="isaaclab_mimic.envs.pinocchio_envs:PickPlaceGR1T2MimicEnv",
+    vector_entry_point="isaaclab_mimic.envs.pinocchio_envs:PickPlaceGR1T2MimicEnv",
     kwargs={"env_cfg_entry_point": exhaustpipe_gr1t2_mimic_env_cfg.ExhaustPipeGR1T2MimicEnvCfg},
     disable_env_checker=True,
 )

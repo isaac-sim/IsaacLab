@@ -28,8 +28,9 @@ def load_cfg_from_registry(task_name: str, entry_point_key: str) -> dict | objec
 
         gym.register(
             id="My-Awesome-Task-v0",
-            ...
+            vector_entry_point="path.to.environment:Class",
             kwargs={"env_entry_point_cfg": "path.to.config:ConfigClass"},
+            ...
         )
 
     The parsed configuration object for above example can be obtained as:

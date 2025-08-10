@@ -17,7 +17,7 @@ from . import agents
 
 gym.register(
     id="Isaac-Humanoid-v0",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    vector_entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.humanoid_env_cfg:HumanoidEnvCfg",
