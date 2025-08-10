@@ -315,7 +315,9 @@ class randomize_rigid_body_mass(ManagerTermBase):
         # check for valid operation
         if cfg.params["operation"] == "scale":
             if "mass_distribution_params" in cfg.params:
-                _validate_scale_range(cfg.params["mass_distribution_params"], "mass_distribution_params", allow_zero=False)
+                _validate_scale_range(
+                    cfg.params["mass_distribution_params"], "mass_distribution_params", allow_zero=False
+                )
         elif cfg.params["operation"] not in ("abs", "add"):
             raise ValueError(
                 "Randomization term 'randomize_rigid_body_mass' does not support operation:"
@@ -799,23 +801,18 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
         if cfg.params["operation"] == "scale":
             if "stiffness_distribution_params" in cfg.params:
                 _validate_scale_range(
-                    cfg.params["stiffness_distribution_params"], 
-                    "stiffness_distribution_params", 
-                    allow_zero=False
+                    cfg.params["stiffness_distribution_params"], "stiffness_distribution_params", allow_zero=False
                 )
             if "damping_distribution_params" in cfg.params:
-                _validate_scale_range(
-                    cfg.params["damping_distribution_params"], 
-                    "damping_distribution_params"
-                )
+                _validate_scale_range(cfg.params["damping_distribution_params"], "damping_distribution_params")
             if "limit_stiffness_distribution_params" in cfg.params:
                 _validate_scale_range(
-                    cfg.params["limit_stiffness_distribution_params"], 
-                    "limit_stiffness_distribution_params"
+                    cfg.params["limit_stiffness_distribution_params"], "limit_stiffness_distribution_params"
                 )
         elif cfg.params["operation"] not in ("abs", "add"):
             raise ValueError(
-                f"Randomization term 'randomize_fixed_tendon_parameters' does not support operation: '{cfg.params['operation']}'."
+                "Randomization term 'randomize_fixed_tendon_parameters' does not support operation:"
+                f" '{cfg.params['operation']}'."
             )
 
     def __call__(
