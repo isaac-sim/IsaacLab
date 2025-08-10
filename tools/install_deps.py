@@ -31,7 +31,7 @@ import argparse
 import os
 import shutil
 import toml
-from subprocess import run
+from subprocess import PIPE, STDOUT, Popen
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="A utility to install dependencies based on extension.toml files.")
@@ -146,13 +146,19 @@ def install_rosdep_packages(paths: list[str], ros_distro: str = "humble"):
 def run_and_print(args: list[str]):
     """Runs a subprocess and prints the output to stdout.
 
-    This function wraps subprocess.run() and prints the output to stdout.
+    This function wraps Popen and prints the output to stdout in real-time.
 
     Args:
-        args: A list of arguments to pass to subprocess.run().
+        args: A list of arguments to pass to Popen.
     """
-    completed_process = run(args=args, capture_output=True, check=True)
-    print(f"{str(completed_process.stdout, encoding='utf-8')}")
+    print(f'Running "{args}"')
+    with Popen(args, stdout=PIPE, stderr=STDOUT, env=os.environ) as p:
+        while p.poll() is None:
+            text = p.stdout.read1().decode("utf-8")
+            print(text, end="", flush=True)
+        return_code = p.poll()
+        if return_code != 0:
+            raise RuntimeError(f'Subprocess with args: "{args}" failed. The returned error code was: {return_code}')
 
 
 def main():
