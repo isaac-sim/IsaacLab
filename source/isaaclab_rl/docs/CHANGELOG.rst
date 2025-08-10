@@ -7,8 +7,8 @@ Changelog
 Fixed
 ^^^^^
 
-* Disallowed string values in ``sb3_ppo_cfg.yaml`` from being passed to ``eval()`` in 
-  :meth:`~isaaclab_rl.sb3.process_sb3_cfg`. This change prevents accidental or malicious 
+* Disallowed string values in ``sb3_ppo_cfg.yaml`` from being passed to ``eval()`` in
+  :meth:`~isaaclab_rl.sb3.process_sb3_cfg`. This change prevents accidental or malicious
   code execution when loading configuration files, improving overall security and reliability.
 
 
