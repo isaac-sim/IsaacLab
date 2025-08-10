@@ -314,8 +314,9 @@ class randomize_rigid_body_mass(ManagerTermBase):
         self.asset: RigidObject | Articulation = env.scene[self.asset_cfg.name]
         # check for valid operation
         if cfg.params["operation"] == "scale":
-            _validate_scale_range(cfg.params["mass_distribution_params"], "mass_distribution_params", allow_zero=False)
-        elif cfg.params["operation"] != "abs" and cfg.params["operation"] != "add":
+            if "mass_distribution_params" in cfg.params:
+                _validate_scale_range(cfg.params["mass_distribution_params"], "mass_distribution_params", allow_zero=False)
+        elif cfg.params["operation"] not in ("abs", "add"):
             raise ValueError(
                 "Randomization term 'randomize_rigid_body_mass' does not support operation:"
                 f" '{cfg.params['operation']}'."
@@ -555,11 +556,13 @@ class randomize_actuator_gains(ManagerTermBase):
         self.asset: RigidObject | Articulation = env.scene[self.asset_cfg.name]
         # check for valid operation
         if cfg.params["operation"] == "scale":
-            _validate_scale_range(
-                cfg.params["stiffness_distribution_params"], "stiffness_distribution_params", allow_zero=False
-            )
-            _validate_scale_range(cfg.params["damping_distribution_params"], "damping_distribution_params")
-        elif cfg.params["operation"] != "abs" and cfg.params["operation"] != "add":
+            if "stiffness_distribution_params" in cfg.params:
+                _validate_scale_range(
+                    cfg.params["stiffness_distribution_params"], "stiffness_distribution_params", allow_zero=False
+                )
+            if "damping_distribution_params" in cfg.params:
+                _validate_scale_range(cfg.params["damping_distribution_params"], "damping_distribution_params")
+        elif cfg.params["operation"] not in ("abs", "add"):
             raise ValueError(
                 "Randomization term 'randomize_actuator_gains' does not support operation:"
                 f" '{cfg.params['operation']}'."
@@ -664,9 +667,11 @@ class randomize_joint_parameters(ManagerTermBase):
         self.asset: RigidObject | Articulation = env.scene[self.asset_cfg.name]
         # check for valid operation
         if cfg.params["operation"] == "scale":
-            _validate_scale_range(cfg.params["friction_distribution_params"], "friction_distribution_params")
-            _validate_scale_range(cfg.params["armature_distribution_params"], "armature_distribution_params")
-        elif cfg.params["operation"] != "abs" and cfg.params["operation"] != "add":
+            if "stiffness_distribution_params" in cfg.params:
+                _validate_scale_range(cfg.params["friction_distribution_params"], "friction_distribution_params")
+            if "armature_distribution_params" in cfg.params:
+                _validate_scale_range(cfg.params["armature_distribution_params"], "armature_distribution_params")
+        elif cfg.params["operation"] not in ("abs", "add"):
             raise ValueError(
                 "Randomization term 'randomize_fixed_tendon_parameters' does not support operation:"
                 f" '{cfg.params['operation']}'."
@@ -792,19 +797,25 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
         self.asset: RigidObject | Articulation = env.scene[self.asset_cfg.name]
         # check for valid operation
         if cfg.params["operation"] == "scale":
-            _validate_scale_range(
-                cfg.params["stiffness_distribution_params"], "stiffness_distribution_params", allow_zero=False
-            )
-            _validate_scale_range(cfg.params["damping_distribution_params"], "damping_distribution_params")
-            _validate_scale_range(
-                cfg.params["limit_stiffness_distribution_params"],
-                "limit_stiffness_distribution_params",
-                allow_zero=False,
-            )
-        elif cfg.params["operation"] != "abs" and cfg.params["operation"] != "add":
+            if "stiffness_distribution_params" in cfg.params:
+                _validate_scale_range(
+                    cfg.params["stiffness_distribution_params"], 
+                    "stiffness_distribution_params", 
+                    allow_zero=False
+                )
+            if "damping_distribution_params" in cfg.params:
+                _validate_scale_range(
+                    cfg.params["damping_distribution_params"], 
+                    "damping_distribution_params"
+                )
+            if "limit_stiffness_distribution_params" in cfg.params:
+                _validate_scale_range(
+                    cfg.params["limit_stiffness_distribution_params"], 
+                    "limit_stiffness_distribution_params"
+                )
+        elif cfg.params["operation"] not in ("abs", "add"):
             raise ValueError(
-                "Randomization term 'randomize_fixed_tendon_parameters' does not support operation:"
-                f" '{cfg.params['operation']}'."
+                f"Randomization term 'randomize_fixed_tendon_parameters' does not support operation: '{cfg.params['operation']}'."
             )
 
     def __call__(
