@@ -1,35 +1,46 @@
-# Everything past this stage is to install
-# ROS2 Humble
 FROM isaac-lab-base AS ros2
 
-# Which ROS2 apt package to install
-ARG ROS2_APT_PACKAGE
+ARG ROS2_APT_PACKAGE=desktop
+ENV ISAACLAB_PATH=/workspace/isaaclab
+ENV DOCKER_USER_HOME=/root
 
-# ROS2 Humble Apt installations
+# Setup locale
+RUN apt-get update && apt-get install -y locales && locale-gen en_US.UTF-8
+ENV LANG=en_US.UTF-8
+ENV LC_ALL=en_US.UTF-8
+
+# Fix libbrotli version
+RUN apt-get update && \
+    apt-get install -y --allow-downgrades \
+        libbrotli1=1.0.9-2build6 \
+        libbrotli-dev=1.0.9-2build6 && \
+    apt-mark hold libbrotli1 libbrotli-dev
+
+# Install ROS 2 Humble + vision_msgs
 RUN --mount=type=cache,target=/var/cache/apt \
     apt-get update && apt-get install -y --no-install-recommends \
-    curl \
-    # Install ROS2 Humble \
-    software-properties-common && \
-    add-apt-repository universe && \
-    curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg && \
-    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(. /etc/os-release && echo jammy) main" | tee /etc/apt/sources.list.d/ros2.list > /dev/null && \
-    apt-get update && apt-get install -y --no-install-recommends \
-    ros-humble-${ROS2_APT_PACKAGE} \
-    ros-humble-vision-msgs \
-    # Install both FastRTPS and CycloneDDS
-    ros-humble-rmw-cyclonedds-cpp \
-    ros-humble-rmw-fastrtps-cpp \
-    # This includes various dev tools including colcon
-    ros-dev-tools && \
-    # Install rosdeps for extensions that declare a ros_ws in
-    # their extension.toml
-    ${ISAACLAB_PATH}/isaaclab.sh -p ${ISAACLAB_PATH}/tools/install_deps.py rosdep ${ISAACLAB_PATH}/source && \
-    apt -y autoremove && apt clean autoclean && \
-    rm -rf /var/lib/apt/lists/* && \
-    # Add sourcing of setup.bash to .bashrc
-    echo "source /opt/ros/humble/setup.bash" >> ${HOME}/.bashrc
+        curl \
+        software-properties-common \
+        libfreetype6-dev \
+        libfontconfig1-dev \
+    && add-apt-repository universe \
+    && curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key \
+        -o /usr/share/keyrings/ros-archive-keyring.gpg \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] \
+        http://packages.ros.org/ros2/ubuntu jammy main" \
+        | tee /etc/apt/sources.list.d/ros2.list > /dev/null \
+    && apt-get update && apt-get install -y --no-install-recommends \
+        ros-humble-${ROS2_APT_PACKAGE} \
+        ros-humble-vision-msgs \
+        ros-humble-rmw-cyclonedds-cpp \
+        ros-humble-rmw-fastrtps-cpp \
+        ros-dev-tools
 
-# Copy the RMW specifications for ROS2
-# https://docs.isaacsim.omniverse.nvidia.com/latest/installation/install_ros.html
-COPY docker/.ros/ ${DOCKER_USER_HOME}/.ros/
+# Make sure isaaclab.sh is executable and run deps install
+RUN chmod +x ${ISAACLAB_PATH}/isaaclab.sh && \
+    ${ISAACLAB_PATH}/isaaclab.sh -p ${ISAACLAB_PATH}/tools/install_deps.py rosdep ${ISAACLAB_PATH}/source
+
+RUN apt-get -y autoremove && apt-get clean autoclean && rm -rf /var/lib/apt/lists/*
+
+RUN echo "source /opt/ros/humble/setup.bash" >> ${DOCKER_USER_HOME}/.bashrc
+
