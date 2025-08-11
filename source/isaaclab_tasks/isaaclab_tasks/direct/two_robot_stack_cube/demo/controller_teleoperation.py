@@ -1,22 +1,22 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
 # SPDX-License-Identifier: BSD-3-Clause
 
+
 import argparse
+
 from isaaclab.app import AppLauncher
 
 # ---- CLI args ----
-parser = argparse.ArgumentParser(
-    description="Teleop IK agent for IsaacLab environments."
-)
+parser = argparse.ArgumentParser(description="Teleop IK agent for IsaacLab environments.")
 parser.add_argument(
     "--disable_fabric",
     action="store_true",
     default=False,
     help="Disable fabric interface.",
 )
-parser.add_argument(
-    "--num_envs", type=int, default=1, help="Number of environments to spawn."
-)
+parser.add_argument("--num_envs", type=int, default=1, help="Number of environments to spawn.")
 parser.add_argument("--task", type=str, required=True, help="Name of the task.")
 AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
@@ -30,10 +30,11 @@ import torch
 
 from carb.input import GamepadInput  # <-- for callbacks
 
-from isaaclab_tasks.utils import parse_env_cfg
-from isaaclab.utils.math import subtract_frame_transforms
-from isaaclab.devices import Se3Gamepad
 from isaaclab.controllers import DifferentialIKController, DifferentialIKControllerCfg
+from isaaclab.devices import Se3Gamepad
+from isaaclab.utils.math import subtract_frame_transforms
+
+from isaaclab_tasks.utils import parse_env_cfg
 
 
 def main():
@@ -84,9 +85,7 @@ def main():
         ik_method="dls",
         ik_params={"lambda_val": 0.15},
     )
-    ik_ctrl = DifferentialIKController(
-        ik_cfg, num_envs=args_cli.num_envs, device=args_cli.device
-    )
+    ik_ctrl = DifferentialIKController(ik_cfg, num_envs=args_cli.num_envs, device=args_cli.device)
 
     # State
     state = {"active": "left"}  # "left" or "right"
@@ -133,22 +132,16 @@ def main():
             hand_quat_w = franka_L.data.body_quat_w[:, L_hand_body]
 
             # EE (hand) in base
-            ee_pos_b, ee_quat_b = subtract_frame_transforms(
-                base_pos_w, base_quat_w, hand_pos_w, hand_quat_w
-            )
+            ee_pos_b, ee_quat_b = subtract_frame_transforms(base_pos_w, base_quat_w, hand_pos_w, hand_quat_w)
 
             # Device delta already in EE frame → position-only relative step
-            delta = torch.tensor(
-                delta_pose, device=ee_pos_b.device, dtype=ee_pos_b.dtype
-            )
+            delta = torch.tensor(delta_pose, device=ee_pos_b.device, dtype=ee_pos_b.dtype)
             dpos_e = delta[:3].unsqueeze(0).expand_as(ee_pos_b)  # (N,3)
 
             # Jacobian and IK
             J = franka_L.root_physx_view.get_jacobians()[:, L_hand_jac, :, L_arm_ids]
             ik_ctrl.set_command(dpos_e, ee_pos=ee_pos_b, ee_quat=ee_quat_b)
-            qL_des = ik_ctrl.compute(
-                ee_pos_b, ee_quat_b, J, franka_L.data.joint_pos[:, L_arm_ids]
-            )
+            qL_des = ik_ctrl.compute(ee_pos_b, ee_quat_b, J, franka_L.data.joint_pos[:, L_arm_ids])
 
             # Right arm stalled at latched
             qR_des = holds["R_q"]
@@ -170,20 +163,14 @@ def main():
             hand_pos_w = franka_R.data.body_pos_w[:, R_hand_body]
             hand_quat_w = franka_R.data.body_quat_w[:, R_hand_body]
 
-            ee_pos_b, ee_quat_b = subtract_frame_transforms(
-                base_pos_w, base_quat_w, hand_pos_w, hand_quat_w
-            )
+            ee_pos_b, ee_quat_b = subtract_frame_transforms(base_pos_w, base_quat_w, hand_pos_w, hand_quat_w)
 
-            delta = torch.tensor(
-                delta_pose, device=ee_pos_b.device, dtype=ee_pos_b.dtype
-            )
+            delta = torch.tensor(delta_pose, device=ee_pos_b.device, dtype=ee_pos_b.dtype)
             dpos_e = delta[:3].unsqueeze(0).expand_as(ee_pos_b)
 
             J = franka_R.root_physx_view.get_jacobians()[:, R_hand_jac, :, R_arm_ids]
             ik_ctrl.set_command(dpos_e, ee_pos=ee_pos_b, ee_quat=ee_quat_b)
-            qR_des = ik_ctrl.compute(
-                ee_pos_b, ee_quat_b, J, franka_R.data.joint_pos[:, R_arm_ids]
-            )
+            qR_des = ik_ctrl.compute(ee_pos_b, ee_quat_b, J, franka_R.data.joint_pos[:, R_arm_ids])
 
             # Left arm stalled
             qL_des = holds["L_q"]
