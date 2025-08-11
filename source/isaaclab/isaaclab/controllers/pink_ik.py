@@ -86,10 +86,10 @@ class PinkIKController:
         """
         # Reorder joint positions to Pink's convention
         joint_positions_pink = np.array(self.reorder_array(joint_positions, self.isaac_lab_to_pink_ordering))
-        
+
         # Update Pink's robot configuration with the provided joint positions
         self.pink_configuration.update(joint_positions_pink)
-        
+
         # Set targets for all tasks from this configuration
         for task in self.cfg.variable_input_tasks:
             task.set_target_from_configuration(self.pink_configuration)
