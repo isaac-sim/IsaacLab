@@ -17,7 +17,8 @@ properties of an :class:`~assets.Articulation` in Isaac Lab.
 
 We will use the Cartpole example to demonstrate how to create an :class:`~assets.ArticulationCfg`.
 The Cartpole is a simple robot that consists of a cart with a pole attached to it. The cart
-is free to move along a rail, and the pole is free to rotate about the cart.
+is free to move along a rail, and the pole is free to rotate about the cart. The file for this configuration example is
+ ``source/isaaclab_assets/isaaclab_assets/robots/cartpole.py``.
 
 .. dropdown:: Code for Cartpole configuration
    :icon: code

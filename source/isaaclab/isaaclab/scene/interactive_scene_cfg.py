@@ -109,3 +109,14 @@ class InteractiveSceneCfg:
         Collisions can only be filtered automatically in direct workflows when physics replication is enabled.
         If ``replicated_physics=False`` and collision filtering is desired, make sure to call ``scene.filter_collisions()``.
     """
+
+    clone_in_fabric: bool = False
+    """Enable/disable cloning in fabric. Default is False.
+    If True, cloning happens through Omniverse fabric, which is a more optimized method for performing cloning in
+    scene creation. However, this limits flexibility in accessing the stage through USD APIs and instead, the stage
+    must be accessed through USDRT.
+    If False, cloning will happen through regular USD APIs.
+    .. note::
+        Cloning in fabric can only be enabled if physics replication is also enabled.
+        If ``replicated_physics=False``, we will automatically default cloning in fabric to be False.
+    """

@@ -5,14 +5,18 @@
 
 import builtins
 import enum
+import glob
 import numpy as np
 import os
+import re
+import time
 import toml
 import torch
 import traceback
 import weakref
 from collections.abc import Iterator
 from contextlib import contextmanager
+from datetime import datetime
 from typing import Any
 
 import carb
@@ -20,11 +24,14 @@ import flatdict
 import isaacsim.core.utils.stage as stage_utils
 import omni.log
 import omni.physx
+import omni.usd
 from isaacsim.core.api.simulation_context import SimulationContext as _SimulationContext
 from isaacsim.core.utils.carb import get_carb_setting, set_carb_setting
 from isaacsim.core.utils.viewports import set_camera_view
 from isaacsim.core.version import get_version
 from pxr import Gf, PhysxSchema, Usd, UsdPhysics
+
+from isaaclab.sim.utils import create_new_stage_in_memory, use_stage
 
 from .simulation_cfg import SimulationCfg
 from .spawners import DomeLightCfg, GroundPlaneCfg
@@ -124,8 +131,18 @@ class SimulationContext(_SimulationContext):
         if stage_utils.get_current_stage() is None:
             raise RuntimeError("The stage has not been created. Did you run the simulator?")
 
+        # create stage in memory if requested
+        if self.cfg.create_stage_in_memory:
+            self._initial_stage = create_new_stage_in_memory()
+        else:
+            self._initial_stage = omni.usd.get_context().get_stage()
+
         # acquire settings interface
         self.carb_settings = carb.settings.get_settings()
+
+        # read isaac sim version (this includes build tag, release tag etc.)
+        # note: we do it once here because it reads the VERSION file from disk and is not expected to change.
+        self._isaacsim_version = get_version()
 
         # apply carb physics settings
         self._apply_physics_settings()
@@ -137,6 +154,9 @@ class SimulationContext(_SimulationContext):
         self._livestream_gui = self.carb_settings.get("/app/livestream/enabled")
         # read flag for whether XR GUI is enabled
         self._xr_gui = self.carb_settings.get("/app/xr/enabled")
+
+        # read flags anim recording config and init timestamps
+        self._setup_anim_recording()
 
         # read flag for whether the Isaac Lab viewport capture pipeline will be used,
         # casting None to False if the flag doesn't exist
@@ -201,9 +221,6 @@ class SimulationContext(_SimulationContext):
         # ref: https://docs.omniverse.nvidia.com/prod_extensions/prod_extensions/ext_physics.html
         # note: need to do this here because super().__init__ calls render and this variable is needed
         self._fabric_iface = None
-        # read isaac sim version (this includes build tag, release tag etc.)
-        # note: we do it once here because it reads the VERSION file from disk and is not expected to change.
-        self._isaacsim_version = get_version()
 
         # create a tensor for gravity
         # note: this line is needed to create a "tensor" in the device to avoid issues with torch 2.1 onwards.
@@ -233,8 +250,8 @@ class SimulationContext(_SimulationContext):
             if "physx" in sim_params:
                 physx_params = sim_params.pop("physx")
                 sim_params.update(physx_params)
-        # create a simulation context to control the simulator
 
+        # add warning about enabling stabilization for large step sizes
         if not self.cfg.physx.enable_stabilization and (self.cfg.dt > 0.0333):
             omni.log.warn(
                 "Large simulation step size (> 0.0333 seconds) is not recommended without enabling stabilization."
@@ -242,15 +259,29 @@ class SimulationContext(_SimulationContext):
                 " simulation step size if you run into physics issues."
             )
 
-        super().__init__(
-            stage_units_in_meters=1.0,
-            physics_dt=self.cfg.dt,
-            rendering_dt=self.cfg.dt * self.cfg.render_interval,
-            backend="torch",
-            sim_params=sim_params,
-            physics_prim_path=self.cfg.physics_prim_path,
-            device=self.cfg.device,
-        )
+        # create a simulation context to control the simulator
+        if float(".".join(self._isaacsim_version[2])) < 5:
+            # stage arg is not supported before isaac sim 5.0
+            super().__init__(
+                stage_units_in_meters=1.0,
+                physics_dt=self.cfg.dt,
+                rendering_dt=self.cfg.dt * self.cfg.render_interval,
+                backend="torch",
+                sim_params=sim_params,
+                physics_prim_path=self.cfg.physics_prim_path,
+                device=self.cfg.device,
+            )
+        else:
+            super().__init__(
+                stage_units_in_meters=1.0,
+                physics_dt=self.cfg.dt,
+                rendering_dt=self.cfg.dt * self.cfg.render_interval,
+                backend="torch",
+                sim_params=sim_params,
+                physics_prim_path=self.cfg.physics_prim_path,
+                device=self.cfg.device,
+                stage=self._initial_stage,
+            )
 
     def _apply_physics_settings(self):
         """Sets various carb physics settings."""
@@ -299,11 +330,20 @@ class SimulationContext(_SimulationContext):
 
         not_carb_settings = ["rendering_mode", "carb_settings", "antialiasing_mode"]
 
+        # grab the rendering mode using the following priority:
+        # 1. command line argument --rendering_mode, if provided
+        # 2. rendering_mode from Render Config, if set
+        # 3. lastly, default to "balanced" mode, if neither is specified
+        rendering_mode = get_carb_setting(self.carb_settings, "/isaaclab/rendering/rendering_mode")
+        if not rendering_mode:
+            rendering_mode = self.cfg.render.rendering_mode
+        if not rendering_mode:
+            rendering_mode = "balanced"
+
         # set preset settings (same behavior as the CLI arg --rendering_mode)
-        rendering_mode = self.cfg.render.rendering_mode
         if rendering_mode is not None:
             # check if preset is supported
-            supported_rendering_modes = ["performance", "balanced", "quality", "xr"]
+            supported_rendering_modes = ["performance", "balanced", "quality"]
             if rendering_mode not in supported_rendering_modes:
                 raise ValueError(
                     f"RenderCfg rendering mode '{rendering_mode}' not in supported modes {supported_rendering_modes}."
@@ -311,6 +351,8 @@ class SimulationContext(_SimulationContext):
 
             # parse preset file
             repo_path = os.path.join(carb.tokens.get_tokens_interface().resolve("${app}"), "..")
+            if float(".".join(self._isaacsim_version[2])) < 5:
+                repo_path = os.path.join(repo_path, "..")
             preset_filename = os.path.join(repo_path, f"apps/rendering_modes/{rendering_mode}.kit")
             with open(preset_filename) as file:
                 preset_dict = toml.load(file)
@@ -519,6 +561,14 @@ class SimulationContext(_SimulationContext):
                 self.physics_sim_view.update_articulations_kinematic()
             self._update_fabric(0.0, 0.0)
 
+    def get_initial_stage(self) -> Usd.Stage:
+        """Returns stage handle used during scene creation.
+
+        Returns:
+            The stage used during scene creation.
+        """
+        return self._initial_stage
+
     """
     Operations - Override (standalone)
     """
@@ -559,6 +609,14 @@ class SimulationContext(_SimulationContext):
             exception_to_raise = builtins.ISAACLAB_CALLBACK_EXCEPTION
             builtins.ISAACLAB_CALLBACK_EXCEPTION = None
             raise exception_to_raise
+
+        # update anim recording if needed
+        if self._anim_recording_enabled:
+            is_anim_recording_finished = self._update_anim_recording()
+            if is_anim_recording_finished:
+                carb.log_warn("[INFO][SimulationContext]: Animation recording finished. Closing app.")
+                self._app.shutdown()
+
         # check if the simulation timeline is paused. in that case keep stepping until it is playing
         if not self.is_playing():
             # step the simulator (but not the physics) to have UI still active
@@ -645,17 +703,18 @@ class SimulationContext(_SimulationContext):
 
     def _init_stage(self, *args, **kwargs) -> Usd.Stage:
         _ = super()._init_stage(*args, **kwargs)
-        # a stage update here is needed for the case when physics_dt != rendering_dt, otherwise the app crashes
-        # when in headless mode
-        self.set_setting("/app/player/playSimulations", False)
-        self._app.update()
-        self.set_setting("/app/player/playSimulations", True)
-        # set additional physx parameters and bind material
-        self._set_additional_physx_params()
-        # load flatcache/fabric interface
-        self._load_fabric_interface()
-        # return the stage
-        return self.stage
+        with use_stage(self.get_initial_stage()):
+            # a stage update here is needed for the case when physics_dt != rendering_dt, otherwise the app crashes
+            # when in headless mode
+            self.set_setting("/app/player/playSimulations", False)
+            self._app.update()
+            self.set_setting("/app/player/playSimulations", True)
+            # set additional physx parameters and bind material
+            self._set_additional_physx_params()
+            # load flatcache/fabric interface
+            self._load_fabric_interface()
+            # return the stage
+            return self.stage
 
     async def _initialize_stage_async(self, *args, **kwargs) -> Usd.Stage:
         await super()._initialize_stage_async(*args, **kwargs)
@@ -743,6 +802,119 @@ class SimulationContext(_SimulationContext):
             else:
                 # Needed for backward compatibility with older Isaac Sim versions
                 self._update_fabric = self._fabric_iface.update
+
+    def _update_anim_recording(self):
+        """Tracks anim recording timestamps and triggers finish animation recording if the total time has elapsed."""
+        if self._anim_recording_started_timestamp is None:
+            self._anim_recording_started_timestamp = time.time()
+
+        if self._anim_recording_started_timestamp is not None:
+            anim_recording_total_time = time.time() - self._anim_recording_started_timestamp
+            if anim_recording_total_time > self._anim_recording_stop_time:
+                self._finish_anim_recording()
+                return True
+        return False
+
+    def _setup_anim_recording(self):
+        """Sets up anim recording settings and initializes the recording."""
+
+        self._anim_recording_enabled = bool(self.carb_settings.get("/isaaclab/anim_recording/enabled"))
+        if not self._anim_recording_enabled:
+            return
+
+        # Import omni.physx.pvd.bindings here since it is not available by default
+        from omni.physxpvd.bindings import _physxPvd
+
+        # Init anim recording settings
+        self._anim_recording_start_time = self.carb_settings.get("/isaaclab/anim_recording/start_time")
+        self._anim_recording_stop_time = self.carb_settings.get("/isaaclab/anim_recording/stop_time")
+        self._anim_recording_first_step_timestamp = None
+        self._anim_recording_started_timestamp = None
+
+        # Make output path relative to repo path
+        repo_path = os.path.join(carb.tokens.get_tokens_interface().resolve("${app}"), "..")
+        self._anim_recording_timestamp = datetime.now().strftime("%Y_%m_%d_%H%M%S")
+        self._anim_recording_output_dir = (
+            os.path.join(repo_path, "anim_recordings", self._anim_recording_timestamp).replace("\\", "/").rstrip("/")
+            + "/"
+        )
+        os.makedirs(self._anim_recording_output_dir, exist_ok=True)
+
+        # Acquire physx pvd interface and set output directory
+        self._physxPvdInterface = _physxPvd.acquire_physx_pvd_interface()
+
+        # Set carb settings for the output path and enabling pvd recording
+        set_carb_setting(
+            self.carb_settings, "/persistent/physics/omniPvdOvdRecordingDirectory", self._anim_recording_output_dir
+        )
+        set_carb_setting(self.carb_settings, "/physics/omniPvdOutputEnabled", True)
+
+    def _update_usda_start_time(self, file_path, start_time):
+        """Updates the start time of the USDA baked anim recordingfile."""
+
+        # Read the USDA file
+        with open(file_path) as file:
+            content = file.read()
+
+        # Extract the timeCodesPerSecond value
+        time_code_match = re.search(r"timeCodesPerSecond\s*=\s*(\d+)", content)
+        if not time_code_match:
+            raise ValueError("timeCodesPerSecond not found in the file.")
+        time_codes_per_second = int(time_code_match.group(1))
+
+        # Compute the new start time code
+        new_start_time_code = int(start_time * time_codes_per_second)
+
+        # Replace the startTimeCode in the file
+        content = re.sub(r"startTimeCode\s*=\s*\d+", f"startTimeCode = {new_start_time_code}", content)
+
+        # Write the updated content back to the file
+        with open(file_path, "w") as file:
+            file.write(content)
+
+    def _finish_anim_recording(self):
+        """Finishes the animation recording and outputs the baked animation recording."""
+
+        carb.log_warn(
+            "[INFO][SimulationContext]: Finishing animation recording. Stage must be saved. Might take a few minutes."
+        )
+
+        # Detaching the stage will also close it and force the serialization of the OVD file
+        physx = omni.physx.get_physx_simulation_interface()
+        physx.detach_stage()
+
+        # Save stage to disk
+        stage_path = os.path.join(self._anim_recording_output_dir, "stage_simulation.usdc")
+        stage_utils.save_stage(stage_path, save_and_reload_in_place=False)
+
+        # Find the latest ovd file not named tmp.ovd
+        ovd_files = [
+            f for f in glob.glob(os.path.join(self._anim_recording_output_dir, "*.ovd")) if not f.endswith("tmp.ovd")
+        ]
+        input_ovd_path = max(ovd_files, key=os.path.getctime)
+
+        # Invoke pvd interface to create recording
+        stage_filename = "baked_animation_recording.usda"
+        result = self._physxPvdInterface.ovd_to_usd_over_with_layer_creation(
+            input_ovd_path,
+            stage_path,
+            self._anim_recording_output_dir,
+            stage_filename,
+            self._anim_recording_start_time,
+            self._anim_recording_stop_time,
+            True,  # True: ASCII layers / False : USDC layers
+            False,  # True: verify over layer
+        )
+
+        # Workaround for manually setting the truncated start time in the baked animation recording
+        self._update_usda_start_time(
+            os.path.join(self._anim_recording_output_dir, stage_filename), self._anim_recording_start_time
+        )
+
+        # Disable recording
+        set_carb_setting(self.carb_settings, "/physics/omniPvdOutputEnabled", False)
+
+        return result
 
     """
     Callbacks.

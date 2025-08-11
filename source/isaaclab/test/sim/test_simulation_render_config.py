@@ -98,7 +98,7 @@ def test_render_cfg_presets():
     # user-friendly setting overrides
     dlss_mode = ("/rtx/post/dlss/execMode", 5)
 
-    rendering_modes = ["performance", "balanced", "quality", "xr"]
+    rendering_modes = ["performance", "balanced", "quality"]
 
     for rendering_mode in rendering_modes:
         # grab groundtruth preset settings

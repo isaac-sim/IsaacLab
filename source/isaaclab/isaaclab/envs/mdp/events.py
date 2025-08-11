@@ -15,13 +15,14 @@ the event introduced by the function.
 from __future__ import annotations
 
 import math
+import re
 import torch
 from typing import TYPE_CHECKING, Literal
 
 import carb
 import omni.physics.tensors.impl.api as physx
-import omni.usd
 from isaacsim.core.utils.extensions import enable_extension
+from isaacsim.core.utils.stage import get_current_stage
 from pxr import Gf, Sdf, UsdGeom, Vt
 
 import isaaclab.sim as sim_utils
@@ -30,6 +31,7 @@ from isaaclab.actuators import ImplicitActuator
 from isaaclab.assets import Articulation, DeformableObject, RigidObject
 from isaaclab.managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
 from isaaclab.terrains import TerrainImporter
+from isaaclab.utils.version import compare_versions
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
@@ -92,7 +94,7 @@ def randomize_rigid_body_scale(
         env_ids = env_ids.cpu()
 
     # acquire stage
-    stage = omni.usd.get_context().get_stage()
+    stage = get_current_stage()
     # resolve prim paths for spawning and cloning
     prim_paths = sim_utils.find_matching_prim_paths(asset.cfg.prim_path)
 
@@ -1212,17 +1214,6 @@ class randomize_visual_texture_material(ManagerTermBase):
         """
         super().__init__(cfg, env)
 
-        # enable replicator extension if not already enabled
-        enable_extension("omni.replicator.core")
-        # we import the module here since we may not always need the replicator
-        import omni.replicator.core as rep
-
-        # read parameters from the configuration
-        asset_cfg: SceneEntityCfg = cfg.params.get("asset_cfg")
-        texture_paths = cfg.params.get("texture_paths")
-        event_name = cfg.params.get("event_name")
-        texture_rotation = cfg.params.get("texture_rotation", (0.0, 0.0))
-
         # check to make sure replicate_physics is set to False, else raise error
         # note: We add an explicit check here since texture randomization can happen outside of 'prestartup' mode
         #   and the event manager doesn't check in that case.
@@ -1233,8 +1224,14 @@ class randomize_visual_texture_material(ManagerTermBase):
                 " by setting 'replicate_physics' to False in 'InteractiveSceneCfg'."
             )
 
-        # convert from radians to degrees
-        texture_rotation = tuple(math.degrees(angle) for angle in texture_rotation)
+        # enable replicator extension if not already enabled
+        enable_extension("omni.replicator.core")
+
+        # we import the module here since we may not always need the replicator
+        import omni.replicator.core as rep
+
+        # read parameters from the configuration
+        asset_cfg: SceneEntityCfg = cfg.params.get("asset_cfg")
 
         # obtain the asset entity
         asset = env.scene[asset_cfg.name]
@@ -1252,7 +1249,6 @@ class randomize_visual_texture_material(ManagerTermBase):
         # Check if the pattern with '/visuals' yields results when matching `body_names_regex`.
         # If not, fall back to a broader pattern without '/visuals'.
         asset_main_prim_path = asset.cfg.prim_path
-        # Try the pattern with '/visuals' first for the generic case
         pattern_with_visuals = f"{asset_main_prim_path}/{body_names_regex}/visuals"
         # Use sim_utils to check if any prims currently match this pattern
         matching_prims = sim_utils.find_matching_prim_paths(pattern_with_visuals)
@@ -1269,19 +1265,52 @@ class randomize_visual_texture_material(ManagerTermBase):
                 " randomization."
             )
 
-        # Create the omni-graph node for the randomization term
-        def rep_texture_randomization():
-            prims_group = rep.get.prims(path_pattern=prim_path)
+        # extract the replicator version
+        version = re.match(r"^(\d+\.\d+\.\d+)", rep.__file__.split("/")[-5][21:]).group(1)
 
-            with prims_group:
-                rep.randomizer.texture(
-                    textures=texture_paths, project_uvw=True, texture_rotate=rep.distribution.uniform(*texture_rotation)
-                )
-            return prims_group.node
+        # use different path for different version of replicator
+        if compare_versions(version, "1.12.4") < 0:
+            texture_paths = cfg.params.get("texture_paths")
+            event_name = cfg.params.get("event_name")
+            texture_rotation = cfg.params.get("texture_rotation", (0.0, 0.0))
 
-        # Register the event to the replicator
-        with rep.trigger.on_custom_event(event_name=event_name):
-            rep_texture_randomization()
+            # convert from radians to degrees
+            texture_rotation = tuple(math.degrees(angle) for angle in texture_rotation)
+
+            # Create the omni-graph node for the randomization term
+            def rep_texture_randomization():
+                prims_group = rep.get.prims(path_pattern=prim_path)
+
+                with prims_group:
+                    rep.randomizer.texture(
+                        textures=texture_paths,
+                        project_uvw=True,
+                        texture_rotate=rep.distribution.uniform(*texture_rotation),
+                    )
+                return prims_group.node
+
+            # Register the event to the replicator
+            with rep.trigger.on_custom_event(event_name=event_name):
+                rep_texture_randomization()
+        else:
+            # acquire stage
+            stage = get_current_stage()
+            prims_group = rep.functional.get.prims(path_pattern=prim_path, stage=stage)
+
+            num_prims = len(prims_group)
+            # rng that randomizes the texture and rotation
+            self.texture_rng = rep.rng.ReplicatorRNG()
+
+            # Create the material first and bind it to the prims
+            for i, prim in enumerate(prims_group):
+                # Disable instancble
+                if prim.IsInstanceable():
+                    prim.SetInstanceable(False)
+
+            # TODO: Should we specify the value when creating the material?
+            self.material_prims = rep.functional.create_batch.material(
+                mdl="OmniPBR.mdl", bind_prims=prims_group, count=num_prims, project_uvw=True
+            )
 
     def __call__(
         self,
@@ -1292,13 +1321,36 @@ class randomize_visual_texture_material(ManagerTermBase):
         texture_paths: list[str],
         texture_rotation: tuple[float, float] = (0.0, 0.0),
     ):
-        # import replicator
-        import omni.replicator.core as rep
-
-        # only send the event to the replicator
         # note: This triggers the nodes for all the environments.
         #   We need to investigate how to make it happen only for a subset based on env_ids.
-        rep.utils.send_og_event(event_name)
+        # we import the module here since we may not always need the replicator
+        import omni.replicator.core as rep
+
+        # extract the replicator version
+        version = re.match(r"^(\d+\.\d+\.\d+)", rep.__file__.split("/")[-5][21:]).group(1)
+
+        # use different path for different version of replicator
+        if compare_versions(version, "1.12.4") < 0:
+            rep.utils.send_og_event(event_name)
+        else:
+            # read parameters from the configuration
+            texture_paths = texture_paths if texture_paths else self._cfg.params.get("texture_paths")
+            texture_rotation = (
+                texture_rotation if texture_rotation else self._cfg.params.get("texture_rotation", (0.0, 0.0))
+            )
+
+            # convert from radians to degrees
+            texture_rotation = tuple(math.degrees(angle) for angle in texture_rotation)
+
+            num_prims = len(self.material_prims)
+            random_textures = self.texture_rng.generator.choice(texture_paths, size=num_prims)
+            random_rotations = self.texture_rng.generator.uniform(
+                texture_rotation[0], texture_rotation[1], size=num_prims
+            )
+
+            # modify the material properties
+            rep.functional.modify.attribute(self.material_prims, "diffuse_texture", random_textures)
+            rep.functional.modify.attribute(self.material_prims, "texture_rotate", random_rotations)
 
 
 class randomize_visual_color(ManagerTermBase):
@@ -1325,7 +1377,12 @@ class randomize_visual_color(ManagerTermBase):
     """
 
     def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):
-        """Initialize the randomization term."""
+        """Initialize the randomization term.
+
+        Args:
+            cfg: The configuration of the event term.
+            env: The environment instance.
+        """
         super().__init__(cfg, env)
 
         # enable replicator extension if not already enabled
@@ -1335,8 +1392,6 @@ class randomize_visual_color(ManagerTermBase):
 
         # read parameters from the configuration
         asset_cfg: SceneEntityCfg = cfg.params.get("asset_cfg")
-        colors = cfg.params.get("colors")
-        event_name = cfg.params.get("event_name")
         mesh_name: str = cfg.params.get("mesh_name", "")  # type: ignore
 
         # check to make sure replicate_physics is set to False, else raise error
@@ -1358,27 +1413,51 @@ class randomize_visual_color(ManagerTermBase):
         mesh_prim_path = f"{asset.cfg.prim_path}{mesh_name}"
         # TODO: Need to make it work for multiple meshes.
 
-        # parse the colors into replicator format
-        if isinstance(colors, dict):
-            # (r, g, b) - low, high --> (low_r, low_g, low_b) and (high_r, high_g, high_b)
-            color_low = [colors[key][0] for key in ["r", "g", "b"]]
-            color_high = [colors[key][1] for key in ["r", "g", "b"]]
-            colors = rep.distribution.uniform(color_low, color_high)
+        # extract the replicator version
+        version = re.match(r"^(\d+\.\d+\.\d+)", rep.__file__.split("/")[-5][21:]).group(1)
+
+        # use different path for different version of replicator
+        if compare_versions(version, "1.12.4") < 0:
+            colors = cfg.params.get("colors")
+            event_name = cfg.params.get("event_name")
+
+            # parse the colors into replicator format
+            if isinstance(colors, dict):
+                # (r, g, b) - low, high --> (low_r, low_g, low_b) and (high_r, high_g, high_b)
+                color_low = [colors[key][0] for key in ["r", "g", "b"]]
+                color_high = [colors[key][1] for key in ["r", "g", "b"]]
+                colors = rep.distribution.uniform(color_low, color_high)
+            else:
+                colors = list(colors)
+
+            # Create the omni-graph node for the randomization term
+            def rep_color_randomization():
+                prims_group = rep.get.prims(path_pattern=mesh_prim_path)
+                with prims_group:
+                    rep.randomizer.color(colors=colors)
+
+                return prims_group.node
+
+            # Register the event to the replicator
+            with rep.trigger.on_custom_event(event_name=event_name):
+                rep_color_randomization()
         else:
-            colors = list(colors)
+            stage = get_current_stage()
+            prims_group = rep.functional.get.prims(path_pattern=mesh_prim_path, stage=stage)
 
-        # Create the omni-graph node for the randomization term
-        def rep_texture_randomization():
-            prims_group = rep.get.prims(path_pattern=mesh_prim_path)
+            num_prims = len(prims_group)
+            self.color_rng = rep.rng.ReplicatorRNG()
 
-            with prims_group:
-                rep.randomizer.color(colors=colors)
+            # Create the material first and bind it to the prims
+            for i, prim in enumerate(prims_group):
+                # Disable instancble
+                if prim.IsInstanceable():
+                    prim.SetInstanceable(False)
 
-            return prims_group.node
-
-        # Register the event to the replicator
-        with rep.trigger.on_custom_event(event_name=event_name):
-            rep_texture_randomization()
+            # TODO: Should we specify the value when creating the material?
+            self.material_prims = rep.functional.create_batch.material(
+                mdl="OmniPBR.mdl", bind_prims=prims_group, count=num_prims, project_uvw=True
+            )
 
     def __call__(
         self,
@@ -1389,11 +1468,33 @@ class randomize_visual_color(ManagerTermBase):
         colors: list[tuple[float, float, float]] | dict[str, tuple[float, float]],
         mesh_name: str = "",
     ):
-        # import replicator
+        # note: This triggers the nodes for all the environments.
+        #   We need to investigate how to make it happen only for a subset based on env_ids.
+
+        # we import the module here since we may not always need the replicator
         import omni.replicator.core as rep
 
-        # only send the event to the replicator
-        rep.utils.send_og_event(event_name)
+        version = re.match(r"^(\d+\.\d+\.\d+)", rep.__file__.split("/")[-5][21:]).group(1)
+
+        # use different path for different version of replicator
+        if compare_versions(version, "1.12.4") < 0:
+            rep.utils.send_og_event(event_name)
+        else:
+            colors = colors if colors else self._cfg.params.get("colors")
+
+            # parse the colors into replicator format
+            if isinstance(colors, dict):
+                # (r, g, b) - low, high --> (low_r, low_g, low_b) and (high_r, high_g, high_b)
+                color_low = [colors[key][0] for key in ["r", "g", "b"]]
+                color_high = [colors[key][1] for key in ["r", "g", "b"]]
+                colors = [color_low, color_high]
+            else:
+                colors = list(colors)
+
+            num_prims = len(self.material_prims)
+            random_colors = self.color_rng.generator.uniform(colors[0], colors[1], size=(num_prims, 3))
+
+            rep.functional.modify.attribute(self.material_prims, "diffuse_color_constant", random_colors)
 
 
 """

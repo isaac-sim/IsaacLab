@@ -127,7 +127,7 @@ def main():
     )
 
     try:
-        asyncio.ensure_future(asyncio.gather(*async_components["tasks"]))
+        data_gen_tasks = asyncio.ensure_future(asyncio.gather(*async_components["tasks"]))
         env_loop(
             env,
             async_components["reset_queue"],
@@ -137,6 +137,16 @@ def main():
         )
     except asyncio.CancelledError:
         print("Tasks were cancelled.")
+    finally:
+        # Cancel all async tasks when env_loop finishes
+        data_gen_tasks.cancel()
+        try:
+            # Wait for tasks to be cancelled
+            async_components["event_loop"].run_until_complete(data_gen_tasks)
+        except asyncio.CancelledError:
+            print("Remaining async tasks cancelled and cleaned up.")
+        except Exception as e:
+            print(f"Error cancelling remaining async tasks: {e}")
 
 
 if __name__ == "__main__":
