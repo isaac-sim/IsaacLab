@@ -135,7 +135,6 @@ class Articulation(AssetBase):
     @property
     def num_fixed_tendons(self) -> int:
         """Number of fixed tendons in articulation."""
-        # TODO: check if the articulation has fixed tendons
         return 0
 
     @property
@@ -1410,11 +1409,9 @@ class Articulation(AssetBase):
         self._data.default_joint_stiffness = (
             wp.to_torch(self._root_newton_view.get_attribute("joint_target_ke", NewtonManager.get_model()))
             .clone()
-            .clone()
         )
         self._data.default_joint_damping = (
             wp.to_torch(self._root_newton_view.get_attribute("joint_target_kd", NewtonManager.get_model()))
-            .clone()
             .clone()
         )
         self._data.default_joint_armature = wp.to_torch(
@@ -1593,7 +1590,7 @@ class Articulation(AssetBase):
                 # Set the control mode to None when using explicit actuators
                 self.write_joint_control_mode_to_sim(None, joint_ids=actuator.joint_indices)
 
-            # # Set common properties into the simulation
+            # Set common properties into the simulation
             self.write_joint_effort_limit_to_sim(actuator.effort_limit_sim, joint_ids=actuator.joint_indices)
             self.write_joint_velocity_limit_to_sim(actuator.velocity_limit_sim, joint_ids=actuator.joint_indices)
             self.write_joint_armature_to_sim(actuator.armature, joint_ids=actuator.joint_indices)
