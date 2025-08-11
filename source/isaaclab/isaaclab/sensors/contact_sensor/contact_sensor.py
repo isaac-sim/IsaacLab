@@ -385,22 +385,25 @@ class ContactSensor(SensorBase):
             # unpack the contact points: see RigidContactView.get_contact_data() documentation for details:
             # https://docs.omniverse.nvidia.com/kit/docs/omni_physics/107.3/extensions/runtime/source/omni.physics.tensors/docs/api/python.html#omni.physics.tensors.impl.api.RigidContactView.get_net_contact_forces
             # buffer_count: (N_envs * N_bodies, N_filters), buffer_contact_points: (N_envs * N_bodies, 3)
-            counts, max_count = buffer_count.view(-1), int(buffer_count.max())
-            if max_count > 0:
-                rel = torch.arange(max_count, device=counts.device).unsqueeze(0).expand(counts.size(0), max_count)
-                # 1) pull out all points → (n_env*n_bodies, max_count, and mask out invalid slots (r ≥ counts[k])
-                pts = buffer_contact_points[buffer_start_indices.view(-1).unsqueeze(1) + rel]
-                pts = pts * (rel < counts.unsqueeze(1)).unsqueeze(2)
-                # zero out invalid rows # 2) sum & divide → (n_env*n_bodies*n_filter, 3) → reshape: (n_env*n_bodies, n_filter, 3)
-                self._contact_position_aggregate_buffer[:] = (pts.sum(dim=1) / counts.unsqueeze(1)).view(
-                    self._num_envs * self.num_bodies, self.contact_physx_view.filter_count, 3
-                )
-            else:
-                self._contact_position_aggregate_buffer[:] = float("nan")
+            counts, starts = buffer_count.view(-1), buffer_start_indices.view(-1)
+            n_rows, total = counts.numel(), int(counts.sum())
+            # default to NaN rows
+            agg = torch.full((n_rows, 3), float("nan"), device=self._device, dtype=buffer_contact_points.dtype)
+            if total > 0:
+                row_ids = torch.repeat_interleave(torch.arange(n_rows, device=self._device), counts)
+                total = row_ids.numel()
 
-            # reshape from [num_env*num_bodies, num_filter_shapes, 3] to [num_env, num_bodies, num_filter_shapes, 3]
+                block_starts = counts.cumsum(0) - counts
+                deltas = torch.arange(total, device=counts.device) - block_starts.repeat_interleave(counts)
+                flat_idx = starts[row_ids] + deltas
+
+                pts = buffer_contact_points.index_select(0, flat_idx)
+                agg = agg.zero_().index_add_(0, row_ids, pts) / counts.clamp_min(1).unsqueeze(1)
+                agg[counts == 0] = float("nan")
+
+            self._contact_position_aggregate_buffer[:] = agg.view(self._num_envs * self.num_bodies, -1, 3)
             self._data.contact_pos_w[env_ids] = self._contact_position_aggregate_buffer.view(
-                -1, self._num_bodies, self.contact_physx_view.filter_count, 3
+                self._num_envs, self._num_bodies, self.contact_physx_view.filter_count, 3
             )[env_ids]
 
         # obtain the air time

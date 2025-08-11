@@ -24,7 +24,17 @@ class ContactSensorCfg(SensorBaseCfg):
     """Whether to track the contact point locations. Defaults to False."""
 
     max_contact_data_count_per_prim: int = 4
-    """The maximum number of contacts across all batches of the sensor to keep track of. Default is 4."""
+    """The maximum number of contacts across all batches of the sensor to keep track of. Default is 4.
+
+    This parameter sets the total maximum counts of the simulation across all bodies and environments. The total number
+    of contacts allowed is max_contact_data_count_per_prim*num_envs*num_sensor_bodies.
+
+    .. note::
+
+        If the environment is very contact rich it is suggested to increase this parameter to avoid out of bounds memory
+        errors and loss of contact data leading to inaccurate measurements.
+
+        """
 
     track_air_time: bool = False
     """Whether to track the air/contact time of the bodies (time between contacts). Defaults to False."""
