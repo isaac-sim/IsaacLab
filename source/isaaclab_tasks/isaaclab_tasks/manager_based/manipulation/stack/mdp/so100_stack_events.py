@@ -55,7 +55,7 @@ def randomize_single_rigid_objects(
 ):
     """
     Randomize poses of individual rigid objects (not multi-object rigid bodies).
-    
+
     This is a version of randomize_rigid_objects_in_focus adapted for single RigidObjects.
     Unlike the Franka version which handles multi-object rigid bodies with num_objects attribute,
     this function works with individual RigidObject instances in the scene.
@@ -94,4 +94,4 @@ def randomize_single_rigid_objects(
             )
             asset.write_root_velocity_to_sim(
                 torch.zeros(1, 6, device=env.device), env_ids=torch.tensor([cur_env], device=env.device)
-            ) 
+            )

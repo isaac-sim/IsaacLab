@@ -5,10 +5,13 @@
 
 import gymnasium as gym
 
-from . import stack_joint_pos_env_cfg
-from . import stack_pink_ik_rel_env_cfg
-from . import stack_pink_ik_rel_visuomotor_env_cfg
-from . import stack_ik_rel_env_cfg
+from . import (
+    stack_ik_rel_env_cfg,
+    stack_joint_pos_env_cfg,
+    stack_pink_ik_rel_env_cfg,
+    stack_pink_ik_rel_visuomotor_env_cfg,
+)
+
 ##
 # Register Gym environments.
 ##

@@ -3,16 +3,14 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
-from isaaclab.sensors import CameraCfg
-from isaaclab.utils import configclass
-from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
-import isaaclab.envs.mdp as base_mdp
+from isaaclab.sensors import CameraCfg
+from isaaclab.utils import configclass
 
-from ... import mdp
-from .stack_pink_ik_rel_env_cfg import SO100CubeStackPinkIKRelEnvCfg, ObservationsCfg
+from .stack_pink_ik_rel_env_cfg import ObservationsCfg, SO100CubeStackPinkIKRelEnvCfg
 
 
 @configclass
@@ -24,7 +22,8 @@ class VisuomotorObservationsCfg(ObservationsCfg):
         """Observations for policy group with state values and camera."""
 
         table_cam = ObsTerm(
-            func=base_mdp.image, params={"sensor_cfg": SceneEntityCfg("table_cam"), "data_type": "rgb", "normalize": False}
+            func=base_mdp.image,
+            params={"sensor_cfg": SceneEntityCfg("table_cam"), "data_type": "rgb", "normalize": False},
         )
 
     # observation groups
@@ -57,4 +56,3 @@ class SO100CubeStackPinkIKRelVisuomotorEnvCfg(SO100CubeStackPinkIKRelEnvCfg):
         # Set settings for camera rendering
         self.rerender_on_reset = True
         self.sim.render.antialiasing_mode = "OFF"  # disable dlss
-        

@@ -139,4 +139,4 @@ class StackSO100MimicEnv(ManagerBasedRLMimicEnv):
         signals = dict()
         subtask_terms = self.obs_buf["subtask_terms"]
         signals["grasp_1"] = subtask_terms["grasp_1"][env_ids]
-        return signals 
+        return signals

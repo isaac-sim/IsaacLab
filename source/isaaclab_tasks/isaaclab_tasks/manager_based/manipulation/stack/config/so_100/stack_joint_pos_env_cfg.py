@@ -3,7 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import importlib
 from isaaclab.assets import ArticulationCfg, RigidObjectCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import SceneEntityCfg
@@ -15,16 +14,14 @@ from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 from isaaclab_tasks.manager_based.manipulation.stack import mdp
-from isaaclab_tasks.manager_based.manipulation.stack.stack_env_cfg import StackEnvCfg
 from isaaclab_tasks.manager_based.manipulation.stack.mdp import so100_stack_events
+from isaaclab_tasks.manager_based.manipulation.stack.stack_env_cfg import StackEnvCfg
 
 ##
 # Pre-defined configs
 ##
 from isaaclab.markers.config import FRAME_MARKER_CFG  # isort: skip
 from isaaclab_assets.robots.so_100 import SO_100_CFG  # isort: skip
-
-import torch
 
 
 @configclass
@@ -62,20 +59,22 @@ class SO100CubeStackJointPosEnvCfg(StackEnvCfg):
         self.events = EventCfg()
 
         # Set SO-100 as robot
-        self.scene.robot = SO_100_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot",
-                                              init_state=ArticulationCfg.InitialStateCfg(
-                                                        pos=(0, 0, 0.0),
-                                                        rot=(0.7071, 0, 0, 0.7071),
-                                                        joint_pos={
-                                                            "shoulder_pan": 0.0,
-                                                            "shoulder_lift": 1.5708,
-                                                            "elbow_flex": -1.5708,
-                                                            "wrist_flex": 1.0,
-                                                            "wrist_roll": 0.0,
-                                                            "gripper": 0.0,
-                                                        },
-                                                        joint_vel={".*": 0.0},
-                                                    ))
+        self.scene.robot = SO_100_CFG.replace(
+            prim_path="{ENV_REGEX_NS}/Robot",
+            init_state=ArticulationCfg.InitialStateCfg(
+                pos=(0, 0, 0.0),
+                rot=(0.7071, 0, 0, 0.7071),
+                joint_pos={
+                    "shoulder_pan": 0.0,
+                    "shoulder_lift": 1.5708,
+                    "elbow_flex": -1.5708,
+                    "wrist_flex": 1.0,
+                    "wrist_roll": 0.0,
+                    "gripper": 0.0,
+                },
+                joint_vel={".*": 0.0},
+            ),
+        )
         self.scene.robot.spawn.semantic_tags = [("class", "robot")]
 
         # Add semantics to table
@@ -86,7 +85,10 @@ class SO100CubeStackJointPosEnvCfg(StackEnvCfg):
 
         # Set actions for the specific robot type (SO-100)
         self.actions.arm_action = mdp.JointPositionActionCfg(
-            asset_name="robot", joint_names=["shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll"], scale=1.0, use_default_offset=False
+            asset_name="robot",
+            joint_names=["shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll"],
+            scale=1.0,
+            use_default_offset=False,
         )
 
         # Use the last joint as the gripper action

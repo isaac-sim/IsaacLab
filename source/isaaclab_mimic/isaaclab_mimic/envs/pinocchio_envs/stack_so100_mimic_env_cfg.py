@@ -11,7 +11,9 @@
 from isaaclab.envs.mimic_env_cfg import MimicEnvCfg, SubTaskConfig
 from isaaclab.utils import configclass
 
-from isaaclab_tasks.manager_based.manipulation.stack.config.so_100.stack_pink_ik_abs_visuomotor_env_cfg import SO100CubeStackPinkIKAbsVisuomotorEnvCfg
+from isaaclab_tasks.manager_based.manipulation.stack.config.so_100.stack_pink_ik_abs_visuomotor_env_cfg import (
+    SO100CubeStackPinkIKAbsVisuomotorEnvCfg,
+)
 
 
 @configclass
@@ -40,7 +42,7 @@ class StackSO100MimicEnvCfg(SO100CubeStackPinkIKAbsVisuomotorEnvCfg, MimicEnvCfg
         # The following are the subtask configurations for the stack task.
         # For SO100, we only have one "gripper" arm, so all subtasks are for this single arm
         subtask_configs = []
-        
+
         # Subtask 1: Pick up cube_2
         subtask_configs.append(
             SubTaskConfig(
@@ -67,7 +69,7 @@ class StackSO100MimicEnvCfg(SO100CubeStackPinkIKAbsVisuomotorEnvCfg, MimicEnvCfg
                 apply_noise_during_interpolation=False,
             )
         )
-        
+
         # Subtask 2: Place cube_2 on cube_1
         subtask_configs.append(
             SubTaskConfig(
@@ -91,6 +93,6 @@ class StackSO100MimicEnvCfg(SO100CubeStackPinkIKAbsVisuomotorEnvCfg, MimicEnvCfg
                 apply_noise_during_interpolation=False,
             )
         )
-        
+
         # For SO100, we only have one arm "gripper", so we assign all subtasks to it
-        self.subtask_configs["gripper"] = subtask_configs 
+        self.subtask_configs["gripper"] = subtask_configs

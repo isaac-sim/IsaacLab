@@ -2,26 +2,21 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
-from isaaclab.assets import ArticulationCfg
-from isaaclab.controllers.pink_ik_cfg import PinkIKControllerCfg
+import tempfile
+
+from pink.tasks import FrameTask
 
 import isaaclab.controllers.utils as ControllerUtils
-from isaaclab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
+import isaaclab.envs.mdp as base_mdp
+from isaaclab.controllers.pink_ik_cfg import PinkIKControllerCfg
 from isaaclab.envs.mdp.actions.pink_actions_cfg import PinkInverseKinematicsActionCfg
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils import configclass
 
-from pink.tasks import FrameTask
-
-import isaaclab.envs.mdp as base_mdp
 from ... import mdp
-
-
 from . import stack_joint_pos_env_cfg
-
-import tempfile
 
 
 @configclass
@@ -46,7 +41,6 @@ class ObservationsCfg:
             self.enable_corruption = False
             self.concatenate_terms = False
 
-
     @configclass
     class SubtaskCfg(ObsGroup):
         """Observations for subtask group."""
@@ -63,6 +57,7 @@ class ObservationsCfg:
         def __post_init__(self):
             self.enable_corruption = False
             self.concatenate_terms = False
+
     # observation groups
     policy: PolicyCfg = PolicyCfg()
     subtask_terms: SubtaskCfg = SubtaskCfg()
@@ -121,8 +116,7 @@ class SO100CubeStackPinkIKRelEnvCfg(stack_joint_pos_env_cfg.SO100CubeStackJointP
         ControllerUtils.change_revolute_to_fixed(
             temp_urdf_output_path, self.actions.arm_action.ik_urdf_fixed_joint_names
         )
-    
+
         # Set the URDF and mesh paths for the IK controller
         self.actions.arm_action.controller.urdf_path = temp_urdf_output_path
         self.actions.arm_action.controller.mesh_path = temp_urdf_meshes_output_path
-
