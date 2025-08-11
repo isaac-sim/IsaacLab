@@ -29,20 +29,26 @@ Guidelines for modifications:
 * Matthew Trepte
 * Mayank Mittal
 * Nikita Rudin
+* Octi (Zhengyu) Zhang
 * Pascal Roth
 * Sheikh Dawood
 * Ossama Ahmed
 
 ## Contributors
 
+* Alessandro Assirelli
+* Alex Omar
 * Alice Zhou
 * Amr Mousa
 * Andrej Orsula
 * Anton Bjørndahl Mortensen
+* Antonin Raffin
 * Arjun Bhardwaj
 * Ashwin Varghese Kuruttukulam
 * Bikram Pandit
+* Bingjie Tang
 * Brayden Zhang
+* Brian Bingham
 * Cameron Upright
 * Calvin Yu
 * Cheng-Rong Lai
@@ -51,7 +57,9 @@ Guidelines for modifications:
 * Connor Smith
 * CY (Chien-Ying) Chen
 * David Yang
+* Dhananjay Shendre
 * Dorsa Rohani
+* Fabian Jenelten
 * Felipe Mohr
 * Felix Yu
 * Gary Lvov
@@ -64,6 +72,7 @@ Guidelines for modifications:
 * Jack Zeng
 * Jan Kerner
 * Jean Tampon
+* Jeonghwan Kim
 * Jia Lin Yuan
 * Jiakai Zhang
 * Jinghuan Shang
@@ -71,23 +80,28 @@ Guidelines for modifications:
 * Jinqi Wei
 * Johnson Sun
 * Kaixi Bao
+* Kris Wilson
 * Kourosh Darvish
 * Kousheek Chakraborty
 * Lionel Gulich
 * Louis Le Lay
 * Lorenz Wellhausen
+* Lukas Fröhlich
 * Manuel Schweiger
 * Masoud Moghani
 * Michael Gussert
 * Michael Noseworthy
 * Miguel Alonso Jr
+* Mingyu Lee
 * Muhong Guo
 * Nicola Loi
+* Norbert Cygiert
 * Nuoyan Chen (Alvin)
 * Nuralem Abizov
 * Ori Gadot
 * Oyindamola Omotuyi
 * Özhan Özen
+* Patrick Yin
 * Peter Du
 * Pulkit Goyal
 * Qian Wan
@@ -99,7 +113,10 @@ Guidelines for modifications:
 * Rosario Scalise
 * Ryley McCarroll
 * Shafeef Omar
+* Shaoshu Su
+* Shaurya Dewan
 * Shundo Kishi
+* Stefan Van de Mosselaer
 * Stephan Pleines
 * Tyler Lum
 * Victor Khaustov
@@ -109,11 +126,13 @@ Guidelines for modifications:
 * Xavier Nal
 * Yang Jin
 * Yanzi Zhu
+* Yijie Guo
+* Yohan Choi
 * Yujian Zhang
 * Yun Liu
-* Zhengyu Zhang
 * Ziqi Fan
 * Zoe McCarthy
+* David Leon
 
 ## Acknowledgements
 

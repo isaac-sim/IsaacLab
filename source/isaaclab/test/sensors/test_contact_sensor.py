@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -20,6 +20,7 @@ from enum import Enum
 
 import carb
 import pytest
+from flaky import flaky
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObject, RigidObjectCfg
@@ -44,7 +45,7 @@ class ContactTestMode(Enum):
 
 
 @configclass
-class TestContactSensorRigidObjectCfg(RigidObjectCfg):
+class ContactSensorRigidObjectCfg(RigidObjectCfg):
     """Configuration for rigid objects used for the contact sensor test.
 
     This contains the expected values in the configuration to simplify test fixtures.
@@ -63,13 +64,13 @@ class ContactSensorSceneCfg(InteractiveSceneCfg):
     terrain: TerrainImporterCfg = MISSING
     """Terrain configuration within the scene."""
 
-    shape: TestContactSensorRigidObjectCfg = MISSING
+    shape: ContactSensorRigidObjectCfg = MISSING
     """RigidObject contact prim configuration."""
 
     contact_sensor: ContactSensorCfg = MISSING
     """Contact sensor configuration."""
 
-    shape_2: TestContactSensorRigidObjectCfg = None
+    shape_2: ContactSensorRigidObjectCfg = None
     """RigidObject contact prim configuration. Defaults to None, i.e. not included in the scene.
 
     This is a second prim used for testing contact filtering.
@@ -87,7 +88,7 @@ class ContactSensorSceneCfg(InteractiveSceneCfg):
 ##
 
 
-CUBE_CFG = TestContactSensorRigidObjectCfg(
+CUBE_CFG = ContactSensorRigidObjectCfg(
     prim_path="/World/Objects/Cube",
     spawn=sim_utils.CuboidCfg(
         size=(0.5, 0.5, 0.5),
@@ -106,7 +107,7 @@ CUBE_CFG = TestContactSensorRigidObjectCfg(
 )
 """Configuration of the cube prim."""
 
-SPHERE_CFG = TestContactSensorRigidObjectCfg(
+SPHERE_CFG = ContactSensorRigidObjectCfg(
     prim_path="/World/Objects/Sphere",
     spawn=sim_utils.SphereCfg(
         radius=0.25,
@@ -125,7 +126,7 @@ SPHERE_CFG = TestContactSensorRigidObjectCfg(
 )
 """Configuration of the sphere prim."""
 
-CYLINDER_CFG = TestContactSensorRigidObjectCfg(
+CYLINDER_CFG = ContactSensorRigidObjectCfg(
     prim_path="/World/Objects/Cylinder",
     spawn=sim_utils.CylinderCfg(
         radius=0.5,
@@ -146,7 +147,7 @@ CYLINDER_CFG = TestContactSensorRigidObjectCfg(
 )
 """Configuration of the cylinder prim."""
 
-CAPSULE_CFG = TestContactSensorRigidObjectCfg(
+CAPSULE_CFG = ContactSensorRigidObjectCfg(
     prim_path="/World/Objects/Capsule",
     spawn=sim_utils.CapsuleCfg(
         radius=0.25,
@@ -167,7 +168,7 @@ CAPSULE_CFG = TestContactSensorRigidObjectCfg(
 )
 """Configuration of the capsule prim."""
 
-CONE_CFG = TestContactSensorRigidObjectCfg(
+CONE_CFG = ContactSensorRigidObjectCfg(
     prim_path="/World/Objects/Cone",
     spawn=sim_utils.ConeCfg(
         radius=0.5,
@@ -232,6 +233,7 @@ def test_cube_contact_time(setup_simulation, disable_contact_processing):
 
 
 @pytest.mark.parametrize("disable_contact_processing", [True, False])
+@flaky(max_runs=3, min_passes=1)
 def test_sphere_contact_time(setup_simulation, disable_contact_processing):
     """Checks contact sensor values for contact time and air time for a sphere collision primitive."""
     # check for both contact processing enabled and disabled
@@ -304,15 +306,14 @@ def test_cube_stack_contact_filtering(setup_simulation, device, num_envs):
         assert contact_sensor.data.net_forces_w.sum().item() > 0.0
 
 
-@pytest.mark.parametrize("device", "cpu")
-def test_no_contact_reporting(setup_simulation, device):
+def test_no_contact_reporting(setup_simulation):
     """Test that forcing the disable of contact processing results in no contact reporting.
 
     We borrow the test :func:`test_cube_stack_contact_filtering` to test this and force disable contact processing.
     """
     # TODO: This test only works on CPU. For GPU, it seems the contact processing is not disabled.
     sim_dt, durations, terrains, devices, carb_settings_iface = setup_simulation
-    with build_simulation_context(device=device, dt=sim_dt, add_lighting=True) as sim:
+    with build_simulation_context(device="cpu", dt=sim_dt, add_lighting=True) as sim:
         sim._app_control_on_stop_handle = None
         # Instance new scene for the current terrain and contact prim.
         scene_cfg = ContactSensorSceneCfg(num_envs=32, env_spacing=1.0, lazy_sensor_update=False)
@@ -398,7 +399,7 @@ Internal helpers.
 
 
 def _run_contact_sensor_test(
-    shape_cfg: TestContactSensorRigidObjectCfg,
+    shape_cfg: ContactSensorRigidObjectCfg,
     sim_dt: float,
     devices: list[str],
     terrains: list[TerrainImporterCfg],
@@ -500,21 +501,21 @@ def _test_sensor_contact(
         # Check the data inside the contact sensor
         if mode == ContactTestMode.IN_CONTACT:
             _check_prim_contact_state_times(
-                sensor,
-                0.0,
-                durations[idx],
-                expected_last_test_contact_time,
-                expected_last_reset_contact_time,
-                duration + sim_dt,
+                sensor=sensor,
+                expected_air_time=0.0,
+                expected_contact_time=durations[idx],
+                expected_last_contact_time=expected_last_test_contact_time,
+                expected_last_air_time=expected_last_reset_contact_time,
+                dt=duration + sim_dt,
             )
         elif mode == ContactTestMode.NON_CONTACT:
             _check_prim_contact_state_times(
-                sensor,
-                durations[idx],
-                0.0,
-                expected_last_reset_contact_time,
-                expected_last_test_contact_time,
-                duration + sim_dt,
+                sensor=sensor,
+                expected_air_time=durations[idx],
+                expected_contact_time=0.0,
+                expected_last_contact_time=expected_last_reset_contact_time,
+                expected_last_air_time=expected_last_test_contact_time,
+                dt=duration + sim_dt,
             )
         # switch the contact mode for 1 dt step before the next contact test begins.
         shape.write_root_pose_to_sim(root_pose=reset_pose)

@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -67,7 +67,7 @@ class FactoryTask:
 
     # Reward
     ee_success_yaw: float = 0.0  # nut_thread task only.
-    action_penalty_scale: float = 0.0
+    action_penalty_ee_scale: float = 0.0
     action_grad_penalty_scale: float = 0.0
     # Reward function details can be found in Appendix B of https://arxiv.org/pdf/2408.04587.
     # Multi-scale keypoints are used to capture different phases of the task.
@@ -206,7 +206,6 @@ class GearMesh(FactoryTask):
     name = "gear_mesh"
     fixed_asset_cfg = GearBase()
     held_asset_cfg = MediumGear()
-    target_gear = "gear_medium"
     duration_s = 20.0
 
     small_gear_usd = f"{ASSET_DIR}/factory_gear_small.usd"

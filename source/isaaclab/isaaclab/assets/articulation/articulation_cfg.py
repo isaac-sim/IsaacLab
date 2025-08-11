@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -38,6 +38,18 @@ class ArticulationCfg(AssetBaseCfg):
 
     class_type: type = Articulation
 
+    articulation_root_prim_path: str | None = None
+    """Path to the articulation root prim under the :attr:`prim_path`. Defaults to None, in which case the class
+    will search for a prim with the USD ArticulationRootAPI on it.
+
+    This path should be relative to the :attr:`prim_path` of the asset. If the asset is loaded from a USD file,
+    this path should be relative to the root of the USD stage. For instance, if the loaded USD file at :attr:`prim_path`
+    contains two articulations, one at `/robot1` and another at `/robot2`, and you want to use `robot2`,
+    then you should set this to `/robot2`.
+
+    The path must start with a slash (`/`).
+    """
+
     init_state: InitialStateCfg = InitialStateCfg()
     """Initial state of the articulated object. Defaults to identity pose with zero velocity and zero joint state."""
 
@@ -53,3 +65,7 @@ class ArticulationCfg(AssetBaseCfg):
 
     actuators: dict[str, ActuatorBaseCfg] = MISSING
     """Actuators for the robot with corresponding joint names."""
+
+    actuator_value_resolution_debug_print = False
+    """Print the resolution of actuator final value when input cfg is different from USD value, Defaults to False
+    """

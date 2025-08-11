@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -75,14 +75,15 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         # -- counter for curriculum
         self.common_step_counter = 0
 
+        # initialize the episode length buffer BEFORE loading the managers to use it in mdp functions.
+        self.episode_length_buf = torch.zeros(cfg.scene.num_envs, device=cfg.sim.device, dtype=torch.long)
+
         # initialize the base class to setup the scene.
         super().__init__(cfg=cfg)
         # store the render mode
         self.render_mode = render_mode
 
         # initialize data and constants
-        # -- init buffers
-        self.episode_length_buf = torch.zeros(self.num_envs, device=self.device, dtype=torch.long)
         # -- set the framerate of the gym video recorder wrapper so that the playback speed of the produced video matches the simulation
         self.metadata["render_fps"] = 1 / self.step_dt
 
@@ -236,7 +237,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             self.event_manager.apply(mode="interval", dt=self.step_dt)
         # -- compute observations
         # note: done after reset to get the correct observations for reset envs
-        self.obs_buf = self.observation_manager.compute()
+        self.obs_buf = self.observation_manager.compute(update_history=True)
 
         # return observations, rewards, resets and extras
         return self.obs_buf, self.reward_buf, self.reset_terminated, self.reset_time_outs, self.extras
@@ -247,7 +248,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         By convention, if mode is:
 
         - **human**: Render to the current display and return nothing. Usually for human consumption.
-        - **rgb_array**: Return an numpy.ndarray with shape (x, y, 3), representing RGB values for an
+        - **rgb_array**: Return a numpy.ndarray with shape (x, y, 3), representing RGB values for an
           x-by-y pixel image, suitable for turning into a video.
 
         Args:
@@ -332,10 +333,13 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             if has_concatenated_obs:
                 self.single_observation_space[group_name] = gym.spaces.Box(low=-np.inf, high=np.inf, shape=group_dim)
             else:
-                self.single_observation_space[group_name] = gym.spaces.Dict({
-                    term_name: gym.spaces.Box(low=-np.inf, high=np.inf, shape=term_dim)
-                    for term_name, term_dim in zip(group_term_names, group_dim)
-                })
+                group_term_cfgs = self.observation_manager._group_obs_term_cfgs[group_name]
+                for term_name, term_dim, term_cfg in zip(group_term_names, group_dim, group_term_cfgs):
+                    low = -np.inf if term_cfg.clip is None else term_cfg.clip[0]
+                    high = np.inf if term_cfg.clip is None else term_cfg.clip[1]
+                    self.single_observation_space[group_name] = gym.spaces.Dict(
+                        {term_name: gym.spaces.Box(low=low, high=high, shape=term_dim)}
+                    )
         # action space (unbounded since we don't impose any limits)
         action_dim = sum(self.action_manager.action_term_dim)
         self.single_action_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(action_dim,))

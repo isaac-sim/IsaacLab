@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -80,7 +80,7 @@ class FrankaTeddyBearLiftEnvCfg(FrankaCubeLiftEnvCfg):
         )
 
         # Make the end effector less stiff to not hurt the poor teddy bear
-        self.scene.robot.actuators["panda_hand"].effort_limit = 50.0
+        self.scene.robot.actuators["panda_hand"].effort_limit_sim = 50.0
         self.scene.robot.actuators["panda_hand"].stiffness = 40.0
         self.scene.robot.actuators["panda_hand"].damping = 10.0
 

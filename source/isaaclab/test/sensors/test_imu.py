@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -34,7 +34,7 @@ from isaaclab.utils import configclass
 # Pre-defined configs
 ##
 from isaaclab_assets.robots.anymal import ANYMAL_C_CFG  # isort: skip
-from isaaclab.utils.assets import NUCLEUS_ASSET_ROOT_DIR  # isort: skip
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR  # isort: skip
 
 # offset of imu_link from base_link on anymal_c
 POS_OFFSET = (0.2488, 0.00835, 0.04628)
@@ -148,7 +148,7 @@ class MySceneCfg(InteractiveSceneCfg):
         self.pendulum.init_state.pos = (-1.0, 1.0, 0.5)
 
         # change asset
-        self.robot.spawn.usd_path = f"{NUCLEUS_ASSET_ROOT_DIR}/Isaac/Robots/ANYbotics/anymal_c.usd"
+        self.robot.spawn.usd_path = f"{ISAAC_NUCLEUS_DIR}/Robots/ANYbotics/anymal_c/anymal_c.usd"
         # change iterations
         self.robot.spawn.articulation_props.solver_position_iteration_count = 32
         self.robot.spawn.articulation_props.solver_velocity_iteration_count = 32
@@ -287,7 +287,7 @@ def test_constant_acceleration(setup_sim):
         # check the imu data
         torch.testing.assert_close(
             scene.sensors["imu_ball"].data.lin_acc_b,
-            math_utils.quat_rotate_inverse(
+            math_utils.quat_apply_inverse(
                 scene.rigid_objects["balls"].data.root_quat_w,
                 torch.tensor([[0.1, 0.0, 0.0]], dtype=torch.float32, device=scene.device).repeat(scene.num_envs, 1)
                 / sim.get_physics_dt(),
@@ -331,12 +331,12 @@ def test_single_dof_pendulum(setup_sim):
         base_data = scene.sensors["imu_pendulum_base"].data
 
         # extract imu_link imu_sensor dynamics
-        lin_vel_w_imu_link = math_utils.quat_rotate(imu_data.quat_w, imu_data.lin_vel_b)
-        lin_acc_w_imu_link = math_utils.quat_rotate(imu_data.quat_w, imu_data.lin_acc_b)
+        lin_vel_w_imu_link = math_utils.quat_apply(imu_data.quat_w, imu_data.lin_vel_b)
+        lin_acc_w_imu_link = math_utils.quat_apply(imu_data.quat_w, imu_data.lin_acc_b)
 
         # calculate the joint dynamics from the imu_sensor (y axis of imu_link is parallel to joint axis of pendulum)
-        joint_vel_imu = math_utils.quat_rotate(imu_data.quat_w, imu_data.ang_vel_b)[..., 1].unsqueeze(-1)
-        joint_acc_imu = math_utils.quat_rotate(imu_data.quat_w, imu_data.ang_acc_b)[..., 1].unsqueeze(-1)
+        joint_vel_imu = math_utils.quat_apply(imu_data.quat_w, imu_data.ang_vel_b)[..., 1].unsqueeze(-1)
+        joint_acc_imu = math_utils.quat_apply(imu_data.quat_w, imu_data.ang_acc_b)[..., 1].unsqueeze(-1)
 
         # calculate analytical solution
         vx = -joint_vel * pend_length * torch.sin(joint_pos)
@@ -352,6 +352,14 @@ def test_single_dof_pendulum(setup_sim):
         # skip first step where initial velocity is zero
         if idx < 2:
             continue
+
+        # compare imu projected gravity
+        gravity_dir_w = torch.tensor((0.0, 0.0, -1.0), device=scene.device).repeat(2, 1)
+        gravity_dir_b = math_utils.quat_apply_inverse(imu_data.quat_w, gravity_dir_w)
+        torch.testing.assert_close(
+            imu_data.projected_gravity_b,
+            gravity_dir_b,
+        )
 
         # compare imu angular velocity with joint velocity
         torch.testing.assert_close(
@@ -492,6 +500,13 @@ def test_offset_calculation(setup_sim):
         torch.testing.assert_close(
             scene.sensors["imu_robot_base"].data.pos_w,
             scene.sensors["imu_robot_imu_link"].data.pos_w,
+            rtol=1e-4,
+            atol=1e-4,
+        )
+        # check the projected gravity
+        torch.testing.assert_close(
+            scene.sensors["imu_robot_base"].data.projected_gravity_b,
+            scene.sensors["imu_robot_imu_link"].data.projected_gravity_b,
             rtol=1e-4,
             atol=1e-4,
         )

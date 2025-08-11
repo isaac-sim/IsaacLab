@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -40,7 +40,7 @@ class PhysxCfg:
     Available solvers:
 
     * :obj:`0`: PGS (Projective Gauss-Seidel)
-    * :obj:`1`: TGS (Truncated Gauss-Seidel)
+    * :obj:`1`: TGS (Temporal Gauss-Seidel)
     """
 
     min_position_iteration_count: int = 1
@@ -87,8 +87,17 @@ class PhysxCfg:
     """Enable a second broad-phase pass that makes it possible to prevent objects from tunneling through each other.
     Default is False."""
 
-    enable_stabilization: bool = True
-    """Enable/disable additional stabilization pass in solver. Default is True."""
+    enable_stabilization: bool = False
+    """Enable/disable additional stabilization pass in solver. Default is False.
+
+    .. note::
+
+        We recommend setting this flag to true only when the simulation step size is large (i.e., less than 30 Hz or more than 0.0333 seconds).
+
+    .. warning::
+
+        Enabling this flag may lead to incorrect contact forces report from the contact sensor.
+    """
 
     enable_enhanced_determinism: bool = False
     """Enable/disable improved determinism at the expense of performance. Defaults to False.
@@ -248,7 +257,7 @@ class RenderCfg:
              rtx.translucency.enabled: False # .kit
              rtx_translucency_enabled: False # python"""
 
-    rendering_mode: Literal["performance", "balanced", "quality", "xr"] | None = None
+    rendering_mode: Literal["performance", "balanced", "quality"] | None = None
     """Sets the rendering mode. Behaves the same as the CLI arg '--rendering_mode'"""
 
 
@@ -309,6 +318,11 @@ class SimulationCfg:
     Note:
         When enabled, the GUI will not update the physics parameters in real-time. To enable real-time
         updates, please set this flag to :obj:`False`.
+
+        When using GPU simulation, it is required to enable Fabric to visualize updates in the renderer.
+        Transform updates are propagated to the renderer through Fabric. If Fabric is disabled with GPU simulation,
+        the renderer will not be able to render any updates in the simulation, although simulation will still be
+        running under the hood.
     """
 
     physx: PhysxCfg = PhysxCfg()
@@ -325,3 +339,9 @@ class SimulationCfg:
 
     render: RenderCfg = RenderCfg()
     """Render settings. Default is RenderCfg()."""
+
+    create_stage_in_memory: bool = False
+    """If stage is first created in memory. Default is False.
+
+    Creating the stage in memory can reduce start-up time.
+    """

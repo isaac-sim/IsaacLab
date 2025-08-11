@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 repos:
   - repo: https://github.com/python/black
     rev: 24.3.0
@@ -10,7 +15,7 @@ repos:
       - id: flake8
         additional_dependencies: [flake8-simplify, flake8-return]
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.5.0
+    rev: v5.0.0
     hooks:
       - id: trailing-whitespace
       - id: check-symlinks
@@ -45,7 +50,7 @@ repos:
       - id: codespell
         additional_dependencies:
         - tomli
-        exclude: "CONTRIBUTORS.md"
+        exclude: "CONTRIBUTORS.md|docs/source/setup/walkthrough/concepts_env_design.rst"
   # FIXME: Figure out why this is getting stuck under VPN.
   # - repo: https://github.com/RobertCraigie/pyright-python
   #   rev: v1.1.315
@@ -55,7 +60,7 @@ repos:
     rev: v1.5.1
     hooks:
       - id: insert-license
-        files: \.py$
+        files: \.(py|ya?ml)$
         args:
           # - --remove-header    # Remove existing license headers. Useful when updating license.
           - --license-filepath

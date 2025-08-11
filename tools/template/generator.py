@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -163,7 +163,8 @@ def _external(specification: dict) -> None:
     shutil.copyfile(os.path.join(ROOT_DIR, ".dockerignore"), os.path.join(project_dir, ".dockerignore"))
     shutil.copyfile(os.path.join(ROOT_DIR, ".flake8"), os.path.join(project_dir, ".flake8"))
     shutil.copyfile(os.path.join(ROOT_DIR, ".gitattributes"), os.path.join(project_dir, ".gitattributes"))
-    shutil.copyfile(os.path.join(ROOT_DIR, ".gitignore"), os.path.join(project_dir, ".gitignore"))
+    if os.path.exists(os.path.join(ROOT_DIR, ".gitignore")):
+        shutil.copyfile(os.path.join(ROOT_DIR, ".gitignore"), os.path.join(project_dir, ".gitignore"))
     shutil.copyfile(
         os.path.join(ROOT_DIR, ".pre-commit-config.yaml"), os.path.join(project_dir, ".pre-commit-config.yaml")
     )

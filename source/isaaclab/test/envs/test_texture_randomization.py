@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -19,9 +19,9 @@ simulation_app = app_launcher.app
 
 import math
 import torch
-import unittest
 
 import omni.usd
+import pytest
 
 import isaaclab.envs.mdp as mdp
 from isaaclab.envs import ManagerBasedEnv, ManagerBasedEnvCfg
@@ -128,6 +128,36 @@ class EventCfg:
 
 
 @configclass
+class EventCfgFallback:
+    """Configuration for events that tests the fallback mechanism."""
+
+    # Test fallback when /visuals pattern doesn't match
+    test_fallback_texture_randomizer = EventTerm(
+        func=mdp.randomize_visual_texture_material,
+        mode="reset",
+        params={
+            "asset_cfg": SceneEntityCfg("robot", body_names=["slider"]),
+            "texture_paths": [
+                f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Bamboo_Planks/Bamboo_Planks_BaseColor.png",
+                f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Cherry/Cherry_BaseColor.png",
+            ],
+            "event_name": "test_fallback_texture_randomizer",
+            "texture_rotation": (0.0, 0.0),
+        },
+    )
+
+    reset_cart_position = EventTerm(
+        func=mdp.reset_joints_by_offset,
+        mode="reset",
+        params={
+            "asset_cfg": SceneEntityCfg("robot", joint_names=["slider_to_cart"]),
+            "position_range": (-1.0, 1.0),
+            "velocity_range": (-0.1, 0.1),
+        },
+    )
+
+
+@configclass
 class CartpoleEnvCfg(ManagerBasedEnvCfg):
     """Configuration for the cartpole environment."""
 
@@ -150,52 +180,55 @@ class CartpoleEnvCfg(ManagerBasedEnvCfg):
         self.sim.dt = 0.005  # sim step every 5ms: 200Hz
 
 
-class TestTextureRandomization(unittest.TestCase):
-    """Test for texture randomization"""
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
+def test_texture_randomization(device):
+    """Test texture randomization for cartpole environment."""
+    # Create a new stage
+    omni.usd.get_context().new_stage()
 
-    """
-    Tests
-    """
+    try:
+        # Set the arguments
+        env_cfg = CartpoleEnvCfg()
+        env_cfg.scene.num_envs = 16
+        env_cfg.scene.replicate_physics = False
+        env_cfg.sim.device = device
 
-    def test_texture_randomization(self):
-        """Test texture randomization for cartpole environment."""
-        for device in ["cpu", "cuda"]:
-            with self.subTest(device=device):
-                # create a new stage
-                omni.usd.get_context().new_stage()
+        # Setup base environment
+        env = ManagerBasedEnv(cfg=env_cfg)
 
-                # set the arguments
-                env_cfg = CartpoleEnvCfg()
-                env_cfg.scene.num_envs = 16
-                env_cfg.scene.replicate_physics = False
-                env_cfg.sim.device = device
+        try:
+            # Simulate physics
+            with torch.inference_mode():
+                for count in range(50):
+                    # Reset every few steps to check nothing breaks
+                    if count % 10 == 0:
+                        env.reset()
+                    # Sample random actions
+                    joint_efforts = torch.randn_like(env.action_manager.action)
+                    # Step the environment
+                    env.step(joint_efforts)
+        finally:
+            env.close()
+    finally:
+        # Clean up stage
+        omni.usd.get_context().close_stage()
 
-                # setup base environment
-                env = ManagerBasedEnv(cfg=env_cfg)
 
-                # simulate physics
-                with torch.inference_mode():
-                    for count in range(50):
-                        # reset every few steps to check nothing breaks
-                        if count % 10 == 0:
-                            env.reset()
-                        # sample random actions
-                        joint_efforts = torch.randn_like(env.action_manager.action)
-                        # step the environment
-                        env.step(joint_efforts)
+def test_texture_randomization_failure_replicate_physics():
+    """Test texture randomization failure when replicate physics is set to True."""
+    # Create a new stage
+    omni.usd.get_context().new_stage()
 
-                env.close()
-
-    def test_texture_randomization_failure_replicate_physics(self):
-        """Test texture randomization failure when replicate physics is set to True."""
-        # create a new stage
-        omni.usd.get_context().new_stage()
-
-        # set the arguments
+    try:
+        # Set the arguments
         cfg_failure = CartpoleEnvCfg()
         cfg_failure.scene.num_envs = 16
         cfg_failure.scene.replicate_physics = True
 
-        with self.assertRaises(RuntimeError):
+        # Test that creating the environment raises RuntimeError
+        with pytest.raises(RuntimeError):
             env = ManagerBasedEnv(cfg_failure)
             env.close()
+    finally:
+        # Clean up stage
+        omni.usd.get_context().close_stage()

@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -86,7 +86,13 @@ class ActuatorBase(ABC):
     """The armature of the actuator joints. Shape is (num_envs, num_joints)."""
 
     friction: torch.Tensor
-    """The joint friction of the actuator joints. Shape is (num_envs, num_joints)."""
+    """The joint static friction of the actuator joints. Shape is (num_envs, num_joints)."""
+
+    dynamic_friction: torch.Tensor
+    """The joint dynamic friction of the actuator joints. Shape is (num_envs, num_joints)."""
+
+    viscous_friction: torch.Tensor
+    """The joint viscous friction of the actuator joints. Shape is (num_envs, num_joints)."""
 
     _DEFAULT_MAX_EFFORT_SIM: ClassVar[float] = 1.0e9
     """The default maximum effort for the actuator joints in the simulation. Defaults to 1.0e9.
@@ -106,6 +112,8 @@ class ActuatorBase(ABC):
         damping: torch.Tensor | float = 0.0,
         armature: torch.Tensor | float = 0.0,
         friction: torch.Tensor | float = 0.0,
+        dynamic_friction: torch.Tensor | float = 0.0,
+        viscous_friction: torch.Tensor | float = 0.0,
         effort_limit: torch.Tensor | float = torch.inf,
         velocity_limit: torch.Tensor | float = torch.inf,
     ):
@@ -131,7 +139,11 @@ class ActuatorBase(ABC):
                 If a tensor, then the shape is (num_envs, num_joints).
             armature: The default joint armature. Defaults to 0.0.
                 If a tensor, then the shape is (num_envs, num_joints).
-            friction: The default joint friction. Defaults to 0.0.
+            friction: The default joint static friction. Defaults to 0.0.
+                If a tensor, then the shape is (num_envs, num_joints).
+            dynamic_friction: The default joint dynamic friction. Defaults to 0.0.
+                If a tensor, then the shape is (num_envs, num_joints).
+            viscous_friction: The default joint viscous friction. Defaults to 0.0.
                 If a tensor, then the shape is (num_envs, num_joints).
             effort_limit: The default effort limit. Defaults to infinity.
                 If a tensor, then the shape is (num_envs, num_joints).
@@ -144,24 +156,46 @@ class ActuatorBase(ABC):
         self._device = device
         self._joint_names = joint_names
         self._joint_indices = joint_ids
-
+        self.joint_property_resolution_table: dict[str, list] = {}
         # For explicit models, we do not want to enforce the effort limit through the solver
         # (unless it is explicitly set)
         if not self.is_implicit_model and self.cfg.effort_limit_sim is None:
             self.cfg.effort_limit_sim = self._DEFAULT_MAX_EFFORT_SIM
 
-        # parse joint stiffness and damping
-        self.stiffness = self._parse_joint_parameter(self.cfg.stiffness, stiffness)
-        self.damping = self._parse_joint_parameter(self.cfg.damping, damping)
-        # parse joint armature and friction
-        self.armature = self._parse_joint_parameter(self.cfg.armature, armature)
-        self.friction = self._parse_joint_parameter(self.cfg.friction, friction)
-        # parse joint limits
-        # -- velocity
-        self.velocity_limit_sim = self._parse_joint_parameter(self.cfg.velocity_limit_sim, velocity_limit)
+        # resolve usd, actuator configuration values
+        # case 1: if usd_value == actuator_cfg_value: all good,
+        # case 2: if usd_value != actuator_cfg_value: we use actuator_cfg_value
+        # case 3: if actuator_cfg_value is None: we use usd_value
+
+        to_check = [
+            ("velocity_limit_sim", velocity_limit),
+            ("effort_limit_sim", effort_limit),
+            ("stiffness", stiffness),
+            ("damping", damping),
+            ("armature", armature),
+            ("friction", friction),
+            ("dynamic_friction", dynamic_friction),
+            ("viscous_friction", viscous_friction),
+        ]
+        for param_name, usd_val in to_check:
+            cfg_val = getattr(self.cfg, param_name)
+            setattr(self, param_name, self._parse_joint_parameter(cfg_val, usd_val))
+            new_val = getattr(self, param_name)
+
+            allclose = (
+                torch.all(new_val == usd_val) if isinstance(usd_val, (float, int)) else torch.allclose(new_val, usd_val)
+            )
+            if cfg_val is None or not allclose:
+                self._record_actuator_resolution(
+                    cfg_val=getattr(self.cfg, param_name),
+                    new_val=new_val[0],  # new val always has the shape of (num_envs, num_joints)
+                    usd_val=usd_val,
+                    joint_names=joint_names,
+                    joint_ids=joint_ids,
+                    actuator_param=param_name,
+                )
+
         self.velocity_limit = self._parse_joint_parameter(self.cfg.velocity_limit, self.velocity_limit_sim)
-        # -- effort
-        self.effort_limit_sim = self._parse_joint_parameter(self.cfg.effort_limit_sim, effort_limit)
         self.effort_limit = self._parse_joint_parameter(self.cfg.effort_limit, self.effort_limit_sim)
 
         # create commands buffers for allocation
@@ -245,6 +279,18 @@ class ActuatorBase(ABC):
     """
     Helper functions.
     """
+
+    def _record_actuator_resolution(self, cfg_val, new_val, usd_val, joint_names, joint_ids, actuator_param: str):
+        if actuator_param not in self.joint_property_resolution_table:
+            self.joint_property_resolution_table[actuator_param] = []
+        table = self.joint_property_resolution_table[actuator_param]
+
+        ids = joint_ids if isinstance(joint_ids, torch.Tensor) else list(range(len(joint_names)))
+        for idx, name in enumerate(joint_names):
+            cfg_val_log = "Not Specified" if cfg_val is None else float(new_val[idx])
+            default_usd_val = usd_val if isinstance(usd_val, (float, int)) else float(usd_val[0][idx])
+            applied_val_log = default_usd_val if cfg_val is None else float(new_val[idx])
+            table.append([name, int(ids[idx]), default_usd_val, cfg_val_log, applied_val_log])
 
     def _parse_joint_parameter(
         self, cfg_value: float | dict[str, float] | None, default_value: float | torch.Tensor | None
