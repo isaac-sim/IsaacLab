@@ -1014,7 +1014,7 @@ def define_mesh_collision_properties(
     """
     # obtain stage
     if stage is None:
-        stage = stage_utils.get_current_stage()
+        stage = get_current_stage()
     # get USD prim
     prim = stage.GetPrimAtPath(prim_path)
     # check if prim path is valid
@@ -1048,7 +1048,7 @@ def modify_mesh_collision_properties(
     """
     # obtain stage
     if stage is None:
-        stage = stage_utils.get_current_stage()
+        stage = get_current_stage()
     # get USD prim
     prim = stage.GetPrimAtPath(prim_path)
 
