@@ -59,10 +59,6 @@ class DummySensor(SensorBase):
             env_ids = slice(None)
         self._data.count[env_ids] = 0
 
-    # def _set_debug_vis_impl(self, debug_vis: bool):
-
-    # def _debug_vis_callback(self, event):
-
 
 @configclass
 class DummySensorCfg(SensorBaseCfg):
