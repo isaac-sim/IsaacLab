@@ -279,7 +279,7 @@ class TwoRobotStackCubeEnv(DirectRLEnv):
         reward[:] = (reach_r + graspL) / 2
 
         # Stage 2
-        on_tgt = torch.linalg.norm(green_w[:, :2] - self.target_pose[:, :2], dim=-1) < self.cfg.goal_radius
+        on_tgt = torch.linalg.norm(green_w[:, :2] - self.target_pose[:, :2], dim=-1) < self.cfg.GOAL_RADIUS
         place_b = 1 - torch.tanh(5 * torch.linalg.norm(green_w[:, :2] - self.target_pose[:, :2], dim=-1))
         mask2 = graspL.bool()
         reward[mask2] = 2.0 + (place_b[mask2] + graspL[mask2]) / 2
@@ -325,8 +325,8 @@ class TwoRobotStackCubeEnv(DirectRLEnv):
         """
         green_p = self.cube_green.data.root_state_w[:, :3] - self.scene.env_origins
         red_p = self.cube_red.data.root_state_w[:, :3] - self.scene.env_origins
-        on_tgt = torch.linalg.norm(green_p[:, :2] - self.target_pose[:, :2], dim=-1) <= self.cfg.goal_radius
-        half_edge = 0.8 * 0.033 / 2.0
+        on_tgt = torch.linalg.norm(green_p[:, :2] - self.target_pose[:, :2], dim=-1) <= self.cfg.GOAL_RADIUS
+        half_edge = 0.8 * self.cfg.DEX_CUBE_SIZE / 2.0
         offset = red_p - green_p
         xy_ok = torch.linalg.norm(offset[:, :2], dim=-1) <= (2 * half_edge + 0.005)
         z_ok = torch.abs(offset[:, 2] - (2 * half_edge)) <= 0.005
@@ -429,5 +429,6 @@ class TwoRobotStackCubeEnv(DirectRLEnv):
         pos = rand6[:, :3] + self.scene.env_origins[env_ids]
         quat = quat_from_euler_xyz(rand6[:, 3], rand6[:, 4], rand6[:, 5])
         self.target_pose = torch.cat([pos, quat], dim=-1)
+        self.target_pose[:, :3] -= self.scene.env_origins[env_ids]
         idxs = torch.zeros(len(env_ids), dtype=torch.long, device=self.device)
         self.target_marker.visualize(pos, quat, marker_indices=idxs)

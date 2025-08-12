@@ -42,7 +42,9 @@ class TwoRobotStackCubeCfg(DirectRLEnvCfg):
     obs_mode: str = "state"
     robot_controller: str = "joint_space"
 
-    goal_radius = 0.06
+    GOAL_RADIUS = 0.06
+    DEX_CUBE_SIZE = 0.06
+    DEX_CUBE_SCALE = 0.8
 
     # simulation
     sim: SimulationCfg = SimulationCfg(
@@ -159,7 +161,7 @@ class TwoRobotStackCubeCfg(DirectRLEnvCfg):
     target_marker_cfg = CUBOID_MARKER_CFG.copy()
     target_marker_cfg.markers = {
         "cylinder": sim_utils.CylinderCfg(
-            radius=goal_radius,
+            radius=GOAL_RADIUS,
             height=0.001,
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0)),
         ),
@@ -232,7 +234,7 @@ class TwoRobotStackCubeCfg(DirectRLEnvCfg):
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.3, 0.0), rot=(1, 0, 0, 0)),
         spawn=UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
-            scale=(0.8, 0.8, 0.8),
+            scale=(DEX_CUBE_SCALE, DEX_CUBE_SCALE, DEX_CUBE_SCALE),
             rigid_props=RigidBodyPropertiesCfg(
                 solver_position_iteration_count=16,
                 solver_velocity_iteration_count=1,
@@ -250,7 +252,7 @@ class TwoRobotStackCubeCfg(DirectRLEnvCfg):
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.3, 0.0), rot=(1, 0, 0, 0)),
         spawn=UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
-            scale=(0.8, 0.8, 0.8),
+            scale=(DEX_CUBE_SCALE, DEX_CUBE_SCALE, DEX_CUBE_SCALE),
             rigid_props=RigidBodyPropertiesCfg(
                 solver_position_iteration_count=16,
                 solver_velocity_iteration_count=1,
