@@ -3,13 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import argparse
-import os
-import time
-from concurrent.futures import ThreadPoolExecutor
-
-from ray import job_submission
-
 """
 This script submits aggregate job(s) to cluster(s) described in a
 config file containing ``name: <NAME> address: http://<IP>:<PORT>`` on
@@ -59,6 +52,14 @@ Usage:
     # For all command line arguments
     python3 scripts/reinforcement_learning/ray/submit_job.py -h
 """
+
+import argparse
+import os
+import time
+from concurrent.futures import ThreadPoolExecutor
+
+from ray import job_submission
+
 script_directory = os.path.dirname(os.path.abspath(__file__))
 CONFIG = {"working_dir": script_directory, "executable": "/workspace/isaaclab/isaaclab.sh -p"}
 

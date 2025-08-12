@@ -3,10 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import argparse
-
-import util
-
 """
 This script dispatches sub-job(s) (individual jobs, use :file:`tuner.py` for tuning jobs)
 to worker(s) on GPU-enabled node(s) of a specific cluster as part of an resource-wrapped aggregate
@@ -61,6 +57,10 @@ Usage:
     # to see all arguments
     ./isaaclab.sh -p scripts/reinforcement_learning/ray/wrap_resources.py -h
 """
+
+import argparse
+
+import util
 
 
 def wrap_resources_to_jobs(jobs: list[str], args: argparse.Namespace) -> None:

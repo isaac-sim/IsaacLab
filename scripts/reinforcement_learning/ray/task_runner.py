@@ -3,13 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import argparse
-import sys
-import yaml
-from datetime import datetime
-
-import util
-
 """
 This script dispatches one or more user-defined Python tasks to workers in a Ray cluster.
 Each task, along with its resource requirements and execution parameters, is specified in a YAML configuration file.
@@ -104,8 +97,23 @@ YAML configuration example-2:
 To stop all tasks early, press Ctrl+C; the script will cancel all running Ray tasks.
 """
 
+import argparse
+import yaml
+from datetime import datetime
 
-def parse_args():
+import util
+
+
+def parse_args() -> argparse.Namespace:
+    """
+    Parse command-line arguments for the Ray task runner.
+
+    Returns:
+        argparse.Namespace: The namespace containing parsed CLI arguments:
+            - task_cfg (str): Path to the YAML task file.
+            - ray_address (str): Ray cluster address.
+            - test (bool): Whether to run a GPU resource isolation sanity check.
+    """
     parser = argparse.ArgumentParser(description="Run tasks from a YAML config file.")
     parser.add_argument("--task_cfg", type=str, required=True, help="Path to the YAML task file.")
     parser.add_argument("--ray_address", type=str, default="auto", help="the Ray address.")
@@ -121,7 +129,18 @@ def parse_args():
     return parser.parse_args()
 
 
-def parse_task_resource(task) -> util.JobResource:
+def parse_task_resource(task: dict) -> util.JobResource:
+    """
+    Parse task resource requirements from the YAML configuration.
+
+    Args:
+        task (dict): Dictionary representing a single task's configuration.
+            Keys may include `num_gpus`, `num_cpus`, and `memory`, each either
+            as a number or evaluatable string expression.
+
+    Returns:
+        util.JobResource: Resource object with the parsed values.
+    """
     resource = util.JobResource()
     if "num_gpus" in task:
         resource.num_gpus = eval(task["num_gpus"]) if isinstance(task["num_gpus"], str) else task["num_gpus"]
@@ -132,16 +151,31 @@ def parse_task_resource(task) -> util.JobResource:
     return resource
 
 
-def run_tasks(tasks, args: argparse.Namespace, runtime_env=None, concurrent=False):
+def run_tasks(
+    tasks: list[dict], args: argparse.Namespace, runtime_env: dict | None = None, concurrent: bool = False
+) -> None:
+    """
+    Submit tasks to the Ray cluster for execution.
+
+    Args:
+        tasks (list[dict]): A list of task configuration dictionaries.
+        args (argparse.Namespace): Parsed command-line arguments.
+        runtime_env (dict | None): Ray runtime environment configuration containing:
+            - pip (list[str] | None): Additional pip packages to install.
+            - py_modules (list[str] | None): Python modules to include in the environment.
+        concurrent (bool): Whether to launch tasks simultaneously as a batch,
+                           or independently as resources become available.
+
+    Returns:
+        None
+    """
     job_objs = []
     util.ray_init(ray_address=args.ray_address, runtime_env=runtime_env, log_to_driver=False)
     for task in tasks:
         resource = parse_task_resource(task)
-        task_cmd = " ".join([sys.executable, *task["py_args"].split()])
-        print(f"[INFO] Creating job {task['name']} with resource={resource}: {task_cmd}")
+        print(f"[INFO] Creating job {task['name']} with resource={resource}")
         job = util.Job(
             name=task["name"],
-            # cmd=task_cmd,
             py_args=task["py_args"],
             resources=resource,
             node=util.JobNode(
@@ -165,7 +199,16 @@ def run_tasks(tasks, args: argparse.Namespace, runtime_env=None, concurrent=Fals
     )
 
 
-def main():
+def main() -> None:
+    """
+    Main entry point for the Ray task runner script.
+
+    Reads the YAML task configuration file, parses CLI arguments,
+    and dispatches tasks to the Ray cluster.
+
+    Returns:
+        None
+    """
     args = parse_args()
     with open(args.task_cfg) as f:
         config = yaml.safe_load(f)

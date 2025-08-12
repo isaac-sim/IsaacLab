@@ -535,37 +535,50 @@ class JobNode:
     hostname: str | None = None
     node_id: str | None = None
 
-    def to_opt(self, nodes: list) -> dict[str, Any]:
+    def to_opt(self, nodes: list[dict[str, Any]]) -> dict[str, Any]:
         """
-        nodes: A list of nodes from ray.nodes(). ray.nodes() returns something which looks like this:
-        [{
-            'NodeID': 'xxx',
-            'Alive': True,
-            'NodeManagerAddress': 'x.x.x.x',
-            'NodeManagerHostname': 'ray-head-mjzzf',
-            'NodeManagerPort': 44039,
-            'ObjectManagerPort': 35689,
-            'ObjectStoreSocketName': '/tmp/ray/session_xxx/sockets/plasma_store',
-            'RayletSocketName': '/tmp/ray/session_xxx/sockets/raylet',
-            'MetricsExportPort': 8080,
-            'NodeName': 'x.x.x.x',
-            'RuntimeEnvAgentPort': 63725,
-            'DeathReason': 0,
-            'DeathReasonMessage': '',
-            'alive': True,
-            'Resources': {
-                'node:__internal_head__': 1.0,
-                'object_store_memory': 422449279795.0,
-                'memory': 1099511627776.0,
-                'GPU': 8.0,
-                'node:x.x.x.x': 1.0,
-                'CPU': 192.0,
-                'accelerator_type:H20': 1.0
-                },
-            'Labels': {
-                'ray.io/node_id': 'xxx'
-                }
-        },...]
+        Convert node affinity settings into a dictionary of Ray actor scheduling options.
+
+        Args:
+            nodes (list[dict[str, Any]]): List of node metadata from `ray.nodes()` which looks like this:
+            [{
+                'NodeID': 'xxx',
+                'Alive': True,
+                'NodeManagerAddress': 'x.x.x.x',
+                'NodeManagerHostname': 'ray-head-mjzzf',
+                'NodeManagerPort': 44039,
+                'ObjectManagerPort': 35689,
+                'ObjectStoreSocketName': '/tmp/ray/session_xxx/sockets/plasma_store',
+                'RayletSocketName': '/tmp/ray/session_xxx/sockets/raylet',
+                'MetricsExportPort': 8080,
+                'NodeName': 'x.x.x.x',
+                'RuntimeEnvAgentPort': 63725,
+                'DeathReason': 0,
+                'DeathReasonMessage': '',
+                'alive': True,
+                'Resources': {
+                    'node:__internal_head__': 1.0,
+                    'object_store_memory': 422449279795.0,
+                    'memory': 1099511627776.0,
+                    'GPU': 8.0,
+                    'node:x.x.x.x': 1.0,
+                    'CPU': 192.0,
+                    'accelerator_type:H20': 1.0
+                    },
+                'Labels': {
+                    'ray.io/node_id': 'xxx'
+                    }
+                },...]
+
+        Returns:
+            dict[str, Any]: A dictionary with possible scheduling options:
+                - Empty if no specific placement requirement.
+                - "scheduling_strategy" key set to `NodeAffinitySchedulingStrategy`
+                  if hostname or node_id placement is specified.
+
+        Raises:
+            ValueError: If hostname/node_id is specified but not found in the cluster
+                        or the node is not alive.
         """
         opt = {}
         if self.specific is None or self.specific == "any":
@@ -608,8 +621,18 @@ class Job:
     # specify the node to run the job on, if needed to run on a specific node
     node: JobNode | None = None
 
-    def to_opt(self, nodes) -> dict[str, Any]:
-        """Convert the job to a dictionary."""
+    def to_opt(self, nodes: list[dict[str, Any]]) -> dict[str, Any]:
+        """
+        Convert the job definition into a dictionary of Ray scheduling options.
+
+        Args:
+            nodes (list[dict[str, Any]]): Node information from `ray.nodes()`.
+
+        Returns:
+            dict[str, Any]: Combined scheduling options from:
+                - `JobResource.to_opt()` for resource requirements
+                - `JobNode.to_opt()` for node placement constraints
+        """
         opt = {}
         if self.resources is not None:
             opt.update(self.resources.to_opt())
@@ -650,7 +673,20 @@ def submit_wrapped_jobs(
     log_realtime: bool = True,
     test_mode: bool = False,
     concurrent: bool = False,
-):
+) -> None:
+    """
+    Submit a list of jobs to the Ray cluster and manage their execution.
+
+    Args:
+        jobs (Sequence[Job]): A sequence of Job objects to execute on Ray.
+        log_realtime (bool): Whether to log stdout/stderr in real-time. Defaults to True.
+        test_mode (bool): If True, run in GPU sanity-check mode instead of actual jobs. Defaults to False.
+        concurrent (bool): Whether to launch tasks simultaneously as a batch,
+                           or independently as resources become available. Defaults to False.
+
+    Returns:
+        None
+    """
     if jobs is None or len(jobs) == 0:
         print("[WARNING]: No jobs to submit")
         return
