@@ -13,7 +13,7 @@ import torch
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
-from isaaclab.envs import DirectRLEnvCfg
+from isaaclab.envs import DirectRLEnvCfg, ViewerCfg
 from isaaclab.markers.config import CUBOID_MARKER_CFG, FRAME_MARKER_CFG
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg, ContactSensorCfg, FrameTransformerCfg, OffsetCfg
@@ -353,3 +353,9 @@ class TwoRobotStackCubeTeleopCfg(TwoRobotStackCubeCfg):
             torch.tensor(torch.pi / 2.0),
         ).tolist()
     )
+
+    viewer = ViewerCfg()
+    viewer.eye = (-1.6, 0.0, 1.2)
+    viewer.lookat = (0.0, 0.0, 0.4)
+    viewer.origin_type = "env"
+    viewer.env_index = 0

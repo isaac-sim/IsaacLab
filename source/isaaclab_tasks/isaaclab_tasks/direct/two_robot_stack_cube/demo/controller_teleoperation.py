@@ -122,6 +122,7 @@ def main():
     # ---- Main loop ----
     while simulation_app.is_running():
         delta_pose, grip_cmd = teleop.advance()
+        delta_pose[1] = delta_pose[1] * -1.0  # flip y-axis for consistent control form viewpoint
 
         # Active arm selection
         if state["active"] == "left":
