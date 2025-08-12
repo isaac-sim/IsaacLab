@@ -114,13 +114,10 @@ class Se3SpaceMouse(SpaceMouseBase):
         self._process_twist_command(twist)
 
     def _process_twist_command(self, twist) -> None:
-        """Transform the raw SpaceMouse state into twist commands.
+        """Process Se3 twist into delta position and rotation commands.
 
         Args:
-            state: The raw SpaceMouse state.
-
-        Returns:
-            np.ndarray -- A 6D array containing the twist command corresponding to (x, y, z, roll, pitch, yaw).
+            twist: The Se3 twist linear and angular velocity in order: [vx, vy, vz, wx, wy, wz].
         """
         self._delta_pos = self._pos_sensitivity * twist[:3]
         self._delta_rot = self._rot_sensitivity * twist[3:]
