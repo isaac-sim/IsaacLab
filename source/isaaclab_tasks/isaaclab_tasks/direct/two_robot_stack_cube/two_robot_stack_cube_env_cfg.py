@@ -25,7 +25,6 @@ from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.math import quat_from_euler_xyz
 
-# TODO set a parameter to select PD params if IK is used
 from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG, FRANKA_PANDA_HIGH_PD_CFG  # isort: skip
 
 
@@ -71,7 +70,7 @@ class TwoRobotStackCubeCfg(DirectRLEnvCfg):
     scene: InteractiveSceneCfg = InteractiveSceneCfg(
         num_envs=2048,
         env_spacing=2.5,
-        replicate_physics=True,  # TODO set to True for optimization
+        replicate_physics=True,
     )
 
     robot_left_cfg = FRANKA_PANDA_CFG.replace(prim_path="/World/envs/env_.*/Robot_left")
@@ -95,7 +94,6 @@ class TwoRobotStackCubeCfg(DirectRLEnvCfg):
         ).tolist()
     )
 
-    # TODO adapt position
     sensors = (
         CameraCfg(
             prim_path="/World/envs/env_.*/Camera",  # Fixed camera
@@ -111,11 +109,11 @@ class TwoRobotStackCubeCfg(DirectRLEnvCfg):
                 clipping_range=(0.01, 100.0),
             ),
             offset=CameraCfg.OffsetCfg(
-                pos=(0.85, 0.0, 0.4),  # offset from center view
+                pos=(0.6, 0.0, 0.5),  # offset from center view
                 rot=(
                     tuple(
                         quat_from_euler_xyz(
-                            torch.tensor(0.6),
+                            torch.tensor(0.8),
                             torch.tensor(torch.pi),
                             torch.tensor(-torch.pi / 2.0),
                         ).tolist()
@@ -129,28 +127,28 @@ class TwoRobotStackCubeCfg(DirectRLEnvCfg):
             update_period=0.0,
             history_length=1,
             debug_vis=False,
-            filter_prim_paths_expr=[".*/Cube_green"],  # TODO debug
+            filter_prim_paths_expr=["/World/envs/env_.*/Cube_green"],
         ),
         ContactSensorCfg(
             prim_path="/World/envs/env_.*/Robot_left/panda_rightfinger",
             update_period=0.0,
             history_length=1,
             debug_vis=False,
-            filter_prim_paths_expr=[".*/Cube_green"],
+            filter_prim_paths_expr=["/World/envs/env_.*/Cube_green"],
         ),
         ContactSensorCfg(
             prim_path="/World/envs/env_.*/Robot_right/panda_leftfinger",
             update_period=0.0,
             history_length=1,
             debug_vis=False,
-            filter_prim_paths_expr=[".*/Cube_red"],
+            filter_prim_paths_expr=["/World/envs/env_.*/Cube_red"],
         ),
         ContactSensorCfg(
             prim_path="/World/envs/env_.*/Robot_right/panda_rightfinger",
             update_period=0.0,
             history_length=1,
             debug_vis=False,
-            filter_prim_paths_expr=[".*/Cube_red"],
+            filter_prim_paths_expr=["/World/envs/env_.*/Cube_red"],
         ),
     )
 

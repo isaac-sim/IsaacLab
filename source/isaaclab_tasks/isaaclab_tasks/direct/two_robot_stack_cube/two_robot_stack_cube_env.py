@@ -117,7 +117,6 @@ class TwoRobotStackCubeEnv(DirectRLEnv):
         """
         self.actions = actions.clone()
 
-    # TODO
     def _apply_action(self) -> None:
         """
         Apply joint efforts to both robots from the cached actions.
@@ -350,8 +349,7 @@ class TwoRobotStackCubeEnv(DirectRLEnv):
             timeout (torch.Tensor): Timeout mask if max length reached (N,).
         """
         done = self.is_success()
-        # timeout = self.episode_length_buf >= (self.max_episode_length - 1)
-        timeout = torch.zeros_like(done, dtype=torch.bool)  # TODO remove (only for testing)
+        timeout = self.episode_length_buf >= (self.max_episode_length - 1)
         return done, timeout
 
     def _reset_idx(self, env_ids: Sequence[int] | None):

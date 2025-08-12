@@ -166,13 +166,13 @@ class PegInsertionSideEnv(DirectRLEnv):
         self.tcp_transformer = FrameTransformer(cfg=tcp_cfg)
         self.scene.sensors["tcp"] = self.tcp_transformer
 
-        # Contact sensor on the left fingertip, only reporting forces against the peg
+        # Contact sensor on the left fingertip, only reporting forces against the peg TODO move to cfg
         left_contact_cfg = ContactSensorCfg(
             prim_path="/World/envs/env_.*/Robot/panda_leftfinger",
             update_period=0.0,
             history_length=1,
             debug_vis=False,
-            filter_prim_paths_expr=[".*/Peg"],  # only peg contacts
+            filter_prim_paths_expr=["/World/envs/env_.*/Peg"],  # only peg contacts
         )
         self.scene.sensors["left_contact"] = ContactSensor(cfg=left_contact_cfg)
 
@@ -182,7 +182,7 @@ class PegInsertionSideEnv(DirectRLEnv):
             update_period=0.0,
             history_length=1,
             debug_vis=False,
-            filter_prim_paths_expr=[".*/Peg"],
+            filter_prim_paths_expr=["/World/envs/env_.*/Peg"],
         )
         self.scene.sensors["right_contact"] = ContactSensor(cfg=right_contact_cfg)
 
@@ -254,7 +254,7 @@ class PegInsertionSideEnv(DirectRLEnv):
         pos = self.tcp_transformer.data.target_pos_w.squeeze(1) - self.scene.env_origins  # (N,3)
         return torch.cat((pos, quat), dim=1)  # now (N,7)
 
-    # TODO test in simulation
+    # TODO test in simulation and DEBUG See stack cube task
     def is_grasping(
         self,
         min_force: float = 0.5,

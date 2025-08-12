@@ -64,7 +64,7 @@ class TwoRobotPickCubeCfg(DirectRLEnvCfg):
     scene: InteractiveSceneCfg = InteractiveSceneCfg(
         num_envs=2048,
         env_spacing=2.5,
-        replicate_physics=True,  # TODO set to True for optimization
+        replicate_physics=True,
     )
 
     robot_left_cfg = FRANKA_PANDA_CFG.replace(prim_path="/World/envs/env_.*/Robot_left")
