@@ -411,8 +411,8 @@ class TwoRobotStackCubeEnv(DirectRLEnv):
         pos = rand6[:, :3] + self.scene.env_origins[env_ids]
         quat = quat_from_euler_xyz(rand6[:, 3], rand6[:, 4], rand6[:, 5])
         state = torch.cat([pos, quat], dim=-1)
-        cube.write_root_pose_to_sim(state, env_ids)
-        cube.write_root_velocity_to_sim(default[:, 7:], env_ids)
+        cube.write_root_pose_to_sim(state[env_ids], env_ids)
+        cube.write_root_velocity_to_sim(default[env_ids, 7:], env_ids)
 
     def sample_target_pose(self, env_ids: Sequence[int] | None = None):
         """
@@ -426,9 +426,9 @@ class TwoRobotStackCubeEnv(DirectRLEnv):
         low = torch.tensor(self.cfg.target_sample_range[0], device=self.device)
         high = torch.tensor(self.cfg.target_sample_range[1], device=self.device)
         rand6 = sample_uniform(low, high, (self.num_envs, 6), device=self.device)
-        pos = rand6[:, :3] + self.scene.env_origins[env_ids]
+        pos = rand6[:, :3]
         quat = quat_from_euler_xyz(rand6[:, 3], rand6[:, 4], rand6[:, 5])
-        self.target_pose = torch.cat([pos, quat], dim=-1)
-        self.target_pose[:, :3] -= self.scene.env_origins[env_ids]
+        self.target_pose = torch.zeros((self.num_envs, 7), device=self.device, dtype=torch.float32)
+        self.target_pose[env_ids] = torch.cat([pos, quat], dim=-1)[env_ids]
         idxs = torch.zeros(len(env_ids), dtype=torch.long, device=self.device)
-        self.target_marker.visualize(pos, quat, marker_indices=idxs)
+        self.target_marker.visualize(pos + self.scene.env_origins, quat, marker_indices=idxs)
