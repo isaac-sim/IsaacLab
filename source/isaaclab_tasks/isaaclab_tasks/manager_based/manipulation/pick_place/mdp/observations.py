@@ -14,6 +14,8 @@ if TYPE_CHECKING:
 
 def object_obs(
     env: ManagerBasedRLEnv,
+    left_eef_link_name: str,
+    right_eef_link_name: str,
 ) -> torch.Tensor:
     """
     Object observations (in world frame):
@@ -24,8 +26,8 @@ def object_obs(
     """
 
     body_pos_w = env.scene["robot"].data.body_pos_w
-    left_eef_idx = env.scene["robot"].data.body_names.index("left_hand_roll_link")
-    right_eef_idx = env.scene["robot"].data.body_names.index("right_hand_roll_link")
+    left_eef_idx = env.scene["robot"].data.body_names.index(left_eef_link_name)
+    right_eef_idx = env.scene["robot"].data.body_names.index(right_eef_link_name)
     left_eef_pos = body_pos_w[:, left_eef_idx] - env.scene.env_origins
     right_eef_pos = body_pos_w[:, right_eef_idx] - env.scene.env_origins
 
@@ -46,41 +48,33 @@ def object_obs(
     )
 
 
-def get_left_eef_pos(
-    env: ManagerBasedRLEnv,
-) -> torch.Tensor:
+def get_left_eef_pos(env: ManagerBasedRLEnv, link_name: str) -> torch.Tensor:
     body_pos_w = env.scene["robot"].data.body_pos_w
-    left_eef_idx = env.scene["robot"].data.body_names.index("left_hand_roll_link")
+    left_eef_idx = env.scene["robot"].data.body_names.index(link_name)
     left_eef_pos = body_pos_w[:, left_eef_idx] - env.scene.env_origins
 
     return left_eef_pos
 
 
-def get_left_eef_quat(
-    env: ManagerBasedRLEnv,
-) -> torch.Tensor:
+def get_left_eef_quat(env: ManagerBasedRLEnv, link_name: str) -> torch.Tensor:
     body_quat_w = env.scene["robot"].data.body_quat_w
-    left_eef_idx = env.scene["robot"].data.body_names.index("left_hand_roll_link")
+    left_eef_idx = env.scene["robot"].data.body_names.index(link_name)
     left_eef_quat = body_quat_w[:, left_eef_idx]
 
     return left_eef_quat
 
 
-def get_right_eef_pos(
-    env: ManagerBasedRLEnv,
-) -> torch.Tensor:
+def get_right_eef_pos(env: ManagerBasedRLEnv, link_name: str) -> torch.Tensor:
     body_pos_w = env.scene["robot"].data.body_pos_w
-    right_eef_idx = env.scene["robot"].data.body_names.index("right_hand_roll_link")
+    right_eef_idx = env.scene["robot"].data.body_names.index(link_name)
     right_eef_pos = body_pos_w[:, right_eef_idx] - env.scene.env_origins
 
     return right_eef_pos
 
 
-def get_right_eef_quat(
-    env: ManagerBasedRLEnv,
-) -> torch.Tensor:
+def get_right_eef_quat(env: ManagerBasedRLEnv, link_name: str) -> torch.Tensor:
     body_quat_w = env.scene["robot"].data.body_quat_w
-    right_eef_idx = env.scene["robot"].data.body_names.index("right_hand_roll_link")
+    right_eef_idx = env.scene["robot"].data.body_names.index(link_name)
     right_eef_quat = body_quat_w[:, right_eef_idx]
 
     return right_eef_quat
@@ -88,17 +82,18 @@ def get_right_eef_quat(
 
 def get_hand_state(
     env: ManagerBasedRLEnv,
+    hand_joint_names: list[str],
 ) -> torch.Tensor:
-    hand_joint_states = env.scene["robot"].data.joint_pos[:, -22:]  # Hand joints are last 22 entries of joint state
+    # hand_joint_names is a list of regex, use find_joints
+    indexes, _ = env.scene["robot"].find_joints(hand_joint_names)
+    indexes = torch.tensor(indexes, dtype=torch.long)
+    hand_joint_states = env.scene["robot"].data.joint_pos[:, indexes]
 
     return hand_joint_states
 
 
-def get_head_state(
-    env: ManagerBasedRLEnv,
-) -> torch.Tensor:
+def get_head_state(env: ManagerBasedRLEnv, head_joint_names: list[str]) -> torch.Tensor:
     robot_joint_names = env.scene["robot"].data.joint_names
-    head_joint_names = ["head_pitch_joint", "head_roll_joint", "head_yaw_joint"]
     indexes = torch.tensor([robot_joint_names.index(name) for name in head_joint_names], dtype=torch.long)
     head_joint_states = env.scene["robot"].data.joint_pos[:, indexes]
 

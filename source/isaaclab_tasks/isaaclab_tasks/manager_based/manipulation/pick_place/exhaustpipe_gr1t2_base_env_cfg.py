@@ -9,6 +9,7 @@ from dataclasses import MISSING
 
 import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
+from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.devices.openxr import XrCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
@@ -134,6 +135,52 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
             },
             joint_vel={".*": 0.0},
         ),
+        actuators={
+            "trunk": ImplicitActuatorCfg(
+                joint_names_expr=[
+                    "waist_.*",
+                ],
+                effort_limit=None,
+                velocity_limit=None,
+                stiffness=9000,
+                damping=160.0,
+                armature=0.01,
+            ),
+            "right-arm": ImplicitActuatorCfg(
+                joint_names_expr=[
+                    "right_shoulder_.*",
+                    "right_elbow_.*",
+                    "right_wrist_.*",
+                ],
+                stiffness=9000.0,
+                damping=160.0,
+                armature=0.01,
+            ),
+            "left-arm": ImplicitActuatorCfg(
+                joint_names_expr=[
+                    "left_shoulder_.*",
+                    "left_elbow_.*",
+                    "left_wrist_.*",
+                ],
+                stiffness=9000.0,
+                damping=160.0,
+                armature=0.01,
+            ),
+            "right-hand": ImplicitActuatorCfg(
+                joint_names_expr=[
+                    "R_.*",
+                ],
+                stiffness=400,
+                damping=8,
+            ),
+            "left-hand": ImplicitActuatorCfg(
+                joint_names_expr=[
+                    "L_.*",
+                ],
+                stiffness=400,
+                damping=8,
+            ),
+        },
     )
 
     # Set table view camera
@@ -184,13 +231,16 @@ class ObservationsCfg:
             params={"asset_cfg": SceneEntityCfg("robot")},
         )
 
-        left_eef_pos = ObsTerm(func=mdp.get_left_eef_pos)
-        left_eef_quat = ObsTerm(func=mdp.get_left_eef_quat)
-        right_eef_pos = ObsTerm(func=mdp.get_right_eef_pos)
-        right_eef_quat = ObsTerm(func=mdp.get_right_eef_quat)
+        left_eef_pos = ObsTerm(func=mdp.get_left_eef_pos, params={"link_name": "left_hand_roll_link"})
+        left_eef_quat = ObsTerm(func=mdp.get_left_eef_quat, params={"link_name": "left_hand_roll_link"})
+        right_eef_pos = ObsTerm(func=mdp.get_right_eef_pos, params={"link_name": "right_hand_roll_link"})
+        right_eef_quat = ObsTerm(func=mdp.get_right_eef_quat, params={"link_name": "right_hand_roll_link"})
 
-        hand_joint_state = ObsTerm(func=mdp.get_hand_state)
-        head_joint_state = ObsTerm(func=mdp.get_head_state)
+        hand_joint_state = ObsTerm(func=mdp.get_hand_state, params={"hand_joint_names": ["R_.*", "L_.*"]})
+        head_joint_state = ObsTerm(
+            func=mdp.get_head_state,
+            params={"head_joint_names": ["head_pitch_joint", "head_roll_joint", "head_yaw_joint"]},
+        )
 
         robot_pov_cam = ObsTerm(
             func=mdp.image,
@@ -216,7 +266,7 @@ class TerminationsCfg:
         params={"minimum_height": 0.5, "asset_cfg": SceneEntityCfg("blue_exhaust_pipe")},
     )
 
-    success = DoneTerm(func=mdp.task_done_exhaust_pipe)
+    success = DoneTerm(func=mdp.task_done_exhaust_pipe, params={"relevant_link_name": "right_hand_roll_link"})
 
 
 @configclass

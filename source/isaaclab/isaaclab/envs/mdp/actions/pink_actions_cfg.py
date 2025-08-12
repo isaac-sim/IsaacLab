@@ -26,11 +26,15 @@ class PinkInverseKinematicsActionCfg(ActionTermCfg):
     pink_controlled_joint_names: list[str] = MISSING
     """List of joint names or regular expression patterns that specify the joints controlled by pink IK."""
 
-    ik_urdf_fixed_joint_names: list[str] = MISSING
-    """List of joint names that specify the joints to be locked in URDF."""
-
     hand_joint_names: list[str] = MISSING
     """List of joint names or regular expression patterns that specify the joints controlled by hand retargeting."""
 
     controller: PinkIKControllerCfg = MISSING
     """Configuration for the Pink IK controller that will be used to solve the inverse kinematics."""
+
+    target_eef_link_names: dict[str, str] = MISSING
+    """Dictionary mapping task names to controlled link names for the Pink IK controller.
+
+    This dictionary should map the task names (e.g., 'left_wrist', 'right_wrist') to the
+    corresponding link names in the URDF that will be controlled by the IK solver.
+    """

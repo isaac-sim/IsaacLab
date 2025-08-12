@@ -68,6 +68,7 @@ Guidelines for modifications:
 * HoJin Jeon
 * Hongwei Xiong
 * Hongyu Li
+* Huihua Zhao
 * Iretiayo Akinola
 * Jack Zeng
 * Jan Kerner
@@ -91,6 +92,7 @@ Guidelines for modifications:
 * Masoud Moghani
 * Michael Gussert
 * Michael Noseworthy
+* Michael Lin
 * Miguel Alonso Jr
 * Mingyu Lee
 * Muhong Guo
@@ -112,6 +114,7 @@ Guidelines for modifications:
 * Ritvik Singh
 * Rosario Scalise
 * Ryley McCarroll
+* Sergey Grizan
 * Shafeef Omar
 * Shaoshu Su
 * Shaurya Dewan
@@ -124,6 +127,7 @@ Guidelines for modifications:
 * Vladimir Fokow
 * Wei Yang
 * Xavier Nal
+* Yan Chang
 * Yang Jin
 * Yanzi Zhu
 * Yijie Guo

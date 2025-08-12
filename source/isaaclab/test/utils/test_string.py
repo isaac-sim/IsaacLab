@@ -162,6 +162,14 @@ def test_resolve_matching_names_values_with_basic_strings():
     query_names = {"a|c": 1, "b": 0, "f": 2}
     with pytest.raises(ValueError):
         _ = string_utils.resolve_matching_names_values(query_names, target_names)
+    # test require_all_keys_matched=False
+    data = {"a|c": 1, "b": 2, "f": 3}
+    index_list, names_list, values_list = string_utils.resolve_matching_names_values(
+        data, target_names, require_all_keys_matched=False
+    )
+    assert index_list == [0, 1, 2]
+    assert names_list == ["a", "b", "c"]
+    assert values_list == [1, 2, 1]
 
 
 def test_resolve_matching_names_values_with_basic_strings_and_preserved_order():
