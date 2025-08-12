@@ -201,8 +201,8 @@ class TwoRobotStackCubeEnv(DirectRLEnv):
         robot: Articulation,
         left_contact_name: str,
         right_contact_name: str,
-        min_force: float = 0.5,
-        max_angle: float = 85.0,
+        min_force: float = 0.2,
+        max_angle: float = 130.0,
     ) -> torch.Tensor:
         """
         Check if the given robot is grasping an object by evaluating
@@ -262,53 +262,59 @@ class TwoRobotStackCubeEnv(DirectRLEnv):
         """
         N = self.num_envs
         tcp = self.get_tcp_poses()
-        pos_L, pos_R = tcp[:, :3], tcp[:, 7:10]
+        tcp_L, tcp_R = tcp[:, :3], tcp[:, 7:10]
         green_w = self.cube_green.data.root_state_w[:, :3] - self.scene.env_origins
         red_w = self.cube_red.data.root_state_w[:, :3] - self.scene.env_origins
-        half_edge = 0.8 * 0.033 / 2.0
+        half_edge = 0.8 * self.cfg.DEX_CUBE_SIZE / 2.0
         reward = torch.zeros(N, device=self.device)
 
-        # Stage 1
-        d_L = torch.linalg.norm(pos_L - green_w, dim=-1)
+        # Stage 1: Reach and pre-grasp
+        d_L = torch.linalg.norm(tcp_L - green_w, dim=-1)
         push_target = red_w + torch.tensor([0, half_edge + 0.005, 0], device=self.device)
-        d_R = torch.linalg.norm(pos_R - push_target, dim=-1)
-        reach_r = (1 - torch.tanh(5 * d_L) + 1 - torch.tanh(5 * d_R)) / 2
+        d_R = torch.linalg.norm(tcp_R - push_target, dim=-1)
+        reach_reward = (1 - torch.tanh(5 * d_L) + 1 - torch.tanh(5 * d_R)) / 2
         graspL = self.is_grasping(self.robot_left, "left_robot_left_contact", "left_robot_right_contact").to(
             self.device
         )
-        reward[:] = (reach_r + graspL) / 2
+        reward[:] = (reach_reward + graspL) / 2
 
-        # Stage 2
-        on_tgt = torch.linalg.norm(green_w[:, :2] - self.target_pose[:, :2], dim=-1) < self.cfg.GOAL_RADIUS
-        place_b = 1 - torch.tanh(5 * torch.linalg.norm(green_w[:, :2] - self.target_pose[:, :2], dim=-1))
-        mask2 = graspL.bool()
-        reward[mask2] = 2.0 + (place_b[mask2] + graspL[mask2]) / 2
-
-        # Stage 3
-        placed_b = on_tgt & graspL.bool()
-        stack_tgt = torch.cat([green_w[:, :2], (green_w[:, 2] + 2 * half_edge).unsqueeze(-1)], dim=1)
-        place_t = 1 - torch.tanh(5 * torch.linalg.norm(stack_tgt - red_w, dim=-1))
-        leave_R = 1 - torch.tanh(5 * torch.abs(pos_R[:, 1] + 0.2))
-        reward[placed_b] = 4.0 + (2 * place_t[placed_b] + leave_R[placed_b])
-
-        # Stage 4
-        stacked = (torch.linalg.norm(red_w[:, :2] - green_w[:, :2], dim=-1) <= (2 * half_edge + 0.005)) & (
-            torch.abs(red_w[:, 2] - (green_w[:, 2] + 2 * half_edge)) <= 0.005
+        # Stage 2: Place bottom cube on target
+        red_on_tgt = torch.linalg.norm(red_w[:, :2] - self.target_pose[:, :2], dim=-1) < self.cfg.GOAL_RADIUS
+        place_reward = 1 - torch.tanh(5 * torch.linalg.norm(red_w[:, :2] - self.target_pose[:, :2], dim=-1))
+        grasped_green_cube_mask = graspL.bool()
+        reward[grasped_green_cube_mask] = (
+            2.0 + (place_reward[grasped_green_cube_mask] + graspL[grasped_green_cube_mask]) / 2
         )
-        mask4 = placed_b & stacked
-        rel_b = (~self.is_grasping(self.robot_left, "left_robot_left_contact", "left_robot_right_contact")).to(
+
+        # Stage 3: Stack top cube and move right arm away
+        placed_bottom_cube_and_grasped_green = red_on_tgt & graspL.bool()
+
+        stack_target = torch.cat([red_w[:, :2], (red_w[:, 2] + 2 * half_edge).unsqueeze(-1)], dim=1)
+        place_top_reward = 1 - torch.tanh(5 * torch.linalg.norm(stack_target - green_w, dim=-1))
+        move_right_robot_away_reward = 1 - torch.tanh(5 * torch.abs(tcp_R[:, 1] - 0.2))
+        reward[placed_bottom_cube_and_grasped_green] = 4.0 + (
+            2 * place_top_reward[placed_bottom_cube_and_grasped_green]
+            + move_right_robot_away_reward[placed_bottom_cube_and_grasped_green]
+        )
+
+        # Stage 4: Release both cubes
+        stacked = (torch.linalg.norm(green_w[:, :2] - red_w[:, :2], dim=-1) <= (2 * half_edge + 0.005)) & (
+            torch.abs(green_w[:, 2] - (red_w[:, 2] + 2 * half_edge)) <= 0.005
+        )
+        both_cubes_stacked_mask = red_on_tgt & stacked
+        rel_t = (~self.is_grasping(self.robot_left, "left_robot_left_contact", "left_robot_right_contact")).to(
             self.device
         )
-        rel_t = (
+        rel_b = (
             ~self.is_grasping(
                 self.robot_right,
                 "right_robot_left_contact",
                 "right_robot_right_contact",
             )
         ).to(self.device)
-        reward[mask4] = 8.0 + (rel_b[mask4] + rel_t[mask4]) / 2
+        reward[both_cubes_stacked_mask] = 8.0 + (rel_b[both_cubes_stacked_mask] + rel_t[both_cubes_stacked_mask]) / 2
 
-        # Stage 5
+        # Stage 5: Terminal success bonus
         success = self.is_success()
         reward[success] = 10.0
         return reward
@@ -325,14 +331,14 @@ class TwoRobotStackCubeEnv(DirectRLEnv):
         """
         green_p = self.cube_green.data.root_state_w[:, :3] - self.scene.env_origins
         red_p = self.cube_red.data.root_state_w[:, :3] - self.scene.env_origins
-        on_tgt = torch.linalg.norm(green_p[:, :2] - self.target_pose[:, :2], dim=-1) <= self.cfg.GOAL_RADIUS
+        on_tgt = torch.linalg.norm(red_p[:, :2] - self.target_pose[:, :2], dim=-1) <= self.cfg.GOAL_RADIUS
         half_edge = 0.8 * self.cfg.DEX_CUBE_SIZE / 2.0
-        offset = red_p - green_p
+        offset = green_p - red_p
         xy_ok = torch.linalg.norm(offset[:, :2], dim=-1) <= (2 * half_edge + 0.005)
         z_ok = torch.abs(offset[:, 2] - (2 * half_edge)) <= 0.005
         stacked = xy_ok & z_ok
-        rel_b = ~self.is_grasping(self.robot_left, "left_robot_left_contact", "left_robot_right_contact")
-        rel_t = ~self.is_grasping(self.robot_right, "right_robot_left_contact", "right_robot_right_contact")
+        rel_t = ~self.is_grasping(self.robot_left, "left_robot_left_contact", "left_robot_right_contact")
+        rel_b = ~self.is_grasping(self.robot_right, "right_robot_left_contact", "right_robot_right_contact")
         return on_tgt & stacked & rel_b & rel_t
 
     def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:
