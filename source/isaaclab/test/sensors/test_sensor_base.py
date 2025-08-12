@@ -52,6 +52,13 @@ class DummySensor(SensorBase):
     def _update_buffers_impl(self, env_ids: Sequence[int]):
         self._data.count[env_ids] += 1
 
+    def reset(self, env_ids: Sequence[int] | None = None):
+        super().reset(env_ids=env_ids)
+        # Resolve sensor ids
+        if env_ids is None:
+            env_ids = slice(None)
+        self._data.count[env_ids] = 0
+
     # def _set_debug_vis_impl(self, debug_vis: bool):
 
     # def _debug_vis_callback(self, event):
@@ -116,6 +123,7 @@ def create_dummy_sensor(request, device):
 
 @pytest.mark.parametrize("device", ("cpu", "cuda"))
 def test_sensor_init(create_dummy_sensor, device):
+    """Test that the sensor initializes, steps without update, and forces update."""
 
     sensor_cfg, sim, dt = create_dummy_sensor
     sensor = DummySensor(cfg=sensor_cfg)
@@ -128,16 +136,32 @@ def test_sensor_init(create_dummy_sensor, device):
     assert sensor.is_initialized
     assert int(sensor.num_instances) == 5
 
-    for _ in range(10):
+    # test that the data is not updated
+    for i in range(10):
         sim.step()
         sensor.update(dt=dt, force_recompute=True)
-
+        expected_value = i + 1
+        torch.testing.assert_close(
+            sensor.data.count,
+            torch.tensor(expected_value, device=device, dtype=torch.int32).repeat(sensor.num_instances),
+        )
     assert sensor.data.count.shape[0] == 5
+
+    # test that the data is not updated if sensor.data is not accessed
+    for _ in range(5):
+        sim.step()
+        sensor.update(dt=dt, force_recompute=False)
+        torch.testing.assert_close(
+            sensor._data.count,
+            torch.tensor(expected_value, device=device, dtype=torch.int32).repeat(sensor.num_instances),
+        )
 
 
 @pytest.mark.parametrize("device", ("cpu", "cuda"))
 def test_sensor_update_rate(create_dummy_sensor, device):
-
+    """Test that the update_rate configuration parameter works by checking the value of the data is old for an update
+    period of 2.
+    """
     sensor_cfg, sim, dt = create_dummy_sensor
     sensor_cfg.update_period = 2 * dt
     sensor = DummySensor(cfg=sensor_cfg)
@@ -159,3 +183,53 @@ def test_sensor_update_rate(create_dummy_sensor, device):
             torch.tensor(expected_value, device=device, dtype=torch.int32).repeat(sensor.num_instances),
         )
         expected_value += i % 2
+
+
+@pytest.mark.parametrize("device", ("cpu", "cuda"))
+def test_sensor_reset(create_dummy_sensor, device):
+    """Test that sensor can be reset for all or partial env ids."""
+    sensor_cfg, sim, dt = create_dummy_sensor
+    sensor = DummySensor(cfg=sensor_cfg)
+
+    # Play sim
+    sim.step()
+    sim.reset()
+
+    assert sensor.is_initialized
+    assert int(sensor.num_instances) == 5
+    for i in range(5):
+        sim.step()
+        sensor.update(dt=dt)
+        # count should he half of the number of steps
+        torch.testing.assert_close(
+            sensor.data.count,
+            torch.tensor(i + 1, device=device, dtype=torch.int32).repeat(sensor.num_instances),
+        )
+
+    sensor.reset()
+
+    for j in range(5):
+        sim.step()
+        sensor.update(dt=dt)
+        # count should he half of the number of steps
+        torch.testing.assert_close(
+            sensor.data.count,
+            torch.tensor(j + 1, device=device, dtype=torch.int32).repeat(sensor.num_instances),
+        )
+
+    reset_ids = [2, 4]
+    cont_ids = [0, 1, 3]
+    sensor.reset(env_ids=reset_ids)
+
+    for k in range(5):
+        sim.step()
+        sensor.update(dt=dt)
+        # count should he half of the number of steps
+        torch.testing.assert_close(
+            sensor.data.count[reset_ids],
+            torch.tensor(k + 1, device=device, dtype=torch.int32).repeat(len(reset_ids)),
+        )
+        torch.testing.assert_close(
+            sensor.data.count[cont_ids],
+            torch.tensor(k + 6, device=device, dtype=torch.int32).repeat(len(cont_ids)),
+        )
