@@ -8,7 +8,7 @@
 from isaaclab.app import AppLauncher
 
 # launch omniverse app
-app_launcher = AppLauncher(headless=False)
+app_launcher = AppLauncher(headless=True)
 simulation_app = app_launcher.app
 
 
@@ -40,7 +40,7 @@ class DummySensor(SensorBase):
 
     def _initialize_impl(self):
         super()._initialize_impl()
-        self._data.count = torch.zeros((self._num_envs), dtype=torch.int)
+        self._data.count = torch.zeros((self._num_envs), dtype=torch.int, device=self.device)
 
     @property
     def data(self):
@@ -126,10 +126,10 @@ def test_sensor_init(create_dummy_sensor, device):
     sim.reset()
 
     assert sensor.is_initialized
-    # assert sensor.num_instances == 10
+    assert int(sensor.num_instances) == 5
 
     for _ in range(10):
         sim.step()
         sensor.update(dt=dt, force_recompute=True)
 
-    assert sensor.data.count.shape == (10)
+    assert sensor.data.count.shape[0] == 5
