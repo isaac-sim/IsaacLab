@@ -92,7 +92,7 @@ def create_dummy_sensor(request, device):
     stage_utils.create_new_stage()
 
     # Simulation time-step
-    dt = 0.05
+    dt = 0.01
     # Load kit helper
     sim_cfg = sim_utils.SimulationCfg(dt=dt, device=device)
     sim = sim_utils.SimulationContext(sim_cfg)
@@ -133,3 +133,29 @@ def test_sensor_init(create_dummy_sensor, device):
         sensor.update(dt=dt, force_recompute=True)
 
     assert sensor.data.count.shape[0] == 5
+
+
+@pytest.mark.parametrize("device", ("cpu", "cuda"))
+def test_sensor_update_rate(create_dummy_sensor, device):
+
+    sensor_cfg, sim, dt = create_dummy_sensor
+    sensor_cfg.update_period = 2 * dt
+    sensor = DummySensor(cfg=sensor_cfg)
+
+    # Play sim
+    sim.step()
+
+    sim.reset()
+
+    assert sensor.is_initialized
+    assert int(sensor.num_instances) == 5
+    expected_value = 1
+    for i in range(10):
+        sim.step()
+        sensor.update(dt=dt, force_recompute=True)
+        # count should he half of the number of steps
+        torch.testing.assert_close(
+            sensor.data.count,
+            torch.tensor(expected_value, device=device, dtype=torch.int32).repeat(sensor.num_instances),
+        )
+        expected_value += i % 2
