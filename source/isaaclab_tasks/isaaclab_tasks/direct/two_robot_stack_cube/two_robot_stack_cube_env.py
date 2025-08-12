@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 import random
 import torch
 from collections.abc import Sequence
@@ -6,14 +11,9 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation, RigidObject
 from isaaclab.envs import DirectRLEnv
 from isaaclab.markers import VisualizationMarkers
-from isaaclab.sensors import Camera, FrameTransformer, ContactSensor
+from isaaclab.sensors import Camera, ContactSensor, FrameTransformer
 from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
-from isaaclab.utils.math import (
-    quat_from_euler_xyz,
-    sample_uniform,
-    transform_points,
-    normalize,
-)
+from isaaclab.utils.math import normalize, quat_from_euler_xyz, sample_uniform, transform_points
 
 from .two_robot_stack_cube_env_cfg import TwoRobotStackCubeCfg
 
@@ -27,9 +27,7 @@ class TwoRobotStackCubeEnv(DirectRLEnv):
 
     cfg: TwoRobotStackCubeCfg
 
-    def __init__(
-        self, cfg: TwoRobotStackCubeCfg, render_mode: str | None = None, **kwargs
-    ):
+    def __init__(self, cfg: TwoRobotStackCubeCfg, render_mode: str | None = None, **kwargs):
         """
         Initialize the TwoRobotStackCube environment.
 
@@ -42,17 +40,11 @@ class TwoRobotStackCubeEnv(DirectRLEnv):
         random.seed(self.cfg.seed)
 
         # find actuated joints for both robots (including fingers)
-        self.joint_ids, _ = self.robot_left.find_joints(
-            "panda_joint.*|panda_finger_joint.*"
-        )
+        self.joint_ids, _ = self.robot_left.find_joints("panda_joint.*|panda_finger_joint.*")
 
         # cache fingertip link indices for grasp detection
-        self.left_finger_link_idx = self.robot_left.find_bodies("panda_leftfinger")[0][
-            0
-        ]
-        self.right_finger_link_idx = self.robot_left.find_bodies("panda_rightfinger")[
-            0
-        ][0]
+        self.left_finger_link_idx = self.robot_left.find_bodies("panda_leftfinger")[0][0]
+        self.right_finger_link_idx = self.robot_left.find_bodies("panda_rightfinger")[0][0]
 
     def _setup_scene(self):
         """
@@ -67,9 +59,7 @@ class TwoRobotStackCubeEnv(DirectRLEnv):
             - Dome lighting
         """
         # ground plane
-        spawn_ground_plane(
-            prim_path="/World/ground", cfg=GroundPlaneCfg(), translation=(0, 0, 0)
-        )
+        spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg(), translation=(0, 0, 0))
 
         # instantiate and register robots
         self.robot_left = Articulation(self.cfg.robot_left_cfg)
@@ -105,18 +95,10 @@ class TwoRobotStackCubeEnv(DirectRLEnv):
         self.scene.extras["target"] = self.target_marker
 
         # contact sensors for grasp detection
-        self.scene.sensors["left_robot_left_contact"] = ContactSensor(
-            self.cfg.sensors[1]
-        )
-        self.scene.sensors["left_robot_right_contact"] = ContactSensor(
-            self.cfg.sensors[2]
-        )
-        self.scene.sensors["right_robot_left_contact"] = ContactSensor(
-            self.cfg.sensors[3]
-        )
-        self.scene.sensors["right_robot_right_contact"] = ContactSensor(
-            self.cfg.sensors[4]
-        )
+        self.scene.sensors["left_robot_left_contact"] = ContactSensor(self.cfg.sensors[1])
+        self.scene.sensors["left_robot_right_contact"] = ContactSensor(self.cfg.sensors[2])
+        self.scene.sensors["right_robot_left_contact"] = ContactSensor(self.cfg.sensors[3])
+        self.scene.sensors["right_robot_right_contact"] = ContactSensor(self.cfg.sensors[4])
 
         # replicate environments and finalize scene
         self.scene.clone_environments(copy_from_source=True)
@@ -135,18 +117,19 @@ class TwoRobotStackCubeEnv(DirectRLEnv):
         """
         self.actions = actions.clone()
 
+    # TODO
     def _apply_action(self) -> None:
         """
         Apply joint efforts to both robots from the cached actions.
         """
         left_effort = self.actions[:, 0:9]
         right_effort = self.actions[:, 9:18]
-        # self.robot_left.set_joint_effort_target(left_effort, joint_ids=self.joint_ids)
-        # self.robot_right.set_joint_effort_target(right_effort, joint_ids=self.joint_ids)
-        self.robot_left.set_joint_position_target(left_effort, joint_ids=self.joint_ids)
-        self.robot_right.set_joint_position_target(
-            right_effort, joint_ids=self.joint_ids
-        )
+        if self.cfg.robot_controller == "task_space":
+            self.robot_left.set_joint_position_target(left_effort, joint_ids=self.joint_ids)
+            self.robot_right.set_joint_position_target(right_effort, joint_ids=self.joint_ids)
+        else:
+            self.robot_left.set_joint_effort_target(left_effort, joint_ids=self.joint_ids)
+            self.robot_right.set_joint_effort_target(right_effort, joint_ids=self.joint_ids)
 
     def _get_observations(self) -> dict:
         """
@@ -208,15 +191,9 @@ class TwoRobotStackCubeEnv(DirectRLEnv):
             torch.Tensor: (N,14) [pos_L(3), quat_L(4), pos_R(3), quat_R(4)]
         """
         quat_L = self.tcp_transformer_left.data.target_quat_w.squeeze(1)
-        pos_L = (
-            self.tcp_transformer_left.data.target_pos_w.squeeze(1)
-            - self.scene.env_origins
-        )
+        pos_L = self.tcp_transformer_left.data.target_pos_w.squeeze(1) - self.scene.env_origins
         quat_R = self.tcp_transformer_right.data.target_quat_w.squeeze(1)
-        pos_R = (
-            self.tcp_transformer_right.data.target_pos_w.squeeze(1)
-            - self.scene.env_origins
-        )
+        pos_R = self.tcp_transformer_right.data.target_pos_w.squeeze(1) - self.scene.env_origins
         return torch.cat([pos_L, quat_L, pos_R, quat_R], dim=1)
 
     def is_grasping(
@@ -252,9 +229,7 @@ class TwoRobotStackCubeEnv(DirectRLEnv):
         axes = axis_local.expand(N, 1, 3)
         pos = robot.data.body_pos_w
         quat = robot.data.body_quat_w
-        l_dir = transform_points(
-            axes, pos[:, self.left_finger_link_idx], quat[:, self.left_finger_link_idx]
-        ).squeeze(1)
+        l_dir = transform_points(axes, pos[:, self.left_finger_link_idx], quat[:, self.left_finger_link_idx]).squeeze(1)
         r_dir = transform_points(
             axes,
             pos[:, self.right_finger_link_idx],
@@ -295,47 +270,35 @@ class TwoRobotStackCubeEnv(DirectRLEnv):
 
         # Stage 1
         d_L = torch.linalg.norm(pos_L - green_w, dim=-1)
-        push_target = red_w + torch.tensor(
-            [0, half_edge + 0.005, 0], device=self.device
-        )
+        push_target = red_w + torch.tensor([0, half_edge + 0.005, 0], device=self.device)
         d_R = torch.linalg.norm(pos_R - push_target, dim=-1)
         reach_r = (1 - torch.tanh(5 * d_L) + 1 - torch.tanh(5 * d_R)) / 2
-        graspL = self.is_grasping(
-            self.robot_left, "left_robot_left_contact", "left_robot_right_contact"
-        ).to(self.device)
+        graspL = self.is_grasping(self.robot_left, "left_robot_left_contact", "left_robot_right_contact").to(
+            self.device
+        )
         reward[:] = (reach_r + graspL) / 2
 
         # Stage 2
-        on_tgt = (
-            torch.linalg.norm(green_w[:, :2] - self.target_pose[:, :2], dim=-1)
-            < self.cfg.goal_radius
-        )
-        place_b = 1 - torch.tanh(
-            5 * torch.linalg.norm(green_w[:, :2] - self.target_pose[:, :2], dim=-1)
-        )
+        on_tgt = torch.linalg.norm(green_w[:, :2] - self.target_pose[:, :2], dim=-1) < self.cfg.goal_radius
+        place_b = 1 - torch.tanh(5 * torch.linalg.norm(green_w[:, :2] - self.target_pose[:, :2], dim=-1))
         mask2 = graspL.bool()
         reward[mask2] = 2.0 + (place_b[mask2] + graspL[mask2]) / 2
 
         # Stage 3
         placed_b = on_tgt & graspL.bool()
-        stack_tgt = torch.cat(
-            [green_w[:, :2], (green_w[:, 2] + 2 * half_edge).unsqueeze(-1)], dim=1
-        )
+        stack_tgt = torch.cat([green_w[:, :2], (green_w[:, 2] + 2 * half_edge).unsqueeze(-1)], dim=1)
         place_t = 1 - torch.tanh(5 * torch.linalg.norm(stack_tgt - red_w, dim=-1))
         leave_R = 1 - torch.tanh(5 * torch.abs(pos_R[:, 1] + 0.2))
         reward[placed_b] = 4.0 + (2 * place_t[placed_b] + leave_R[placed_b])
 
         # Stage 4
-        stacked = (
-            torch.linalg.norm(red_w[:, :2] - green_w[:, :2], dim=-1)
-            <= (2 * half_edge + 0.005)
-        ) & (torch.abs(red_w[:, 2] - (green_w[:, 2] + 2 * half_edge)) <= 0.005)
+        stacked = (torch.linalg.norm(red_w[:, :2] - green_w[:, :2], dim=-1) <= (2 * half_edge + 0.005)) & (
+            torch.abs(red_w[:, 2] - (green_w[:, 2] + 2 * half_edge)) <= 0.005
+        )
         mask4 = placed_b & stacked
-        rel_b = (
-            ~self.is_grasping(
-                self.robot_left, "left_robot_left_contact", "left_robot_right_contact"
-            )
-        ).to(self.device)
+        rel_b = (~self.is_grasping(self.robot_left, "left_robot_left_contact", "left_robot_right_contact")).to(
+            self.device
+        )
         rel_t = (
             ~self.is_grasping(
                 self.robot_right,
@@ -350,21 +313,6 @@ class TwoRobotStackCubeEnv(DirectRLEnv):
         reward[success] = 10.0
         return reward
 
-    def is_robot_static(
-        self, robot: Articulation, threshold: float = 1e-3
-    ) -> torch.Tensor:
-        """
-        Check if all actuated joints of the robot are below a velocity threshold.
-
-        Args:
-            robot (Articulation): Robot to check.
-            threshold (float): Velocity threshold in rad/s.
-        Returns:
-            torch.Tensor: Bool mask (N,) True if static.
-        """
-        v = robot.data.joint_vel[:, self.joint_ids]
-        return torch.all(torch.abs(v) < threshold, dim=-1)
-
     def is_success(self) -> torch.Tensor:
         """
         Determine success when:
@@ -377,21 +325,14 @@ class TwoRobotStackCubeEnv(DirectRLEnv):
         """
         green_p = self.cube_green.data.root_state_w[:, :3] - self.scene.env_origins
         red_p = self.cube_red.data.root_state_w[:, :3] - self.scene.env_origins
-        on_tgt = (
-            torch.linalg.norm(green_p[:, :2] - self.target_pose[:, :2], dim=-1)
-            <= self.cfg.goal_radius
-        )
+        on_tgt = torch.linalg.norm(green_p[:, :2] - self.target_pose[:, :2], dim=-1) <= self.cfg.goal_radius
         half_edge = 0.8 * 0.033 / 2.0
         offset = red_p - green_p
         xy_ok = torch.linalg.norm(offset[:, :2], dim=-1) <= (2 * half_edge + 0.005)
         z_ok = torch.abs(offset[:, 2] - (2 * half_edge)) <= 0.005
         stacked = xy_ok & z_ok
-        rel_b = ~self.is_grasping(
-            self.robot_left, "left_robot_left_contact", "left_robot_right_contact"
-        )
-        rel_t = ~self.is_grasping(
-            self.robot_right, "right_robot_left_contact", "right_robot_right_contact"
-        )
+        rel_b = ~self.is_grasping(self.robot_left, "left_robot_left_contact", "left_robot_right_contact")
+        rel_t = ~self.is_grasping(self.robot_right, "right_robot_left_contact", "right_robot_right_contact")
         return on_tgt & stacked & rel_b & rel_t
 
     def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:
@@ -403,7 +344,8 @@ class TwoRobotStackCubeEnv(DirectRLEnv):
             timeout (torch.Tensor): Timeout mask if max length reached (N,).
         """
         done = self.is_success()
-        timeout = self.episode_length_buf >= (self.max_episode_length - 1)
+        # timeout = self.episode_length_buf >= (self.max_episode_length - 1)
+        timeout = torch.zeros_like(done, dtype=torch.bool)  # TODO remove (only for testing)
         return done, timeout
 
     def _reset_idx(self, env_ids: Sequence[int] | None):
@@ -417,12 +359,8 @@ class TwoRobotStackCubeEnv(DirectRLEnv):
             env_ids = self.robot_left._ALL_INDICES
         super()._reset_idx(env_ids)
         self.reset_robot(env_ids)
-        self.sample_init_cube_pose(
-            self.cube_green, self.cfg.cube_green_sample_range, env_ids
-        )
-        self.sample_init_cube_pose(
-            self.cube_red, self.cfg.cube_red_sample_range, env_ids
-        )
+        self.sample_init_cube_pose(self.cube_green, self.cfg.cube_green_sample_range, env_ids)
+        self.sample_init_cube_pose(self.cube_red, self.cfg.cube_red_sample_range, env_ids)
         self.sample_target_pose(env_ids)
 
     def reset_robot(self, env_ids: Sequence[int] | None = None):

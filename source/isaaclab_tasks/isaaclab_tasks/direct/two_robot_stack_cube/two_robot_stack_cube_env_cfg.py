@@ -16,12 +16,7 @@ from isaaclab.assets import RigidObjectCfg
 from isaaclab.envs import DirectRLEnvCfg
 from isaaclab.markers.config import CUBOID_MARKER_CFG, FRAME_MARKER_CFG
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sensors import (
-    CameraCfg,
-    ContactSensorCfg,
-    FrameTransformerCfg,
-    OffsetCfg,
-)
+from isaaclab.sensors import CameraCfg, ContactSensorCfg, FrameTransformerCfg, OffsetCfg
 from isaaclab.sim import PhysxCfg, PinholeCameraCfg, SimulationCfg
 from isaaclab.sim.schemas.schemas_cfg import RigidBodyPropertiesCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
@@ -30,7 +25,8 @@ from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.math import quat_from_euler_xyz
 
-from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG  # isort: skip
+# TODO set a parameter to select PD params if IK is used
+from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG, FRANKA_PANDA_HIGH_PD_CFG  # isort: skip
 
 
 @configclass
@@ -44,6 +40,7 @@ class TwoRobotStackCubeCfg(DirectRLEnvCfg):
     state_space = 0
 
     obs_mode: str = "state"
+    robot_controller: str = "joint_space"
 
     goal_radius = 0.06
 
@@ -85,9 +82,7 @@ class TwoRobotStackCubeCfg(DirectRLEnvCfg):
             torch.tensor(-torch.pi / 2.0),
         ).tolist()
     )  # identity quaternion
-    robot_right_cfg = FRANKA_PANDA_CFG.replace(
-        prim_path="/World/envs/env_.*/Robot_right"
-    )
+    robot_right_cfg = FRANKA_PANDA_CFG.replace(prim_path="/World/envs/env_.*/Robot_right")
     robot_right_cfg.spawn.activate_contact_sensors = True
     robot_right_cfg.init_state.pos = (0, -0.75, 0)
     robot_right_cfg.init_state.rot = tuple(
@@ -173,7 +168,7 @@ class TwoRobotStackCubeCfg(DirectRLEnvCfg):
 
     tcp_left_cfg = FrameTransformerCfg(
         prim_path="/World/envs/env_.*/Robot_left/panda_link7",
-        debug_vis=True,
+        debug_vis=False,
         visualizer_cfg=tcp_marker_cfg,
         target_frames=[
             FrameTransformerCfg.FrameCfg(
@@ -188,7 +183,7 @@ class TwoRobotStackCubeCfg(DirectRLEnvCfg):
 
     tcp_right_cfg = FrameTransformerCfg(
         prim_path="/World/envs/env_.*/Robot_right/panda_link7",
-        debug_vis=True,
+        debug_vis=False,
         visualizer_cfg=tcp_marker_cfg,
         target_frames=[
             FrameTransformerCfg.FrameCfg(
@@ -203,7 +198,7 @@ class TwoRobotStackCubeCfg(DirectRLEnvCfg):
 
     left_finger_cfg = FrameTransformerCfg(
         prim_path="/World/envs/env_.*/Robot_left/panda_link7",
-        debug_vis=True,
+        debug_vis=False,
         visualizer_cfg=tcp_marker_cfg,
         target_frames=[
             FrameTransformerCfg.FrameCfg(
@@ -218,7 +213,7 @@ class TwoRobotStackCubeCfg(DirectRLEnvCfg):
 
     right_finger_cfg = FrameTransformerCfg(
         prim_path="/World/envs/env_.*/Robot_left/panda_link7",
-        debug_vis=True,
+        debug_vis=False,
         visualizer_cfg=tcp_marker_cfg,
         target_frames=[
             FrameTransformerCfg.FrameCfg(
@@ -234,9 +229,7 @@ class TwoRobotStackCubeCfg(DirectRLEnvCfg):
     # Set Cube as object
     cube_green_cfg = RigidObjectCfg(
         prim_path="/World/envs/env_.*/Cube_green",
-        init_state=RigidObjectCfg.InitialStateCfg(
-            pos=(0.0, 0.3, 0.0), rot=(1, 0, 0, 0)
-        ),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.3, 0.0), rot=(1, 0, 0, 0)),
         spawn=UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
             scale=(0.8, 0.8, 0.8),
@@ -254,9 +247,7 @@ class TwoRobotStackCubeCfg(DirectRLEnvCfg):
     # Set Cube as object
     cube_red_cfg = RigidObjectCfg(
         prim_path="/World/envs/env_.*/Cube_red",
-        init_state=RigidObjectCfg.InitialStateCfg(
-            pos=(0.0, 0.3, 0.0), rot=(1, 0, 0, 0)
-        ),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.3, 0.0), rot=(1, 0, 0, 0)),
         spawn=UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
             scale=(0.8, 0.8, 0.8),
@@ -335,3 +326,30 @@ class TwoRobotStackCubeCfg(DirectRLEnvCfg):
 class TwoRobotStackCubeCameraCfg(TwoRobotStackCubeCfg):
 
     obs_mode: str = "camera"
+
+
+@configclass
+class TwoRobotStackCubeTeleopCfg(TwoRobotStackCubeCfg):
+
+    robot_controller = "task_space"
+
+    robot_left_cfg = FRANKA_PANDA_HIGH_PD_CFG.replace(prim_path="/World/envs/env_.*/Robot_left")
+    robot_left_cfg.spawn.activate_contact_sensors = True
+    robot_left_cfg.init_state.pos = (0, 0.75, 0)
+    robot_left_cfg.init_state.rot = tuple(
+        quat_from_euler_xyz(
+            torch.tensor(0.0),
+            torch.tensor(0.0),
+            torch.tensor(-torch.pi / 2.0),
+        ).tolist()
+    )  # identity quaternion
+    robot_right_cfg = FRANKA_PANDA_HIGH_PD_CFG.replace(prim_path="/World/envs/env_.*/Robot_right")
+    robot_right_cfg.spawn.activate_contact_sensors = True
+    robot_right_cfg.init_state.pos = (0, -0.75, 0)
+    robot_right_cfg.init_state.rot = tuple(
+        quat_from_euler_xyz(
+            torch.tensor(0.0),
+            torch.tensor(0.0),
+            torch.tensor(torch.pi / 2.0),
+        ).tolist()
+    )
