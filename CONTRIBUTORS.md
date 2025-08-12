@@ -87,6 +87,7 @@ Guidelines for modifications:
 * Lorenz Wellhausen
 * Manuel Schweiger
 * Masoud Moghani
+* Maurice Rahme
 * Michael Gussert
 * Michael Noseworthy
 * Miguel Alonso Jr
