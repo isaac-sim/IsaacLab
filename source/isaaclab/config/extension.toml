@@ -16,7 +16,6 @@ requirements = [
     "numpy",
     "prettytable==3.3.0",
     "toml",
-    "hidapi",
     "easyhid",
     "gymnasium==0.29.0",
     "trimesh"

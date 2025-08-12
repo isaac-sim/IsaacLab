@@ -99,13 +99,10 @@ class Se2SpaceMouse(SpaceMouseBase):
         self._process_twist_command(twist)
 
     def _process_twist_command(self, twist) -> None:
-        """Transform the raw SpaceMouse state into base command.
+        """Project the Se3 twist into Se2 twist command.
 
         Args:
-            state: The raw SpaceMouse state.
-
-        Returns:
-            np.ndarray -- A 3D array containing the linear (x,y) and angular velocity (z).
+            twist: The Se3 twist linear and angular velocity in order: [vx, vy, vz, wx, wy, wz].
         """
         self._base_command = np.zeros(3)
         self._base_command[0] = self._v_x_sensitivity * twist[0]  # x

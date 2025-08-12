@@ -5,7 +5,6 @@
 
 
 """SpaceMouse controller for SE(3) control."""
-"""Added support for SpaceMouse Wireless by 3Dconnexion."""
 
 import numpy as np
 from scipy.spatial.transform.rotation import Rotation

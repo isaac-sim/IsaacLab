@@ -23,6 +23,9 @@ parser.add_argument(
     default=False,
     help="Enable Pinocchio.",
 )
+parser.add_argument(
+    "--update_interval_ms", type=int, default=10, help="Update interval for 3D mouse device input in milliseconds (ms)"
+)
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
@@ -65,9 +68,6 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.manager_based.manipulation.lift import mdp
 from isaaclab_tasks.utils import parse_env_cfg
-
-# Define constants
-UPDATE_INTERVAL_MS = 10  # Update interval for 3D mouse device input (ms) -- 10ms by default.
 
 
 def pre_process_actions(
@@ -192,7 +192,7 @@ def main():
         teleop_interface = Se3SpaceMouse(
             pos_sensitivity=0.2 * args_cli.sensitivity,
             rot_sensitivity=0.01 * args_cli.sensitivity,
-            interval_ms=UPDATE_INTERVAL_MS,
+            interval_ms=args_cli.update_interval_ms,
         )
     elif args_cli.teleop_device.lower() == "gamepad":
         teleop_interface = Se3Gamepad(
