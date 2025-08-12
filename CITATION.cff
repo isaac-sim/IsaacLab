@@ -1,7 +1,7 @@
 cff-version: 1.2.0
 message: "If you use this software, please cite both the Isaac Lab repository and the Orbit paper."
 title: Isaac Lab
-version: 2.1.1
+version: 2.2.0
 repository-code: https://github.com/NVIDIA-Omniverse/IsaacLab
 type: software
 authors:

@@ -257,7 +257,7 @@ class RenderCfg:
              rtx.translucency.enabled: False # .kit
              rtx_translucency_enabled: False # python"""
 
-    rendering_mode: Literal["performance", "balanced", "quality", "xr"] | None = None
+    rendering_mode: Literal["performance", "balanced", "quality"] | None = None
     """Sets the rendering mode. Behaves the same as the CLI arg '--rendering_mode'"""
 
 
@@ -339,3 +339,9 @@ class SimulationCfg:
 
     render: RenderCfg = RenderCfg()
     """Render settings. Default is RenderCfg()."""
+
+    create_stage_in_memory: bool = False
+    """If stage is first created in memory. Default is False.
+
+    Creating the stage in memory can reduce start-up time.
+    """
