@@ -29,10 +29,10 @@ import isaaclab.utils.math as math_utils
 import isaaclab.utils.string as string_utils
 from isaaclab.actuators import ActuatorBase, IdealPDActuatorCfg, ImplicitActuatorCfg
 from isaaclab.assets import Articulation, ArticulationCfg
+from isaaclab.envs.mdp.terminations import joint_pos_out_of_limit
+from isaaclab.managers import SceneEntityCfg
 from isaaclab.sim import build_simulation_context
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-from isaaclab.managers import SceneEntityCfg
-from isaaclab.envs.mdp.terminations import joint_pos_out_of_limit
 
 ##
 # Pre-defined configs
@@ -659,7 +659,16 @@ def test_out_of_range_default_joint_vel(sim, device):
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("add_ground_plane", [True])
 def test_joint_pos_limits(sim, num_articulations, device, add_ground_plane):
-    """Test write_joint_limits_to_sim API and validate limits via joint_pos_out_of_limit()."""
+    """Test write_joint_limits_to_sim API and when default pos falls outside of the new limits.
+    This test verifies that:
+    1. Joint limits can be set correctly
+    2. Default positions are preserved when setting new limits
+    3. Joint limits can be set with indexing
+    4. Invalid joint positions are properly handled
+    Args:
+        sim: The simulation fixture
+        num_articulations: Number of articulations to test
+    """
     # Create articulation
     articulation_cfg = generate_articulation_cfg(articulation_type="panda")
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device)
@@ -674,6 +683,7 @@ def test_joint_pos_limits(sim, num_articulations, device, add_ground_plane):
 
     # Play sim
     sim.reset()
+    # Check if articulation is initialized
     assert articulation.is_initialized
 
     # Get current default joint pos
@@ -689,6 +699,7 @@ def test_joint_pos_limits(sim, num_articulations, device, add_ground_plane):
     torch.testing.assert_close(articulation._data.joint_pos_limits, limits)
     torch.testing.assert_close(articulation._data.default_joint_pos, default_joint_pos)
 
+    # Set new joint limits that invalidate default joint pos
     # Validate via function: no joint should be out of limits
     out = joint_pos_out_of_limit(env, robot_all)  # [N]
     assert torch.all(~out)
@@ -705,7 +716,7 @@ def test_joint_pos_limits(sim, num_articulations, device, add_ground_plane):
     torch.testing.assert_close(articulation._data.joint_pos_limits[env_ids][:, joint_ids], limits)
     torch.testing.assert_close(articulation._data.default_joint_pos, default_joint_pos)
 
-    # Validate via function on selected joints
+    # Set new joint limits that invalidate default joint pos
     robot_subset = SceneEntityCfg(name="robot", joint_ids=joint_ids.tolist())
     out = joint_pos_out_of_limit(env, robot_subset)  # [N]
     assert torch.all(~out)
@@ -716,11 +727,11 @@ def test_joint_pos_limits(sim, num_articulations, device, add_ground_plane):
     limits[..., 1] = torch.rand(num_articulations, articulation.num_joints, device=device) * 0.1
     articulation.write_joint_position_limit_to_sim(limits)
 
-    # Validate via function: defaults should still be within new limits
+    # Check if all values are within the bounds
     out = joint_pos_out_of_limit(env, robot_all)  # [N]
     assert torch.all(~out)
 
-    # Set new joint limits that constrain default joint pos with indexing
+    # Set new joint limits that invalidate default joint pos with indexing
     limits = torch.zeros(env_ids.shape[0], joint_ids.shape[0], 2, device=device)
     limits[..., 0] = torch.rand(env_ids.shape[0], joint_ids.shape[0], device=device) * -0.1
     limits[..., 1] = torch.rand(env_ids.shape[0], joint_ids.shape[0], device=device) * 0.1
