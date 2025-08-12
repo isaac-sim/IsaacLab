@@ -65,8 +65,8 @@ from .schemas_cfg import (
     MassPropertiesCfg,
     MeshCollisionPropertiesCfg,
     RigidBodyPropertiesCfg,
-    SpatialTendonPropertiesCfg,
     SDFMeshPropertiesCfg,
+    SpatialTendonPropertiesCfg,
     TriangleMeshPropertiesCfg,
     TriangleMeshSimplificationPropertiesCfg,
 )
@@ -85,6 +85,13 @@ __all__ = [
     "CollisionPropertiesCfg",
     "define_collision_properties",
     "modify_collision_properties",
+    # deformables
+    "DeformableBodyPropertiesCfg",
+    "define_deformable_body_properties",
+    "modify_deformable_body_properties",
+    # joints
+    "JointDrivePropertiesCfg",
+    "modify_joint_drive_properties",
     # mass
     "MassPropertiesCfg",
     "define_mass_properties",
@@ -107,6 +114,11 @@ __all__ = [
     "TriangleMeshPropertiesCfg",
     # triangle mesh simplification
     "TriangleMeshSimplificationPropertiesCfg",
+    # tendons
+    "FixedTendonPropertiesCfg",
+    "SpatialTendonPropertiesCfg",
+    "modify_fixed_tendon_properties",
+    "modify_spatial_tendon_properties",
     # Constants for configs that use PhysX vs USD API
     "PHYSX_MESH_COLLISION_CFGS",
     "USD_MESH_COLLISION_CFGS",
