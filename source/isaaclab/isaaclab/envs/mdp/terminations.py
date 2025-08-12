@@ -81,10 +81,19 @@ def joint_pos_out_of_limit(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = S
     """Terminate when the asset's joint positions are outside of the soft joint limits."""
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
-    # compute any violations
-    out_of_upper_limits = torch.any(asset.data.joint_pos > asset.data.soft_joint_pos_limits[..., 1], dim=1)
-    out_of_lower_limits = torch.any(asset.data.joint_pos < asset.data.soft_joint_pos_limits[..., 0], dim=1)
-    return torch.logical_or(out_of_upper_limits[:, asset_cfg.joint_ids], out_of_lower_limits[:, asset_cfg.joint_ids])
+    # compute any per-joint violations (avoid reducing before indexing)
+    out_of_upper_limits = asset.data.joint_pos > asset.data.soft_joint_pos_limits[..., 1]  # [N, J]
+    out_of_lower_limits = asset.data.joint_pos < asset.data.soft_joint_pos_limits[..., 0]  # [N, J]
+
+    # truncate above output to just the joints we care about
+    out_of_upper_limits = out_of_upper_limits[:, asset_cfg.joint_ids]  # [N, K]
+    out_of_lower_limits = out_of_lower_limits[:, asset_cfg.joint_ids]  # [N, K]
+
+    # reduce over selected joints
+    out_of_upper_limits = torch.any(out_of_upper_limits, dim=1)  # [N]
+    out_of_lower_limits = torch.any(out_of_lower_limits, dim=1)  # [N]
+
+    return torch.logical_or(out_of_upper_limits, out_of_lower_limits)  # [N]
 
 
 def joint_pos_out_of_manual_limit(
