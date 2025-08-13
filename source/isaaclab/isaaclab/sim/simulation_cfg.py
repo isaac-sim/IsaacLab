@@ -40,7 +40,7 @@ class PhysxCfg:
     Available solvers:
 
     * :obj:`0`: PGS (Projective Gauss-Seidel)
-    * :obj:`1`: TGS (Truncated Gauss-Seidel)
+    * :obj:`1`: TGS (Temporal Gauss-Seidel)
     """
 
     min_position_iteration_count: int = 1
@@ -94,7 +94,7 @@ class PhysxCfg:
 
         We recommend setting this flag to true only when the simulation step size is large (i.e., less than 30 Hz or more than 0.0333 seconds).
 
-    .. warn::
+    .. warning::
 
         Enabling this flag may lead to incorrect contact forces report from the contact sensor.
     """
@@ -257,7 +257,7 @@ class RenderCfg:
              rtx.translucency.enabled: False # .kit
              rtx_translucency_enabled: False # python"""
 
-    rendering_mode: Literal["performance", "balanced", "quality", "xr"] | None = None
+    rendering_mode: Literal["performance", "balanced", "quality"] | None = None
     """Sets the rendering mode. Behaves the same as the CLI arg '--rendering_mode'"""
 
 
@@ -339,3 +339,9 @@ class SimulationCfg:
 
     render: RenderCfg = RenderCfg()
     """Render settings. Default is RenderCfg()."""
+
+    create_stage_in_memory: bool = False
+    """If stage is first created in memory. Default is False.
+
+    Creating the stage in memory can reduce start-up time.
+    """

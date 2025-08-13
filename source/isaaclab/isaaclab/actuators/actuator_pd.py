@@ -294,6 +294,12 @@ class DCMotor(IdealPDActuator):
     applied output torque will be driven to the Continuous Torque (`effort_limit`).
 
     The figure below demonstrates the clipping action for example (velocity, torque) pairs.
+
+    .. figure:: ../../_static/actuator-group/dc_motor_clipping.jpg
+        :align: center
+        :figwidth: 100%
+        :alt: The effort clipping as a function of joint velocity for a linear DC Motor.
+
     """
 
     cfg: DCMotorCfg
@@ -386,6 +392,8 @@ class RemotizedPDActuator(IdealPDActuator):
         damping: torch.Tensor | float = 0.0,
         armature: torch.Tensor | float = 0.0,
         friction: torch.Tensor | float = 0.0,
+        dynamic_friction: torch.Tensor | float = 0.0,
+        viscous_friction: torch.Tensor | float = 0.0,
         effort_limit: torch.Tensor | float = torch.inf,
         velocity_limit: torch.Tensor | float = torch.inf,
     ):
@@ -394,7 +402,19 @@ class RemotizedPDActuator(IdealPDActuator):
         cfg.velocity_limit = torch.inf
         # call the base method and set default effort_limit and velocity_limit to inf
         super().__init__(
-            cfg, joint_names, joint_ids, num_envs, device, stiffness, damping, armature, friction, torch.inf, torch.inf
+            cfg,
+            joint_names,
+            joint_ids,
+            num_envs,
+            device,
+            stiffness,
+            damping,
+            armature,
+            friction,
+            dynamic_friction,
+            viscous_friction,
+            effort_limit,
+            velocity_limit,
         )
         self._joint_parameter_lookup = torch.tensor(cfg.joint_parameter_lookup, device=device)
         # define remotized joint torque limit

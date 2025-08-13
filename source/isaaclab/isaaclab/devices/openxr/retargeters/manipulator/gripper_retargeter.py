@@ -3,10 +3,19 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 import numpy as np
+import torch
+from dataclasses import dataclass
 from typing import Final
 
 from isaaclab.devices import OpenXRDevice
-from isaaclab.devices.retargeter_base import RetargeterBase
+from isaaclab.devices.retargeter_base import RetargeterBase, RetargeterCfg
+
+
+@dataclass
+class GripperRetargeterCfg(RetargeterCfg):
+    """Configuration for gripper retargeter."""
+
+    bound_hand: OpenXRDevice.TrackingTarget = OpenXRDevice.TrackingTarget.HAND_RIGHT
 
 
 class GripperRetargeter(RetargeterBase):
@@ -27,20 +36,21 @@ class GripperRetargeter(RetargeterBase):
 
     def __init__(
         self,
-        bound_hand: OpenXRDevice.TrackingTarget,
+        cfg: GripperRetargeterCfg,
     ):
+        super().__init__(cfg)
         """Initialize the gripper retargeter."""
         # Store the hand to track
-        if bound_hand not in [OpenXRDevice.TrackingTarget.HAND_LEFT, OpenXRDevice.TrackingTarget.HAND_RIGHT]:
+        if cfg.bound_hand not in [OpenXRDevice.TrackingTarget.HAND_LEFT, OpenXRDevice.TrackingTarget.HAND_RIGHT]:
             raise ValueError(
                 "bound_hand must be either OpenXRDevice.TrackingTarget.HAND_LEFT or"
                 " OpenXRDevice.TrackingTarget.HAND_RIGHT"
             )
-        self.bound_hand = bound_hand
+        self.bound_hand = cfg.bound_hand
         # Initialize gripper state
         self._previous_gripper_command = False
 
-    def retarget(self, data: dict) -> bool:
+    def retarget(self, data: dict) -> torch.Tensor:
         """Convert hand joint poses to gripper command.
 
         Args:
@@ -48,7 +58,7 @@ class GripperRetargeter(RetargeterBase):
                 The joint names are defined in isaaclab.devices.openxr.common.HAND_JOINT_NAMES
 
         Returns:
-            bool: Gripper command where True = close gripper, False = open gripper
+            torch.Tensor: Tensor containing a single bool value where True = close gripper, False = open gripper
         """
         # Extract key joint poses
         hand_data = data[self.bound_hand]
@@ -56,8 +66,10 @@ class GripperRetargeter(RetargeterBase):
         index_tip = hand_data["index_tip"]
 
         # Calculate gripper command with hysteresis
-        gripper_command = self._calculate_gripper_command(thumb_tip[:3], index_tip[:3])
-        return gripper_command
+        gripper_command_bool = self._calculate_gripper_command(thumb_tip[:3], index_tip[:3])
+        gripper_value = -1.0 if gripper_command_bool else 1.0
+
+        return torch.tensor([gripper_value], dtype=torch.float32, device=self._sim_device)
 
     def _calculate_gripper_command(self, thumb_pos: np.ndarray, index_pos: np.ndarray) -> bool:
         """Calculate gripper command from finger positions with hysteresis.

@@ -114,12 +114,14 @@ def body_pose_w(
         asset_cfg: The SceneEntity associated with this observation.
 
     Returns:
-        The poses of bodies in articulation [num_env, 7*num_bodies]. Pose order is [x,y,z,qw,qx,qy,qz]. Output is
-            stacked horizontally per body.
+        The poses of bodies in articulation [num_env, 7 * num_bodies]. Pose order is [x,y,z,qw,qx,qy,qz].
+        Output is stacked horizontally per body.
     """
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
-    pose = asset.data.body_state_w[:, asset_cfg.body_ids, :7]
+
+    # access the body poses in world frame
+    pose = asset.data.body_pose_w[:, asset_cfg.body_ids, :7]
     pose[..., :3] = pose[..., :3] - env.scene.env_origins.unsqueeze(1)
     return pose.reshape(env.num_envs, -1)
 
@@ -138,7 +140,7 @@ def body_projected_gravity_b(
 
     Returns:
         The unit vector direction of gravity projected onto body_name's frame. Gravity projection vector order is
-            [x,y,z]. Output is stacked horizontally per body.
+        [x,y,z]. Output is stacked horizontally per body.
     """
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
@@ -352,7 +354,7 @@ def image(
     if (data_type == "distance_to_camera") and convert_perspective_to_orthogonal:
         images = math_utils.orthogonalize_perspective_depth(images, sensor.data.intrinsic_matrices)
 
-    # rgb/depth image normalization
+    # rgb/depth/normals image normalization
     if normalize:
         if data_type == "rgb":
             images = images.float() / 255.0
@@ -360,6 +362,8 @@ def image(
             images -= mean_tensor
         elif "distance_to" in data_type or "depth" in data_type:
             images[images == float("inf")] = 0
+        elif "normals" in data_type:
+            images = (images + 1.0) * 0.5
 
     return images.clone()
 
