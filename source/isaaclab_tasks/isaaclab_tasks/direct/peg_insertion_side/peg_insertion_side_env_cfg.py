@@ -14,8 +14,9 @@ import torch
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
 from isaaclab.envs import DirectRLEnvCfg, ViewerCfg
+from isaaclab.markers.config import FRAME_MARKER_CFG
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sensors import CameraCfg
+from isaaclab.sensors import CameraCfg, ContactSensorCfg, FrameTransformerCfg, OffsetCfg
 from isaaclab.sim import PhysxCfg, PinholeCameraCfg, SimulationCfg
 from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialCfg
 from isaaclab.utils import configclass
@@ -98,7 +99,50 @@ class PegInsertionSideEnvCfg(DirectRLEnvCfg):
                 convention="ros",  # right-handed, X-forward, Z-up
             ),
         ),
+        ContactSensorCfg(
+            prim_path="/World/envs/env_.*/Robot/panda_leftfinger",
+            update_period=0.0,
+            history_length=1,
+            debug_vis=False,
+            filter_prim_paths_expr=["/World/envs/env_.*/Peg"],  # only peg contacts
+        ),
+        ContactSensorCfg(
+            prim_path="/World/envs/env_.*/Robot/panda_rightfinger",
+            update_period=0.0,
+            history_length=1,
+            debug_vis=False,
+            filter_prim_paths_expr=["/World/envs/env_.*/Peg"],
+        ),
     )
+    # Listens to the required transforms
+    marker_cfg = FRAME_MARKER_CFG.copy()
+    marker_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
+    marker_cfg.prim_path = "/Visuals/FrameTransformer"
+
+    tcp_cfg = FrameTransformerCfg(
+        prim_path="/World/envs/env_.*/Robot/panda_link7",
+        debug_vis=False,
+        visualizer_cfg=marker_cfg,
+        target_frames=[
+            FrameTransformerCfg.FrameCfg(
+                prim_path="/World/envs/env_.*/Robot/panda_hand",
+                name="end_effector",
+                offset=OffsetCfg(
+                    pos=(0.0, 0.0, 0.1),
+                ),
+            ),
+        ],
+    )
+
+    peg_sample_range = [
+        [0.4, -0.3, 0.0, 0.0, 0.0, 1.0 * torch.pi / 6.0],
+        [0.6, 0.0, 0.0, 0.0, 0.0, 5.0 * torch.pi / 6.0],
+    ]
+
+    box_sample_range = [
+        [0.45, 0.2, 0.0, 0.0, 0.0, 3.0 * torch.pi / 8.0],
+        [0.5, 0.4, 0.0, 0.0, 0.0, 5.0 * torch.pi / 8.0],
+    ]
 
     asset_dir = "/home/johann/Downloads/peg_insertion_side"
 

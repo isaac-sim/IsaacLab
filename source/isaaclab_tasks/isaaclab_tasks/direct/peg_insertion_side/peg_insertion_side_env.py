@@ -12,7 +12,6 @@
 from __future__ import annotations
 
 import glob
-import math
 import os
 import random
 import torch
@@ -21,10 +20,9 @@ from collections.abc import Sequence
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation, RigidObject, RigidObjectCfg
 from isaaclab.envs import DirectRLEnv
-from isaaclab.markers.config import FRAME_MARKER_CFG
-from isaaclab.sensors import Camera, ContactSensor, ContactSensorCfg, FrameTransformer, FrameTransformerCfg, OffsetCfg
+from isaaclab.sensors import Camera, ContactSensor, FrameTransformer
 from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
-from isaaclab.utils.math import normalize, quat_from_euler_xyz, transform_points
+from isaaclab.utils.math import normalize, quat_from_euler_xyz, sample_uniform, transform_points
 
 from .peg_insertion_side_env_cfg import PegInsertionSideEnvCfg
 
@@ -115,15 +113,20 @@ class PegInsertionSideEnv(DirectRLEnv):
         spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg(), translation=(0, 0, 0))
 
         self.robot = Articulation(self.cfg.robot_cfg)
+        self.scene.articulations["robot"] = self.robot
 
         camera = Camera(cfg=self.cfg.sensors[0])
         camera.set_debug_vis(True)
         self.scene.sensors["camera"] = camera
 
+        self.tcp_transformer = FrameTransformer(cfg=self.cfg.tcp_cfg)
+        self.scene.sensors["tcp"] = self.tcp_transformer
+
+        self.scene.sensors["left_contact"] = ContactSensor(cfg=self.cfg.sensors[1])
+        self.scene.sensors["right_contact"] = ContactSensor(cfg=self.cfg.sensors[2])
+
         # clone and replicate
         self.scene.clone_environments(copy_from_source=True)
-        # add articulation to scene
-        self.scene.articulations["robot"] = self.robot
 
         # add lights
         light_cfg = sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
@@ -141,50 +144,6 @@ class PegInsertionSideEnv(DirectRLEnv):
         self.box_cfg: RigidObjectCfg = self.cfg.get_multi_cfg(self.boxes_list, "/World/envs/env_.*/Box", False)
         self.box: RigidObject = RigidObject(self.box_cfg)
         self.scene.rigid_objects["Box"] = self.box
-
-        # Listens to the required transforms
-        marker_cfg = FRAME_MARKER_CFG.copy()
-        marker_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
-        marker_cfg.prim_path = "/Visuals/FrameTransformer"
-
-        tcp_cfg = FrameTransformerCfg(
-            prim_path="/World/envs/env_.*/Robot/panda_link7",
-            debug_vis=False,
-            visualizer_cfg=marker_cfg,
-            target_frames=[
-                FrameTransformerCfg.FrameCfg(
-                    prim_path="/World/envs/env_.*/Robot/panda_hand",
-                    name="end_effector",
-                    offset=OffsetCfg(
-                        pos=(0.0, 0.0, 0.1),
-                    ),
-                ),
-            ],
-        )
-
-        # Create the transformer and attach it to the scene
-        self.tcp_transformer = FrameTransformer(cfg=tcp_cfg)
-        self.scene.sensors["tcp"] = self.tcp_transformer
-
-        # Contact sensor on the left fingertip, only reporting forces against the peg TODO move to cfg
-        left_contact_cfg = ContactSensorCfg(
-            prim_path="/World/envs/env_.*/Robot/panda_leftfinger",
-            update_period=0.0,
-            history_length=1,
-            debug_vis=False,
-            filter_prim_paths_expr=["/World/envs/env_.*/Peg"],  # only peg contacts
-        )
-        self.scene.sensors["left_contact"] = ContactSensor(cfg=left_contact_cfg)
-
-        # Contact sensor on the right fingertip
-        right_contact_cfg = ContactSensorCfg(
-            prim_path="/World/envs/env_.*/Robot/panda_rightfinger",
-            update_period=0.0,
-            history_length=1,
-            debug_vis=False,
-            filter_prim_paths_expr=["/World/envs/env_.*/Peg"],
-        )
-        self.scene.sensors["right_contact"] = ContactSensor(cfg=right_contact_cfg)
 
         # Filtering collisions for optimization of collisions between environment instances
         self.scene.filter_collisions([
@@ -251,9 +210,9 @@ class PegInsertionSideEnv(DirectRLEnv):
         """
         Returns an (N,7) tensor [x, y, z, qx, qy, qz, qw]
         """
-        quat = self.tcp_transformer.data.target_quat_w.squeeze(1)  # (N,4)
-        pos = self.tcp_transformer.data.target_pos_w.squeeze(1) - self.scene.env_origins  # (N,3)
-        return torch.cat((pos, quat), dim=1)  # now (N,7)
+        pos = self.tcp_transformer.data.target_pos_w.squeeze(1) - self.scene.env_origins
+        quat = self.tcp_transformer.data.target_quat_w.squeeze(1)
+        return torch.cat((pos, quat), dim=1)
 
     # TODO test in simulation and DEBUG See stack cube task
     def is_grasping(
@@ -425,70 +384,116 @@ class PegInsertionSideEnv(DirectRLEnv):
         return done, timeout
 
     def _reset_idx(self, env_ids: Sequence[int] | None):
+        """
+        Reset specified environments: robot, peg, and box.
+
+        Args:
+            env_ids (Sequence[int] | None): Indices to reset. If None, reset all.
+        """
         if env_ids is None:
             env_ids = self.robot._ALL_INDICES
         super()._reset_idx(env_ids)
-        # Resetting the robot
+
+        self.reset_robot(env_ids)
+        self.sample_init_peg_pose(env_ids)
+        self.sample_init_box_pose(env_ids)
+
+    def reset_robot(self, env_ids: Sequence[int] | None = None):
+        """
+        Reset the robot to its default joint and root states.
+
+        Args:
+            env_ids (Sequence[int] | None): Indices to reset. If None, reset all.
+        """
+        if env_ids is None:
+            env_ids = self.robot._ALL_INDICES
+
+        # Defaults
         joint_pos = self.robot.data.default_joint_pos[env_ids]
         joint_vel = self.robot.data.default_joint_vel[env_ids]
+        default_root_state = self.robot.data.default_root_state[env_ids].clone()
 
-        default_root_state = self.robot.data.default_root_state[env_ids]
+        # Place robot in its environment (world frame)
         default_root_state[:, :3] += self.scene.env_origins[env_ids]
 
+        # Write to sim
         self.robot.write_root_pose_to_sim(default_root_state[:, :7], env_ids)
         self.robot.write_root_velocity_to_sim(default_root_state[:, 7:], env_ids)
         self.robot.write_joint_state_to_sim(joint_pos, joint_vel, None, env_ids)
 
-        # --- vectorized sampling for peg & box ---
-        b = len(env_ids)
+    def sample_init_peg_pose(self, env_ids: Sequence[int] | None = None):
+        """
+        Randomize the initial pose of the peg (position XY, yaw). Z is set to the peg half-length L.
+
+        Args:
+            env_ids (Sequence[int] | None): Indices to reset. If None, reset all.
+        """
+        if env_ids is None:
+            env_ids = self.robot._ALL_INDICES
+
         device = self.device
+        b = len(env_ids)
 
-        # peg half-lengths L (b,)
-        L_all = self.peg_head_offset[:, 0]  # (N,)
-        L = L_all[env_ids]  # (b,)
+        # 1) Sample local pose (x, y, z, r, p, yaw) from configured ranges
+        low = torch.tensor(self.cfg.peg_sample_range[0], device=device, dtype=torch.float32)
+        high = torch.tensor(self.cfg.peg_sample_range[1], device=device, dtype=torch.float32)
+        rand6 = sample_uniform(low, high, (b, 6), device=device)
 
-        # zero velocity for both bodies
-        zero_vel = torch.zeros((b, 6), device=device)
+        # 2) Force Z to half-length L for each env (vectorized)
+        #    L is per-env (taken from peg_head_offset)
+        L = self.peg_head_offset[env_ids, 0]
+        pos_local = rand6[:, :3]
+        pos_local[:, 2] = L
 
-        # 1) peg positions in local frame: XY∼U([-0.1,-0.3],[0.1,0.0]), Z=L
-        low_xy = torch.tensor([-0.1, -0.3], device=device)
-        high_xy = torch.tensor([0.1, 0.0], device=device)
-        peg_xy = torch.empty((b, 2), device=device).uniform_(0, 1)
-        peg_xy = low_xy + (high_xy - low_xy) * peg_xy
-        peg_pos_local = torch.cat([peg_xy, L.unsqueeze(1)], dim=1)
-        peg_pos_local[:, 0] += 0.4  # (b,3)
-        peg_pos = peg_pos_local + self.scene.env_origins[env_ids]  # world
+        # 3) Orientation: roll/pitch from rand6 (are 0 by config), yaw from rand6[:, 5]
+        quat = quat_from_euler_xyz(rand6[:, 3], rand6[:, 4], rand6[:, 5])
 
-        # 3) box positions: XY∼U([-0.05,0.2],[0.05,0.4]), Z=L
-        low_bxy = torch.tensor([-0.05, 0.2], device=device)
-        high_bxy = torch.tensor([0.05, 0.4], device=device)
-        box_xy = torch.empty((b, 2), device=device).uniform_(0, 1)
-        box_xy = low_bxy + (high_bxy - low_bxy) * box_xy
-        box_pos_local = torch.cat([box_xy, L.unsqueeze(1)], dim=1)  # (b,3)
-        box_pos_local[:, 0] += 0.4  # shift X to [0.2, 0.4]
-        box_pos = box_pos_local + self.scene.env_origins[env_ids]  # world
+        # 4) Convert to world coordinates
+        pos_world = pos_local + self.scene.env_origins[env_ids]
+        state = torch.cat([pos_world, quat], dim=-1)
 
-        # sample yaw angles
-        # peg yaw θ ∼ Uniform(min_a, max_a)
-        min_a = math.pi / 2 - math.pi / 3  # = π/6
-        max_a = math.pi / 2 + math.pi / 3  # = 5π/6
+        # 5) Velocities: use defaults (usually zero) for cleanliness
+        default = self.peg.data.default_root_state[env_ids]
+        vel = default[:, 7:]
 
-        # box yaw θ ∼ Uniform(min_b, max_b)
-        min_b = math.pi / 2 - math.pi / 8  # = 3π/8
-        max_b = math.pi / 2 + math.pi / 8  # = 5π/8
+        # 6) Write to sim
+        self.peg.write_root_pose_to_sim(state, env_ids)
+        self.peg.write_root_velocity_to_sim(vel, env_ids)
 
-        angles = torch.empty(b, device=device).uniform_(min_a, max_a)  # peg yaw
-        angles_b = torch.empty(b, device=device).uniform_(min_b, max_b)  # box yaw
+    def sample_init_box_pose(self, env_ids: Sequence[int] | None = None):
+        """
+        Randomize the initial pose of the box (position XY, yaw). Z is set to the peg half-length L.
 
-        # convert to quaternion (x, y, z, w) using IsaacLab helper
-        peg_quat = quat_from_euler_xyz(torch.zeros(b, device=device), torch.zeros(b, device=device), angles)  # -> (b,4)
-        box_quat = quat_from_euler_xyz(
-            torch.zeros(b, device=device), torch.zeros(b, device=device), angles_b
-        )  # -> (b,4)
+        Args:
+            env_ids (Sequence[int] | None): Indices to reset. If None, reset all.
+        """
+        if env_ids is None:
+            env_ids = self.robot._ALL_INDICES
 
-        # 5) write randomized states into sim
-        self.peg.write_root_pose_to_sim(torch.cat([peg_pos, peg_quat], dim=1), env_ids)
-        self.peg.write_root_velocity_to_sim(zero_vel, env_ids)
+        device = self.device
+        b = len(env_ids)
 
-        self.box.write_root_pose_to_sim(torch.cat([box_pos, box_quat], dim=1), env_ids)
-        self.box.write_root_velocity_to_sim(zero_vel, env_ids)
+        # 1) Sample local pose (x, y, z, r, p, yaw) from configured ranges
+        low = torch.tensor(self.cfg.box_sample_range[0], device=device, dtype=torch.float32)
+        high = torch.tensor(self.cfg.box_sample_range[1], device=device, dtype=torch.float32)
+        rand6 = sample_uniform(low, high, (b, 6), device=device)
+
+        # 2) Force Z to half-length L (same L vector as peg)
+        L = self.peg_head_offset[env_ids, 0]
+        pos_local = rand6[:, :3]
+        pos_local[:, 2] = L
+
+        # 3) Orientation
+        quat = quat_from_euler_xyz(rand6[:, 3], rand6[:, 4], rand6[:, 5])
+
+        # 4) Convert to world coordinates
+        pos_world = pos_local + self.scene.env_origins[env_ids]
+        state = torch.cat([pos_world, quat], dim=-1)
+
+        # 5) Velocities: defaults
+        default = self.box.data.default_root_state[env_ids]
+        vel = default[:, 7:]
+
+        # 6) Write to sim
+        self.box.write_root_pose_to_sim(state, env_ids)
+        self.box.write_root_velocity_to_sim(vel, env_ids)
