@@ -85,7 +85,6 @@ class Se3SpaceMouse(SpaceMouseBase):
         delta_pose = np.concatenate([self._delta_pos, rot_vec])
         gripper_value = -1.0 if self._close_gripper else 1.0
         command = np.append(delta_pose, gripper_value)
-        print("SIMDEVICE:", self._sim_device)
         return convert_to_torch(command, device=self._sim_device)
 
     """
