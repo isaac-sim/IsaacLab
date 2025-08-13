@@ -4,9 +4,9 @@
 
 # Isaac Lab
 
-[![IsaacSim](https://img.shields.io/badge/IsaacSim-4.5.0-silver.svg)](https://docs.isaacsim.omniverse.nvidia.com/latest/index.html)
-[![Python](https://img.shields.io/badge/python-3.10-blue.svg)](https://docs.python.org/3/whatsnew/3.10.html)
-[![Linux platform](https://img.shields.io/badge/platform-linux--64-orange.svg)](https://releases.ubuntu.com/20.04/)
+[![IsaacSim](https://img.shields.io/badge/IsaacSim-5.0.0-silver.svg)](https://docs.isaacsim.omniverse.nvidia.com/latest/index.html)
+[![Python](https://img.shields.io/badge/python-3.11-blue.svg)](https://docs.python.org/3/whatsnew/3.11.html)
+[![Linux platform](https://img.shields.io/badge/platform-linux--64-orange.svg)](https://releases.ubuntu.com/22.04/)
 [![Windows platform](https://img.shields.io/badge/platform-windows--64-orange.svg)](https://www.microsoft.com/en-us/)
 [![pre-commit](https://img.shields.io/github/actions/workflow/status/isaac-sim/IsaacLab/pre-commit.yaml?logo=pre-commit&logoColor=white&label=pre-commit&color=brightgreen)](https://github.com/isaac-sim/IsaacLab/actions/workflows/pre-commit.yaml)
 [![docs status](https://img.shields.io/github/actions/workflow/status/isaac-sim/IsaacLab/docs.yaml?label=docs&color=brightgreen)](https://github.com/isaac-sim/IsaacLab/actions/workflows/docs.yaml)
@@ -30,6 +30,94 @@ Isaac Lab offers a comprehensive set of tools and environments designed to facil
 
 ## Getting Started
 
+### Getting Started with Open-Source Isaac Sim
+
+Isaac Sim is now open source and available on GitHub!
+
+For detailed Isaac Sim installation instructions, please refer to
+[Isaac Sim README](https://github.com/isaac-sim/IsaacSim?tab=readme-ov-file#quick-start).
+
+1. Clone Isaac Sim
+
+    ```
+    git clone https://github.com/isaac-sim/IsaacSim.git
+    ```
+
+2. Build Isaac Sim
+
+    ```
+    cd IsaacSim
+    ./build.sh
+    ```
+
+    On Windows, please use `build.bat` instead.
+
+3. Clone Isaac Lab
+
+    ```
+    cd ..
+    git clone https://github.com/isaac-sim/IsaacLab.git
+    cd isaaclab
+    ```
+
+4. Set up symlink in Isaac Lab
+
+    Linux:
+
+    ```
+    ln -s ../IsaacSim/_build/linux-x86_64/release _isaac_sim
+    ```
+
+    Windows:
+
+    ```
+    mklink /D _isaac_sim ..\IsaacSim\_build\windows-x86_64\release
+    ```
+
+5. Install Isaac Lab
+
+    Linux:
+
+    ```
+    ./isaaclab.sh -i
+    ```
+
+    Windows:
+
+    ```
+    isaaclab.bat -i
+    ```
+
+6. [Optional] Set up a virtual python environment (e.g. for Conda)
+
+    Linux:
+
+    ```
+    source _isaac_sim/setup_conda_env.sh
+    ```
+
+    Windows:
+
+    ```
+    _isaac_sim\setup_python_env.bat
+    ```
+
+7. Train!
+
+    Linux:
+
+    ```
+    ./isaaclab.sh -p scripts/reinforcement_learning/skrl/train.py --task Isaac-Ant-v0 --headless
+    ```
+
+    Windows:
+
+    ```
+    isaaclab.bat -p scripts\reinforcement_learning\skrl\train.py --task Isaac-Ant-v0 --headless
+    ```
+
+### Documentation
+
 Our [documentation page](https://isaac-sim.github.io/IsaacLab) provides everything you need to get started, including detailed tutorials and step-by-step guides. Follow these links to learn more about:
 
 - [Installation steps](https://isaac-sim.github.io/IsaacLab/main/source/setup/installation/index.html#local-installation)
@@ -43,21 +131,15 @@ Our [documentation page](https://isaac-sim.github.io/IsaacLab) provides everythi
 Isaac Lab is built on top of Isaac Sim and requires specific versions of Isaac Sim that are compatible with each release of Isaac Lab.
 Below, we outline the recent Isaac Lab releases and GitHub branches and their corresponding dependency versions for Isaac Sim.
 
-| Isaac Lab Version             | Isaac Sim Version |
-| ----------------------------- | ----------------- |
-| `main` branch                 | Isaac Sim 4.5     |
-| `v2.1.1`                      | Isaac Sim 4.5     |
-| `v2.1.0`                      | Isaac Sim 4.5     |
-| `v2.0.2`                      | Isaac Sim 4.5     |
-| `v2.0.1`                      | Isaac Sim 4.5     |
-| `v2.0.0`                      | Isaac Sim 4.5     |
-| `feature/isaacsim_5_0` branch | Isaac Sim 5.0     |
-
-Note that the `feature/isaacsim_5_0` will contain active updates and may contain some breaking changes
-until the official Isaac Lab 2.2 release.
-It currently requires the [Isaac Sim 5.0 branch](https://github.com/isaac-sim/IsaacSim) available on GitHub built from source.
-Please refer to the README in the `feature/isaacsim_5_0` branch for instructions for using Isaac Lab with Isaac Sim 5.0.
-We are actively working on introducing backwards compatibility support for Isaac Sim 4.5 for this branch.
+| Isaac Lab Version             | Isaac Sim Version   |
+| ----------------------------- | ------------------- |
+| `main` branch                 | Isaac Sim 4.5 / 5.0 |
+| `v2.2.0`                      | Isaac Sim 4.5 / 5.0 |
+| `v2.1.1`                      | Isaac Sim 4.5       |
+| `v2.1.0`                      | Isaac Sim 4.5       |
+| `v2.0.2`                      | Isaac Sim 4.5       |
+| `v2.0.1`                      | Isaac Sim 4.5       |
+| `v2.0.0`                      | Isaac Sim 4.5       |
 
 
 ## Contributing to Isaac Lab

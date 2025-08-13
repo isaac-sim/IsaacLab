@@ -16,9 +16,7 @@ the general workflow is the same.
 
   This functionality is experimental, and has been tested only on Linux.
 
-.. contents:: Table of Contents
-  :depth: 3
-  :local:
+
 
 Overview
 --------

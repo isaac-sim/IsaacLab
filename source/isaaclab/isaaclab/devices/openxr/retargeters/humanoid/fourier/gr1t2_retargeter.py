@@ -3,24 +3,29 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 import contextlib
 import numpy as np
 import torch
+from dataclasses import dataclass
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as PoseUtils
 from isaaclab.devices import OpenXRDevice
-from isaaclab.devices.retargeter_base import RetargeterBase
+from isaaclab.devices.retargeter_base import RetargeterBase, RetargeterCfg
 from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
 
 # This import exception is suppressed because gr1_t2_dex_retargeting_utils depends on pinocchio which is not available on windows
 with contextlib.suppress(Exception):
     from .gr1_t2_dex_retargeting_utils import GR1TR2DexRetargeting
+
+
+@dataclass
+class GR1T2RetargeterCfg(RetargeterCfg):
+    """Configuration for the GR1T2 retargeter."""
+
+    enable_visualization: bool = False
+    num_open_xr_hand_joints: int = 100
+    hand_joint_names: list[str] | None = None  # List of robot hand joint names
 
 
 class GR1T2Retargeter(RetargeterBase):
@@ -32,10 +37,7 @@ class GR1T2Retargeter(RetargeterBase):
 
     def __init__(
         self,
-        enable_visualization: bool = False,
-        num_open_xr_hand_joints: int = 100,
-        device: torch.device = torch.device("cuda:0"),
-        hand_joint_names: list[str] = [],
+        cfg: GR1T2RetargeterCfg,
     ):
         """Initialize the GR1T2 hand retargeter.
 
@@ -46,13 +48,13 @@ class GR1T2Retargeter(RetargeterBase):
             hand_joint_names: List of robot hand joint names
         """
 
-        self._hand_joint_names = hand_joint_names
+        self._hand_joint_names = cfg.hand_joint_names
         self._hands_controller = GR1TR2DexRetargeting(self._hand_joint_names)
 
         # Initialize visualization if enabled
-        self._enable_visualization = enable_visualization
-        self._num_open_xr_hand_joints = num_open_xr_hand_joints
-        self._device = device
+        self._enable_visualization = cfg.enable_visualization
+        self._num_open_xr_hand_joints = cfg.num_open_xr_hand_joints
+        self._sim_device = cfg.sim_device
         if self._enable_visualization:
             marker_cfg = VisualizationMarkersCfg(
                 prim_path="/Visuals/markers",
@@ -65,7 +67,7 @@ class GR1T2Retargeter(RetargeterBase):
             )
             self._markers = VisualizationMarkers(marker_cfg)
 
-    def retarget(self, data: dict) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    def retarget(self, data: dict) -> torch.Tensor:
         """Convert hand joint poses to robot end-effector commands.
 
         Args:
@@ -91,7 +93,7 @@ class GR1T2Retargeter(RetargeterBase):
             joints_position[::2] = np.array([pose[:3] for pose in left_hand_poses.values()])
             joints_position[1::2] = np.array([pose[:3] for pose in right_hand_poses.values()])
 
-            self._markers.visualize(translations=torch.tensor(joints_position, device=self._device))
+            self._markers.visualize(translations=torch.tensor(joints_position, device=self._sim_device))
 
         # Create array of zeros with length matching number of joint names
         left_hands_pos = self._hands_controller.compute_left(left_hand_poses)
@@ -107,7 +109,13 @@ class GR1T2Retargeter(RetargeterBase):
         right_hand_joints = right_retargeted_hand_joints
         retargeted_hand_joints = left_hand_joints + right_hand_joints
 
-        return left_wrist, self._retarget_abs(right_wrist), retargeted_hand_joints
+        # Convert numpy arrays to tensors and concatenate them
+        left_wrist_tensor = torch.tensor(left_wrist, dtype=torch.float32, device=self._sim_device)
+        right_wrist_tensor = torch.tensor(self._retarget_abs(right_wrist), dtype=torch.float32, device=self._sim_device)
+        hand_joints_tensor = torch.tensor(retargeted_hand_joints, dtype=torch.float32, device=self._sim_device)
+
+        # Combine all tensors into a single tensor
+        return torch.cat([left_wrist_tensor, right_wrist_tensor, hand_joints_tensor])
 
     def _retarget_abs(self, wrist: np.ndarray) -> np.ndarray:
         """Handle absolute pose retargeting.
