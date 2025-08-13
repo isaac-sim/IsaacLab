@@ -13,7 +13,7 @@ import torch
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
-from isaaclab.envs import DirectRLEnvCfg
+from isaaclab.envs import DirectRLEnvCfg, ViewerCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg
 from isaaclab.sim import PhysxCfg, PinholeCameraCfg, SimulationCfg
@@ -21,7 +21,7 @@ from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMater
 from isaaclab.utils import configclass
 from isaaclab.utils.math import quat_from_euler_xyz
 
-from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG  # isort: skip
+from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG, FRANKA_PANDA_HIGH_PD_CFG  # isort: skip
 
 
 @configclass
@@ -35,7 +35,9 @@ class PegInsertionSideEnvCfg(DirectRLEnvCfg):
     state_space = 0
 
     obs_mode: str = "state"
-    table_offset = 0.55
+    robot_controller: str = "joint_space"
+
+    TABLE_OFFSET = 0.55
 
     # simulation
     sim: SimulationCfg = SimulationCfg(
@@ -67,16 +69,6 @@ class PegInsertionSideEnvCfg(DirectRLEnvCfg):
 
     robot_cfg = FRANKA_PANDA_CFG.replace(prim_path="/World/envs/env_.*/Robot")
     robot_cfg.spawn.activate_contact_sensors = True
-    # robot_cfg.init_state.joint_pos = {
-    #     "panda_joint1": 00.0,
-    #     "panda_joint2": 0.6,
-    #     "panda_joint3": 0.0,
-    #     "panda_joint4": -2.2,
-    #     "panda_joint5": 0.0,
-    #     "panda_joint6": 3.037,
-    #     "panda_joint7": 0.741,
-    #     "panda_finger_joint.*": 0.04,
-    # }
 
     sensors = (
         CameraCfg(
@@ -93,7 +85,7 @@ class PegInsertionSideEnvCfg(DirectRLEnvCfg):
                 clipping_range=(0.01, 100.0),
             ),
             offset=CameraCfg.OffsetCfg(
-                pos=(table_offset + 0.3, 0.0, 0.4),  # offset from center view
+                pos=(TABLE_OFFSET + 0.3, 0.0, 0.4),  # offset from center view
                 rot=(
                     tuple(
                         quat_from_euler_xyz(
@@ -144,3 +136,18 @@ class PegInsertionSideEnvCfg(DirectRLEnvCfg):
 class PegInsertionSideCameraEnvCfg(PegInsertionSideEnvCfg):
 
     obs_mode: str = "camera"
+
+
+@configclass
+class PegInsertionSideTeleopCfg(PegInsertionSideEnvCfg):
+
+    robot_controller = "task_space"
+
+    robot_cfg = FRANKA_PANDA_HIGH_PD_CFG.replace(prim_path="/World/envs/env_.*/Robot")
+    robot_cfg.spawn.activate_contact_sensors = True
+
+    viewer = ViewerCfg()
+    viewer.eye = (-1.6, 0.0, 1.2)
+    viewer.lookat = (0.0, 0.0, 0.4)
+    viewer.origin_type = "env"
+    viewer.env_index = 0

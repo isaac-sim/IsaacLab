@@ -194,10 +194,11 @@ class PegInsertionSideEnv(DirectRLEnv):
     def _pre_physics_step(self, actions: torch.Tensor) -> None:
         self.actions = actions.clone()
 
-    # TODO choose the robot actuation method
     def _apply_action(self) -> None:
-        self.robot.set_joint_effort_target(self.actions, joint_ids=self.joint_ids)
-        # self.robot.set_joint_position_target(self.actions, joint_ids=self.joint_ids)
+        if self.cfg.robot_controller == "task_space":
+            self.robot.set_joint_position_target(self.actions, joint_ids=self.joint_ids)
+        else:
+            self.robot.set_joint_effort_target(self.actions, joint_ids=self.joint_ids)
 
     # TODO implement the observation function
     def _get_observations(self) -> dict:
@@ -415,11 +416,13 @@ class PegInsertionSideEnv(DirectRLEnv):
         return x_ok & y_ok & z_ok
 
     def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:
-        # standard timeout
-        time_out = self.episode_length_buf >= (self.max_episode_length - 1)
-        # terminate when inserted
+
         done = self.is_success()
-        return done, time_out
+        if self.cfg.robot_controller == "task_space":
+            timeout = torch.zeros_like(done, dtype=torch.bool)
+        else:
+            timeout = self.episode_length_buf >= (self.max_episode_length - 1)
+        return done, timeout
 
     def _reset_idx(self, env_ids: Sequence[int] | None):
         if env_ids is None:
