@@ -89,7 +89,6 @@ class TwoRobotPickCubeCfg(DirectRLEnvCfg):
         ).tolist()
     )
 
-    # TODO adapt position
     sensors = (
         CameraCfg(
             prim_path="/World/envs/env_.*/Camera",  # Fixed camera
@@ -105,11 +104,11 @@ class TwoRobotPickCubeCfg(DirectRLEnvCfg):
                 clipping_range=(0.01, 100.0),
             ),
             offset=CameraCfg.OffsetCfg(
-                pos=(0.85, 0.0, 0.4),  # offset from center view
+                pos=(0.7, 0.0, 0.5),  # offset from center view
                 rot=(
                     tuple(
                         quat_from_euler_xyz(
-                            torch.tensor(0.6),
+                            torch.tensor(1.0),
                             torch.tensor(torch.pi),
                             torch.tensor(-torch.pi / 2.0),
                         ).tolist()

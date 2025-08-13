@@ -228,7 +228,6 @@ class TwoRobotPickCubeEnv(DirectRLEnv):
         r_ok = (r_mag >= min_force) & (r_ang <= max_angle)
         return l_ok & r_ok
 
-    # TODO test
     def _get_rewards(self) -> torch.Tensor:
         """
         Compute multi-stage dense reward.
