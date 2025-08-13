@@ -273,7 +273,7 @@ class DelayedPDActuatorCfg(IdealPDActuatorCfg):
 
 
 @configclass
-class RemotizedPDActuatorCfg(DelayedPDActuatorCfg):
+class RemotizedPDActuatorCfg(IdealPDActuatorCfg):
     """Configuration for a remotized PD actuator.
 
     Note:
