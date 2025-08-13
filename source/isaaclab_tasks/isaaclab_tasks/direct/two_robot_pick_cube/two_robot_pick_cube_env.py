@@ -266,8 +266,10 @@ class TwoRobotPickCubeEnv(DirectRLEnv):
             timeout (torch.Tensor): Timeout mask (N,) based on episode length.
         """
         done = self.is_success()
-        # timeout = self.episode_length_buf >= (self.max_episode_length - 1)
-        timeout = torch.zeros_like(done, dtype=torch.bool)  # TODO reactivate timeout logic
+        if self.cfg.action_space == "task_space":
+            timeout = torch.zeros_like(done, dtype=torch.bool)
+        else:
+            timeout = self.episode_length_buf >= (self.max_episode_length - 1)
         return done, timeout
 
     # TODO test

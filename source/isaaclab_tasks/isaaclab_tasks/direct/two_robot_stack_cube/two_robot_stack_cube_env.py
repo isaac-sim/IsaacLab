@@ -349,7 +349,10 @@ class TwoRobotStackCubeEnv(DirectRLEnv):
             timeout (torch.Tensor): Timeout mask if max length reached (N,).
         """
         done = self.is_success()
-        timeout = self.episode_length_buf >= (self.max_episode_length - 1)
+        if self.cfg.action_space == "task_space":
+            timeout = torch.zeros_like(done, dtype=torch.bool)
+        else:
+            timeout = self.episode_length_buf >= (self.max_episode_length - 1)
         return done, timeout
 
     def _reset_idx(self, env_ids: Sequence[int] | None):
