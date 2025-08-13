@@ -5,21 +5,19 @@
 
 """Spacemouse controller for SE(3) control."""
 
-import hid
 import numpy as np
-import threading
-import time
 import torch
 from collections.abc import Callable
 from dataclasses import dataclass
 from scipy.spatial.transform import Rotation
 
-from ..device_base import DeviceBase, DeviceCfg
-from .utils import convert_buffer
+from isaaclab.utils.array import convert_to_torch
+
+from ..spacemouse.base_spacemouse import SpaceMouseBase, SpaceMouseBaseCfg
 
 
 @dataclass
-class Se3SpaceMouseCfg(DeviceCfg):
+class Se3SpaceMouseCfg(SpaceMouseBaseCfg):
     """Configuration for SE3 space mouse devices."""
 
     pos_sensitivity: float = 0.4
@@ -27,26 +25,12 @@ class Se3SpaceMouseCfg(DeviceCfg):
     retargeters: None = None
 
 
-class Se3SpaceMouse(DeviceBase):
-    """A space-mouse controller for sending SE(3) commands as delta poses.
+class Se3SpaceMouse(SpaceMouseBase):
+    """A SpaceMouse controller for sending SE(3) commands as delta poses.
 
-    This class implements a space-mouse controller to provide commands to a robotic arm with a gripper.
-    It uses the `HID-API`_ which interfaces with USD and Bluetooth HID-class devices across multiple platforms [1].
-
-    The command comprises of two parts:
-
-    * delta pose: a 6D vector of (x, y, z, roll, pitch, yaw) in meters and radians.
-    * gripper: a binary command to open or close the gripper.
-
-    Note:
-        The interface finds and uses the first supported device connected to the computer.
-
-    Currently tested for following devices:
-
-    - SpaceMouse Compact: https://3dconnexion.com/de/product/spacemouse-compact/
-
-    .. _HID-API: https://github.com/libusb/hidapi
-
+    This class is useful for controlling a robot in SE(3) space, for instance, a gripper attached to a robotic arm.
+    It outputs the (x, y, z, roll, pitch, yaw) command, where roll, pitch, and yaw are the rotations around the
+    x, y, and z axes, respectively. The gripper can be opened and closed using the left button of the 3D mouse.
     """
 
     def __init__(self, cfg: Se3SpaceMouseCfg):
@@ -55,13 +39,12 @@ class Se3SpaceMouse(DeviceBase):
         Args:
             cfg: Configuration object for space-mouse settings.
         """
+        super().__init__(cfg=cfg)
+
         # store inputs
-        self.pos_sensitivity = cfg.pos_sensitivity
-        self.rot_sensitivity = cfg.rot_sensitivity
-        self._sim_device = cfg.sim_device
-        # acquire device interface
-        self._device = hid.device()
-        self._find_device()
+        self._pos_sensitivity = cfg.pos_sensitivity
+        self._rot_sensitivity = cfg.rot_sensitivity
+
         # read rotations
         self._read_rotation = False
 
@@ -69,32 +52,9 @@ class Se3SpaceMouse(DeviceBase):
         self._close_gripper = False
         self._delta_pos = np.zeros(3)  # (x, y, z)
         self._delta_rot = np.zeros(3)  # (roll, pitch, yaw)
-        # dictionary for additional callbacks
-        self._additional_callbacks = dict()
-        # run a thread for listening to device updates
-        self._thread = threading.Thread(target=self._run_device)
-        self._thread.daemon = True
-        self._thread.start()
-
-    def __del__(self):
-        """Destructor for the class."""
-        self._thread.join()
-
-    def __str__(self) -> str:
-        """Returns: A string containing the information of joystick."""
-        msg = f"Spacemouse Controller for SE(3): {self.__class__.__name__}\n"
-        msg += f"\tManufacturer: {self._device.get_manufacturer_string()}\n"
-        msg += f"\tProduct: {self._device.get_product_string()}\n"
-        msg += "\t----------------------------------------------\n"
-        msg += "\tRight button: reset command\n"
-        msg += "\tLeft button: toggle gripper command (open/close)\n"
-        msg += "\tMove mouse laterally: move arm horizontally in x-y plane\n"
-        msg += "\tMove mouse vertically: move arm vertically\n"
-        msg += "\tTwist mouse about an axis: rotate arm about a corresponding axis"
-        return msg
 
     """
-    Operations
+    Public Methods
     """
 
     def reset(self):
@@ -125,69 +85,57 @@ class Se3SpaceMouse(DeviceBase):
         delta_pose = np.concatenate([self._delta_pos, rot_vec])
         gripper_value = -1.0 if self._close_gripper else 1.0
         command = np.append(delta_pose, gripper_value)
-        return torch.tensor(command, dtype=torch.float32, device=self._sim_device)
+        print("SIMDEVICE:", self._sim_device)
+        return convert_to_torch(command, device=self._sim_device)
 
     """
     Internal helpers.
     """
 
-    def _find_device(self):
-        """Find the device connected to computer."""
-        found = False
-        # implement a timeout for device search
-        for _ in range(5):
-            for device in hid.enumerate():
-                if (
-                    device["product_string"] == "SpaceMouse Compact"
-                    or device["product_string"] == "SpaceMouse Wireless"
-                ):
-                    # set found flag
-                    found = True
-                    vendor_id = device["vendor_id"]
-                    product_id = device["product_id"]
-                    # connect to the device
-                    self._device.close()
-                    self._device.open(vendor_id, product_id)
-            # check if device found
-            if not found:
-                time.sleep(1.0)
-            else:
-                break
-        # no device found: return false
-        if not found:
-            raise OSError("No device found by SpaceMouse. Is the device connected?")
+    def _listen_for_updates(self):
+        """
+        This method implements the abstract method in the base class.
+        It reads the current mouse input state and runs operations for the current user input.
+        """
 
-    def _run_device(self):
-        """Listener thread that keeps pulling new messages."""
-        # keep running
-        while True:
-            # read the device data
-            data = self._device.read(7)
-            if data is not None:
-                # readings from 6-DoF sensor
-                if data[0] == 1:
-                    self._delta_pos[1] = self.pos_sensitivity * convert_buffer(data[1], data[2])
-                    self._delta_pos[0] = self.pos_sensitivity * convert_buffer(data[3], data[4])
-                    self._delta_pos[2] = self.pos_sensitivity * convert_buffer(data[5], data[6]) * -1.0
-                elif data[0] == 2 and not self._read_rotation:
-                    self._delta_rot[1] = self.rot_sensitivity * convert_buffer(data[1], data[2])
-                    self._delta_rot[0] = self.rot_sensitivity * convert_buffer(data[3], data[4])
-                    self._delta_rot[2] = self.rot_sensitivity * convert_buffer(data[5], data[6]) * -1.0
-                # readings from the side buttons
-                elif data[0] == 3:
-                    # press left button
-                    if data[1] == 1:
-                        # close gripper
-                        self._close_gripper = not self._close_gripper
-                        # additional callbacks
-                        if "L" in self._additional_callbacks:
-                            self._additional_callbacks["L"]()
-                    # right button is for reset
-                    if data[1] == 2:
-                        # reset layer
-                        self.reset()
-                        # additional callbacks
-                        if "R" in self._additional_callbacks:
-                            self._additional_callbacks["R"]()
-                    if data[1] == 3:
-                        self._read_rotation = not self._read_rotation
+        # Restart the timer to call this function again after the specified interval
+        self._start_timer()
+
+        # read the device state
+        self._read_mouse_state()
+
+        # operations for the current user input
+
+        # close gripper when left button is pressed
+        if self._state.buttons[0] and not self._state.buttons[1]:
+            self._close_gripper = not self._close_gripper
+
+            # run additional callbacks
+            if "L" in self._additional_callbacks:
+                self._additional_callbacks["L"]
+
+        # reset commands when right button is pressed
+        elif self._state.buttons[1] and not self._state.buttons[0]:
+            self.reset()
+
+            # run additional callbacks
+            if "R" in self._additional_callbacks:
+                self._additional_callbacks["R"]
+
+        # toggle read rotation state when both buttons are pressed
+        elif self._state.buttons[0] and self._state.buttons[1]:
+            self._read_rotation = not self._read_rotation
+
+        # transform the SpaceMouse state into base command
+        twist = self._transform_state_to_twist(self._state)
+
+        # call the callback for the twist command
+        self._process_twist_command(twist)
+
+    def _process_twist_command(self, twist) -> None:
+        """Process Se3 twist into delta position and rotation commands.
+        Args:
+            twist: The Se3 twist linear and angular velocity in order: [vx, vy, vz, wx, wy, wz].
+        """
+        self._delta_pos = self._pos_sensitivity * twist[:3]
+        self._delta_rot = self._rot_sensitivity * twist[3:]
