@@ -169,7 +169,7 @@ class TerminationManager(ManagerBase):
             else:
                 self._terminated_buf |= value
             # add to episode dones
-            rows = value.nonzero(as_tuple=True)[0]   # indexing is cheaper than boolean advance indexing
+            rows = value.nonzero(as_tuple=True)[0]  # indexing is cheaper than boolean advance indexing
             if rows.numel() > 0:
                 self._term_dones[rows] = False
                 self._term_dones[rows, i] = True
