@@ -12,7 +12,7 @@
 import torch
 
 from isaaclab.assets import RigidObjectCfg
-from isaaclab.envs import DirectRLEnvCfg
+from isaaclab.envs import DirectRLEnvCfg, ViewerCfg
 from isaaclab.markers.config import CUBOID_MARKER_CFG, FRAME_MARKER_CFG
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg, FrameTransformerCfg, OffsetCfg
@@ -24,7 +24,7 @@ from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.math import quat_from_euler_xyz
 
-from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG  # isort: skip
+from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG, FRANKA_PANDA_HIGH_PD_CFG  # isort: skip
 
 
 @configclass
@@ -38,6 +38,7 @@ class TwoRobotPickCubeCfg(DirectRLEnvCfg):
     state_space = 0
 
     obs_mode: str = "state"
+    robot_controller: str = "joint_space"
 
     # simulation
     sim: SimulationCfg = SimulationCfg(
@@ -129,7 +130,7 @@ class TwoRobotPickCubeCfg(DirectRLEnvCfg):
 
     tcp_left_cfg = FrameTransformerCfg(
         prim_path="/World/envs/env_.*/Robot_left/panda_link7",
-        debug_vis=True,
+        debug_vis=False,
         visualizer_cfg=tcp_marker_cfg,
         target_frames=[
             FrameTransformerCfg.FrameCfg(
@@ -144,7 +145,7 @@ class TwoRobotPickCubeCfg(DirectRLEnvCfg):
 
     tcp_right_cfg = FrameTransformerCfg(
         prim_path="/World/envs/env_.*/Robot_right/panda_link7",
-        debug_vis=True,
+        debug_vis=False,
         visualizer_cfg=tcp_marker_cfg,
         target_frames=[
             FrameTransformerCfg.FrameCfg(
@@ -159,7 +160,7 @@ class TwoRobotPickCubeCfg(DirectRLEnvCfg):
 
     left_finger_cfg = FrameTransformerCfg(
         prim_path="/World/envs/env_.*/Robot_left/panda_link7",
-        debug_vis=True,
+        debug_vis=False,
         visualizer_cfg=tcp_marker_cfg,
         target_frames=[
             FrameTransformerCfg.FrameCfg(
@@ -174,7 +175,7 @@ class TwoRobotPickCubeCfg(DirectRLEnvCfg):
 
     right_finger_cfg = FrameTransformerCfg(
         prim_path="/World/envs/env_.*/Robot_left/panda_link7",
-        debug_vis=True,
+        debug_vis=False,
         visualizer_cfg=tcp_marker_cfg,
         target_frames=[
             FrameTransformerCfg.FrameCfg(
@@ -250,3 +251,36 @@ class TwoRobotPickCubeCfg(DirectRLEnvCfg):
 class TwoRobotPickCubeCameraCfg(TwoRobotPickCubeCfg):
 
     obs_mode: str = "camera"
+
+
+@configclass
+class TwoRobotPickCubeTeleopCfg(TwoRobotPickCubeCfg):
+
+    robot_controller = "task_space"
+
+    robot_left_cfg = FRANKA_PANDA_HIGH_PD_CFG.replace(prim_path="/World/envs/env_.*/Robot_left")
+    robot_left_cfg.spawn.activate_contact_sensors = True
+    robot_left_cfg.init_state.pos = (0, 0.75, 0)
+    robot_left_cfg.init_state.rot = tuple(
+        quat_from_euler_xyz(
+            torch.tensor(0.0),
+            torch.tensor(0.0),
+            torch.tensor(-torch.pi / 2.0),
+        ).tolist()
+    )  # identity quaternion
+    robot_right_cfg = FRANKA_PANDA_HIGH_PD_CFG.replace(prim_path="/World/envs/env_.*/Robot_right")
+    robot_right_cfg.spawn.activate_contact_sensors = True
+    robot_right_cfg.init_state.pos = (0, -0.75, 0)
+    robot_right_cfg.init_state.rot = tuple(
+        quat_from_euler_xyz(
+            torch.tensor(0.0),
+            torch.tensor(0.0),
+            torch.tensor(torch.pi / 2.0),
+        ).tolist()
+    )
+
+    viewer = ViewerCfg()
+    viewer.eye = (-1.6, 0.0, 1.2)
+    viewer.lookat = (0.0, 0.0, 0.4)
+    viewer.origin_type = "env"
+    viewer.env_index = 0

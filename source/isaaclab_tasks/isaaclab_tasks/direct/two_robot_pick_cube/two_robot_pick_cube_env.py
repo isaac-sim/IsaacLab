@@ -103,10 +103,16 @@ class TwoRobotPickCubeEnv(DirectRLEnv):
 
     def _apply_action(self) -> None:
         """
-        Apply joint effort targets to both robots based on stored actions.
+        Apply joint efforts to both robots from the cached actions.
         """
-        self.robot_left.set_joint_effort_target(self.actions[:, 0:9], joint_ids=self.joint_ids)
-        self.robot_right.set_joint_effort_target(self.actions[:, 9:18], joint_ids=self.joint_ids)
+        left_effort = self.actions[:, 0:9]
+        right_effort = self.actions[:, 9:18]
+        if self.cfg.robot_controller == "task_space":
+            self.robot_left.set_joint_position_target(left_effort, joint_ids=self.joint_ids)
+            self.robot_right.set_joint_position_target(right_effort, joint_ids=self.joint_ids)
+        else:
+            self.robot_left.set_joint_effort_target(left_effort, joint_ids=self.joint_ids)
+            self.robot_right.set_joint_effort_target(right_effort, joint_ids=self.joint_ids)
 
     def _get_observations(self) -> dict:
         """
@@ -160,6 +166,7 @@ class TwoRobotPickCubeEnv(DirectRLEnv):
         pos_R = self.tcp_transformer_right.data.target_pos_w.squeeze(1) - self.scene.env_origins
         return torch.cat((pos_L, quat_L, pos_R, quat_R), dim=1)
 
+    # TODO test
     def _get_rewards(self) -> torch.Tensor:
         """
         Compute multi-stage dense reward.
@@ -238,6 +245,7 @@ class TwoRobotPickCubeEnv(DirectRLEnv):
         v = robot.data.joint_vel[:, self.joint_ids]
         return torch.all(torch.abs(v) < threshold, dim=-1)
 
+    # TODO test
     def is_success(self) -> torch.Tensor:
         """
         Check success condition: cube within threshold and right arm static.
@@ -258,9 +266,11 @@ class TwoRobotPickCubeEnv(DirectRLEnv):
             timeout (torch.Tensor): Timeout mask (N,) based on episode length.
         """
         done = self.is_success()
-        timeout = self.episode_length_buf >= (self.max_episode_length - 1)
+        # timeout = self.episode_length_buf >= (self.max_episode_length - 1)
+        timeout = torch.zeros_like(done, dtype=torch.bool)  # TODO reactivate timeout logic
         return done, timeout
 
+    # TODO test
     def _reset_idx(self, env_ids: Sequence[int] | None):
         """
         Reset specified envs: robots, cube, target.
@@ -317,8 +327,8 @@ class TwoRobotPickCubeEnv(DirectRLEnv):
         pos = rand6[:, :3] + self.scene.env_origins[env_ids]
         quat = quat_from_euler_xyz(rand6[:, 3], rand6[:, 4], rand6[:, 5])
         state = torch.cat((pos, quat), dim=-1)
-        self.cube.write_root_pose_to_sim(state, env_ids)
-        self.cube.write_root_velocity_to_sim(default[:, 7:], env_ids)
+        self.cube.write_root_pose_to_sim(state[env_ids], env_ids)
+        self.cube.write_root_velocity_to_sim(default[env_ids, 7:], env_ids)
 
     def sample_target_pose(self, env_ids: Sequence[int] | None = None):
         """
@@ -332,8 +342,8 @@ class TwoRobotPickCubeEnv(DirectRLEnv):
         low = torch.tensor(self.cfg.target_sample_range[0], device=self.device)
         high = torch.tensor(self.cfg.target_sample_range[1], device=self.device)
         rand6 = sample_uniform(low, high, (self.num_envs, 6), device=self.device)
-        pos = rand6[:, :3] + self.scene.env_origins[env_ids]
+        pos = rand6[:, :3]
         quat = quat_from_euler_xyz(rand6[:, 3], rand6[:, 4], rand6[:, 5])
         self.target_pose = torch.cat((pos, quat), dim=-1)
         idxs = torch.zeros(len(env_ids), dtype=torch.long, device=self.device)
-        self.target_marker.visualize(pos, quat, marker_indices=idxs)
+        self.target_marker.visualize(pos + self.scene.env_origins, quat, marker_indices=idxs)
