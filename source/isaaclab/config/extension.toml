@@ -18,7 +18,7 @@ requirements = [
     "toml",
     "easyhid",
     "gymnasium==0.29.0",
-    "trimesh",
+    "trimesh"
 ]
 
 modules = [
