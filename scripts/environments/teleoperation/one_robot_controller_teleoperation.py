@@ -73,7 +73,7 @@ def main():
 
     # Controller: relative, position-only
     ik_cfg = DifferentialIKControllerCfg(
-        command_type="position",  # position only
+        command_type="pose",  # position only
         use_relative_mode=True,  # deltas in EE frame
         ik_method="dls",
         ik_params={"lambda_val": 0.15},
@@ -84,6 +84,7 @@ def main():
     while simulation_app.is_running():
         delta_pose, grip_cmd = teleop.advance()
         delta_pose[0] = delta_pose[0] * -1.0  # flip y-axis for consistent control form viewpoint
+        delta_pose[3:5] = 0  # no roll/pitch control
 
         base_pos_w = franka.data.root_pose_w[:, :3]
         base_quat_w = franka.data.root_pose_w[:, 3:7]
@@ -95,7 +96,7 @@ def main():
 
         # Device delta already in EE frame → position-only relative step
         delta = torch.tensor(delta_pose, device=ee_pos_b.device, dtype=ee_pos_b.dtype)
-        dpos_e = delta[:3].unsqueeze(0).expand_as(ee_pos_b)  # (N,3)
+        dpos_e = delta.unsqueeze(0).expand(num_envs, -1)  # expand to num_envs
 
         # Jacobian and IK
         J = franka.root_physx_view.get_jacobians()[:, hand_jac, :, arm_ids]
