@@ -5,6 +5,7 @@
 
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sim import SimulationCfg
+from isaaclab.sim._impl.newton_manager_cfg import NewtonCfg
 from isaaclab.sim._impl.solvers_cfg import MJWarpSolverCfg
 from isaaclab.utils import configclass
 
@@ -13,7 +14,19 @@ from .rough_env_cfg import G1RoughEnvCfg
 
 @configclass
 class G1FlatEnvCfg(G1RoughEnvCfg):
-    sim: SimulationCfg = SimulationCfg(solver_cfg=MJWarpSolverCfg(nefc_per_env=40, ls_iterations=5, cone="pyramidal"))
+    sim: SimulationCfg = SimulationCfg(
+        newton_cfg=NewtonCfg(
+            solver_cfg=MJWarpSolverCfg(
+                nefc_per_env=40,
+                ls_iterations=5,
+                cone="pyramidal",
+                impratio=1,
+                integrator="implicitfast",
+            ),
+            num_substeps=1,
+            debug_mode=False,
+        )
+    )
 
     def __post_init__(self):
         # post init of parent

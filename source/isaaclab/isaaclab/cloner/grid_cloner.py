@@ -95,11 +95,11 @@ class GridCloner(Cloner):
             # compute transform
             row = i // num_cols
             col = i % num_cols
-            y = row_offset - row * self._spacing
-            x = col * self._spacing - col_offset
+            x = row_offset - row * self._spacing
+            y = col * self._spacing - col_offset
 
             up_axis = UsdGeom.GetStageUpAxis(self._stage)
-            position = [x, y, 0] if up_axis == UsdGeom.Tokens.z else [x, 0, y]
+            position = [y, x, 0] if up_axis == UsdGeom.Tokens.z else [x, 0, y]
             orientation = Gf.Quatd.GetIdentity()
 
             if position_offsets is not None:
@@ -140,6 +140,7 @@ class GridCloner(Cloner):
         root_path: str = None,
         copy_from_source: bool = False,
         enable_env_ids: bool = False,
+        spawn_offset: tuple[float] = (0.0, 0.0, 20.0),
     ):
         """Creates clones in a grid fashion. Positions of clones are computed automatically.
 
@@ -171,9 +172,10 @@ class GridCloner(Cloner):
                 omni.usd.get_context().get_stage(),
                 source_prim_path,
                 clone_base_path + "{}",
-                num_clones,
-                (self._spacing, self._spacing, 0.0),
-                # USD importer args
+                positions,
+                orientations,
+                spawn_offset=spawn_offset,
+                simplify_meshes=True,
                 collapse_fixed_joints=False,
                 joint_ordering="dfs",
                 joint_drive_gains_scaling=1.0,

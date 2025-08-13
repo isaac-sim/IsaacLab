@@ -124,8 +124,7 @@ class Articulation(AssetBase):
     @property
     def is_fixed_base(self) -> bool:
         """Whether the articulation is a fixed-base or floating-base system."""
-        # TODO: check if the articulation is fixed-base or floating-base
-        return False
+        return self._root_newton_view.is_fixed_base
 
     @property
     def num_joints(self) -> int:
@@ -210,8 +209,8 @@ class Articulation(AssetBase):
         """
         # write external wrench
         if self.has_external_wrench:
-            wrenches_b = torch.cat([self._external_force_b, self._external_force_b], dim=1)
-            self._root_newton_view.set_attribute("body_f", NewtonManager.get_state_0(), wrenches_b)
+            wrenches_b = torch.cat([self._external_force_b, self._external_force_b], dim=-1)
+            self._root_newton_view.set_attribute("body_f", NewtonManager.get_state_0(), wp.from_torch(wrenches_b))
 
         # apply actuator models
         self._apply_actuator_model()
@@ -1346,10 +1345,11 @@ class Articulation(AssetBase):
                     " Please ensure that there is only one articulation in the prim path tree."
                 )
 
-        # resolve articulation root prim back into regex expression
-        first_env_root_prim_path = first_env_root_prims[0].GetPath().pathString
-        root_prim_path_relative_to_prim_path = first_env_root_prim_path[len(first_env_matching_prim_path) :]
-        root_prim_path_expr = self.cfg.prim_path + root_prim_path_relative_to_prim_path
+            # resolve articulation root prim back into regex expression
+            first_env_root_prim_path = first_env_root_prims[0].GetPath().pathString
+            root_prim_path_relative_to_prim_path = first_env_root_prim_path[len(first_env_matching_prim_path) :]
+            root_prim_path_expr = self.cfg.prim_path + root_prim_path_relative_to_prim_path
+
         prim_path = root_prim_path_expr.replace(".*", "*")
 
         self._root_newton_view = NewtonArticulationView(
@@ -1406,14 +1406,12 @@ class Articulation(AssetBase):
             ),
             dim=2,
         ).clone()
-        self._data.default_joint_stiffness = (
-            wp.to_torch(self._root_newton_view.get_attribute("joint_target_ke", NewtonManager.get_model()))
-            .clone()
-        )
-        self._data.default_joint_damping = (
-            wp.to_torch(self._root_newton_view.get_attribute("joint_target_kd", NewtonManager.get_model()))
-            .clone()
-        )
+        self._data.default_joint_stiffness = wp.to_torch(
+            self._root_newton_view.get_attribute("joint_target_ke", NewtonManager.get_model())
+        ).clone()
+        self._data.default_joint_damping = wp.to_torch(
+            self._root_newton_view.get_attribute("joint_target_kd", NewtonManager.get_model())
+        ).clone()
         self._data.default_joint_armature = wp.to_torch(
             self._root_newton_view.get_attribute("joint_armature", NewtonManager.get_model())
         ).clone()
@@ -1498,17 +1496,6 @@ class Articulation(AssetBase):
             self.cfg.init_state.joint_vel, self.joint_names
         )
         self._data.default_joint_vel[:, indices_list] = torch.tensor(values_list, device=self.device)
-
-        # FIXME: This is a hack to force the articulation position to match the initial state prior to the first reset.
-        # We should not need to do this, but Newton (or more likely MJWarp) does not like spawning assets in the
-        # ground and if stepped, there is a residual force that can cause the asset to shoot violently into the air.
-
-        # Forces the articulation position to match the initial state.
-        root_state_w = self._data.default_root_state
-        # convert root quaternion from wxyz to xyzw
-        root_poses_xyzw = root_state_w[:, :7].clone()
-        root_poses_xyzw[:, 3:] = math_utils.convert_quat(root_poses_xyzw[:, 3:], to="xyzw")
-        self._root_newton_view.set_root_transforms(NewtonManager.get_state_0(), root_poses_xyzw, mask=self._mask)
 
     """
     Internal simulation callbacks.

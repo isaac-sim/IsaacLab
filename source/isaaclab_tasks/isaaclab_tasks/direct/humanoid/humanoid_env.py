@@ -12,7 +12,8 @@ from isaaclab.assets import ArticulationCfg
 from isaaclab.envs import DirectRLEnvCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab.sim._impl.solvers_cfg import MJWarpSolverCfg, NewtonSolverCfg
+from isaaclab.sim._impl.newton_manager_cfg import NewtonCfg
+from isaaclab.sim._impl.solvers_cfg import MJWarpSolverCfg
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass
 
@@ -29,15 +30,19 @@ class HumanoidEnvCfg(DirectRLEnvCfg):
     observation_space = 75
     state_space = 0
 
-    solver_cfg: NewtonSolverCfg = MJWarpSolverCfg(
+    solver_cfg = MJWarpSolverCfg(
         nefc_per_env=70,
         ls_iterations=7,
         cone="pyramidal",
+    )
+    newton_cfg = NewtonCfg(
+        solver_cfg=solver_cfg,
         num_substeps=2,
+        debug_mode=False,
     )
 
     # simulation
-    sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation, solver_cfg=solver_cfg)
+    sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation, newton_cfg=newton_cfg)
     terrain = TerrainImporterCfg(
         prim_path="/World/ground",
         terrain_type="plane",

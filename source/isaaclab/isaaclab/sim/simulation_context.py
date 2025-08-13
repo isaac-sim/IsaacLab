@@ -254,8 +254,8 @@ class SimulationContext(_SimulationContext):
         # flatten out the simulation dictionary
         sim_params = self.cfg.to_dict()
         if sim_params is not None:
-            if "solver_cfg" in sim_params:
-                solver_params = sim_params.pop("solver_cfg")
+            if "newton_cfg" in sim_params:
+                newton_params = sim_params.pop("newton_cfg")
 
         # create a simulation context to control the simulator
         if float(".".join(self._isaacsim_version[2])) < 5:
@@ -282,10 +282,11 @@ class SimulationContext(_SimulationContext):
             )
         self.set_setting("/app/player/playSimulations", False)
         NewtonManager.set_simulation_dt(self.cfg.dt)
-        NewtonManager.set_solver_settings(solver_params)
+        NewtonManager.set_solver_settings(newton_params)
         physx_sim_interface = omni.physx.get_physx_simulation_interface()
         physx_sim_interface.detach_stage()
         get_physics_stage_update_node_interface().detach_node()
+        # Disable USD cloning if we are not rendering or using RTX sensors
         NewtonManager._clone_physics_only = not (self.has_gui() or self.has_rtx_sensors())
 
     def _apply_physics_settings(self):
@@ -549,6 +550,7 @@ class SimulationContext(_SimulationContext):
 
     def forward(self) -> None:
         """Updates articulation kinematics and fabric for rendering."""
+        NewtonManager.forward_kinematics()
         NewtonManager.sync_fabric_transforms()
 
     def get_initial_stage(self) -> Usd.Stage:
@@ -635,18 +637,17 @@ class SimulationContext(_SimulationContext):
 
         if render:
             # physics dt is zero, no need to step physics, just render
+            if self.is_playing():
+                NewtonManager.step()
             if self.get_physics_dt() == 0:  # noqa: SIM114
                 SimulationContext.render(self)
             # rendering dt is zero, but physics is not, call step and then render
             elif self.get_rendering_dt() == 0 and self.get_physics_dt() != 0:  # noqa: SIM114
-                # if self.is_playing():
-                # self._physics_context._step(current_time=self.current_time)
                 SimulationContext.render(self)
             else:
                 self._app.update()
         else:
             if self.is_playing():
-                # self._physics_context._step(current_time=self.current_time)
                 NewtonManager.step()
 
         # Use the NewtonManager to render the scene if enabled
@@ -1004,8 +1005,10 @@ def build_simulation_context(
             # Set up gravity
             if gravity_enabled:
                 sim_cfg.gravity = (0.0, 0.0, -9.81)
+                NewtonManager.gravity_vector = (0.0, 0.0, -9.81)
             else:
                 sim_cfg.gravity = (0.0, 0.0, 0.0)
+                NewtonManager.gravity_vector = (0.0, 0.0, 0.0)
 
             # Set device
             sim_cfg.device = device

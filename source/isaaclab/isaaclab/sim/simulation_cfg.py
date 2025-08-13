@@ -13,7 +13,7 @@ from typing import Literal
 
 from isaaclab.utils import configclass
 
-from ._impl.solvers_cfg import MJWarpSolverCfg, NewtonSolverCfg
+from ._impl.newton_manager_cfg import NewtonCfg
 from .spawners.materials import RigidBodyMaterialCfg
 
 
@@ -181,8 +181,8 @@ class SimulationCfg:
         running under the hood.
     """
 
-    solver_cfg: NewtonSolverCfg = MJWarpSolverCfg()
-    """Newton solver settings. Default is NewtonCfg()."""
+    newton_cfg: NewtonCfg = NewtonCfg()
+    """Newton manager settings. Default is NewtonCfg()."""
 
     physics_material: RigidBodyMaterialCfg = RigidBodyMaterialCfg()
     """Default physics material settings for rigid bodies. Default is RigidBodyMaterialCfg().

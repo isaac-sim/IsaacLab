@@ -12,68 +12,12 @@ import omni.log
 import warp as wp
 
 
-def compute_env_offsets(
-    num_envs: int, env_offset: tuple[float, float, float] = (5.0, 5.0, 0.0), up_axis: newton.AxisType = newton.Axis.Z
-) -> np.ndarray:
-    """Computes the positional offsets for each environment.
-
-    The environment offsets are computed based on the number of environments and the environment spacing. Setting the
-    env_offset value to (i, 0, 0) will result in a line, setting it to (i, j, 0) will result in a 2D grid and setting
-    it to (i, j, k) will result in a 3D grid. Currently, there is no way to offset the position of all the environments.
-
-    Args:
-        num_envs (int): Number of environments to offset.
-        env_offset (tuple[float]): The offset between each environment.
-        up_axis (AxisType): The desired up-vector (should match the USD stage).
-
-    Returns:
-        np.ndarray: The positional offsets for each environment.
-    """
-    # compute positional offsets per environment
-    env_offset = np.array(env_offset)
-    nonzeros = np.nonzero(env_offset)[0]
-    num_dim = nonzeros.shape[0]
-    if num_dim > 0:
-        side_length = int(np.ceil(num_envs ** (1.0 / num_dim)))
-        env_offsets = []
-        if num_dim == 1:
-            for i in range(num_envs):
-                env_offsets.append(i * env_offset)
-        elif num_dim == 2:
-            for i in range(num_envs):
-                d0 = i // side_length
-                d1 = i % side_length
-                offset = np.zeros(3)
-                offset[nonzeros[0]] = d0 * env_offset[nonzeros[0]]
-                offset[nonzeros[1]] = d1 * env_offset[nonzeros[1]]
-                env_offsets.append(offset)
-        elif num_dim == 3:
-            for i in range(num_envs):
-                d0 = i // (side_length * side_length)
-                d1 = (i // side_length) % side_length
-                d2 = i % side_length
-                offset = np.zeros(3)
-                offset[0] = d0 * env_offset[0]
-                offset[1] = d1 * env_offset[1]
-                offset[2] = d2 * env_offset[2]
-                env_offsets.append(offset)
-        env_offsets = np.array(env_offsets)
-    else:
-        env_offsets = np.zeros((num_envs, 3))
-    min_offsets = np.min(env_offsets, axis=0)
-    correction = min_offsets + (np.max(env_offsets, axis=0) - min_offsets) / 2.0
-    # ensure the envs are not shifted below the ground plane
-    correction[newton.Axis.from_any(up_axis)] = 0.0
-    env_offsets -= correction
-    return env_offsets
-
-
 def replicate_environment(
     source,
     prototype_path: str,
     path_pattern: str,
-    num_envs: int,
-    env_spacing: tuple[float],
+    positions: np.ndarray,
+    orientations: np.ndarray,
     up_axis: newton.AxisType = "Z",
     simplify_meshes: bool = True,
     spawn_offset: tuple[float] = (0.0, 0.0, 20.0),
@@ -148,18 +92,15 @@ def replicate_environment(
                 prototype_builder.shape_source[i] = simplified
                 simplified_meshes[hash_m] = simplified
 
-    # compute the environment offsets
-    env_offsets = compute_env_offsets(num_envs, env_offset=env_spacing, up_axis=up_axis)
-
     # clone the prototype env with updated paths
-    for i in range(num_envs):
+    for i, (pos, ori) in enumerate(zip(positions, orientations)):
         body_start = builder.body_count
         shape_start = builder.shape_count
         joint_start = builder.joint_count
         articulation_start = builder.articulation_count
 
         builder.add_builder(
-            prototype_builder, xform=wp.transform(env_offsets[i] + np.array(spawn_offset), wp.quat_identity())
+            prototype_builder, xform=wp.transform(np.array(pos) + np.array(spawn_offset), wp.quat_identity())
         )
 
         if i > 0:

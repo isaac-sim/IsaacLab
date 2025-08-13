@@ -20,8 +20,6 @@ class NewtonSolverCfg:
 
     Used to select the right solver class.
     """
-    num_substeps: int = 1
-    """Number of substeps to use for the solver."""
 
 
 @configclass

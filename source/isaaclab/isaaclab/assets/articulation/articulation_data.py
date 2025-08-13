@@ -693,7 +693,8 @@ class ArticulationData:
             # read data from simulation
 
             position = wp.to_torch(self._root_newton_view.get_attribute("body_com", NewtonManager.get_model())).clone()
-            quat = torch.tensor([1.0, 0.0, 0.0, 0.0], device=self.device).repeat(position.shape[0], 1)
+            quat = torch.zeros((position.shape[0], position.shape[1], 4), device=self.device)
+            quat[:, :, 0] = 1.0
             pose = torch.cat((position, quat), dim=-1)
             # set the buffer data and timestamp
             self._body_com_pose_b.data = pose
@@ -726,7 +727,9 @@ class ArticulationData:
         """Joint positions of all joints. Shape is (num_instances, num_joints)."""
         if self._joint_pos.timestamp < self._sim_timestamp:
             # read data from simulation and set the buffer data and timestamp
-            self._joint_pos.data = wp.to_torch(self._root_newton_view.get_dof_positions(NewtonManager.get_state_0()))
+            self._joint_pos.data = wp.to_torch(
+                self._root_newton_view.get_dof_positions(NewtonManager.get_state_0())
+            ).clone()
             self._joint_pos.timestamp = self._sim_timestamp
         return self._joint_pos.data
 
@@ -735,7 +738,9 @@ class ArticulationData:
         """Joint velocities of all joints. Shape is (num_instances, num_joints)."""
         if self._joint_vel.timestamp < self._sim_timestamp:
             # read data from simulation and set the buffer data and timestamp
-            self._joint_vel.data = wp.to_torch(self._root_newton_view.get_dof_velocities(NewtonManager.get_state_0()))
+            self._joint_vel.data = wp.to_torch(
+                self._root_newton_view.get_dof_velocities(NewtonManager.get_state_0())
+            ).clone()
             self._joint_vel.timestamp = self._sim_timestamp
         return self._joint_vel.data
 

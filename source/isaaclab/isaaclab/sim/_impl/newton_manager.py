@@ -18,6 +18,8 @@ from newton.solvers import FeatherstoneSolver, MuJoCoSolver, SolverBase, XPBDSol
 from newton.utils.contact_sensor import ContactSensor as NewtonContactSensor
 from newton.utils.contact_sensor import populate_contacts
 
+from isaaclab.sim._impl.newton_manager_cfg import NewtonCfg
+
 
 def flipped_match(x: str, y: str) -> re.Match | None:
     """Flipped match function.
@@ -52,7 +54,6 @@ class NewtonManager:
     _device: str = "cuda:0"
     _dt: float = 1.0 / 200.0
     _solver_dt: float = 1.0 / 200.0
-    _solver_type: str = "mjwarp"  # "xpbd, mjwarp
     _num_substeps: int = 1
     _solver = None
     _state_0: State = None
@@ -64,18 +65,34 @@ class NewtonManager:
     _contacts: Contacts = None
     _newton_contact_sensor: NewtonContactSensor = None  # TODO: allow several contact sensors
     _report_contacts: bool = False
-    _use_cuda_graph: bool = False
     _graph = None
-    _up_axis: str = "Z"
     _newton_stage_path = None
     _renderer = None
     _sim_time = 0.0
     _usdrt_stage = None
     _newton_index_attr = "newton:index"
-    _env_offsets = None
-    _debug_mode = False
     _clone_physics_only = False
-    _num_envs = None
+    _cfg: NewtonCfg = NewtonCfg()
+    _solver_type: str = "mujoco_warp"
+    _gravity_vector: tuple[float, float, float] = (0.0, 0.0, -9.81)
+    _up_axis: str = "Z"
+    _num_envs: int = None
+
+    @property
+    def gravity_vector(self) -> tuple[float, float, float]:
+        return NewtonManager._gravity_vector
+
+    @gravity_vector.setter
+    def gravity_vector(self, gravity_vector: tuple[float, float, float]):
+        NewtonManager._gravity_vector = gravity_vector
+
+    @property
+    def up_axis(self) -> str:
+        return NewtonManager._up_axis
+
+    @up_axis.setter
+    def up_axis(self, up_axis: str):
+        NewtonManager._up_axis = up_axis
 
     @property
     def model(self) -> Model:
@@ -115,10 +132,9 @@ class NewtonManager:
         for callback in NewtonManager._on_init_callbacks:
             callback()
         print(f"[INFO] Finalizing model on device: {NewtonManager._device}")
+        NewtonManager._builder.gravity = np.array(NewtonManager._gravity_vector)
+        NewtonManager._builder.up_axis = newton.Axis.from_string(NewtonManager._up_axis)
         NewtonManager._model = NewtonManager._builder.finalize(device=NewtonManager._device)
-        print("[INFO] Running on start callbacks")
-        for callback in NewtonManager._on_start_callbacks:
-            callback()
         NewtonManager._state_0 = NewtonManager._model.state()
         NewtonManager._state_1 = NewtonManager._model.state()
         NewtonManager._state_temp = NewtonManager._model.state()
@@ -131,6 +147,9 @@ class NewtonManager:
             NewtonManager._state_0,
             None,
         )
+        print("[INFO] Running on start callbacks")
+        for callback in NewtonManager._on_start_callbacks:
+            callback()
         if not NewtonManager._clone_physics_only:
             NewtonManager._usdrt_stage = get_current_stage(fabric=True)
             for i, prim_path in enumerate(NewtonManager._model.body_key):
@@ -143,7 +162,7 @@ class NewtonManager:
 
     @classmethod
     def set_solver_settings(cls, newton_params: dict):
-        NewtonManager._solver_cfg = newton_params
+        NewtonManager._cfg = NewtonCfg(**newton_params)
 
     @classmethod
     def initialize_solver(cls):
@@ -158,10 +177,15 @@ class NewtonManager:
             simulation once to capture the graph. Hence, this function should only be called after everything else in
             the simulation is initialized.
         """
-        NewtonManager._solver = NewtonManager._get_solver(NewtonManager._model, NewtonManager._solver_cfg)
+        NewtonManager._num_substeps = NewtonManager._cfg.num_substeps
+        NewtonManager._solver_dt = NewtonManager._solver_dt / NewtonManager._num_substeps
+        NewtonManager._solver = NewtonManager._get_solver(NewtonManager._model, NewtonManager._cfg.solver_cfg)
 
-        NewtonManager._use_cuda_graph = wp.get_device().is_cuda
-        if NewtonManager._use_cuda_graph:
+        # Ensure we are using a CUDA enabled device
+        assert NewtonManager._device.startswith("cuda"), "NewtonManager only supports CUDA enabled devices"
+
+        # Capture the graph if CUDA is enabled
+        if NewtonManager._cfg.use_cuda_graph:
             with wp.ScopedCapture() as capture:
                 NewtonManager.simulate()
             NewtonManager._graph = capture.graph
@@ -180,12 +204,11 @@ class NewtonManager:
         contacts = None
 
         # MJWarp computes its own collisions.
-        if NewtonManager._solver_type != "mjwarp":
+        if NewtonManager._solver_type != "mujoco_warp":
             contacts = NewtonManager._model.collide(NewtonManager._state_0)
 
         if NewtonManager._num_substeps % 2 == 0:
             for i in range(NewtonManager._num_substeps):
-                NewtonManager._state_0.clear_forces()
                 NewtonManager._solver.step(
                     NewtonManager._state_0,
                     NewtonManager._state_1,
@@ -194,9 +217,9 @@ class NewtonManager:
                     NewtonManager._solver_dt,
                 )
                 NewtonManager._state_0, NewtonManager._state_1 = NewtonManager._state_1, NewtonManager._state_0
+                NewtonManager._state_0.clear_forces()
         else:
             for i in range(NewtonManager._num_substeps):
-                NewtonManager._state_0.clear_forces()
                 NewtonManager._solver.step(
                     NewtonManager._state_0,
                     NewtonManager._state_1,
@@ -206,10 +229,10 @@ class NewtonManager:
                 )
 
                 # FIXME: Ask Lukasz help to deal with non-even number of substeps. This should not be needed.
-                if i < NewtonManager._num_substeps - 1 or not NewtonManager._use_cuda_graph:
+                if i < NewtonManager._num_substeps - 1 or not NewtonManager._cfg.use_cuda_graph:
                     # we can just swap the state references
                     NewtonManager._state_0, NewtonManager._state_1 = NewtonManager._state_1, NewtonManager._state_0
-                elif NewtonManager._use_cuda_graph:
+                elif NewtonManager._cfg.use_cuda_graph:
                     # swap states by actually copying the state arrays to make sure the graph capture works
                     for key, value in state_0_dict.items():
                         if isinstance(value, wp.array):
@@ -218,6 +241,7 @@ class NewtonManager:
                             state_temp_dict[key].assign(value)
                             state_0_dict[key].assign(state_1_dict[key])
                             state_1_dict[key].assign(state_temp_dict[key])
+                NewtonManager._state_0.clear_forces()
 
         if NewtonManager._report_contacts:
             populate_contacts(NewtonManager._contacts, NewtonManager._solver)
@@ -239,12 +263,12 @@ class NewtonManager:
         This function steps the simulation by the specified time step in the simulation configuration.
         """
 
-        if NewtonManager._use_cuda_graph:
+        if NewtonManager._cfg.use_cuda_graph:
             wp.capture_launch(NewtonManager._graph)
         else:
             NewtonManager.simulate()
 
-        if NewtonManager._debug_mode:
+        if NewtonManager._cfg.debug_mode:
             niter = NewtonManager._solver.mjw_data.solver_niter.numpy()
             max_niter = np.max(niter)
             mean_niter = np.mean(niter)
@@ -325,7 +349,7 @@ class NewtonManager:
         return NewtonManager._control
 
     @classmethod
-    def forward_kinematics(cls, selection) -> None:
+    def forward_kinematics(cls, mask: wp.array | None = None) -> None:
         """Evaluates the forward kinematics for the selected articulations.
 
         This function evaluates the forward kinematics for the selected articulations.
@@ -335,22 +359,21 @@ class NewtonManager:
             NewtonManager._state_0.joint_q,
             NewtonManager._state_0.joint_qd,
             NewtonManager._state_0,
-            selection.articulation_mask,
+            None,
         )
 
     @classmethod
     def _get_solver(cls, model: Model, solver_cfg: dict) -> SolverBase:
-        solver_type = solver_cfg.pop("solver_type")
-        NewtonManager._num_substeps = solver_cfg.pop("num_substeps")
-        NewtonManager._solver_dt = NewtonManager._solver_dt / NewtonManager._num_substeps
-        if solver_type == "mujoco_warp":
+        NewtonManager._solver_type = solver_cfg.pop("solver_type")
+
+        if NewtonManager._solver_type == "mujoco_warp":
             return MuJoCoSolver(model, **solver_cfg)
-        elif solver_type == "xpbd":
+        elif NewtonManager._solver_type == "xpbd":
             return XPBDSolver(model, **solver_cfg)
-        elif solver_type == "featherstone":
+        elif NewtonManager._solver_type == "featherstone":
             return FeatherstoneSolver(model, **solver_cfg)
         else:
-            raise ValueError(f"Invalid solver type: {solver_type}")
+            raise ValueError(f"Invalid solver type: {NewtonManager._solver_type}")
 
     @classmethod
     def add_contact_sensor(

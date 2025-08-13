@@ -10,7 +10,6 @@ from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
-from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.terrains import TerrainImporterCfg
@@ -82,15 +81,6 @@ class ObservationsCfg:
         base_heading_proj = ObsTerm(func=mdp.base_heading_proj, params={"target_pos": (1000.0, 0.0, 0.0)})
         joint_pos_norm = ObsTerm(func=mdp.joint_pos_limit_normalized)
         joint_vel_rel = ObsTerm(func=mdp.joint_vel_rel, scale=0.2)
-        feet_body_forces = ObsTerm(
-            func=mdp.body_incoming_wrench,
-            scale=0.1,
-            params={
-                "asset_cfg": SceneEntityCfg(
-                    "robot", body_names=["front_left_foot", "front_right_foot", "left_back_foot", "right_back_foot"]
-                )
-            },
-        )
         actions = ObsTerm(func=mdp.last_action)
 
         def __post_init__(self):

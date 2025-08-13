@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from isaaclab.sim import SimulationCfg
+from isaaclab.sim._impl.newton_manager_cfg import NewtonCfg
 from isaaclab.sim._impl.solvers_cfg import MJWarpSolverCfg
 from isaaclab.utils import configclass
 
@@ -12,7 +13,13 @@ from .rough_env_cfg import AnymalDRoughEnvCfg
 
 @configclass
 class AnymalDFlatEnvCfg(AnymalDRoughEnvCfg):
-    sim: SimulationCfg = SimulationCfg(solver_cfg=MJWarpSolverCfg(nefc_per_env=65, ls_iterations=5, cone="pyramidal"))
+    sim: SimulationCfg = SimulationCfg(
+        newton_cfg=NewtonCfg(
+            solver_cfg=MJWarpSolverCfg(nefc_per_env=65, ls_iterations=5, cone="pyramidal"),
+            num_substeps=1,
+            debug_mode=False,
+        )
+    )
 
     def __post_init__(self):
         # post init of parent
