@@ -43,33 +43,48 @@ install_system_deps() {
     fi
 }
 
+# Returns success (exit code 0 / "true") if the detected Isaac Sim version starts with 4.5,
+# otherwise returns non-zero ("false"). Works with both symlinked binary installs and pip installs.
 is_isaacsim_version_4_5() {
+    local version=""
     local python_exe
     python_exe=$(extract_python_exe)
 
-    # 1) Try the VERSION file
-    local sim_file
-    sim_file=$("${python_exe}" -c "import isaacsim; print(isaacsim.__file__)" 2>/dev/null) || return 1
-    local version_path
-    version_path=$(dirname "${sim_file}")/../../VERSION
-    if [[ -f "${version_path}" ]]; then
-        local ver
-        ver=$(head -n1 "${version_path}")
-        [[ "${ver}" == 4.5* ]] && return 0
+    # 0) Fast path: read VERSION file from the symlinked _isaac_sim directory (binary install)
+    # If the repository has _isaac_sim → <IsaacSimRoot> symlink, the VERSION file is the simplest source of truth.
+    if [[ -f "${ISAACLAB_PATH}/_isaac_sim/VERSION" ]]; then
+        # Read first line of the VERSION file; don't fail the whole script on errors.
+        version=$(head -n1 "${ISAACLAB_PATH}/_isaac_sim/VERSION" || true)
     fi
 
-    # 2) Fallback to importlib.metadata via a here-doc
-    local ver
-    ver=$("${python_exe}" <<'PYCODE' 2>/dev/null
+    # 1) Package-path probe: import isaacsim and walk up to ../../VERSION (pip or nonstandard layouts)
+    # If we still don't know the version, ask Python where the isaacsim package lives
+    if [[ -z "$version" ]]; then
+        local sim_file=""
+        # Print isaacsim.__file__; suppress errors so set -e won't abort.
+        sim_file=$("${python_exe}" -c 'import isaacsim, os; print(isaacsim.__file__)' 2>/dev/null || true)
+        if [[ -n "$sim_file" ]]; then
+            local version_path
+            version_path="$(dirname "$sim_file")/../../VERSION"
+            # If that VERSION file exists, read it.
+            [[ -f "$version_path" ]] && version=$(head -n1 "$version_path" || true)
+        fi
+    fi
+
+    # 2) Fallback: use package metadata via importlib.metadata.version("isaacsim")
+    if [[ -z "$version" ]]; then
+        version=$("${python_exe}" <<'PY' 2>/dev/null || true
 from importlib.metadata import version, PackageNotFoundError
 try:
     print(version("isaacsim"))
 except PackageNotFoundError:
-    import sys; sys.exit(1)
-PYCODE
-) || return 1
+    pass
+PY
+)
+    fi
 
-    [[ "${ver}" == 4.5* ]]
+    # Final decision: return success if version begins with "4.5", 0 if match, 1 otherwise.
+    [[ "$version" == 4.5* ]]
 }
 
 # check if running in docker
