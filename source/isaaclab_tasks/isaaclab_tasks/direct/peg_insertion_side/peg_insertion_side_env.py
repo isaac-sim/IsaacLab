@@ -214,70 +214,56 @@ class PegInsertionSideEnv(DirectRLEnv):
         quat = self.tcp_transformer.data.target_quat_w.squeeze(1)
         return torch.cat((pos, quat), dim=1)
 
-    # TODO test in simulation and DEBUG See stack cube task
     def is_grasping(
         self,
-        min_force: float = 0.5,
-        max_angle: float = 85.0,
+        robot: Articulation,
+        left_contact_name: str,
+        right_contact_name: str,
+        min_force: float = 0.2,
+        max_angle: float = 130.0,
     ) -> torch.Tensor:
         """
-        Returns an (N,) bool mask: True where both fingers are
-        pressing on the peg with ≥ min_force N, and within max_angle°
-        of their local opening axis.
+        Check if the given robot is grasping an object by evaluating
+        contact forces and approach angles on its fingertip sensors.
 
-        Requires you’ve set up two ContactSensors in _setup_scene:
-          self.scene.sensors["left_contact"]
-          self.scene.sensors["right_contact"]
-        each filtered to only see the peg’s collisions.
+        Args:
+            robot (Articulation): Robot to test.
+            left_contact_name (str): Sensor name for left fingertip.
+            right_contact_name (str): Sensor name for right fingertip.
+            min_force (float): Minimum normal force to consider a contact.
+            max_angle (float): Maximum angle (deg) between contact force and opening axis.
+        Returns:
+            torch.Tensor: Bool mask (N,) True if both fingers grasp.
         """
+        left_sensor = self.scene.sensors[left_contact_name]
+        right_sensor = self.scene.sensors[right_contact_name]
+        l_f = left_sensor.data.net_forces_w.squeeze(1)
+        r_f = right_sensor.data.net_forces_w.squeeze(1)
+        l_mag = torch.linalg.norm(l_f, dim=1)
+        r_mag = torch.linalg.norm(r_f, dim=1)
 
-        # 1) read net world-frame contact forces: (N,1,3) → (N,3)
-        l_forces = self.scene.sensors["left_contact"].data.net_forces_w.squeeze(1)
-        r_forces = self.scene.sensors["right_contact"].data.net_forces_w.squeeze(1)
-
-        # 2) force magnitudes
-        l_mag = torch.norm(l_forces, dim=1)
-        r_mag = torch.norm(r_forces, dim=1)
-
-        # 3) define local “opening” axis = +Y in fingertip frame, broadcast to (N,1,3)
-        N = l_forces.shape[0]
+        N = l_f.shape[0]
         axis_local = torch.tensor([0.0, 1.0, 0.0], device=self.device).view(1, 1, 3)
         axes = axis_local.expand(N, 1, 3)
-
-        # 4) get each fingertip’s world-pose and rotate +Y into world
-        pos = self.robot.data.body_pos_w  # (N, B, 3)
-        quat = self.robot.data.body_quat_w  # (N, B, 4)
-
-        l_dir = transform_points(
-            points=axes,
-            pos=pos[:, self.left_finger_link_idx],
-            quat=quat[:, self.left_finger_link_idx],
-        ).squeeze(1)
-
+        pos = robot.data.body_pos_w
+        quat = robot.data.body_quat_w
+        l_dir = transform_points(axes, pos[:, self.left_finger_link_idx], quat[:, self.left_finger_link_idx]).squeeze(1)
         r_dir = transform_points(
-            points=axes,
-            pos=pos[:, self.right_finger_link_idx],
-            quat=quat[:, self.right_finger_link_idx],
+            axes,
+            pos[:, self.right_finger_link_idx],
+            quat[:, self.right_finger_link_idx],
         ).squeeze(1)
-        # flip the right finger so +dir is the “opening” direction
-        r_dir = -r_dir
+        r_dir = -r_dir  # invert right axis
 
-        # 5) normalize vectors to compute angles
         l_dir_u = normalize(l_dir)
         r_dir_u = normalize(r_dir)
-        l_f_u = normalize(l_forces)
-        r_f_u = normalize(r_forces)
+        l_f_u = normalize(l_f)
+        r_f_u = normalize(r_f)
+        l_ang = torch.acos((l_dir_u * l_f_u).sum(-1).clamp(-1, 1)) * (180.0 / torch.pi)
+        r_ang = torch.acos((r_dir_u * r_f_u).sum(-1).clamp(-1, 1)) * (180.0 / torch.pi)
 
-        # 6) compute angle = arccos(dot), in degrees
-        l_cos = (l_dir_u * l_f_u).sum(dim=1).clamp(-1.0, 1.0)
-        r_cos = (r_dir_u * r_f_u).sum(dim=1).clamp(-1.0, 1.0)
-        l_ang = torch.acos(l_cos) * (180.0 / torch.pi)
-        r_ang = torch.acos(r_cos) * (180.0 / torch.pi)
-
-        # 7) check both magnitude & angle thresholds
         l_ok = (l_mag >= min_force) & (l_ang <= max_angle)
         r_ok = (r_mag >= min_force) & (r_ang <= max_angle)
-
         return l_ok & r_ok
 
     # TODO test in simulation
@@ -308,7 +294,7 @@ class PegInsertionSideEnv(DirectRLEnv):
         d_tcp_peg = torch.linalg.norm(tcp_p - tail_world, dim=1)
         reach_rew = 1.0 - torch.tanh(4.0 * d_tcp_peg)
 
-        is_grasped = self.is_grasping(min_force=0.5, max_angle=20)
+        is_grasped = self.is_grasping(self.robot, "left_contact", "right_contact")
         reward = reach_rew + is_grasped.to(dtype=reach_rew.dtype)
 
         # 4) Pre-insertion alignment
