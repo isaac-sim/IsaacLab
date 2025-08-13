@@ -149,7 +149,7 @@ class PegInsertionSideEnv(DirectRLEnv):
 
         tcp_cfg = FrameTransformerCfg(
             prim_path="/World/envs/env_.*/Robot/panda_link7",
-            debug_vis=True,
+            debug_vis=False,
             visualizer_cfg=marker_cfg,
             target_frames=[
                 FrameTransformerCfg.FrameCfg(

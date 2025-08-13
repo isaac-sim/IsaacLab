@@ -147,7 +147,7 @@ class PegInsertionSideTeleopCfg(PegInsertionSideEnvCfg):
     robot_cfg.spawn.activate_contact_sensors = True
 
     viewer = ViewerCfg()
-    viewer.eye = (-1.6, 0.0, 1.2)
-    viewer.lookat = (0.0, 0.0, 0.4)
+    viewer.eye = (1.6, 0.0, 1.2)
+    viewer.lookat = (0.0, 0.0, 0.2)
     viewer.origin_type = "env"
     viewer.env_index = 0
