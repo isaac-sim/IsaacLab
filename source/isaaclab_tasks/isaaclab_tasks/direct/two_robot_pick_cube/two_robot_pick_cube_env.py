@@ -231,7 +231,7 @@ class TwoRobotPickCubeEnv(DirectRLEnv):
         reward[success] = 21.0
         return reward
 
-    def is_robot_static(self, robot: Articulation, threshold: float = 1e-3) -> torch.Tensor:
+    def is_robot_static(self, robot: Articulation, threshold: float = 0.2) -> torch.Tensor:
         """
         Check whether all actuated joints of a robot are below velocity threshold.
 
@@ -242,8 +242,8 @@ class TwoRobotPickCubeEnv(DirectRLEnv):
         Returns:
             torch.Tensor: Boolean mask (N,) where True indicates static.
         """
-        v = robot.data.joint_vel[:, self.joint_ids]
-        return torch.all(torch.abs(v) < threshold, dim=-1)
+        v = robot.data.joint_vel[:, self.joint_ids[:-2]]
+        return torch.all(torch.abs(v) <= threshold, dim=-1)
 
     # TODO test
     def is_success(self) -> torch.Tensor:
