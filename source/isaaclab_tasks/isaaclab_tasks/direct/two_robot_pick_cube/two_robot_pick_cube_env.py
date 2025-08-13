@@ -11,9 +11,9 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation, RigidObject
 from isaaclab.envs import DirectRLEnv
 from isaaclab.markers import VisualizationMarkers
-from isaaclab.sensors import Camera, FrameTransformer
+from isaaclab.sensors import Camera, ContactSensor, FrameTransformer
 from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
-from isaaclab.utils.math import quat_from_euler_xyz, sample_uniform
+from isaaclab.utils.math import normalize, quat_from_euler_xyz, sample_uniform, transform_points
 
 from .two_robot_pick_cube_env_cfg import TwoRobotPickCubeCfg
 
@@ -43,6 +43,10 @@ class TwoRobotPickCubeEnv(DirectRLEnv):
         # find actuated joints for both robots (including fingers)
         self.joint_ids, _ = self.robot_left.find_joints("panda_joint.*|panda_finger_joint.*")
 
+        # cache fingertip link indices for grasp detection
+        self.left_finger_link_idx = self.robot_left.find_bodies("panda_leftfinger")[0][0]
+        self.right_finger_link_idx = self.robot_left.find_bodies("panda_rightfinger")[0][0]
+
     def _setup_scene(self):
         """
         Set up the simulation scene:
@@ -59,11 +63,17 @@ class TwoRobotPickCubeEnv(DirectRLEnv):
         # instantiate robots
         self.robot_left = Articulation(self.cfg.robot_left_cfg)
         self.robot_right = Articulation(self.cfg.robot_right_cfg)
+        self.scene.articulations["robot_left"] = self.robot_left
+        self.scene.articulations["robot_right"] = self.robot_right
 
         # camera
         camera = Camera(cfg=self.cfg.sensors[0])
         camera.set_debug_vis(True)
         self.scene.sensors["camera"] = camera
+
+        # Cube
+        self.cube = RigidObject(self.cfg.cube_cfg)
+        self.scene.rigid_objects["cube"] = self.cube
 
         # frame transformers for TCPs
         self.tcp_transformer_left = FrameTransformer(cfg=self.cfg.tcp_left_cfg)
@@ -81,12 +91,12 @@ class TwoRobotPickCubeEnv(DirectRLEnv):
         self.target_marker = VisualizationMarkers(self.cfg.target_marker_cfg)
         self.scene.extras["target"] = self.target_marker
 
+        # contact sensors for grasp detection
+        self.scene.sensors["right_robot_left_contact"] = ContactSensor(self.cfg.sensors[1])
+        self.scene.sensors["right_robot_right_contact"] = ContactSensor(self.cfg.sensors[2])
+
         # replicate and add robots and cube
         self.scene.clone_environments(copy_from_source=True)
-        self.scene.articulations["robot_left"] = self.robot_left
-        self.scene.articulations["robot_right"] = self.robot_right
-        self.cube = RigidObject(self.cfg.cube_cfg)
-        self.scene.rigid_objects["cube"] = self.cube
 
         # lighting
         light_cfg = sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
@@ -166,6 +176,58 @@ class TwoRobotPickCubeEnv(DirectRLEnv):
         pos_R = self.tcp_transformer_right.data.target_pos_w.squeeze(1) - self.scene.env_origins
         return torch.cat((pos_L, quat_L, pos_R, quat_R), dim=1)
 
+    def is_grasping(
+        self,
+        robot: Articulation,
+        left_contact_name: str,
+        right_contact_name: str,
+        min_force: float = 0.2,
+        max_angle: float = 130.0,
+    ) -> torch.Tensor:
+        """
+        Check if the given robot is grasping an object by evaluating
+        contact forces and approach angles on its fingertip sensors.
+
+        Args:
+            robot (Articulation): Robot to test.
+            left_contact_name (str): Sensor name for left fingertip.
+            right_contact_name (str): Sensor name for right fingertip.
+            min_force (float): Minimum normal force to consider a contact.
+            max_angle (float): Maximum angle (deg) between contact force and opening axis.
+        Returns:
+            torch.Tensor: Bool mask (N,) True if both fingers grasp.
+        """
+        left_sensor = self.scene.sensors[left_contact_name]
+        right_sensor = self.scene.sensors[right_contact_name]
+        l_f = left_sensor.data.net_forces_w.squeeze(1)
+        r_f = right_sensor.data.net_forces_w.squeeze(1)
+        l_mag = torch.linalg.norm(l_f, dim=1)
+        r_mag = torch.linalg.norm(r_f, dim=1)
+
+        N = l_f.shape[0]
+        axis_local = torch.tensor([0.0, 1.0, 0.0], device=self.device).view(1, 1, 3)
+        axes = axis_local.expand(N, 1, 3)
+        pos = robot.data.body_pos_w
+        quat = robot.data.body_quat_w
+        l_dir = transform_points(axes, pos[:, self.left_finger_link_idx], quat[:, self.left_finger_link_idx]).squeeze(1)
+        r_dir = transform_points(
+            axes,
+            pos[:, self.right_finger_link_idx],
+            quat[:, self.right_finger_link_idx],
+        ).squeeze(1)
+        r_dir = -r_dir  # invert right axis
+
+        l_dir_u = normalize(l_dir)
+        r_dir_u = normalize(r_dir)
+        l_f_u = normalize(l_f)
+        r_f_u = normalize(r_f)
+        l_ang = torch.acos((l_dir_u * l_f_u).sum(-1).clamp(-1, 1)) * (180.0 / torch.pi)
+        r_ang = torch.acos((r_dir_u * r_f_u).sum(-1).clamp(-1, 1)) * (180.0 / torch.pi)
+
+        l_ok = (l_mag >= min_force) & (l_ang <= max_angle)
+        r_ok = (r_mag >= min_force) & (r_ang <= max_angle)
+        return l_ok & r_ok
+
     # TODO test
     def _get_rewards(self) -> torch.Tensor:
         """
@@ -175,47 +237,52 @@ class TwoRobotPickCubeEnv(DirectRLEnv):
             torch.Tensor: Reward tensor of shape (N,).
         """
         tcp = self.get_tcp_poses()
-        pos_L = tcp[:, :3]
-        pos_R = tcp[:, 7:10]
+        tcp_L = tcp[:, :3]
+        tcp_R = tcp[:, 7:10]
         cube_w = self.cube.data.root_state_w
         cube_pos = cube_w[:, :3] - self.scene.env_origins
         goal_pos = self.target_pose[:, :3]
 
         # Stage 1: reach & push
-        dist_L = torch.linalg.norm(cube_pos - pos_L, dim=-1)
-        reach1 = 1 - torch.tanh(5 * dist_L)
-        beyond = torch.clamp(0.05 - cube_pos[:, 1], min=0.0)
-        push1 = 1 - torch.tanh(5 * beyond)
-        reward = 0.5 * (reach1 + push1)
-        mask1 = cube_pos[:, 1] >= 0.0
+        dist_L = torch.linalg.norm(cube_pos - tcp_L, dim=-1)
+        reach_reward_stage1 = 1 - torch.tanh(5 * dist_L)
+        beyond = torch.relu(cube_pos[:, 1] + 0.05)
+        push_reward_stage1 = 1 - torch.tanh(5 * beyond)
+        reward = 0.5 * (reach_reward_stage1 + push_reward_stage1)
+        push_condition_mask = cube_pos[:, 1] <= 0.0
 
         # Pre-grasp check
-        f1 = self.left_finger_transformer.data.target_pos_w.squeeze(1) - self.scene.env_origins
-        f2 = self.right_finger_transformer.data.target_pos_w.squeeze(1) - self.scene.env_origins
-        h1, h2 = f1[:, 2], f2[:, 2]
-        th = 1 - torch.tanh(5 * torch.abs(h1 - h2))
-        d = torch.linalg.norm(f1 - f2, dim=-1)
-        tw = 1 - torch.tanh(5 * torch.abs(d - 0.07))
-        tip_reward = 0.5 * (th + tw)
-        is_pre = (th > 0.5) & (tw > 0.5)
+        left_finger_position = self.left_finger_transformer.data.target_pos_w.squeeze(1) - self.scene.env_origins
+        right_finger_position = self.right_finger_transformer.data.target_pos_w.squeeze(1) - self.scene.env_origins
+        left_finger_height, right_finger_height = left_finger_position[:, 2], right_finger_position[:, 2]
+        height_difference_reward = 1 - torch.tanh(5 * torch.abs(left_finger_height - right_finger_height))
+        distance_between_fingers = torch.linalg.norm(left_finger_position - right_finger_position, dim=-1)
+        tip_distance_reward = 1 - torch.tanh(5 * torch.abs(distance_between_fingers - 0.07))
+        tip_reward = 0.5 * (height_difference_reward + tip_distance_reward)
 
         # Stage 2: reach + tip + leave + pre-grasp
-        dist_R = torch.linalg.norm(cube_pos - pos_R, dim=-1)
-        reach2 = 1 - torch.tanh(5 * dist_R)
-        leave = 1 - torch.tanh(5 * torch.abs(tcp[:, 1] + 0.2))
-        reward[mask1] = 2.0 + reach2[mask1] + tip_reward[mask1] + leave[mask1] + 2.0 * is_pre[mask1]
+        dist_R = torch.linalg.norm(cube_pos - tcp_R, dim=-1)
+        reach_reward_stage2 = 1 - torch.tanh(5 * dist_R)
+        left_arm_leave_reward = 1 - torch.tanh(5 * torch.abs(tcp[:, 1] - 0.2))
+        is_grasping = self.is_grasping(self.robot_right, "right_robot_left_contact", "right_robot_right_contact")
+        reward[push_condition_mask] = (
+            2.0
+            + reach_reward_stage2[push_condition_mask]
+            + tip_reward[push_condition_mask]
+            + left_arm_leave_reward[push_condition_mask]
+            + 2.0 * is_grasping[push_condition_mask]
+        )
 
         # Stage 3: move toward goal + left return
-        mask2 = mask1 & is_pre
-        dist_goal = torch.linalg.norm(goal_pos - pos_R, dim=-1)
-        place3 = 1 - torch.tanh(5 * dist_goal)
-        left_q = self.robot_left.data.joint_pos
-        left_return = 1 - torch.tanh(torch.linalg.norm(left_q - self.left_init_qpos, dim=-1))
-        reward[mask2] = 8.0 + (2.0 * place3 + left_return)[mask2]
+        dist_goal = torch.linalg.norm(goal_pos - tcp_R, dim=-1)
+        goal_reach_reward = 1 - torch.tanh(5 * dist_goal)
+        left_qpos = self.robot_left.data.joint_pos
+        left_init_qpos_reward = 1 - torch.tanh(torch.linalg.norm(left_qpos - self.left_init_qpos, dim=-1))
+        reward[is_grasping] = 8.0 + (2.0 * goal_reach_reward + left_init_qpos_reward)[is_grasping]
+        near_goal_grasp_mask = is_grasping & (dist_goal < 0.25)
 
         # Stage 4: intermediate near-goal bonus
-        mask3 = mask2 & (dist_goal < 0.25)
-        reward[mask3] = 12.0 + 2.0 * place3[mask3]
+        reward[near_goal_grasp_mask] = 12.0 + 2.0 * goal_reach_reward[near_goal_grasp_mask]
 
         # Stage 5: placed + static-arms
         is_placed = torch.linalg.norm(goal_pos - cube_pos, dim=-1) <= self.cfg.success_distance_threshold
@@ -245,7 +312,6 @@ class TwoRobotPickCubeEnv(DirectRLEnv):
         v = robot.data.joint_vel[:, self.joint_ids[:-2]]
         return torch.all(torch.abs(v) <= threshold, dim=-1)
 
-    # TODO test
     def is_success(self) -> torch.Tensor:
         """
         Check success condition: cube within threshold and right arm static.
@@ -266,13 +332,12 @@ class TwoRobotPickCubeEnv(DirectRLEnv):
             timeout (torch.Tensor): Timeout mask (N,) based on episode length.
         """
         done = self.is_success()
-        if self.cfg.action_space == "task_space":
+        if self.cfg.robot_controller == "task_space":
             timeout = torch.zeros_like(done, dtype=torch.bool)
         else:
             timeout = self.episode_length_buf >= (self.max_episode_length - 1)
         return done, timeout
 
-    # TODO test
     def _reset_idx(self, env_ids: Sequence[int] | None):
         """
         Reset specified envs: robots, cube, target.

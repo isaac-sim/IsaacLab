@@ -67,7 +67,7 @@ class TwoRobotStackCubeEnv(DirectRLEnv):
         self.scene.articulations["robot_left"] = self.robot_left
         self.scene.articulations["robot_right"] = self.robot_right
 
-        # camera sensor
+        # camera
         camera = Camera(cfg=self.cfg.sensors[0])
         camera.set_debug_vis(True)
         self.scene.sensors["camera"] = camera
@@ -349,7 +349,7 @@ class TwoRobotStackCubeEnv(DirectRLEnv):
             timeout (torch.Tensor): Timeout mask if max length reached (N,).
         """
         done = self.is_success()
-        if self.cfg.action_space == "task_space":
+        if self.cfg.robot_controller == "task_space":
             timeout = torch.zeros_like(done, dtype=torch.bool)
         else:
             timeout = self.episode_length_buf >= (self.max_episode_length - 1)

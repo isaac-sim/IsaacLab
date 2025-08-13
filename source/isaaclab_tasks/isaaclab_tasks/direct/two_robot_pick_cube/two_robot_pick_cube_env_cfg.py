@@ -15,7 +15,7 @@ from isaaclab.assets import RigidObjectCfg
 from isaaclab.envs import DirectRLEnvCfg, ViewerCfg
 from isaaclab.markers.config import CUBOID_MARKER_CFG, FRAME_MARKER_CFG
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sensors import CameraCfg, FrameTransformerCfg, OffsetCfg
+from isaaclab.sensors import CameraCfg, ContactSensorCfg, FrameTransformerCfg, OffsetCfg
 from isaaclab.sim import PhysxCfg, PinholeCameraCfg, SimulationCfg
 from isaaclab.sim.schemas.schemas_cfg import RigidBodyPropertiesCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
@@ -117,6 +117,20 @@ class TwoRobotPickCubeCfg(DirectRLEnvCfg):
                 ),  # identity quaternion
                 convention="ros",  # right-handed, X-forward, Z-up
             ),
+        ),
+        ContactSensorCfg(
+            prim_path="/World/envs/env_.*/Robot_right/panda_leftfinger",
+            update_period=0.0,
+            history_length=1,
+            debug_vis=False,
+            filter_prim_paths_expr=["/World/envs/env_.*/Cube"],
+        ),
+        ContactSensorCfg(
+            prim_path="/World/envs/env_.*/Robot_right/panda_rightfinger",
+            update_period=0.0,
+            history_length=1,
+            debug_vis=False,
+            filter_prim_paths_expr=["/World/envs/env_.*/Cube"],
         ),
     )
 
