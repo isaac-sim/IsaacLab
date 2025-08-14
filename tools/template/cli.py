@@ -3,11 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 import enum
 import os
 from collections.abc import Callable
@@ -223,15 +218,13 @@ def main() -> None:
         ", ".join(algorithms_per_rl_library.get("skrl", [])),
         ", ".join(algorithms_per_rl_library.get("sb3", [])),
     )
-    rl_library_table.add_row("Multi-agent support", State.Yes, State.No, State.Yes, State.No)
+    rl_library_table.add_row("Multi-agent support", State.No, State.No, State.Yes, State.No)
     rl_library_table.add_row("Distributed training", State.Yes, State.No, State.Yes, State.No)
     rl_library_table.add_row("Vectorized training", State.Yes, State.Yes, State.Yes, State.No)
     rl_library_table.add_row("Fundamental/composite spaces", State.No, State.No, State.Yes, State.No)
     cli_handler.output_table(rl_library_table)
     # - prompt for RL libraries
-    supported_rl_libraries = (
-        ["rl_games", "rsl_rl", "skrl", "sb3"] if len(single_agent_workflow) else ["rl_games", "skrl"]
-    )
+    supported_rl_libraries = ["rl_games", "rsl_rl", "skrl", "sb3"] if len(single_agent_workflow) else ["skrl"]
     selected_rl_libraries = cli_handler.get_choices(
         cli_handler.input_checkbox("RL library:", choices=[*supported_rl_libraries, "---", "all"]),
         default=supported_rl_libraries,

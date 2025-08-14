@@ -3,11 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 """Neural network models for actuators.
 
 Currently, the following models are supported:
@@ -84,8 +79,6 @@ class ActuatorNetLSTM(DCMotor):
         # compute network inputs
         self.sea_input[:, 0, 0] = (control_action.joint_positions - joint_pos).flatten()
         self.sea_input[:, 0, 1] = joint_vel.flatten()
-        # save current joint vel for dc-motor clipping
-        self._joint_vel[:] = joint_vel
 
         # run network inference
         with torch.inference_mode():

@@ -3,11 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 """Launch Isaac Sim Simulator first."""
 
 from isaaclab.app import AppLauncher
@@ -42,8 +37,8 @@ def sim():
     yield sim_context
     # Cleanup
     sim_context.stop()
-    stage_utils.close_stage()
     sim_context.clear_instance()
+    stage_utils.close_stage()
 
 
 def test_instantiation(sim):

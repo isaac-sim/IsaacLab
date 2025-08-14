@@ -3,11 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 """This script demonstrates how to spawn prims into the scene.
 
 .. code-block:: bash
@@ -46,6 +41,7 @@ def main():
     """Main function."""
 
     # rendering modes include performance, balanced, and quality
+    # note, the rendering_mode specified in the CLI argument (--rendering_mode) takes precedence over this Render Config setting
     rendering_mode = "performance"
 
     # carb setting dictionary can include any rtx carb setting which will overwrite the native preset setting

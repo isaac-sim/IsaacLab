@@ -3,11 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -28,6 +23,7 @@ def spawn_sphere(
     cfg: shapes_cfg.SphereCfg,
     translation: tuple[float, float, float] | None = None,
     orientation: tuple[float, float, float, float] | None = None,
+    **kwargs,
 ) -> Usd.Prim:
     """Create a USDGeom-based sphere prim with the given attributes.
 
@@ -46,6 +42,7 @@ def spawn_sphere(
             this is set to the origin.
         orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None,
             in which case this is set to identity.
+        **kwargs: Additional keyword arguments, like ``clone_in_fabric``.
 
     Returns:
         The created prim.
@@ -66,6 +63,7 @@ def spawn_cuboid(
     cfg: shapes_cfg.CuboidCfg,
     translation: tuple[float, float, float] | None = None,
     orientation: tuple[float, float, float, float] | None = None,
+    **kwargs,
 ) -> Usd.Prim:
     """Create a USDGeom-based cuboid prim with the given attributes.
 
@@ -88,6 +86,7 @@ def spawn_cuboid(
             this is set to the origin.
         orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None,
             in which case this is set to identity.
+        **kwargs: Additional keyword arguments, like ``clone_in_fabric``.
 
     Returns:
         The created prim.
@@ -111,6 +110,7 @@ def spawn_cylinder(
     cfg: shapes_cfg.CylinderCfg,
     translation: tuple[float, float, float] | None = None,
     orientation: tuple[float, float, float, float] | None = None,
+    **kwargs,
 ) -> Usd.Prim:
     """Create a USDGeom-based cylinder prim with the given attributes.
 
@@ -129,6 +129,7 @@ def spawn_cylinder(
             this is set to the origin.
         orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None,
             in which case this is set to identity.
+        **kwargs: Additional keyword arguments, like ``clone_in_fabric``.
 
     Returns:
         The created prim.
@@ -149,6 +150,7 @@ def spawn_capsule(
     cfg: shapes_cfg.CapsuleCfg,
     translation: tuple[float, float, float] | None = None,
     orientation: tuple[float, float, float, float] | None = None,
+    **kwargs,
 ) -> Usd.Prim:
     """Create a USDGeom-based capsule prim with the given attributes.
 
@@ -167,6 +169,7 @@ def spawn_capsule(
             this is set to the origin.
         orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None,
             in which case this is set to identity.
+        **kwargs: Additional keyword arguments, like ``clone_in_fabric``.
 
     Returns:
         The created prim.
@@ -187,6 +190,7 @@ def spawn_cone(
     cfg: shapes_cfg.ConeCfg,
     translation: tuple[float, float, float] | None = None,
     orientation: tuple[float, float, float, float] | None = None,
+    **kwargs,
 ) -> Usd.Prim:
     """Create a USDGeom-based cone prim with the given attributes.
 
@@ -205,6 +209,7 @@ def spawn_cone(
             this is set to the origin.
         orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None,
             in which case this is set to identity.
+        **kwargs: Additional keyword arguments, like ``clone_in_fabric``.
 
     Returns:
         The created prim.

@@ -3,20 +3,13 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 import json
 import numpy as np
 import os
 import torch
-from datetime import datetime
 
 import carb
 import isaacsim.core.utils.torch as torch_utils
-import wandb
 import warp as wp
 
 import isaaclab.sim as sim_utils
@@ -75,8 +68,6 @@ class AssemblyEnv(DirectRLEnv):
 
         if self.cfg_task.sample_from != "rand":
             self._init_eval_loading()
-
-        wandb.init(project="automate", name=self.cfg_task.assembly_id + "_" + datetime.now().strftime("%m/%d/%Y"))
 
     def _init_eval_loading(self):
         eval_held_asset_pose, eval_fixed_asset_pose, eval_success = automate_log.load_log_from_hdf5(
@@ -558,8 +549,6 @@ class AssemblyEnv(DirectRLEnv):
         rew_buf = self._update_rew_buf(curr_successes)
         self.ep_succeeded = torch.logical_or(self.ep_succeeded, curr_successes)
 
-        wandb.log(self.extras)
-
         # Only log episode success rates at the end of an episode.
         if torch.any(self.reset_buf):
             self.extras["successes"] = torch.count_nonzero(self.ep_succeeded) / self.num_envs
@@ -582,11 +571,6 @@ class AssemblyEnv(DirectRLEnv):
                 )
 
             self.extras["curr_max_disp"] = self.curr_max_disp
-            wandb.log({
-                "success": torch.mean(self.ep_succeeded.float()),
-                "reward": torch.mean(rew_buf),
-                "sbc_rwd_scale": sbc_rwd_scale,
-            })
 
             if self.cfg_task.if_logging_eval:
                 self.success_log = torch.cat([self.success_log, self.ep_succeeded.reshape((self.num_envs, 1))], dim=0)

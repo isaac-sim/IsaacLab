@@ -3,11 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 """Sub-package containing various sensor classes implementations.
 
 This subpackage contains the sensor classes that are compatible with Isaac Sim. We include both

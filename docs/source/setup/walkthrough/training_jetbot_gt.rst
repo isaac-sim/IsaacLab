@@ -104,7 +104,7 @@ Next, we need to expand the initialization and setup steps to construct the data
 
 Most of this is setting up the book keeping for the commands and markers, but the command initialization and the yaw calculations are worth diving into. The commands
 are sampled from a multivariate normal distribution via ``torch.randn`` with the z component fixed to zero and then normalized to unit length. In order to point our
-command markers along these vectors, we need to rotate the base arrow mesh appropriately. This means we need to define a `quaternion <https://en.wikipedia.org/wiki/Quaternion>`_` that will rotate the arrow
+command markers along these vectors, we need to rotate the base arrow mesh appropriately. This means we need to define a `quaternion <https://en.wikipedia.org/wiki/Quaternion>`_ that will rotate the arrow
 prim about the z axis by some angle defined by the command. By convention, rotations about the z axis are called a "yaw" rotation (akin to roll and pitch).
 
 Luckily for us, Isaac Lab provides a utility to generate a quaternion from an axis of rotation and an angle: :func:`isaaclab.utils.math.quat_from_axis_angle`, so the only

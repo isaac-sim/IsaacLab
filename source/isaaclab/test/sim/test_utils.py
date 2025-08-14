@@ -3,11 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 """Launch Isaac Sim Simulator first."""
 
 from isaaclab.app import AppLauncher
@@ -99,7 +94,11 @@ def test_find_global_fixed_joint_prim():
     prim_utils.create_prim(
         "/World/Franka", usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd"
     )
-    prim_utils.create_prim("/World/Franka_Isaac", usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/Franka/franka.usd")
+    if "4.5" in ISAAC_NUCLEUS_DIR:
+        franka_usd = f"{ISAAC_NUCLEUS_DIR}/Robots/Franka/franka.usd"
+    else:
+        franka_usd = f"{ISAAC_NUCLEUS_DIR}/Robots/FrankaRobotics/FrankaPanda/franka.usd"
+    prim_utils.create_prim("/World/Franka_Isaac", usd_path=franka_usd)
 
     # test
     assert sim_utils.find_global_fixed_joint_prim("/World/ANYmal") is None

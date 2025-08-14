@@ -3,17 +3,13 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 import torch
 import weakref
 
 import omni.physics.tensors.impl.api as physx
 
 import isaaclab.utils.math as math_utils
+from isaaclab.sim.utils import get_current_stage_id
 from isaaclab.utils.buffers import TimestampedBuffer
 
 
@@ -56,7 +52,8 @@ class RigidObjectData:
         self._sim_timestamp = 0.0
 
         # Obtain global physics sim view
-        physics_sim_view = physx.create_simulation_view("torch")
+        stage_id = get_current_stage_id()
+        physics_sim_view = physx.create_simulation_view("torch", stage_id)
         physics_sim_view.set_subspace_roots("/")
         gravity = physics_sim_view.get_gravity()
         # Convert to direction vector

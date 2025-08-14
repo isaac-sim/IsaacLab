@@ -3,11 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 """Factory: control module.
 
 Imported by base, environment, and task classes. Not directly executed.
@@ -36,6 +31,7 @@ def compute_dof_torque(
     task_prop_gains,
     task_deriv_gains,
     device,
+    dead_zone_thresholds=None,
 ):
     """Compute Franka DOF torque to move fingertips towards target pose."""
     # References:
@@ -65,6 +61,15 @@ def compute_dof_torque(
         task_deriv_gains=task_deriv_gains,
     )
     task_wrench += task_wrench_motion
+
+    # Offset task_wrench motion by random amount to simulate unreliability at low forces.
+    # Check if absolute value is less than specified amount. If so, 0 out, otherwise, subtract.
+    if dead_zone_thresholds is not None:
+        task_wrench = torch.where(
+            task_wrench.abs() < dead_zone_thresholds,
+            torch.zeros_like(task_wrench),
+            task_wrench.sign() * (task_wrench.abs() - dead_zone_thresholds),
+        )
 
     # Set tau = J^T * tau, i.e., map tau into joint space as desired
     jacobian_T = torch.transpose(jacobian, dim0=1, dim1=2)
@@ -140,7 +145,7 @@ def get_pose_error(
         return pos_error, axis_angle_error
 
 
-def _get_delta_dof_pos(delta_pose, ik_method, jacobian, device):
+def get_delta_dof_pos(delta_pose, ik_method, jacobian, device):
     """Get delta Franka DOF position from delta pose using specified IK method."""
     # References:
     # 1) https://www.cs.cmu.edu/~15464-s13/lectures/lecture6/iksurvey.pdf

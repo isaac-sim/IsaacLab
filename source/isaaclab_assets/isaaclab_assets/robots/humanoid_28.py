@@ -3,11 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 """Configuration for the 28-DOFs Mujoco Humanoid robot."""
 
 from __future__ import annotations
@@ -48,6 +43,7 @@ HUMANOID_28_CFG = ArticulationCfg(
             joint_names_expr=[".*"],
             stiffness=None,
             damping=None,
+            velocity_limit_sim={".*": 100.0},
         ),
     },
 )

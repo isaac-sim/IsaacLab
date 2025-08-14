@@ -3,11 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 from __future__ import annotations
 
 import numpy as np
@@ -33,6 +28,7 @@ def spawn_mesh_sphere(
     cfg: meshes_cfg.MeshSphereCfg,
     translation: tuple[float, float, float] | None = None,
     orientation: tuple[float, float, float, float] | None = None,
+    **kwargs,
 ) -> Usd.Prim:
     """Create a USD-Mesh sphere prim with the given attributes.
 
@@ -49,6 +45,7 @@ def spawn_mesh_sphere(
             this is set to the origin.
         orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None,
             in which case this is set to identity.
+        **kwargs: Additional keyword arguments, like ``clone_in_fabric``.
 
     Returns:
         The created prim.
@@ -70,6 +67,7 @@ def spawn_mesh_cuboid(
     cfg: meshes_cfg.MeshCuboidCfg,
     translation: tuple[float, float, float] | None = None,
     orientation: tuple[float, float, float, float] | None = None,
+    **kwargs,
 ) -> Usd.Prim:
     """Create a USD-Mesh cuboid prim with the given attributes.
 
@@ -86,6 +84,7 @@ def spawn_mesh_cuboid(
             this is set to the origin.
         orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None,
             in which case this is set to identity.
+        **kwargs: Additional keyword arguments, like ``clone_in_fabric``.
 
     Returns:
         The created prim.
@@ -106,6 +105,7 @@ def spawn_mesh_cylinder(
     cfg: meshes_cfg.MeshCylinderCfg,
     translation: tuple[float, float, float] | None = None,
     orientation: tuple[float, float, float, float] | None = None,
+    **kwargs,
 ) -> Usd.Prim:
     """Create a USD-Mesh cylinder prim with the given attributes.
 
@@ -122,6 +122,7 @@ def spawn_mesh_cylinder(
             this is set to the origin.
         orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None,
             in which case this is set to identity.
+        **kwargs: Additional keyword arguments, like ``clone_in_fabric``.
 
     Returns:
         The created prim.
@@ -151,6 +152,7 @@ def spawn_mesh_capsule(
     cfg: meshes_cfg.MeshCapsuleCfg,
     translation: tuple[float, float, float] | None = None,
     orientation: tuple[float, float, float, float] | None = None,
+    **kwargs,
 ) -> Usd.Prim:
     """Create a USD-Mesh capsule prim with the given attributes.
 
@@ -167,6 +169,7 @@ def spawn_mesh_capsule(
             this is set to the origin.
         orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None,
             in which case this is set to identity.
+        **kwargs: Additional keyword arguments, like ``clone_in_fabric``.
 
     Returns:
         The created prim.
@@ -196,6 +199,7 @@ def spawn_mesh_cone(
     cfg: meshes_cfg.MeshConeCfg,
     translation: tuple[float, float, float] | None = None,
     orientation: tuple[float, float, float, float] | None = None,
+    **kwargs,
 ) -> Usd.Prim:
     """Create a USD-Mesh cone prim with the given attributes.
 
@@ -212,6 +216,7 @@ def spawn_mesh_cone(
             this is set to the origin.
         orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None,
             in which case this is set to identity.
+        **kwargs: Additional keyword arguments, like ``clone_in_fabric``.
 
     Returns:
         The created prim.
@@ -247,6 +252,7 @@ def _spawn_mesh_geom_from_mesh(
     translation: tuple[float, float, float] | None = None,
     orientation: tuple[float, float, float, float] | None = None,
     scale: tuple[float, float, float] | None = None,
+    **kwargs,
 ):
     """Create a `USDGeomMesh`_ prim from the given mesh.
 
@@ -268,6 +274,7 @@ def _spawn_mesh_geom_from_mesh(
         orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None,
             in which case this is set to identity.
         scale: The scale to apply to the prim. Defaults to None, in which case this is set to identity.
+        **kwargs: Additional keyword arguments, like ``clone_in_fabric``.
 
     Raises:
         ValueError: If a prim already exists at the given path.

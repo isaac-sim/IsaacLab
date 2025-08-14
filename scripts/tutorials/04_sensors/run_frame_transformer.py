@@ -3,11 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 """
 This script demonstrates the FrameTransformer sensor by visualizing the frames that it creates.
 
@@ -173,7 +168,7 @@ def main():
     sim = SimulationContext(sim_cfg)
     # Set main camera
     sim.set_camera_view(eye=[2.5, 2.5, 2.5], target=[0.0, 0.0, 0.0])
-    # Design the scene
+    # Design scene
     scene_entities = design_scene()
     # Play the simulator
     sim.reset()

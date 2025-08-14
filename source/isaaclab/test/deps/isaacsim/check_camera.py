@@ -3,11 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 """
 This script shows the issue with renderer in Isaac Sim that affects episodic resets.
 
@@ -131,7 +126,7 @@ def main():
         # Robot
         prim_utils.create_prim(
             "/World/Robot",
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/ANYbotics/anymal_instanceable.usd",
+            usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/ANYbotics/anymal_c/anymal_c.usd",
             translation=(0.0, 0.0, 0.6),
         )
         # Setup camera sensor on the robot

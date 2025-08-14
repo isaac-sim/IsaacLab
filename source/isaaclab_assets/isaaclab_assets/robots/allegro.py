@@ -3,11 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 """Configuration for the Allegro Hand robots from Wonik Robotics.
 
 The following configurations are available:
@@ -34,7 +29,7 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 ALLEGRO_HAND_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/AllegroHand/allegro_hand_instanceable.usd",
+        usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/WonikRobotics/AllegroHand/allegro_hand_instanceable.usd",
         activate_contact_sensors=False,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=True,
@@ -63,8 +58,7 @@ ALLEGRO_HAND_CFG = ArticulationCfg(
     actuators={
         "fingers": ImplicitActuatorCfg(
             joint_names_expr=[".*"],
-            effort_limit=0.5,
-            velocity_limit=100.0,
+            effort_limit_sim=0.5,
             stiffness=3.0,
             damping=0.1,
             friction=0.01,

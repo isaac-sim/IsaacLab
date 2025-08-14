@@ -3,11 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 """
 This test has a lot of duplication with ``test_build_simulation_context_nonheadless.py``. This is intentional to ensure that the
 tests are run in both headless and non-headless modes, and we currently can't re-build the simulation app in a script.

@@ -3,11 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 from __future__ import annotations
 
 import gymnasium as gym
@@ -90,7 +85,9 @@ class QuadcopterEnvCfg(DirectRLEnvCfg):
     )
 
     # scene
-    scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=4096, env_spacing=2.5, replicate_physics=True)
+    scene: InteractiveSceneCfg = InteractiveSceneCfg(
+        num_envs=4096, env_spacing=2.5, replicate_physics=True, clone_in_fabric=True
+    )
 
     # robot
     robot: ArticulationCfg = CRAZYFLIE_CFG.replace(prim_path="/World/envs/env_.*/Robot")
@@ -143,6 +140,9 @@ class QuadcopterEnv(DirectRLEnv):
         self._terrain = self.cfg.terrain.class_type(self.cfg.terrain)
         # clone and replicate
         self.scene.clone_environments(copy_from_source=False)
+        # we need to explicitly filter collisions for CPU simulation
+        if self.device == "cpu":
+            self.scene.filter_collisions(global_prim_paths=[self.cfg.terrain.prim_path])
         # add lights
         light_cfg = sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
         light_cfg.func("/World/Light", light_cfg)
@@ -234,7 +234,7 @@ class QuadcopterEnv(DirectRLEnv):
         self._robot.write_joint_state_to_sim(joint_pos, joint_vel, None, env_ids)
 
     def _set_debug_vis_impl(self, debug_vis: bool):
-        # create markers if necessary for the first tome
+        # create markers if necessary for the first time
         if debug_vis:
             if not hasattr(self, "goal_pos_visualizer"):
                 marker_cfg = CUBOID_MARKER_CFG.copy()

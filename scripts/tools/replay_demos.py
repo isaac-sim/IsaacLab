@@ -2,12 +2,6 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
-
-# Copyright (c) 2024-2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 """Script to replay demonstrations with Isaac Lab environments."""
 
 """Launch Isaac Sim Simulator first."""
@@ -67,7 +61,7 @@ import gymnasium as gym
 import os
 import torch
 
-from isaaclab.devices import Se3Keyboard
+from isaaclab.devices import Se3Keyboard, Se3KeyboardCfg
 from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
 
 if args_cli.enable_pinocchio:
@@ -155,7 +149,7 @@ def main():
     # create environment from loaded config
     env = gym.make(args_cli.task, cfg=env_cfg).unwrapped
 
-    teleop_interface = Se3Keyboard(pos_sensitivity=0.1, rot_sensitivity=0.1)
+    teleop_interface = Se3Keyboard(Se3KeyboardCfg(pos_sensitivity=0.1, rot_sensitivity=0.1))
     teleop_interface.add_callback("N", play_cb)
     teleop_interface.add_callback("B", pause_cb)
     print('Press "B" to pause and "N" to resume the replayed actions.')

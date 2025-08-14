@@ -3,11 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 """Launch Isaac Sim Simulator first."""
 
 from isaaclab.app import AppLauncher
@@ -128,7 +123,7 @@ def sim():
         [
             [0.0, torch.pi / 2, 0.0],  # for [0.707, 0, 0.707, 0]
             [torch.pi / 2, 0.0, 0.0],  # for [0.707, 0.707, 0, 0]
-            [torch.pi, 0.0, 0.0],  # for [0.0, 1.0, 0, 0]
+            [torch.pi / 2, torch.pi / 2, 0.0],  # for [0.0, 1.0, 0, 0]
         ],
         device=sim.device,
     )

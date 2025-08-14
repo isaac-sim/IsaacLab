@@ -3,11 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 """
 Script to demonstrate lifting a deformable object with a robotic arm.
 
@@ -37,6 +32,11 @@ args_cli = parser.parse_args()
 # launch omniverse app
 app_launcher = AppLauncher(headless=args_cli.headless)
 simulation_app = app_launcher.app
+
+# disable metrics assembler due to scene graph instancing
+from isaacsim.core.utils.extensions import disable_extension
+
+disable_extension("omni.usd.metrics.assembler.ui")
 
 """Rest everything else."""
 

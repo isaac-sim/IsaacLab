@@ -3,11 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 from __future__ import annotations
 
 from collections.abc import Callable
@@ -46,6 +41,9 @@ class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
 
     fixed_tendons_props: schemas.FixedTendonsPropertiesCfg | None = None
     """Properties to apply to the fixed tendons (if any)."""
+
+    spatial_tendons_props: schemas.SpatialTendonsPropertiesCfg | None = None
+    """Properties to apply to the spatial tendons (if any)."""
 
     joint_drive_props: schemas.JointDrivePropertiesCfg | None = None
     """Properties to apply to a joint.

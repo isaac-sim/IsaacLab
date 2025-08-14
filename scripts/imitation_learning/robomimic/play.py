@@ -3,11 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 """Script to play and evaluate a trained policy from robomimic.
 
 This script loads a robomimic policy and plays it in an Isaac Lab environment.
@@ -66,6 +61,8 @@ simulation_app = app_launcher.app
 
 import copy
 import gymnasium as gym
+import numpy as np
+import random
 import torch
 
 import robomimic.utils.file_utils as FileUtils
@@ -165,18 +162,18 @@ def main():
 
     # Set seed
     torch.manual_seed(args_cli.seed)
+    np.random.seed(args_cli.seed)
+    random.seed(args_cli.seed)
     env.seed(args_cli.seed)
 
     # Acquire device
     device = TorchUtils.get_torch_device(try_to_use_cuda=True)
 
-    # Load policy
-    policy, _ = FileUtils.policy_from_checkpoint(ckpt_path=args_cli.checkpoint, device=device, verbose=True)
-
     # Run policy
     results = []
     for trial in range(args_cli.num_rollouts):
         print(f"[INFO] Starting trial {trial}")
+        policy, _ = FileUtils.policy_from_checkpoint(ckpt_path=args_cli.checkpoint, device=device)
         terminated, traj = rollout(policy, env, success_term, args_cli.horizon, device)
         results.append(terminated)
         print(f"[INFO] Trial {trial}: {terminated}\n")

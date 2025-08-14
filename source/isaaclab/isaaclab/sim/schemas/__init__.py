@@ -3,11 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 """Sub-module containing utilities for schemas used in Omniverse.
 
 We wrap the USD schemas for PhysX and USD Physics in a more convenient API for setting the parameters from
@@ -51,6 +46,7 @@ from .schemas import (
     modify_joint_drive_properties,
     modify_mass_properties,
     modify_rigid_body_properties,
+    modify_spatial_tendon_properties,
 )
 from .schemas_cfg import (
     ArticulationRootPropertiesCfg,
@@ -60,4 +56,5 @@ from .schemas_cfg import (
     JointDrivePropertiesCfg,
     MassPropertiesCfg,
     RigidBodyPropertiesCfg,
+    SpatialTendonPropertiesCfg,
 )

@@ -3,11 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 from __future__ import annotations
 
 from isaaclab_assets.robots.ant import ANT_CFG
@@ -50,7 +45,9 @@ class AntEnvCfg(DirectRLEnvCfg):
     )
 
     # scene
-    scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=4096, env_spacing=4.0, replicate_physics=True)
+    scene: InteractiveSceneCfg = InteractiveSceneCfg(
+        num_envs=4096, env_spacing=4.0, replicate_physics=True, clone_in_fabric=True
+    )
 
     # robot
     robot: ArticulationCfg = ANT_CFG.replace(prim_path="/World/envs/env_.*/Robot")

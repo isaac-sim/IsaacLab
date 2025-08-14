@@ -3,11 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 """Sub-module containing command generators for pose tracking."""
 
 from __future__ import annotations
@@ -132,7 +127,7 @@ class UniformPoseCommand(CommandTerm):
         pass
 
     def _set_debug_vis_impl(self, debug_vis: bool):
-        # create markers if necessary for the first tome
+        # create markers if necessary for the first time
         if debug_vis:
             if not hasattr(self, "goal_pose_visualizer"):
                 # -- goal pose

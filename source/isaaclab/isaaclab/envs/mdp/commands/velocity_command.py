@@ -3,11 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 """Sub-module containing command generators for the velocity-based locomotion task."""
 
 from __future__ import annotations
@@ -168,7 +163,7 @@ class UniformVelocityCommand(CommandTerm):
         # set visibility of markers
         # note: parent only deals with callbacks. not their visibility
         if debug_vis:
-            # create markers if necessary for the first tome
+            # create markers if necessary for the first time
             if not hasattr(self, "goal_vel_visualizer"):
                 # -- goal
                 self.goal_vel_visualizer = VisualizationMarkers(self.cfg.goal_vel_visualizer_cfg)

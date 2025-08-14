@@ -3,11 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 # Copyright (c) 2023, NVIDIA Corporation
 # All rights reserved.
 #
@@ -43,6 +38,8 @@ Contains functions that implement Simulation-Aware Policy Update (SAPU), SDF-Bas
 Not intended to be executed as a standalone script.
 """
 
+# Force garbage collection for large arrays
+import gc
 import numpy as np
 import os
 
@@ -155,8 +152,14 @@ def get_sdf_reward(
 
         sdf_reward[i] = torch.mean(sdf_dist)
 
+        del mesh_copy
+        del mesh_points
+        del mesh_indices
+        del sampled_points
+
     sdf_reward = -torch.log(sdf_reward)
 
+    gc.collect()  # Force garbage collection to free memory
     return sdf_reward
 
 

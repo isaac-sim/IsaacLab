@@ -3,11 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 """Configuration for the Universal Robots.
 
 The following configuration parameters are available:
@@ -49,8 +44,7 @@ UR10_CFG = ArticulationCfg(
     actuators={
         "arm": ImplicitActuatorCfg(
             joint_names_expr=[".*"],
-            velocity_limit=100.0,
-            effort_limit=87.0,
+            effort_limit_sim=87.0,
             stiffness=800.0,
             damping=40.0,
         ),

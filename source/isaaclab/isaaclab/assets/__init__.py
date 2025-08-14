@@ -3,11 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 """Sub-package for different assets, such as rigid objects and articulations.
 
 An asset is a physical object that can be spawned in the simulation. The class handles both
@@ -49,3 +44,4 @@ from .asset_base_cfg import AssetBaseCfg
 from .deformable_object import DeformableObject, DeformableObjectCfg, DeformableObjectData
 from .rigid_object import RigidObject, RigidObjectCfg, RigidObjectData
 from .rigid_object_collection import RigidObjectCollection, RigidObjectCollectionCfg, RigidObjectCollectionData
+from .surface_gripper import SurfaceGripper, SurfaceGripperCfg

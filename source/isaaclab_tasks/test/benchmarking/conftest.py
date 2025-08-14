@@ -3,15 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 import json
 
+import env_benchmark_test_utils as utils
 import pytest
-import test_utils as utils
 
 # Global variable for storing KPI data
 GLOBAL_KPI_STORE = {}

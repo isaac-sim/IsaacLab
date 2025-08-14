@@ -3,11 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 ##
 # Configuration for different assets.
 ##
@@ -22,6 +17,7 @@ from .franka import *
 from .humanoid import *
 from .humanoid_28 import *
 from .kinova import *
+from .pick_and_place import *
 from .quadcopter import *
 from .ridgeback_franka import *
 from .sawyer import *

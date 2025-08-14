@@ -3,11 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 import numpy as np
 import os
 import sys
@@ -143,7 +138,7 @@ def model_succ_w_gp(held_asset_pose, fixed_asset_pose, success):
 
     # Create and fit the Gaussian Process Classifier
     # gp = GaussianProcessClassifier(kernel=kernel, random_state=42)
-    gp = GaussianProcessRegressor()
+    gp = GaussianProcessRegressor(random_state=42)
     gp.fit(relative_position, y)
 
     return gp

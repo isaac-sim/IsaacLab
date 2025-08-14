@@ -3,11 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 """Configuration for the Mujoco Ant robot."""
 
 from __future__ import annotations
@@ -24,7 +19,7 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 ANT_CFG = ArticulationCfg(
     prim_path="{ENV_REGEX_NS}/Robot",
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/Ant/ant_instanceable.usd",
+        usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/IsaacSim/Ant/ant_instanceable.usd",
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=False,
             max_depenetration_velocity=10.0,
