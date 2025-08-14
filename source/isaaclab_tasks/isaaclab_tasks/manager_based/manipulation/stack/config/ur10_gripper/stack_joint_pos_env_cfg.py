@@ -3,7 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-
 from isaaclab.assets import RigidObjectCfg, SurfaceGripperCfg
 from isaaclab.envs.mdp.actions.actions_cfg import SurfaceGripperBinaryActionCfg
 from isaaclab.managers import EventTermCfg as EventTerm
@@ -21,7 +20,6 @@ from isaaclab_tasks.manager_based.manipulation.stack.stack_env_cfg import StackE
 
 from isaaclab_assets.robots.universal_robots import (  # isort: skip
     UR10_LONG_SUCTION_CFG,
-    UR10_PARALLEL_GRIPPER_CFG,
     UR10_SHORT_SUCTION_CFG,
 )
 
@@ -29,39 +27,6 @@ from isaaclab_assets.robots.universal_robots import (  # isort: skip
 # Pre-defined configs
 ##
 from isaaclab.markers.config import FRAME_MARKER_CFG  # isort: skip
-
-
-@configclass
-class EventCfgParallelGripper:
-    """Configuration for events."""
-
-    init_franka_arm_pose = EventTerm(
-        func=franka_stack_events.set_default_joint_pose,
-        mode="startup",
-        params={
-            "default_pose": [0.0, -1.5707, 1.5707, -1.5707, -1.5707, 0.0, 0.025, 0.025],
-        },
-    )
-
-    randomize_franka_joint_state = EventTerm(
-        func=franka_stack_events.randomize_joint_by_gaussian_offset,
-        mode="reset",
-        params={
-            "mean": 0.0,
-            "std": 0.02,
-            "asset_cfg": SceneEntityCfg("robot"),
-        },
-    )
-
-    randomize_cube_positions = EventTerm(
-        func=franka_stack_events.randomize_object_pose,
-        mode="reset",
-        params={
-            "pose_range": {"x": (0.4, 0.6), "y": (-0.10, 0.10), "z": (0.0203, 0.0203), "yaw": (-1.0, 1, 0)},
-            "min_separation": 0.1,
-            "asset_cfgs": [SceneEntityCfg("cube_1"), SceneEntityCfg("cube_2"), SceneEntityCfg("cube_3")],
-        },
-    )
 
 
 @configclass
@@ -90,14 +55,15 @@ class EventCfgLongSuction:
         func=franka_stack_events.randomize_object_pose,
         mode="reset",
         params={
-            "pose_range": {"x": (0.4, 0.6), "y": (-0.10, 0.10), "z": (0.0203, 0.0203), "yaw": (-1.0, 1, 0)},
+            "pose_range": {"x": (0.4, 0.6), "y": (-0.10, 0.10), "z": (0.0203, 0.0203), "yaw": (-1.0, 1.0, 0)},
             "min_separation": 0.1,
             "asset_cfgs": [SceneEntityCfg("cube_1"), SceneEntityCfg("cube_2"), SceneEntityCfg("cube_3")],
         },
     )
 
 
-class UR10ParallelGripperCubeStackEnvCfg(StackEnvCfg):
+@configclass
+class UR10CubeStackEnvCfg(StackEnvCfg):
     # Rigid body properties of each cube
     cube_properties = RigidBodyPropertiesCfg(
         solver_position_iteration_count=16,
@@ -107,7 +73,7 @@ class UR10ParallelGripperCubeStackEnvCfg(StackEnvCfg):
         max_depenetration_velocity=5.0,
         disable_gravity=False,
     )
-    cube_scale = (0.6, 0.6, 0.6)
+    cube_scale = (1.5, 1.5, 1.5)
     # Listens to the required transforms
     marker_cfg = FRAME_MARKER_CFG.copy()
     marker_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
@@ -118,25 +84,18 @@ class UR10ParallelGripperCubeStackEnvCfg(StackEnvCfg):
         super().__post_init__()
 
         # Set events
-        self.events = EventCfgParallelGripper()
+        self.events = EventCfgLongSuction()
 
-        # Set Franka as robot
-        self.scene.robot = UR10_PARALLEL_GRIPPER_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-        self.scene.surface_gripper = None
-
-        # Set actions for the specific robot type (franka)
+        # Set actions for the specific robot type (ur10)
         self.actions.arm_action = mdp.JointPositionActionCfg(
-            asset_name="robot", joint_names=[".*joint"], scale=0.5, use_default_offset=True
+            asset_name="robot", joint_names=[".*_joint"], scale=0.5, use_default_offset=True
         )
-        self.actions.gripper_action = mdp.BinaryJointPositionActionCfg(
-            asset_name="robot",
-            joint_names=["Slider.*"],
-            open_command_expr={"Slider.*": 0.025},
-            close_command_expr={"Slider.*": 0.0},
+        # Set surface gripper action
+        self.actions.gripper_action = SurfaceGripperBinaryActionCfg(
+            asset_name="surface_gripper",
+            open_command=-1.0,
+            close_command=1.0,
         )
-        self.gripper_joint_names = ["Slider.*"]
-        self.gripper_open_val = 0.025
-        self.gripper_threshold = 0.005
 
         # Set each stacking cube deterministically
         self.scene.cube_1 = RigidObjectCfg(
@@ -167,20 +126,6 @@ class UR10ParallelGripperCubeStackEnvCfg(StackEnvCfg):
             ),
         )
 
-        self.scene.ee_frame = FrameTransformerCfg(
-            prim_path="{ENV_REGEX_NS}/Robot/ur10/base_link",
-            debug_vis=True,
-            visualizer_cfg=self.marker_cfg,
-            target_frames=[
-                FrameTransformerCfg.FrameCfg(
-                    prim_path="{ENV_REGEX_NS}/Robot/ur10/Robotiq_Hand_E/gripper_base_link",
-                    name="end_effector",
-                    offset=OffsetCfg(
-                        pos=[0.0, 0.05, 0.0],
-                    ),
-                ),
-            ],
-        )
         self.decimation = 5
         self.episode_length_s = 30.0
         # simulation settings
@@ -189,9 +134,7 @@ class UR10ParallelGripperCubeStackEnvCfg(StackEnvCfg):
 
 
 @configclass
-class UR10LongSuctionCubeStackEnvCfg(UR10ParallelGripperCubeStackEnvCfg):
-
-    cube_scale = (1.5, 1.5, 1.5)
+class UR10LongSuctionCubeStackEnvCfg(UR10CubeStackEnvCfg):
 
     def __post_init__(self):
         # post init of parent
@@ -202,23 +145,14 @@ class UR10LongSuctionCubeStackEnvCfg(UR10ParallelGripperCubeStackEnvCfg):
 
         # Set UR10 as robot
         self.scene.robot = UR10_LONG_SUCTION_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-        # Set surface gripper
+
+        # Set surface gripper: Ensure the SurfaceGripper prim has the required attributes
         self.scene.surface_gripper = SurfaceGripperCfg(
-            prim_path="{ENV_REGEX_NS}/Robot/ee_suction_link/SurfaceGripper",
+            prim_path="{ENV_REGEX_NS}/Robot/ee_link/SurfaceGripper",
             max_grip_distance=0.05,
             shear_force_limit=5000.0,
             coaxial_force_limit=5000.0,
             retry_interval=0.05,
-        )
-        # Set actions for the specific robot type (ur10)
-        self.actions.arm_action = mdp.JointPositionActionCfg(
-            asset_name="robot", joint_names=[".*_joint"], scale=0.5, use_default_offset=True
-        )
-        # Set surface gripper action
-        self.actions.gripper_action = SurfaceGripperBinaryActionCfg(
-            asset_name="surface_gripper",
-            open_command=-1.0,
-            close_command=1.0,
         )
 
         self.scene.ee_frame = FrameTransformerCfg(
@@ -230,7 +164,7 @@ class UR10LongSuctionCubeStackEnvCfg(UR10ParallelGripperCubeStackEnvCfg):
                     prim_path="{ENV_REGEX_NS}/Robot/ee_link",
                     name="end_effector",
                     offset=OffsetCfg(
-                        pos=[0.36, 0.0, 0.0],
+                        pos=[0.22, 0.0, 0.0],
                     ),
                 ),
             ],
@@ -238,7 +172,7 @@ class UR10LongSuctionCubeStackEnvCfg(UR10ParallelGripperCubeStackEnvCfg):
 
 
 @configclass
-class UR10ShortSuctionCubeStackEnvCfg(UR10LongSuctionCubeStackEnvCfg):
+class UR10ShortSuctionCubeStackEnvCfg(UR10CubeStackEnvCfg):
 
     def __post_init__(self):
         # post init of parent
@@ -246,24 +180,14 @@ class UR10ShortSuctionCubeStackEnvCfg(UR10LongSuctionCubeStackEnvCfg):
 
         # Set UR10 as robot
         self.scene.robot = UR10_SHORT_SUCTION_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-        # Set surface gripper
+
+        # Set surface gripper: Ensure the SurfaceGripper prim has the required attributes
         self.scene.surface_gripper = SurfaceGripperCfg(
-            prim_path="{ENV_REGEX_NS}/Robot/ee_suction_link/SurfaceGripper",
+            prim_path="{ENV_REGEX_NS}/Robot/ee_link/SurfaceGripper",
             max_grip_distance=0.05,
             shear_force_limit=5000.0,
             coaxial_force_limit=5000.0,
             retry_interval=0.05,
-        )
-
-        # Set actions for the specific robot type (ur10)
-        self.actions.arm_action = mdp.JointPositionActionCfg(
-            asset_name="robot", joint_names=[".*_joint"], scale=0.5, use_default_offset=True
-        )
-        # Set surface gripper action
-        self.actions.gripper_action = SurfaceGripperBinaryActionCfg(
-            asset_name="surface_gripper",
-            open_command=-1.0,
-            close_command=1.0,
         )
 
         self.scene.ee_frame = FrameTransformerCfg(

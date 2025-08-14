@@ -5,27 +5,12 @@
 
 
 from isaaclab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
+from isaaclab.devices.device_base import DevicesCfg
+from isaaclab.devices.keyboard import Se3KeyboardCfg
 from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
 from isaaclab.utils import configclass
 
 from . import stack_joint_pos_env_cfg
-
-
-@configclass
-class UR10ParallelGripperCubeStackEnvCfg(stack_joint_pos_env_cfg.UR10ParallelGripperCubeStackEnvCfg):
-    def __post_init__(self):
-        # post init of parent
-        super().__post_init__()
-
-        # Set actions for the specific robot type (ur10)
-        self.actions.arm_action = DifferentialInverseKinematicsActionCfg(
-            asset_name="robot",
-            joint_names=[".*_joint"],
-            body_name="gripper_base_link",
-            controller=DifferentialIKControllerCfg(command_type="pose", use_relative_mode=True, ik_method="dls"),
-            scale=1.0,
-            body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(pos=[0.0, 0.0, -0.06]),
-        )
 
 
 @configclass
@@ -35,14 +20,24 @@ class UR10LongSuctionCubeStackEnvCfg(stack_joint_pos_env_cfg.UR10LongSuctionCube
         # post init of parent
         super().__post_init__()
 
-        # Set actions for the specific robot type (ur10)
+        # Set actions for the specific robot type (UR10 LONG SUCTION)
         self.actions.arm_action = DifferentialInverseKinematicsActionCfg(
             asset_name="robot",
             joint_names=[".*_joint"],
-            body_name="ee_suction_link",
+            body_name="ee_link",
             controller=DifferentialIKControllerCfg(command_type="pose", use_relative_mode=True, ik_method="dls"),
             scale=1.0,
-            body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(pos=[0.0, 0.0, 0.0]),
+            body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(pos=[0.0, 0.0, -0.22]),
+        )
+
+        self.teleop_devices = DevicesCfg(
+            devices={
+                "keyboard": Se3KeyboardCfg(
+                    pos_sensitivity=0.05,
+                    rot_sensitivity=0.05,
+                    sim_device=self.sim.device,
+                ),
+            }
         )
 
 
@@ -61,4 +56,14 @@ class UR10ShortSuctionCubeStackEnvCfg(stack_joint_pos_env_cfg.UR10ShortSuctionCu
             controller=DifferentialIKControllerCfg(command_type="pose", use_relative_mode=True, ik_method="dls"),
             scale=1.0,
             body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(pos=[0.0, 0.0, -0.159]),
+        )
+
+        self.teleop_devices = DevicesCfg(
+            devices={
+                "keyboard": Se3KeyboardCfg(
+                    pos_sensitivity=0.05,
+                    rot_sensitivity=0.05,
+                    sim_device=self.sim.device,
+                ),
+            }
         )
