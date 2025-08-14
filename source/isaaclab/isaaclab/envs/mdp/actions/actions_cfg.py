@@ -310,3 +310,43 @@ class OperationalSpaceControllerActionCfg(ActionTermCfg):
     Note: Functional only when ``nullspace_control`` is set to ``"position"`` within the
         ``OperationalSpaceControllerCfg``.
     """
+
+
+##
+# Surface Gripper actions.
+##
+
+
+@configclass
+class SurfaceGripperActionCfg(ActionTermCfg):
+    """Configuration for the base surface gripper action term.
+
+    See :class:`SurfaceGripperAction` for more details.
+    """
+
+    asset_name: str = MISSING
+    """Name of the surface gripper asset in the scene."""
+    open_command: float = -1.0
+    """The command value to open the gripper. Defaults to -1.0."""
+    close_command: float = 1.0
+    """The command value to close the gripper. Defaults to 1.0."""
+
+
+@configclass
+class SurfaceGripperBinaryActionCfg(SurfaceGripperActionCfg):
+    """Configuration for the binary surface gripper action term.
+
+    See :class:`SurfaceGripperBinaryAction` for more details.
+    """
+
+    class_type: type[ActionTerm] = binary_joint_actions.SurfaceGripperBinaryAction
+
+
+@configclass
+class SurfaceGripperContinuousActionCfg(SurfaceGripperActionCfg):
+    """Configuration for the continuous surface gripper action term.
+
+    See :class:`SurfaceGripperContinuousAction` for more details.
+    """
+
+    class_type: type[ActionTerm] = binary_joint_actions.SurfaceGripperContinuousAction
