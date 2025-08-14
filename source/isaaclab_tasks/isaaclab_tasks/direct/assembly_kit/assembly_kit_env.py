@@ -3,32 +3,23 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 """AssemblyKitEnv: direct‐RL environment for the Franka assembly‐kit benchmark."""
 
 from __future__ import annotations
 
-import json
 import math
 import random
 import torch
 from collections.abc import Sequence
-from pathlib import Path
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation, RigidObject, RigidObjectCfg
 from isaaclab.envs import DirectRLEnv
-from isaaclab.markers.config import FRAME_MARKER_CFG
-from isaaclab.sensors import Camera, FrameTransformer, FrameTransformerCfg, OffsetCfg
+from isaaclab.sensors import Camera, FrameTransformer
 from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
-from isaaclab.utils import convert_to_torch
 from isaaclab.utils.math import euler_xyz_from_quat, quat_from_euler_xyz
 
-from .assembly_kit_env_cfg import AssemblyKitEnvCfg
+from .assembly_kit_env_cfg import AssemblyKitEnvCfg, get_kit_cfg, get_model_cfg
 
 
 class AssemblyKitEnv(DirectRLEnv):
@@ -54,23 +45,9 @@ class AssemblyKitEnv(DirectRLEnv):
             **kwargs:    Additional arguments for the base DirectRLEnv.
         """
 
-        self.asset_dir = Path("/home/johann/Downloads/assembly_kit_noremesh")
-        self.kit_dir = self.asset_dir.joinpath("kits")
-        self.model_dir = self.asset_dir.joinpath("models")
-
         # parsing json episode file
-        with open(self.asset_dir.joinpath("episodes.json")) as json_data:
-            self._episode_json = json.load(json_data)
-        self._episodes = self._episode_json["episodes"]
-
-        self.symmetry = self._episode_json["config"]["symmetry"]
-
-        self.color = self._episode_json["config"]["color"]
-        self.object_scale = self._episode_json["config"]["object_scale"]
 
         super().__init__(cfg, render_mode, **kwargs)
-
-        self.symmetry = torch.tensor(self.symmetry, dtype=torch.float32, device=self.device)
 
         random.seed(self.cfg.seed)
 
@@ -85,22 +62,20 @@ class AssemblyKitEnv(DirectRLEnv):
         # Creating the default scene
         spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg(), translation=(0, 0, 0))
 
-        # spawn_ground_plane(
-        #     prim_path="/World/ground", cfg=GroundPlaneCfg(), translation=(0, 0, -1.05)
-        # )
-
-        # self.table = AssetBase(self.cfg.table_cfg)
-
         self.robot = Articulation(self.cfg.robot_cfg)
+        self.scene.articulations["robot"] = self.robot
 
         camera = Camera(cfg=self.cfg.sensors[0])
         camera.set_debug_vis(True)
         self.scene.sensors["camera"] = camera
 
+        # Create the transformer and attach it to the scene
+        self.tcp_transformer = FrameTransformer(self.cfg.tcp_cfg)
+        self.scene.sensors["tcp"] = self.tcp_transformer
+
         # clone and replicate
         self.scene.clone_environments(copy_from_source=True)
         # add articulation to scene
-        self.scene.articulations["robot"] = self.robot
 
         # add lights
         light_cfg = sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
@@ -114,186 +89,38 @@ class AssemblyKitEnv(DirectRLEnv):
 
         self._load_table_scene()
 
-        # Collecting all the kit USD paths
-        kit_usd_paths = sorted(
-            [str(p / f"{p.stem}.usda") for p in self.kit_dir.iterdir() if p.is_dir()],
-            key=lambda p: int(Path(p).stem.split("_")[-1]),
-        )
-
         # Importing the kits
-        self.kit_cfg: RigidObjectCfg = self._get_kit_cfg(kit_usd_paths)
+        self.kit_cfg: RigidObjectCfg = get_kit_cfg(self.cfg.kit_usd_paths)
         self.kit: RigidObject = RigidObject(self.kit_cfg)
         self.scene.rigid_objects["Kit"] = self.kit
 
-        # Collecting all the model paths from the kit JSON files
-        kit_json_paths = sorted(
-            [str(p) for p in self.kit_dir.iterdir() if p.match("*.json")],
-            key=lambda p: int(Path(p).stem.split("_")[-1]),
+        # Stash the target starting positions and model positions per kit
+        self.kit_target_starting_pos = torch.tensor(
+            self.cfg.kit_target_starting_pos, dtype=torch.float32, device=self.device
         )
-
-        # Parsing the kit JSON files to get the object IDs and the goal poses
-        kit_model_ids = []
-        kit_object_positions = []
-        kit_object_rots = []
-        kit_target_starting_pos = []
-        for kit_json_path in kit_json_paths:
-            with open(kit_json_path) as json_data:
-                kit_json = json.load(json_data)
-            kit_model_ids.append([obj["object_id"] for obj in kit_json["objects"]])
-            poses = [o["pos"] for o in kit_json["objects"]]
-            rots = [o["rot"] for o in kit_json["objects"]]
-            kit_object_positions.append(poses)
-            kit_object_rots.append(rots)
-            kit_target_starting_pos.append(kit_json["start_pos_proposal"])
-
-        self.kit_target_starting_pos = torch.tensor(kit_target_starting_pos, dtype=torch.float32, device=self.device)
-        self.model_target_pos = torch.tensor(kit_object_positions, dtype=torch.float32, device=self.device)
-        self.model_target_rot = torch.tensor(kit_object_rots, dtype=torch.float32, device=self.device)
+        self.model_target_pos = torch.tensor(self.cfg.kit_model_positions, dtype=torch.float32, device=self.device)
+        self.model_target_rot = torch.tensor(self.cfg.kit_model_rots, dtype=torch.float32, device=self.device)
         # Stash which kit each env got
-        self.kit_ids_per_env = torch.arange(self.num_envs, device=self.device) % len(kit_usd_paths)
-
-        # Grouping the model paths for MultiUsdFileCfg
-        kit_models_paths = [
-            [str(self.model_dir.joinpath(f"model_{model_id:02d}", f"model_{model_id:02d}.usda")) for model_id in group]
-            for group in zip(*kit_model_ids)
-        ]
+        self.kit_ids_per_env = torch.arange(self.num_envs, device=self.device) % len(self.cfg.kit_usd_paths)
+        # Stash symmetry values for each model
+        self.symmetry = torch.tensor(self.cfg.symmetry, dtype=torch.float32, device=self.device)
 
         # Importing the models
         self.models: list[RigidObject] = []
-        for idx, kit_model_paths in enumerate(kit_models_paths):
-            model_cfg = self._get_model_cfg(kit_model_paths, idx)
+        for idx, kit_model_paths in enumerate(self.cfg.kit_models_paths):
+            model_cfg = get_model_cfg(kit_model_paths, idx, self.cfg.color)
             self.models.append(RigidObject(model_cfg))
             self.scene.rigid_objects[f"Model_{idx}"] = self.models[-1]
 
         # Computing the Asset lookup table for the environment instances
-        self.env_assets_info = self._get_assets_info_per_env(kit_usd_paths, kit_model_ids)
+        self.env_assets_info = self._get_assets_info_per_env(self.cfg.kit_usd_paths, self.cfg.kit_model_ids)
 
-        self._init_model_sampling()
-
-        # Listens to the required transforms
-        marker_cfg = FRAME_MARKER_CFG.copy()
-        marker_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
-        marker_cfg.prim_path = "/Visuals/FrameTransformer"
-
-        tcp_cfg = FrameTransformerCfg(
-            prim_path="/World/envs/env_.*/Robot/panda_link7",
-            debug_vis=False,
-            visualizer_cfg=marker_cfg,
-            target_frames=[
-                FrameTransformerCfg.FrameCfg(
-                    prim_path="/World/envs/env_.*/Robot/panda_hand",
-                    name="end_effector",
-                    offset=OffsetCfg(
-                        pos=(0.0, 0.0, 0.1),
-                    ),
-                ),
-            ],
-        )
-
-        # Create the transformer and attach it to the scene
-        self.tcp_transformer = FrameTransformer(cfg=tcp_cfg)
-        self.scene.sensors["tcp"] = self.tcp_transformer
+        self.init_model_sampling()
 
         # Filtering collisions for optimization of collisions between environment instances
         self.scene.filter_collisions([
             "/World/ground",
         ])
-
-    def _get_kit_goals(self, kit_id: str) -> tuple[dict, dict]:
-        """Parses a kit JSON to extract goal positions and rotations.
-
-        Args:
-            kit_id: Identifier of the kit (e.g. "kit_01").
-
-        Returns:
-            model_goal_pos: Dict mapping object_id to goal position tensor.
-            model_goal_rot: Dict mapping object_id to goal z-rotation.
-        """
-
-        # parsing json episode file
-        with open(self.kit_dir.joinpath(f"{kit_id}.json")) as json_data:
-            kit_json = json.load(json_data)
-            # the final 3D goal position of the model
-            model_goal_pos = {o["object_id"]: convert_to_torch(o["pos"]) for o in kit_json["objects"]}
-            # the final goal z-axis rotation of the objects
-            model_goal_rot = {o["object_id"]: o["rot"] for o in kit_json["objects"]}
-            return model_goal_pos, model_goal_rot
-
-    def _get_kit_cfg(self, kit_usd_paths: list[str]) -> RigidObjectCfg:
-        """Builds the RigidObjectCfg for the kit assembly platform.
-
-        Args:
-            kit_usd_paths: List of USD paths for kit variants.
-
-        Returns:
-            Config object for spawning the kit in all envs.
-        """
-        kit_cfg: RigidObjectCfg = RigidObjectCfg(
-            prim_path="/World/envs/env_.*/Kit",
-            spawn=sim_utils.MultiUsdFileCfg(
-                usd_path=kit_usd_paths,
-                random_choice=False,
-                rigid_props=sim_utils.RigidBodyPropertiesCfg(
-                    kinematic_enabled=True,
-                    disable_gravity=False,
-                    enable_gyroscopic_forces=True,
-                    solver_position_iteration_count=8,
-                    solver_velocity_iteration_count=0,
-                    sleep_threshold=0.005,
-                    stabilization_threshold=0.0025,
-                    max_depenetration_velocity=1000.0,
-                ),
-                visual_material=sim_utils.PreviewSurfaceCfg(
-                    diffuse_color=(0.27807487, 0.20855615, 0.16934046),
-                    emissive_color=(0.0, 0.0, 0.0),
-                    roughness=0.5,
-                    metallic=0.0,
-                    opacity=1.0,
-                ),
-            ),
-            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.55, 0.0, 0.007), rot=(0.0, 0.0, 0.0, 1.0)),
-        )
-
-        return kit_cfg
-
-    def _get_model_cfg(self, model_paths: list[str], model_idx: int) -> RigidObjectCfg:
-        """Generates the RigidObjectCfg for a single model with randomized color.
-
-        Args:
-            model_paths: List of USD paths for the model variants.
-            model_idx:   Index of this model in the kit.
-
-        Returns:
-            Config object for spawning the model in the scene.
-        """
-        r, g, b, a = self.color[random.randint(0, len(self.color) - 1)]
-
-        return RigidObjectCfg(
-            prim_path=f"/World/envs/env_.*/Model_{model_idx}",
-            spawn=sim_utils.MultiUsdFileCfg(
-                usd_path=model_paths,
-                random_choice=False,
-                rigid_props=sim_utils.RigidBodyPropertiesCfg(
-                    kinematic_enabled=False,
-                    disable_gravity=False,
-                    enable_gyroscopic_forces=True,
-                    solver_position_iteration_count=8,
-                    solver_velocity_iteration_count=0,
-                    sleep_threshold=0.005,
-                    stabilization_threshold=0.0025,
-                    max_depenetration_velocity=1000.0,
-                ),
-                visual_material=sim_utils.PreviewSurfaceCfg(
-                    diffuse_color=(r, g, b),
-                    emissive_color=(0.0, 0.0, 0.0),
-                    roughness=0.5,
-                    metallic=0.0,
-                    opacity=a,
-                ),
-                scale=(0.98, 0.98, 1),
-            ),
-            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.55, 0, 0.1), rot=(0.0, 0.0, 0.0, 1.0)),
-        )
 
     def _get_assets_info_per_env(
         self,
@@ -319,7 +146,7 @@ class AssemblyKitEnv(DirectRLEnv):
             for env_id in range(num_envs)
         ]
 
-    def _init_model_sampling(self) -> None:
+    def init_model_sampling(self) -> None:
         """Preallocates tensors for target and other model sampling across envs."""
         # pulled straight from the list-of-dicts you already built
         model_ids_list = [info["model_ids"] for info in self.env_assets_info]
@@ -334,9 +161,9 @@ class AssemblyKitEnv(DirectRLEnv):
 
         num_envs, K = self.model_ids_matrix_per_env.shape
         # to write into each reset
-        self._current_target = torch.empty(num_envs, 1, dtype=torch.long, device=self.device)
+        self.current_target = torch.empty(num_envs, 1, dtype=torch.long, device=self.device)
         # one fewer column
-        self._current_others = torch.empty(num_envs, K - 1, dtype=torch.long, device=self.device)
+        self.current_others = torch.empty(num_envs, K - 1, dtype=torch.long, device=self.device)
 
     def _pre_physics_step(self, actions: torch.Tensor) -> None:
         self.actions = actions.clone()
@@ -347,6 +174,14 @@ class AssemblyKitEnv(DirectRLEnv):
         else:
             self.robot.set_joint_effort_target(self.actions, joint_ids=self.joint_ids)
 
+    def get_tcp_poses(self) -> torch.Tensor:
+        """
+        Returns an (N,7) tensor [x, y, z, qx, qy, qz, qw]
+        """
+        pos = self.tcp_transformer.data.target_pos_w.squeeze(1) - self.scene.env_origins
+        quat = self.tcp_transformer.data.target_quat_w.squeeze(1)
+        return torch.cat((pos, quat), dim=1)
+
     def _get_observations(self) -> dict:
         """Collects state or pixel observations for the policy.
 
@@ -356,8 +191,7 @@ class AssemblyKitEnv(DirectRLEnv):
         Returns:
             Dict with key 'policy' mapping to either a state tensor or image tensor.
         """
-        tcp_pos = self.tcp_transformer.data.target_pos_w.squeeze(1)
-        tcp_rot = self.tcp_transformer.data.target_quat_w.squeeze(1)
+        tcp_pose = self.get_tcp_poses()
 
         target_model_pose = self.get_target_model_pose()
 
@@ -369,10 +203,9 @@ class AssemblyKitEnv(DirectRLEnv):
 
         state_obs = torch.cat(
             (
-                tcp_pos,
-                tcp_rot,
+                tcp_pose,
                 target_model_pose,
-                target_model_pose[:, :3] - tcp_pos,
+                target_model_pose[:, :3] - tcp_pose[:, :3],
                 self.target_goal_pos,
                 self.target_goal_rot.unsqueeze(1),
                 self.target_goal_pos - target_model_pose[:, :3],
@@ -398,7 +231,7 @@ class AssemblyKitEnv(DirectRLEnv):
         """
 
         # Get the index of the target object for each environment
-        target_models: list[RigidObject] = [self.models[idx.item()] for idx in self._current_target[:, 0]]
+        target_models: list[RigidObject] = [self.models[idx.item()] for idx in self.current_target[:, 0]]
 
         target_model_pose = torch.zeros((self.num_envs, 7), dtype=torch.float32, device=self.device)
 
@@ -520,10 +353,10 @@ class AssemblyKitEnv(DirectRLEnv):
 
         # pick target model and compute other model indices
         choice = torch.randint(0, num_models, (num_envs,), device=device)
-        self._current_target[env_ids] = choice.unsqueeze(1)
+        self.current_target[env_ids] = choice.unsqueeze(1)
         self.current_target_model_id = (
             torch.tensor([info["model_ids"] for info in self.env_assets_info], device=self.device)
-            .gather(1, self._current_target)
+            .gather(1, self.current_target)
             .squeeze(1)
         )
         all_cols = torch.arange(num_models, device=device).unsqueeze(0).expand(num_envs, num_models)
