@@ -1,4 +1,4 @@
-# Copyright (c) 2024-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2024-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: Apache-2.0
@@ -6,7 +6,6 @@
 """
 Defines structure of information that is needed from an environment for data generation.
 """
-import torch
 from copy import deepcopy
 
 
@@ -46,40 +45,6 @@ class DatagenInfo:
             gripper_action (torch.Tensor or None): gripper actions of shape [..., D] where D
                 is the dimension of the gripper actuation action for the robot arm
         """
-        # Type checks using assert
-        if eef_pose is not None:
-            assert isinstance(
-                eef_pose, torch.Tensor
-            ), f"Expected 'eef_pose' to be of type torch.Tensor, but got {type(eef_pose)}"
-
-        if object_poses is not None:
-            assert isinstance(
-                object_poses, dict
-            ), f"Expected 'object_poses' to be a dictionary, but got {type(object_poses)}"
-            for k, v in object_poses.items():
-                assert isinstance(
-                    v, torch.Tensor
-                ), f"Expected 'object_poses[{k}]' to be of type torch.Tensor, but got {type(v)}"
-
-        if subtask_term_signals is not None:
-            assert isinstance(
-                subtask_term_signals, dict
-            ), f"Expected 'subtask_term_signals' to be a dictionary, but got {type(subtask_term_signals)}"
-            for k, v in subtask_term_signals.items():
-                assert isinstance(
-                    v, (torch.Tensor, int, float)
-                ), f"Expected 'subtask_term_signals[{k}]' to be of type torch.Tensor, int, or float, but got {type(v)}"
-
-        if target_eef_pose is not None:
-            assert isinstance(
-                target_eef_pose, torch.Tensor
-            ), f"Expected 'target_eef_pose' to be of type torch.Tensor, but got {type(target_eef_pose)}"
-
-        if gripper_action is not None:
-            assert isinstance(
-                gripper_action, torch.Tensor
-            ), f"Expected 'gripper_action' to be of type torch.Tensor, but got {type(gripper_action)}"
-
         self.eef_pose = None
         if eef_pose is not None:
             self.eef_pose = eef_pose

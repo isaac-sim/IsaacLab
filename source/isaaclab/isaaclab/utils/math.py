@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -13,6 +13,8 @@ import numpy as np
 import torch
 import torch.nn.functional
 from typing import Literal
+
+import omni.log
 
 """
 General
@@ -131,13 +133,29 @@ def copysign(mag: float, other: torch.Tensor) -> torch.Tensor:
     Returns:
         The output tensor.
     """
-    mag_torch = torch.tensor(mag, device=other.device, dtype=torch.float).repeat(other.shape[0])
-    return torch.abs(mag_torch) * torch.sign(other)
+    mag_torch = abs(mag) * torch.ones_like(other)
+    return torch.copysign(mag_torch, other)
 
 
 """
 Rotation
 """
+
+
+@torch.jit.script
+def quat_unique(q: torch.Tensor) -> torch.Tensor:
+    """Convert a unit quaternion to a standard form where the real part is non-negative.
+
+    Quaternion representations have a singularity since ``q`` and ``-q`` represent the same
+    rotation. This function ensures the real part of the quaternion is non-negative.
+
+    Args:
+        q: The quaternion orientation in (w, x, y, z). Shape is (..., 4).
+
+    Returns:
+        Standardized quaternions. Shape is (..., 4).
+    """
+    return torch.where(q[..., 0:1] < 0, -q, q)
 
 
 @torch.jit.script
@@ -232,20 +250,21 @@ def quat_conjugate(q: torch.Tensor) -> torch.Tensor:
     """
     shape = q.shape
     q = q.reshape(-1, 4)
-    return torch.cat((q[:, 0:1], -q[:, 1:]), dim=-1).view(shape)
+    return torch.cat((q[..., 0:1], -q[..., 1:]), dim=-1).view(shape)
 
 
 @torch.jit.script
-def quat_inv(q: torch.Tensor) -> torch.Tensor:
-    """Compute the inverse of a quaternion.
+def quat_inv(q: torch.Tensor, eps: float = 1e-9) -> torch.Tensor:
+    """Computes the inverse of a quaternion.
 
     Args:
         q: The quaternion orientation in (w, x, y, z). Shape is (N, 4).
+        eps: A small value to avoid division by zero. Defaults to 1e-9.
 
     Returns:
         The inverse quaternion in (w, x, y, z). Shape is (N, 4).
     """
-    return normalize(quat_conjugate(q))
+    return quat_conjugate(q) / q.pow(2).sum(dim=-1, keepdim=True).clamp(min=eps)
 
 
 @torch.jit.script
@@ -382,7 +401,7 @@ def _axis_angle_rotation(axis: Literal["X", "Y", "Z"], angle: torch.Tensor) -> t
 
 def matrix_from_euler(euler_angles: torch.Tensor, convention: str) -> torch.Tensor:
     """
-    Convert rotations given as Euler angles in radians to rotation matrices.
+    Convert rotations given as Euler angles (intrinsic) in radians to rotation matrices.
 
     Args:
         euler_angles: Euler angles in radians. Shape is (..., 3).
@@ -411,14 +430,19 @@ def matrix_from_euler(euler_angles: torch.Tensor, convention: str) -> torch.Tens
 
 
 @torch.jit.script
-def euler_xyz_from_quat(quat: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+def euler_xyz_from_quat(
+    quat: torch.Tensor, wrap_to_2pi: bool = False
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """Convert rotations given as quaternions to Euler angles in radians.
 
     Note:
-        The euler angles are assumed in XYZ convention.
+        The euler angles are assumed in XYZ extrinsic convention.
 
     Args:
         quat: The quaternion orientation in (w, x, y, z). Shape is (N, 4).
+        wrap_to_2pi (bool): Whether to wrap output Euler angles into [0, 2π). If
+            False, angles are returned in the default range (−π, π]. Defaults to
+            False.
 
     Returns:
         A tuple containing roll-pitch-yaw. Each element is a tensor of shape (N,).
@@ -441,23 +465,58 @@ def euler_xyz_from_quat(quat: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor,
     cos_yaw = 1 - 2 * (q_y * q_y + q_z * q_z)
     yaw = torch.atan2(sin_yaw, cos_yaw)
 
-    return roll % (2 * torch.pi), pitch % (2 * torch.pi), yaw % (2 * torch.pi)  # TODO: why not wrap_to_pi here ?
+    if wrap_to_2pi:
+        return roll % (2 * torch.pi), pitch % (2 * torch.pi), yaw % (2 * torch.pi)
+    return roll, pitch, yaw
 
 
 @torch.jit.script
-def quat_unique(q: torch.Tensor) -> torch.Tensor:
-    """Convert a unit quaternion to a standard form where the real part is non-negative.
-
-    Quaternion representations have a singularity since ``q`` and ``-q`` represent the same
-    rotation. This function ensures the real part of the quaternion is non-negative.
+def axis_angle_from_quat(quat: torch.Tensor, eps: float = 1.0e-6) -> torch.Tensor:
+    """Convert rotations given as quaternions to axis/angle.
 
     Args:
-        q: The quaternion orientation in (w, x, y, z). Shape is (..., 4).
+        quat: The quaternion orientation in (w, x, y, z). Shape is (..., 4).
+        eps: The tolerance for Taylor approximation. Defaults to 1.0e-6.
 
     Returns:
-        Standardized quaternions. Shape is (..., 4).
+        Rotations given as a vector in axis angle form. Shape is (..., 3).
+        The vector's magnitude is the angle turned anti-clockwise in radians around the vector's direction.
+
+    Reference:
+        https://github.com/facebookresearch/pytorch3d/blob/main/pytorch3d/transforms/rotation_conversions.py#L526-L554
     """
-    return torch.where(q[..., 0:1] < 0, -q, q)
+    # Modified to take in quat as [q_w, q_x, q_y, q_z]
+    # Quaternion is [q_w, q_x, q_y, q_z] = [cos(theta/2), n_x * sin(theta/2), n_y * sin(theta/2), n_z * sin(theta/2)]
+    # Axis-angle is [a_x, a_y, a_z] = [theta * n_x, theta * n_y, theta * n_z]
+    # Thus, axis-angle is [q_x, q_y, q_z] / (sin(theta/2) / theta)
+    # When theta = 0, (sin(theta/2) / theta) is undefined
+    # However, as theta --> 0, we can use the Taylor approximation 1/2 - theta^2 / 48
+    quat = quat * (1.0 - 2.0 * (quat[..., 0:1] < 0.0))
+    mag = torch.linalg.norm(quat[..., 1:], dim=-1)
+    half_angle = torch.atan2(mag, quat[..., 0])
+    angle = 2.0 * half_angle
+    # check whether to apply Taylor approximation
+    sin_half_angles_over_angles = torch.where(
+        angle.abs() > eps, torch.sin(half_angle) / angle, 0.5 - angle * angle / 48
+    )
+    return quat[..., 1:4] / sin_half_angles_over_angles.unsqueeze(-1)
+
+
+@torch.jit.script
+def quat_from_angle_axis(angle: torch.Tensor, axis: torch.Tensor) -> torch.Tensor:
+    """Convert rotations given as angle-axis to quaternions.
+
+    Args:
+        angle: The angle turned anti-clockwise in radians around the vector's direction. Shape is (N,).
+        axis: The axis of rotation. Shape is (N, 3).
+
+    Returns:
+        The quaternion in (w, x, y, z). Shape is (N, 4).
+    """
+    theta = (angle / 2).unsqueeze(-1)
+    xyz = normalize(axis) * theta.sin()
+    w = theta.cos()
+    return normalize(torch.cat([w, xyz], dim=-1))
 
 
 @torch.jit.script
@@ -500,25 +559,6 @@ def quat_mul(q1: torch.Tensor, q2: torch.Tensor) -> torch.Tensor:
 
 
 @torch.jit.script
-def quat_box_minus(q1: torch.Tensor, q2: torch.Tensor) -> torch.Tensor:
-    """The box-minus operator (quaternion difference) between two quaternions.
-
-    Args:
-        q1: The first quaternion in (w, x, y, z). Shape is (N, 4).
-        q2: The second quaternion in (w, x, y, z). Shape is (N, 4).
-
-    Returns:
-        The difference between the two quaternions. Shape is (N, 3).
-    """
-    quat_diff = quat_mul(q1, quat_conjugate(q2))  # q1 * q2^-1
-    re = quat_diff[:, 0]  # real part, q = [w, x, y, z] = [re, im]
-    im = quat_diff[:, 1:]  # imaginary part
-    norm_im = torch.norm(im, dim=1)
-    scale = 2.0 * torch.where(norm_im > 1.0e-7, torch.atan2(norm_im, re) / norm_im, torch.sign(re))
-    return scale.unsqueeze(-1) * im
-
-
-@torch.jit.script
 def yaw_quat(quat: torch.Tensor) -> torch.Tensor:
     """Extract the yaw component of a quaternion.
 
@@ -529,17 +569,56 @@ def yaw_quat(quat: torch.Tensor) -> torch.Tensor:
         A quaternion with only yaw component.
     """
     shape = quat.shape
-    quat_yaw = quat.clone().view(-1, 4)
+    quat_yaw = quat.view(-1, 4)
     qw = quat_yaw[:, 0]
     qx = quat_yaw[:, 1]
     qy = quat_yaw[:, 2]
     qz = quat_yaw[:, 3]
     yaw = torch.atan2(2 * (qw * qz + qx * qy), 1 - 2 * (qy * qy + qz * qz))
-    quat_yaw[:] = 0.0
+    quat_yaw = torch.zeros_like(quat_yaw)
     quat_yaw[:, 3] = torch.sin(yaw / 2)
     quat_yaw[:, 0] = torch.cos(yaw / 2)
     quat_yaw = normalize(quat_yaw)
     return quat_yaw.view(shape)
+
+
+@torch.jit.script
+def quat_box_minus(q1: torch.Tensor, q2: torch.Tensor) -> torch.Tensor:
+    """The box-minus operator (quaternion difference) between two quaternions.
+
+    Args:
+        q1: The first quaternion in (w, x, y, z). Shape is (N, 4).
+        q2: The second quaternion in (w, x, y, z). Shape is (N, 4).
+
+    Returns:
+        The difference between the two quaternions. Shape is (N, 3).
+
+    Reference:
+        https://github.com/ANYbotics/kindr/blob/master/doc/cheatsheet/cheatsheet_latest.pdf
+    """
+    quat_diff = quat_mul(q1, quat_conjugate(q2))  # q1 * q2^-1
+    return axis_angle_from_quat(quat_diff)  # log(qd)
+
+
+@torch.jit.script
+def quat_box_plus(q: torch.Tensor, delta: torch.Tensor, eps: float = 1.0e-6) -> torch.Tensor:
+    """The box-plus operator (quaternion update) to apply an increment to a quaternion.
+
+    Args:
+        q: The initial quaternion in (w, x, y, z). Shape is (N, 4).
+        delta: The axis-angle perturbation. Shape is (N, 3).
+            eps: A small value to avoid division by zero. Defaults to 1e-6.
+
+    Returns:
+        The updated quaternion after applying the perturbation. Shape is (N, 4).
+
+    Reference:
+        https://github.com/ANYbotics/kindr/blob/master/doc/cheatsheet/cheatsheet_latest.pdf
+    """
+    delta_norm = torch.clamp_min(torch.linalg.norm(delta, dim=-1, keepdim=True), min=eps)
+    delta_quat = quat_from_angle_axis(delta_norm.squeeze(-1), delta / delta_norm)  # exp(dq)
+    new_quat = quat_mul(delta_quat, q)  # Apply perturbation
+    return quat_unique(new_quat)
 
 
 @torch.jit.script
@@ -565,6 +644,28 @@ def quat_apply(quat: torch.Tensor, vec: torch.Tensor) -> torch.Tensor:
 
 
 @torch.jit.script
+def quat_apply_inverse(quat: torch.Tensor, vec: torch.Tensor) -> torch.Tensor:
+    """Apply an inverse quaternion rotation to a vector.
+
+    Args:
+        quat: The quaternion in (w, x, y, z). Shape is (..., 4).
+        vec: The vector in (x, y, z). Shape is (..., 3).
+
+    Returns:
+        The rotated vector in (x, y, z). Shape is (..., 3).
+    """
+    # store shape
+    shape = vec.shape
+    # reshape to (N, 3) for multiplication
+    quat = quat.reshape(-1, 4)
+    vec = vec.reshape(-1, 3)
+    # extract components from quaternions
+    xyz = quat[:, 1:]
+    t = xyz.cross(vec, dim=-1) * 2
+    return (vec - quat[:, 0:1] * t + xyz.cross(t, dim=-1)).view(shape)
+
+
+@torch.jit.script
 def quat_apply_yaw(quat: torch.Tensor, vec: torch.Tensor) -> torch.Tensor:
     """Rotate a vector only around the yaw-direction.
 
@@ -579,9 +680,10 @@ def quat_apply_yaw(quat: torch.Tensor, vec: torch.Tensor) -> torch.Tensor:
     return quat_apply(quat_yaw, vec)
 
 
-@torch.jit.script
 def quat_rotate(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
     """Rotate a vector by a quaternion along the last dimension of q and v.
+    .. deprecated v2.1.0:
+         This function will be removed in a future release in favor of the faster implementation :meth:`quat_apply`.
 
     Args:
         q: The quaternion in (w, x, y, z). Shape is (..., 4).
@@ -590,22 +692,19 @@ def quat_rotate(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
     Returns:
         The rotated vector in (x, y, z). Shape is (..., 3).
     """
-    q_w = q[..., 0]
-    q_vec = q[..., 1:]
-    a = v * (2.0 * q_w**2 - 1.0).unsqueeze(-1)
-    b = torch.cross(q_vec, v, dim=-1) * q_w.unsqueeze(-1) * 2.0
-    # for two-dimensional tensors, bmm is faster than einsum
-    if q_vec.dim() == 2:
-        c = q_vec * torch.bmm(q_vec.view(q.shape[0], 1, 3), v.view(q.shape[0], 3, 1)).squeeze(-1) * 2.0
-    else:
-        c = q_vec * torch.einsum("...i,...i->...", q_vec, v).unsqueeze(-1) * 2.0
-    return a + b + c
+    # deprecation
+    omni.log.warn(
+        "The function 'quat_rotate' will be deprecated in favor of the faster method 'quat_apply'."
+        " Please use 'quat_apply' instead...."
+    )
+    return quat_apply(q, v)
 
 
-@torch.jit.script
 def quat_rotate_inverse(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
     """Rotate a vector by the inverse of a quaternion along the last dimension of q and v.
 
+    .. deprecated v2.1.0:
+         This function will be removed in a future release in favor of the faster implementation :meth:`quat_apply_inverse`.
     Args:
         q: The quaternion in (w, x, y, z). Shape is (..., 4).
         v: The vector in (x, y, z). Shape is (..., 3).
@@ -613,65 +712,11 @@ def quat_rotate_inverse(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
     Returns:
         The rotated vector in (x, y, z). Shape is (..., 3).
     """
-    q_w = q[..., 0]
-    q_vec = q[..., 1:]
-    a = v * (2.0 * q_w**2 - 1.0).unsqueeze(-1)
-    b = torch.cross(q_vec, v, dim=-1) * q_w.unsqueeze(-1) * 2.0
-    # for two-dimensional tensors, bmm is faster than einsum
-    if q_vec.dim() == 2:
-        c = q_vec * torch.bmm(q_vec.view(q.shape[0], 1, 3), v.view(q.shape[0], 3, 1)).squeeze(-1) * 2.0
-    else:
-        c = q_vec * torch.einsum("...i,...i->...", q_vec, v).unsqueeze(-1) * 2.0
-    return a - b + c
-
-
-@torch.jit.script
-def quat_from_angle_axis(angle: torch.Tensor, axis: torch.Tensor) -> torch.Tensor:
-    """Convert rotations given as angle-axis to quaternions.
-
-    Args:
-        angle: The angle turned anti-clockwise in radians around the vector's direction. Shape is (N,).
-        axis: The axis of rotation. Shape is (N, 3).
-
-    Returns:
-        The quaternion in (w, x, y, z). Shape is (N, 4).
-    """
-    theta = (angle / 2).unsqueeze(-1)
-    xyz = normalize(axis) * theta.sin()
-    w = theta.cos()
-    return normalize(torch.cat([w, xyz], dim=-1))
-
-
-@torch.jit.script
-def axis_angle_from_quat(quat: torch.Tensor, eps: float = 1.0e-6) -> torch.Tensor:
-    """Convert rotations given as quaternions to axis/angle.
-
-    Args:
-        quat: The quaternion orientation in (w, x, y, z). Shape is (..., 4).
-        eps: The tolerance for Taylor approximation. Defaults to 1.0e-6.
-
-    Returns:
-        Rotations given as a vector in axis angle form. Shape is (..., 3).
-        The vector's magnitude is the angle turned anti-clockwise in radians around the vector's direction.
-
-    Reference:
-        https://github.com/facebookresearch/pytorch3d/blob/main/pytorch3d/transforms/rotation_conversions.py#L526-L554
-    """
-    # Modified to take in quat as [q_w, q_x, q_y, q_z]
-    # Quaternion is [q_w, q_x, q_y, q_z] = [cos(theta/2), n_x * sin(theta/2), n_y * sin(theta/2), n_z * sin(theta/2)]
-    # Axis-angle is [a_x, a_y, a_z] = [theta * n_x, theta * n_y, theta * n_z]
-    # Thus, axis-angle is [q_x, q_y, q_z] / (sin(theta/2) / theta)
-    # When theta = 0, (sin(theta/2) / theta) is undefined
-    # However, as theta --> 0, we can use the Taylor approximation 1/2 - theta^2 / 48
-    quat = quat * (1.0 - 2.0 * (quat[..., 0:1] < 0.0))
-    mag = torch.linalg.norm(quat[..., 1:], dim=-1)
-    half_angle = torch.atan2(mag, quat[..., 0])
-    angle = 2.0 * half_angle
-    # check whether to apply Taylor approximation
-    sin_half_angles_over_angles = torch.where(
-        angle.abs() > eps, torch.sin(half_angle) / angle, 0.5 - angle * angle / 48
+    omni.log.warn(
+        "The function 'quat_rotate_inverse' will be deprecated in favor of the faster method 'quat_apply_inverse'."
+        " Please use 'quat_apply_inverse' instead...."
     )
-    return quat[..., 1:4] / sin_half_angles_over_angles.unsqueeze(-1)
+    return quat_apply_inverse(q, v)
 
 
 @torch.jit.script
@@ -685,8 +730,8 @@ def quat_error_magnitude(q1: torch.Tensor, q2: torch.Tensor) -> torch.Tensor:
     Returns:
         Angular error between input quaternions in radians.
     """
-    quat_diff = quat_mul(q1, quat_conjugate(q2))
-    return torch.norm(axis_angle_from_quat(quat_diff), dim=-1)
+    axis_angle_error = quat_box_minus(q1, q2)
+    return torch.norm(axis_angle_error, dim=-1)
 
 
 @torch.jit.script
@@ -779,6 +824,43 @@ def combine_frame_transforms(
         t02 = t01
 
     return t02, q02
+
+
+def rigid_body_twist_transform(
+    v0: torch.Tensor, w0: torch.Tensor, t01: torch.Tensor, q01: torch.Tensor
+) -> tuple[torch.Tensor, torch.Tensor]:
+    r"""Transform the linear and angular velocity of a rigid body between reference frames.
+
+    Given the twist of 0 relative to frame 0, this function computes the twist of 1 relative to frame 1
+    from the position and orientation of frame 1 relative to frame 0. The transformation follows the
+    equations:
+
+    .. math::
+
+        w_11 = R_{10} w_00 = R_{01}^{-1} w_00
+        v_11 = R_{10} v_00 + R_{10} (w_00 \times t_01) = R_{01}^{-1} (v_00 + (w_00 \times t_01))
+
+    where
+
+        - :math:`R_{01}` is the rotation matrix from frame 0 to frame 1 derived from quaternion :math:`q_{01}`.
+        - :math:`t_{01}` is the position of frame 1 relative to frame 0 expressed in frame 0
+        - :math:`w_0` is the angular velocity of 0 in frame 0
+        - :math:`v_0` is the linear velocity of 0 in frame 0
+
+    Args:
+        v0: Linear velocity of 0 in frame 0. Shape is (N, 3).
+        w0: Angular velocity of 0 in frame 0. Shape is (N, 3).
+        t01: Position of frame 1 w.r.t. frame 0. Shape is (N, 3).
+        q01: Quaternion orientation of frame 1 w.r.t. frame 0 in (w, x, y, z). Shape is (N, 4).
+
+    Returns:
+        A tuple containing:
+        - The transformed linear velocity in frame 1. Shape is (N, 3).
+        - The transformed angular velocity in frame 1. Shape is (N, 3).
+    """
+    w1 = quat_rotate_inverse(q01, w0)
+    v1 = quat_rotate_inverse(q01, v0 + torch.cross(w0, t01, dim=-1))
+    return v1, w1
 
 
 # @torch.jit.script
@@ -1561,16 +1643,15 @@ def create_rotation_matrix_from_view(
     return R.transpose(1, 2)
 
 
-def make_pose(pos, rot):
-    """
-    Make homogeneous pose matrices from a set of translation vectors and rotation matrices.
+def make_pose(pos: torch.Tensor, rot: torch.Tensor) -> torch.Tensor:
+    """Creates transformation matrices from positions and rotation matrices.
 
     Args:
-        pos (torch.Tensor): batch of position vectors with last dimension of 3
-        rot (torch.Tensor): batch of rotation matrices with last 2 dimensions of (3, 3)
+        pos: Batch of position vectors with last dimension of 3.
+        rot: Batch of rotation matrices with last 2 dimensions of (3, 3).
 
     Returns:
-        pose (torch.Tensor): batch of pose matrices with last 2 dimensions of (4, 4)
+        Batch of pose matrices with last 2 dimensions of (4, 4).
     """
     assert isinstance(pos, torch.Tensor), "Input must be a torch tensor"
     assert isinstance(rot, torch.Tensor), "Input must be a torch tensor"
@@ -1583,33 +1664,31 @@ def make_pose(pos, rot):
     return pose
 
 
-def unmake_pose(pose):
-    """
-    Split homogeneous pose matrices back into translation vectors and rotation matrices.
+def unmake_pose(pose: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+    """Splits transformation matrices into positions and rotation matrices.
 
     Args:
-        pose (torch.Tensor): batch of pose matrices with last 2 dimensions of (4, 4)
+        pose: Batch of pose matrices with last 2 dimensions of (4, 4).
 
     Returns:
-        pos (torch.Tensor): batch of position vectors with last dimension of 3
-        rot (torch.Tensor): batch of rotation matrices with last 2 dimensions of (3, 3)
+        Tuple containing:
+            - Batch of position vectors with last dimension of 3.
+            - Batch of rotation matrices with last 2 dimensions of (3, 3).
     """
     assert isinstance(pose, torch.Tensor), "Input must be a torch tensor"
     return pose[..., :3, 3], pose[..., :3, :3]
 
 
-def pose_inv(pose):
-    """
-    Computes the inverse of homogeneous pose matrices.
+def pose_inv(pose: torch.Tensor) -> torch.Tensor:
+    """Computes the inverse of transformation matrices.
 
-    Note that the inverse of a pose matrix is the following:
-    [R t; 0 1]^-1 = [R.T -R.T*t; 0 1]
+    The inverse of a pose matrix [R t; 0 1] is [R.T -R.T*t; 0 1].
 
     Args:
-        pose (torch.Tensor): batch of pose matrices with last 2 dimensions of (4, 4)
+        pose: Batch of pose matrices with last 2 dimensions of (4, 4).
 
     Returns:
-        inv_pose (torch.Tensor): batch of inverse pose matrices with last 2 dimensions of (4, 4)
+        Batch of inverse pose matrices with last 2 dimensions of (4, 4).
     """
     assert isinstance(pose, torch.Tensor), "Input must be a torch tensor"
     num_axes = len(pose.shape)
@@ -1617,7 +1696,7 @@ def pose_inv(pose):
 
     inv_pose = torch.zeros_like(pose)
 
-    # take transpose of last 2 dimensions
+    # Take transpose of last 2 dimensions
     inv_pose[..., :3, :3] = pose[..., :3, :3].transpose(-1, -2)
 
     # note: PyTorch matmul wants shapes [..., 3, 3] x [..., 3, 1] -> [..., 3, 1] so we add a dimension and take it away after
@@ -1626,35 +1705,40 @@ def pose_inv(pose):
     return inv_pose
 
 
-def pose_in_A_to_pose_in_B(pose_in_A, pose_A_in_B):
-    """
-    Converts homogeneous matrices corresponding to a point C in frame A
-    to homogeneous matrices corresponding to the same point C in frame B.
+def pose_in_A_to_pose_in_B(pose_in_A: torch.Tensor, pose_A_in_B: torch.Tensor) -> torch.Tensor:
+    """Converts poses from one coordinate frame to another.
+
+    Transforms matrices representing point C in frame A
+    to matrices representing the same point C in frame B.
+
+    Example usage:
+
+    frame_C_in_B = pose_in_A_to_pose_in_B(frame_C_in_A, frame_A_in_B)
 
     Args:
-        pose_in_A (torch.Tensor): batch of homogeneous matrices corresponding to the pose of C in frame A
-        pose_A_in_B (torch.Tensor): batch of homogeneous matrices corresponding to the pose of A in frame B
+        pose_in_A: Batch of transformation matrices of point C in frame A.
+        pose_A_in_B: Batch of transformation matrices of frame A in frame B.
 
     Returns:
-        pose_in_B (torch.Tensor): batch of homogeneous matrices corresponding to the pose of C in frame B
+        Batch of transformation matrices of point C in frame B.
     """
     assert isinstance(pose_in_A, torch.Tensor), "Input must be a torch tensor"
     assert isinstance(pose_A_in_B, torch.Tensor), "Input must be a torch tensor"
     return torch.matmul(pose_A_in_B, pose_in_A)
 
 
-def quat_slerp(q1, q2, tau):
-    """
-    Spherical linear interpolation (SLERP) between two quaternions.
-    This function does NOT support batch processing.
+def quat_slerp(q1: torch.Tensor, q2: torch.Tensor, tau: float) -> torch.Tensor:
+    """Performs spherical linear interpolation (SLERP) between two quaternions.
+
+    This function does not support batch processing.
 
     Args:
-        q1 (torch.Tensor): The first quaternion (w, x, y, z) format.
-        q2 (torch.Tensor): The second quaternion (w, x, y, z) format.
-        tau (float): Interpolation coefficient between 0 (q1) and 1 (q2).
+        q1: First quaternion in (w, x, y, z) format.
+        q2: Second quaternion in (w, x, y, z) format.
+        tau: Interpolation coefficient between 0 (q1) and 1 (q2).
 
     Returns:
-        torch.Tensor: The interpolated quaternion (w, x, y, z) format.
+        Interpolated quaternion in (w, x, y, z) format.
     """
     assert isinstance(q1, torch.Tensor), "Input must be a torch tensor"
     assert isinstance(q2, torch.Tensor), "Input must be a torch tensor"
@@ -1666,7 +1750,7 @@ def quat_slerp(q1, q2, tau):
     if abs(abs(d) - 1.0) < torch.finfo(q1.dtype).eps * 4.0:
         return q1
     if d < 0.0:
-        # invert rotation
+        # Invert rotation
         d = -d
         q2 *= -1.0
     angle = torch.acos(torch.clamp(d, -1, 1))
@@ -1679,24 +1763,24 @@ def quat_slerp(q1, q2, tau):
     return q1
 
 
-def interpolate_rotations(R1, R2, num_steps, axis_angle=True):
-    """
-    Interpolate between two rotation matrices.
+def interpolate_rotations(R1: torch.Tensor, R2: torch.Tensor, num_steps: int, axis_angle: bool = True) -> torch.Tensor:
+    """Interpolates between two rotation matrices.
 
     Args:
-        R1 (torch.Tensor): The first rotation matrix (4x4).
-        R2 (torch.Tensor): The second rotation matrix (4x4).
-        num_steps (int): The number of desired interpolated rotations (excluding start and end).
-        axis_angle (bool, optional): If True, interpolate in axis-angle representation. Else, use slerp. Defaults to True.
+        R1: First rotation matrix. (4x4).
+        R2: Second rotation matrix. (4x4).
+        num_steps: Number of desired interpolated rotations (excluding start and end).
+        axis_angle: If True, interpolate in axis-angle representation;
+                   otherwise use slerp. Defaults to True.
 
     Returns:
-        torch.Tensor: A stack of interpolated rotation matrices (shape: (num_steps + 1, 4, 4)),
-                      including the start and end rotations.
+        Stack of interpolated rotation matrices of shape (num_steps + 1, 4, 4),
+        including the start and end rotations.
     """
     assert isinstance(R1, torch.Tensor), "Input must be a torch tensor"
     assert isinstance(R2, torch.Tensor), "Input must be a torch tensor"
     if axis_angle:
-        # delta rotation expressed as axis-angle
+        # Delta rotation expressed as axis-angle
         delta_rot_mat = torch.matmul(R2, R1.transpose(-1, -2))
         delta_quat = quat_from_matrix(delta_rot_mat)
         delta_axis_angle = axis_angle_from_quat(delta_quat)
@@ -1704,15 +1788,15 @@ def interpolate_rotations(R1, R2, num_steps, axis_angle=True):
         # Grab angle
         delta_angle = torch.linalg.norm(delta_axis_angle)
 
-        # fix the axis, and chunk the angle up into steps
+        # Fix the axis, and chunk the angle up into steps
         rot_step_size = delta_angle / num_steps
 
-        # convert into delta rotation matrices, and then convert to absolute rotations
+        # Convert into delta rotation matrices, and then convert to absolute rotations
         if delta_angle < 0.05:
-            # small angle - don't bother with interpolation
+            # Small angle - don't bother with interpolation
             rot_steps = torch.stack([R2 for _ in range(num_steps)])
         else:
-            # make sure that axis is a unit vector
+            # Make sure that axis is a unit vector
             delta_axis = delta_axis_angle / delta_angle
             delta_rot_steps = [
                 matrix_from_quat(quat_from_angle_axis(i * rot_step_size, delta_axis)) for i in range(num_steps)
@@ -1725,29 +1809,33 @@ def interpolate_rotations(R1, R2, num_steps, axis_angle=True):
             [matrix_from_quat(quat_slerp(q1, q2, tau=float(i) / num_steps)) for i in range(num_steps)]
         )
 
-    # add in endpoint
+    # Add in endpoint
     rot_steps = torch.cat([rot_steps, R2[None]], dim=0)
 
     return rot_steps
 
 
-def interpolate_poses(pose_1, pose_2, num_steps=None, step_size=None, perturb=False):
-    """
-    Linear interpolation between two poses.
+def interpolate_poses(
+    pose_1: torch.Tensor,
+    pose_2: torch.Tensor,
+    num_steps: int = None,
+    step_size: float = None,
+    perturb: bool = False,
+) -> tuple[torch.Tensor, int]:
+    """Performs linear interpolation between two poses.
 
     Args:
-        pose_1 (torch.tensor): 4x4 start pose
-        pose_2 (torch.tensor): 4x4 end pose
-        num_steps (int): if provided, specifies the number of desired interpolated points (not excluding
-            the start and end points). Passing 0 corresponds to no interpolation, and passing None
-            means that @step_size must be provided to determine the number of interpolated points.
-        step_size (float): if provided, will be used to infer the number of steps, by taking the norm
-            of the delta position vector, and dividing it by the step size
-        perturb (bool): if True, randomly move all the interpolated position points in a uniform, non-overlapping grid.
+        pose_1: 4x4 start pose.
+        pose_2: 4x4 end pose.
+        num_steps: If provided, specifies the number of desired interpolated points.
+                  Passing 0 corresponds to no interpolation. If None, step_size must be provided.
+        step_size: If provided, determines number of steps based on distance between poses.
+        perturb: If True, randomly perturbs interpolated position points.
 
     Returns:
-        pose_steps (torch.tensor): array of shape (N + 2, 3) corresponding to the interpolated pose path, where N is @num_steps
-        num_steps (int): the number of interpolated points (N) in the path
+        Tuple containing:
+            - Array of shape (N + 2, 4, 4) corresponding to the interpolated pose path.
+            - Number of interpolated points (N) in the path.
     """
     assert isinstance(pose_1, torch.Tensor), "Input must be a torch tensor"
     assert isinstance(pose_2, torch.Tensor), "Input must be a torch tensor"
@@ -1757,7 +1845,7 @@ def interpolate_poses(pose_1, pose_2, num_steps=None, step_size=None, perturb=Fa
     pos2, rot2 = unmake_pose(pose_2)
 
     if num_steps == 0:
-        # skip interpolation
+        # Skip interpolation
         return (
             torch.cat([pos1[None], pos2[None]], dim=0),
             torch.cat([rot1[None], rot2[None]], dim=0),
@@ -1769,51 +1857,48 @@ def interpolate_poses(pose_1, pose_2, num_steps=None, step_size=None, perturb=Fa
         assert torch.norm(delta_pos) > 0
         num_steps = math.ceil(torch.norm(delta_pos) / step_size)
 
-    num_steps += 1  # include starting pose
+    num_steps += 1  # Include starting pose
     assert num_steps >= 2
 
-    # linear interpolation of positions
+    # Linear interpolation of positions
     pos_step_size = delta_pos / num_steps
     grid = torch.arange(num_steps, dtype=torch.float32)
     if perturb:
-        # move the interpolation grid points by up to a half-size forward or backward
+        # Move interpolation grid points by up to half-size forward or backward
         perturbations = torch.rand(num_steps - 2) - 0.5
         grid[1:-1] += perturbations
     pos_steps = torch.stack([pos1 + grid[i] * pos_step_size for i in range(num_steps)])
 
-    # add in endpoint
+    # Add in endpoint
     pos_steps = torch.cat([pos_steps, pos2[None]], dim=0)
 
-    # interpolate the rotations too
+    # Interpolate rotations
     rot_steps = interpolate_rotations(R1=rot1, R2=rot2, num_steps=num_steps, axis_angle=True)
 
     pose_steps = make_pose(pos_steps, rot_steps)
     return pose_steps, num_steps - 1
 
 
-def transform_poses_from_frame_A_to_frame_B(src_poses, frame_A, frame_B):
-    """
-    Transform a source data segment (object-centric subtask segment from source demonstration) such that
-    the relative poses between the target eef pose frame and the object frame are preserved. Recall that
-    each object-centric subtask segment corresponds to one object, and consists of a sequence of
-    target eef poses.
+def transform_poses_from_frame_A_to_frame_B(
+    src_poses: torch.Tensor, frame_A: torch.Tensor, frame_B: torch.Tensor
+) -> torch.Tensor:
+    """Transforms poses from one coordinate frame to another preserving relative poses.
 
     Args:
-        src_poses (torch.tensor): Input pose sequence (shape [T, 4, 4]) from the source demonstration
-        frame_A (torch.tensor): 4x4 frame A pose
-        frame_B (torch.tensor): 4x4 frame B pose
+        src_poses: Input pose sequence (shape [T, 4, 4]) from source demonstration.
+        frame_A: 4x4 frame A pose.
+        frame_B: 4x4 frame B pose.
 
     Returns:
-        transformed_eef_poses (torch.tensor): transformed pose sequence (shape [T, 4, 4])
+        Transformed pose sequence of shape [T, 4, 4].
     """
-
-    # transform source end effector poses to be relative to source object frame
+    # Transform source end effector poses to be relative to source object frame
     src_poses_rel_frame_B = pose_in_A_to_pose_in_B(
         pose_in_A=src_poses,
         pose_A_in_B=pose_inv(frame_B[None]),
     )
 
-    # apply relative poses to current object frame to obtain new target eef poses
+    # Apply relative poses to current object frame to obtain new target eef poses
     transformed_poses = pose_in_A_to_pose_in_B(
         pose_in_A=src_poses_rel_frame_B,
         pose_A_in_B=frame_A[None],
@@ -1821,15 +1906,14 @@ def transform_poses_from_frame_A_to_frame_B(src_poses, frame_A, frame_B):
     return transformed_poses
 
 
-def generate_random_rotation(rot_boundary=(2 * math.pi)):
-    """
-    Generates a random rotation matrix using Euler angles.
+def generate_random_rotation(rot_boundary: float = (2 * math.pi)) -> torch.Tensor:
+    """Generates a random rotation matrix using Euler angles.
 
     Args:
-        rot_boundary (float): The range for random rotation angles around each axis (x, y, z).
+        rot_boundary: Range for random rotation angles around each axis (x, y, z).
 
     Returns:
-        torch.tensor: A 3x3 rotation matrix.
+        3x3 rotation matrix.
     """
     angles = torch.rand(3) * rot_boundary
     Rx = torch.tensor(
@@ -1849,29 +1933,27 @@ def generate_random_rotation(rot_boundary=(2 * math.pi)):
     return R
 
 
-def generate_random_translation(pos_boundary=1):
-    """
-    Generates a random translation vector.
+def generate_random_translation(pos_boundary: float = 1) -> torch.Tensor:
+    """Generates a random translation vector.
 
     Args:
-        pos_boundary (float): The range for random translation values in 3D space.
+        pos_boundary: Range for random translation values in 3D space.
 
     Returns:
-        torch.tensor: A 3-element translation vector.
+        3-element translation vector.
     """
     return torch.rand(3) * 2 * pos_boundary - pos_boundary  # Random translation in 3D space
 
 
-def generate_random_transformation_matrix(pos_boundary=1, rot_boundary=(2 * math.pi)):
-    """
-    Generates a random transformation matrix combining rotation and translation.
+def generate_random_transformation_matrix(pos_boundary: float = 1, rot_boundary: float = (2 * math.pi)) -> torch.Tensor:
+    """Generates a random transformation matrix combining rotation and translation.
 
     Args:
-        pos_boundary (float): The range for random translation values.
-        rot_boundary (float): The range for random rotation angles.
+        pos_boundary: Range for random translation values.
+        rot_boundary: Range for random rotation angles.
 
     Returns:
-        torch.tensor: A 4x4 transformation matrix.
+        4x4 transformation matrix.
     """
     R = generate_random_rotation(rot_boundary)
     translation = generate_random_translation(pos_boundary)

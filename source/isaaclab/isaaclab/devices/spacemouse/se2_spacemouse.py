@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -9,10 +9,24 @@ import hid
 import numpy as np
 import threading
 import time
+import torch
 from collections.abc import Callable
+from dataclasses import dataclass
 
-from ..device_base import DeviceBase
+from isaaclab.utils.array import convert_to_torch
+
+from ..device_base import DeviceBase, DeviceCfg
 from .utils import convert_buffer
+
+
+@dataclass
+class Se2SpaceMouseCfg(DeviceCfg):
+    """Configuration for SE2 space mouse devices."""
+
+    v_x_sensitivity: float = 0.8
+    v_y_sensitivity: float = 0.4
+    omega_z_sensitivity: float = 1.0
+    sim_device: str = "cpu"
 
 
 class Se2SpaceMouse(DeviceBase):
@@ -34,18 +48,17 @@ class Se2SpaceMouse(DeviceBase):
 
     """
 
-    def __init__(self, v_x_sensitivity: float = 0.8, v_y_sensitivity: float = 0.4, omega_z_sensitivity: float = 1.0):
+    def __init__(self, cfg: Se2SpaceMouseCfg):
         """Initialize the spacemouse layer.
 
         Args:
-            v_x_sensitivity: Magnitude of linear velocity along x-direction scaling. Defaults to 0.8.
-            v_y_sensitivity: Magnitude of linear velocity along y-direction scaling. Defaults to 0.4.
-            omega_z_sensitivity: Magnitude of angular velocity along z-direction scaling. Defaults to 1.0.
+            cfg: Configuration for the spacemouse device.
         """
         # store inputs
-        self.v_x_sensitivity = v_x_sensitivity
-        self.v_y_sensitivity = v_y_sensitivity
-        self.omega_z_sensitivity = omega_z_sensitivity
+        self.v_x_sensitivity = cfg.v_x_sensitivity
+        self.v_y_sensitivity = cfg.v_y_sensitivity
+        self.omega_z_sensitivity = cfg.omega_z_sensitivity
+        self._sim_device = cfg.sim_device
         # acquire device interface
         self._device = hid.device()
         self._find_device()
@@ -82,19 +95,22 @@ class Se2SpaceMouse(DeviceBase):
         self._base_command.fill(0.0)
 
     def add_callback(self, key: str, func: Callable):
-        # check keys supported by callback
-        if key not in ["L", "R"]:
-            raise ValueError(f"Only left (L) and right (R) buttons supported. Provided: {key}.")
-        # TODO: Improve this to allow multiple buttons on same key.
+        """Add additional functions to bind spacemouse.
+
+        Args:
+            key: The keyboard button to check against.
+            func: The function to call when key is pressed. The callback function should not
+                take any arguments.
+        """
         self._additional_callbacks[key] = func
 
-    def advance(self) -> np.ndarray:
+    def advance(self) -> torch.Tensor:
         """Provides the result from spacemouse event state.
 
         Returns:
-            A 3D array containing the linear (x,y) and angular velocity (z).
+            A 3D tensor containing the linear (x,y) and angular velocity (z).
         """
-        return self._base_command
+        return convert_to_torch(self._base_command, device=self._sim_device)
 
     """
     Internal helpers.

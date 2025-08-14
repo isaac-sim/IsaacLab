@@ -1,11 +1,24 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Script to play and evaluate a trained policy from robomimic."""
+"""Script to play and evaluate a trained policy from robomimic.
+
+This script loads a robomimic policy and plays it in an Isaac Lab environment.
+
+Args:
+    task: Name of the environment.
+    checkpoint: Path to the robomimic policy checkpoint.
+    horizon: If provided, override the step horizon of each rollout.
+    num_rollouts: If provided, override the number of rollouts.
+    seed: If provided, overeride the default random seed.
+    norm_factor_min: If provided, minimum value of the action space normalization factor.
+    norm_factor_max: If provided, maximum value of the action space normalization factor.
+"""
 
 """Launch Isaac Sim Simulator first."""
+
 
 import argparse
 
@@ -21,11 +34,24 @@ parser.add_argument("--checkpoint", type=str, default=None, help="Pytorch model 
 parser.add_argument("--horizon", type=int, default=800, help="Step horizon of each rollout.")
 parser.add_argument("--num_rollouts", type=int, default=1, help="Number of rollouts.")
 parser.add_argument("--seed", type=int, default=101, help="Random seed.")
+parser.add_argument(
+    "--norm_factor_min", type=float, default=None, help="Optional: minimum value of the normalization factor."
+)
+parser.add_argument(
+    "--norm_factor_max", type=float, default=None, help="Optional: maximum value of the normalization factor."
+)
+parser.add_argument("--enable_pinocchio", default=False, action="store_true", help="Enable Pinocchio.")
+
 
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
 args_cli = parser.parse_args()
+
+if args_cli.enable_pinocchio:
+    # Import pinocchio before AppLauncher to force the use of the version installed by IsaacLab and not the one installed by Isaac Sim
+    # pinocchio is required by the Pink IK controllers and the GR1T2 retargeter
+    import pinocchio  # noqa: F401
 
 # launch omniverse app
 app_launcher = AppLauncher(args_cli)
@@ -33,29 +59,67 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
+import copy
 import gymnasium as gym
+import numpy as np
+import random
 import torch
 
 import robomimic.utils.file_utils as FileUtils
 import robomimic.utils.torch_utils as TorchUtils
 
+if args_cli.enable_pinocchio:
+    import isaaclab_tasks.manager_based.manipulation.pick_place  # noqa: F401
+
 from isaaclab_tasks.utils import parse_env_cfg
 
 
-def rollout(policy, env, horizon, device):
-    policy.start_episode
+def rollout(policy, env, success_term, horizon, device):
+    """Perform a single rollout of the policy in the environment.
+
+    Args:
+        policy: The robomimicpolicy to play.
+        env: The environment to play in.
+        horizon: The step horizon of each rollout.
+        device: The device to run the policy on.
+
+    Returns:
+        terminated: Whether the rollout terminated.
+        traj: The trajectory of the rollout.
+    """
+    policy.start_episode()
     obs_dict, _ = env.reset()
     traj = dict(actions=[], obs=[], next_obs=[])
 
     for i in range(horizon):
         # Prepare observations
-        obs = obs_dict["policy"]
+        obs = copy.deepcopy(obs_dict["policy"])
         for ob in obs:
             obs[ob] = torch.squeeze(obs[ob])
+
+        # Check if environment image observations
+        if hasattr(env.cfg, "image_obs_list"):
+            # Process image observations for robomimic inference
+            for image_name in env.cfg.image_obs_list:
+                if image_name in obs_dict["policy"].keys():
+                    # Convert from chw uint8 to hwc normalized float
+                    image = torch.squeeze(obs_dict["policy"][image_name])
+                    image = image.permute(2, 0, 1).clone().float()
+                    image = image / 255.0
+                    image = image.clip(0.0, 1.0)
+                    obs[image_name] = image
+
         traj["obs"].append(obs)
 
         # Compute actions
         actions = policy(obs)
+
+        # Unnormalize actions
+        if args_cli.norm_factor_min is not None and args_cli.norm_factor_max is not None:
+            actions = (
+                (actions + 1) * (args_cli.norm_factor_max - args_cli.norm_factor_min)
+            ) / 2 + args_cli.norm_factor_min
+
         actions = torch.from_numpy(actions).to(device=device).view(1, env.action_space.shape[1])
 
         # Apply actions
@@ -66,9 +130,10 @@ def rollout(policy, env, horizon, device):
         traj["actions"].append(actions.tolist())
         traj["next_obs"].append(obs)
 
-        if terminated:
+        # Check if rollout was successful
+        if bool(success_term.func(env, **success_term.params)[0]):
             return True, traj
-        elif truncated:
+        elif terminated or truncated:
             return False, traj
 
     return False, traj
@@ -88,24 +153,28 @@ def main():
     # Disable recorder
     env_cfg.recorders = None
 
+    # Extract success checking function
+    success_term = env_cfg.terminations.success
+    env_cfg.terminations.success = None
+
     # Create environment
     env = gym.make(args_cli.task, cfg=env_cfg).unwrapped
 
     # Set seed
     torch.manual_seed(args_cli.seed)
+    np.random.seed(args_cli.seed)
+    random.seed(args_cli.seed)
     env.seed(args_cli.seed)
 
     # Acquire device
     device = TorchUtils.get_torch_device(try_to_use_cuda=True)
 
-    # Load policy
-    policy, _ = FileUtils.policy_from_checkpoint(ckpt_path=args_cli.checkpoint, device=device, verbose=True)
-
     # Run policy
     results = []
     for trial in range(args_cli.num_rollouts):
         print(f"[INFO] Starting trial {trial}")
-        terminated, traj = rollout(policy, env, args_cli.horizon, device)
+        policy, _ = FileUtils.policy_from_checkpoint(ckpt_path=args_cli.checkpoint, device=device)
+        terminated, traj = rollout(policy, env, success_term, args_cli.horizon, device)
         results.append(terminated)
         print(f"[INFO] Trial {trial}: {terminated}\n")
 

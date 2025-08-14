@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -10,20 +10,15 @@ from __future__ import annotations
 
 """Launch Isaac Sim Simulator first."""
 
-from isaaclab.app import AppLauncher, run_tests
-
-# Can set this to False to see the GUI for debugging
-HEADLESS = True
+from isaaclab.app import AppLauncher
 
 # launch omniverse app
-app_launcher = AppLauncher(headless=HEADLESS)
-simulation_app = app_launcher.app
+simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
-import unittest
-
 import omni.usd
+import pytest
 
 from isaaclab.envs import DirectMARLEnv, DirectMARLEnvCfg
 from isaaclab.scene import InteractiveSceneCfg
@@ -57,39 +52,28 @@ def get_empty_base_env_cfg(device: str = "cuda:0", num_envs: int = 1, env_spacin
     return EmptyEnvCfg()
 
 
-class TestDirectMARLEnv(unittest.TestCase):
-    """Test for direct MARL env class"""
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+def test_initialization(device):
+    """Test initialization of DirectMARLEnv."""
+    # create a new stage
+    omni.usd.get_context().new_stage()
+    try:
+        # create environment
+        env = DirectMARLEnv(cfg=get_empty_base_env_cfg(device=device))
+    except Exception as e:
+        if "env" in locals() and hasattr(env, "_is_closed"):
+            env.close()
+        else:
+            if hasattr(e, "obj") and hasattr(e.obj, "_is_closed"):
+                e.obj.close()
+        pytest.fail(f"Failed to set-up the DirectMARLEnv environment. Error: {e}")
 
-    """
-    Tests
-    """
-
-    def test_initialization(self):
-        for device in ("cuda:0", "cpu"):
-            with self.subTest(device=device):
-                # create a new stage
-                omni.usd.get_context().new_stage()
-                try:
-                    # create environment
-                    env = DirectMARLEnv(cfg=get_empty_base_env_cfg(device=device))
-                except Exception as e:
-                    if "env" in locals() and hasattr(env, "_is_closed"):
-                        env.close()
-                    else:
-                        if hasattr(e, "obj") and hasattr(e.obj, "_is_closed"):
-                            e.obj.close()
-                    self.fail(f"Failed to set-up the DirectMARLEnv environment. Error: {e}")
-
-                # check multi-agent config
-                self.assertEqual(env.num_agents, 2)
-                self.assertEqual(env.max_num_agents, 2)
-                # check spaces
-                self.assertEqual(env.state_space.shape, (7,))
-                self.assertEqual(len(env.observation_spaces), 2)
-                self.assertEqual(len(env.action_spaces), 2)
-                # close the environment
-                env.close()
-
-
-if __name__ == "__main__":
-    run_tests()
+    # check multi-agent config
+    assert env.num_agents == 2
+    assert env.max_num_agents == 2
+    # check spaces
+    assert env.state_space.shape == (7,)
+    assert len(env.observation_spaces) == 2
+    assert len(env.action_spaces) == 2
+    # close the environment
+    env.close()

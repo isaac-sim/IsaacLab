@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -7,44 +7,35 @@
 #       because warp is only available in the context of a running simulation
 """Launch Isaac Sim Simulator first."""
 
-from isaaclab.app import AppLauncher, run_tests
+from isaaclab.app import AppLauncher
 
 # launch omniverse app
-app_launcher = AppLauncher(headless=True)
-simulation_app = app_launcher.app
+simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
 import time
-import unittest
 
 from isaaclab.utils.timer import Timer
 
+# number of decimal places to check
+PRECISION_PLACES = 2
 
-class TestTimer(unittest.TestCase):
-    """Test fixture for the Timer class."""
 
-    def setUp(self):
-        # number of decimal places to check
-        self.precision_places = 2
+def test_timer_as_object():
+    """Test using a `Timer` as a regular object."""
+    timer = Timer()
+    timer.start()
+    assert abs(0 - timer.time_elapsed) < 10 ** (-PRECISION_PLACES)
+    time.sleep(1)
+    assert abs(1 - timer.time_elapsed) < 10 ** (-PRECISION_PLACES)
+    timer.stop()
+    assert abs(1 - timer.total_run_time) < 10 ** (-PRECISION_PLACES)
 
-    def test_timer_as_object(self):
-        """Test using a `Timer` as a regular object."""
-        timer = Timer()
-        timer.start()
-        self.assertAlmostEqual(0, timer.time_elapsed, self.precision_places)
+
+def test_timer_as_context_manager():
+    """Test using a `Timer` as a context manager."""
+    with Timer() as timer:
+        assert abs(0 - timer.time_elapsed) < 10 ** (-PRECISION_PLACES)
         time.sleep(1)
-        self.assertAlmostEqual(1, timer.time_elapsed, self.precision_places)
-        timer.stop()
-        self.assertAlmostEqual(1, timer.total_run_time, self.precision_places)
-
-    def test_timer_as_context_manager(self):
-        """Test using a `Timer` as a context manager."""
-        with Timer() as timer:
-            self.assertAlmostEqual(0, timer.time_elapsed, self.precision_places)
-            time.sleep(1)
-            self.assertAlmostEqual(1, timer.time_elapsed, self.precision_places)
-
-
-if __name__ == "__main__":
-    run_tests()
+        assert abs(1 - timer.time_elapsed) < 10 ** (-PRECISION_PLACES)

@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -8,7 +8,14 @@ from dataclasses import MISSING
 
 import isaacsim.core.utils.prims as prim_utils
 from isaacsim.core.api.simulation_context import SimulationContext
-from isaacsim.core.prims.articulations import Articulation
+from isaacsim.core.prims import SingleArticulation
+
+# enable motion generation extensions
+from isaacsim.core.utils.extensions import enable_extension
+
+enable_extension("isaacsim.robot_motion.lula")
+enable_extension("isaacsim.robot_motion.motion_generation")
+
 from isaacsim.robot_motion.motion_generation import ArticulationMotionPolicy
 from isaacsim.robot_motion.motion_generation.lula.motion_policies import RmpFlow, RmpFlowSmoothed
 
@@ -86,7 +93,7 @@ class RmpFlowController:
         self.articulation_policies = list()
         for prim_path in self._prim_paths:
             # add robot reference
-            robot = Articulation(prim_path)
+            robot = SingleArticulation(prim_path)
             robot.initialize()
             # add controller
             rmpflow = controller_cls(

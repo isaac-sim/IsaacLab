@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -45,6 +45,7 @@ import torch
 
 import carb
 import omni
+from isaacsim.core.utils.stage import get_current_stage
 from omni.kit.viewport.utility import get_viewport_from_window_name
 from omni.kit.viewport.utility.camera_state import ViewportCameraState
 from pxr import Gf, Sdf
@@ -86,6 +87,7 @@ class H1RoughDemo:
         # create envionrment
         env_cfg = H1RoughEnvCfg_PLAY()
         env_cfg.scene.num_envs = 25
+        env_cfg.episode_length_s = 1000000
         env_cfg.curriculum = None
         env_cfg.commands.base_velocity.ranges.lin_vel_x = (0.0, 1.0)
         env_cfg.commands.base_velocity.ranges.heading = (-1.0, 1.0)
@@ -109,7 +111,7 @@ class H1RoughDemo:
 
     def create_camera(self):
         """Creates a camera to be used for third-person view."""
-        stage = omni.usd.get_context().get_stage()
+        stage = get_current_stage()
         self.viewport = get_viewport_from_window_name("Viewport")
         # Create camera
         self.camera_path = "/World/Camera"

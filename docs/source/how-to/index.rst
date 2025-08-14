@@ -67,6 +67,15 @@ This guide demonstrates how to estimate the number of cameras one can run on the
 
     estimate_how_many_cameras_can_run
 
+Configure Rendering
+-------------------
+
+This guide demonstrates how to select rendering mode presets and overwrite preset rendering settings.
+
+.. toctree::
+    :maxdepth: 1
+
+    configure_rendering
 
 Drawing Markers
 ---------------
@@ -103,6 +112,19 @@ This guide explains how to record an animation and video in Isaac Lab.
     record_animation
     record_video
 
+
+Dynamically Modifying Environment Parameters With CurriculumTerm
+----------------------------------------------------------------
+
+This guide explains how to dynamically modify environment parameters during training in Isaac Lab.
+It covers the use of curriculum utilities to change environment parameters at runtime.
+
+.. toctree::
+    :maxdepth: 1
+
+    curriculums
+
+
 Mastering Omniverse
 -------------------
 
@@ -113,3 +135,39 @@ additional resources that help you use Omniverse features in Isaac Lab.
     :maxdepth: 1
 
     master_omniverse
+
+
+Setting up CloudXR Teleoperation
+--------------------------------
+
+This guide explains how to use CloudXR and Apple Vision Pro for immersive streaming and
+teleoperation in Isaac Lab.
+
+.. toctree::
+    :maxdepth: 1
+
+    cloudxr_teleoperation
+
+
+Understanding Simulation Performance
+------------------------------------
+
+This guide provides tips on optimizing simulation performance for different simulation use cases.
+Additional resources are also linked to provide relevant performance guides for Isaac Sim and
+Omniverse Physics.
+
+.. toctree::
+    :maxdepth: 1
+
+    simulation_performance
+
+
+Optimize Stage Creation
+-----------------------
+
+This guide explains 2 features that can speed up stage initialization, **fabric cloning** and **stage in memory**.
+
+.. toctree::
+    :maxdepth: 1
+
+    optimize_stage_creation

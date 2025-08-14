@@ -80,24 +80,47 @@ pre-processed URDF and the original URDF are:
 
 The following shows the steps to clone the repository and run the converter:
 
-.. code-block:: bash
 
-  # create a directory to clone
-  mkdir ~/git && cd ~/git
-  # clone a repository with URDF files
-  git clone git@github.com:isaac-orbit/anymal_d_simple_description.git
+.. tab-set::
+   :sync-group: os
 
-  # go to top of the Isaac Lab repository
-  cd IsaacLab
-  # run the converter
-  ./isaaclab.sh -p scripts/tools/convert_urdf.py \
-    ~/git/anymal_d_simple_description/urdf/anymal.urdf \
-    source/isaaclab_assets/data/Robots/ANYbotics/anymal_d.usd \
-    --merge-joints \
-    --joint-stiffness 0.0 \
-    --joint-damping 0.0 \
-    --joint-target-type none
+   .. tab-item:: :icon:`fa-brands fa-linux` Linux
+      :sync: linux
 
+      .. code-block:: bash
+
+        # clone a repository with URDF files
+        git clone git@github.com:isaac-orbit/anymal_d_simple_description.git
+
+        # go to top of the Isaac Lab repository
+        cd IsaacLab
+        # run the converter
+        ./isaaclab.sh -p scripts/tools/convert_urdf.py \
+          ../anymal_d_simple_description/urdf/anymal.urdf \
+          source/isaaclab_assets/data/Robots/ANYbotics/anymal_d.usd \
+          --merge-joints \
+          --joint-stiffness 0.0 \
+          --joint-damping 0.0 \
+          --joint-target-type none
+
+   .. tab-item:: :icon:`fa-brands fa-windows` Windows
+      :sync: windows
+
+      .. code-block:: batch
+
+        :: clone a repository with URDF files
+        git clone git@github.com:isaac-orbit/anymal_d_simple_description.git
+
+        :: go to top of the Isaac Lab repository
+        cd IsaacLab
+        :: run the converter
+        isaaclab.bat -p scripts\tools\convert_urdf.py ^
+          ..\anymal_d_simple_description\urdf\anymal.urdf ^
+          source\isaaclab_assets\data\Robots\ANYbotics\anymal_d.usd ^
+          --merge-joints ^
+          --joint-stiffness 0.0 ^
+          --joint-damping 0.0 ^
+          --joint-target-type none
 
 Executing the above script will create a USD file inside the
 ``source/isaaclab_assets/data/Robots/ANYbotics/`` directory:
@@ -150,21 +173,43 @@ In this example, we use the MuJoCo model of the Unitree's H1 humanoid robot in t
 
 The following shows the steps to clone the repository and run the converter:
 
-.. code-block:: bash
 
-  # create a directory to clone
-  mkdir ~/git && cd ~/git
-  # clone a repository with URDF files
-  git clone git@github.com:google-deepmind/mujoco_menagerie.git
+.. tab-set::
+   :sync-group: os
 
-  # go to top of the Isaac Lab repository
-  cd IsaacLab
-  # run the converter
-  ./isaaclab.sh -p scripts/tools/convert_mjcf.py \
-    ~/git/mujoco_menagerie/unitree_h1/h1.xml \
-    source/isaaclab_assets/data/Robots/Unitree/h1.usd \
-    --import-sites \
-    --make-instanceable
+   .. tab-item:: :icon:`fa-brands fa-linux` Linux
+      :sync: linux
+
+      .. code-block:: bash
+
+        # clone a repository with URDF files
+        git clone git@github.com:google-deepmind/mujoco_menagerie.git
+
+        # go to top of the Isaac Lab repository
+        cd IsaacLab
+        # run the converter
+        ./isaaclab.sh -p scripts/tools/convert_mjcf.py \
+          ../mujoco_menagerie/unitree_h1/h1.xml \
+          source/isaaclab_assets/data/Robots/Unitree/h1.usd \
+          --import-sites \
+          --make-instanceable
+
+   .. tab-item:: :icon:`fa-brands fa-windows` Windows
+      :sync: windows
+
+      .. code-block:: batch
+
+        :: clone a repository with URDF files
+        git clone git@github.com:google-deepmind/mujoco_menagerie.git
+
+        :: go to top of the Isaac Lab repository
+        cd IsaacLab
+        :: run the converter
+        isaaclab.bat -p scripts\tools\convert_mjcf.py ^
+          ..\mujoco_menagerie\unitree_h1\h1.xml ^
+          source\isaaclab_assets\data\Robots\Unitree\h1.usd ^
+          --import-sites ^
+          --make-instanceable
 
 Executing the above script will create USD files inside the
 ``source/isaaclab_assets/data/Robots/Unitree/`` directory:
@@ -202,22 +247,44 @@ Example Usage
 We use an OBJ file of a cube to demonstrate the usage of the mesh converter. The following shows
 the steps to clone the repository and run the converter:
 
-.. code-block:: bash
+.. tab-set::
+   :sync-group: os
 
-  # create a directory to clone
-  mkdir ~/git && cd ~/git
-  # clone a repository with URDF files
-  git clone git@github.com:NVIDIA-Omniverse/IsaacGymEnvs.git
+   .. tab-item:: :icon:`fa-brands fa-linux` Linux
+      :sync: linux
 
-  # go to top of the Isaac Lab repository
-  cd IsaacLab
-  # run the converter
-  ./isaaclab.sh -p scripts/tools/convert_mesh.py \
-    ~/git/IsaacGymEnvs/assets/trifinger/objects/meshes/cube_multicolor.obj \
-    source/isaaclab_assets/data/Props/CubeMultiColor/cube_multicolor.usd \
-    --make-instanceable \
-    --collision-approximation convexDecomposition \
-    --mass 1.0
+      .. code-block:: bash
+
+        # clone a repository with URDF files
+        git clone git@github.com:NVIDIA-Omniverse/IsaacGymEnvs.git
+
+        # go to top of the Isaac Lab repository
+        cd IsaacLab
+        # run the converter
+        ./isaaclab.sh -p scripts/tools/convert_mesh.py \
+          ../IsaacGymEnvs/assets/trifinger/objects/meshes/cube_multicolor.obj \
+          source/isaaclab_assets/data/Props/CubeMultiColor/cube_multicolor.usd \
+          --make-instanceable \
+          --collision-approximation convexDecomposition \
+          --mass 1.0
+
+   .. tab-item:: :icon:`fa-brands fa-windows` Windows
+      :sync: windows
+
+      .. code-block:: batch
+
+        :: clone a repository with URDF files
+        git clone git@github.com:NVIDIA-Omniverse/IsaacGymEnvs.git
+
+        :: go to top of the Isaac Lab repository
+        cd IsaacLab
+        :: run the converter
+        isaaclab.bat -p scripts\tools\convert_mesh.py ^
+          ..\IsaacGymEnvs\assets\trifinger\objects\meshes\cube_multicolor.obj ^
+          source\isaaclab_assets\data\Props\CubeMultiColor\cube_multicolor.usd ^
+          --make-instanceable ^
+          --collision-approximation convexDecomposition ^
+          --mass 1.0
 
 You may need to press 'F' to zoom in on the asset after import.
 

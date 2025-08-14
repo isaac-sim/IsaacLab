@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -47,9 +47,6 @@ class RigidBodyMaterialCfg(PhysicsMaterialCfg):
 
     restitution: float = 0.0
     """The restitution coefficient. Defaults to 0.0."""
-
-    improve_patch_friction: bool = True
-    """Whether to enable patch friction. Defaults to True."""
 
     friction_combine_mode: Literal["average", "min", "multiply", "max"] = "average"
     """Determines the way friction will be combined during collisions. Defaults to `"average"`.

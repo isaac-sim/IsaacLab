@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # Copyright (c) 2024-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
@@ -163,7 +168,7 @@ class HDF5DatasetFileHandler(DatasetFileHandlerBase):
                 for sub_key, sub_value in value.items():
                     create_dataset_helper(key_group, sub_key, sub_value)
             else:
-                group.create_dataset(key, data=value.cpu().numpy())
+                group.create_dataset(key, data=value.cpu().numpy(), compression="gzip")
 
         for key, value in episode.data.items():
             create_dataset_helper(h5_episode_group, key, value)

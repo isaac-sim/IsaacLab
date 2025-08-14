@@ -43,9 +43,11 @@ class and its derivatives such as :class:`~isaaclab.assets.RigidObject`,
     :maxdepth: 1
     :titlesonly:
 
+    01_assets/add_new_robot
     01_assets/run_rigid_object
     01_assets/run_articulation
     01_assets/run_deformable_object
+    01_assets/run_surface_gripper
 
 Creating a Scene
 ----------------

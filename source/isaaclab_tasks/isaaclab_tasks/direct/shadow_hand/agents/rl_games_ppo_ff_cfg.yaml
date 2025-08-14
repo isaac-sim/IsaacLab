@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 params:
   seed: 42
 
@@ -79,7 +84,7 @@ params:
     bounds_loss_coef: 0.0001
 
     central_value_config:
-      minibatch_size: 32864
+      minibatch_size: 32768
       mini_epochs: 4
       learning_rate: 5e-4
       lr_schedule: adaptive
