@@ -31,40 +31,6 @@ class PegInsertionSideEnv(DirectRLEnv):
 
     cfg: PegInsertionSideEnvCfg
 
-    def compute_offsets(self):
-        """
-        From each peg USD filename (peg_L{L}_R{r}.usda), parse L and r,
-        and build:
-        - self.peg_head_offset:  (N,3) tensor = [L, 0, 0]
-        - self.box_hole_offset:  (N,3) tensor = [0, c_y, c_z]
-        - self.box_hole_radius:  (N,)   tensor = r + clearance
-        Here c_y, c_z are your hole-center offsets if you sampled them;
-        if not, set them to zero.
-        """
-
-        Ls, rs = [], []
-        # if you sampled centers, use those; otherwise centers = 0
-        Cs = [(0.0, 0.0) for _ in self.pegs_list]
-
-        for peg_path, (c_y, c_z) in zip(self.pegs_list, Cs):
-            name = os.path.splitext(os.path.basename(peg_path))[0]
-            # name = "peg_L0.085_R0.015"
-            key = name.replace("peg_", "")  # "L0.085_R0.015"
-            L, r = key.split("_")
-            L = float(L[1:])
-            r = float(r[1:])
-            Ls.append(L)
-            rs.append(r)
-
-        device = self.device
-        Ls = torch.tensor(Ls, device=device)
-        rs = torch.tensor(rs, device=device)
-        Cs = torch.tensor(Cs, device=device)
-
-        self.peg_head_offset = torch.stack([Ls, torch.zeros_like(Ls), torch.zeros_like(Ls)], dim=1)  # (N,3)
-        self.box_hole_offset = torch.stack([torch.zeros_like(Ls), Cs[:, 0], Cs[:, 1]], dim=1)  # (N,3)
-        self.box_hole_radius = rs + 0.003  # clearance
-
     def __init__(self, cfg: PegInsertionSideEnvCfg, render_mode: str | None = None, **kwargs):
         super().__init__(cfg, render_mode, **kwargs)
 
@@ -76,36 +42,6 @@ class PegInsertionSideEnv(DirectRLEnv):
         self.hand_link_idx = self.robot.find_bodies("panda_link7")[0][0]
         self.left_finger_link_idx = self.robot.find_bodies("panda_leftfinger")[0][0]
         self.right_finger_link_idx = self.robot.find_bodies("panda_rightfinger")[0][0]
-
-    def _sample_asset_pairs(self):
-        """
-        Scan cfg.asset_dir for peg_*.usda and box_*.usda, match on the L/R key,
-        shuffle, and fill two parallel lists: self.pegs and self.boxes.
-        """
-        asset_dir = self.cfg.asset_dir
-        peg_files = glob.glob(os.path.join(asset_dir, "peg_*.usda"))
-        box_files = glob.glob(os.path.join(asset_dir, "box_*.usda"))
-
-        def parse_key(path):
-            # peg_L0.085_R0.015.usda → L0.085_R0.015
-            name = os.path.splitext(os.path.basename(path))[0]
-            return "_".join(name.split("_")[1:])  # drop the "peg"/"box" prefix
-
-        peg_map = {parse_key(p): p for p in peg_files}
-        box_map = {parse_key(b): b for b in box_files}
-
-        # find the intersection of keys we have both peg & box for
-        common_keys = list(set(peg_map.keys()) & set(box_map.keys()))
-        random.shuffle(common_keys)
-
-        # take the first num_envs keys
-        selected = common_keys[: self.num_envs]
-
-        # build two parallel lists
-        self.pegs_list = [peg_map[k] for k in selected]
-        self.boxes_list = [box_map[k] for k in selected]
-
-        self.compute_offsets()
 
     def _load_default_scene(self):
 
@@ -150,6 +86,67 @@ class PegInsertionSideEnv(DirectRLEnv):
             "/World/ground",
         ])
 
+    def _sample_asset_pairs(self):
+        """
+        Scan cfg.asset_dir for peg_*.usda and box_*.usda, match on the L/R key,
+        shuffle, and fill two parallel lists: self.pegs and self.boxes.
+        """
+        asset_dir = self.cfg.asset_dir
+        peg_files = glob.glob(os.path.join(asset_dir, "peg_*.usda"))
+        box_files = glob.glob(os.path.join(asset_dir, "box_*.usda"))
+
+        def parse_key(path):
+            # peg_L0.085_R0.015.usda → L0.085_R0.015
+            name = os.path.splitext(os.path.basename(path))[0]
+            return "_".join(name.split("_")[1:])  # drop the "peg"/"box" prefix
+
+        peg_map = {parse_key(p): p for p in peg_files}
+        box_map = {parse_key(b): b for b in box_files}
+
+        # find the intersection of keys we have both peg & box for
+        common_keys = list(set(peg_map.keys()) & set(box_map.keys()))
+        random.shuffle(common_keys)
+
+        # take the first num_envs keys
+        selected = common_keys[: self.num_envs]
+
+        # build two parallel lists
+        self.pegs_list = [peg_map[k] for k in selected]
+        self.boxes_list = [box_map[k] for k in selected]
+
+        self.compute_offsets()
+
+    def compute_offsets(self) -> None:
+        """
+        Precompute body-local offsets:
+        - self.peg_head_offset: (N, 3) vector from peg body origin to the 'head' tip, in PEG BODY FRAME.
+        - self.box_hole_offset: (N, 3) vector from box body origin to the hole center, in BOX BODY FRAME.
+        - self.box_hole_radius: (N,) radial clearance (YZ radius for a round/square-ish hole).
+        NOTE: These are purely local offsets; do not subtract env origins here.
+        """
+        peg_lengths, peg_radiuses = [], []
+
+        for peg_path in self.pegs_list:
+            name = os.path.splitext(os.path.basename(peg_path))[0]  # e.g., "peg_L0.085_R0.015"
+            key = name.replace("peg_", "")  # "L0.085_R0.015"
+            peg_length_str, peg_radius_str = key.split("_")
+            peg_length = float(peg_length_str[1:])
+            peg_radius = float(peg_radius_str[1:])
+            peg_lengths.append(peg_length)
+            peg_radiuses.append(peg_radius)
+
+        device = self.device
+        peg_length = torch.as_tensor(peg_lengths, device=device, dtype=torch.float32)  # (N,)
+        peg_radius = torch.as_tensor(peg_radiuses, device=device, dtype=torch.float32)  # (N,)
+
+        # Peg 'head' lies +L along the peg’s local +X (adjust sign if your USD uses -X).
+        self.peg_head_offset = torch.stack(
+            [peg_length, torch.zeros_like(peg_length), torch.zeros_like(peg_length)], dim=1
+        )  # (N, 3)
+
+        # Add a small clearance to the nominal peg radius
+        self.box_hole_radius = peg_radius + 0.003
+
     def _pre_physics_step(self, actions: torch.Tensor) -> None:
         self.actions = actions.clone()
 
@@ -174,15 +171,8 @@ class PegInsertionSideEnv(DirectRLEnv):
         box_q = self.box.data.root_quat_w  # (N,4)
         # 2) box root in local frame
         box_p_local = box_p_w - self.scene.env_origins  # (N,3)
-        hole_p_local = transform_points(
-            self.box_hole_offset.unsqueeze(1),  # (N,1,3) local offset
-            pos=box_p_local,  # treat as box origin in local frame
-            quat=box_q,  # box orientation
-        ).squeeze(
-            1
-        )  # (N,3)
         # 4) pack with box orientation (same quaternion)
-        box_hole_pose = torch.cat((hole_p_local, box_q), dim=1)  # (N,7)
+        box_hole_pose = torch.cat((box_p_local, box_q), dim=1)  # (N,7) TODO test if this is correct
 
         state_obs = torch.cat(
             (
@@ -301,7 +291,7 @@ class PegInsertionSideEnv(DirectRLEnv):
         head_world = transform_points(points=self.peg_head_offset.unsqueeze(1), pos=peg_p, quat=peg_q).squeeze(
             1
         )  # (N,3)
-        hole_world = transform_points(points=self.box_hole_offset.unsqueeze(1), pos=box_p, quat=box_q).squeeze(1)
+        hole_world = box_p + self.scene.env_origins  # (N,3) box root in world frame
 
         # rotate into hole frame using inverse box quaternion
         inv_box_q = torch.cat([-box_q[:, :3], box_q[:, 3:4]], dim=1)  # (N,4)
@@ -331,33 +321,27 @@ class PegInsertionSideEnv(DirectRLEnv):
     # TODO test in simulation
     def is_success(self) -> torch.Tensor:
         """
-        Returns a (N,) boolean mask: True where the peg head is inserted into the box hole.
-        Uses isaaclab.utils.math.transform_points under the hood.
+        Returns (N,) boolean mask. Computes peg head and hole center in ENV frame:
+        peg_head_env = R(peg_q_w) * peg_head_offset + (peg_root_w - env_origin)
+        hole_env     = R(box_q_w) * box_hole_offset + (box_root_w - env_origin)
+        Then compares distances in env frame.
         """
 
-        peg_q = self.peg.data.root_quat_w
-        peg_p = self.peg.data.root_pos_w - self.scene.env_origins
-        box_q = self.box.data.root_quat_w
-        box_p = self.box.data.root_pos_w - self.scene.env_origins
+        # Root poses: positions expressed in ENV frame (world - env_origin); quats remain WORLD
+        peg_p_env = self.peg.data.root_pos_w - self.scene.env_origins  # (N, 3)
+        peg_q_w = self.peg.data.root_quat_w  # (N, 4)
+        box_p_env = self.box.data.root_pos_w - self.scene.env_origins  # (N, 3)
 
-        # 3) your precomputed local offsets are (N,3).
-        #    transform_points expects (N,P,3), so make P=1
-        peg_head_local = self.peg_head_offset.unsqueeze(1)  # (N,1,3)
-        box_hole_local = self.box_hole_offset.unsqueeze(1)  # (N,1,3)
+        # Rotate local offsets by world quaternions, then translate by ENV positions
+        peg_head_env = transform_points(self.peg_head_offset.unsqueeze(1), pos=peg_p_env, quat=peg_q_w).squeeze(1)
 
-        # 4) map each point into world frame: p_world = R_world * p_local + t_world
-        head_world = transform_points(peg_head_local, pos=peg_p, quat=peg_q).squeeze(1)
-        hole_world = transform_points(box_hole_local, pos=box_p, quat=box_q).squeeze(1)
-
-        # 5) relative vector from hole to head
-        rel = head_world - hole_world
+        # Compare in ENV frame (your ManiSkill-style test)
+        rel = peg_head_env - box_p_env
         x, y, z = rel[:, 0], rel[:, 1], rel[:, 2]
 
-        # 6) ManiSkill’s insertion test
         x_ok = x >= -0.015
         y_ok = y.abs() <= self.box_hole_radius
         z_ok = z.abs() <= self.box_hole_radius
-
         return x_ok & y_ok & z_ok
 
     def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:
@@ -427,9 +411,8 @@ class PegInsertionSideEnv(DirectRLEnv):
 
         # 2) Force Z to half-length L for each env (vectorized)
         #    L is per-env (taken from peg_head_offset)
-        L = self.peg_head_offset[env_ids, 0]
         pos_local = rand6[:, :3]
-        pos_local[:, 2] = L
+        pos_local[:, 2] = 0
 
         # 3) Orientation: roll/pitch from rand6 (are 0 by config), yaw from rand6[:, 5]
         quat = quat_from_euler_xyz(rand6[:, 3], rand6[:, 4], rand6[:, 5])
