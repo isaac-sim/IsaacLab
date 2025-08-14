@@ -253,7 +253,6 @@ class PegInsertionSideEnv(DirectRLEnv):
         r_ok = (r_mag >= min_force) & (r_ang <= max_angle)
         return l_ok & r_ok
 
-    # TODO test in simulation and check pose frames
     def _get_rewards(self) -> torch.Tensor:
         """
         Dense reward mirroring ManiSkill3’s compute_dense_reward:
@@ -263,53 +262,47 @@ class PegInsertionSideEnv(DirectRLEnv):
          4) + insertion progress term (× pre-insertion mask)
          5) +10 on success
         """
-        # 1) World-space poses of peg and box
-        peg_q = self.peg.data.root_quat_w  # (N,4)
-        peg_p = self.peg.data.root_pos_w - self.scene.env_origins  # (N,3)
+        peg_q = self.peg.data.root_quat_w
+        peg_p = self.peg.data.root_pos_w - self.scene.env_origins
         box_q = self.box.data.root_quat_w
         box_p = self.box.data.root_pos_w - self.scene.env_origins
 
-        # 2) TCP world-position
-        tcp = self.get_tcp_poses()  # (N,7) [x,y,z, qx,qy,qz,qw]
-        tcp_p = tcp[:, :3]  # (N,3)
+        tcp_p = self.get_tcp_poses()[:, :3]
 
-        # 3) Reach & grasp
-        # peg tail = head_offset * (−1,0,0)
-        tail_offset = torch.cat([-self.peg_head_offset[:, :1], self.peg_head_offset[:, 1:]], dim=1)  # (N,3)
-        tail_world = transform_points(points=tail_offset.unsqueeze(1), pos=peg_p, quat=peg_q).squeeze(1)  # (N,3)
+        # Reach & grasp
+        tail_offset = torch.cat([-self.peg_head_offset[:, :1], self.peg_head_offset[:, 1:]], dim=1)
+        tail_pos = transform_points(points=tail_offset.unsqueeze(1), pos=peg_p, quat=peg_q).squeeze(1)
 
-        d_tcp_peg = torch.linalg.norm(tcp_p - tail_world, dim=1)
+        d_tcp_peg = torch.linalg.norm(tcp_p - tail_pos, dim=1)
         reach_rew = 1.0 - torch.tanh(4.0 * d_tcp_peg)
 
-        is_grasped = self.is_grasping(self.robot, "left_contact", "right_contact")
-        reward = reach_rew + is_grasped.to(dtype=reach_rew.dtype)
+        is_grasped = self.is_grasping(
+            self.robot, "left_contact", "right_contact"
+        )  # TODO maybe change max angle to avoid grasping the peg with a weird angle
+        reward = reach_rew + is_grasped
 
-        # 4) Pre-insertion alignment
-        head_world = transform_points(points=self.peg_head_offset.unsqueeze(1), pos=peg_p, quat=peg_q).squeeze(
-            1
-        )  # (N,3)
-        hole_world = box_p + self.scene.env_origins  # (N,3) box root in world frame
+        # Pre-insertion alignment
+        head_pos = transform_points(points=self.peg_head_offset.unsqueeze(1), pos=peg_p, quat=peg_q).squeeze(1)
 
         # rotate into hole frame using inverse box quaternion
-        inv_box_q = torch.cat([-box_q[:, :3], box_q[:, 3:4]], dim=1)  # (N,4)
-        rel_head = head_world - hole_world
-        rel_base = peg_p - hole_world
+        inv_box_q = torch.cat([-box_q[:, :3], box_q[:, 3:4]], dim=1)
+        rel_head = head_pos - box_p
+        rel_base = peg_p - box_p
 
-        head_local = transform_points(points=rel_head.unsqueeze(1), quat=inv_box_q).squeeze(1)  # (N,3)
+        head_local = transform_points(points=rel_head.unsqueeze(1), quat=inv_box_q).squeeze(1)
         base_local = transform_points(points=rel_base.unsqueeze(1), quat=inv_box_q).squeeze(1)
 
         head_yz = torch.linalg.norm(head_local[:, 1:], dim=1)
         base_yz = torch.linalg.norm(base_local[:, 1:], dim=1)
         pre_ins = 3.0 * (1.0 - torch.tanh(0.5 * (head_yz + base_yz) + 4.5 * torch.maximum(head_yz, base_yz)))
-        reward = reward + pre_ins * is_grasped.to(reward.dtype)
-        pre_inserted = (head_yz < 0.01) & (base_yz < 0.01)
+        reward = reward + pre_ins * is_grasped
+        is_pre_alligned = (head_yz < 0.01) & (base_yz < 0.01)
 
-        # 5) Insertion depth
-        rel_insert = transform_points(points=rel_head.unsqueeze(1), quat=inv_box_q).squeeze(1)
-        insertion_rew = 5.0 * (1.0 - torch.tanh(5.0 * torch.linalg.norm(rel_insert, dim=1)))
-        reward = (reward + insertion_rew) * (is_grasped & pre_inserted).to(reward.dtype)
+        # Insertion depth
+        insertion_rew = 5.0 * (1.0 - torch.tanh(5.0 * torch.linalg.norm(head_local, dim=1)))
+        reward = (reward + insertion_rew) * (is_grasped & is_pre_alligned)
 
-        # 6) Success bonus
+        # Success bonus
         success = self.is_success()
         reward[success] = 10.0
 
