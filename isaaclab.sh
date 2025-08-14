@@ -130,6 +130,9 @@ extract_python_exe() {
     if ! [[ -z "${CONDA_PREFIX}" ]]; then
         # use conda python
         local python_exe=${CONDA_PREFIX}/bin/python
+    elif ! [[ -z "${VIRTUAL_ENV}" ]]; then
+        # use uv virtual environment python
+        local python_exe=${VIRTUAL_ENV}/bin/python
     else
         # use kit python
         local python_exe=${ISAACLAB_PATH}/_isaac_sim/python.sh
@@ -147,7 +150,7 @@ extract_python_exe() {
     if [ ! -f "${python_exe}" ]; then
         echo -e "[ERROR] Unable to find any Python executable at path: '${python_exe}'" >&2
         echo -e "\tThis could be due to the following reasons:" >&2
-        echo -e "\t1. Conda environment is not activated." >&2
+        echo -e "\t1. Conda or uv environment is not activated." >&2
         echo -e "\t2. Isaac Sim pip package 'isaacsim-rl' is not installed." >&2
         echo -e "\t3. Python executable is not available at the default path: ${ISAACLAB_PATH}/_isaac_sim/python.sh" >&2
         exit 1
@@ -183,10 +186,18 @@ extract_isaacsim_exe() {
 install_isaaclab_extension() {
     # retrieve the python executable
     python_exe=$(extract_python_exe)
+
+    # detect if we're in a uv environment
+    if [ -n "$VIRTUAL_ENV" ] && [ -f "$VIRTUAL_ENV/pyvenv.cfg" ] && grep -q "uv" "$VIRTUAL_ENV/pyvenv.cfg"; then
+        pip_cmd="uv pip install"
+    else
+        pip_cmd="${python_exe} -m pip install"
+    fi
+
     # if the directory contains setup.py then install the python module
     if [ -f "$1/setup.py" ]; then
         echo -e "\t module: $1"
-        ${python_exe} -m pip install --editable $1
+        $pip_cmd --editable "$1"
     fi
 }
 
@@ -307,6 +318,66 @@ setup_conda_env() {
     echo -e "\n"
 }
 
+# setup uv environment for Isaac Lab
+setup_uv_env() {
+    # get environment name from input
+    local env_name="$1"
+    local python_path="$2"
+
+    # check conda is installed
+    if ! command -v uv &>/dev/null; then
+        echo "[ERROR] uv could not be found. Please install uv and try again."
+        exit 1
+    fi
+
+    # check if _isaac_sim symlink exists and isaacsim-rl is not installed via pip
+    if [ ! -L "${ISAACLAB_PATH}/_isaac_sim" ] && ! python -m pip list | grep -q 'isaacsim-rl'; then
+        echo -e "[WARNING] _isaac_sim symlink not found at ${ISAACLAB_PATH}/_isaac_sim"
+        echo -e "\tThis warning can be ignored if you plan to install Isaac Sim via pip."
+        echo -e "\tIf you are using a binary installation of Isaac Sim, please ensure the symlink is created before setting up the conda environment."
+    fi
+
+    # check if the environment exists
+    local env_path="${ISAACLAB_PATH}/${env_name}"
+    if [ ! -d "${env_path}" ]; then
+        echo -e "[INFO] Creating uv environment named '${env_name}'..."
+        uv venv --clear --python "${python_path}" "${env_path}"
+    else
+        echo "[INFO] uv environment '${env_name}' already exists."
+    fi
+
+    # define root path for activation hooks
+    local isaaclab_root="${ISAACLAB_PATH}"
+
+    # cache current paths for later
+    cache_pythonpath=$PYTHONPATH
+    cache_ld_library_path=$LD_LIBRARY_PATH
+
+    # ensure activate file exists
+    touch "${env_path}/bin/activate"
+
+     # add variables to environment during activation
+    cat >> "${env_path}/bin/activate" <<EOF
+export ISAACLAB_PATH="${ISAACLAB_PATH}"
+alias isaaclab="${ISAACLAB_PATH}/isaaclab.sh"
+export RESOURCE_NAME="IsaacSim"
+
+if [ -f "${ISAACLAB_PATH}/_isaac_sim/setup_conda_env.sh" ]; then
+    . "${ISAACLAB_PATH}/_isaac_sim/setup_conda_env.sh"
+fi
+EOF
+
+    # add information to the user about alias
+    echo -e "[INFO] Added 'isaaclab' alias to uv environment for 'isaaclab.sh' script."
+    echo -e "[INFO] Created uv environment named '${env_name}'.\n"
+    echo -e "\t\t1. To activate the environment, run:                source ${env_name}/bin/activate."
+    echo -e "\t\t2. To install Isaac Lab extensions, run:            isaaclab -i"
+    echo -e "\t\t3. To perform formatting, run:                      isaaclab -f"
+    echo -e "\t\t4. To deactivate the environment, run:              deactivate"
+    echo -e "\n"
+}
+
+
 # update the vscode settings from template and isaac sim settings
 update_vscode_settings() {
     echo "[INFO] Setting up vscode settings..."
@@ -324,7 +395,7 @@ update_vscode_settings() {
 
 # print the usage description
 print_help () {
-    echo -e "\nusage: $(basename "$0") [-h] [-i] [-f] [-p] [-s] [-t] [-o] [-v] [-d] [-n] [-c] -- Utility to manage Isaac Lab."
+    echo -e "\nusage: $(basename "$0") [-h] [-i] [-f] [-p] [-s] [-t] [-o] [-v] [-d] [-n] [-c] [-u] -- Utility to manage Isaac Lab."
     echo -e "\noptional arguments:"
     echo -e "\t-h, --help           Display the help content."
     echo -e "\t-i, --install [LIB]  Install the extensions inside Isaac Lab and learning frameworks as extra dependencies. Default is 'all'."
@@ -337,6 +408,7 @@ print_help () {
     echo -e "\t-d, --docs           Build the documentation from source using sphinx."
     echo -e "\t-n, --new            Create a new external project or internal task from template."
     echo -e "\t-c, --conda [NAME]   Create the conda environment for Isaac Lab. Default name is 'env_isaaclab'."
+    echo -e "\t-u, --uv [NAME]      Create the uv environment for Isaac Lab. Default name is 'env_isaaclab'."
     echo -e "\n" >&2
 }
 
@@ -361,23 +433,36 @@ while [[ $# -gt 0 ]]; do
             install_system_deps
             # install the python packages in IsaacLab/source directory
             echo "[INFO] Installing extensions inside the Isaac Lab repository..."
-            python_exe=$(extract_python_exe)
+            # detect if uv is active
+            use_uv=false
+            if [ -n "$VIRTUAL_ENV" ] && [ -f "$VIRTUAL_ENV/pyvenv.cfg" ] && grep -q "uv" "$VIRTUAL_ENV/pyvenv.cfg"; then
+                use_uv=true
+                echo "[INFO] Detected active uv environment: $VIRTUAL_ENV"
+                python_exe="${VIRTUAL_ENV}/bin/python"
+                pip_cmd="uv pip"
+                pip_uninstall_cmd="uv pip uninstall"
+            else
+                python_exe=$(extract_python_exe)
+                pip_cmd="${python_exe} -m pip"
+                pip_uninstall_cmd="${python_exe} -m pip uninstall -y"
+            fi
+
             # check if pytorch is installed and its version
             # install pytorch with cuda 12.8 for blackwell support
-            if ${python_exe} -m pip list 2>/dev/null | grep -q "torch"; then
+            if ${pip_cmd} list 2>/dev/null | grep -q "torch"; then
                 torch_version=$(${python_exe} -m pip show torch 2>/dev/null | grep "Version:" | awk '{print $2}')
                 echo "[INFO] Found PyTorch version ${torch_version} installed."
                 if [[ "${torch_version}" != "2.7.0+cu128" ]]; then
                     echo "[INFO] Uninstalling PyTorch version ${torch_version}..."
-                    ${python_exe} -m pip uninstall -y torch torchvision torchaudio
+                    ${pip_uninstall_cmd} torch torchvision torchaudio
                     echo "[INFO] Installing PyTorch 2.7.0 with CUDA 12.8 support..."
-                    ${python_exe} -m pip install torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
+                    ${pip_cmd} install torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
                 else
                     echo "[INFO] PyTorch 2.7.0 is already installed."
                 fi
             else
                 echo "[INFO] Installing PyTorch 2.7.0 with CUDA 12.8 support..."
-                ${python_exe} -m pip install torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
+                ${pip_cmd} install torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
             fi
             # recursively look into directories and install them
             # this does not check dependencies between extensions
@@ -401,8 +486,8 @@ while [[ $# -gt 0 ]]; do
                 shift # past argument
             fi
             # install the learning frameworks specified
-            ${python_exe} -m pip install -e ${ISAACLAB_PATH}/source/isaaclab_rl["${framework_name}"]
-            ${python_exe} -m pip install -e ${ISAACLAB_PATH}/source/isaaclab_mimic["${framework_name}"]
+            ${pip_cmd} install -e "${ISAACLAB_PATH}/source/isaaclab_rl[${framework_name}]"
+            ${pip_cmd} install -e "${ISAACLAB_PATH}/source/isaaclab_mimic[${framework_name}]"
 
             # check if we are inside a docker container or are building a docker image
             # in that case don't setup VSCode since it asks for EULA agreement which triggers user interaction
@@ -414,11 +499,11 @@ while [[ $# -gt 0 ]]; do
                 update_vscode_settings
             fi
 
-            # unset local variables
+             # unset local variables
             unset extract_python_exe
             unset install_isaaclab_extension
             shift # past argument
-            ;;
+            ;;   
         -c|--conda)
             # use default name if not provided
             if [ -z "$2" ]; then
@@ -433,11 +518,25 @@ while [[ $# -gt 0 ]]; do
             setup_conda_env ${conda_env_name}
             shift # past argument
             ;;
+        -u|--uv)
+            # use default name if not provided
+            if [ -z "$2" ]; then
+                echo "[INFO] Using default uv environment name: env_isaaclab"
+                uv_env_name="env_isaaclab"
+            else
+                echo "[INFO] Using uv environment name: $2"
+                uv_env_name=$2
+                shift # past argument
+            fi
+            # setup the uv environment for Isaac Lab
+            setup_uv_env ${uv_env_name}
+            shift # past argument
+            ;;
         -f|--format)
             # reset the python path to avoid conflicts with pre-commit
             # this is needed because the pre-commit hooks are installed in a separate virtual environment
             # and it uses the system python to run the hooks
-            if [ -n "${CONDA_DEFAULT_ENV}" ]; then
+            if [ -n "${CONDA_DEFAULT_ENV}" ] || [ -n "${VIRTUAL_ENV}" ]; then
                 cache_pythonpath=${PYTHONPATH}
                 export PYTHONPATH=""
             fi
@@ -454,7 +553,7 @@ while [[ $# -gt 0 ]]; do
             pre-commit run --all-files
             cd - > /dev/null
             # set the python path back to the original value
-            if [ -n "${CONDA_DEFAULT_ENV}" ]; then
+            if [ -n "${CONDA_DEFAULT_ENV}" ] || [ -n "${VIRTUAL_ENV}" ]; then
                 export PYTHONPATH=${cache_pythonpath}
             fi
             shift # past argument
