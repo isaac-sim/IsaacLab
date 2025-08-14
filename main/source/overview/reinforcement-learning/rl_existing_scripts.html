@@ -694,7 +694,7 @@ isaaclab.bat -p scripts\reinforcement_learning\rl_games\play.py --task Isaac-Ant
 <span class="c1"># run script for training</span>
 ./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/reinforcement_learning/rsl_rl/train.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Reach-Franka-v0<span class="w"> </span>--headless
 <span class="c1"># run script for playing with 32 environments</span>
-./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/reinforcement_learning/rsl_rl/play.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Reach-Franka-v0<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">32</span><span class="w"> </span>--load_run<span class="w"> </span>run_folder_name<span class="w"> </span>--checkpoint<span class="w"> </span>model.pt
+./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/reinforcement_learning/rsl_rl/play.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Reach-Franka-v0<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">32</span><span class="w"> </span>--load_run<span class="w"> </span>run_folder_name<span class="w"> </span>--checkpoint<span class="w"> </span>/PATH/TO/model.pt
 <span class="c1"># run script for playing a pre-trained checkpoint with 32 environments</span>
 ./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/reinforcement_learning/rsl_rl/play.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Reach-Franka-v0<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">32</span><span class="w"> </span>--use_pretrained_checkpoint
 <span class="c1"># run script for recording video of a trained agent (requires installing `ffmpeg`)</span>
@@ -710,7 +710,7 @@ isaaclab.bat -i rsl_rl
 <span class="p">:</span><span class="c1">: run script for training</span>
 isaaclab.bat -p scripts\reinforcement_learning\rsl_rl\train.py --task Isaac-Reach-Franka-v0 --headless
 <span class="p">:</span><span class="c1">: run script for playing with 32 environments</span>
-isaaclab.bat -p scripts\reinforcement_learning\rsl_rl\play.py --task Isaac-Reach-Franka-v0 --num_envs 32 --load_run run_folder_name --checkpoint model.pt
+isaaclab.bat -p scripts\reinforcement_learning\rsl_rl\play.py --task Isaac-Reach-Franka-v0 --num_envs 32 --load_run run_folder_name --checkpoint /PATH/TO/model.pt
 <span class="p">:</span><span class="c1">: run script for playing a pre-trained checkpoint with 32 environments</span>
 isaaclab.bat -p scripts\reinforcement_learning\rsl_rl\play.py --task Isaac-Reach-Franka-v0 --num_envs 32 --use_pretrained_checkpoint
 <span class="p">:</span><span class="c1">: run script for recording video of a trained agent (requires installing `ffmpeg`)</span>
