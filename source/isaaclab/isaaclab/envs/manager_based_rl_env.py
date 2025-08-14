@@ -17,7 +17,7 @@ from isaacsim.core.version import get_version
 
 from isaaclab.managers import CommandManager, CurriculumManager, RewardManager, TerminationManager
 from isaaclab.ui.widgets import ManagerLiveVisualizer
-
+from isaaclab.ui.xr_widgets import XRVisualization
 from .common import VecEnvStepReturn
 from .manager_based_env import ManagerBasedEnv
 from .manager_based_rl_env_cfg import ManagerBasedRLEnvCfg
@@ -195,6 +195,14 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
                 self.sim.render()
             # update buffers at sim dt
             self.scene.update(dt=self.physics_dt)
+
+            # Todo: torque limit doesn't need updating every frame
+            # get joint torque limits
+            joints_torque_limit = self.scene["robot"].data.joint_effort_limits[0]
+            # get joint torque
+            joints_torque = self.scene["robot"].data.applied_torque[0]
+            joints_name = self.scene["robot"].data.joint_names
+            XRVisualization.push_data({"joints_torque": joints_torque, "joints_torque_limit": joints_torque_limit, "joints_name": joints_name})
 
         # post-step:
         # -- update env counters (used for curriculum generation)
