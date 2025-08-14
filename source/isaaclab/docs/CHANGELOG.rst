@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.44.12 (2025-08-12)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed IndexError in :meth:`isaaclab.envs.mdp.events.reset_joints_by_scale`,
+  :meth:`isaaclab.envs.mdp.events.reset_joints_by_offsets` by adding dimension to env_ids when indexing.
+
+
 0.44.11 (2025-08-11)
 ~~~~~~~~~~~~~~~~~~~
 
