@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.2.0" />
-    <meta name="docbuild:last-update" content="Aug 12, 2025"/>
+    <meta name="docbuild:last-update" content="Aug 14, 2025"/>
   </head>
   
   
@@ -618,10 +618,9 @@
 
         <span class="c1"># call the base class constructor (this will parse the terms config)</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">env</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_term_name_to_term_idx</span> <span class="o">=</span> <span class="p">{</span><span class="n">name</span><span class="p">:</span> <span class="n">i</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">name</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_term_names</span><span class="p">)}</span>
         <span class="c1"># prepare extra info to store individual termination term information</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_term_dones</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
-        <span class="k">for</span> <span class="n">term_name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_term_names</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_term_dones</span><span class="p">[</span><span class="n">term_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">bool</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_term_dones</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_term_names</span><span class="p">)),</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">bool</span><span class="p">)</span>
         <span class="c1"># create buffer for managing termination per environment</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_truncated_buf</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">bool</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_terminated_buf</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_truncated_buf</span><span class="p">)</span></div>
@@ -697,9 +696,10 @@
             <span class="n">env_ids</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
         <span class="c1"># add to episode dict</span>
         <span class="n">extras</span> <span class="o">=</span> <span class="p">{}</span>
-        <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_term_dones</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+        <span class="n">last_episode_done_stats</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_term_dones</span><span class="o">.</span><span class="n">float</span><span class="p">()</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">key</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_term_names</span><span class="p">):</span>
             <span class="c1"># store information</span>
-            <span class="n">extras</span><span class="p">[</span><span class="s2">&quot;Episode_Termination/&quot;</span> <span class="o">+</span> <span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">count_nonzero</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_term_dones</span><span class="p">[</span><span class="n">key</span><span class="p">][</span><span class="n">env_ids</span><span class="p">])</span><span class="o">.</span><span class="n">item</span><span class="p">()</span>
+            <span class="n">extras</span><span class="p">[</span><span class="s2">&quot;Episode_Termination/&quot;</span> <span class="o">+</span> <span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">last_episode_done_stats</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">item</span><span class="p">()</span>
         <span class="c1"># reset all the reward terms</span>
         <span class="k">for</span> <span class="n">term_cfg</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_class_term_cfgs</span><span class="p">:</span>
             <span class="n">term_cfg</span><span class="o">.</span><span class="n">func</span><span class="o">.</span><span class="n">reset</span><span class="p">(</span><span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">)</span>
@@ -719,7 +719,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">_truncated_buf</span><span class="p">[:]</span> <span class="o">=</span> <span class="kc">False</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_terminated_buf</span><span class="p">[:]</span> <span class="o">=</span> <span class="kc">False</span>
         <span class="c1"># iterate over all the termination terms</span>
-        <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">term_cfg</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_term_names</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_term_cfgs</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">term_cfg</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_term_cfgs</span><span class="p">):</span>
             <span class="n">value</span> <span class="o">=</span> <span class="n">term_cfg</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_env</span><span class="p">,</span> <span class="o">**</span><span class="n">term_cfg</span><span class="o">.</span><span class="n">params</span><span class="p">)</span>
             <span class="c1"># store timeout signal separately</span>
             <span class="k">if</span> <span class="n">term_cfg</span><span class="o">.</span><span class="n">time_out</span><span class="p">:</span>
@@ -727,7 +727,10 @@
             <span class="k">else</span><span class="p">:</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">_terminated_buf</span> <span class="o">|=</span> <span class="n">value</span>
             <span class="c1"># add to episode dones</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_term_dones</span><span class="p">[</span><span class="n">name</span><span class="p">][:]</span> <span class="o">=</span> <span class="n">value</span>
+            <span class="n">rows</span> <span class="o">=</span> <span class="n">value</span><span class="o">.</span><span class="n">nonzero</span><span class="p">(</span><span class="n">as_tuple</span><span class="o">=</span><span class="kc">True</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>  <span class="c1"># indexing is cheaper than boolean advance indexing</span>
+            <span class="k">if</span> <span class="n">rows</span><span class="o">.</span><span class="n">numel</span><span class="p">()</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_term_dones</span><span class="p">[</span><span class="n">rows</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_term_dones</span><span class="p">[</span><span class="n">rows</span><span class="p">,</span> <span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
         <span class="c1"># return combined termination signal</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_truncated_buf</span> <span class="o">|</span> <span class="bp">self</span><span class="o">.</span><span class="n">_terminated_buf</span></div>
 
@@ -740,7 +743,7 @@
 <span class="sd">        Returns:</span>
 <span class="sd">            The corresponding termination term value. Shape is (num_envs,).</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_term_dones</span><span class="p">[</span><span class="n">name</span><span class="p">]</span></div>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_term_dones</span><span class="p">[:,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_term_name_to_term_idx</span><span class="p">[</span><span class="n">name</span><span class="p">]]</span></div>
 
 <div class="viewcode-block" id="TerminationManager.get_active_iterable_terms"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.managers.html#isaaclab.managers.TerminationManager.get_active_iterable_terms">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">get_active_iterable_terms</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env_idx</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">float</span><span class="p">]]]:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns the active terms as iterable sequence of tuples.</span>
@@ -754,8 +757,8 @@
 <span class="sd">            The active terms.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">terms</span> <span class="o">=</span> <span class="p">[]</span>
-        <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_term_dones</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
-            <span class="n">terms</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">key</span><span class="p">,</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_term_dones</span><span class="p">[</span><span class="n">key</span><span class="p">][</span><span class="n">env_idx</span><span class="p">]</span><span class="o">.</span><span class="n">float</span><span class="p">()</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">item</span><span class="p">()]))</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">key</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_term_names</span><span class="p">):</span>
+            <span class="n">terms</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">key</span><span class="p">,</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_term_dones</span><span class="p">[</span><span class="n">env_idx</span><span class="p">,</span> <span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">float</span><span class="p">()</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">item</span><span class="p">()]))</span>
         <span class="k">return</span> <span class="n">terms</span></div>
 
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
@@ -775,7 +778,7 @@
         <span class="k">if</span> <span class="n">term_name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_term_names</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Termination term &#39;</span><span class="si">{</span><span class="n">term_name</span><span class="si">}</span><span class="s2">&#39; not found.&quot;</span><span class="p">)</span>
         <span class="c1"># set the configuration</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_term_cfgs</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_term_names</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">term_name</span><span class="p">)]</span> <span class="o">=</span> <span class="n">cfg</span></div>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_term_cfgs</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_term_name_to_term_idx</span><span class="p">[</span><span class="n">term_name</span><span class="p">]]</span> <span class="o">=</span> <span class="n">cfg</span></div>
 
 <div class="viewcode-block" id="TerminationManager.get_term_cfg"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.managers.html#isaaclab.managers.TerminationManager.get_term_cfg">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">get_term_cfg</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">term_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">TerminationTermCfg</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Gets the configuration for the specified term.</span>
@@ -792,7 +795,7 @@
         <span class="k">if</span> <span class="n">term_name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_term_names</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Termination term &#39;</span><span class="si">{</span><span class="n">term_name</span><span class="si">}</span><span class="s2">&#39; not found.&quot;</span><span class="p">)</span>
         <span class="c1"># return the configuration</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_term_cfgs</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_term_names</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">term_name</span><span class="p">)]</span></div>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_term_cfgs</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_term_name_to_term_idx</span><span class="p">[</span><span class="n">term_name</span><span class="p">]]</span></div>
 
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Helper functions.</span>
@@ -870,7 +873,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Aug 12, 2025.
+  Last updated on Aug 14, 2025.
   <br/>
 </p>
   </div>
