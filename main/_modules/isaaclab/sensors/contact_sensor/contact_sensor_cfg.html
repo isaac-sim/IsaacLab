@@ -578,6 +578,22 @@
     <span class="n">track_pose</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to track the pose of the sensor&#39;s origin. Defaults to False.&quot;&quot;&quot;</span>
 
+    <span class="n">track_contact_points</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to track the contact point locations. Defaults to False.&quot;&quot;&quot;</span>
+
+    <span class="n">max_contact_data_count_per_prim</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">4</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The maximum number of contacts across all batches of the sensor to keep track of. Default is 4.</span>
+
+<span class="sd">    This parameter sets the total maximum counts of the simulation across all bodies and environments. The total number</span>
+<span class="sd">    of contacts allowed is max_contact_data_count_per_prim*num_envs*num_sensor_bodies.</span>
+
+<span class="sd">    .. note::</span>
+
+<span class="sd">        If the environment is very contact rich it is suggested to increase this parameter to avoid out of bounds memory</span>
+<span class="sd">        errors and loss of contact data leading to inaccurate measurements.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+
     <span class="n">track_air_time</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to track the air/contact time of the bodies (time between contacts). Defaults to False.&quot;&quot;&quot;</span>
 
@@ -607,6 +623,7 @@
 <span class="sd">        single primitive in that environment. If the sensor primitive corresponds to multiple primitives, the</span>
 <span class="sd">        filtering will not work as expected. Please check :class:`~isaaclab.sensors.contact_sensor.ContactSensor`</span>
 <span class="sd">        for more details.</span>
+<span class="sd">        If track_contact_points is true, then filter_prim_paths_expr cannot be an empty list!</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">visualizer_cfg</span><span class="p">:</span> <span class="n">VisualizationMarkersCfg</span> <span class="o">=</span> <span class="n">CONTACT_SENSOR_MARKER_CFG</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;/Visuals/ContactSensor&quot;</span><span class="p">)</span>

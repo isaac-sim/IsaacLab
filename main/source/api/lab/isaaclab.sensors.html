@@ -769,6 +769,7 @@
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.ContactSensorData"><code class="docutils literal notranslate"><span class="pre">ContactSensorData</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.ContactSensorData.pos_w"><code class="docutils literal notranslate"><span class="pre">ContactSensorData.pos_w</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.ContactSensorData.contact_pos_w"><code class="docutils literal notranslate"><span class="pre">ContactSensorData.contact_pos_w</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.ContactSensorData.quat_w"><code class="docutils literal notranslate"><span class="pre">ContactSensorData.quat_w</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.ContactSensorData.net_forces_w"><code class="docutils literal notranslate"><span class="pre">ContactSensorData.net_forces_w</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.ContactSensorData.net_forces_w_history"><code class="docutils literal notranslate"><span class="pre">ContactSensorData.net_forces_w_history</span></code></a></li>
@@ -782,11 +783,13 @@
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.ContactSensorCfg"><code class="docutils literal notranslate"><span class="pre">ContactSensorCfg</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.ContactSensorCfg.track_pose"><code class="docutils literal notranslate"><span class="pre">ContactSensorCfg.track_pose</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.ContactSensorCfg.track_air_time"><code class="docutils literal notranslate"><span class="pre">ContactSensorCfg.track_air_time</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.ContactSensorCfg.track_contact_points"><code class="docutils literal notranslate"><span class="pre">ContactSensorCfg.track_contact_points</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.ContactSensorCfg.max_contact_data_count_per_prim"><code class="docutils literal notranslate"><span class="pre">ContactSensorCfg.max_contact_data_count_per_prim</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.ContactSensorCfg.prim_path"><code class="docutils literal notranslate"><span class="pre">ContactSensorCfg.prim_path</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.ContactSensorCfg.update_period"><code class="docutils literal notranslate"><span class="pre">ContactSensorCfg.update_period</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.ContactSensorCfg.history_length"><code class="docutils literal notranslate"><span class="pre">ContactSensorCfg.history_length</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.ContactSensorCfg.debug_vis"><code class="docutils literal notranslate"><span class="pre">ContactSensorCfg.debug_vis</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.ContactSensorCfg.track_air_time"><code class="docutils literal notranslate"><span class="pre">ContactSensorCfg.track_air_time</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.ContactSensorCfg.force_threshold"><code class="docutils literal notranslate"><span class="pre">ContactSensorCfg.force_threshold</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.ContactSensorCfg.filter_prim_paths_expr"><code class="docutils literal notranslate"><span class="pre">ContactSensorCfg.filter_prim_paths_expr</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.ContactSensorCfg.visualizer_cfg"><code class="docutils literal notranslate"><span class="pre">ContactSensorCfg.visualizer_cfg</span></code></a></li>
@@ -2810,31 +2813,34 @@ does not support debug visualization.</p>
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sensors.ContactSensorData.pos_w" title="isaaclab.sensors.ContactSensorData.pos_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pos_w</span></code></a></p></td>
 <td><p>Position of the sensor origin in world frame.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sensors.ContactSensorData.quat_w" title="isaaclab.sensors.ContactSensorData.quat_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">quat_w</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sensors.ContactSensorData.contact_pos_w" title="isaaclab.sensors.ContactSensorData.contact_pos_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">contact_pos_w</span></code></a></p></td>
+<td><p>Average of the positions of contact points between sensor body and filter prim in world frame.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sensors.ContactSensorData.quat_w" title="isaaclab.sensors.ContactSensorData.quat_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">quat_w</span></code></a></p></td>
 <td><p>Orientation of the sensor origin in quaternion (w, x, y, z) in world frame.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sensors.ContactSensorData.net_forces_w" title="isaaclab.sensors.ContactSensorData.net_forces_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">net_forces_w</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sensors.ContactSensorData.net_forces_w" title="isaaclab.sensors.ContactSensorData.net_forces_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">net_forces_w</span></code></a></p></td>
 <td><p>The net normal contact forces in world frame.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sensors.ContactSensorData.net_forces_w_history" title="isaaclab.sensors.ContactSensorData.net_forces_w_history"><code class="xref py py-obj docutils literal notranslate"><span class="pre">net_forces_w_history</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sensors.ContactSensorData.net_forces_w_history" title="isaaclab.sensors.ContactSensorData.net_forces_w_history"><code class="xref py py-obj docutils literal notranslate"><span class="pre">net_forces_w_history</span></code></a></p></td>
 <td><p>The net normal contact forces in world frame.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sensors.ContactSensorData.force_matrix_w" title="isaaclab.sensors.ContactSensorData.force_matrix_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">force_matrix_w</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sensors.ContactSensorData.force_matrix_w" title="isaaclab.sensors.ContactSensorData.force_matrix_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">force_matrix_w</span></code></a></p></td>
 <td><p>The normal contact forces filtered between the sensor bodies and filtered bodies in world frame.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sensors.ContactSensorData.force_matrix_w_history" title="isaaclab.sensors.ContactSensorData.force_matrix_w_history"><code class="xref py py-obj docutils literal notranslate"><span class="pre">force_matrix_w_history</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sensors.ContactSensorData.force_matrix_w_history" title="isaaclab.sensors.ContactSensorData.force_matrix_w_history"><code class="xref py py-obj docutils literal notranslate"><span class="pre">force_matrix_w_history</span></code></a></p></td>
 <td><p>The normal contact forces filtered between the sensor bodies and filtered bodies in world frame.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sensors.ContactSensorData.last_air_time" title="isaaclab.sensors.ContactSensorData.last_air_time"><code class="xref py py-obj docutils literal notranslate"><span class="pre">last_air_time</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sensors.ContactSensorData.last_air_time" title="isaaclab.sensors.ContactSensorData.last_air_time"><code class="xref py py-obj docutils literal notranslate"><span class="pre">last_air_time</span></code></a></p></td>
 <td><p>Time spent (in s) in the air before the last contact.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sensors.ContactSensorData.current_air_time" title="isaaclab.sensors.ContactSensorData.current_air_time"><code class="xref py py-obj docutils literal notranslate"><span class="pre">current_air_time</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sensors.ContactSensorData.current_air_time" title="isaaclab.sensors.ContactSensorData.current_air_time"><code class="xref py py-obj docutils literal notranslate"><span class="pre">current_air_time</span></code></a></p></td>
 <td><p>Time spent (in s) in the air since the last detach.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sensors.ContactSensorData.last_contact_time" title="isaaclab.sensors.ContactSensorData.last_contact_time"><code class="xref py py-obj docutils literal notranslate"><span class="pre">last_contact_time</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sensors.ContactSensorData.last_contact_time" title="isaaclab.sensors.ContactSensorData.last_contact_time"><code class="xref py py-obj docutils literal notranslate"><span class="pre">last_contact_time</span></code></a></p></td>
 <td><p>Time spent (in s) in contact before the last detach.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sensors.ContactSensorData.current_contact_time" title="isaaclab.sensors.ContactSensorData.current_contact_time"><code class="xref py py-obj docutils literal notranslate"><span class="pre">current_contact_time</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sensors.ContactSensorData.current_contact_time" title="isaaclab.sensors.ContactSensorData.current_contact_time"><code class="xref py py-obj docutils literal notranslate"><span class="pre">current_contact_time</span></code></a></p></td>
 <td><p>Time spent (in s) in contact since the last contact.</p></td>
 </tr>
 </tbody>
@@ -2848,6 +2854,24 @@ does not support debug visualization.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>If the <a class="reference internal" href="#isaaclab.sensors.ContactSensorCfg.track_pose" title="isaaclab.sensors.ContactSensorCfg.track_pose"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ContactSensorCfg.track_pose</span></code></a> is False, then this quantity is None.</p>
+</div>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab.sensors.ContactSensorData.contact_pos_w">
+<span class="sig-name descname"><span class="pre">contact_pos_w</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.8)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#isaaclab.sensors.ContactSensorData.contact_pos_w" title="Permalink to this definition">#</a></dt>
+<dd><p>Average of the positions of contact points between sensor body and filter prim in world frame.</p>
+<p>Shape is (N, B, M, 3), where N is the number of sensors, B is number of bodies in each sensor
+and M is the number of filtered bodies.</p>
+<p>Collision pairs not in contact will result in nan.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>If the <a class="reference internal" href="#isaaclab.sensors.ContactSensorCfg.track_contact_points" title="isaaclab.sensors.ContactSensorCfg.track_contact_points"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ContactSensorCfg.track_contact_points</span></code></a> is False, then this quantity is None.
+If the <a class="reference internal" href="#isaaclab.sensors.ContactSensorCfg.filter_prim_paths_expr" title="isaaclab.sensors.ContactSensorCfg.filter_prim_paths_expr"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ContactSensorCfg.filter_prim_paths_expr</span></code></a> is empty, then this quantity is an empty tensor.
+If the <code class="xref py py-attr docutils literal notranslate"><span class="pre">ContactSensorCfg.max_contact_data_per_prim</span></code> is not specified or less than 1, then this quantity</p>
+<blockquote>
+<div><p>will not be calculated.</p>
+</div></blockquote>
 </div>
 </dd></dl>
 
@@ -2970,20 +2994,26 @@ B is number of bodies in each sensor and M is the number of filtered bodies.</p>
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sensors.ContactSensorCfg.track_pose" title="isaaclab.sensors.ContactSensorCfg.track_pose"><code class="xref py py-obj docutils literal notranslate"><span class="pre">track_pose</span></code></a></p></td>
 <td><p>Whether to track the pose of the sensor's origin.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sensors.ContactSensorCfg.track_air_time" title="isaaclab.sensors.ContactSensorCfg.track_air_time"><code class="xref py py-obj docutils literal notranslate"><span class="pre">track_air_time</span></code></a></p></td>
-<td><p>Whether to track the air/contact time of the bodies (time between contacts).</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sensors.ContactSensorCfg.track_contact_points" title="isaaclab.sensors.ContactSensorCfg.track_contact_points"><code class="xref py py-obj docutils literal notranslate"><span class="pre">track_contact_points</span></code></a></p></td>
+<td><p>Whether to track the contact point locations.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sensors.ContactSensorCfg.prim_path" title="isaaclab.sensors.ContactSensorCfg.prim_path"><code class="xref py py-obj docutils literal notranslate"><span class="pre">prim_path</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sensors.ContactSensorCfg.max_contact_data_count_per_prim" title="isaaclab.sensors.ContactSensorCfg.max_contact_data_count_per_prim"><code class="xref py py-obj docutils literal notranslate"><span class="pre">max_contact_data_count_per_prim</span></code></a></p></td>
+<td><p>The maximum number of contacts across all batches of the sensor to keep track of.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sensors.ContactSensorCfg.prim_path" title="isaaclab.sensors.ContactSensorCfg.prim_path"><code class="xref py py-obj docutils literal notranslate"><span class="pre">prim_path</span></code></a></p></td>
 <td><p>Prim path (or expression) to the sensor.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sensors.ContactSensorCfg.update_period" title="isaaclab.sensors.ContactSensorCfg.update_period"><code class="xref py py-obj docutils literal notranslate"><span class="pre">update_period</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sensors.ContactSensorCfg.update_period" title="isaaclab.sensors.ContactSensorCfg.update_period"><code class="xref py py-obj docutils literal notranslate"><span class="pre">update_period</span></code></a></p></td>
 <td><p>Update period of the sensor buffers (in seconds).</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sensors.ContactSensorCfg.history_length" title="isaaclab.sensors.ContactSensorCfg.history_length"><code class="xref py py-obj docutils literal notranslate"><span class="pre">history_length</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sensors.ContactSensorCfg.history_length" title="isaaclab.sensors.ContactSensorCfg.history_length"><code class="xref py py-obj docutils literal notranslate"><span class="pre">history_length</span></code></a></p></td>
 <td><p>Number of past frames to store in the sensor buffers.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sensors.ContactSensorCfg.debug_vis" title="isaaclab.sensors.ContactSensorCfg.debug_vis"><code class="xref py py-obj docutils literal notranslate"><span class="pre">debug_vis</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sensors.ContactSensorCfg.debug_vis" title="isaaclab.sensors.ContactSensorCfg.debug_vis"><code class="xref py py-obj docutils literal notranslate"><span class="pre">debug_vis</span></code></a></p></td>
 <td><p>Whether to visualize the sensor.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sensors.ContactSensorCfg.track_air_time" title="isaaclab.sensors.ContactSensorCfg.track_air_time"><code class="xref py py-obj docutils literal notranslate"><span class="pre">track_air_time</span></code></a></p></td>
+<td><p>Whether to track the air/contact time of the bodies (time between contacts).</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sensors.ContactSensorCfg.force_threshold" title="isaaclab.sensors.ContactSensorCfg.force_threshold"><code class="xref py py-obj docutils literal notranslate"><span class="pre">force_threshold</span></code></a></p></td>
 <td><p>The threshold on the norm of the contact force that determines whether two bodies are in collision or not.</p></td>
@@ -3004,9 +3034,22 @@ B is number of bodies in each sensor and M is the number of filtered bodies.</p>
 </dd></dl>
 
 <dl class="py attribute">
-<dt class="sig sig-object py" id="isaaclab.sensors.ContactSensorCfg.track_air_time">
-<span class="sig-name descname"><span class="pre">track_air_time</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></em><a class="headerlink" href="#isaaclab.sensors.ContactSensorCfg.track_air_time" title="Permalink to this definition">#</a></dt>
-<dd><p>Whether to track the air/contact time of the bodies (time between contacts). Defaults to False.</p>
+<dt class="sig sig-object py" id="isaaclab.sensors.ContactSensorCfg.track_contact_points">
+<span class="sig-name descname"><span class="pre">track_contact_points</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></em><a class="headerlink" href="#isaaclab.sensors.ContactSensorCfg.track_contact_points" title="Permalink to this definition">#</a></dt>
+<dd><p>Whether to track the contact point locations. Defaults to False.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab.sensors.ContactSensorCfg.max_contact_data_count_per_prim">
+<span class="sig-name descname"><span class="pre">max_contact_data_count_per_prim</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a></em><a class="headerlink" href="#isaaclab.sensors.ContactSensorCfg.max_contact_data_count_per_prim" title="Permalink to this definition">#</a></dt>
+<dd><p>The maximum number of contacts across all batches of the sensor to keep track of. Default is 4.</p>
+<p>This parameter sets the total maximum counts of the simulation across all bodies and environments. The total number
+of contacts allowed is max_contact_data_count_per_prim*num_envs*num_sensor_bodies.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>If the environment is very contact rich it is suggested to increase this parameter to avoid out of bounds memory
+errors and loss of contact data leading to inaccurate measurements.</p>
+</div>
 </dd></dl>
 
 <dl class="py attribute">
@@ -3041,6 +3084,12 @@ the current data is stored (no history).</p>
 </dd></dl>
 
 <dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab.sensors.ContactSensorCfg.track_air_time">
+<span class="sig-name descname"><span class="pre">track_air_time</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></em><a class="headerlink" href="#isaaclab.sensors.ContactSensorCfg.track_air_time" title="Permalink to this definition">#</a></dt>
+<dd><p>Whether to track the air/contact time of the bodies (time between contacts). Defaults to False.</p>
+</dd></dl>
+
+<dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab.sensors.ContactSensorCfg.force_threshold">
 <span class="sig-name descname"><span class="pre">force_threshold</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a></em><a class="headerlink" href="#isaaclab.sensors.ContactSensorCfg.force_threshold" title="Permalink to this definition">#</a></dt>
 <dd><p>The threshold on the norm of the contact force that determines whether two bodies are in collision or not.</p>
@@ -3067,7 +3116,8 @@ will be replaced with the environment namespace.</p>
 <p>The reporting of filtered contacts only works when the sensor primitive <a class="reference internal" href="#isaaclab.sensors.ContactSensorCfg.prim_path" title="isaaclab.sensors.ContactSensorCfg.prim_path"><code class="xref py py-attr docutils literal notranslate"><span class="pre">prim_path</span></code></a> corresponds to a
 single primitive in that environment. If the sensor primitive corresponds to multiple primitives, the
 filtering will not work as expected. Please check <code class="xref py py-class docutils literal notranslate"><span class="pre">ContactSensor</span></code>
-for more details.</p>
+for more details.
+If track_contact_points is true, then filter_prim_paths_expr cannot be an empty list!</p>
 </div>
 </dd></dl>
 
@@ -4898,6 +4948,7 @@ which results in a positive acceleration reading in the world Z.</p>
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.ContactSensorData"><code class="docutils literal notranslate"><span class="pre">ContactSensorData</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.ContactSensorData.pos_w"><code class="docutils literal notranslate"><span class="pre">ContactSensorData.pos_w</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.ContactSensorData.contact_pos_w"><code class="docutils literal notranslate"><span class="pre">ContactSensorData.contact_pos_w</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.ContactSensorData.quat_w"><code class="docutils literal notranslate"><span class="pre">ContactSensorData.quat_w</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.ContactSensorData.net_forces_w"><code class="docutils literal notranslate"><span class="pre">ContactSensorData.net_forces_w</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.ContactSensorData.net_forces_w_history"><code class="docutils literal notranslate"><span class="pre">ContactSensorData.net_forces_w_history</span></code></a></li>
@@ -4911,11 +4962,13 @@ which results in a positive acceleration reading in the world Z.</p>
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.ContactSensorCfg"><code class="docutils literal notranslate"><span class="pre">ContactSensorCfg</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.ContactSensorCfg.track_pose"><code class="docutils literal notranslate"><span class="pre">ContactSensorCfg.track_pose</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.ContactSensorCfg.track_air_time"><code class="docutils literal notranslate"><span class="pre">ContactSensorCfg.track_air_time</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.ContactSensorCfg.track_contact_points"><code class="docutils literal notranslate"><span class="pre">ContactSensorCfg.track_contact_points</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.ContactSensorCfg.max_contact_data_count_per_prim"><code class="docutils literal notranslate"><span class="pre">ContactSensorCfg.max_contact_data_count_per_prim</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.ContactSensorCfg.prim_path"><code class="docutils literal notranslate"><span class="pre">ContactSensorCfg.prim_path</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.ContactSensorCfg.update_period"><code class="docutils literal notranslate"><span class="pre">ContactSensorCfg.update_period</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.ContactSensorCfg.history_length"><code class="docutils literal notranslate"><span class="pre">ContactSensorCfg.history_length</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.ContactSensorCfg.debug_vis"><code class="docutils literal notranslate"><span class="pre">ContactSensorCfg.debug_vis</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.ContactSensorCfg.track_air_time"><code class="docutils literal notranslate"><span class="pre">ContactSensorCfg.track_air_time</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.ContactSensorCfg.force_threshold"><code class="docutils literal notranslate"><span class="pre">ContactSensorCfg.force_threshold</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.ContactSensorCfg.filter_prim_paths_expr"><code class="docutils literal notranslate"><span class="pre">ContactSensorCfg.filter_prim_paths_expr</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.ContactSensorCfg.visualizer_cfg"><code class="docutils literal notranslate"><span class="pre">ContactSensorCfg.visualizer_cfg</span></code></a></li>

@@ -581,6 +581,21 @@
 <span class="sd">        If the :attr:`ContactSensorCfg.track_pose` is False, then this quantity is None.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
+    <span class="n">contact_pos_w</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Average of the positions of contact points between sensor body and filter prim in world frame.</span>
+
+<span class="sd">    Shape is (N, B, M, 3), where N is the number of sensors, B is number of bodies in each sensor</span>
+<span class="sd">    and M is the number of filtered bodies.</span>
+
+<span class="sd">    Collision pairs not in contact will result in nan.</span>
+
+<span class="sd">    Note:</span>
+<span class="sd">        If the :attr:`ContactSensorCfg.track_contact_points` is False, then this quantity is None.</span>
+<span class="sd">        If the :attr:`ContactSensorCfg.filter_prim_paths_expr` is empty, then this quantity is an empty tensor.</span>
+<span class="sd">        If the :attr:`ContactSensorCfg.max_contact_data_per_prim` is not specified or less than 1, then this quantity</span>
+<span class="sd">            will not be calculated.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
     <span class="n">quat_w</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Orientation of the sensor origin in quaternion (w, x, y, z) in world frame.</span>
 
