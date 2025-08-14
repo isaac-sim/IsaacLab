@@ -156,22 +156,19 @@ class PegInsertionSideEnv(DirectRLEnv):
         else:
             self.robot.set_joint_effort_target(self.actions, joint_ids=self.joint_ids)
 
-    # TODO implement the observation function
     def _get_observations(self) -> dict:
 
         peg_pose = self.peg.data.root_state_w  # (N,7) [x,y,z, qx,qy,qz,qw]
         peg_pose[:, :3] -= self.scene.env_origins  # subtract env origins
 
         clearance = 0.003
-        L = self.peg_head_offset[:, 0]  # (N,)
-        r = self.box_hole_radius - clearance  # (N,)
-        peg_half_size = torch.stack((L, r, r), dim=1)
+        peg_length = self.peg_head_offset[:, 0]  # (N,)
+        peg_radius = self.box_hole_radius - clearance  # (N,)
+        peg_half_size = torch.stack((peg_length, peg_radius, peg_radius), dim=1)
 
-        box_p_w = self.box.data.root_pos_w  # (N,3)
-        box_q = self.box.data.root_quat_w  # (N,4)
         # 2) box root in local frame
-        box_p_local = box_p_w - self.scene.env_origins  # (N,3)
-        # 4) pack with box orientation (same quaternion)
+        box_p_local = self.box.data.root_pos_w - self.scene.env_origins  # (N,3)
+        box_q = self.box.data.root_quat_w  # (N,4)
         box_hole_pose = torch.cat((box_p_local, box_q), dim=1)  # (N,7) TODO test if this is correct
 
         state_obs = torch.cat(
@@ -181,8 +178,8 @@ class PegInsertionSideEnv(DirectRLEnv):
                 peg_half_size,
                 box_hole_pose,
                 self.box_hole_radius.unsqueeze(1),
-                self.robot.data.joint_pos[:, self.joint_ids],  # (N, J)
-                self.robot.data.joint_vel[:, self.joint_ids],  # (N, J)
+                self.robot.data.joint_pos[:, self.joint_ids],
+                self.robot.data.joint_vel[:, self.joint_ids],
             ),
             dim=-1,
         )
@@ -256,7 +253,7 @@ class PegInsertionSideEnv(DirectRLEnv):
         r_ok = (r_mag >= min_force) & (r_ang <= max_angle)
         return l_ok & r_ok
 
-    # TODO test in simulation
+    # TODO test in simulation and check pose frames
     def _get_rewards(self) -> torch.Tensor:
         """
         Dense reward mirroring ManiSkill3’s compute_dense_reward:
@@ -318,7 +315,6 @@ class PegInsertionSideEnv(DirectRLEnv):
 
         return reward
 
-    # TODO test in simulation
     def is_success(self) -> torch.Tensor:
         """
         Returns (N,) boolean mask. Computes peg head and hole center in ENV frame:

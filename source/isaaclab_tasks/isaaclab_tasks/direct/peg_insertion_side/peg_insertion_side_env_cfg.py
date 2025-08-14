@@ -32,7 +32,7 @@ class PegInsertionSideEnvCfg(DirectRLEnvCfg):
     episode_length_s = 4  # 4 / (decimation * dt) = 200 steps
     # - spaces definition
     action_space = 9
-    observation_space = 20  # TODO set
+    observation_space = 43
     state_space = 0
 
     obs_mode: str = "state"
@@ -65,7 +65,7 @@ class PegInsertionSideEnvCfg(DirectRLEnvCfg):
     scene: InteractiveSceneCfg = InteractiveSceneCfg(
         num_envs=2048,
         env_spacing=2.0,
-        replicate_physics=False,  # TODO set to True for optimization
+        replicate_physics=False,
     )
 
     robot_cfg = FRANKA_PANDA_CFG.replace(prim_path="/World/envs/env_.*/Robot")
