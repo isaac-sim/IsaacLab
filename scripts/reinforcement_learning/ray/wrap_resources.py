@@ -112,7 +112,7 @@ def wrap_resources_to_jobs(jobs: list[str], args: argparse.Namespace) -> None:
         job_objs.append(
             util.Job(
                 cmd=job,
-                name=f"Job-{i+1}",
+                name=f"Job-{i + 1}",
                 resources=util.JobResource(num_gpus=num_gpus, num_cpus=num_cpus, memory=memory),
                 node=util.JobNode(
                     specific="node_id",
