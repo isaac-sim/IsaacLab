@@ -696,7 +696,7 @@ def submit_wrapped_jobs(
     actors = []
     for i, job in enumerate(jobs):
         opts = job.to_opt(nodes)
-        name = job.name or f"job_{i+1}"
+        name = job.name or f"job_{i + 1}"
         print(f"[INFO] Create {name} with opts={opts}")
         job_actor = JobActor.options(**opts).remote(job, test_mode, log_realtime)
         actors.append(job_actor)
