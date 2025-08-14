@@ -8,6 +8,7 @@ import os
 import shutil
 import subprocess
 import sys
+import urllib.request
 from datetime import datetime
 
 import jinja2
@@ -245,6 +246,146 @@ def _external(specification: dict) -> None:
             os.path.join(TEMPLATE_DIR, "extension", "__init__workflow"),
             os.path.join(dir, workflow["name"].replace("-", "_"), "__init__.py"),
         )
+
+    # create custom robot structure
+    if specification.get("custom_usd", False):
+        print("  |-- Creating custom robot folder structure...")
+
+        import argparse
+
+        from isaaclab.app import AppLauncher
+
+        # create argparser
+        parser = argparse.ArgumentParser(description="Downloading the assets.")
+        # append AppLauncher cli args
+        AppLauncher.add_app_launcher_args(parser)
+        # parse the arguments
+        args_cli = parser.parse_args()
+        args_cli.headless = True
+        # launch omniverse app
+        app_launcher = AppLauncher(args_cli)
+        simulation_app = app_launcher.app
+
+        from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
+
+        # look at workflows once
+        has_single = any(wf["type"] == "single-agent" for wf in specification["workflows"])
+        has_multi = any(wf["type"] == "multi-agent" for wf in specification["workflows"])
+
+        # only include the assets needed
+        usd_assets = {}
+        if has_single:
+            usd_assets["cartpole"] = [
+                ("Robots/Classic/Cartpole", "cartpole.usd"),
+                ("Robots/Classic/Cartpole/Props", "instanceable_meshes.usd"),
+            ]
+        if has_multi:
+            usd_assets["cart_double_pendulum"] = [
+                ("Robots/Classic/CartDoublePendulum", "cart_double_pendulum.usd"),
+                ("Robots/Classic/CartDoublePendulum/Props", "instanceable_meshes.usd"),
+            ]
+
+        # download just the ones in usd_assets
+        for robot, files in usd_assets.items():
+            for subfolder, filename in files:
+                target_dir = os.path.join(project_dir, "source", name, "data", subfolder)
+                os.makedirs(target_dir, exist_ok=True)
+                usd_url = f"{ISAACLAB_NUCLEUS_DIR}/{subfolder}/{filename}"
+                usd_path = os.path.join(target_dir, filename)
+
+                try:
+                    urllib.request.urlretrieve(usd_url, usd_path)
+                    print(f"  |    |-- Downloaded USD to {usd_path}")
+                except Exception as e:
+                    print(f"  |    |-- Failed to download {filename}: {e}")
+                    with open(usd_path, "w") as f:
+                        f.write("# Placeholder for your custom robot USD file.\n")
+
+        # now copy & patch only the robot modules needed
+        robot_py_dir = os.path.join(project_dir, "source", name, name, "robots")
+        os.makedirs(robot_py_dir, exist_ok=True)
+
+        def copy_and_patch_robot(robot_file, path):
+            src = os.path.join(ROOT_DIR, "source", "isaaclab_assets", "isaaclab_assets", "robots", robot_file)
+            dst = os.path.join(robot_py_dir, robot_file)
+            shutil.copyfile(src, dst)
+            _replace_in_file(
+                [
+                    (
+                        "from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR",
+                        (
+                            "from pathlib import Path\n\nTEMPLATE_ASSETS_DATA_DIR ="
+                            ' Path(__file__).resolve().parent.parent.parent / "data"'
+                        ),
+                    ),
+                    (
+                        'usd_path=f"{ISAACLAB_NUCLEUS_DIR}/' + path + '"',
+                        'usd_path=f"{TEMPLATE_ASSETS_DATA_DIR}/' + path + '"',
+                    ),
+                ],
+                src=dst,
+            )
+
+        if has_single:
+            copy_and_patch_robot("cartpole.py", "Robots/Classic/Cartpole/cartpole.usd")
+        if has_multi:
+            copy_and_patch_robot(
+                "cart_double_pendulum.py", "Robots/Classic/CartDoublePendulum/cart_double_pendulum.usd"
+            )
+
+        # write __init__.py
+        with open(os.path.join(robot_py_dir, "__init__.py"), "w") as f:
+            f.write(
+                """# Copyright (c) 2022-2025, The Isaac Lab Project Developers.\n# All rights reserved.\n#\n# SPDX-License-Identifier: BSD-3-Clause\n\nfrom .cartpole import *\nfrom .cart_double_pendulum import *\n"""
+            )
+
+        simulation_app.close()
+
+        # replace import in task config
+        task_dir = os.path.join(project_dir, "source", name, name, "tasks")
+        for subpath in [
+            os.path.join(task_dir, "direct", name, f"{name}_env_cfg.py"),
+            os.path.join(task_dir, "manager_based", name, f"{name}_env_cfg.py"),
+            os.path.join(task_dir, "direct", f"{name}_marl", f"{name}_marl_env_cfg.py"),
+        ]:
+            if os.path.exists(subpath):
+                _replace_in_file(
+                    [
+                        (
+                            "from isaaclab_assets.robots.cartpole import CARTPOLE_CFG",
+                            f"from {name}.robots.cartpole import CARTPOLE_CFG",
+                        ),
+                        (
+                            "from isaaclab_assets.robots.cart_double_pendulum import CART_DOUBLE_PENDULUM_CFG",
+                            f"from {name}.robots.cart_double_pendulum import CART_DOUBLE_PENDULUM_CFG",
+                        ),
+                    ],
+                    src=subpath,
+                )
+            else:
+                print(subpath)
+
+        # remove USD files interdiction from .gitignore
+        gitignore_path = os.path.join(project_dir, ".gitignore")
+        with open(gitignore_path) as f:
+            lines = f.readlines()
+        cleaned = []
+        skip = False
+        for line in lines:
+            if "# No USD files allowed in the repo" in line:
+                skip = True
+                continue
+            if skip and (line.startswith("**/*.usd") or line.startswith("**/*.usd")):
+                continue
+            if skip and line.strip() == "":
+                skip = False
+                continue
+            if not skip:
+                cleaned.append(line)
+        with open(gitignore_path, "w") as f:
+            f.writelines(cleaned)
+        print("  |-- Updated .gitignore to allow USD files (custom_usd=True)")
+
     # - other files
     dir = os.path.join(project_dir, "source", name, name)
     template = jinja_env.get_template("extension/ui_extension_example.py")
