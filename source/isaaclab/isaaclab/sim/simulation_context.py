@@ -349,11 +349,14 @@ class SimulationContext(_SimulationContext):
                     f"RenderCfg rendering mode '{rendering_mode}' not in supported modes {supported_rendering_modes}."
                 )
 
-            # parse preset file
-            repo_path = os.path.join(carb.tokens.get_tokens_interface().resolve("${app}"), "..")
+            # grab isaac lab apps path
+            isaaclab_app_exp_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), *[".."] * 4, "apps")
+            # for Isaac Sim 4.5 compatibility, we use the 4.5 rendering mode app files in a different folder
             if float(".".join(self._isaacsim_version[2])) < 5:
-                repo_path = os.path.join(repo_path, "..")
-            preset_filename = os.path.join(repo_path, f"apps/rendering_modes/{rendering_mode}.kit")
+                isaaclab_app_exp_path = os.path.join(isaaclab_app_exp_path, "isaacsim_4_5")
+
+            # grab preset settings
+            preset_filename = os.path.join(isaaclab_app_exp_path, f"rendering_modes/{rendering_mode}.kit")
             with open(preset_filename) as file:
                 preset_dict = toml.load(file)
             preset_dict = dict(flatdict.FlatDict(preset_dict, delimiter="."))
