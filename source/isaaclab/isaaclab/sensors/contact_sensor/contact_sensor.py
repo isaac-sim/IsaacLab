@@ -9,11 +9,9 @@
 from __future__ import annotations
 
 import torch
-import weakref
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-import omni.timeline
 import warp as wp
 from newton.utils.contact_sensor import ContactSensor as NewtonContactSensor
 from newton.utils.contact_sensor import MatchKind
@@ -71,34 +69,7 @@ class ContactSensor(SensorBase):
             cfg: The configuration parameters.
         """
         # initialize base class
-        # check that config is valid
-        if cfg.history_length < 0:
-            raise ValueError(f"History length must be greater than 0! Received: {cfg.history_length}")
-        # check that the config is valid
-        cfg.validate()
-        # store inputs
-        self.cfg = cfg.copy()
-        # flag for whether the sensor is initialized
-        self._is_initialized = False
-        # flag for whether the sensor is in visualization mode
-        self._is_visualizing = False
-
-        # note: Use weakref on callbacks to ensure that this object can be deleted when its destructor is called.
-        # add callbacks for stage play/stop
-        # The order is set to 10 which is arbitrary but should be lower priority than the default order of 0
-
-        NewtonManager.add_on_start_callback(self._initialize_impl)
-
-        timeline_event_stream = omni.timeline.get_timeline_interface().get_timeline_event_stream()
-        self._invalidate_initialize_handle = timeline_event_stream.create_subscription_to_pop_by_type(
-            int(omni.timeline.TimelineEventType.STOP),
-            lambda event, obj=weakref.proxy(self): obj._invalidate_initialize_callback(event),
-            order=10,
-        )
-        # add handle for debug visualization (this is set to a valid handle inside set_debug_vis)
-        self._debug_vis_handle = None
-        # set initial state of debug visualization
-        self.set_debug_vis(self.cfg.debug_vis)
+        super().__init__(cfg)
 
         # Create empty variables for storing output data
         self._data: ContactSensorData = ContactSensorData()

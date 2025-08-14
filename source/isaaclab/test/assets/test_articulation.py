@@ -771,7 +771,7 @@ def test_external_force_on_single_body(sim, num_articulations, device, add_groun
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0"])
-@pytest.mark.parametrize("add_ground_plane", [True])
+@pytest.mark.parametrize("add_ground_plane", [False])
 def test_external_force_on_multiple_bodies(sim, num_articulations, device, add_ground_plane):
     """Test application of external force on the legs of the articulation.
 

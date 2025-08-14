@@ -81,12 +81,7 @@ class SensorBase(ABC):
         timeline_event_stream = omni.timeline.get_timeline_interface().get_timeline_event_stream()
 
         # the order is set to 10 which is arbitrary but should be lower priority than the default order of 0
-        # register timeline PLAY event callback (lower priority with order=10)
-        self._initialize_handle = timeline_event_stream.create_subscription_to_pop_by_type(
-            int(omni.timeline.TimelineEventType.PLAY),
-            lambda event, obj_ref=obj_ref: safe_callback("_initialize_callback", event, obj_ref),
-            order=10,
-        )
+        NewtonManager.add_on_start_callback(lambda: safe_callback("_initialize_callback", None, obj_ref))
         # register timeline STOP event callback (lower priority with order=10)
         self._invalidate_initialize_handle = timeline_event_stream.create_subscription_to_pop_by_type(
             int(omni.timeline.TimelineEventType.STOP),
@@ -327,9 +322,6 @@ class SensorBase(ABC):
         if self._prim_deletion_callback_id:
             SimulationManager.deregister_callback(self._prim_deletion_callback_id)
             self._prim_deletion_callback_id = None
-        if self._initialize_handle:
-            self._initialize_handle.unsubscribe()
-            self._initialize_handle = None
         if self._invalidate_initialize_handle:
             self._invalidate_initialize_handle.unsubscribe()
             self._invalidate_initialize_handle = None

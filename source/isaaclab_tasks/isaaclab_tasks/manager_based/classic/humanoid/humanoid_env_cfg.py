@@ -207,9 +207,8 @@ class HumanoidEnvCfg(ManagerBasedRLEnvCfg):
         self.episode_length_s = 16.0
         # simulation settings
         self.sim.dt = 1 / 120.0
+        self.sim.newton_cfg.num_substeps = 2
         self.sim.render_interval = self.decimation
-        self.sim.physx.bounce_threshold_velocity = 0.2
         # default friction material
         self.sim.physics_material.static_friction = 1.0
         self.sim.physics_material.dynamic_friction = 1.0
-        self.sim.physics_material.restitution = 0.0

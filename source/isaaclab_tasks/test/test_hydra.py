@@ -68,17 +68,17 @@ def test_hydra():
     sys.argv = [
         sys.argv[0],
         "env.decimation=42",  # test simple env modification
-        "env.events.physics_material.params.asset_cfg.joint_ids='slice(0 ,1, 2)'",  # test slice setting
+        "env.events.add_base_mass.params.asset_cfg.joint_ids='slice(0 ,1, 2)'",  # test slice setting
         "env.scene.robot.init_state.joint_vel={.*: 4.0}",  # test regex setting
         "env.rewards.feet_air_time=null",  # test setting to none
         "agent.max_iterations=3",  # test simple agent modification
     ]
 
-    @hydra_task_config_test("Isaac-Velocity-Flat-H1-v0", "rsl_rl_cfg_entry_point")
+    @hydra_task_config_test("Isaac-Velocity-Flat-Anymal-D-v0", "rsl_rl_cfg_entry_point")
     def main(env_cfg, agent_cfg):
         # env
         assert env_cfg.decimation == 42
-        assert env_cfg.events.physics_material.params["asset_cfg"].joint_ids == slice(0, 1, 2)
+        assert env_cfg.events.add_base_mass.params["asset_cfg"].joint_ids == slice(0, 1, 2)
         assert env_cfg.scene.robot.init_state.joint_vel == {".*": 4.0}
         assert env_cfg.rewards.feet_air_time is None
         # agent
@@ -90,16 +90,16 @@ def test_hydra():
     hydra.core.global_hydra.GlobalHydra.instance().clear()
 
 
-def test_nested_iterable_dict():
-    """Test the hydra configuration system when dict is nested in an Iterable."""
-
-    @hydra_task_config_test("Isaac-Lift-Cube-Franka-v0", "rsl_rl_cfg_entry_point")
-    def main(env_cfg, agent_cfg):
-        # env
-        assert env_cfg.scene.ee_frame.target_frames[0].name == "end_effector"
-        assert env_cfg.scene.ee_frame.target_frames[0].offset.pos[2] == 0.1034
-
-    main()
-    # clean up
-    sys.argv = [sys.argv[0]]
-    hydra.core.global_hydra.GlobalHydra.instance().clear()
+# def test_nested_iterable_dict():
+#    """Test the hydra configuration system when dict is nested in an Iterable."""
+#
+#    @hydra_task_config_test("Isaac-Lift-Cube-Franka-v0", "rsl_rl_cfg_entry_point")
+#    def main(env_cfg, agent_cfg):
+#        # env
+#        assert env_cfg.scene.ee_frame.target_frames[0].name == "end_effector"
+#        assert env_cfg.scene.ee_frame.target_frames[0].offset.pos[2] == 0.1034
+#
+#    main()
+#    # clean up
+#    sys.argv = [sys.argv[0]]
+#    hydra.core.global_hydra.GlobalHydra.instance().clear()

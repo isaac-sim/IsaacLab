@@ -149,11 +149,23 @@ class SimulationContext(_SimulationContext):
 
         # note: we read this once since it is not expected to change during runtime
         # read flag for whether a local GUI is enabled
-        self._local_gui = self.carb_settings.get("/app/window/enabled")
+        self._local_gui = (
+            self.carb_settings.get("/app/window/enabled")
+            if self.carb_settings.get("/app/window/enabled") is not None
+            else False
+        )
         # read flag for whether livestreaming GUI is enabled
-        self._livestream_gui = self.carb_settings.get("/app/livestream/enabled")
+        self._livestream_gui = (
+            self.carb_settings.get("/app/livestream/enabled")
+            if self.carb_settings.get("/app/livestream/enabled") is not None
+            else False
+        )
         # read flag for whether XR GUI is enabled
-        self._xr_gui = self.carb_settings.get("/app/xr/enabled")
+        self._xr_gui = (
+            self.carb_settings.get("/app/xr/enabled")
+            if self.carb_settings.get("/app/xr/enabled") is not None
+            else False
+        )
 
         # read flags anim recording config and init timestamps
         self._setup_anim_recording()
@@ -287,7 +299,9 @@ class SimulationContext(_SimulationContext):
         physx_sim_interface.detach_stage()
         get_physics_stage_update_node_interface().detach_node()
         # Disable USD cloning if we are not rendering or using RTX sensors
-        NewtonManager._clone_physics_only = not (self.has_gui() or self.has_rtx_sensors())
+        NewtonManager._clone_physics_only = (
+            self.render_mode == self.RenderMode.NO_GUI_OR_RENDERING or self.render_mode == self.RenderMode.NO_RENDERING
+        )
 
     def _apply_physics_settings(self):
         """Sets various carb physics settings."""
@@ -752,6 +766,7 @@ class SimulationContext(_SimulationContext):
                 cls._instance._app_control_on_stop_handle = None
         # call parent to clear the instance
         super().clear_instance()
+        NewtonManager.clear()
 
     """
     Helper Functions

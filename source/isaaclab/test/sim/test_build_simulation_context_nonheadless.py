@@ -54,7 +54,7 @@ def test_build_simulation_context_ground_plane(add_ground_plane):
 def test_build_simulation_context_auto_add_lighting(add_lighting, auto_add_lighting):
     """Test that the simulation context is built with the correct lighting."""
     with build_simulation_context(add_lighting=add_lighting, auto_add_lighting=auto_add_lighting) as _:
-        if auto_add_lighting or add_lighting:
+        if add_lighting:
             # Ensure that dome light got added
             assert is_prim_path_valid("/World/defaultDomeLight")
         else:

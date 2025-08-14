@@ -95,8 +95,8 @@ class GridCloner(Cloner):
             # compute transform
             row = i // num_cols
             col = i % num_cols
-            x = row_offset - row * self._spacing
-            y = col * self._spacing - col_offset
+            y = row_offset - row * self._spacing
+            x = col * self._spacing - col_offset
 
             up_axis = UsdGeom.GetStageUpAxis(self._stage)
             position = [y, x, 0] if up_axis == UsdGeom.Tokens.z else [x, 0, y]

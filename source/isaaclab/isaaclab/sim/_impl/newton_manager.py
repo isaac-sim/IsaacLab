@@ -78,6 +78,28 @@ class NewtonManager:
     _up_axis: str = "Z"
     _num_envs: int = None
 
+    @classmethod
+    def clear(cls):
+        NewtonManager._builder = None
+        NewtonManager._model = None
+        NewtonManager._solver = None
+        NewtonManager._state_0 = None
+        NewtonManager._state_1 = None
+        NewtonManager._state_temp = None
+        NewtonManager._control = None
+        NewtonManager._contacts = None
+        NewtonManager._newton_contact_sensor = None
+        NewtonManager._report_contacts = False
+        NewtonManager._graph = None
+        NewtonManager._newton_stage_path = None
+        NewtonManager._renderer = None
+        NewtonManager._sim_time = 0.0
+        NewtonManager._on_init_callbacks = []
+        NewtonManager._on_start_callbacks = []
+        NewtonManager._usdrt_stage = None
+        NewtonManager._cfg = NewtonCfg()
+        NewtonManager._up_axis = "Z"
+
     @property
     def gravity_vector(self) -> tuple[float, float, float]:
         return NewtonManager._gravity_vector
@@ -128,6 +150,9 @@ class NewtonManager:
 
         This function finalizes the model and initializes the simulation state.
         """
+        print(f"[INFO] Builder: {NewtonManager._builder}")
+        if NewtonManager._builder is None:
+            NewtonManager.instantiate_builder_from_stage()
         print("[INFO] Running on init callbacks")
         for callback in NewtonManager._on_init_callbacks:
             callback()
@@ -159,6 +184,17 @@ class NewtonManager:
                 xformable_prim = usdrt.Rt.Xformable(prim)
                 if not xformable_prim.HasWorldXform():
                     xformable_prim.SetWorldXformFromUsd()
+
+    @classmethod
+    def instantiate_builder_from_stage(cls):
+        import omni.usd
+        from pxr import UsdGeom
+
+        stage = omni.usd.get_context().get_stage()
+        up_axis = UsdGeom.GetStageUpAxis(stage)
+        builder = newton.ModelBuilder(up_axis=up_axis)
+        newton.utils.parse_usd(stage, builder)
+        NewtonManager.set_builder(builder)
 
     @classmethod
     def set_solver_settings(cls, newton_params: dict):

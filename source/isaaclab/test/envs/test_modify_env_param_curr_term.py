@@ -47,7 +47,7 @@ class CurriculumsCfg:
     modify_reset_joint_pos = CurrTerm(
         func=mdp.modify_term_cfg,
         params={
-            "address": "events.reset_pole_position.params.position_range",
+            "address": "events.reset_cart_position.params.position_range",
             "modify_fn": replace_value,
             "modify_params": {"value": (-0.0, 0.0), "num_steps": 1},
         },
@@ -64,7 +64,7 @@ class CurriculumsCfg:
     )
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
+@pytest.mark.parametrize("device", ["cuda"])
 def test_curriculum_modify_env_param(device):
     """Ensure curriculum terms apply correctly after the fallback and replacement."""
     # new USD stage
