@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.44.10 (2025-08-06)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* The old termination manager in :class:`~isaaclab.managers.TerminationManager` term_done logging logs the instantaneous
+term done count at reset. This let to inaccurate aggregation of termination count, obscuring the what really happening
+during the traing. Instead we log the episodic term done.
+
+
 0.44.9 (2025-07-30)
 ~~~~~~~~~~~~~~~~~~~
 
