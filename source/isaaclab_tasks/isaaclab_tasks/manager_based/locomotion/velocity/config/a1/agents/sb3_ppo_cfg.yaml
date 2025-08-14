@@ -15,12 +15,12 @@ n_epochs: 5
 ent_coef: 0.005
 learning_rate: !!float 1e-3
 clip_range: !!float 0.2
-policy_kwargs: "dict(
-                  activation_fn=nn.ELU,
-                  net_arch=[512, 256, 128],
-                  optimizer_kwargs=dict(eps=1e-8),
-                  ortho_init=False,
-                )"
+policy_kwargs:
+  activation_fn: 'nn.ELU'
+  net_arch: [512, 256, 128]
+  optimizer_kwargs:
+    eps: !!float 1e-8
+  ortho_init: False
 vf_coef: 1.0
 max_grad_norm: 1.0
 normalize_input: True
