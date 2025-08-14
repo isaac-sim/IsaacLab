@@ -1,6 +1,51 @@
 Changelog
 ---------
 
+0.45.0 (2025-08-07)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab.sensors.contact_sensor.ContactSensorCfg.track_contact_points` to toggle tracking of contact
+  point locations between sensor bodies and filtered bodies.
+* Added :attr:`~isaaclab.sensors.contact_sensor.ContactSensorCfg.max_contact_data_per_prim` to configure the maximum
+  amount of contacts per sensor body.
+* Added :attr:`~isaaclab.sensors.contact_sensor.ContactSensorData.contact_pos_w` data field for tracking contact point
+  locations.
+
+
+0.44.12 (2025-08-12)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed IndexError in :meth:`isaaclab.envs.mdp.events.reset_joints_by_scale`,
+  :meth:`isaaclab.envs.mdp.events.reset_joints_by_offsets` by adding dimension to env_ids when indexing.
+
+
+0.44.11 (2025-08-11)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed rendering preset mode when an experience CLI arg is provided.
+
+
+0.44.10 (2025-08-06)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the old termination manager in :class:`~isaaclab.managers.TerminationManager` term_done logging that logs the
+instantaneous term done count at reset. This let to inaccurate aggregation of termination count, obscuring the what really
+happeningduring the traing. Instead we log the episodic term done.
+
+
+
 0.44.9 (2025-07-30)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -299,7 +344,6 @@ Changed
 
 Added
 ^^^^^
-
 
 * Added unit test for :func:`~isaaclab.utils.math.quat_inv`.
 
