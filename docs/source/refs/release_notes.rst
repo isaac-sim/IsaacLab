@@ -4,6 +4,114 @@ Release Notes
 The release notes are now available in the `Isaac Lab GitHub repository <https://github.com/isaac-sim/IsaacLab/releases>`_.
 We summarize the release notes here for convenience.
 
+v2.2.0
+======
+
+Overview
+--------
+
+**Isaac Lab 2.2** brings major upgrades across simulation capabilities, tooling, and developer experience. It expands support for advanced physics features, new environments, and improved testing and documentation workflows. This release includes full compatibility with **Isaac Sim 5.0** as well as backwards compatibility with **Isaac Sim 4.5**.
+
+Key highlights of this release include:
+
+- **Enhanced Physics Support**: Updated `joint friction modeling using the latest PhysX APIs <https://nvidia-omniverse.github.io/PhysX/physx/5.6.1/docs/Articulations.html#articulation-joint-friction>`_, added support for `spatial tendons <https://nvidia-omniverse.github.io/PhysX/physx/5.6.1/docs/Articulations.html#spatial-tendons>`_, and improved surface gripper interactions.
+- **New Environments for Imitation Learning**: Introduction of two new GR1 mimic environments, with domain randomization and visual robustness evaluation, and improved pick-and-place tasks.
+- **New Contact-Rich Manipulation Tasks**: Integration of `FORGE <https://noseworm.github.io/forge/>`_ and `AutoMate <https://bingjietang718.github.io/automate/>`_ tasks for learning fine-grained contact interactions in simulation.
+- **Teleoperation Improvements**: Teleoperation tools have been enhanced with configurable parameters and CloudXR runtime updates, including head tracking and hand tracking.
+- **Performance & Usability Improvements**: Includes support for Stage in Memory and Cloning in Fabric for faster scene creation, new OVD recorder for large-scene GPU-based animation recording, and FSD (Fabric Scene Delegate) for improved rendering speed.
+- **Improved Documentation**: The documentation has been extended and updated to cover new features, resolve common issues, and streamline setup, including updates to teleop system requirements, VS Code integration, and Python environment management.
+
+**Full Changelog**: https://github.com/isaac-sim/IsaacLab/compare/v2.1.1...v2.2.0
+
+
+Isaac Sim 5.0 Updates
+---------------------
+
+* Fixes rendering issues on Blackwell GPUs that previously resulted in overly noisy renders
+* Updates Python version from 3.10 to 3.11
+* Updates PyTorch version to torch 2.7.0+cu128, which will include Blackwell support
+* Drops official support for Ubuntu 20.04, we now officially support Ubuntu 22.04 and 24.04 Linux platforms
+* Isaac Sim 5.0 no longer sets ``/app/player/useFixedTimeStepping=False`` by default. We now do this in Isaac Lab.
+* :attr:`~isaaclab.sim.spawners.PhysicsMaterialCfg.improve_patch_friction` is now removed. The simulation will always behave as if this attribute is set to true.
+* Native Livestreaming support has been removed. ``LIVESTREAM=1`` can now be used for WebRTC streaming over public networks and
+  ``LIVESTREAM=2`` for private and local networks with WebRTC streaming.
+* Some assets in Isaac Sim have been reworked and restructured. Notably, the following asset paths were updated:
+
+  * ``Robots/Ant/ant_instanceable.usd`` --> ``Robots/IsaacSim/Ant/ant_instanceable.usd``
+  * ``Robots/Humanoid/humanoid_instanceable.usd`` --> ``Robots/IsaacSim/Humanoid/humanoid_instanceable.usd``
+  * ``Robots/ANYbotics/anymal_instanceable.usd`` --> ``Robots/ANYbotics/anymal_c/anymal_c.usd``
+  * ``Robots/ANYbotics/anymal_c.usd`` --> ``Robots/ANYbotics/anymal_c/anymal_c.usd``
+  * ``Robots/Franka/franka.usd`` --> ``Robots/FrankaRobotics/FrankaPanda/franka.usd``
+  * ``Robots/AllegroHand/allegro_hand_instanceable.usd`` --> ``Robots/WonikRobotics/AllegroHand/allegro_hand_instanceable.usd``
+  * ``Robots/Crazyflie/cf2x.usd`` --> ``Robots/Bitcraze/Crazyflie/cf2x.usd``
+  * ``Robots/RethinkRobotics/sawyer_instanceable.usd`` --> ``Robots/RethinkRobotics/Sawyer/sawyer_instanceable.usd``
+  * ``Robots/ShadowHand/shadow_hand_instanceable.usd`` --> ``Robots/ShadowRobot/ShadowHand/shadow_hand_instanceable.usd``
+
+
+New Features
+------------
+
+* Adds FORGE tasks for contact-rich manipulation with force sensing to IsaacLab by @noseworm in #2968
+* Adds two new GR1 environments for IsaacLab Mimic by @peterd-NV
+* Adds stack environment, scripts for Cosmos, and visual robustness evaluation by @shauryadNv
+* Updates Joint Friction Parameters to Isaac Sim 5.0 PhysX APIs by @ossamaAhmed in 87130f23a11b84851133685b234dfa4e0991cfcd
+* Adds support for spatial tendons by @ossamaAhmed in 7a176fa984dfac022d7f99544037565e78354067
+* Adds support and example for SurfaceGrippers by @AntoineRichard in 14a3a7afc835754da7a275209a95ea21b40c0d7a
+* Adds support for stage in memory by @matthewtrepte in 33bcf6605bcd908c10dfb485a4432fa1110d2e73
+* Adds OVD animation recording feature by @matthewtrepte
+
+Improvements
+------------
+
+* Enables FSD for faster rendering by @nv-mm
+* Sets rtx.indirectDiffuse.enabled to True for performance & balanced rendering presets by @matthewtrepte
+* Changes runner for post-merge pipeline on self-hosted runners by @nv-apoddubny
+* Fixes and improvements for CI pipeline by @nv-apoddubny
+* Adds flaky annotation for tests by @kellyguo11
+* Updates Mimic test cases to pytest format by @peterd-NV
+* Updates cosmos test files to use pytest by @shauryadNv
+* Updates onnx and protobuf version due to vulnerabilities by @kellyguo11
+* Updates minimum skrl version to 1.4.3 by @Toni-SM in https://github.com/isaac-sim/IsaacLab/pull/3053
+* Updates to Isaac Sim 5.0 by @kellyguo11
+* Updates docker CloudXR runtime version by @lotusl-code
+* Removes xr rendering mode by @rwiltz
+* Migrates OpenXRDevice from isaacsim.xr.openxr to omni.xr.kitxr by @rwiltz
+* Implements teleop config parameters and device factory by @rwiltz
+* Updates pick place env to use steering wheel asset by @peterd-NV
+* Adds a CLI argument to set epochs for Robomimic training script by @peterd-NV
+
+Bug Fixes
+---------
+
+* Fixes operational space unit test to avoid pi rotation error by @ooctipus
+* Fixes GLIBC errors with importing torch before AppLauncher by @kellyguo11 in c80e2afb596372923dbab1090d4d0707423882f0
+* Fixes rendering preset by @matthewtrepte in cc0dab6cd50778507efc3c9c2d74a28919ab2092
+* Fixes callbacks with stage in memory and organize environment tests by @matthewtrepte in 4dd6a1e804395561965ed242b3d3d80b8a8f72b9
+* Fixes XR and external camera bug with async rendering by @rwiltz in c80e2afb596372923dbab1090d4d0707423882f0
+* Disables selection for rl_games when marl is selected for template generator by @ooctipus
+* Adds check for .gitignore when generating template by @kellyguo11
+* Fixes camera obs errors in stack instance randomize envs by @peterd-NV
+* Fixes parsing for play envs by @matthewtrepte
+* Fixes issues with consecutive python exe calls in isaaclab.bat by @kellyguo11
+* Fixes spacemouse add callback function by @peterd-NV in 72f05a29ad12d02ec9585dad0fbb2299d70a929c
+* Fixes humanoid training with new velocity_limit_sim by @AntoineRichard
+
+Documentation
+-------------
+
+* Adds note to mimic cosmos pipeline doc for eval by @shauryadNv
+* Updates teleop docs for 2.2 release by @rwiltz
+* Fixes outdated dofbot path in tutorial scripts by @mpgussert
+* Updates docs for VS Code IntelliSense setup and JAX installation by @Toni-SM
+* Updates Jax doc to overwrite version < 0.6.0 for torch by @kellyguo11
+* Adds docs for fabric cloning & stage in memory by @matthewtrepte
+* Updates driver requirements to point to our official technical docs by @mpgussert
+* Adds warning for ovd recording warning logs spam by @matthewtrepte
+* Adds documentation to specify HOVER version and known GLIBCXX error by @kellyguo11
+* Updates teleop system requirements doc by @lotusl-code
+* Add network requirements to cloudxr teleop doc by @lotusl-code
+
+
 v2.1.1
 ======
 

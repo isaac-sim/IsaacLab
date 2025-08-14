@@ -19,4 +19,5 @@ container.
 
   docker
   cluster
+  cloudxr_teleoperation_cluster
   run_docker_example
