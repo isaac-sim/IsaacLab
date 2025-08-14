@@ -177,7 +177,7 @@ class AssemblyKitEnv(DirectRLEnv):
 
         tcp_cfg = FrameTransformerCfg(
             prim_path="/World/envs/env_.*/Robot/panda_link7",
-            debug_vis=True,
+            debug_vis=False,
             visualizer_cfg=marker_cfg,
             target_frames=[
                 FrameTransformerCfg.FrameCfg(
@@ -342,7 +342,10 @@ class AssemblyKitEnv(DirectRLEnv):
         self.actions = actions.clone()
 
     def _apply_action(self) -> None:
-        self.robot.set_joint_effort_target(self.actions, joint_ids=self.joint_ids)
+        if self.cfg.robot_controller == "task_space":
+            self.robot.set_joint_position_target(self.actions, joint_ids=self.joint_ids)
+        else:
+            self.robot.set_joint_effort_target(self.actions, joint_ids=self.joint_ids)
 
     def _get_observations(self) -> dict:
         """Collects state or pixel observations for the policy.
@@ -418,10 +421,12 @@ class AssemblyKitEnv(DirectRLEnv):
 
     def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:
 
-        time_out = self.episode_length_buf >= self.max_episode_length - 1
-        terminated = self.is_success()
-
-        return terminated, time_out
+        done = self.is_success()
+        if self.cfg.robot_controller == "task_space":
+            timeout = torch.zeros_like(done, dtype=torch.bool)
+        else:
+            timeout = self.episode_length_buf >= (self.max_episode_length - 1)
+        return done, timeout
 
     def is_success(self, pos_eps=2e-2, rot_eps=math.radians(4), height_eps=3e-3) -> torch.Tensor:
         """Checks if target objects are correctly placed and oriented.
@@ -558,7 +563,7 @@ class AssemblyKitEnv(DirectRLEnv):
         rows = torch.arange(num_envs, device=device)
         mask_other_to_side[rows[do_pick], cols[do_pick]] = True
         others_pos[mask_other_to_side] = torch.tensor(
-            [[-self.cfg.table_offset, 0.2, 0.1]],
+            [[-self.cfg.TABLE_OFFSET, 0.2, 0.1]],
             device=device,
             dtype=others_pos.dtype,
         )
