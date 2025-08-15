@@ -669,7 +669,7 @@ class randomize_joint_parameters(ManagerTermBase):
         self.asset: RigidObject | Articulation = env.scene[self.asset_cfg.name]
         # check for valid operation
         if cfg.params["operation"] == "scale":
-            if "stiffness_distribution_params" in cfg.params:
+            if "friction_distribution_params" in cfg.params:
                 _validate_scale_range(cfg.params["friction_distribution_params"], "friction_distribution_params")
             if "armature_distribution_params" in cfg.params:
                 _validate_scale_range(cfg.params["armature_distribution_params"], "armature_distribution_params")
