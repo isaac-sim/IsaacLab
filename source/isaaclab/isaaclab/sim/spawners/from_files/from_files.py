@@ -8,7 +8,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import isaacsim.core.utils.prims as prim_utils
-import isaacsim.core.utils.stage as stage_utils
 import omni.kit.commands
 import omni.log
 from pxr import Gf, Sdf, Usd
@@ -19,8 +18,16 @@ try:
 except ModuleNotFoundError:
     from pxr import Semantics
 
+from isaacsim.core.utils.stage import get_current_stage
+
 from isaaclab.sim import converters, schemas
-from isaaclab.sim.utils import bind_physics_material, bind_visual_material, clone, select_usd_variants
+from isaaclab.sim.utils import (
+    bind_physics_material,
+    bind_visual_material,
+    clone,
+    is_current_stage_in_memory,
+    select_usd_variants,
+)
 
 if TYPE_CHECKING:
     from . import from_files_cfg
@@ -32,6 +39,7 @@ def spawn_from_usd(
     cfg: from_files_cfg.UsdFileCfg,
     translation: tuple[float, float, float] | None = None,
     orientation: tuple[float, float, float, float] | None = None,
+    **kwargs,
 ) -> Usd.Prim:
     """Spawn an asset from a USD file and override the settings with the given config.
 
@@ -55,6 +63,7 @@ def spawn_from_usd(
             case the translation specified in the USD file is used.
         orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None,
             in which case the orientation specified in the USD file is used.
+        **kwargs: Additional keyword arguments, like ``clone_in_fabric``.
 
     Returns:
         The prim of the spawned asset.
@@ -72,6 +81,7 @@ def spawn_from_urdf(
     cfg: from_files_cfg.UrdfFileCfg,
     translation: tuple[float, float, float] | None = None,
     orientation: tuple[float, float, float, float] | None = None,
+    **kwargs,
 ) -> Usd.Prim:
     """Spawn an asset from a URDF file and override the settings with the given config.
 
@@ -95,6 +105,7 @@ def spawn_from_urdf(
             case the translation specified in the generated USD file is used.
         orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None,
             in which case the orientation specified in the generated USD file is used.
+        **kwargs: Additional keyword arguments, like ``clone_in_fabric``.
 
     Returns:
         The prim of the spawned asset.
@@ -113,6 +124,7 @@ def spawn_ground_plane(
     cfg: from_files_cfg.GroundPlaneCfg,
     translation: tuple[float, float, float] | None = None,
     orientation: tuple[float, float, float, float] | None = None,
+    **kwargs,
 ) -> Usd.Prim:
     """Spawns a ground plane into the scene.
 
@@ -131,6 +143,7 @@ def spawn_ground_plane(
             case the translation specified in the USD file is used.
         orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None,
             in which case the orientation specified in the USD file is used.
+        **kwargs: Additional keyword arguments, like ``clone_in_fabric``.
 
     Returns:
         The prim of the spawned asset.
@@ -166,18 +179,28 @@ def spawn_ground_plane(
     # Change the color of the plane
     # Warning: This is specific to the default grid plane asset.
     if cfg.color is not None:
-        prop_path = f"{prim_path}/Looks/theGrid/Shader.inputs:diffuse_tint"
-        # change the color
-        omni.kit.commands.execute(
-            "ChangePropertyCommand",
-            prop_path=Sdf.Path(prop_path),
-            value=Gf.Vec3f(*cfg.color),
-            prev=None,
-            type_to_create_if_not_exist=Sdf.ValueTypeNames.Color3f,
-        )
+        # avoiding this step if stage is in memory since the "ChangePropertyCommand" kit command
+        # is not supported in stage in memory
+        if is_current_stage_in_memory():
+            omni.log.warn(
+                "Ground plane color modification is not supported while the stage is in memory. Skipping operation."
+            )
+
+        else:
+            prop_path = f"{prim_path}/Looks/theGrid/Shader.inputs:diffuse_tint"
+
+            # change the color
+            omni.kit.commands.execute(
+                "ChangePropertyCommand",
+                prop_path=Sdf.Path(prop_path),
+                value=Gf.Vec3f(*cfg.color),
+                prev=None,
+                type_to_create_if_not_exist=Sdf.ValueTypeNames.Color3f,
+            )
     # Remove the light from the ground plane
     # It isn't bright enough and messes up with the user's lighting settings
-    omni.kit.commands.execute("ToggleVisibilitySelectedPrims", selected_paths=[f"{prim_path}/SphereLight"])
+    stage = get_current_stage()
+    omni.kit.commands.execute("ToggleVisibilitySelectedPrims", selected_paths=[f"{prim_path}/SphereLight"], stage=stage)
 
     prim = prim_utils.get_prim_at_path(prim_path)
     # Apply semantic tags
@@ -208,6 +231,7 @@ def _spawn_from_usd_file(
     cfg: from_files_cfg.FileCfg,
     translation: tuple[float, float, float] | None = None,
     orientation: tuple[float, float, float, float] | None = None,
+    **kwargs,
 ) -> Usd.Prim:
     """Spawn an asset from a USD file and override the settings with the given config.
 
@@ -224,6 +248,7 @@ def _spawn_from_usd_file(
             case the translation specified in the generated USD file is used.
         orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None,
             in which case the orientation specified in the generated USD file is used.
+        **kwargs: Additional keyword arguments, like ``clone_in_fabric``.
 
     Returns:
         The prim of the spawned asset.
@@ -231,10 +256,18 @@ def _spawn_from_usd_file(
     Raises:
         FileNotFoundError: If the USD file does not exist at the given path.
     """
+    # get stage handle
+    stage = get_current_stage()
+
     # check file path exists
-    stage: Usd.Stage = stage_utils.get_current_stage()
     if not stage.ResolveIdentifierToEditTarget(usd_path):
-        raise FileNotFoundError(f"USD file not found at path: '{usd_path}'.")
+        if "4.5" in usd_path:
+            usd_5_0_path = usd_path.replace("http", "https").replace("/4.5", "/5.0")
+            if not stage.ResolveIdentifierToEditTarget(usd_5_0_path):
+                raise FileNotFoundError(f"USD file not found at path at either: '{usd_path}' or '{usd_5_0_path}'.")
+            usd_path = usd_5_0_path
+        else:
+            raise FileNotFoundError(f"USD file not found at path at: '{usd_path}'.")
     # spawn asset if it doesn't exist.
     if not prim_utils.is_prim_path_valid(prim_path):
         # add prim as reference to stage
@@ -268,6 +301,8 @@ def _spawn_from_usd_file(
     # modify tendon properties
     if cfg.fixed_tendons_props is not None:
         schemas.modify_fixed_tendon_properties(prim_path, cfg.fixed_tendons_props)
+    if cfg.spatial_tendons_props is not None:
+        schemas.modify_spatial_tendon_properties(prim_path, cfg.spatial_tendons_props)
     # define drive API on the joints
     # note: these are only for setting low-level simulation properties. all others should be set or are
     #  and overridden by the articulation/actuator properties.
