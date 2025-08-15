@@ -143,7 +143,7 @@ These functions are defined like so:
 
 They always take the output tensor of the observation term as the first argument, and the descriptor as the second argument.
 In the ``kwargs`` all the inputs of the observation term are provided. In addition to the ``on_inspect`` functions, the decorator
-will also call run some functions in the background to collect the ``name``, the ``description``, and the ``full_path`` of the
+will also call call some functions in the background to collect the ``name``, the ``description``, and the ``full_path`` of the
 observation term. Note that adding this decorator does not change the signature of the observation term, so it can be used safely
 with the observation manager!
 
