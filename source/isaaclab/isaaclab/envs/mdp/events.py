@@ -17,8 +17,8 @@ from __future__ import annotations
 import torch
 from typing import TYPE_CHECKING, Literal
 
-import newton
 import warp as wp
+from newton.solvers import SolverNotifyFlags
 
 import isaaclab.utils.math as math_utils
 from isaaclab.actuators import ImplicitActuator
@@ -145,7 +145,7 @@ def randomize_rigid_body_mass(
             mask=mask,
         )
 
-        NewtonManager._solver.notify_model_changed(newton.sim.NOTIFY_FLAG_BODY_INERTIAL_PROPERTIES)
+        NewtonManager._solver.notify_model_changed(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
 
 
 def randomize_rigid_body_com(
@@ -191,7 +191,7 @@ def randomize_rigid_body_com(
     asset.root_newton_view.set_attribute(
         "body_com", asset.root_newton_model, wp.from_torch(coms, dtype=wp.vec3), mask=mask
     )
-    NewtonManager._solver.notify_model_changed(newton.sim.NOTIFY_FLAG_BODY_INERTIAL_PROPERTIES)
+    NewtonManager._solver.notify_model_changed(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
 
 
 def randomize_rigid_body_collider_offsets(

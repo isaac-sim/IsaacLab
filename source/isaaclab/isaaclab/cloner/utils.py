@@ -7,9 +7,11 @@ import numpy as np
 import tqdm
 from typing import Any
 
-import newton
 import omni.log
 import warp as wp
+from newton import AxisType, ModelBuilder
+from newton.geometry import remesh_mesh
+from newton.utils import parse_usd
 
 
 def replicate_environment(
@@ -18,11 +20,11 @@ def replicate_environment(
     path_pattern: str,
     positions: np.ndarray,
     orientations: np.ndarray,
-    up_axis: newton.AxisType = "Z",
+    up_axis: AxisType = "Z",
     simplify_meshes: bool = True,
     spawn_offset: tuple[float] = (0.0, 0.0, 20.0),
     **usd_kwargs,
-) -> tuple[newton.ModelBuilder, dict[str:Any]]:
+) -> tuple[ModelBuilder, dict[str:Any]]:
     """
     Replicates a prototype USD environment in Newton.
 
@@ -42,10 +44,10 @@ def replicate_environment(
         (ModelBuilder, dict): The resulting ModelBuilder containing all replicated environments and a dictionary with USD stage information.
     """
 
-    builder = newton.ModelBuilder(up_axis=up_axis)
+    builder = ModelBuilder(up_axis=up_axis)
 
     # first, load everything except the prototype env
-    stage_info = newton.utils.parse_usd(
+    stage_info = parse_usd(
         source,
         builder,
         ignore_paths=[prototype_path],
@@ -58,8 +60,8 @@ def replicate_environment(
         print(f"WARNING: up_axis '{up_axis}' does not match USD stage up_axis '{stage_up_axis}'")
 
     # load just the prototype env
-    prototype_builder = newton.ModelBuilder(up_axis=up_axis)
-    newton.utils.parse_usd(
+    prototype_builder = ModelBuilder(up_axis=up_axis)
+    parse_usd(
         source,
         prototype_builder,
         root_path=prototype_path,
@@ -79,11 +81,9 @@ def replicate_environment(
             if hash_m in simplified_meshes:
                 prototype_builder.shape_source[i] = simplified_meshes[hash_m]
             else:
-                simplified = newton.geometry.utils.remesh_mesh(
-                    m, visualize=False, method="convex_hull", recompute_inertia=False
-                )
+                simplified = remesh_mesh(m, visualize=False, method="convex_hull", recompute_inertia=False)
                 try:
-                    simplified = newton.geometry.utils.remesh_mesh(
+                    simplified = remesh_mesh(
                         simplified, visualize=False, target_reduction=None, target_count=32, recompute_inertia=False
                     )
                 except Exception as e:
@@ -118,7 +118,7 @@ def replicate_environment(
 
 
 def update_paths(
-    builder: newton.ModelBuilder,
+    builder: ModelBuilder,
     old_root: str,
     new_root: str,
     body_start: int | None = None,

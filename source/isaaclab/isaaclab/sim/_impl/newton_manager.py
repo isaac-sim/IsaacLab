@@ -6,17 +6,15 @@
 import numpy as np
 import re
 
-import newton.sim.articulation
-import newton.utils
 import usdrt
 import warp as wp
 from isaacsim.core.utils.stage import get_current_stage
-from newton import Control, Model, State
-from newton.sim import ModelBuilder
-from newton.sim.contacts import Contacts
-from newton.solvers import FeatherstoneSolver, MuJoCoSolver, SolverBase, XPBDSolver
-from newton.utils.contact_sensor import ContactSensor as NewtonContactSensor
-from newton.utils.contact_sensor import populate_contacts
+from newton import Axis, Contacts, Control, Model, ModelBuilder, State, eval_fk
+from newton.sensors import ContactSensor as NewtonContactSensor
+from newton.sensors import populate_contacts
+from newton.solvers import SolverBase, SolverFeatherstone, SolverMuJoCo, SolverXPBD
+from newton.utils import parse_usd
+from newton.viewer import RendererOpenGL
 
 from isaaclab.sim._impl.newton_manager_cfg import NewtonCfg
 
@@ -158,20 +156,14 @@ class NewtonManager:
             callback()
         print(f"[INFO] Finalizing model on device: {NewtonManager._device}")
         NewtonManager._builder.gravity = np.array(NewtonManager._gravity_vector)
-        NewtonManager._builder.up_axis = newton.Axis.from_string(NewtonManager._up_axis)
+        NewtonManager._builder.up_axis = Axis.from_string(NewtonManager._up_axis)
         NewtonManager._model = NewtonManager._builder.finalize(device=NewtonManager._device)
         NewtonManager._state_0 = NewtonManager._model.state()
         NewtonManager._state_1 = NewtonManager._model.state()
         NewtonManager._state_temp = NewtonManager._model.state()
         NewtonManager._control = NewtonManager._model.control()
         NewtonManager._contacts = Contacts(0, 0)
-        newton.sim.articulation.eval_fk(
-            NewtonManager._model,
-            NewtonManager._model.joint_q,
-            NewtonManager._model.joint_qd,
-            NewtonManager._state_0,
-            None,
-        )
+        NewtonManager.forward_kinematics()
         print("[INFO] Running on start callbacks")
         for callback in NewtonManager._on_start_callbacks:
             callback()
@@ -192,8 +184,8 @@ class NewtonManager:
 
         stage = omni.usd.get_context().get_stage()
         up_axis = UsdGeom.GetStageUpAxis(stage)
-        builder = newton.ModelBuilder(up_axis=up_axis)
-        newton.utils.parse_usd(stage, builder)
+        builder = ModelBuilder(up_axis=up_axis)
+        parse_usd(stage, builder)
         NewtonManager.set_builder(builder)
 
     @classmethod
@@ -332,7 +324,7 @@ class NewtonManager:
         This function renders the simulation using the OpenGL renderer.
         """
         if NewtonManager._renderer is None:
-            NewtonManager._renderer = newton.utils.SimRendererOpenGL(
+            NewtonManager._renderer = RendererOpenGL(
                 path="example.usd",
                 model=NewtonManager._model,
                 scaling=1.0,
@@ -390,7 +382,7 @@ class NewtonManager:
 
         This function evaluates the forward kinematics for the selected articulations.
         """
-        newton.sim.articulation.eval_fk(
+        eval_fk(
             NewtonManager._model,
             NewtonManager._state_0.joint_q,
             NewtonManager._state_0.joint_qd,
@@ -403,11 +395,11 @@ class NewtonManager:
         NewtonManager._solver_type = solver_cfg.pop("solver_type")
 
         if NewtonManager._solver_type == "mujoco_warp":
-            return MuJoCoSolver(model, **solver_cfg)
+            return SolverMuJoCo(model, **solver_cfg)
         elif NewtonManager._solver_type == "xpbd":
-            return XPBDSolver(model, **solver_cfg)
+            return SolverXPBD(model, **solver_cfg)
         elif NewtonManager._solver_type == "featherstone":
-            return FeatherstoneSolver(model, **solver_cfg)
+            return SolverFeatherstone(model, **solver_cfg)
         else:
             raise ValueError(f"Invalid solver type: {NewtonManager._solver_type}")
 

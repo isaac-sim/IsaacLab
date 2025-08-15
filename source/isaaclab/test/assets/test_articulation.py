@@ -21,9 +21,9 @@ import ctypes
 import torch
 
 import isaacsim.core.utils.prims as prim_utils
-import newton
 import pytest
 import warp as wp
+from newton.solvers import SolverNotifyFlags
 
 ##
 # Pre-defined configs
@@ -1288,7 +1288,7 @@ def test_body_root_state(sim, num_articulations, device, with_offset):
     new_com = torch.tensor(offset, device=device).repeat(num_articulations, 1, 1)
     com[:, 1, :3] = new_com.squeeze(-2)
     articulation._root_newton_view.set_attribute("body_com", articulation._root_newton_view.model, wp.from_torch(com))
-    NewtonManager._solver.notify_model_changed(newton.sim.NOTIFY_FLAG_BODY_INERTIAL_PROPERTIES)
+    NewtonManager._solver.notify_model_changed(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
 
     # check they are set
     torch.testing.assert_close(
@@ -1403,7 +1403,7 @@ def test_write_root_state(sim, num_articulations, device, with_offset, state_loc
     new_com = offset
     com[:, 0, :3] = new_com.squeeze(-2)
     articulation._root_newton_view.set_attribute("body_com", articulation._root_newton_view.model, wp.from_torch(com))
-    NewtonManager._solver.notify_model_changed(newton.sim.NOTIFY_FLAG_BODY_INERTIAL_PROPERTIES)
+    NewtonManager._solver.notify_model_changed(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
 
     # check they are set
     torch.testing.assert_close(

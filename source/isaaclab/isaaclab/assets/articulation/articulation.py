@@ -16,16 +16,9 @@ from typing import TYPE_CHECKING, Literal
 import omni.log
 import warp as wp
 from isaacsim.core.simulation_manager import SimulationManager
-from newton import (
-    JOINT_FIXED,
-    JOINT_FREE,
-    JOINT_MODE_NONE,
-    JOINT_MODE_TARGET_POSITION,
-    JOINT_MODE_TARGET_VELOCITY,
-    Model,
-)
-from newton.solvers import MuJoCoSolver
-from newton.utils.selection import ArticulationView as NewtonArticulationView
+from newton import JointMode, JointType, Model
+from newton.selection import ArticulationView as NewtonArticulationView
+from newton.solvers import SolverMuJoCo
 from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
@@ -651,12 +644,12 @@ class Articulation(AssetBase):
             env_ids = env_ids[:, None]
         # set into internal buffers
         if control_mode == "position":
-            self._data.joint_control_mode[env_ids, joint_ids] = JOINT_MODE_TARGET_POSITION
+            self._data.joint_control_mode[env_ids, joint_ids] = JointMode.TARGET_POSITION
         elif control_mode == "velocity":
-            self._data.joint_control_mode[env_ids, joint_ids] = JOINT_MODE_TARGET_VELOCITY
+            self._data.joint_control_mode[env_ids, joint_ids] = JointMode.TARGET_VELOCITY
         elif (control_mode is None) or (control_mode == "none"):
             # Set the control mode to None when using explicit actuators
-            self._data.joint_control_mode[env_ids, joint_ids] = JOINT_MODE_NONE
+            self._data.joint_control_mode[env_ids, joint_ids] = JointMode.NONE
         else:
             raise ValueError(f"Invalid control mode: {control_mode}")
 
@@ -820,7 +813,7 @@ class Articulation(AssetBase):
             env_ids: The environment indices to set the max velocity for. Defaults to None (all environments).
         """
         # Warn if using Mujoco solver
-        if isinstance(NewtonManager._solver, MuJoCoSolver):
+        if isinstance(NewtonManager._solver, SolverMuJoCo):
             omni.log.warn("write_joint_velocity_limit_to_sim is ignored when using the Mujoco solver.")
 
         # resolve indices
@@ -1353,7 +1346,7 @@ class Articulation(AssetBase):
         prim_path = root_prim_path_expr.replace(".*", "*")
 
         self._root_newton_view = NewtonArticulationView(
-            NewtonManager.get_model(), prim_path, verbose=True, exclude_joint_types=[JOINT_FREE, JOINT_FIXED]
+            NewtonManager.get_model(), prim_path, verbose=True, exclude_joint_types=[JointType.FREE, JointType.FIXED]
         )
 
         # log information about the articulation
