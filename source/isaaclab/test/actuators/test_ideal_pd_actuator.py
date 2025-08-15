@@ -282,7 +282,6 @@ def test_ideal_pd_actuator_init_delay(num_envs, num_joints, device):
     damping = 10
     effort_limit = 60.0
     velocity_limit = 50
-    motor_strength = (1.0, 1.0)
     delay = 5
 
     actuator_cfg = IdealPDActuatorCfg(
@@ -291,7 +290,6 @@ def test_ideal_pd_actuator_init_delay(num_envs, num_joints, device):
         damping=damping,
         effort_limit=effort_limit,
         velocity_limit=velocity_limit,
-        motor_strength=motor_strength,
         min_delay=delay,
         max_delay=delay,
     )
@@ -327,16 +325,12 @@ def test_ideal_pd_actuator_init_delay(num_envs, num_joints, device):
     assert actuator.velocities_delay_buffer.history_length == delay
     assert actuator.efforts_delay_buffer.history_length == delay
 
-    # check motor strength
-    torch.testing.assert_close(actuator._current_motor_strength, torch.ones((num_envs, 1), device=device))
-
 
 @pytest.mark.parametrize("num_envs", [1, 2])
 @pytest.mark.parametrize("num_joints", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("effort_lim", [None, 80])
-@pytest.mark.parametrize("motor_strength_scalar", (1.0, 0.0))
-def test_delay_pd_actuator_compute(num_envs, num_joints, device, effort_lim, motor_strength_scalar):
+def test_delay_pd_actuator_compute(num_envs, num_joints, device, effort_lim):
     """Test the computation of the delay pd actuator."""
     joint_names = [f"joint_{d}" for d in range(num_joints)]
     joint_ids = [d for d in range(num_joints)]
@@ -344,7 +338,6 @@ def test_delay_pd_actuator_compute(num_envs, num_joints, device, effort_lim, mot
     damping = 1
     effort_limit = effort_lim
     velocity_limit = 50
-    motor_strength = (motor_strength_scalar, motor_strength_scalar)
     delay = 3
     # configure actuator
     actuator_cfg = IdealPDActuatorCfg(
@@ -353,7 +346,6 @@ def test_delay_pd_actuator_compute(num_envs, num_joints, device, effort_lim, mot
         damping=damping,
         effort_limit=effort_limit,
         velocity_limit=velocity_limit,
-        motor_strength=motor_strength,
         min_delay=delay,
         max_delay=delay,
     )
@@ -380,12 +372,6 @@ def test_delay_pd_actuator_compute(num_envs, num_joints, device, effort_lim, mot
     # check delay buffer filling properly
     for i in range(delay + 4):
 
-        # check motor strength
-        torch.testing.assert_close(
-            motor_strength[0] * torch.ones(num_envs, 1, device=device),
-            actuator._current_motor_strength,
-        )
-
         desired_control_action = ArticulationActions()
         desired_control_action.joint_positions = desired_pos[i] * torch.ones(num_envs, num_joints, device=device)
         desired_control_action.joint_velocities = desired_vel[i] * torch.ones(num_envs, num_joints, device=device)
@@ -398,13 +384,13 @@ def test_delay_pd_actuator_compute(num_envs, num_joints, device, effort_lim, mot
         )
 
         if i <= delay:
-            expect = motor_strength[0] * (
+            expect = (
                 stiffness * (desired_pos[0] - measured_joint_pos)
                 + damping * (desired_vel[0] - measured_joint_vel)
                 + feedforward_effort[0]
             )
         else:
-            expect = motor_strength[0] * (
+            expect = (
                 stiffness * (desired_pos[i - delay] - measured_joint_pos)
                 + damping * (desired_vel[i - delay] - measured_joint_vel)
                 + feedforward_effort[i - delay]
