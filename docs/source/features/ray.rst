@@ -44,22 +44,28 @@ specifying the ``--num_workers`` argument for resource-wrapped jobs, or ``--num_
 for tuning jobs, which is especially critical for parallel aggregate
 job processing on local/virtual multi-GPU machines. Tuning jobs assume homogeneous node resource composition for nodes with GPUs.
 
-The two following files contain the core functionality of the Ray integration.
+The three following files contain the core functionality of the Ray integration.
 
 .. dropdown:: scripts/reinforcement_learning/ray/wrap_resources.py
   :icon: code
 
   .. literalinclude:: ../../../scripts/reinforcement_learning/ray/wrap_resources.py
     :language: python
-    :emphasize-lines: 14-66
+    :emphasize-lines: 10-63
 
 .. dropdown:: scripts/reinforcement_learning/ray/tuner.py
   :icon: code
 
   .. literalinclude:: ../../../scripts/reinforcement_learning/ray/tuner.py
     :language: python
-    :emphasize-lines: 18-53
+    :emphasize-lines: 18-54
 
+.. dropdown:: scripts/reinforcement_learning/ray/task_runner.py
+  :icon: code
+
+  .. literalinclude:: ../../../scripts/reinforcement_learning/ray/task_runner.py
+    :language: python
+    :emphasize-lines: 13-105
 
 The following script can be used to submit aggregate
 jobs to one or more Ray cluster(s), which can be used for
@@ -71,7 +77,7 @@ resource requirements.
 
   .. literalinclude:: ../../../scripts/reinforcement_learning/ray/submit_job.py
     :language: python
-    :emphasize-lines: 12-53
+    :emphasize-lines: 13-61
 
 The following script can be used to extract KubeRay cluster information for aggregate job submission.
 
@@ -89,7 +95,7 @@ The following script can be used to easily create clusters on Google GKE.
 
   .. literalinclude:: ../../../scripts/reinforcement_learning/ray/launch.py
     :language: python
-    :emphasize-lines: 16-37
+    :emphasize-lines: 15-36
 
 Docker-based Local Quickstart
 -----------------------------
@@ -147,7 +153,26 @@ Submitting resource-wrapped individual jobs instead of automatic tuning runs is 
 
   .. literalinclude:: ../../../scripts/reinforcement_learning/ray/wrap_resources.py
     :language: python
-    :emphasize-lines: 14-66
+    :emphasize-lines: 10-63
+
+The ``task_runner.py`` dispatches Python tasks to a Ray cluster via a single declarative YAML file. This approach allows users to specify additional pip packages and Python modules for each run. Fine-grained resource allocation is supported, with explicit control over the number of CPUs, GPUs, and memory assigned to each task. The runner also offers advanced scheduling capabilities: tasks can be restricted to specific nodes by hostname or node ID, and supports two launch modes: tasks can be executed independently as resources become available, or grouped into a simultaneous batch—ideal for multi-node training jobs—which ensures that all tasks launch together only when sufficient resources are available across the cluster.
+
+.. dropdown:: scripts/reinforcement_learning/ray/task_runner.py
+  :icon: code
+
+  .. literalinclude:: ../../../scripts/reinforcement_learning/ray/task_runner.py
+    :language: python
+    :emphasize-lines: 13-105
+
+To use this script, run a command similar to the following (replace ``tasks.yaml`` with your actual configuration file):
+
+.. code-block:: bash
+
+  python3 scripts/reinforcement_learning/ray/submit_job.py --aggregate_jobs task_runner.py --task_cfg tasks.yaml
+
+For detailed instructions on how to write your ``tasks.yaml`` file, please refer to the comments in ``task_runner.py``.
+
+**Tip:** Place the ``tasks.yaml`` file in the ``scripts/reinforcement_learning/ray`` directory so that it is included when the ``working_dir`` is uploaded. You can then reference it using a relative path in the command.
 
 Transferring files from the running container can be done as follows.
 
@@ -288,7 +313,7 @@ where instructions are included in the following creation file.
 
   .. literalinclude:: ../../../scripts/reinforcement_learning/ray/launch.py
     :language: python
-    :emphasize-lines: 15-37
+    :emphasize-lines: 15-36
 
 For other cloud services, the ``kuberay.yaml.ninja`` will be similar to that of
 Google's.
@@ -345,7 +370,7 @@ Dispatching Steps Shared Between KubeRay and Pure Ray Part II
 
   .. literalinclude:: ../../../scripts/reinforcement_learning/ray/submit_job.py
     :language: python
-    :emphasize-lines: 12-53
+    :emphasize-lines: 13-61
 
 3.) For tuning jobs, specify the tuning job / hyperparameter sweep as a :class:`JobCfg` .
 The included :class:`JobCfg` only supports the ``rl_games`` workflow due to differences in

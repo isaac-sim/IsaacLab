@@ -3,13 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import argparse
-import os
-import time
-from concurrent.futures import ThreadPoolExecutor
-
-from ray import job_submission
-
 """
 This script submits aggregate job(s) to cluster(s) described in a
 config file containing ``name: <NAME> address: http://<IP>:<PORT>`` on
@@ -26,7 +19,11 @@ An aggregate job could be a :file:`../tuner.py` tuning job, which automatically
 creates several individual jobs when started on a cluster. Alternatively, an aggregate job
 could be a :file:'../wrap_resources.py` resource-wrapped job,
 which may contain several individual sub-jobs separated by
-the + delimiter.
+the + delimiter. An aggregate job could also be a :file:`../task_runner.py` multi-task submission job,
+where each sub-job and its resource requirements are defined in a YAML configuration file.
+In this mode, :file:`../task_runner.py` will read the YAML file (via --task_cfg), and
+submit all defined sub-tasks to the Ray cluster, supporting per-job resource specification and
+real-time streaming of sub-job outputs.
 
 If there are more aggregate jobs than cluster(s), aggregate jobs will be submitted
 as clusters become available via the defined relation above. If there are less aggregate job(s)
@@ -48,9 +45,21 @@ Usage:
     # Example: Submitting resource wrapped job
     python3 scripts/reinforcement_learning/ray/submit_job.py --aggregate_jobs wrap_resources.py --test
 
+    # Example: submitting tasks with specific resources, and supporting pip packages and py_modules
+    # You may use relative paths for task_cfg and py_modules, placing them in the scripts/reinforcement_learning/ray directory, which will be uploaded to the cluster.
+    python3 scripts/reinforcement_learning/ray/submit_job.py --aggregate_jobs task_runner.py --task_cfg tasks.yaml
+
     # For all command line arguments
     python3 scripts/reinforcement_learning/ray/submit_job.py -h
 """
+
+import argparse
+import os
+import time
+from concurrent.futures import ThreadPoolExecutor
+
+from ray import job_submission
+
 script_directory = os.path.dirname(os.path.abspath(__file__))
 CONFIG = {"working_dir": script_directory, "executable": "/workspace/isaaclab/isaaclab.sh -p"}
 
