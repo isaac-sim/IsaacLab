@@ -17,7 +17,7 @@ from . import agents
 
 gym.register(
     id="Isaac-Cart-Double-Pendulum-Direct-v0",
-    entry_point=f"{__name__}.cart_double_pendulum_env:CartDoublePendulumEnv",
+    vector_entry_point=f"{__name__}.cart_double_pendulum_env:CartDoublePendulumEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.cart_double_pendulum_env:CartDoublePendulumEnvCfg",

@@ -17,7 +17,7 @@ from . import agents
 
 gym.register(
     id="Isaac-Quadcopter-Direct-v0",
-    entry_point=f"{__name__}.quadcopter_env:QuadcopterEnv",
+    vector_entry_point=f"{__name__}.quadcopter_env:QuadcopterEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.quadcopter_env:QuadcopterEnvCfg",
