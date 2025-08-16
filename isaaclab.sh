@@ -188,7 +188,7 @@ install_isaaclab_extension() {
     python_exe=$(extract_python_exe)
 
     # detect if we're in a uv environment
-    if [ -n "$VIRTUAL_ENV" ] && [ -f "$VIRTUAL_ENV/pyvenv.cfg" ] && grep -q "uv" "$VIRTUAL_ENV/pyvenv.cfg"; then
+    if [ -n "${VIRTUAL_ENV}" ] && [ -f "${VIRTUAL_ENV}/pyvenv.cfg" ] && grep -q "uv" "${VIRTUAL_ENV}/pyvenv.cfg"; then
         pip_cmd="uv pip install"
     else
         pip_cmd="${python_exe} -m pip install"
