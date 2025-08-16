@@ -12,12 +12,12 @@ import isaaclab.sim as sim_utils
 import isaaclab.utils.math as PoseUtils
 from isaaclab.devices import OpenXRDevice
 from isaaclab.devices.retargeter_base import RetargeterBase, RetargeterCfg
-from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
 
 # This import exception is suppressed because gr1_t2_dex_retargeting_utils depends on pinocchio which is not available on windows
 with contextlib.suppress(Exception):
     from .gr1_t2_dex_retargeting_utils import GR1TR2DexRetargeting
 
+from isaaclab.ui.xr_widgets import XRVisualization
 
 @dataclass
 class GR1T2RetargeterCfg(RetargeterCfg):
@@ -48,6 +48,20 @@ class GR1T2Retargeter(RetargeterBase):
             hand_joint_names: List of robot hand joint names
         """
 
+        XRVisualization.push_event("enable_teleop_visualization", cfg.enable_visualization)
+        XRVisualization.push_data({"sim_device": cfg.sim_device})
+        hand_torque_mapping = ["L_thumb_proximal_pitch_joint", "L_thumb_distal_joint", 
+                                "L_index_proximal_joint", "L_index_intermediate_joint", "L_index_intermediate_joint",
+                                "L_middle_proximal_joint", "L_middle_intermediate_joint", "L_middle_intermediate_joint",
+                                "L_ring_proximal_joint", "L_ring_intermediate_joint", "L_ring_intermediate_joint",
+                                "L_pinky_proximal_joint", "L_pinky_intermediate_joint", "L_pinky_intermediate_joint",
+                                "R_thumb_proximal_pitch_joint", "R_thumb_distal_joint", 
+                                "R_index_proximal_joint", "R_index_intermediate_joint", "R_index_intermediate_joint",
+                                "R_middle_proximal_joint", "R_middle_intermediate_joint", "R_middle_intermediate_joint",
+                                "R_ring_proximal_joint", "R_ring_intermediate_joint", "R_ring_intermediate_joint",
+                                "R_pinky_proximal_joint", "R_pinky_intermediate_joint", "R_pinky_intermediate_joint"]
+        XRVisualization.push_data({"hand_torque_mapping": hand_torque_mapping})
+
         self._hand_joint_names = cfg.hand_joint_names
         self._hands_controller = GR1TR2DexRetargeting(self._hand_joint_names)
 
@@ -55,17 +69,6 @@ class GR1T2Retargeter(RetargeterBase):
         self._enable_visualization = cfg.enable_visualization
         self._num_open_xr_hand_joints = cfg.num_open_xr_hand_joints
         self._sim_device = cfg.sim_device
-        if self._enable_visualization:
-            marker_cfg = VisualizationMarkersCfg(
-                prim_path="/Visuals/markers",
-                markers={
-                    "joint": sim_utils.SphereCfg(
-                        radius=0.005,
-                        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0)),
-                    ),
-                },
-            )
-            self._markers = VisualizationMarkers(marker_cfg)
 
     def retarget(self, data: dict) -> torch.Tensor:
         """Convert hand joint poses to robot end-effector commands.
@@ -86,14 +89,6 @@ class GR1T2Retargeter(RetargeterBase):
 
         left_wrist = left_hand_poses.get("wrist")
         right_wrist = right_hand_poses.get("wrist")
-
-        if self._enable_visualization:
-            joints_position = np.zeros((self._num_open_xr_hand_joints, 3))
-
-            joints_position[::2] = np.array([pose[:3] for pose in left_hand_poses.values()])
-            joints_position[1::2] = np.array([pose[:3] for pose in right_hand_poses.values()])
-
-            self._markers.visualize(translations=torch.tensor(joints_position, device=self._sim_device))
 
         # Create array of zeros with length matching number of joint names
         left_hands_pos = self._hands_controller.compute_left(left_hand_poses)

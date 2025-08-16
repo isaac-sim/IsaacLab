@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from isaaclab.devices.retargeter_base import RetargeterBase, RetargeterCfg
-
+from isaaclab.ui.xr_widgets import XRVisualization
 
 @dataclass
 class DeviceCfg:
@@ -109,6 +109,8 @@ class DeviceBase(ABC):
             outputs from all retargeters.
         """
         raw_data = self._get_raw_data()
+
+        XRVisualization.push_data({"device_raw_data": raw_data})
 
         # If no retargeters, return raw data directly (not as a tuple)
         if not self._retargeters:
