@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.2.0" />
-    <meta name="docbuild:last-update" content="Aug 14, 2025"/>
+    <meta name="docbuild:last-update" content="Aug 16, 2025"/>
   </head>
   
   
@@ -276,6 +276,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/create_direct_rl_env.html">Creating a Direct Workflow RL Environment</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/register_rl_env_gym.html">Registering an Environment</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/run_rl_training.html">Training with an RL Agent</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/configuring_rl_training.html">Configuring an RL Agent</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/modify_direct_rl_env.html">Modifying an existing Direct RL Environment</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/policy_inference_in_usd.html">Policy Inference in USD Environment</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../tutorials/04_sensors/add_sensors_on_robot.html">Adding sensors on a robot</a></li>
@@ -621,6 +622,7 @@
                 <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#using-a-different-version-of-a-library">Using a different version of a library</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#integrating-a-new-library">Integrating a new library</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#configuring-an-rl-agent">Configuring an RL Agent</a></li>
 </ul>
             </nav>
         </div>
@@ -690,7 +692,7 @@ Isaac Lab, you will first need to make a wrapper for the library, as explained i
 <a class="reference internal" href="wrap_rl_env.html#how-to-env-wrappers"><span class="std std-ref">Wrapping environments</span></a>.</p>
 <p>The following steps can be followed to integrate a new library with Isaac Lab:</p>
 <ol class="arabic simple">
-<li><p>Add your library as an extra-dependency in the <code class="docutils literal notranslate"><span class="pre">setup.py</span></code> for the extension <code class="docutils literal notranslate"><span class="pre">isaaclab_tasks</span></code>.
+<li><p>Add your library as an extra-dependency in the <code class="docutils literal notranslate"><span class="pre">setup.py</span></code> for the extension <code class="docutils literal notranslate"><span class="pre">isaaclab_rl</span></code>.
 This will ensure that the library is installed when you install Isaac Lab or it will complain if the library is not
 installed or available.</p></li>
 <li><p>Install your library in the Python environment used by Isaac Lab. You can do this by following the steps mentioned
@@ -708,8 +710,14 @@ works as expected and can guide users on how to use the wrapper.</p>
 <li><p>Add some tests to ensure that the wrapper works as expected and remains compatible with the library.
 These tests can be added to the <code class="docutils literal notranslate"><span class="pre">source/isaaclab_rl/test</span></code> directory.</p></li>
 <li><p>Add some documentation for the wrapper. You can add the API documentation to the
-<code class="docutils literal notranslate"><span class="pre">docs/source/api/lab_tasks/isaaclab_rl.rst</span></code> file.</p></li>
+<a class="reference internal" href="../api/lab_rl/isaaclab_rl.html#api-isaaclab-rl"><span class="std std-ref">API documentation</span></a> for the <code class="docutils literal notranslate"><span class="pre">isaaclab_rl</span></code> module.</p></li>
 </ul>
+</section>
+<section id="configuring-an-rl-agent">
+<h2>Configuring an RL Agent<a class="headerlink" href="#configuring-an-rl-agent" title="Permalink to this heading">#</a></h2>
+<p>Once you have integrated a new library with Isaac Lab, you can configure the example environment to use the new library.
+You can check the <a class="reference internal" href="../tutorials/03_envs/configuring_rl_training.html#tutorial-configure-rl-training"><span class="std std-ref">Configuring an RL Agent</span></a> for an example of how to configure the training process to use a
+different library.</p>
 </section>
 </section>
 
@@ -761,6 +769,7 @@ These tests can be added to the <code class="docutils literal notranslate"><span
     <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#using-a-different-version-of-a-library">Using a different version of a library</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#integrating-a-new-library">Integrating a new library</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#configuring-an-rl-agent">Configuring an RL Agent</a></li>
 </ul>
   </nav></div>
 
@@ -794,7 +803,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Aug 14, 2025.
+  Last updated on Aug 16, 2025.
   <br/>
 </p>
   </div>

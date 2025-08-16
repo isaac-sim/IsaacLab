@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.2.0" />
-    <meta name="docbuild:last-update" content="Aug 14, 2025"/>
+    <meta name="docbuild:last-update" content="Aug 16, 2025"/>
   </head>
   
   
@@ -276,6 +276,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/create_direct_rl_env.html">Creating a Direct Workflow RL Environment</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/register_rl_env_gym.html">Registering an Environment</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/run_rl_training.html">Training with an RL Agent</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/configuring_rl_training.html">Configuring an RL Agent</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/modify_direct_rl_env.html">Modifying an existing Direct RL Environment</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/policy_inference_in_usd.html">Policy Inference in USD Environment</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../tutorials/04_sensors/add_sensors_on_robot.html">Adding sensors on a robot</a></li>
@@ -620,6 +621,7 @@
             <nav aria-label="Page">
                 <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#where-does-isaac-lab-fit-in-the-isaac-ecosystem">Where does Isaac Lab fit in the Isaac ecosystem?</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#is-isaac-lab-a-simulator">Is Isaac Lab a simulator?</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#why-should-i-use-isaac-lab">Why should I use Isaac Lab?</a></li>
 </ul>
             </nav>
@@ -694,13 +696,40 @@ simulation, procedural terrain generation, and support to collect data from huma
 be the single robot learning framework for Isaac Sim. Previously released frameworks are deprecated
 and we encourage users to follow our migration guides to transition over to Isaac Lab.</p>
 </section>
+<section id="is-isaac-lab-a-simulator">
+<h2>Is Isaac Lab a simulator?<a class="headerlink" href="#is-isaac-lab-a-simulator" title="Permalink to this heading">#</a></h2>
+<p>Often, when people think of simulators, they think of various commonly available engines, such as
+<a href="#id8"><span class="problematic" id="id9">`MuJoCo`_</span></a>, <a class="reference external" href="https://github.com/bulletphysics/bullet3">Bullet</a>, and <a class="reference external" href="https://developer.nvidia.com/flex">Flex</a>. These engines are powerful and have been used in a number of
+research projects. However, they are not designed to be a general purpose simulator for robotics.
+Rather they are primarily physics engines that are used to simulate the dynamics of rigid and
+deformable bodies. They are shipped with some basic rendering capabilities to visualize the
+simulation and provide parsing capabilities of different scene description formats.</p>
+<p>Various recent works combine these physics engines with different rendering engines to provide
+a more complete simulation environment. They include APIs that allow reading and writing to the
+physics and rendering engines. In some cases, they support ROS and hardware-in-the-loop simulation
+for more robotic-specific applications. An example of these include <a class="reference external" href="https://microsoft.github.io/AirSim/">AirSim</a>, <a class="reference external" href="https://github.com/PSVL/DoorGym/">DoorGym</a>, <a class="reference external" href="https://github.com/haosulab/ManiSkill">ManiSkill</a>,
+<a class="reference external" href="https://www.threedworld.org/">ThreeDWorld</a> and lastly, <a class="reference external" href="https://developer.nvidia.com/isaac-sim">Isaac Sim</a>.</p>
+<p>At its core, Isaac Lab is <strong>not</strong> a robotics simulator, but a framework for building robot learning
+applications on top of Isaac Sim. An equivalent example of such a framework is <a class="reference external" href="https://robosuite.ai/">RoboSuite</a>, which
+is built on top of <a href="#id10"><span class="problematic" id="id11">`MuJoCo`_</span></a> and is specific to fixed-base robots. Other examples include
+<a class="reference external" href="https://playground.mujoco.org/">MuJoCo Playground</a> and <a class="reference external" href="https://developer.nvidia.com/isaac-gym">Isaac Gym</a> which use <a class="reference external" href="https://mujoco.readthedocs.io/en/stable/mjx.html">MJX</a> and <a class="reference external" href="https://developer.nvidia.com/physx-sdk">PhysX</a> respectively. They
+include a number of pre-built tasks with separated out stand-alone implementations for individual
+tasks. While this is a good starting point (and often convenient), a lot of code
+repetition occurs across different task implementations, which can reduce code-reuse for larger
+projects and teams.</p>
+<p>The main goal of Isaac Lab is to provide a unified framework for robot learning that includes
+a variety of tooling and features that are required for robot learning, while being easy to
+use and extend. It includes design patterns that simplify many of the common requirements for
+robotics research. These include simulating sensors at different frequencies, connecting to different
+teleoperation interfaces for data collection, switching action spaces for policy learning,
+using Hydra for configuration management, supporting different learning libraries and more.
+Isaac Lab supports designing tasks using <em>manager-based (modularized)</em> and <em>direct (single-script
+similar to Isaac Gym)</em> patterns, leaving it up to the user to choose the best approach for their
+use-case. For each of these patterns, Isaac Lab includes a number of pre-built tasks that can be
+used for benchmarking and research.</p>
+</section>
 <section id="why-should-i-use-isaac-lab">
 <h2>Why should I use Isaac Lab?<a class="headerlink" href="#why-should-i-use-isaac-lab" title="Permalink to this heading">#</a></h2>
-<p>Since Isaac Sim remains closed-sourced, it is difficult for users to contribute to the simulator and build a
-common framework for research. On its current path, we see the community using the simulator will simply
-develop their own frameworks that will result in scattered efforts with a lot of duplication of work.
-This has happened in the past with other simulators, and we believe that it is not the best way to move
-forward as a community.</p>
 <p>Isaac Lab provides an open-sourced platform for the community to drive progress with consolidated efforts
 toward designing benchmarks and robot learning systems as a joint initiative. This allows us to reuse
 existing components and algorithms, and to build on top of each other’s work. Doing so not only saves
@@ -762,6 +791,7 @@ to Isaac Lab, please reach out to us.</p>
   <nav class="bd-toc-nav page-toc">
     <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#where-does-isaac-lab-fit-in-the-isaac-ecosystem">Where does Isaac Lab fit in the Isaac ecosystem?</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#is-isaac-lab-a-simulator">Is Isaac Lab a simulator?</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#why-should-i-use-isaac-lab">Why should I use Isaac Lab?</a></li>
 </ul>
   </nav></div>
@@ -796,7 +826,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Aug 14, 2025.
+  Last updated on Aug 16, 2025.
   <br/>
 </p>
   </div>

@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.2.0" />
-    <meta name="docbuild:last-update" content="Aug 14, 2025"/>
+    <meta name="docbuild:last-update" content="Aug 16, 2025"/>
   </head>
   
   
@@ -276,6 +276,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/create_direct_rl_env.html">Creating a Direct Workflow RL Environment</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/register_rl_env_gym.html">Registering an Environment</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/run_rl_training.html">Training with an RL Agent</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/configuring_rl_training.html">Configuring an RL Agent</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/modify_direct_rl_env.html">Modifying an existing Direct RL Environment</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/policy_inference_in_usd.html">Policy Inference in USD Environment</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../tutorials/04_sensors/add_sensors_on_robot.html">Adding sensors on a robot</a></li>
@@ -659,7 +660,12 @@
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id14">Improvements</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id15">Bug Fixes</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#breaking-changes">Breaking Changes</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#migration-guide">Migration Guide</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#migration-guide">Migration Guide</a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#introduction-of-simulation-s-effort-and-velocity-limits-parameters-in-actuatorbasecfg">Introduction of simulation’s effort and velocity limits parameters in ActuatorBaseCfg</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#removal-of-disable-contact-processing-flag-in-simulationcfg">Removal of <code class="docutils literal notranslate"><span class="pre">disable_contact_processing</span></code> flag in <code class="docutils literal notranslate"><span class="pre">SimulationCfg</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#switch-to-older-rendering-settings-to-improve-render-quality">Switch to older rendering settings to improve render quality</a></li>
+</ul>
+</li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#v2-0-1">v2.0.1</a><ul class="nav section-nav flex-column">
@@ -675,7 +681,14 @@
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id21">Improvements</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id22">Bug Fixes</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id23">Breaking Changes</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id24">Migration Guide</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id24">Migration Guide</a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#renaming-of-isaac-sim-extensions">Renaming of Isaac Sim Extensions</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#renaming-of-the-urdf-and-mjcf-importers">Renaming of the URDF and MJCF Importers</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#changes-in-urdf-importer">Changes in URDF Importer</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#renaming-of-isaac-lab-extensions-and-folders">Renaming of Isaac Lab Extensions and Folders</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#restructuring-of-isaac-lab-extensions">Restructuring of Isaac Lab Extensions</a></li>
+</ul>
+</li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#v1-4-1">v1.4.1</a><ul class="nav section-nav flex-column">
@@ -706,7 +719,15 @@
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id40">Improvements</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id41">Bug Fixes</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id42">Breaking Changes</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id43">Migration Guide</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id43">Migration Guide</a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#setting-the-simulation-device-into-the-simulation-context">Setting the simulation device into the simulation context</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#setting-the-simulation-device-from-cli">Setting the simulation device from CLI</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#renaming-of-teleoperation-device-cli-in-standalone-scripts">Renaming of teleoperation device CLI in standalone scripts</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#using-python-version-of-container-utility-script">Using Python-version of container utility script</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#using-separate-directories-for-logging-videos-in-rl-workflows">Using separate directories for logging videos in RL workflows</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#drops-support-for-the-tiled-camera-with-isaac-sim-4-1">Drops support for the tiled camera with Isaac Sim 4.1</a></li>
+</ul>
+</li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#v1-1-0">v1.1.0</a><ul class="nav section-nav flex-column">
@@ -715,7 +736,11 @@
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id46">Improvements</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id47">Bug Fixes</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id48">Breaking Changes</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id49">Migration Guide</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id49">Migration Guide</a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#renaming-of-simulationcfg-substeps">Renaming of <code class="docutils literal notranslate"><span class="pre">SimulationCfg.substeps</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#removal-of-deprecated-attributes">Removal of Deprecated Attributes</a></li>
+</ul>
+</li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#v1-0-0">v1.0.0</a><ul class="nav section-nav flex-column">
@@ -1200,6 +1225,8 @@ images from the <a class="reference internal" href="../api/lab/isaaclab.sensors.
 as it may impact the deployment of learned policies. Please open an issue on GitHub if
 you face any problems.</p>
 </div>
+<section id="introduction-of-simulation-s-effort-and-velocity-limits-parameters-in-actuatorbasecfg">
+<h4>Introduction of simulation’s effort and velocity limits parameters in ActuatorBaseCfg<a class="headerlink" href="#introduction-of-simulation-s-effort-and-velocity-limits-parameters-in-actuatorbasecfg" title="Permalink to this heading">#</a></h4>
 <p>We have introduced the configuration variables <a class="reference internal" href="../api/lab/isaaclab.actuators.html#isaaclab.actuators.ActuatorBaseCfg.velocity_limit_sim" title="isaaclab.actuators.ActuatorBaseCfg.velocity_limit_sim"><code class="xref py py-attr docutils literal notranslate"><span class="pre">velocity_limit_sim</span></code></a>
 and <a class="reference internal" href="../api/lab/isaaclab.actuators.html#isaaclab.actuators.ActuatorBaseCfg.effort_limit_sim" title="isaaclab.actuators.ActuatorBaseCfg.effort_limit_sim"><code class="xref py py-attr docutils literal notranslate"><span class="pre">effort_limit_sim</span></code></a> to the
 <a class="reference internal" href="../api/lab/isaaclab.actuators.html#isaaclab.actuators.ActuatorBaseCfg" title="isaaclab.actuators.ActuatorBaseCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">isaaclab.actuators.ActuatorBaseCfg</span></code></a> to allow users to set the <strong>simulation</strong> joint velocity
@@ -1268,6 +1295,9 @@ Set into simulation</p></td>
 </table>
 </div>
 <p>Users are advised to use the <code class="docutils literal notranslate"><span class="pre">xxx_sim</span></code> flag if they want to directly modify the solver limits.</p>
+</section>
+<section id="removal-of-disable-contact-processing-flag-in-simulationcfg">
+<h4>Removal of <code class="docutils literal notranslate"><span class="pre">disable_contact_processing</span></code> flag in <code class="docutils literal notranslate"><span class="pre">SimulationCfg</span></code><a class="headerlink" href="#removal-of-disable-contact-processing-flag-in-simulationcfg" title="Permalink to this heading">#</a></h4>
 <p>We have now removed the <code class="docutils literal notranslate"><span class="pre">disable_contact_processing</span></code> flag from the <a class="reference internal" href="../api/lab/isaaclab.sim.html#isaaclab.sim.SimulationCfg" title="isaaclab.sim.SimulationCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">isaaclab.sim.SimulationCfg</span></code></a>
 to not have the user worry about these intricacies of the simulator. The flag is always True by
 default unless a contact sensor is created (which will internally set this flag to False).</p>
@@ -1284,6 +1314,9 @@ gets affected. Running the same examples on CPU device led to different behavior
 because of this reason.</p>
 <p>Existing users, who currently set this flag themselves, should receive a deprecated
 warning mentioning the removal of this flag and the switch to the new default behavior.</p>
+</section>
+<section id="switch-to-older-rendering-settings-to-improve-render-quality">
+<h4>Switch to older rendering settings to improve render quality<a class="headerlink" href="#switch-to-older-rendering-settings-to-improve-render-quality" title="Permalink to this heading">#</a></h4>
 <p>With the IsaacLab 2.0.0 release, we switched to new render settings aimed at improving
 tiled-rendering performance, but at the cost of reduced rendering quality. This change
 particularly affected dome lighting in the scene, which is the default in many of our examples.</p>
@@ -1292,6 +1325,7 @@ cases where it wasn’t necessary (such as when recording videos of the simulati
 response to this feedback, we have reverted to the previous render settings by default
 to restore the quality users expected.</p>
 <p>For users looking to trade render quality for speed, we will provide guidelines in the future.</p>
+</section>
 </section>
 </section>
 <section id="v2-0-1">
@@ -1408,6 +1442,8 @@ segmentation is required for <code class="docutils literal notranslate"><span cl
 </section>
 <section id="id24">
 <h3>Migration Guide<a class="headerlink" href="#id24" title="Permalink to this heading">#</a></h3>
+<section id="renaming-of-isaac-sim-extensions">
+<h4>Renaming of Isaac Sim Extensions<a class="headerlink" href="#renaming-of-isaac-sim-extensions" title="Permalink to this heading">#</a></h4>
 <p>Previously, Isaac Sim extensions have been following the convention of <code class="docutils literal notranslate"><span class="pre">omni.isaac.*</span></code>,
 such as <code class="docutils literal notranslate"><span class="pre">omni.isaac.core</span></code>. In Isaac Sim 4.5, Isaac Sim extensions have been renamed
 to use the prefix <code class="docutils literal notranslate"><span class="pre">isaacsim</span></code>, replacing <code class="docutils literal notranslate"><span class="pre">omni.isaac</span></code>. In addition, many extensions
@@ -1423,6 +1459,9 @@ framework that can be customized by users through the use of app templates.</p>
 <li><p><code class="docutils literal notranslate"><span class="pre">omni.isaac.kit.SimulationApp</span></code> –&gt; <code class="xref py py-mod docutils literal notranslate"><span class="pre">isaacsim.SimulationApp</span></code></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">omni.isaac.ui</span></code> –&gt; <code class="xref py py-mod docutils literal notranslate"><span class="pre">isaacsim.gui.components</span></code></p></li>
 </ul>
+</section>
+<section id="renaming-of-the-urdf-and-mjcf-importers">
+<h4>Renaming of the URDF and MJCF Importers<a class="headerlink" href="#renaming-of-the-urdf-and-mjcf-importers" title="Permalink to this heading">#</a></h4>
 <p>Starting from Isaac Sim 4.5, the URDF and MJCF importers have been renamed to be more consistent
 with the other extensions in Isaac Sim. The importers are available on isaac-sim GitHub
 as open source projects.</p>
@@ -1433,6 +1472,9 @@ as open source projects.</p>
 </ul>
 <p>From the Isaac Sim UI, both URDF and MJCF importers can now be accessed directly from the File &gt; Import
 menu when selecting a corresponding .urdf or .xml file in the file browser.</p>
+</section>
+<section id="changes-in-urdf-importer">
+<h4>Changes in URDF Importer<a class="headerlink" href="#changes-in-urdf-importer" title="Permalink to this heading">#</a></h4>
 <p>Isaac Sim 4.5 brings some updates to the URDF Importer, with a fresh UI to allow for better configurations
 when importing robots from URDF. As a result, the Isaac Lab URDF Converter has also been updated to
 reflect these changes. The <a class="reference internal" href="../api/lab/isaaclab.sim.converters.html#isaaclab.sim.converters.UrdfConverterCfg" title="isaaclab.sim.converters.UrdfConverterCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">isaaclab.sim.converters.UrdfConverterCfg</span></code></a> includes some new settings,
@@ -1450,6 +1492,9 @@ attribute must be of class type <code class="xref py py-class docutils literal n
 </div>
 <p>The <code class="xref py py-attr docutils literal notranslate"><span class="pre">natural_frequency</span></code> attribute must
 be specified for <code class="xref py py-class docutils literal notranslate"><span class="pre">NaturalFrequencyGainsCfg</span></code>.</p>
+</section>
+<section id="renaming-of-isaac-lab-extensions-and-folders">
+<h4>Renaming of Isaac Lab Extensions and Folders<a class="headerlink" href="#renaming-of-isaac-lab-extensions-and-folders" title="Permalink to this heading">#</a></h4>
 <p>Corresponding to Isaac Sim 4.5 changes, we have also made some updates to the Isaac Lab directories and extensions.
 All extensions that were previously under <code class="docutils literal notranslate"><span class="pre">source/extensions</span></code> are now under the <code class="docutils literal notranslate"><span class="pre">source/</span></code> directory directly.
 The <code class="docutils literal notranslate"><span class="pre">source/apps</span></code> and <code class="docutils literal notranslate"><span class="pre">source/standalone</span></code> folders have been moved to the root directory and are now called
@@ -1468,6 +1513,9 @@ are under <code class="docutils literal notranslate"><span class="pre">scripts/r
 <a class="reference external" href="https://gist.github.com/kellyguo11/3e8f73f739b1c013b1069ad372277a85">simple script</a> that will traverse
 through the <code class="docutils literal notranslate"><span class="pre">source</span></code> and <code class="docutils literal notranslate"><span class="pre">docs</span></code> directories in your local Isaac Lab project and replace any instance of the renamed
 directories and imports. <strong>Please use the script at your own risk as it will overwrite source files directly.</strong></p>
+</section>
+<section id="restructuring-of-isaac-lab-extensions">
+<h4>Restructuring of Isaac Lab Extensions<a class="headerlink" href="#restructuring-of-isaac-lab-extensions" title="Permalink to this heading">#</a></h4>
 <p>With the introduction of <code class="xref py py-mod docutils literal notranslate"><span class="pre">isaaclab_mimic</span></code>, designed for supporting data generation workflows for imitation learning,
 we have also split out the previous <code class="docutils literal notranslate"><span class="pre">wrappers</span></code> folder under <code class="docutils literal notranslate"><span class="pre">isaaclab_tasks</span></code> to its own module, named <a class="reference internal" href="../api/lab_rl/isaaclab_rl.html#module-isaaclab_rl" title="isaaclab_rl"><code class="xref py py-mod docutils literal notranslate"><span class="pre">isaaclab_rl</span></code></a>.
 This new extension will contain reinforcement learning specific wrappers for the various RL libraries supported by Isaac Lab.</p>
@@ -1484,6 +1532,7 @@ subdirectories. This allows for clearer separation between the pre-defined confi
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_assets.robots.anymal</span><span class="w"> </span><span class="kn">import</span> <span class="n">ANYMAL_C_CFG</span>
 </pre></div>
 </div>
+</section>
 </section>
 </section>
 <section id="v1-4-1">
@@ -1759,6 +1808,8 @@ this also reduces performance.</p></li>
 </section>
 <section id="id43">
 <h3>Migration Guide<a class="headerlink" href="#id43" title="Permalink to this heading">#</a></h3>
+<section id="setting-the-simulation-device-into-the-simulation-context">
+<h4>Setting the simulation device into the simulation context<a class="headerlink" href="#setting-the-simulation-device-into-the-simulation-context" title="Permalink to this heading">#</a></h4>
 <p>Previously, changing the simulation device to CPU required users to set other simulation parameters
 (such as disabling GPU physics and GPU pipelines). This made setting up the device appear complex.
 We now simplify the checks for device directly inside the simulation context, so users only need to
@@ -1771,6 +1822,9 @@ specify the device through the configuration object.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationCfg</span><span class="p">(</span><span class="n">device</span><span class="o">=</span><span class="s2">&quot;cpu&quot;</span><span class="p">,</span> <span class="n">dt</span><span class="o">=</span><span class="mf">0.01</span><span class="p">,</span> <span class="n">physx</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">PhysxCfg</span><span class="p">())</span>
 </pre></div>
 </div>
+</section>
+<section id="setting-the-simulation-device-from-cli">
+<h4>Setting the simulation device from CLI<a class="headerlink" href="#setting-the-simulation-device-from-cli" title="Permalink to this heading">#</a></h4>
 <p>Previously, users could specify the device through the command line argument <code class="docutils literal notranslate"><span class="pre">--device_id</span></code>. However,
 this made it ambiguous when users wanted to set the device to CPU. Thus, instead of the device ID,
 users need to specify the device explicitly through the argument <code class="docutils literal notranslate"><span class="pre">--device</span></code>.
@@ -1789,6 +1843,9 @@ The valid options for the device name are:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/workflows/sb3/train.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Cartpole-v0<span class="w"> </span>--headless<span class="w"> </span>--device<span class="w"> </span>cpu
 </pre></div>
 </div>
+</section>
+<section id="renaming-of-teleoperation-device-cli-in-standalone-scripts">
+<h4>Renaming of teleoperation device CLI in standalone scripts<a class="headerlink" href="#renaming-of-teleoperation-device-cli-in-standalone-scripts" title="Permalink to this heading">#</a></h4>
 <p>Since <code class="docutils literal notranslate"><span class="pre">--device</span></code> is now an argument provided by the AppLauncher, it conflicted with the command-line
 argument used for specifying the teleoperation-device in some of the standalone scripts. Thus, to fix
 this conflict, the teleoperation-device now needs to be specified through <code class="docutils literal notranslate"><span class="pre">--teleop_device</span></code> argument.</p>
@@ -1800,6 +1857,9 @@ this conflict, the teleoperation-device now needs to be specified through <code 
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/environments/teleoperation/teleop_se3_agent.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Lift-Cube-Franka-IK-Rel-v0<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">1</span><span class="w"> </span>--teleop_device<span class="w"> </span>keyboard
 </pre></div>
 </div>
+</section>
+<section id="using-python-version-of-container-utility-script">
+<h4>Using Python-version of container utility script<a class="headerlink" href="#using-python-version-of-container-utility-script" title="Permalink to this heading">#</a></h4>
 <p>The prior <a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/v1.1.0/docker/container.sh">container.sh</a> became quite
 complex as it had many different use cases in one script. For instance, building a docker image for “base” or “ros2”,
 as well as cluster deployment. As more users wanted to have the flexibility to overlay their own docker settings,
@@ -1815,6 +1875,9 @@ We request users to use the Python script directly.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./docker/container.py<span class="w"> </span>start
 </pre></div>
 </div>
+</section>
+<section id="using-separate-directories-for-logging-videos-in-rl-workflows">
+<h4>Using separate directories for logging videos in RL workflows<a class="headerlink" href="#using-separate-directories-for-logging-videos-in-rl-workflows" title="Permalink to this heading">#</a></h4>
 <p>Previously, users could record videos during the RL training by specifying the <code class="docutils literal notranslate"><span class="pre">--video</span></code> flag to the
 <code class="docutils literal notranslate"><span class="pre">train.py</span></code> script. The videos would be saved inside the <code class="docutils literal notranslate"><span class="pre">videos</span></code> directory in the corresponding log
 directory of the run.</p>
@@ -1822,9 +1885,13 @@ directory of the run.</p>
 videos have also been added to the <code class="docutils literal notranslate"><span class="pre">play.py</span></code> script. Since changing the prefix of the video file
 names is not possible, the videos from the train and play scripts are saved inside the <code class="docutils literal notranslate"><span class="pre">videos/train</span></code>
 and <code class="docutils literal notranslate"><span class="pre">videos/play</span></code> directories, respectively.</p>
+</section>
+<section id="drops-support-for-the-tiled-camera-with-isaac-sim-4-1">
+<h4>Drops support for the tiled camera with Isaac Sim 4.1<a class="headerlink" href="#drops-support-for-the-tiled-camera-with-isaac-sim-4-1" title="Permalink to this heading">#</a></h4>
 <p>Various fixes have been made to the tiled camera rendering pipeline in Isaac Sim 4.2. This made
 supporting the tiled camera with Isaac Sim 4.1 difficult. Hence, for the best experience, we advice
 switching to Isaac Sim 4.2 with this release of Isaac Lab.</p>
+</section>
 </section>
 </section>
 <section id="v1-1-0">
@@ -1884,11 +1951,16 @@ all our contributors for their continued support.</p>
 </section>
 <section id="id49">
 <h3>Migration Guide<a class="headerlink" href="#id49" title="Permalink to this heading">#</a></h3>
+<section id="renaming-of-simulationcfg-substeps">
+<h4>Renaming of <code class="docutils literal notranslate"><span class="pre">SimulationCfg.substeps</span></code><a class="headerlink" href="#renaming-of-simulationcfg-substeps" title="Permalink to this heading">#</a></h4>
 <p>Previously, the users set both <code class="docutils literal notranslate"><span class="pre">omni.isaac.lab.sim.SimulationCfg.dt</span></code> and
 <code class="docutils literal notranslate"><span class="pre">omni.isaac.lab.sim.SimulationCfg.substeps</span></code>, which marked the physics insulation time-step and sub-steps,
 respectively. It was unclear whether sub-steps meant the number of integration steps inside the physics time-step
 <code class="docutils literal notranslate"><span class="pre">dt</span></code> or the number of physics steps inside a rendering step.</p>
 <p>Since in the code base, the attribute was used as the latter, it has been renamed to <code class="docutils literal notranslate"><span class="pre">render_interval</span></code> for clarity.</p>
+</section>
+<section id="removal-of-deprecated-attributes">
+<h4>Removal of Deprecated Attributes<a class="headerlink" href="#removal-of-deprecated-attributes" title="Permalink to this heading">#</a></h4>
 <p>As notified in previous releases, we removed the classes and attributes marked as deprecated. These are as follows:</p>
 <ul class="simple">
 <li><p>The <code class="docutils literal notranslate"><span class="pre">mdp.add_body_mass</span></code> method in the events. Please use the <code class="docutils literal notranslate"><span class="pre">mdp.randomize_rigid_body_mass</span></code> instead.</p></li>
@@ -1902,6 +1974,7 @@ respectively. It was unclear whether sub-steps meant the number of integration s
 <code class="docutils literal notranslate"><span class="pre">omni.isaac.lab.assets.RigidObject</span></code> classes. These caused confusion when used with the articulation view
 since the body names did not follow the same ordering.</p></li>
 </ul>
+</section>
 </section>
 </section>
 <section id="v1-0-0">
@@ -2046,7 +2119,12 @@ at every step call, the lazy buffers are updated only when the user queries them
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id14">Improvements</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id15">Bug Fixes</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#breaking-changes">Breaking Changes</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#migration-guide">Migration Guide</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#migration-guide">Migration Guide</a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#introduction-of-simulation-s-effort-and-velocity-limits-parameters-in-actuatorbasecfg">Introduction of simulation’s effort and velocity limits parameters in ActuatorBaseCfg</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#removal-of-disable-contact-processing-flag-in-simulationcfg">Removal of <code class="docutils literal notranslate"><span class="pre">disable_contact_processing</span></code> flag in <code class="docutils literal notranslate"><span class="pre">SimulationCfg</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#switch-to-older-rendering-settings-to-improve-render-quality">Switch to older rendering settings to improve render quality</a></li>
+</ul>
+</li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#v2-0-1">v2.0.1</a><ul class="nav section-nav flex-column">
@@ -2062,7 +2140,14 @@ at every step call, the lazy buffers are updated only when the user queries them
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id21">Improvements</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id22">Bug Fixes</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id23">Breaking Changes</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id24">Migration Guide</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id24">Migration Guide</a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#renaming-of-isaac-sim-extensions">Renaming of Isaac Sim Extensions</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#renaming-of-the-urdf-and-mjcf-importers">Renaming of the URDF and MJCF Importers</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#changes-in-urdf-importer">Changes in URDF Importer</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#renaming-of-isaac-lab-extensions-and-folders">Renaming of Isaac Lab Extensions and Folders</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#restructuring-of-isaac-lab-extensions">Restructuring of Isaac Lab Extensions</a></li>
+</ul>
+</li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#v1-4-1">v1.4.1</a><ul class="nav section-nav flex-column">
@@ -2093,7 +2178,15 @@ at every step call, the lazy buffers are updated only when the user queries them
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id40">Improvements</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id41">Bug Fixes</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id42">Breaking Changes</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id43">Migration Guide</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id43">Migration Guide</a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#setting-the-simulation-device-into-the-simulation-context">Setting the simulation device into the simulation context</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#setting-the-simulation-device-from-cli">Setting the simulation device from CLI</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#renaming-of-teleoperation-device-cli-in-standalone-scripts">Renaming of teleoperation device CLI in standalone scripts</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#using-python-version-of-container-utility-script">Using Python-version of container utility script</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#using-separate-directories-for-logging-videos-in-rl-workflows">Using separate directories for logging videos in RL workflows</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#drops-support-for-the-tiled-camera-with-isaac-sim-4-1">Drops support for the tiled camera with Isaac Sim 4.1</a></li>
+</ul>
+</li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#v1-1-0">v1.1.0</a><ul class="nav section-nav flex-column">
@@ -2102,7 +2195,11 @@ at every step call, the lazy buffers are updated only when the user queries them
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id46">Improvements</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id47">Bug Fixes</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id48">Breaking Changes</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id49">Migration Guide</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id49">Migration Guide</a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#renaming-of-simulationcfg-substeps">Renaming of <code class="docutils literal notranslate"><span class="pre">SimulationCfg.substeps</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#removal-of-deprecated-attributes">Removal of Deprecated Attributes</a></li>
+</ul>
+</li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#v1-0-0">v1.0.0</a><ul class="nav section-nav flex-column">
@@ -2146,7 +2243,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Aug 14, 2025.
+  Last updated on Aug 16, 2025.
   <br/>
 </p>
   </div>
