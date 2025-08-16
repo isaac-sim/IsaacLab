@@ -435,7 +435,7 @@ while [[ $# -gt 0 ]]; do
             echo "[INFO] Installing extensions inside the Isaac Lab repository..."
             # detect if uv is active
             use_uv=false
-            if [ -n "$VIRTUAL_ENV" ] && [ -f "$VIRTUAL_ENV/pyvenv.cfg" ] && grep -q "uv" "$VIRTUAL_ENV/pyvenv.cfg"; then
+            if [ -n "${VIRTUAL_ENV}" ] && [ -f "${VIRTUAL_ENV}/pyvenv.cfg" ] && grep -q "uv" "${VIRTUAL_ENV}/pyvenv.cfg"; then
                 use_uv=true
                 echo "[INFO] Detected active uv environment: $VIRTUAL_ENV"
                 python_exe="${VIRTUAL_ENV}/bin/python"
