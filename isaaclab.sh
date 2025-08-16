@@ -324,9 +324,11 @@ setup_uv_env() {
     local env_name="$1"
     local python_path="$2"
 
-    # check conda is installed
+    # check uv is installed
     if ! command -v uv &>/dev/null; then
         echo "[ERROR] uv could not be found. Please install uv and try again."
+        echo "[ERROR] uv can be installed here:"
+        echo "[ERROR] https://docs.astral.sh/uv/getting-started/installation/"
         exit 1
     fi
 
