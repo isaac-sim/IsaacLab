@@ -3,6 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
 
 """Configuration for the ray-cast sensor."""
 
@@ -40,3 +44,12 @@ class MultiMeshRayCasterCfg(RayCasterCfg):
     Note:
         Not tracking the mesh transformations is recommended when the meshes are static to increase performance.
     """
+
+    merge_prim_meshes: bool = True
+    """Whether to merge the meshes under each entry of :attr:`mesh_prim_paths`."""
+
+    update_mesh_ids: bool = False
+    """Whether to update the mesh ids of the ray hits in the :attr:`data` container."""
+
+    cache_combined_meshes: bool = True
+    """Whether to cache the combined meshes."""

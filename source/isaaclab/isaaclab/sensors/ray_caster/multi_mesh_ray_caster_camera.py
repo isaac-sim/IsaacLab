@@ -3,6 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
 
 from __future__ import annotations
 
@@ -11,11 +15,11 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import isaaclab.utils.math as math_utils
-from isaaclab.sensors.camera import CameraData
 from isaaclab.utils.warp import raycast_dynamic_meshes
 
 from ..utils import compute_world_poses
 from .multi_mesh_ray_caster import MultiMeshRayCaster
+from .multi_mesh_ray_caster_camera_data import MultiMeshRayCasterCameraData
 from .ray_caster_camera import RayCasterCamera
 
 if TYPE_CHECKING:
@@ -55,7 +59,7 @@ class MultiMeshRayCasterCamera(RayCasterCamera, MultiMeshRayCaster):
         # initialize base class
         MultiMeshRayCaster.__init__(self, cfg)
         # create empty variables for storing output data
-        self._data = CameraData()
+        self._data = MultiMeshRayCasterCameraData()
 
     def __str__(self) -> str:
         """Returns: A string containing information about the instance."""
@@ -77,21 +81,33 @@ class MultiMeshRayCasterCamera(RayCasterCamera, MultiMeshRayCaster):
     def _initialize_warp_meshes(self):
         MultiMeshRayCaster._initialize_warp_meshes(self)
 
-    def _update_buffers_impl(self, env_ids: Sequence[int]):
+    def _create_buffers(self):
+        super()._create_buffers()
+        self._data.image_mesh_ids = torch.zeros(
+            self._num_envs, *self.image_shape, 1, device=self.device, dtype=torch.int16
+        )
+
+    def _update_buffers_impl(self, env_ids: Sequence[int] | torch.Tensor | None):
         """Fills the buffers of the sensor data."""
         # increment frame count
-        self._frame[env_ids] += 1
+        if env_ids is None:
+            env_ids_tensor = torch.arange(self._num_envs, device=self.device)
+        elif not isinstance(env_ids, torch.Tensor):
+            env_ids_tensor = torch.tensor(env_ids, device=self.device)
+        else:
+            env_ids_tensor = env_ids
+        self._frame[env_ids_tensor] += 1
 
         # compute poses from current view
-        pos_w, quat_w = self._compute_camera_world_poses(env_ids)
+        pos_w, quat_w = self._compute_camera_world_poses(env_ids_tensor)
         # update the data
-        self._data.pos_w[env_ids] = pos_w
-        self._data.quat_w_world[env_ids] = quat_w
+        self._data.pos_w[env_ids_tensor] = pos_w
+        self._data.quat_w_world[env_ids_tensor] = quat_w
 
         # note: full orientation is considered
-        ray_starts_w = math_utils.quat_apply(quat_w.repeat(1, self.num_rays), self.ray_starts[env_ids])
+        ray_starts_w = math_utils.quat_apply(quat_w.repeat(1, self.num_rays), self.ray_starts[env_ids_tensor])
         ray_starts_w += pos_w.unsqueeze(1)
-        ray_directions_w = math_utils.quat_apply(quat_w.repeat(1, self.num_rays), self.ray_directions[env_ids])
+        ray_directions_w = math_utils.quat_apply(quat_w.repeat(1, self.num_rays), self.ray_directions[env_ids_tensor])
 
         if self.cfg.track_mesh_transforms:
             # Update the mesh positions and rotations
@@ -113,18 +129,19 @@ class MultiMeshRayCasterCamera(RayCasterCamera, MultiMeshRayCaster):
                 mesh_idx += count
 
         # ray cast and store the hits
-        self.ray_hits_w, ray_depth, ray_normal = raycast_dynamic_meshes(
+        self.ray_hits_w, ray_depth, ray_normal, _, ray_mesh_ids = raycast_dynamic_meshes(
             ray_starts_w,
             ray_directions_w,
             mesh_ids_wp=self._mesh_ids_wp,  # list with shape num_envs x num_meshes_per_env
             max_dist=1e6,
-            mesh_positions_w=self._mesh_positions_w[env_ids] if self.cfg.track_mesh_transforms else None,
-            mesh_orientations_w=self._mesh_orientations_w[env_ids] if self.cfg.track_mesh_transforms else None,
+            mesh_positions_w=self._mesh_positions_w[env_ids_tensor] if self.cfg.track_mesh_transforms else None,
+            mesh_orientations_w=self._mesh_orientations_w[env_ids_tensor] if self.cfg.track_mesh_transforms else None,
             return_distance=any(
                 [name in self.cfg.data_types for name in ["distance_to_image_plane", "distance_to_camera"]]
             ),
             return_normal="normals" in self.cfg.data_types,
-        )[:3]
+            return_mesh_id=self.cfg.update_mesh_ids,
+        )
         # update output buffers
         if "distance_to_image_plane" in self.cfg.data_types:
             # note: data is in camera frame so we only take the first component (z-axis of camera frame)
@@ -136,12 +153,15 @@ class MultiMeshRayCasterCamera(RayCasterCamera, MultiMeshRayCaster):
             )[:, :, 0]
             # apply the maximum distance after the transformation
             distance_to_image_plane = torch.clip(distance_to_image_plane, max=self.cfg.max_distance)
-            self._data.output["distance_to_image_plane"][env_ids] = distance_to_image_plane.view(
+            self._data.output["distance_to_image_plane"][env_ids_tensor] = distance_to_image_plane.view(
                 -1, *self.image_shape, 1
             )
         if "distance_to_camera" in self.cfg.data_types:
-            self._data.output["distance_to_camera"][env_ids] = torch.clip(
+            self._data.output["distance_to_camera"][env_ids_tensor] = torch.clip(
                 ray_depth.view(-1, *self.image_shape, 1), max=self.cfg.max_distance
             )
         if "normals" in self.cfg.data_types:
-            self._data.output["normals"][env_ids] = ray_normal.view(-1, *self.image_shape, 3)
+            self._data.output["normals"][env_ids_tensor] = ray_normal.view(-1, *self.image_shape, 3)
+
+        if self.cfg.update_mesh_ids:
+            self._data.image_mesh_ids[env_ids_tensor] = ray_mesh_ids.view(-1, *self.image_shape, 1)

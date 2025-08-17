@@ -286,7 +286,7 @@ def raycast_dynamic_meshes(
         ray_face_id_wp = wp.empty((1, 1), dtype=wp.int32, device=torch_device)
 
     if return_mesh_id:
-        ray_mesh_id = torch.zeros((n_envs, n_rays_per_env), dtype=torch.int16, device=torch_device).contiguous()
+        ray_mesh_id = -torch.ones((n_envs, n_rays_per_env), dtype=torch.int16, device=torch_device).contiguous()
         ray_mesh_id_wp = wp.from_torch(ray_mesh_id, dtype=wp.int16)
     else:
         ray_mesh_id = None
