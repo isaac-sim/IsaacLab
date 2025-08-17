@@ -17,7 +17,7 @@ This script shows how to use the ray caster from the Isaac Lab framework.
 
 import argparse
 
-from omni.isaac.lab.app import AppLauncher
+from isaaclab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Ray Caster Test Script")
@@ -44,19 +44,20 @@ simulation_app = app_launcher.app
 import random
 import torch
 
-import omni.isaac.core.utils.prims as prim_utils
-import omni.isaac.lab.sim as sim_utils
-import omni.isaac.lab.terrains as terrain_gen
-from omni.isaac.cloner import GridCloner
-from omni.isaac.core.prims import RigidPrimView
-from omni.isaac.core.simulation_context import SimulationContext
-from omni.isaac.core.utils.viewports import set_camera_view
-from omni.isaac.lab.sensors.ray_caster import MultiMeshRayCaster, MultiMeshRayCasterCfg, patterns
-from omni.isaac.lab.terrains.config.rough import ROUGH_TERRAINS_CFG
-from omni.isaac.lab.terrains.terrain_importer import TerrainImporter
-from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR
-from omni.isaac.lab.utils.math import quat_from_euler_xyz
-from omni.isaac.lab.utils.timer import Timer
+import isaacsim.core.utils.prims as prim_utils
+from isaacsim.core.api.simulation_context import SimulationContext
+from isaacsim.core.cloner import GridCloner
+from isaacsim.core.prims import RigidPrim
+from isaacsim.core.utils.viewports import set_camera_view
+
+import isaaclab.sim as sim_utils
+import isaaclab.terrains as terrain_gen
+from isaaclab.sensors.ray_caster import MultiMeshRayCaster, MultiMeshRayCasterCfg, patterns
+from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG
+from isaaclab.terrains.terrain_importer import TerrainImporter
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+from isaaclab.utils.math import quat_from_euler_xyz
+from isaaclab.utils.timer import Timer
 
 
 def design_scene(sim: SimulationContext, num_envs: int = 2048):
@@ -157,7 +158,7 @@ def main():
     )
     ray_caster = MultiMeshRayCaster(cfg=ray_caster_cfg)
     # Create a view over all the balls
-    ball_view = RigidPrimView("/World/envs/env_.*/ball", reset_xform_properties=False)
+    ball_view = RigidPrim("/World/envs/env_.*/ball", reset_xform_properties=False)
 
     # Play simulator
     sim.reset()
