@@ -20,12 +20,14 @@ import copy
 import numpy as np
 import os
 import torch
-import pytest
 
 import isaacsim.core.utils.prims as prim_utils
 import isaacsim.core.utils.stage as stage_utils
-import isaaclab.sim as sim_utils
 import omni.replicator.core as rep
+import pytest
+from pxr import Gf
+
+import isaaclab.sim as sim_utils
 from isaaclab.sensors.camera import Camera, CameraCfg
 from isaaclab.sensors.ray_caster import MultiMeshRayCasterCamera, MultiMeshRayCasterCameraCfg, patterns
 from isaaclab.sim import PinholeCameraCfg
@@ -33,7 +35,6 @@ from isaaclab.terrains.trimesh.utils import make_plane
 from isaaclab.terrains.utils import create_prim_from_mesh
 from isaaclab.utils import convert_dict_to_backend
 from isaaclab.utils.timer import Timer
-from pxr import Gf
 
 # sample camera poses
 POSITION = [2.5, 2.5, 2.5]
@@ -57,14 +58,12 @@ def setup_simulation():
     create_prim_from_mesh("/World/defaultGroundPlane", mesh)
     # load stage
     stage_utils.update_stage()
-    
+
     camera_cfg = MultiMeshRayCasterCameraCfg(
         prim_path="/World/Camera",
         mesh_prim_paths=["/World/defaultGroundPlane"],
         update_period=0,
-        offset=MultiMeshRayCasterCameraCfg.OffsetCfg(
-            pos=(0.0, 0.0, 0.0), rot=(1.0, 0.0, 0.0, 0.0), convention="world"
-        ),
+        offset=MultiMeshRayCasterCameraCfg.OffsetCfg(pos=(0.0, 0.0, 0.0), rot=(1.0, 0.0, 0.0, 0.0), convention="world"),
         debug_vis=False,
         pattern_cfg=patterns.PinholeCameraPatternCfg(
             focal_length=24.0,
@@ -79,7 +78,7 @@ def setup_simulation():
     prim_utils.create_prim("/World/Camera", "Xform")
 
     yield sim, dt, camera_cfg
-    
+
     # Cleanup
     # close all the opened viewport from before.
     rep.vp_manager.destroy_hydra_textures("Replicator")
@@ -91,15 +90,18 @@ def setup_simulation():
     sim.clear_instance()
 
 
-@pytest.mark.parametrize("convention,quat", [
-    ("ros", QUAT_ROS),
-    ("opengl", QUAT_OPENGL),
-    ("world", QUAT_WORLD),
-])
+@pytest.mark.parametrize(
+    "convention,quat",
+    [
+        ("ros", QUAT_ROS),
+        ("opengl", QUAT_OPENGL),
+        ("world", QUAT_WORLD),
+    ],
+)
 def test_camera_init_offset(setup_simulation, convention, quat):
     """Test camera initialization with offset using different conventions."""
     sim, dt, camera_cfg = setup_simulation
-    
+
     # Create camera config with specific convention
     cam_cfg_offset = copy.deepcopy(camera_cfg)
     cam_cfg_offset.offset = MultiMeshRayCasterCameraCfg.OffsetCfg(
@@ -109,25 +111,25 @@ def test_camera_init_offset(setup_simulation, convention, quat):
     )
     prim_utils.create_prim(f"/World/CameraOffset{convention.capitalize()}", "Xform")
     cam_cfg_offset.prim_path = f"/World/CameraOffset{convention.capitalize()}"
-    
+
     camera = MultiMeshRayCasterCamera(cam_cfg_offset)
-    
+
     # play sim
     sim.reset()
-    
+
     # update camera
     camera.update(dt)
-    
+
     # check that transform is set correctly
     np.testing.assert_allclose(camera.data.pos_w[0].cpu().numpy(), cam_cfg_offset.offset.pos)
-    
+
     del camera
 
 
 def test_camera_init(setup_simulation):
     """Test camera initialization."""
     sim, dt, camera_cfg = setup_simulation
-    
+
     # Create camera
     camera = MultiMeshRayCasterCamera(cfg=camera_cfg)
     # Play sim
@@ -163,7 +165,7 @@ def test_camera_init(setup_simulation):
 def test_camera_resolution(setup_simulation):
     """Test camera resolution is correctly set."""
     sim, dt, camera_cfg = setup_simulation
-    
+
     # Create camera
     camera = MultiMeshRayCasterCamera(cfg=camera_cfg)
     # Play sim
@@ -184,21 +186,19 @@ def test_camera_resolution(setup_simulation):
 def test_camera_init_intrinsic_matrix(setup_simulation):
     """Test camera initialization from intrinsic matrix."""
     sim, dt, camera_cfg = setup_simulation
-    
+
     # get the first camera
     camera_1 = MultiMeshRayCasterCamera(cfg=camera_cfg)
     # get intrinsic matrix
     sim.reset()
     intrinsic_matrix = camera_1.data.intrinsic_matrices[0].cpu().flatten().tolist()
-    
+
     # initialize from intrinsic matrix
     intrinsic_camera_cfg = MultiMeshRayCasterCameraCfg(
         prim_path="/World/Camera",
         mesh_prim_paths=["/World/defaultGroundPlane"],
         update_period=0,
-        offset=MultiMeshRayCasterCameraCfg.OffsetCfg(
-            pos=(0.0, 0.0, 0.0), rot=(1.0, 0.0, 0.0, 0.0), convention="world"
-        ),
+        offset=MultiMeshRayCasterCameraCfg.OffsetCfg(pos=(0.0, 0.0, 0.0), rot=(1.0, 0.0, 0.0, 0.0), convention="world"),
         debug_vis=False,
         pattern_cfg=patterns.PinholeCameraPatternCfg.from_intrinsic_matrix(
             intrinsic_matrix=intrinsic_matrix,
@@ -235,18 +235,18 @@ def test_camera_init_intrinsic_matrix(setup_simulation):
 def test_multi_camera_init(setup_simulation):
     """Test multi-camera initialization."""
     sim, dt, camera_cfg = setup_simulation
-    
+
     # -- camera 1
     cam_cfg_1 = copy.deepcopy(camera_cfg)
-    cam_cfg_1.prim_path = f"/World/Camera_0"
-    prim_utils.create_prim(f"/World/Camera_0", "Xform")
+    cam_cfg_1.prim_path = "/World/Camera_0"
+    prim_utils.create_prim("/World/Camera_0", "Xform")
     # Create camera
     cam_1 = MultiMeshRayCasterCamera(cam_cfg_1)
 
     # -- camera 2
     cam_cfg_2 = copy.deepcopy(camera_cfg)
-    cam_cfg_2.prim_path = f"/World/Camera_1"
-    prim_utils.create_prim(f"/World/Camera_1", "Xform")
+    cam_cfg_2.prim_path = "/World/Camera_1"
+    prim_utils.create_prim("/World/Camera_1", "Xform")
     # Create camera
     cam_2 = MultiMeshRayCasterCamera(cam_cfg_2)
 
@@ -276,7 +276,7 @@ def test_multi_camera_init(setup_simulation):
 def test_camera_set_world_poses(setup_simulation):
     """Test camera function to set specific world pose."""
     sim, dt, camera_cfg = setup_simulation
-    
+
     camera = MultiMeshRayCasterCamera(camera_cfg)
     # play sim
     sim.reset()
@@ -297,7 +297,7 @@ def test_camera_set_world_poses(setup_simulation):
 def test_camera_set_world_poses_from_view(setup_simulation):
     """Test camera function to set specific world pose from view."""
     sim, dt, camera_cfg = setup_simulation
-    
+
     camera = MultiMeshRayCasterCamera(camera_cfg)
     # play sim
     sim.reset()
@@ -320,7 +320,7 @@ def test_camera_set_world_poses_from_view(setup_simulation):
 def test_intrinsic_matrix(setup_simulation, height, width):
     """Checks that the camera's set and retrieve methods work for intrinsic matrix."""
     sim, dt, camera_cfg = setup_simulation
-    
+
     camera_cfg_copy = copy.deepcopy(camera_cfg)
     camera_cfg_copy.pattern_cfg.height = height
     camera_cfg_copy.pattern_cfg.width = width
@@ -352,7 +352,7 @@ def test_intrinsic_matrix(setup_simulation, height, width):
 def test_throughput(setup_simulation):
     """Checks that the single camera gets created properly with a rig."""
     sim, dt, camera_cfg = setup_simulation
-    
+
     # Create directory temp dir to dump the results
     file_dir = os.path.dirname(os.path.realpath(__file__))
     temp_dir = os.path.join(file_dir, "output", "camera", "throughput")
@@ -406,15 +406,18 @@ def test_throughput(setup_simulation):
     del camera
 
 
-@pytest.mark.parametrize("data_types", [
-    ["distance_to_image_plane", "distance_to_camera", "normals"],
-    ["distance_to_image_plane"],
-    ["distance_to_camera"],
-])
+@pytest.mark.parametrize(
+    "data_types",
+    [
+        ["distance_to_image_plane", "distance_to_camera", "normals"],
+        ["distance_to_image_plane"],
+        ["distance_to_camera"],
+    ],
+)
 def test_output_equal_to_usdcamera(setup_simulation, data_types):
     """Test that ray caster camera output equals USD camera output."""
     sim, dt, camera_cfg = setup_simulation
-    
+
     # Check simulation parameter is set correctly
     assert sim.has_rtx_sensors()
 
@@ -512,14 +515,17 @@ def test_output_equal_to_usdcamera(setup_simulation, data_types):
     del camera_usd, camera_warp
 
 
-@pytest.mark.parametrize("offset_rot", [
-    [-0.1251, 0.3617, 0.8731, -0.3020],
-    [0.0, 0.0, 0.0, 1.0],
-])
+@pytest.mark.parametrize(
+    "offset_rot",
+    [
+        [-0.1251, 0.3617, 0.8731, -0.3020],
+        [0.0, 0.0, 0.0, 1.0],
+    ],
+)
 def test_output_equal_to_usdcamera_offset(setup_simulation, offset_rot):
     """Test that ray caster camera output equals USD camera output with offset."""
     sim, dt, camera_cfg = setup_simulation
-    
+
     # Check simulation parameter is set correctly
     assert sim.has_rtx_sensors()
 
@@ -593,7 +599,7 @@ def test_output_equal_to_usdcamera_prim_offset(setup_simulation):
     """Test that the output of the ray caster camera is equal to the output of the usd camera when both are placed
     under an XForm prim that is translated and rotated from the world origin."""
     sim, dt, camera_cfg = setup_simulation
-    
+
     # Check simulation parameter is set correctly
     assert sim.has_rtx_sensors()
 
@@ -689,7 +695,7 @@ def test_output_equal_to_usd_camera_intrinsics(setup_simulation, height, width):
     """Test that the output of the ray caster camera and usd camera are the same when both are
     initialized with the same intrinsic matrix."""
     sim, dt, camera_cfg = setup_simulation
-    
+
     # Check simulation parameter is set correctly
     assert sim.has_rtx_sensors()
 
@@ -785,7 +791,7 @@ def test_output_equal_to_usd_camera_when_intrinsics_set(setup_simulation):
     """Test that the output of the ray caster camera is equal to the output of the usd camera when both are placed
     under an XForm prim and an intrinsic matrix is set."""
     sim, dt, camera_cfg = setup_simulation
-    
+
     # Check simulation parameter is set correctly
     assert sim.has_rtx_sensors()
 

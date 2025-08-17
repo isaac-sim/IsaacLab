@@ -12,9 +12,10 @@ from isaaclab.app import AppLauncher
 app_launcher = AppLauncher(headless=True)
 
 import numpy as np
-import pytest
 import torch
 import trimesh
+
+import pytest
 import warp as wp
 
 from isaaclab.utils.math import matrix_from_quat, quat_from_euler_xyz, random_orientation
@@ -30,7 +31,9 @@ def device():
 def rays(device):
     ray_starts = torch.tensor([[0, -0.35, -5], [0.25, 0.35, -5]], dtype=torch.float32, device=device).unsqueeze(0)
     ray_directions = torch.tensor([[0, 0, 1], [0, 0, 1]], dtype=torch.float32, device=device).unsqueeze(0)
-    expected_ray_hits = torch.tensor([[0, -0.35, -0.5], [0.25, 0.35, -0.5]], dtype=torch.float32, device=device).unsqueeze(0)
+    expected_ray_hits = torch.tensor(
+        [[0, -0.35, -0.5], [0.25, 0.35, -0.5]], dtype=torch.float32, device=device
+    ).unsqueeze(0)
     return ray_starts, ray_directions, expected_ray_hits
 
 
@@ -72,7 +75,9 @@ def test_raycast_multi_cubes(device, trimesh_box, rays):
         return_mesh_id=True,
     )
 
-    torch.testing.assert_close(ray_hits, torch.tensor([[[0, 0, -0.5], [0, 2.5, -0.5]]], dtype=torch.float32, device=device))
+    torch.testing.assert_close(
+        ray_hits, torch.tensor([[[0, 0, -0.5], [0, 2.5, -0.5]]], dtype=torch.float32, device=device)
+    )
     torch.testing.assert_close(ray_distance, torch.tensor([[4.5, 4.5]], dtype=torch.float32, device=device))
     torch.testing.assert_close(ray_normal, torch.tensor([[[0, 0, -1], [0, 0, -1]]], dtype=torch.float32, device=device))
     assert torch.equal(mesh_ids, torch.tensor([[0, 1]], dtype=torch.int32, device=device))
@@ -131,31 +136,29 @@ def test_raycast_single_cube(device, single_mesh, rays):
     )
     torch.testing.assert_close(ray_hits, expected_ray_hits)
     torch.testing.assert_close(ray_distance, torch.tensor([[4.5, 4.5]], dtype=torch.float32, device=device))
-    torch.testing.assert_close(
-        ray_normal, torch.tensor([[[0, 0, -1], [0, 0, -1]]], dtype=torch.float32, device=device)
-    )
+    torch.testing.assert_close(ray_normal, torch.tensor([[[0, 0, -1], [0, 0, -1]]], dtype=torch.float32, device=device))
     torch.testing.assert_close(ray_face_id, torch.tensor([[3, 8]], dtype=torch.int32, device=device))
 
 
 @pytest.mark.parametrize("num_samples", [10])
 def test_raycast_moving_cube(device, single_mesh, rays, num_samples):
-    """Test raycasting against a single cube with different distances.
-        |-------------|
-        |\            |
-        | \           |
-        |  \     8    |
-        |   \         |
-        |    \    x_1 |
-        |     \       |
-        |      \      |
-        |       \     |
-        |        \    |
-        |         \   |
-        |   3  x_2 \  |
-        |           \ |
-        |            \|
-        |-------------|
-    
+    r"""Test raycasting against a single cube with different distances.
+    |-------------|
+    |\            |
+    | \           |
+    |  \     8    |
+    |   \         |
+    |    \    x_1 |
+    |     \       |
+    |      \      |
+    |       \     |
+    |        \    |
+    |         \   |
+    |   3  x_2 \  |
+    |           \ |
+    |            \|
+    |-------------|
+
     """
     ray_starts, ray_directions, expected_ray_hits = rays
     _, single_mesh_id = single_mesh
@@ -177,7 +180,9 @@ def test_raycast_moving_cube(device, single_mesh, rays, num_samples):
             expected_ray_hits
             + torch.tensor([[0, 0, distance], [0, 0, distance]], dtype=torch.float32, device=device).unsqueeze(0),
         )
-        torch.testing.assert_close(ray_distance, distance + torch.tensor([[4.5, 4.5]], dtype=torch.float32, device=device))
+        torch.testing.assert_close(
+            ray_distance, distance + torch.tensor([[4.5, 4.5]], dtype=torch.float32, device=device)
+        )
         torch.testing.assert_close(
             ray_normal, torch.tensor([[[0, 0, -1], [0, 0, -1]]], dtype=torch.float32, device=device)
         )
@@ -201,9 +206,7 @@ def test_raycast_rotated_cube(device, single_mesh, rays):
     )
     torch.testing.assert_close(ray_hits, expected_ray_hits)
     torch.testing.assert_close(ray_distance, torch.tensor([[4.5, 4.5]], dtype=torch.float32, device=device))
-    torch.testing.assert_close(
-        ray_normal, torch.tensor([[[0, 0, -1], [0, 0, -1]]], dtype=torch.float32, device=device)
-    )
+    torch.testing.assert_close(ray_normal, torch.tensor([[[0, 0, -1], [0, 0, -1]]], dtype=torch.float32, device=device))
     # Make sure the face ids are correct. The cube is rotated by 90deg. so the face ids are different.
     torch.testing.assert_close(ray_face_id, torch.tensor([[8, 3]], dtype=torch.int32, device=device))
 
