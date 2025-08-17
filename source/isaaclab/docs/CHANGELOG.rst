@@ -7,7 +7,7 @@ Changelog
 Added
 ^^^^^
 
-* Validation of scale-based randomization ranges across mass, actuator, joint, and tendon parameters.
+* Added validations for scale-based randomization ranges across mass, actuator, joint, and tendon parameters.
 
 Changed
 ^^^^^^^
