@@ -241,7 +241,7 @@ Clone the Isaac Lab repository into your workspace:
                -d, --docs           Build the documentation from source using sphinx.
                -n, --new            Create a new external project or internal task from template.
                -c, --conda [NAME]   Create the conda environment for Isaac Lab. Default name is 'env_isaaclab'.
-               -u, --uv [NAME]   Create the uv environment for Isaac Lab. Default name is 'env_isaaclab'.
+               -u, --uv [NAME]      Create the uv environment for Isaac Lab. Default name is 'env_isaaclab'.
 
       .. tab-item:: :icon:`fa-brands fa-windows` Windows
          :sync: windows
@@ -263,7 +263,7 @@ Clone the Isaac Lab repository into your workspace:
                -d, --docs           Build the documentation from source using sphinx.
                -n, --new            Create a new external project or internal task from template.
                -c, --conda [NAME]   Create the conda environment for Isaac Lab. Default name is 'env_isaaclab'.
-               -u, --uv [NAME]   Create the uv environment for Isaac Lab. Default name is 'env_isaaclab'.
+               -u, --uv [NAME]      Create the uv environment for Isaac Lab. Default name is 'env_isaaclab'.
 
 Installation
 ~~~~~~~~~~~~
