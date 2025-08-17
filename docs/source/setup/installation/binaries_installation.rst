@@ -213,6 +213,7 @@ Clone the Isaac Lab repository into your workspace:
                -d, --docs           Build the documentation from source using sphinx.
                -n, --new            Create a new external project or internal task from template.
                -c, --conda [NAME]   Create the conda environment for Isaac Lab. Default name is 'env_isaaclab'.
+               -u, --uv [NAME]      Create the uv environment for Isaac Lab. Default name is 'env_isaaclab'.
 
       .. tab-item:: :icon:`fa-brands fa-windows` Windows
          :sync: windows
@@ -234,6 +235,7 @@ Clone the Isaac Lab repository into your workspace:
                -d, --docs           Build the documentation from source using sphinx.
                -n, --new            Create a new external project or internal task from template.
                -c, --conda [NAME]   Create the conda environment for Isaac Lab. Default name is 'env_isaaclab'.
+               -u, --uv [NAME]      Create the uv environment for Isaac Lab. Default name is 'env_isaaclab'.
 
 
 Creating the Isaac Sim Symbolic Link
@@ -291,9 +293,9 @@ You can create the Isaac Lab environment using the following commands.
 
       .. code:: bash
 
-         # Option 1: Default name for conda environment is 'env_isaaclab'
+         # Option 1: Default name for uv environment is 'env_isaaclab'
          ./isaaclab.sh --uv  # or "./isaaclab.sh -u"
-         # Option 2: Custom name for conda environment
+         # Option 2: Custom name for uv environment
          ./isaaclab.sh --uv my_env  # or "./isaaclab.sh -u my_env"
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
@@ -301,9 +303,9 @@ You can create the Isaac Lab environment using the following commands.
 
       .. code:: batch
 
-         :: Option 1: Default name for conda environment is 'env_isaaclab'
+         :: Option 1: Default name for uv environment is 'env_isaaclab'
          isaaclab.bat --uv  :: or "isaaclab.bat -u"
-         :: Option 2: Custom name for conda environment
+         :: Option 2: Custom name for uv environment
          isaaclab.bat --uv my_env  :: or "isaaclab.bat -u my_env"
 
 
@@ -478,8 +480,8 @@ On Windows machines, please terminate the process from Command Prompt using
 
 If you see this, then the installation was successful! |:tada:|
 
-If you see an error ``ModuleNotFoundError: No module named 'isaacsim'``, ensure that the conda environment is activated
-and ``source _isaac_sim/setup_conda_env.sh`` has been executed.
+If you see an error ``ModuleNotFoundError: No module named 'isaacsim'``, ensure that the conda or uv environment is activated
+and ``source _isaac_sim/setup_conda_env.sh`` has been executed (for uv as well).
 
 
 Train a robot!
