@@ -13,12 +13,12 @@ from __future__ import annotations
 import torch
 
 import omni.physics.tensors.impl.api as physx
-from omni.isaac.core.prims import XFormPrimView
-from omni.isaac.lab.utils.math import convert_quat
+from isaacsim.core.prims import XFormPrim
+from isaaclab.utils.math import convert_quat
 
 
 def compute_world_poses(
-    physx_view: XFormPrimView | physx.ArticulationView | physx.RigidBodyView,
+    physx_view: XFormPrim | physx.ArticulationView | physx.RigidBodyView,
     env_ids: torch.Tensor,
     clone: bool = False,
 ) -> tuple[torch.Tensor, torch.Tensor]:
@@ -34,7 +34,7 @@ def compute_world_poses(
     Raises:
         NotImplementedError: If the prim view is not of the correct type.
     """
-    if isinstance(physx_view, XFormPrimView):
+    if isinstance(physx_view, XFormPrim):
         pos_w, quat_w = physx_view.get_world_poses(env_ids)
     elif isinstance(physx_view, physx.ArticulationView):
         pos_w, quat_w = physx_view.get_root_transforms()[env_ids].split([3, 4], dim=-1)
