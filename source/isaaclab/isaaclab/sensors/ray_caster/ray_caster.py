@@ -96,7 +96,7 @@ class RayCaster(SensorBase):
             f"Ray-caster @ '{self.cfg.prim_path}': \n"
             f"\tview type            : {self._view.__class__}\n"
             f"\tupdate period (s)    : {self.cfg.update_period}\n"
-            f"\tnumber of meshes     : {len(self.meshes)}\n"
+            f"\tnumber of meshes     : {len(RayCaster.meshes)}\n"
             f"\tnumber of sensors    : {self._view.count}\n"
             f"\tnumber of rays/sensor: {self.num_rays}\n"
             f"\ttotal number of rays : {self.num_rays * self._view.count}"
@@ -224,10 +224,10 @@ class RayCaster(SensorBase):
                 # print info
                 omni.log.info(f"Created infinite plane mesh prim: {mesh_prim.GetPath()}.")
             # add the warp mesh to the list
-            self.meshes[mesh_prim_path] = wp_mesh
+            RayCaster.meshes[mesh_prim_path] = wp_mesh
 
         # throw an error if no meshes are found
-        if all([mesh_prim_path not in self.meshes for mesh_prim_path in self.cfg.mesh_prim_paths]):
+        if all([mesh_prim_path not in RayCaster.meshes for mesh_prim_path in self.cfg.mesh_prim_paths]):
             raise RuntimeError(
                 f"No meshes found for ray-casting! Please check the mesh prim paths: {self.cfg.mesh_prim_paths}"
             )
@@ -320,7 +320,7 @@ class RayCaster(SensorBase):
             ray_starts_w,
             ray_directions_w,
             max_dist=self.cfg.max_distance,
-            mesh=self.meshes[self.cfg.mesh_prim_paths[0]],
+            mesh=RayCaster.meshes[self.cfg.mesh_prim_paths[0]],
         )[0]
 
         # apply vertical drift to ray starting position in ray caster frame

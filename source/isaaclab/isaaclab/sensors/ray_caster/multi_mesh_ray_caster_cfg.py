@@ -53,3 +53,10 @@ class MultiMeshRayCasterCfg(RayCasterCfg):
 
     cache_combined_meshes: bool = True
     """Whether to cache the combined meshes."""
+
+    is_shared: bool = False
+    """Whether the target prim is shared across all environments. Defaults to False.
+    If True, the target prim is shared across all environments. In this case, the target prim is only read once
+    and the same warp mesh is used for all environments. This provides a performance boost when the target prim
+    is shared across all environments.
+    """

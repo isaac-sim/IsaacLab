@@ -11,14 +11,12 @@
 from __future__ import annotations
 
 import numpy as np
-import os
 import torch
 import trimesh
 from collections.abc import Sequence
 from scipy.spatial.transform import Rotation
 from typing import TYPE_CHECKING
 
-import isaacsim.core.utils.stage as stage_utils
 import omni.log
 import omni.usd
 import warp as wp
@@ -112,207 +110,138 @@ class MultiMeshRayCaster(RayCaster):
 
         for target_cfg in self._raycast_targets_cfg:
             # target prim path to ray cast against
-            mesh_prim_path = target_cfg.target_prim_expr
+            target_prim_path = target_cfg.target_prim_expr
             # check if mesh already casted into warp mesh and get the number of meshes per env
-            if mesh_prim_path in multi_mesh_ids:
-                self._num_meshes_per_env[mesh_prim_path] = len(multi_mesh_ids[mesh_prim_path]) // self._num_envs
+            if target_prim_path in multi_mesh_ids:
+                self._num_meshes_per_env[target_prim_path] = len(multi_mesh_ids[target_prim_path]) // self._num_envs
                 continue
-            paths: list[str] = sim_utils.find_matching_prim_paths(mesh_prim_path)
-            if len(paths) == 0:
-                raise RuntimeError(f"Failed to find a prim at path expression: {mesh_prim_path}")
+
+            # find all matching prim paths to provided expression of the target
+            target_prims = sim_utils.find_matching_prims(target_prim_path)
+            if len(target_prims) == 0:
+                raise RuntimeError(f"Failed to find a prim at path expression: {target_prim_path}")
 
             loaded_vertices: list[np.ndarray | None] = []
             wp_mesh_ids = []
-            for path in paths:
+            for target_prim in target_prims:
 
-                if path in self.meshes:
-                    wp_mesh_ids.append(self.meshes[path].id)
+                if target_prim in MultiMeshRayCaster.meshes:
+                    wp_mesh_ids.append(MultiMeshRayCaster.meshes[target_prim.GetPath()].id)
                     continue
 
                 # check if the prim is a primitive object - handle these as special types
-                mesh_prim = sim_utils.get_first_matching_child_prim(
-                    path, lambda prim: prim.GetTypeName() in PRIMITIVE_MESH_TYPES
+                mesh_prims = sim_utils.get_all_matching_child_prims(
+                    target_prim.GetPath(), lambda prim: prim.GetTypeName() in PRIMITIVE_MESH_TYPES + ["Mesh"]
                 )
+                if len(mesh_prims) == 0:
+                    raise RuntimeError(f"No mesh prims found at path: {target_prim.GetPath()}")
 
-                # if we did not find a primitive mesh, we need to read the mesh
-                if mesh_prim is None:
+                trimesh_meshes = []
 
-                    # obtain all mesh prims
-                    mesh_prims = sim_utils.get_all_matching_child_prims(path, lambda prim: prim.GetTypeName() == "Mesh")
+                for mesh_prim in mesh_prims:
+                    # check if valid
+                    if mesh_prim is None or not mesh_prim.IsValid():
+                        raise RuntimeError(f"Invalid mesh prim path: {target_prim}")
 
-                    if len(mesh_prims) == 0:  # noqa: R506
-                        raise RuntimeError(f"No mesh found for path: {path}")
-                    elif len(mesh_prims) == 1 or not self.cfg.merge_prim_meshes:
-
-                        for mesh_prim in mesh_prims:
-                            # check if valid
-                            if mesh_prim is None or not mesh_prim.IsValid():
-                                raise RuntimeError(f"Invalid mesh prim path: {path}")
-
-                            # get points and faces
-                            points, faces = create_trimesh_from_geom_mesh(mesh_prim)
-                            points *= np.array(sim_utils.resolve_world_scale(mesh_prim))
-                            registered_idx = _registered_points_idx(points, loaded_vertices)
-                            if registered_idx != -1:
-                                omni.log.info("Found a duplicate mesh, only reference the mesh.")
-                                # Found a duplicate mesh, only reference the mesh.
-                                loaded_vertices.append(None)
-                                wp_mesh_id = wp_mesh_ids[registered_idx]
-                                wp_mesh_ids.append(wp_mesh_id)
-                            else:
-                                loaded_vertices.append(points)
-                                wp_mesh = convert_to_warp_mesh(points, faces, device=self.device)
-                                # save the mesh and store the id
-                                if len(mesh_prims) == 1:
-                                    self.meshes[path] = wp_mesh
-                                else:
-                                    self.meshes[mesh_prim.GetPrimPath().pathString] = wp_mesh
-                                wp_mesh_ids.append(wp_mesh.id)
-                            # print info
-                            omni.log.info(
-                                f"Read mesh prim: {mesh_prim.GetPath()} with {len(points)} vertices and"
-                                f" {len(faces)} faces."
-                            )
-
+                    if mesh_prim.GetTypeName() == "Mesh":
+                        points, faces = create_trimesh_from_geom_mesh(mesh_prim)
+                        mesh = trimesh.Trimesh(points, faces)
                     else:
-                        if self.cfg.cache_combined_meshes:
-                            # check if a cached mesh is available
-                            # -- get the root usd level
-                            root_file = mesh_prims[0].GetPrimStack()[0].layer.realPath
-                            # -- cached meshes would be saved with the same name and same dir, just ".ply" extension
-                            cached_file = os.path.basename(root_file)
-                            cached_file = os.path.splitext(cached_file)[0] + "_cached.ply"
-                            cached_file = os.path.join(os.path.dirname(root_file), cached_file)
-                            # get the stage
-                            stage = stage_utils.get_current_stage()
-                            if os.path.exists(cached_file):
-                                # load the cached mesh
-                                trimesh_mesh = trimesh.load(cached_file)
-                                if isinstance(trimesh_mesh, trimesh.Trimesh):
-                                    loaded_vertices.append(trimesh_mesh.vertices)
-                                    # apply transform of the prim to the mesh (saved without transforms)
-                                    path_prim = stage.GetPrimAtPath(path)
-                                    transform = np.asarray(omni.usd.get_world_transform_matrix(path_prim)).T
-                                    trimesh_mesh.apply_transform(transform)
-                                    # convert to warp mesh
-                                    wp_mesh = convert_to_warp_mesh(
-                                        trimesh_mesh.vertices, trimesh_mesh.faces, device=self.device
-                                    )
-                                    self.meshes[path] = wp_mesh
-                                    wp_mesh_ids.append(wp_mesh.id)
-                                    omni.log.info(f"Loaded cached mesh from {cached_file}")
-                                else:
-                                    raise RuntimeError(f"Cached mesh at {cached_file} is not a valid Trimesh object.")
+                        mesh = create_mesh_from_geom_shape(mesh_prim)
 
-                                continue
+                    # account for local offsets and world scale of the prim
+                    transform = np.asarray(omni.usd.get_local_transform_matrix(mesh_prim)).T
+                    world_scale = sim_utils.resolve_world_scale(mesh_prim)
+                    # remove local scale from transform and apply world scale
+                    rotation = transform[:3, :3]
+                    for i in range(3):
+                        rotation[:, i] /= np.linalg.norm(rotation[:, i])
+                    # apply world scale
+                    transform_scaled = transform.copy()
+                    transform_scaled[:3, :3] = rotation * world_scale
+                    # apply transformation to the mesh (includes affine transform)
+                    mesh.apply_transform(transform_scaled)
 
-                        trimesh_meshes = []
-                        for mesh_prim in mesh_prims:
+                    # add to list of parsed meshes
+                    trimesh_meshes.append(mesh)
 
-                            # check if valid
-                            if mesh_prim is None or not mesh_prim.IsValid() or not mesh_prim.IsActive():
-                                raise RuntimeError(f"Invalid mesh prim path: {path}")
+                # resolve instancer prims
+                trimesh_meshes.extend(resolve_instancer_meshes(target_prim.GetPath()))
 
-                            # create trimesh from geom mesh
-                            points, faces = create_trimesh_from_geom_mesh(mesh_prim)
-                            curr_mesh = trimesh.Trimesh(points, faces)
-
-                            # transform the mesh to the world frame (this also includes the scale)
-                            transform = np.asarray(omni.usd.get_world_transform_matrix(mesh_prim)).T
-                            curr_mesh.apply_transform(transform)
-                            trimesh_meshes.append(curr_mesh)
-
-                        # resolve instancer prims
-                        trimesh_meshes.extend(resolve_instancer_meshes(path))
-
-                        # combine all trimesh meshes into a single mesh
-                        trimesh_mesh = trimesh.util.concatenate(trimesh_meshes)
-                        registered_idx = _registered_points_idx(trimesh_mesh.vertices, loaded_vertices)
-                        if registered_idx != -1:
-                            omni.log.info("Found a duplicate mesh, only reference the mesh.")
-                            # Found a duplicate mesh, only reference the mesh.
-                            loaded_vertices.append(None)
-                            wp_mesh_ids.append(wp_mesh_ids[registered_idx])
-                        else:
-                            loaded_vertices.append(trimesh_mesh.vertices)
-                            wp_mesh = convert_to_warp_mesh(
-                                trimesh_mesh.vertices, trimesh_mesh.faces, device=self.device
-                            )
-                            # save the mesh and store the id
-                            self.meshes[path] = wp_mesh
-                            wp_mesh_ids.append(wp_mesh.id)
-
-                            if self.cfg.cache_combined_meshes:
-                                # remove the transform of the base path before caching the mesh
-                                path_prim = stage.GetPrimAtPath(path)
-                                transform = np.asarray(omni.usd.get_world_transform_matrix(path_prim)).T
-                                transform = np.linalg.inv(transform)
-                                trimesh_mesh.apply_transform(transform)
-                                # save the mesh to a cache file
-                                trimesh_mesh.export(cached_file)
-                                omni.log.info(f"Saved mesh to cache file: {cached_file}")
-
-                            # print info
-                            omni.log.info(
-                                f"Read mesh prim: {mesh_prim.GetPath()} with {len(points)} vertices and"
-                                f" {len(faces)} faces."
-                            )
-
+                if len(trimesh_meshes) == 1:
+                    trimesh_mesh = trimesh_meshes[0]
+                elif self.cfg.merge_prim_meshes:
+                    # combine all trimesh meshes into a single mesh
+                    trimesh_mesh = trimesh.util.concatenate(trimesh_meshes)
                 else:
-                    # create mesh from primitive shape
-                    mesh = create_mesh_from_geom_shape(mesh_prim)
-                    mesh.vertices *= np.array(sim_utils.resolve_world_scale(mesh_prim))
+                    raise RuntimeError(
+                        f"Multiple mesh prims found at path: {target_prim.GetPath()} but merging is disabled. Please"
+                        " enable `merge_prim_meshes` in the configuration or specify each mesh separately."
+                    )
 
-                    registered_idx = _registered_points_idx(mesh.vertices, loaded_vertices)
-                    if registered_idx != -1:
-                        # Found a duplicate mesh, only reference the mesh.
-                        loaded_vertices.append(None)
-                        wp_mesh_ids.append(wp_mesh_ids[registered_idx])
-                    else:
-                        loaded_vertices.append(mesh.vertices)
-                        wp_mesh = convert_to_warp_mesh(mesh.vertices, mesh.faces, device=self.device)
-                        # save the mesh and store the id
-                        self.meshes[path] = wp_mesh
-                        wp_mesh_ids.append(wp_mesh.id)
-                    # print info
-                    omni.log.info(f"Created {mesh_prim.GetTypeName()} mesh prim: {mesh_prim.GetPath()}.")
+                # check if the mesh is already registered, if so only reference the mesh
+                registered_idx = _registered_points_idx(trimesh_mesh.vertices, loaded_vertices)
+                if registered_idx != -1:
+                    omni.log.info("Found a duplicate mesh, only reference the mesh.")
+                    # Found a duplicate mesh, only reference the mesh.
+                    loaded_vertices.append(None)
+                    wp_mesh_ids.append(wp_mesh_ids[registered_idx])
+                else:
+                    loaded_vertices.append(trimesh_mesh.vertices)
+                    wp_mesh = convert_to_warp_mesh(trimesh_mesh.vertices, trimesh_mesh.faces, device=self.device)
+                    MultiMeshRayCaster.meshes[target_prim.GetPath()] = wp_mesh
+                    wp_mesh_ids.append(wp_mesh.id)
+
+                # print info
+                if registered_idx != -1:
+                    omni.log.info(f"Found duplicate mesh for mesh prims under path '{target_prim.GetPath()}'.")
+                else:
+                    omni.log.info(
+                        f"Read '{len(mesh_prims)}' mesh prims under path '{target_prim.GetPath()}' with"
+                        f" {len(trimesh_mesh.vertices)} vertices and {len(trimesh_mesh.faces)} faces."
+                    )
 
             if target_cfg.is_global:
                 # reference the mesh for each environment to ray cast against
-                multi_mesh_ids[mesh_prim_path] = [wp_mesh_ids] * self._num_envs
-                self._num_meshes_per_env[mesh_prim_path] = len(wp_mesh_ids)
+                multi_mesh_ids[target_prim_path] = [wp_mesh_ids] * self._num_envs
+                self._num_meshes_per_env[target_prim_path] = len(wp_mesh_ids)
             else:
                 # split up the meshes for each environment. Little bit ugly, since
                 # the current order is interleaved (env1_obj1, env1_obj2, env2_obj1, env2_obj2, ...)
-                multi_mesh_ids[mesh_prim_path] = []
+                multi_mesh_ids[target_prim_path] = []
                 mesh_idx = 0
                 n_meshes_per_env = len(wp_mesh_ids) // self._num_envs
-                self._num_meshes_per_env[mesh_prim_path] = n_meshes_per_env
+                self._num_meshes_per_env[target_prim_path] = n_meshes_per_env
                 for _ in range(self._num_envs):
-                    multi_mesh_ids[mesh_prim_path].append(wp_mesh_ids[mesh_idx : mesh_idx + n_meshes_per_env])
+                    multi_mesh_ids[target_prim_path].append(wp_mesh_ids[mesh_idx : mesh_idx + n_meshes_per_env])
                     mesh_idx += n_meshes_per_env
 
             if self.cfg.track_mesh_transforms:
                 # create view based on the type of prim
-                mesh_prim_api = sim_utils.find_first_matching_prim(mesh_prim_path)
+                mesh_prim_api = sim_utils.find_first_matching_prim(target_prim_path)
                 if mesh_prim_api.HasAPI(UsdPhysics.ArticulationRootAPI):
-                    self.mesh_views[mesh_prim_path] = self._physics_sim_view.create_articulation_view(
-                        mesh_prim_path.replace(".*", "*")
+                    self.mesh_views[target_prim_path] = self._physics_sim_view.create_articulation_view(
+                        target_prim_path.replace(".*", "*")
                     )
-                    omni.log.info(f"Created articulation view for mesh prim at path: {mesh_prim_path}")
+                    omni.log.info(f"Created articulation view for mesh prim at path: {target_prim_path}")
                 elif mesh_prim_api.HasAPI(UsdPhysics.RigidBodyAPI):
-                    self.mesh_views[mesh_prim_path] = self._physics_sim_view.create_rigid_body_view(
-                        mesh_prim_path.replace(".*", "*")
+                    self.mesh_views[target_prim_path] = self._physics_sim_view.create_rigid_body_view(
+                        target_prim_path.replace(".*", "*")
                     )
-                    omni.log.info(f"Created rigid body view for mesh prim at path: {mesh_prim_path}")
+                    omni.log.info(f"Created rigid body view for mesh prim at path: {target_prim_path}")
                 else:
-                    self.mesh_views[mesh_prim_path] = XFormPrim(mesh_prim_path, reset_xform_properties=False)
+                    self.mesh_views[target_prim_path] = XFormPrim(target_prim_path, reset_xform_properties=False)
                     omni.log.warn(
-                        f"The prim at path {mesh_prim_path} is not a physics prim, but track_mesh_transforms is"
+                        f"The prim at path {target_prim_path} is not a physics prim, but track_mesh_transforms is"
                         " enabled! Defaulting to XFormPrim. \n The pose of the mesh will most likely not"
                         " be updated correctly when running in headless mode."
                     )
         # throw an error if no meshes are found
+        if all([target_cfg.target_prim_expr not in multi_mesh_ids for target_cfg in self._raycast_targets_cfg]):
+            raise RuntimeError(
+                f"No meshes found for ray-casting! Please check the mesh prim paths: {self.cfg.mesh_prim_paths}"
+            )
+
         if self.cfg.track_mesh_transforms:
             total_n_meshes_per_env = sum(self._num_meshes_per_env.values())
             self._mesh_positions_w = torch.zeros(self._num_envs, total_n_meshes_per_env, 3, device=self.device)
