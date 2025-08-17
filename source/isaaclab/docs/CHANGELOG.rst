@@ -1,6 +1,20 @@
 Changelog
 ---------
 
+0.45.1 (2025-08-16)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added validations for scale-based randomization ranges across mass, actuator, joint, and tendon parameters.
+
+Changed
+^^^^^^^
+
+* Refactored randomization functions into classes with initialization-time checks to avoid runtime overhead.
+
+
 0.45.0 (2025-08-07)
 ~~~~~~~~~~~~~~~~~~~
 
