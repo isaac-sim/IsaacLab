@@ -573,11 +573,12 @@ class EventCfg:
 
     reset_all = EventTerm(func=base_mdp.reset_scene_to_default, mode="reset")
 
+
 class PreStepLowerBodyPolicyObservationsRecorder(RecorderTerm):
     """Recorder term that records the policy group observations in each step."""
 
     def record_pre_step(self):
-        return "obs_lower", self._env.obs_buf["lower_body_policy"]
+        return "obs_lower_body", self._env.obs_buf["lower_body_policy"]
 
 
 @configclass

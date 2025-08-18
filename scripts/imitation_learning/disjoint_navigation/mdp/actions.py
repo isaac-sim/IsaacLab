@@ -60,18 +60,6 @@ G1_UPPER_BODY_IK_ACTION_CFG = PinkInverseKinematicsActionCfg(
         ".*_wrist_yaw_joint",
     ],
     # Fixed joints for IK (pelvis, legs, and hands are fixed)
-    # ik_urdf_fixed_joint_names=[
-    #     ".*_hip_yaw_joint",
-    #     ".*_hip_roll_joint",
-    #     ".*_hip_pitch_joint",
-    #     ".*waist.*",
-    #     ".*_knee_joint",
-    #     ".*_ankle_pitch_joint",
-    #     ".*_ankle_roll_joint",
-    #     ".*_index_.*",
-    #     ".*_middle_.*",
-    #     ".*_thumb_.*",
-    # ],
     hand_joint_names=[
         ".*_index_.*",
         ".*_middle_.*",
