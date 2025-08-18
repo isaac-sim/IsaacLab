@@ -626,6 +626,54 @@ Visualize the trained policy performance:
 Generate the dataset with manipulation and point-to-point navigation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+To create a comprehensive locomanipulation dataset that combines both manipulation and navigation capabilities, you can generate a navigation dataset using the manipulation dataset from the previous step as input.
+
+.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/disjoint_navigation.gif
+   :width: 100%
+   :align: center
+   :alt: G1 humanoid robot combining navigation with locomanipulation
+   :figclass: align-center
+
+   G1 humanoid robot performing locomanipulation with navigation capabilities.
+
+The navigation dataset generation process takes the previously generated manipulation dataset and creates scenarios where the robot must navigate from one location to another while performing manipulation tasks. This creates a more complex dataset that includes both locomotion and manipulation behaviors.
+
+To generate the navigation dataset, use the following command:
+
+.. code:: bash
+
+   ./isaaclab.sh -p \
+       scripts/imitation_learning/disjoint_navigation/generate_navigation.py \
+       --device cpu \
+       --kit_args="--enable isaacsim.replicator.mobility_gen" \
+       --task="Isaac-G1-Disjoint-Navigation" \
+       --dataset ./datasets/generated_dataset_g1_locomanip.hdf5 \
+       --num_runs 1 \
+       --lift_step 70 \
+       --navigate_step 120 \
+       --enable_pinocchio \
+       --output_file ./datasets/generated_dataset_g1_navigation.hdf5
+
+.. note::
+
+   The input dataset (``--dataset``) should be the manipulation dataset generated in the previous step. You can specify any output filename using the ``--output_file_name`` parameter.
+
+The key parameters for navigation dataset generation are:
+
+* ``--lift_step 70``: Number of steps for the lifting phase of the manipulation task
+* ``--navigate_step 120``: Number of steps for the navigation phase between locations
+* ``--output_file``: Name of the output dataset file
+
+This process creates a dataset where the robot performs the manipulation task at different locations, requiring it to navigate between points while maintaining the learned manipulation behaviors. The resulting dataset can be used to train policies that combine both locomotion and manipulation capabilities.
+
+.. note::
+
+   You can visualize the robot trajectory results with the following script command:
+
+   .. code:: bash
+
+      ./isaaclab.sh -p scripts/imitation_learning/disjoint_navigation/plot_navigation_trajectory.py --input_file datasets/generated_dataset_g1_navigation.hdf5 --output_dir /PATH/TO/DESIRED_OUTPUT_DIR
+
 
 Demo 3: Visuomotor Policy for a Humanoid Robot
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
