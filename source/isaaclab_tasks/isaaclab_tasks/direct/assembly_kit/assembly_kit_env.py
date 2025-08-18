@@ -206,9 +206,9 @@ class AssemblyKitEnv(DirectRLEnv):
                 tcp_pose,
                 target_model_pose,
                 target_model_pose[:, :3] - tcp_pose[:, :3],
-                self.target_goal_pos,
-                self.target_goal_rot.unsqueeze(1),
-                self.target_goal_pos - target_model_pose[:, :3],
+                self.target_model_goal_pos,
+                self.target_model_goal_rot.unsqueeze(1),
+                self.target_model_goal_pos - target_model_pose[:, :3],
                 shape_one_hot,
             ),
             dim=-1,
@@ -276,7 +276,7 @@ class AssemblyKitEnv(DirectRLEnv):
         target_model_pose = self.get_target_model_pose()
 
         # Compute positional difference (XY-plane)
-        pos_diff = self.target_goal_pos[:, :2] - target_model_pose[:, :2]
+        pos_diff = self.target_model_goal_pos[:, :2] - target_model_pose[:, :2]
         pos_diff_norm = torch.norm(pos_diff, dim=1)
         pos_correct = pos_diff_norm < pos_eps
 
@@ -285,7 +285,7 @@ class AssemblyKitEnv(DirectRLEnv):
         target_model_euler = euler_xyz_from_quat(target_model_quat)
         target_model_z_rot = target_model_euler[2]
 
-        goal_z_rot = self.target_goal_rot
+        goal_z_rot = self.target_model_goal_rot
         rot_diff = torch.abs(target_model_z_rot - goal_z_rot) % self.symmetry[self.current_target_model_id]
 
         # Adjust symmetry difference
@@ -330,6 +330,7 @@ class AssemblyKitEnv(DirectRLEnv):
         # sample objects for the environments
         self.sample_models_for_envs(torch.as_tensor(env_ids, dtype=torch.long, device=self.device))
 
+    # TODO make env IDs compatible
     def sample_models_for_envs(self, env_ids: torch.Tensor) -> None:
         """Randomly selects a target model and places others at goal or side positions.
 
@@ -380,10 +381,11 @@ class AssemblyKitEnv(DirectRLEnv):
         )
 
         # Storing the target poses and orientations for observation and reward
-        self.target_pos = offsets
-        self.target_quat = target_quat
-        self.target_goal_pos = model_rel_pos[torch.arange(model_rel_pos.size(0), device=choice.device), choice]
-        self.target_goal_rot = model_rel_rot[torch.arange(model_rel_pos.size(0), device=choice.device), choice]
+        self.target_model_pos = offsets
+        self.target_model_quat = target_quat
+        self.target_model_goal_pos = model_rel_pos[torch.arange(model_rel_pos.size(0), device=choice.device), choice]
+        self.target_model_goal_rot = model_rel_rot[torch.arange(model_rel_pos.size(0), device=choice.device), choice]
+        self.target_model_goal_pos[env_ids] += kit_pos_w[env_ids] - self.scene.env_origins[env_ids]
 
         # compute world-space poses + rots for others models
         idx_b = torch.arange(num_envs, device=device).unsqueeze(1)
