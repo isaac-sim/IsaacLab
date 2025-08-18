@@ -1,0 +1,99 @@
+# Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+#
+# NVIDIA CORPORATION and its licensors retain all intellectual property
+# and proprietary rights in and to this software, related documentation
+# and any modifications thereto. Any use, reproduction, disclosure or
+# distribution of this software and related documentation without an express
+# license agreement from NVIDIA CORPORATION is strictly prohibited.
+
+api_version: 1.0
+
+joint_limit_buffers: [.01, .01, .01, .01, .01, .01, .01]
+
+rmp_params:
+    cspace_target_rmp:
+        metric_scalar: 50.
+        position_gain: 100.
+        damping_gain: 50.
+        robust_position_term_thresh: .5
+        inertia: 1.
+    cspace_trajectory_rmp:
+        p_gain: 80.
+        d_gain: 10.
+        ff_gain: .25
+        weight: 50.
+    cspace_affine_rmp:
+        final_handover_time_std_dev: .25
+        weight: 2000.
+    joint_limit_rmp:
+        metric_scalar: 1000.
+        metric_length_scale: .01
+        metric_exploder_eps: 1e-3
+        metric_velocity_gate_length_scale: .01
+        accel_damper_gain: 200.
+        accel_potential_gain: 1.
+        accel_potential_exploder_length_scale: .1
+        accel_potential_exploder_eps: 1e-2
+    joint_velocity_cap_rmp:
+        max_velocity: 1.5 ## should match the joint velocity limit in URDF
+        velocity_damping_region: 0.5
+        damping_gain: 300.
+        metric_weight: 100.
+    target_rmp:
+        accel_p_gain: 80.
+        accel_d_gain: 120.
+        accel_norm_eps: .075
+        metric_alpha_length_scale: .05
+        min_metric_alpha: .01
+        max_metric_scalar: 10000.
+        min_metric_scalar: 2500.
+        proximity_metric_boost_scalar: 20.
+        proximity_metric_boost_length_scale: .02
+        accept_user_weights: false
+    axis_target_rmp:
+        accel_p_gain: 200.
+        accel_d_gain: 40.
+        metric_scalar: 10.
+        proximity_metric_boost_scalar: 3000.
+        proximity_metric_boost_length_scale: .05
+        accept_user_weights: false
+    collision_rmp:
+        damping_gain: 50.
+        damping_std_dev: .04
+        damping_robustness_eps: 1e-2
+        damping_velocity_gate_length_scale: .01
+        repulsion_gain: 1200.
+        repulsion_std_dev: .03
+        metric_modulation_radius: .5
+        metric_scalar: 100. #10000.
+        metric_exploder_std_dev: .05
+        metric_exploder_eps: .001
+    damping_rmp:
+        accel_d_gain: 200.
+        metric_scalar: 200.
+        inertia: 100.
+
+canonical_resolve:
+    max_acceleration_norm: 50.
+    projection_tolerance: .01
+    verbose: false
+
+body_cylinders:
+    - name: base_link
+      pt1: [0, 0, 2.0]
+      pt2: [0, 0, 0]
+      radius: .45
+
+body_collision_controllers:
+  - name: left_arm_link3
+    radius: .04
+  - name: left_arm_link4
+    radius: .04
+  - name: left_arm_link5
+    radius: .04
+  - name: left_arm_link6
+    radius: .04
+  - name: left_arm_link7
+    radius: .04
+  - name: left_arm_camera_sim_view_frame
+    radius: .03
