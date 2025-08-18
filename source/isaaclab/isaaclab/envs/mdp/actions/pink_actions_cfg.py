@@ -5,7 +5,7 @@
 
 from dataclasses import MISSING
 
-from isaaclab.controllers.pink_ik_cfg import PinkIKControllerCfg
+from isaaclab.controllers.pink_ik import PinkIKControllerCfg
 from isaaclab.managers.action_manager import ActionTerm, ActionTermCfg
 from isaaclab.utils import configclass
 

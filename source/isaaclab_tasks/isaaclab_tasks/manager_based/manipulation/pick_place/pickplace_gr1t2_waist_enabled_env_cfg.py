@@ -4,7 +4,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import tempfile
-import torch
 
 import isaaclab.controllers.utils as ControllerUtils
 from isaaclab.devices.device_base import DevicesCfg
@@ -42,48 +41,6 @@ class PickPlaceGR1T2WaistEnabledEnvCfg(ManagerBasedRLEnvCfg):
 
     # Temporary directory for URDF files
     temp_urdf_dir = tempfile.gettempdir()
-
-    # Idle action to hold robot in default pose
-    # Action format: [left arm pos (3), left arm quat (4), right arm pos (3), right arm quat (4),
-    #                 left hand joint pos (11), right hand joint pos (11)]
-    idle_action = torch.tensor([
-        -0.22878,
-        0.2536,
-        1.0953,
-        0.5,
-        0.5,
-        -0.5,
-        0.5,
-        0.22878,
-        0.2536,
-        1.0953,
-        0.5,
-        0.5,
-        -0.5,
-        0.5,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-    ])
 
     def __post_init__(self):
         """Post initialization."""

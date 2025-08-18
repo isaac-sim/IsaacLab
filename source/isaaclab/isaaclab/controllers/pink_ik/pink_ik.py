@@ -18,9 +18,9 @@ from pink.tasks import FrameTask
 from pinocchio.robot_wrapper import RobotWrapper
 
 from isaaclab.assets import ArticulationCfg
-from isaaclab.controllers.null_space_posture_task import NullSpacePostureTask
 from isaaclab.utils.string import resolve_matching_names_values
 
+from .null_space_posture_task import NullSpacePostureTask
 from .pink_ik_cfg import PinkIKControllerCfg
 
 
@@ -51,7 +51,7 @@ class PinkIKController:
 
         # Use resolve_matching_names_values to match Pink joint names to joint_pos values
         indices, names, values = resolve_matching_names_values(
-            joint_pos_dict, pink_joint_names, preserve_order=False, require_all_keys_matched=False
+            joint_pos_dict, pink_joint_names, preserve_order=False, strict=False
         )
         if len(indices) != len(pink_joint_names):
             unmatched = [name for name in pink_joint_names if name not in names]
