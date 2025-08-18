@@ -15,7 +15,13 @@ from .rough_env_cfg import H1RoughEnvCfg
 class H1FlatEnvCfg(H1RoughEnvCfg):
     sim: SimulationCfg = SimulationCfg(
         newton_cfg=NewtonCfg(
-            solver_cfg=MJWarpSolverCfg(nefc_per_env=40, ls_iterations=5, cone="pyramidal"),
+            solver_cfg=MJWarpSolverCfg(
+                nefc_per_env=40,
+                ls_iterations=10,
+                cone="pyramidal",
+                impratio=1,
+                ls_parallel=True,
+            ),
             num_substeps=1,
             debug_mode=False,
         )

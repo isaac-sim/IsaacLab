@@ -72,6 +72,7 @@ H1_CFG = ArticulationCfg(
                 ".*_knee": 5.0,
                 "torso": 5.0,
             },
+            friction=0.00001,
         ),
         "feet": ImplicitActuatorCfg(
             joint_names_expr=[".*_ankle"],
@@ -80,6 +81,7 @@ H1_CFG = ArticulationCfg(
             velocity_limit=100.0,
             stiffness={".*_ankle": 20.0},
             damping={".*_ankle": 4.0},
+            friction=0.00001,
         ),
         "arms": ImplicitActuatorCfg(
             joint_names_expr=[".*_shoulder_pitch", ".*_shoulder_roll", ".*_shoulder_yaw", ".*_elbow"],
@@ -98,6 +100,7 @@ H1_CFG = ArticulationCfg(
                 ".*_shoulder_yaw": 10.0,
                 ".*_elbow": 10.0,
             },
+            friction=0.00001,
         ),
     },
 )
