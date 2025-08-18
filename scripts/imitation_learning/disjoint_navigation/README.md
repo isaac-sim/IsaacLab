@@ -7,5 +7,8 @@
     scripts/imitation_learning/disjoint_navigation/replay.py \
     --device cpu \
     --kit_args="--enable isaacsim.replicator.mobility_gen" \
-    --dataset="datasets/dataset_generated_g1_locomotion_teacher.hdf5"
+    --dataset="datasets/dataset_generated_g1_locomotion_teacher.hdf5" \
+    --num_runs=1 \
+    --lift_step=50 \
+    --navigate_step=100
 ```

@@ -17,6 +17,8 @@ from isaaclab.app import AppLauncher
 # Launch Isaac Lab
 parser = argparse.ArgumentParser(description="Disjoint navigation")
 parser.add_argument("--dataset", type=str)
+parser.add_argument("--lift_step", type=int)
+parser.add_argument("--navigate_step", type=int)
 parser.add_argument("--demo", type=str, default="demo_0")
 parser.add_argument("--num_runs", type=int, default=1)
 parser.add_argument("--draw_visualization", type=bool, default=False)
@@ -75,6 +77,8 @@ class ReplayState(Enum):
 def replay(
         scenario: DisjointNavScenario, 
         recording: DisjointNavRecording,
+        lift_step: int,
+        navigate_step: int,
         draw_visualization: bool = False,
         angular_gain = 2.0,
         linear_gain = 1.0,
@@ -176,7 +180,7 @@ def replay(
 
             recording_step += 1
 
-            if recording_step > 50:
+            if recording_step > lift_step:
                 state = ReplayState.LIFT_OBJECT
 
         elif state == ReplayState.LIFT_OBJECT:
@@ -203,7 +207,7 @@ def replay(
 
             recording_step += 1
 
-            if recording_step > 90:
+            if recording_step > navigate_step:
                 state = ReplayState.NAVIGATE
 
         elif state == ReplayState.NAVIGATE:
@@ -379,6 +383,8 @@ if __name__ == "__main__":
         replay(
             scenario=scenario,
             recording=recording,
+            lift_step=args_cli.lift_step,
+            navigate_step=args_cli.navigate_step,
             draw_visualization=args_cli.draw_visualization,
             angular_gain=args_cli.angular_gain,
             linear_gain=args_cli.linear_gain,
