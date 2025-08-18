@@ -35,6 +35,8 @@ import csv
 import os
 import time
 
+import torch
+
 from isaaclab.app import AppLauncher
 
 # add argparse arguments
@@ -187,16 +189,23 @@ def main():
             for _ in range(args_cli.warmup):
                 sim.step()
                 sensor.update(dt=sim_dt, force_recompute=True)
+            
+            used_memory = 0.0
+            
             # Timing
             t0 = time.perf_counter_ns()
             for _ in range(args_cli.steps):
                 sim.step()
                 sensor.update(dt=sim_dt, force_recompute=True)
+                free, total = torch.cuda.mem_get_info(args_cli.device)
+                used_memory += (total - free) / 1024**2  # Convert to MB
             t1 = time.perf_counter_ns()
             per_step_ms = (t1 - t0) / args_cli.steps / 1e6
+            avg_memory = used_memory / args_cli.steps
             print(
                 f"[INFO]: RayCaster (ground): res={res:.4f}, rays/sensor={sensor.num_rays}, "
                 f"total rays={sensor.num_rays * sensor.num_instances}, per-step={per_step_ms:.3f} ms"
+                f", avg_memory={avg_memory:.2f} MB"
             )
             results.append({
                 "mode": "single",
@@ -205,6 +214,7 @@ def main():
                 "rays_per_sensor": int(sensor.num_rays),
                 "total_rays": int(sensor.num_rays * sensor.num_instances),
                 "per_step_ms": float(per_step_ms),
+                "avg_memory": float(avg_memory),
             })
             # Cleanup
             # stop simulation
@@ -230,14 +240,19 @@ def main():
                 sensor.update(dt=sim_dt, force_recompute=True)
             # Timing
             t0 = time.perf_counter_ns()
+            used_memory = 0.0
             for _ in range(args_cli.steps):
                 sim.step()
                 sensor.update(dt=sim_dt, force_recompute=True)
+                free, total = torch.cuda.mem_get_info(args_cli.device)
+                used_memory += (total - free) / 1024**2  # Convert to MB
             t1 = time.perf_counter_ns()
             per_step_ms = (t1 - t0) / args_cli.steps / 1e6
+            avg_memory = used_memory / args_cli.steps
             print(
                 f"[INFO]: MultiMeshRayCaster (ground + cubes): res={res:.4f}, rays/sensor={sensor.num_rays}, "
                 f"total rays={sensor.num_rays * sensor.num_instances}, per-step={per_step_ms:.3f} ms"
+                f", avg_memory={avg_memory:.2f} MB"
             )
             results.append({
                 "mode": "multi",
