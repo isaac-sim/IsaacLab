@@ -9,7 +9,7 @@
 [package]
 title = "Isaac Lab Python Headless Camera"
 description = "An app for running Isaac Lab headlessly with rendering enabled"
-version = "2.0.2"
+version = "2.2.0"
 
 # That makes it browsable in UI with "experience" filter
 keywords = ["experience", "app", "isaaclab", "python", "camera", "minimal"]
@@ -32,7 +32,12 @@ cameras_enabled = true
 app.versionFile = "${exe-path}/VERSION"
 app.folder = "${exe-path}/"
 app.name = "Isaac-Sim"
-app.version = "4.5.0"
+app.version = "5.0.0"
+
+### FSD
+app.useFabricSceneDelegate = true
+# Temporary, should be enabled by default in Kit soon
+rtx.hydra.readTransformsFromFabricInRenderDelegate = true
 
 # Disable print outs on extension startup information
 # this only disables the app print_and_log function
@@ -83,8 +88,14 @@ app.audio.enabled = false
 # Enable Vulkan - avoids torch+cu12 error on windows
 app.vulkan = true
 
+# Disables rate limit in runloop
+app.runLoops.main.rateLimitEnabled=false
+
 # disable replicator orchestrator for better runtime perf
 exts."omni.replicator.core".Orchestrator.enabled = false
+
+# disable the metrics assembler change listener, we don't want to do any runtime changes
+metricsAssembler.changeListenerEnabled = false
 
 [settings.exts."omni.kit.registry.nucleus"]
 registries = [
@@ -115,6 +126,8 @@ fabricUpdateTransformations = false
 fabricUpdateVelocities = false
 fabricUpdateForceSensors = false
 fabricUpdateJointStates = false
+### When Direct GPU mode is enabled (suppressReadback=true) use direct interop between PhysX GPU and Fabric
+fabricUseGPUInterop = true
 
 # Register extension folder from this repo in kit
 [settings.app.exts]
@@ -137,6 +150,6 @@ folders = [
 # set the S3 directory manually to the latest published S3
 # note: this is done to ensure prior versions of Isaac Sim still use the latest assets
 [settings]
-persistent.isaac.asset_root.default = "http://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/4.5"
-persistent.isaac.asset_root.cloud = "http://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/4.5"
-persistent.isaac.asset_root.nvidia = "http://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/4.5"
+persistent.isaac.asset_root.default = "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.0"
+persistent.isaac.asset_root.cloud = "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.0"
+persistent.isaac.asset_root.nvidia = "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.0"

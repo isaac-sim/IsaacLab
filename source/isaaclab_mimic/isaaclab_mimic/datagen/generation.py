@@ -1,4 +1,4 @@
-# Copyright (c) 2025, The Isaac Lab Project Developers.
+# Copyright (c) 2024-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: Apache-2.0
@@ -8,9 +8,9 @@ import contextlib
 import torch
 from typing import Any
 
-from isaaclab.envs import ManagerBasedEnv
+from isaaclab.envs import ManagerBasedRLMimicEnv
 from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
-from isaaclab.managers import DatasetExportMode
+from isaaclab.managers import DatasetExportMode, TerminationTermCfg
 
 from isaaclab_mimic.datagen.data_generator import DataGenerator
 from isaaclab_mimic.datagen.datagen_info_pool import DataGenInfoPool
@@ -24,23 +24,32 @@ num_attempts = 0
 
 
 async def run_data_generator(
-    env: ManagerBasedEnv,
+    env: ManagerBasedRLMimicEnv,
     env_id: int,
+    env_reset_queue: asyncio.Queue,
     env_action_queue: asyncio.Queue,
     data_generator: DataGenerator,
-    success_term: Any,
+    success_term: TerminationTermCfg,
     pause_subtask: bool = False,
 ):
-    """Run data generator."""
+    """Run mimic data generation from the given data generator in the specified environment index.
+
+    Args:
+        env: The environment to run the data generator on.
+        env_id: The environment index to run the data generation on.
+        env_reset_queue: The asyncio queue to send environment (for this particular env_id) reset requests to.
+        env_action_queue: The asyncio queue to send actions to for executing actions.
+        data_generator: The data generator instance to use.
+        success_term: The success termination term to use.
+        pause_subtask: Whether to pause the subtask during generation.
+    """
     global num_success, num_failures, num_attempts
     while True:
         results = await data_generator.generate(
             env_id=env_id,
             success_term=success_term,
+            env_reset_queue=env_reset_queue,
             env_action_queue=env_action_queue,
-            select_src_per_subtask=env.unwrapped.cfg.datagen_config.generation_select_src_per_subtask,
-            transform_first_robot_pose=env.unwrapped.cfg.datagen_config.generation_transform_first_robot_pose,
-            interpolate_from_last_target_pose=env.unwrapped.cfg.datagen_config.generation_interpolate_from_last_target_pose,
             pause_subtask=pause_subtask,
         )
         if bool(results["success"]):
@@ -51,22 +60,40 @@ async def run_data_generator(
 
 
 def env_loop(
-    env: ManagerBasedEnv,
+    env: ManagerBasedRLMimicEnv,
+    env_reset_queue: asyncio.Queue,
     env_action_queue: asyncio.Queue,
     shared_datagen_info_pool: DataGenInfoPool,
     asyncio_event_loop: asyncio.AbstractEventLoop,
-) -> None:
-    """Main loop for the environment."""
+):
+    """Main asyncio loop for the environment.
+
+    Args:
+        env: The environment to run the main step loop on.
+        env_reset_queue: The asyncio queue to handle reset request the environment.
+        env_action_queue: The asyncio queue to handle actions to for executing actions.
+        shared_datagen_info_pool: The shared datagen info pool that stores source demo info.
+        asyncio_event_loop: The main asyncio event loop.
+    """
     global num_success, num_failures, num_attempts
+    env_id_tensor = torch.tensor([0], dtype=torch.int64, device=env.device)
     prev_num_attempts = 0
     # simulate environment -- run everything in inference mode
     with contextlib.suppress(KeyboardInterrupt) and torch.inference_mode():
         while True:
 
-            actions = torch.zeros(env.unwrapped.action_space.shape)
+            # check if any environment needs to be reset while waiting for actions
+            while env_action_queue.qsize() != env.num_envs:
+                asyncio_event_loop.run_until_complete(asyncio.sleep(0))
+                while not env_reset_queue.empty():
+                    env_id_tensor[0] = env_reset_queue.get_nowait()
+                    env.reset(env_ids=env_id_tensor)
+                    env_reset_queue.task_done()
+
+            actions = torch.zeros(env.action_space.shape)
 
             # get actions from all the data generators
-            for i in range(env.unwrapped.num_envs):
+            for i in range(env.num_envs):
                 # an async-blocking call to get an action from a data generator
                 env_id, action = asyncio_event_loop.run_until_complete(env_action_queue.get())
                 actions[env_id] = action
@@ -75,27 +102,30 @@ def env_loop(
             env.step(actions)
 
             # mark done so the data generators can continue with the step results
-            for i in range(env.unwrapped.num_envs):
+            for i in range(env.num_envs):
                 env_action_queue.task_done()
 
             if prev_num_attempts != num_attempts:
                 prev_num_attempts = num_attempts
+                generated_sucess_rate = 100 * num_success / num_attempts if num_attempts > 0 else 0.0
                 print("")
-                print("*" * 50)
-                print(f"have {num_success} successes out of {num_attempts} trials so far")
-                print(f"have {num_failures} failures out of {num_attempts} trials so far")
-                print("*" * 50)
+                print("*" * 50, "\033[K")
+                print(
+                    f"{num_success}/{num_attempts} ({generated_sucess_rate:.1f}%) successful demos generated by"
+                    " mimic\033[K"
+                )
+                print("*" * 50, "\033[K")
 
                 # termination condition is on enough successes if @guarantee_success or enough attempts otherwise
-                generation_guarantee = env.unwrapped.cfg.datagen_config.generation_guarantee
-                generation_num_trials = env.unwrapped.cfg.datagen_config.generation_num_trials
+                generation_guarantee = env.cfg.datagen_config.generation_guarantee
+                generation_num_trials = env.cfg.datagen_config.generation_num_trials
                 check_val = num_success if generation_guarantee else num_attempts
                 if check_val >= generation_num_trials:
                     print(f"Reached {generation_num_trials} successes/attempts. Exiting.")
                     break
 
             # check that simulation is stopped or not
-            if env.unwrapped.sim.is_stopped():
+            if env.sim.is_stopped():
                 break
 
     env.close()
@@ -175,26 +205,28 @@ def setup_async_generation(
         List of asyncio tasks for data generation
     """
     asyncio_event_loop = asyncio.get_event_loop()
+    env_reset_queue = asyncio.Queue()
     env_action_queue = asyncio.Queue()
     shared_datagen_info_pool_lock = asyncio.Lock()
-    shared_datagen_info_pool = DataGenInfoPool(
-        env.unwrapped, env.unwrapped.cfg, env.unwrapped.device, asyncio_lock=shared_datagen_info_pool_lock
-    )
+    shared_datagen_info_pool = DataGenInfoPool(env, env.cfg, env.device, asyncio_lock=shared_datagen_info_pool_lock)
     shared_datagen_info_pool.load_from_dataset_file(input_file)
     print(f"Loaded {shared_datagen_info_pool.num_datagen_infos} to datagen info pool")
 
     # Create and schedule data generator tasks
-    data_generator = DataGenerator(env=env.unwrapped, src_demo_datagen_info_pool=shared_datagen_info_pool)
+    data_generator = DataGenerator(env=env, src_demo_datagen_info_pool=shared_datagen_info_pool)
     data_generator_asyncio_tasks = []
     for i in range(num_envs):
         task = asyncio_event_loop.create_task(
-            run_data_generator(env, i, env_action_queue, data_generator, success_term, pause_subtask=pause_subtask)
+            run_data_generator(
+                env, i, env_reset_queue, env_action_queue, data_generator, success_term, pause_subtask=pause_subtask
+            )
         )
         data_generator_asyncio_tasks.append(task)
 
     return {
         "tasks": data_generator_asyncio_tasks,
         "event_loop": asyncio_event_loop,
+        "reset_queue": env_reset_queue,
         "action_queue": env_action_queue,
         "info_pool": shared_datagen_info_pool,
     }

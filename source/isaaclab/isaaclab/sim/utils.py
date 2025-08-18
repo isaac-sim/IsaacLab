@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -7,17 +7,23 @@
 
 from __future__ import annotations
 
+import contextlib
 import functools
 import inspect
 import re
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
+import carb
 import isaacsim.core.utils.stage as stage_utils
+import omni
 import omni.kit.commands
 import omni.log
 from isaacsim.core.cloner import Cloner
-from pxr import PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
+from isaacsim.core.utils.carb import get_carb_setting
+from isaacsim.core.utils.stage import get_current_stage
+from isaacsim.core.version import get_version
+from pxr import PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics, UsdShade, UsdUtils
 
 # from Isaac Sim 4.2 onwards, pxr.Semantics is deprecated
 try:
@@ -108,6 +114,11 @@ def safe_set_attribute_on_usd_prim(prim: Usd.Prim, attr_name: str, value: Any, c
         raise NotImplementedError(
             f"Cannot set attribute '{attr_name}' with value '{value}'. Please modify the code to support this type."
         )
+
+    # early attach stage to usd context if stage is in memory
+    # since stage in memory is not supported by the "ChangePropertyCommand" kit command
+    attach_stage_to_usd_context(attaching_early=True)
+
     # change property
     omni.kit.commands.execute(
         "ChangePropertyCommand",
@@ -160,7 +171,8 @@ def apply_nested(func: Callable) -> Callable:
         # get current stage
         stage = bound_args.arguments.get("stage")
         if stage is None:
-            stage = stage_utils.get_current_stage()
+            stage = get_current_stage()
+
         # get USD prim
         prim: Usd.Prim = stage.GetPrimAtPath(prim_path)
         # check if prim is valid
@@ -222,6 +234,9 @@ def clone(func: Callable) -> Callable:
 
     @functools.wraps(func)
     def wrapper(prim_path: str | Sdf.Path, cfg: SpawnerCfg, *args, **kwargs):
+        # get stage handle
+        stage = get_current_stage()
+
         # cast prim_path to str type in case its an Sdf.Path
         prim_path = str(prim_path)
         # check prim path is global
@@ -276,9 +291,25 @@ def clone(func: Callable) -> Callable:
             schemas.activate_contact_sensors(prim_paths[0], cfg.activate_contact_sensors)
         # clone asset using cloner API
         if len(prim_paths) > 1:
-            cloner = Cloner()
-            # clone the prim
-            cloner.clone(prim_paths[0], prim_paths[1:], replicate_physics=False, copy_from_source=cfg.copy_from_source)
+            cloner = Cloner(stage=stage)
+            # check version of Isaac Sim to determine whether clone_in_fabric is valid
+            isaac_sim_version = float(".".join(get_version()[2]))
+            if isaac_sim_version < 5:
+                # clone the prim
+                cloner.clone(
+                    prim_paths[0], prim_paths[1:], replicate_physics=False, copy_from_source=cfg.copy_from_source
+                )
+            else:
+                # clone the prim
+                clone_in_fabric = kwargs.get("clone_in_fabric", False)
+                replicate_physics = kwargs.get("replicate_physics", False)
+                cloner.clone(
+                    prim_paths[0],
+                    prim_paths[1:],
+                    replicate_physics=replicate_physics,
+                    copy_from_source=cfg.copy_from_source,
+                    clone_in_fabric=clone_in_fabric,
+                )
         # return the source prim
         return prim
 
@@ -318,9 +349,10 @@ def bind_visual_material(
     Raises:
         ValueError: If the provided prim paths do not exist on stage.
     """
-    # resolve stage
+    # get stage handle
     if stage is None:
-        stage = stage_utils.get_current_stage()
+        stage = get_current_stage()
+
     # check if prim and material exists
     if not stage.GetPrimAtPath(prim_path).IsValid():
         raise ValueError(f"Target prim '{material_path}' does not exist.")
@@ -375,9 +407,10 @@ def bind_physics_material(
     Raises:
         ValueError: If the provided prim paths do not exist on stage.
     """
-    # resolve stage
+    # get stage handle
     if stage is None:
-        stage = stage_utils.get_current_stage()
+        stage = get_current_stage()
+
     # check if prim and material exists
     if not stage.GetPrimAtPath(prim_path).IsValid():
         raise ValueError(f"Target prim '{material_path}' does not exist.")
@@ -403,6 +436,7 @@ def bind_physics_material(
     else:
         material_binding_api = UsdShade.MaterialBindingAPI.Apply(prim)
     # obtain the material prim
+
     material = UsdShade.Material(stage.GetPrimAtPath(material_path))
     # resolve token for weaker than descendants
     if stronger_than_descendants:
@@ -443,6 +477,10 @@ def export_prim_to_file(
     Raises:
         ValueError: If the prim paths are not global (i.e: do not start with '/').
     """
+    # get stage handle
+    if stage is None:
+        stage = get_current_stage()
+
     # automatically casting to str in case args
     # are path types
     path = str(path)
@@ -454,9 +492,7 @@ def export_prim_to_file(
         raise ValueError(f"Source prim path '{source_prim_path}' is not global. It must start with '/'.")
     if target_prim_path is not None and not target_prim_path.startswith("/"):
         raise ValueError(f"Target prim path '{target_prim_path}' is not global. It must start with '/'.")
-    # get current stage
-    if stage is None:
-        stage: Usd.Stage = omni.usd.get_context().get_stage()
+
     # get root layer
     source_layer = stage.GetRootLayer()
 
@@ -508,14 +544,15 @@ def make_uninstanceable(prim_path: str | Sdf.Path, stage: Usd.Stage | None = Non
     Raises:
         ValueError: If the prim path is not global (i.e: does not start with '/').
     """
+    # get stage handle
+    if stage is None:
+        stage = get_current_stage()
+
     # make paths str type if they aren't already
     prim_path = str(prim_path)
     # check if prim path is global
     if not prim_path.startswith("/"):
         raise ValueError(f"Prim path '{prim_path}' is not global. It must start with '/'.")
-    # get current stage
-    if stage is None:
-        stage = stage_utils.get_current_stage()
     # get prim
     prim: Usd.Prim = stage.GetPrimAtPath(prim_path)
     # check if prim is valid
@@ -555,14 +592,15 @@ def get_first_matching_child_prim(
     Raises:
         ValueError: If the prim path is not global (i.e: does not start with '/').
     """
+    # get stage handle
+    if stage is None:
+        stage = get_current_stage()
+
     # make paths str type if they aren't already
     prim_path = str(prim_path)
     # check if prim path is global
     if not prim_path.startswith("/"):
         raise ValueError(f"Prim path '{prim_path}' is not global. It must start with '/'.")
-    # get current stage
-    if stage is None:
-        stage = stage_utils.get_current_stage()
     # get prim
     prim = stage.GetPrimAtPath(prim_path)
     # check if prim is valid
@@ -603,14 +641,15 @@ def get_all_matching_child_prims(
     Raises:
         ValueError: If the prim path is not global (i.e: does not start with '/').
     """
+    # get stage handle
+    if stage is None:
+        stage = get_current_stage()
+
     # make paths str type if they aren't already
     prim_path = str(prim_path)
     # check if prim path is global
     if not prim_path.startswith("/"):
         raise ValueError(f"Prim path '{prim_path}' is not global. It must start with '/'.")
-    # get current stage
-    if stage is None:
-        stage = stage_utils.get_current_stage()
     # get prim
     prim = stage.GetPrimAtPath(prim_path)
     # check if prim is valid
@@ -650,12 +689,13 @@ def find_first_matching_prim(prim_path_regex: str, stage: Usd.Stage | None = Non
     Raises:
         ValueError: If the prim path is not global (i.e: does not start with '/').
     """
+    # get stage handle
+    if stage is None:
+        stage = get_current_stage()
+
     # check prim path is global
     if not prim_path_regex.startswith("/"):
         raise ValueError(f"Prim path '{prim_path_regex}' is not global. It must start with '/'.")
-    # get current stage
-    if stage is None:
-        stage = stage_utils.get_current_stage()
     # need to wrap the token patterns in '^' and '$' to prevent matching anywhere in the string
     pattern = f"^{prim_path_regex}$"
     compiled_pattern = re.compile(pattern)
@@ -680,12 +720,13 @@ def find_matching_prims(prim_path_regex: str, stage: Usd.Stage | None = None) ->
     Raises:
         ValueError: If the prim path is not global (i.e: does not start with '/').
     """
+    # get stage handle
+    if stage is None:
+        stage = get_current_stage()
+
     # check prim path is global
     if not prim_path_regex.startswith("/"):
         raise ValueError(f"Prim path '{prim_path_regex}' is not global. It must start with '/'.")
-    # get current stage
-    if stage is None:
-        stage = stage_utils.get_current_stage()
     # need to wrap the token patterns in '^' and '$' to prevent matching anywhere in the string
     tokens = prim_path_regex.split("/")[1:]
     tokens = [f"^{token}$" for token in tokens]
@@ -751,12 +792,13 @@ def find_global_fixed_joint_prim(
         ValueError: If the prim path is not global (i.e: does not start with '/').
         ValueError: If the prim path does not exist on the stage.
     """
+    # get stage handle
+    if stage is None:
+        stage = get_current_stage()
+
     # check prim path is global
     if not prim_path.startswith("/"):
         raise ValueError(f"Prim path '{prim_path}' is not global. It must start with '/'.")
-    # get current stage
-    if stage is None:
-        stage = stage_utils.get_current_stage()
 
     # check if prim exists
     prim = stage.GetPrimAtPath(prim_path)
@@ -783,6 +825,97 @@ def find_global_fixed_joint_prim(
                 break
 
     return fixed_joint_prim
+
+
+"""
+Stage management.
+"""
+
+
+def attach_stage_to_usd_context(attaching_early: bool = False):
+    """Attaches stage in memory to usd context.
+
+    This function should be called during or after scene is created and before stage is simulated or rendered.
+
+    Note:
+        If the stage is not in memory or rendering is not enabled, this function will return without attaching.
+
+    Args:
+        attaching_early: Whether to attach the stage to the usd context before stage is created. Defaults to False.
+    """
+
+    from isaacsim.core.simulation_manager import SimulationManager
+
+    from isaaclab.sim.simulation_context import SimulationContext
+
+    # if Isaac Sim version is less than 5.0, stage in memory is not supported
+    isaac_sim_version = float(".".join(get_version()[2]))
+    if isaac_sim_version < 5:
+        return
+
+    # if stage is not in memory, we can return early
+    if not is_current_stage_in_memory():
+        return
+
+    # attach stage to physx
+    stage_id = get_current_stage_id()
+    physx_sim_interface = omni.physx.get_physx_simulation_interface()
+    physx_sim_interface.attach_stage(stage_id)
+
+    # this carb flag is equivalent to if rendering is enabled
+    carb_setting = carb.settings.get_settings()
+    is_rendering_enabled = get_carb_setting(carb_setting, "/physics/fabricUpdateTransformations")
+
+    # if rendering is not enabled, we don't need to attach it
+    if not is_rendering_enabled:
+        return
+
+    # early attach warning msg
+    if attaching_early:
+        omni.log.warn(
+            "Attaching stage in memory to USD context early to support an operation which doesn't support stage in"
+            " memory."
+        )
+
+    # skip this callback to avoid wiping the stage after attachment
+    SimulationContext.instance().skip_next_stage_open_callback()
+
+    # disable stage open callback to avoid clearing callbacks
+    SimulationManager.enable_stage_open_callback(False)
+
+    # enable physics fabric
+    SimulationContext.instance()._physics_context.enable_fabric(True)
+
+    # attach stage to usd context
+    omni.usd.get_context().attach_stage_with_callback(stage_id)
+
+    # attach stage to physx
+    physx_sim_interface = omni.physx.get_physx_simulation_interface()
+    physx_sim_interface.attach_stage(stage_id)
+
+    # re-enable stage open callback
+    SimulationManager.enable_stage_open_callback(True)
+
+
+def is_current_stage_in_memory() -> bool:
+    """This function checks if the current stage is in memory.
+
+    Compares the stage id of the current stage with the stage id of the context stage.
+
+    Returns:
+        If the current stage is in memory.
+    """
+
+    # grab current stage id
+    stage_id = get_current_stage_id()
+
+    # grab context stage id
+    context_stage = omni.usd.get_context().get_stage()
+    with use_stage(context_stage):
+        context_stage_id = get_current_stage_id()
+
+    # check if stage ids are the same
+    return stage_id != context_stage_id
 
 
 """
@@ -836,9 +969,10 @@ def select_usd_variants(prim_path: str, variants: object | dict[str, str], stage
 
     .. _USD Variants: https://graphics.pixar.com/usd/docs/USD-Glossary.html#USDGlossary-Variant
     """
-    # Resolve stage
+    # get stage handle
     if stage is None:
-        stage = stage_utils.get_current_stage()
+        stage = get_current_stage()
+
     # Obtain prim
     prim = stage.GetPrimAtPath(prim_path)
     if not prim.IsValid():
@@ -862,3 +996,59 @@ def select_usd_variants(prim_path: str, variants: object | dict[str, str], stage
                 f"Setting variant selection '{variant_selection}' for variant set '{variant_set_name}' on"
                 f" prim '{prim_path}'."
             )
+
+
+"""
+Isaac Sim stage utils wrappers to enable backwards compatibility to Isaac Sim 4.5
+"""
+
+
+@contextlib.contextmanager
+def use_stage(stage: Usd.Stage) -> None:
+    """Context manager that sets a thread-local stage, if supported.
+
+    In Isaac Sim < 5.0, this is a no-op to maintain compatibility.
+
+    Args:
+        stage (Usd.Stage): The stage to set temporarily.
+    """
+    isaac_sim_version = float(".".join(get_version()[2]))
+    if isaac_sim_version < 5:
+        omni.log.warn("[Compat] Isaac Sim < 5.0 does not support thread-local stage contexts. Skipping use_stage().")
+        yield  # no-op
+    else:
+        with stage_utils.use_stage(stage):
+            yield
+
+
+def create_new_stage_in_memory() -> Usd.Stage:
+    """Create a new stage in memory, if supported.
+
+    Returns:
+        The new stage.
+    """
+    isaac_sim_version = float(".".join(get_version()[2]))
+    if isaac_sim_version < 5:
+        omni.log.warn(
+            "[Compat] Isaac Sim < 5.0 does not support creating a new stage in memory. Falling back to creating a new"
+            " stage attached to USD context."
+        )
+        return stage_utils.create_new_stage()
+    else:
+        return stage_utils.create_new_stage_in_memory()
+
+
+def get_current_stage_id() -> int:
+    """Get the current open stage id.
+
+    Reimplementation of stage_utils.get_current_stage_id() for Isaac Sim < 5.0.
+
+    Returns:
+        int: The stage id.
+    """
+    stage = get_current_stage()
+    stage_cache = UsdUtils.StageCache.Get()
+    stage_id = stage_cache.GetId(stage).ToLongInt()
+    if stage_id < 0:
+        stage_id = stage_cache.Insert(stage).ToLongInt()
+    return stage_id

@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -9,11 +9,22 @@ import hid
 import numpy as np
 import threading
 import time
+import torch
 from collections.abc import Callable
+from dataclasses import dataclass
 from scipy.spatial.transform import Rotation
 
-from ..device_base import DeviceBase
+from ..device_base import DeviceBase, DeviceCfg
 from .utils import convert_buffer
+
+
+@dataclass
+class Se3SpaceMouseCfg(DeviceCfg):
+    """Configuration for SE3 space mouse devices."""
+
+    pos_sensitivity: float = 0.4
+    rot_sensitivity: float = 0.8
+    retargeters: None = None
 
 
 class Se3SpaceMouse(DeviceBase):
@@ -38,16 +49,16 @@ class Se3SpaceMouse(DeviceBase):
 
     """
 
-    def __init__(self, pos_sensitivity: float = 0.4, rot_sensitivity: float = 0.8):
+    def __init__(self, cfg: Se3SpaceMouseCfg):
         """Initialize the space-mouse layer.
 
         Args:
-            pos_sensitivity: Magnitude of input position command scaling. Defaults to 0.4.
-            rot_sensitivity: Magnitude of scale input rotation commands scaling. Defaults to 0.8.
+            cfg: Configuration object for space-mouse settings.
         """
         # store inputs
-        self.pos_sensitivity = pos_sensitivity
-        self.rot_sensitivity = rot_sensitivity
+        self.pos_sensitivity = cfg.pos_sensitivity
+        self.rot_sensitivity = cfg.rot_sensitivity
+        self._sim_device = cfg.sim_device
         # acquire device interface
         self._device = hid.device()
         self._find_device()
@@ -93,21 +104,28 @@ class Se3SpaceMouse(DeviceBase):
         self._delta_rot = np.zeros(3)  # (roll, pitch, yaw)
 
     def add_callback(self, key: str, func: Callable):
-        # check keys supported by callback
-        if key not in ["L", "R"]:
-            raise ValueError(f"Only left (L) and right (R) buttons supported. Provided: {key}.")
-        # TODO: Improve this to allow multiple buttons on same key.
+        """Add additional functions to bind spacemouse.
+
+        Args:
+            key: The keyboard button to check against.
+            func: The function to call when key is pressed. The callback function should not
+                take any arguments.
+        """
         self._additional_callbacks[key] = func
 
-    def advance(self) -> tuple[np.ndarray, bool]:
+    def advance(self) -> torch.Tensor:
         """Provides the result from spacemouse event state.
 
         Returns:
-            A tuple containing the delta pose command and gripper commands.
+            torch.Tensor: A 7-element tensor containing:
+                - delta pose: First 6 elements as [x, y, z, rx, ry, rz] in meters and radians.
+                - gripper command: Last element as a binary value (+1.0 for open, -1.0 for close).
         """
         rot_vec = Rotation.from_euler("XYZ", self._delta_rot).as_rotvec()
-        # if new command received, reset event flag to False until keyboard updated.
-        return np.concatenate([self._delta_pos, rot_vec]), self._close_gripper
+        delta_pose = np.concatenate([self._delta_pos, rot_vec])
+        gripper_value = -1.0 if self._close_gripper else 1.0
+        command = np.append(delta_pose, gripper_value)
+        return torch.tensor(command, dtype=torch.float32, device=self._sim_device)
 
     """
     Internal helpers.

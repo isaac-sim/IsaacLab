@@ -72,7 +72,14 @@ Here, we print both the net contact force and the filtered force matrix for each
   Received force matrix of:  tensor([[[[0., 0., 0.]]]], device='cuda:0')
   Received contact force of:  tensor([[[1.3529e-05, 0.0000e+00, 1.0069e+02]]], device='cuda:0')
 
-Notice that even with filtering, both sensors report the net contact force acting on the foot. However only the left foot has a non zero "force matrix", because the right foot isn't standing on the filtered body, ``/World/envs/env_.*/Cube``. Now, checkout the data coming from the hind feet!
+
+.. figure:: ../../../_static/overview/sensors/contact_visualization.jpg
+    :align: center
+    :figwidth: 100%
+    :alt: The contact sensor visualization
+
+
+Notice that even with filtering, both sensors report the net contact force acting on the foot. However, the "force matrix" on the right foot is zero because that foot isn't in contact with the filtered body, ``/World/envs/env_.*/Cube``. Now, checkout the data coming from the hind feet!
 
 .. code-block:: bash
 

@@ -1,0 +1,301 @@
+##
+# Adapted from: _isaac_sim/apps/isaacsim.exp.base.kit
+##
+
+[package]
+title = "Isaac Lab Python"
+description = "An app for running Isaac Lab"
+version = "2.2.0"
+
+# That makes it browsable in UI with "experience" filter
+keywords = ["experience", "app", "usd"]
+
+[dependencies]
+# Isaac Sim extensions
+"isaacsim.app.about" = {}
+"isaacsim.asset.browser" = {}
+"isaacsim.core.api" = {}
+"isaacsim.core.cloner" = {}
+"isaacsim.core.nodes" = {}
+"isaacsim.core.simulation_manager" = {}
+"isaacsim.core.throttling" = {}
+"isaacsim.core.utils" = {}
+"isaacsim.core.version" = {}
+"isaacsim.gui.menu" = {}
+"isaacsim.gui.property" = {}
+"isaacsim.replicator.behavior" = {}
+"isaacsim.robot.manipulators" = {}
+"isaacsim.robot.policy.examples" = {}
+"isaacsim.robot.schema" = {}
+"isaacsim.robot.surface_gripper" = {}
+"isaacsim.robot.wheeled_robots" = {}
+"isaacsim.sensors.camera" = {}
+"isaacsim.sensors.physics" = {}
+"isaacsim.sensors.physx" = {}
+"isaacsim.sensors.rtx" = {}
+"isaacsim.simulation_app" = {}
+"isaacsim.storage.native" = {}
+"isaacsim.util.debug_draw" = {}
+
+# Isaac Sim Extra
+"isaacsim.asset.importer.mjcf" = {}
+"isaacsim.asset.importer.urdf" = {}
+"omni.physx.bundle" = {}
+"omni.physx.tensors" = {}
+"omni.replicator.core" = {}
+"omni.replicator.replicator_yaml" = {}
+"omni.syntheticdata" = {}
+"semantics.schema.editor" = {}
+"semantics.schema.property" = {}
+
+# Kit based editor extensions
+"omni.anim.curve.core" = {}
+"omni.graph.action" = {}
+"omni.graph.core" = {}
+"omni.graph.nodes" = {}
+"omni.graph.scriptnode" = {}
+"omni.graph.ui_nodes" = {}
+"omni.hydra.engine.stats" = {}
+"omni.hydra.rtx" = {}
+"omni.kit.loop" = {}
+"omni.kit.mainwindow" = {}
+"omni.kit.manipulator.camera" = {}
+"omni.kit.manipulator.prim" = {}
+"omni.kit.manipulator.selection" = {}
+"omni.kit.material.library" = {}
+"omni.kit.menu.common" = { order = 1000 }
+"omni.kit.menu.create" = {}
+"omni.kit.menu.edit" = {}
+"omni.kit.menu.file" = {}
+"omni.kit.menu.stage" = {}
+"omni.kit.menu.utils" = {}
+"omni.kit.primitive.mesh" = {}
+"omni.kit.property.bundle" = {}
+"omni.kit.raycast.query" = {}
+"omni.kit.stage_template.core" = {}
+"omni.kit.stagerecorder.bundle" = {}
+"omni.kit.telemetry" = {}
+"omni.kit.tool.asset_importer" = {}
+"omni.kit.tool.collect" = {}
+"omni.kit.viewport.legacy_gizmos" = {}
+"omni.kit.viewport.menubar.camera" = {}
+"omni.kit.viewport.menubar.display" = {}
+"omni.kit.viewport.menubar.lighting" = {}
+"omni.kit.viewport.menubar.render" = {}
+"omni.kit.viewport.menubar.settings" = {}
+"omni.kit.viewport.scene_camera_model" = {}
+"omni.kit.viewport.window" = {}
+"omni.kit.window.console" = {}
+"omni.kit.window.content_browser" = {}
+"omni.kit.window.property" = {}
+"omni.kit.window.stage" = {}
+"omni.kit.window.status_bar" = {}
+"omni.kit.window.toolbar" = {}
+"omni.physx.stageupdate" = {}
+"omni.rtx.settings.core" = {}
+"omni.uiaudio" = {}
+"omni.usd.metrics.assembler.ui" = {}
+"omni.usd.schema.metrics.assembler" = {}
+"omni.warp.core" = {}
+
+########################
+# Isaac Lab Extensions #
+########################
+
+# Load Isaac Lab extensions last
+"isaaclab" = {order = 1000}
+"isaaclab_assets" = {order = 1000}
+"isaaclab_tasks" = {order = 1000}
+"isaaclab_mimic" = {order = 1000}
+"isaaclab_rl" = {order = 1000}
+
+[settings]
+exts."omni.kit.material.library".ui_show_list = [
+    "OmniPBR",
+    "OmniGlass",
+    "OmniSurface",
+    "USD Preview Surface",
+]
+exts."omni.kit.renderer.core".present.enabled = false # Fixes MGPU stability issue
+exts."omni.kit.viewport.window".windowMenu.entryCount = 2 # Allow user to create two viewports by default
+exts."omni.kit.viewport.window".windowMenu.label = "" # Put Viewport menuitem under Window menu
+exts."omni.rtx.window.settings".window_menu = "Window" # Where to put the render settings menuitem
+exts."omni.usd".locking.onClose = false # reduce time it takes to close/create stage
+renderer.asyncInit = true # Don't block while renderer inits
+renderer.gpuEnumeration.glInterop.enabled = false # Improves startup speed.
+rendergraph.mgpu.backend = "copyQueue" # In MGPU configurations, This setting can be removed if IOMMU is disabled for better performance, copyQueue improves stability and performance when IOMMU is enabled
+rtx-transient.dlssg.enabled = false # DLSSG frame generation is not compatible with synthetic data generation
+rtx.hydra.mdlMaterialWarmup = true # start loading the MDL shaders needed before any delegate is actually created.
+omni.replicator.asyncRendering = false # Async rendering must be disabled for SDG
+exts."omni.kit.test".includeTests = ["*isaac*"] # Add isaac tests to test runner
+foundation.verifyOsVersion.enabled = false
+
+# set the default ros bridge to disable on startup
+isaac.startup.ros_bridge_extension = ""
+
+# Disable for base application
+[settings."filter:platform"."windows-x86_64"]
+isaac.startup.ros_bridge_extension = ""
+[settings."filter:platform"."linux-x86_64"]
+isaac.startup.ros_bridge_extension = ""
+
+# menu styling
+[settings.exts."omni.kit.menu.utils"]
+logDeprecated = false
+margin_size = [18, 3]
+tick_spacing = [10, 6]
+margin_size_posttick = [0, 3]
+separator_size = [14, 10]
+root_spacing = 3
+post_label_spaces = 6
+color_tick_enabled = 0xFFFAC434
+color_separator = 0xFF7E7E7E
+color_label_enabled = 0xFFEEEEEE
+menu_title_color = 0xFF202020
+menu_title_line_color = 0xFF5E5E5E
+menu_title_text_color = 0xFF8F8F8F
+menu_title_text_height = 24
+menu_title_close_color = 0xFFC6C6C6
+indent_all_ticks = false
+show_menu_titles = true
+
+[settings.app]
+name = "Isaac-Sim"
+version = "4.5.0"
+versionFile = "${exe-path}/VERSION"
+content.emptyStageOnStart = true
+fastShutdown = true
+file.ignoreUnsavedOnExit = true
+font.file = "${fonts}/OpenSans-SemiBold.ttf"
+font.size = 16
+gatherRenderResults = true # True to prevent artifacts in multiple viewport configurations, can be set to false for better performance in some cases
+hangDetector.enabled = true
+hangDetector.timeout = 120
+player.useFixedTimeStepping = true
+settings.fabricDefaultStageFrameHistoryCount = 3 # needed for omni.syntheticdata TODO105 still true?
+settings.persistent = true                       # settings are persistent for this app
+
+vulkan = true # Explicitly enable Vulkan (on by default on Linux, off by default on Windows)
+### async rendering settings
+asyncRendering = false
+asyncRenderingLowLatency = false
+
+[settings.app.window]
+iconPath = "${isaacsim.simulation_app}/data/omni.isaac.sim.png"
+title = "Isaac Sim"
+
+[settings.app.python]
+# These disable the kit app from also printing out python output, which gets confusing
+interceptSysStdOutput = false
+logSysStdOutput = false
+
+[settings.app.renderer]
+resolution.height = 720
+resolution.width = 1280
+skipWhileMinimized = false # python app does not throttle
+sleepMsOnFocus = 0         # python app does not throttle
+sleepMsOutOfFocus = 0      # python app does not throttle
+
+[settings.app.viewport]
+defaultCamPos.x = 5
+defaultCamPos.y = 5
+defaultCamPos.z = 5
+defaults.fillViewport = false # default to not fill viewport
+grid.enabled = true
+outline.enabled = true
+boundingBoxes.enabled = false
+show.camera=false
+show.lights=false
+
+[settings.telemetry]
+enableAnonymousAppName = true # Anonymous Kit application usage telemetry
+enableAnonymousData = true # Anonymous Kit application usage telemetry
+
+[settings.persistent]
+app.primCreation.DefaultXformOpOrder = "xformOp:translate, xformOp:orient, xformOp:scale"
+app.primCreation.DefaultXformOpType = "Scale, Orient, Translate"
+app.primCreation.typedDefaults.camera.clippingRange = [0.01, 10000000.0] # Meters default
+app.primCreation.DefaultXformOpPrecision = "Double"
+app.primCreation.DefaultRotationOrder = "ZYX"
+app.primCreation.PrimCreationWithDefaultXformOps = true
+app.stage.timeCodeRange = [0, 1000000]
+app.stage.upAxis = "Z" # Isaac Sim default Z up
+app.viewport.camMoveVelocity = 0.05 # Meters default
+app.viewport.gizmo.scale = 0.01 # Meters default
+app.viewport.grid.scale = 1.0 # Meters default
+app.viewport.camShowSpeedOnStart = false # Hide camera speed on startup
+app.omniverse.gamepadCameraControl = false # Disable gamepad control for camera by default
+exts."omni.anim.navigation.core".navMesh.config.autoRebakeOnChanges = false
+exts."omni.anim.navigation.core".navMesh.viewNavMesh = false
+physics.visualizationDisplayJoints = false # improves performance
+physics.visualizationSimulationOutput = false # improves performance
+physics.resetOnStop = true # Physics state is reset on stop
+renderer.startupMessageDisplayed = true # hides the IOMMU popup window
+resourcemonitor.timeBetweenQueries = 100 # improves performance
+simulation.defaultMetersPerUnit = 1.0 # Meters default
+omni.replicator.captureOnPlay = true
+
+[settings]
+### async rendering settings
+omni.replicator.asyncRendering = false
+app.asyncRendering = false
+app.asyncRenderingLowLatency = false
+
+# disable replicator orchestrator for better runtime perf
+exts."omni.replicator.core".Orchestrator.enabled = false
+
+[settings.app.livestream]
+outDirectory = "${data}"
+
+# Extensions
+###############################
+[settings.exts."omni.kit.registry.nucleus"]
+registries = [
+    { name = "kit/default", url = "https://ovextensionsprod.blob.core.windows.net/exts/kit/prod/106/shared" },
+    { name = "kit/sdk", url = "https://ovextensionsprod.blob.core.windows.net/exts/kit/prod/sdk/${kit_version_short}/${kit_git_hash}" },
+    { name = "kit/community", url = "https://dw290v42wisod.cloudfront.net/exts/kit/community" },
+]
+
+[settings.app.extensions]
+skipPublishVerification = false
+registryEnabled = true
+
+# Register extension folder from this repo in kit
+[settings.app.exts]
+folders = [
+    "${exe-path}/exts",  # kit extensions
+    "${exe-path}/extscore",  # kit core extensions
+    "${exe-path}/../exts",  # isaac extensions
+    "${exe-path}/../extsDeprecated",  # deprecated isaac extensions
+    "${exe-path}/../extscache",  # isaac cache extensions
+    "${exe-path}/../extsPhysics",  # isaac physics extensions
+    "${exe-path}/../isaacsim/exts",  # isaac extensions for pip
+    "${exe-path}/../isaacsim/extsDeprecated",  # deprecated isaac extensions
+    "${exe-path}/../isaacsim/extscache",  # isaac cache extensions for pip
+    "${exe-path}/../isaacsim/extsPhysics",  # isaac physics extensions for pip
+    "${app}", # needed to find other app files
+    "${app}/../../source", # needed to find extensions in Isaac Lab
+]
+
+[settings.physics]
+autoPopupSimulationOutputWindow = false
+updateToUsd = false
+updateVelocitiesToUsd = false
+updateParticlesToUsd = false
+updateVelocitiesToUsd = false
+updateForceSensorsToUsd = false
+outputVelocitiesLocalSpace = false
+useFastCache = false
+visualizationDisplayJoints = false
+fabricUpdateTransformations = false
+fabricUpdateVelocities = false
+fabricUpdateForceSensors = false
+fabricUpdateJointStates = false
+
+# Asset path
+# set the S3 directory manually to the latest published S3
+# note: this is done to ensure prior versions of Isaac Sim still use the latest assets
+[settings]
+persistent.isaac.asset_root.default = "http://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/4.5"
+persistent.isaac.asset_root.cloud = "http://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/4.5"
+persistent.isaac.asset_root.nvidia = "http://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/4.5"

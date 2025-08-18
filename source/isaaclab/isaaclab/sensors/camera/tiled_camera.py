@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -13,7 +13,6 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
 import carb
-import omni.usd
 import warp as wp
 from isaacsim.core.prims import XFormPrim
 from isaacsim.core.version import get_version
@@ -173,12 +172,10 @@ class TiledCamera(Camera):
         # Create frame count buffer
         self._frame = torch.zeros(self._view.count, device=self._device, dtype=torch.long)
 
-        # Obtain current stage
-        stage = omni.usd.get_context().get_stage()
         # Convert all encapsulated prims to Camera
         for cam_prim_path in self._view.prim_paths:
             # Get camera prim
-            cam_prim = stage.GetPrimAtPath(cam_prim_path)
+            cam_prim = self.stage.GetPrimAtPath(cam_prim_path)
             # Check if prim is a camera
             if not cam_prim.IsA(UsdGeom.Camera):
                 raise RuntimeError(f"Prim at path '{cam_prim_path}' is not a Camera.")
@@ -234,6 +231,10 @@ class TiledCamera(Camera):
     def _update_buffers_impl(self, env_ids: Sequence[int]):
         # Increment frame count
         self._frame[env_ids] += 1
+
+        # update latest camera pose
+        if self.cfg.update_latest_camera_pose:
+            self._update_poses(env_ids)
 
         # Extract the flattened image buffer
         for data_type, annotator in self._annotators.items():

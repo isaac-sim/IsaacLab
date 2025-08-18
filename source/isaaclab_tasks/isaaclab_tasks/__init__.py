@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -25,6 +25,7 @@ __version__ = ISAACLAB_TASKS_METADATA["package"]["version"]
 from .utils import import_packages
 
 # The blacklist is used to prevent importing configs from sub-packages
-_BLACKLIST_PKGS = ["utils", ".mdp"]
+# TODO(@ashwinvk): Remove pick_place from the blacklist once pinocchio from Isaac Sim is compatibility
+_BLACKLIST_PKGS = ["utils", ".mdp", "pick_place"]
 # Import all configs in this package
 import_packages(__name__, _BLACKLIST_PKGS)
