@@ -21,7 +21,7 @@ Reference:
 
 
 import isaaclab.sim as sim_utils
-from isaaclab.actuators import DCMotorCfg
+from isaaclab.actuators import DCMotorCfg, ActuatorNetLSTMCfg
 from isaaclab.assets.articulation import ArticulationCfg
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
@@ -34,11 +34,24 @@ ANYDRIVE_3_SIMPLE_ACTUATOR_CFG = DCMotorCfg(
     control_mode="position",
     saturation_effort=120.0,
     effort_limit=80.0,
+    effort_limit_sim=80.0,
+    friction=0.001,
     velocity_limit=7.5,
     stiffness={".*": 40.0},
     damping={".*": 5.0},
 )
 """Configuration for ANYdrive 3.x with DC actuator model."""
+
+ANYDRIVE_3_LSTM_ACTUATOR_CFG = ActuatorNetLSTMCfg(
+    joint_names_expr=[".*HAA", ".*HFE", ".*KFE"],
+    network_file=f"{ISAACLAB_NUCLEUS_DIR}/ActuatorNets/ANYbotics/anydrive_3_lstm_jit.pt",
+    saturation_effort=120.0,
+    effort_limit_sim=120.0,
+    friction=0.001,
+    effort_limit=80.0,
+    velocity_limit=7.5,
+)
+"""Configuration for ANYdrive 3.0 (used on ANYmal-C) with LSTM actuator model."""
 
 ##
 # Configuration - Articulation.
@@ -62,7 +75,7 @@ ANYMAL_D_CFG = ArticulationCfg(
             ".*H_KFE": 0.8,  # both hind KFE
         },
     ),
-    actuators={"legs": ANYDRIVE_3_SIMPLE_ACTUATOR_CFG},
+    actuators={"legs": ANYDRIVE_3_LSTM_ACTUATOR_CFG},
     soft_joint_pos_limit_factor=0.95,
 )
 """Configuration of ANYmal-D robot using simple DC motor model.

@@ -32,14 +32,15 @@ class HumanoidEnvCfg(DirectRLEnvCfg):
 
     solver_cfg = MJWarpSolverCfg(
         nefc_per_env=70,
-        ls_iterations=7,
+        ls_iterations=15,
+        ls_parallel=True,
         cone="pyramidal",
         impratio=1,
     )
     newton_cfg = NewtonCfg(
         solver_cfg=solver_cfg,
         num_substeps=2,
-        debug_mode=False,
+        debug_mode=True,
     )
 
     # simulation
@@ -55,7 +56,7 @@ class HumanoidEnvCfg(DirectRLEnvCfg):
             dynamic_friction=1.0,
             restitution=0.0,
         ),
-        debug_vis=False,
+        debug_vis=True,
     )
 
     # scene

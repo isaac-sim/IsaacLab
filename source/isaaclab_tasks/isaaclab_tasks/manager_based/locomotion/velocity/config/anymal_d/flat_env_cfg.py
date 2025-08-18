@@ -15,7 +15,13 @@ from .rough_env_cfg import AnymalDRoughEnvCfg
 class AnymalDFlatEnvCfg(AnymalDRoughEnvCfg):
     sim: SimulationCfg = SimulationCfg(
         newton_cfg=NewtonCfg(
-            solver_cfg=MJWarpSolverCfg(nefc_per_env=65, ls_iterations=5, cone="pyramidal"),
+            solver_cfg=MJWarpSolverCfg(
+                nefc_per_env=65,
+                ls_iterations=15,
+                cone="eilliptic",
+                impratio=100.0,
+                ls_parallel=True,
+            ),
             num_substeps=1,
             debug_mode=False,
         )
