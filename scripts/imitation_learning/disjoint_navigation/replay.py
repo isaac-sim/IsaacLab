@@ -17,6 +17,8 @@ from isaaclab.app import AppLauncher
 # Launch Isaac Lab
 parser = argparse.ArgumentParser(description="Disjoint navigation")
 parser.add_argument("--dataset", type=str)
+parser.add_argument("--output_dir", type=str)
+parser.add_argument("--output_file_name", type=str)
 parser.add_argument("--lift_step", type=int)
 parser.add_argument("--navigate_step", type=int)
 parser.add_argument("--demo", type=str, default="demo_0")
@@ -369,34 +371,38 @@ def replay(
 
 if __name__ == "__main__":
 
-    recording = G1DisjointNavRecording(
-        path=args_cli.dataset,
-        demo=args_cli.demo,
-        device=args_cli.device
-    )
-
-
-    scenario = G1DisjointNavScenario()
-
-    for i in range(args_cli.num_runs):
-
-        replay(
-            scenario=scenario,
-            recording=recording,
-            lift_step=args_cli.lift_step,
-            navigate_step=args_cli.navigate_step,
-            draw_visualization=args_cli.draw_visualization,
-            angular_gain=args_cli.angular_gain,
-            linear_gain=args_cli.linear_gain,
-            linear_max=args_cli.linear_max,
-            distance_threshold=args_cli.distance_threshold,
-            following_offset=args_cli.following_offset,
-            angle_threshold=args_cli.angle_threshold,
-            approach_distance=args_cli.approach_distance,
-            randomize_placement=args_cli.randomize_placement
+    with torch.no_grad():
+        recording = G1DisjointNavRecording(
+            path=args_cli.dataset,
+            demo=args_cli.demo,
+            device=args_cli.device
         )
 
 
-    scenario.close()
+        scenario = G1DisjointNavScenario(
+            output_dir=args_cli.output_dir,
+            output_file_name=args_cli.output_file_name
+        )
 
-    simulation_app.close()
+        for i in range(args_cli.num_runs):
+
+            replay(
+                scenario=scenario,
+                recording=recording,
+                lift_step=args_cli.lift_step,
+                navigate_step=args_cli.navigate_step,
+                draw_visualization=args_cli.draw_visualization,
+                angular_gain=args_cli.angular_gain,
+                linear_gain=args_cli.linear_gain,
+                linear_max=args_cli.linear_max,
+                distance_threshold=args_cli.distance_threshold,
+                following_offset=args_cli.following_offset,
+                angle_threshold=args_cli.angle_threshold,
+                approach_distance=args_cli.approach_distance,
+                randomize_placement=args_cli.randomize_placement
+            )
+
+
+        scenario.close()
+
+        simulation_app.close()

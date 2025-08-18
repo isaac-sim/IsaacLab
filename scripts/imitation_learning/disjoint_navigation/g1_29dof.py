@@ -26,7 +26,12 @@ from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdF
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 
-import mdp
+from isaaclab_tasks.manager_based.locomanipulation.pick_place import mdp as locomanip_mdp
+from isaaclab_tasks.manager_based.manipulation.pick_place import mdp as manip_mdp
+from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg as ActionStateRecorderManagerCfg
+
+from isaaclab.managers.recorder_manager import RecorderManagerBaseCfg, RecorderTerm, RecorderTermCfg
+
 
 import torch
 import numpy as np
@@ -42,10 +47,6 @@ from isaaclab.envs.manager_based_rl_mimic_env import ManagerBasedRLMimicEnv
 from common import HasPose, DisjointNavScenario, SceneBody, SceneAsset, SceneFixture, DisjointNavRecording, DisjointNavRecordingItem
 from occupancy_map import OccupancyMap
 from mdp.actions import LowerBodyActionCfg, G1_UPPER_BODY_IK_ACTION_CFG
-
-##
-# Configuration
-##
 
 
 G1_LOCOMANIPULATION_ROBOT_CFG = ArticulationCfg(
@@ -389,26 +390,6 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
         ),
     )
     # Object
-    # object = RigidObjectCfg(
-    #     prim_path="{ENV_REGEX_NS}/Object",
-    #     init_state=RigidObjectCfg.InitialStateCfg(pos=[0., 0.3, 0.7413], rot=[1, 0, 0, 0]),
-    #     spawn=sim_utils.CylinderCfg(
-    #         radius=0.018,
-    #         height=0.35,
-    #         rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-    #         mass_props=sim_utils.MassPropertiesCfg(mass=0.3),
-    #         collision_props=sim_utils.CollisionPropertiesCfg(),
-    #         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.15, 0.15, 0.15),
-    #                                                     metallic=1.0),
-    #         physics_material=sim_utils.RigidBodyMaterialCfg(
-    #             friction_combine_mode="max",
-    #             restitution_combine_mode="min",
-    #             static_friction=0.9,
-    #             dynamic_friction=0.9,
-    #             restitution=0.0,
-    #         ),
-    #     ),
-    # )
     object = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/Object",
         init_state=RigidObjectCfg.InitialStateCfg(pos=[-0.35, 0.45, 0.9996 - 0.3], rot=[1, 0, 0, 0]),
@@ -545,37 +526,36 @@ class ObservationsCfg:
     class PolicyCfg(ObsGroup):
         """Observations for policy group with state values."""
 
-        actions = ObsTerm(func=base_mdp.last_action)
+        actions = ObsTerm(func=manip_mdp.last_action)
         robot_joint_pos = ObsTerm(
             func=base_mdp.joint_pos,
             params={"asset_cfg": SceneEntityCfg("robot")},
         )
-        robot_root_pos = ObsTerm(func=base_mdp.root_pos_w,
-                                 params={"asset_cfg": SceneEntityCfg("robot")})
-        robot_root_rot = ObsTerm(func=base_mdp.root_quat_w,
-                                 params={"asset_cfg": SceneEntityCfg("robot")})
-        object_pos = ObsTerm(func=base_mdp.root_pos_w,
-                             params={"asset_cfg": SceneEntityCfg("object")})
-        object_rot = ObsTerm(func=base_mdp.root_quat_w,
-                             params={"asset_cfg": SceneEntityCfg("object")})
-        robot_links_state = ObsTerm(func=mdp.get_all_robot_link_state)
+        robot_root_pos = ObsTerm(func=base_mdp.root_pos_w, params={"asset_cfg": SceneEntityCfg("robot")})
+        robot_root_rot = ObsTerm(func=base_mdp.root_quat_w, params={"asset_cfg": SceneEntityCfg("robot")})
+        object_pos = ObsTerm(func=base_mdp.root_pos_w, params={"asset_cfg": SceneEntityCfg("object")})
+        object_rot = ObsTerm(func=base_mdp.root_quat_w, params={"asset_cfg": SceneEntityCfg("object")})
+        robot_links_state = ObsTerm(func=manip_mdp.get_all_robot_link_state)
 
-        left_eef_pos = ObsTerm(func=mdp.get_left_eef_pos)
-        left_eef_quat = ObsTerm(func=mdp.get_left_eef_quat)
-        right_eef_pos = ObsTerm(func=mdp.get_right_eef_pos)
-        right_eef_quat = ObsTerm(func=mdp.get_right_eef_quat)
+        left_eef_pos = ObsTerm(func=manip_mdp.get_left_eef_pos, params={"link_name": "left_wrist_yaw_link"})
+        left_eef_quat = ObsTerm(func=manip_mdp.get_left_eef_quat, params={"link_name": "left_wrist_yaw_link"})
+        right_eef_pos = ObsTerm(func=manip_mdp.get_right_eef_pos, params={"link_name": "right_wrist_yaw_link"})
+        right_eef_quat = ObsTerm(func=manip_mdp.get_right_eef_quat, params={"link_name": "right_wrist_yaw_link"})
 
-        hand_joint_state = ObsTerm(func=mdp.get_hand_state)
-        head_joint_state = ObsTerm(func=mdp.get_head_state)
+        hand_joint_state = ObsTerm(func=manip_mdp.get_hand_state, params={"hand_joint_names": [".*_hand.*"]})
+        # head_joint_state = ObsTerm(func=manip_mdp.get_head_state, params={"head_joint_names": []})
 
-        object = ObsTerm(func=mdp.object_obs)
+        object = ObsTerm(
+            func=manip_mdp.object_obs,
+            params={"left_eef_link_name": "left_wrist_yaw_link", "right_eef_link_name": "right_wrist_yaw_link"},
+        )
 
         def __post_init__(self):
             self.enable_corruption = False
             self.concatenate_terms = False
 
     # observation groups
-    # policy: PolicyCfg = PolicyCfg()
+    policy: PolicyCfg = PolicyCfg()
 
     lower_body_policy: LowerBodyPolicyObsCfg = LowerBodyPolicyObsCfg()
 
@@ -592,6 +572,24 @@ class EventCfg:
     """Configuration for events."""
 
     reset_all = EventTerm(func=base_mdp.reset_scene_to_default, mode="reset")
+
+class PreStepLowerBodyPolicyObservationsRecorder(RecorderTerm):
+    """Recorder term that records the policy group observations in each step."""
+
+    def record_pre_step(self):
+        return "obs_lower", self._env.obs_buf["lower_body_policy"]
+
+
+@configclass
+class PreStepLowerBodyPolicyObservationsRecorderCfg(RecorderTermCfg):
+    """Configuration for the step policy observation recorder term."""
+
+    class_type: type[RecorderTerm] = PreStepLowerBodyPolicyObservationsRecorder
+
+
+class RecorderManagerCfg(ActionStateRecorderManagerCfg):
+    record_pre_step_lower_body_policy_observations = PreStepLowerBodyPolicyObservationsRecorderCfg()
+
 
 
 @configclass
@@ -727,12 +725,18 @@ class G1DisjointNavRecording(DisjointNavRecording):
 
 class G1DisjointNavScenario(DisjointNavScenario):
 
-    def __init__(self):
+    def __init__(self, output_dir: str, output_file_name: str):
         self._env_cfg = G129DoFDisjointNavEnvCfg()
         self._env_cfg.sim.device = "cpu"
         # self._env_cfg.sim.render.rendering_mode = "performance"
 
         self._env_cfg.scene.num_envs = 1
+
+        self._env_cfg.recorders = RecorderManagerCfg()
+        self._env_cfg.recorders.dataset_export_dir_path = output_dir
+        self._env_cfg.recorders.dataset_filename = output_file_name
+
+
         self._env = ManagerBasedRLMimicEnv(cfg=self._env_cfg)
 
         self._env.sim.set_camera_view([10.5, 10.5, 10.5], [0.0, 0.0, 0.5])
