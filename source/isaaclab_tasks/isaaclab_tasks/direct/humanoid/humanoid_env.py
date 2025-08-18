@@ -34,6 +34,7 @@ class HumanoidEnvCfg(DirectRLEnvCfg):
         nefc_per_env=70,
         ls_iterations=7,
         cone="pyramidal",
+        impratio=1,
     )
     newton_cfg = NewtonCfg(
         solver_cfg=solver_cfg,

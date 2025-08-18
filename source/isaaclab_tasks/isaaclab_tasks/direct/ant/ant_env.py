@@ -34,6 +34,7 @@ class AntEnvCfg(DirectRLEnvCfg):
         nefc_per_env=30,
         ls_iterations=5,
         cone="pyramidal",
+        impratio=1,
     )
     newton_cfg = NewtonCfg(
         solver_cfg=solver_cfg,

@@ -37,6 +37,7 @@ class CartpoleEnvCfg(DirectRLEnvCfg):
         nefc_per_env=5,
         ls_iterations=3,
         cone="pyramidal",
+        impratio=1,
     )
 
     newton_cfg = NewtonCfg(
