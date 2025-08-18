@@ -179,103 +179,105 @@ def main():
         print(f"[INFO]: Sim start time: {(reset_time_end - reset_time_begin) / 1e6:.2f} ms")
         return sim, scene, sim.get_physics_dt()
 
-    def _run_benchmark_single(num_envs: int):
-        print(f"\n[INFO]: Benchmarking RayCaster (ground) with {num_envs} envs")
-        for res in args_cli.resolutions:
-            scene_cfg = _make_scene_cfg_single(num_envs=num_envs, resolution=res, debug_vis=not args_cli.headless)
-            sim, scene, sim_dt = _setup_scene(scene_cfg)
-            sensor: RayCaster = scene["height_scanner"]
-            # Warmup
-            for _ in range(args_cli.warmup):
-                sim.step()
-                sensor.update(dt=sim_dt, force_recompute=True)
-            
-            used_memory = 0.0
-            
-            # Timing
-            t0 = time.perf_counter_ns()
-            for _ in range(args_cli.steps):
-                sim.step()
-                sensor.update(dt=sim_dt, force_recompute=True)
-                free, total = torch.cuda.mem_get_info(args_cli.device)
-                used_memory += (total - free) / 1024**2  # Convert to MB
-            t1 = time.perf_counter_ns()
-            per_step_ms = (t1 - t0) / args_cli.steps / 1e6
-            avg_memory = used_memory / args_cli.steps
-            print(
-                f"[INFO]: RayCaster (ground): res={res:.4f}, rays/sensor={sensor.num_rays}, "
-                f"total rays={sensor.num_rays * sensor.num_instances}, per-step={per_step_ms:.3f} ms"
-                f", avg_memory={avg_memory:.2f} MB"
-            )
-            results.append({
-                "mode": "single",
-                "num_envs": num_envs,
-                "resolution": res,
-                "rays_per_sensor": int(sensor.num_rays),
-                "total_rays": int(sensor.num_rays * sensor.num_instances),
-                "per_step_ms": float(per_step_ms),
-                "avg_memory": float(avg_memory),
-            })
-            # Cleanup
-            # stop simulation
-            # note: cannot use self.sim.stop() since it does one render step after stopping!! This doesn't make sense :(
-            sim._timeline.stop()
-            # clear the stage
-            sim.clear_all_callbacks()
-            sim.clear_instance()
-            # stop the simulation
-            sim.stop()  # FIXME: this should not be necessary as the sim is stopped by the _timeline.stop()
+    def _run_benchmark_single(num_envs: int, resolution: int):
 
-    def _run_benchmark_multi(num_envs: int):
-        print(f"\n[INFO]: Benchmarking MultiMeshRayCaster (ground + cubes) with {num_envs} envs")
-        for res in args_cli.resolutions:
-            scene_cfg = _make_scene_cfg_multi(
-                num_envs=num_envs, resolution=res, debug_vis=not args_cli.headless, track_mesh_transforms=False
-            )
-            sim, scene, sim_dt = _setup_scene(scene_cfg)
-            sensor: MultiMeshRayCaster = scene["height_scanner_multi"]
-            # Warmup
-            for _ in range(args_cli.warmup):
-                sim.step()
-                sensor.update(dt=sim_dt, force_recompute=True)
-            # Timing
-            t0 = time.perf_counter_ns()
-            used_memory = 0.0
-            for _ in range(args_cli.steps):
-                sim.step()
-                sensor.update(dt=sim_dt, force_recompute=True)
-                free, total = torch.cuda.mem_get_info(args_cli.device)
-                used_memory += (total - free) / 1024**2  # Convert to MB
-            t1 = time.perf_counter_ns()
-            per_step_ms = (t1 - t0) / args_cli.steps / 1e6
-            avg_memory = used_memory / args_cli.steps
-            print(
-                f"[INFO]: MultiMeshRayCaster (ground + cubes): res={res:.4f}, rays/sensor={sensor.num_rays}, "
-                f"total rays={sensor.num_rays * sensor.num_instances}, per-step={per_step_ms:.3f} ms"
-                f", avg_memory={avg_memory:.2f} MB"
-            )
-            results.append({
-                "mode": "multi",
-                "num_envs": num_envs,
-                "resolution": res,
-                "rays_per_sensor": int(sensor.num_rays),
-                "total_rays": int(sensor.num_rays * sensor.num_instances),
-                "per_step_ms": float(per_step_ms),
-            })
-            # Cleanup
-            # stop simulation
-            # note: cannot use self.sim.stop() since it does one render step after stopping!! This doesn't make sense :(
-            sim._timeline.stop()
-            # clear the stage
-            sim.clear_all_callbacks()
-            sim.clear_instance()
+        print(f"\n[INFO]: Benchmarking RayCaster (ground) with {num_envs} envs and resolution {resolution}")
+        scene_cfg = _make_scene_cfg_single(num_envs=num_envs, resolution=resolution, debug_vis=not args_cli.headless)
+        sim, scene, sim_dt = _setup_scene(scene_cfg)
+        sensor: RayCaster = scene["height_scanner"]
+        # Warmup
+        for _ in range(args_cli.warmup):
+            sim.step()
+            sensor.update(dt=sim_dt, force_recompute=True)
+        
+        used_memory = 0.0
+        
+        # Timing
+        t0 = time.perf_counter_ns()
+        for _ in range(args_cli.steps):
+            sim.step()
+            sensor.update(dt=sim_dt, force_recompute=True)
+            free, total = torch.cuda.mem_get_info(args_cli.device)
+            used_memory += (total - free) / 1024**2  # Convert to MB
+        t1 = time.perf_counter_ns()
+        per_step_ms = (t1 - t0) / args_cli.steps / 1e6
+        avg_memory = used_memory / args_cli.steps
+        print(
+            f"[INFO]: RayCaster (ground): res={resolution:.4f}, rays/sensor={sensor.num_rays}, "
+            f"total rays={sensor.num_rays * sensor.num_instances}, per-step={per_step_ms:.3f} ms"
+            f", avg_memory={avg_memory:.2f} MB"
+        )
+        # Cleanup
+        # stop simulation
+        # note: cannot use self.sim.stop() since it does one render step after stopping!! This doesn't make sense :(
+        sim._timeline.stop()
+        # clear the stage
+        sim.clear_all_callbacks()
+        sim.clear_instance()
+        # stop the simulation
+        sim.stop()  # FIXME: this should not be necessary as the sim is stopped by the _timeline.stop()
+        
+        return {
+            "mode": "single",
+            "num_envs": num_envs,
+            "resolution": resolution,
+            "rays_per_sensor": int(sensor.num_rays),
+            "total_rays": int(sensor.num_rays * sensor.num_instances),
+            "per_step_ms": float(per_step_ms),
+            "avg_memory": float(avg_memory),
+        }
+
+    def _run_benchmark_multi(num_envs: int, resolution: int):
+        print(f"\n[INFO]: Benchmarking MultiMeshRayCaster (ground + cubes) with {num_envs} envs and resolution {resolution}")
+        scene_cfg = _make_scene_cfg_multi(
+            num_envs=num_envs, resolution=resolution, debug_vis=not args_cli.headless, track_mesh_transforms=False
+        )
+        sim, scene, sim_dt = _setup_scene(scene_cfg)
+        sensor: MultiMeshRayCaster = scene["height_scanner_multi"]
+        # Warmup
+        for _ in range(args_cli.warmup):
+            sim.step()
+            sensor.update(dt=sim_dt, force_recompute=True)
+        # Timing
+        t0 = time.perf_counter_ns()
+        used_memory = 0.0
+        for _ in range(args_cli.steps):
+            sim.step()
+            sensor.update(dt=sim_dt, force_recompute=True)
+            free, total = torch.cuda.mem_get_info(args_cli.device)
+            used_memory += (total - free) / 1024**2  # Convert to MB
+        t1 = time.perf_counter_ns()
+        per_step_ms = (t1 - t0) / args_cli.steps / 1e6
+        avg_memory = used_memory / args_cli.steps
+        print(
+            f"[INFO]: MultiMeshRayCaster (ground + cubes): res={res:.4f}, rays/sensor={sensor.num_rays}, "
+            f"total rays={sensor.num_rays * sensor.num_instances}, per-step={per_step_ms:.3f} ms"
+            f", avg_memory={avg_memory:.2f} MB"
+        )
+        # Cleanup
+        # stop simulation
+        # note: cannot use self.sim.stop() since it does one render step after stopping!! This doesn't make sense :(
+        sim._timeline.stop()
+        # clear the stage
+        sim.clear_all_callbacks()
+        sim.clear_instance()
+        return {
+            "mode": "multi",
+            "num_envs": num_envs,
+            "resolution": resolution,
+            "rays_per_sensor": int(sensor.num_rays),
+            "total_rays": int(sensor.num_rays * sensor.num_instances),
+            "per_step_ms": float(per_step_ms),
+        }
 
     # Run selected benchmarks for each env count
     for num_envs in args_cli.num_envs:
         if args_cli.mode in ("single", "both"):
-            _run_benchmark_single(num_envs)
+            for res in args_cli.resolutions:
+                results.append(_run_benchmark_single(num_envs, res))
         if args_cli.mode in ("multi", "both"):
-            _run_benchmark_multi(num_envs)
+            for res in args_cli.resolutions:
+                results.append(_run_benchmark_multi(num_envs, res))
 
     # Save results to CSV and Markdown for documentation
     os.makedirs("outputs/benchmarks", exist_ok=True)
