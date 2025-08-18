@@ -6,8 +6,7 @@
 from pink.tasks import DampingTask, FrameTask
 
 import isaaclab.controllers.utils as ControllerUtils
-from isaaclab.controllers.null_space_posture_task import NullSpacePostureTask
-from isaaclab.controllers.pink_ik_cfg import PinkIKControllerCfg
+from isaaclab.controllers.pink_ik import NullSpacePostureTask, PinkIKControllerCfg
 from isaaclab.devices import DevicesCfg
 from isaaclab.devices.openxr import OpenXRDeviceCfg
 from isaaclab.devices.openxr.retargeters import GR1T2RetargeterCfg

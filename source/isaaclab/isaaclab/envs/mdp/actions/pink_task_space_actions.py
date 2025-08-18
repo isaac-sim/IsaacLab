@@ -60,9 +60,7 @@ class PinkInverseKinematicsAction(ActionTerm):
         self._ik_controllers = []
         for _ in range(env.num_envs):
             self._ik_controllers.append(
-                PinkIKController(
-                    cfg=copy.deepcopy(self.cfg.controller), robot_cfg=env.scene.cfg.robot, device=self.device
-                )
+                PinkIKController(cfg=self.cfg.controller.copy(), robot_cfg=env.scene.cfg.robot, device=self.device)
             )
 
         # Create tensors to store raw and processed actions

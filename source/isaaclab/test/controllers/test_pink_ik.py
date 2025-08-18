@@ -4,12 +4,10 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 """Launch Isaac Sim Simulator first."""
-import json
-import os
-import sys
-
 # Import pinocchio in the main script to force the use of the dependencies installed by IsaacLab and not the one installed by Isaac Sim
 # pinocchio is required by the Pink IK controller
+import sys
+
 if sys.platform != "win32":
     import pinocchio  # noqa: F401
 
@@ -22,7 +20,9 @@ simulation_app = AppLauncher(headless=True).app
 
 import contextlib
 import gymnasium as gym
+import json
 import numpy as np
+import os
 import torch
 
 import pytest
