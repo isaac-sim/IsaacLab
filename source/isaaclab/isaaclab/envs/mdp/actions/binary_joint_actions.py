@@ -233,7 +233,7 @@ class SurfaceGripperAction(ActionTerm):
 
     def apply_actions(self):
         """Apply the processed actions to the surface gripper."""
-        self._asset.set_grippers_command(self._processed_actions)
+        self._asset.set_grippers_command(self._processed_actions.view(-1))
         self._asset.write_data_to_sim()
 
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
