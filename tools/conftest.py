@@ -404,4 +404,6 @@ def pytest_sessionstart(session):
     print(summary_str)
 
     # Exit pytest after custom execution to prevent normal pytest from overwriting our report
-    pytest.exit("Custom test execution completed", returncode=0)
+    # Exit with failure code if any tests failed
+    exit_code = 1 if failed_tests else 0
+    pytest.exit("Custom test execution completed", returncode=exit_code)
