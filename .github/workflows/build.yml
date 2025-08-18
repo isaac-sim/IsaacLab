@@ -166,6 +166,7 @@ jobs:
 
     - name: Comment on Test Results
       id: test-reporter
+      if: github.event.pull_request.head.repo.full_name == github.repository
       uses: EnricoMi/publish-unit-test-result-action@v2
       with:
         files: "reports/combined-results.xml"
@@ -179,6 +180,7 @@ jobs:
         action_fail_on_inconclusive: true
 
     - name: Report Test Results
+      if: github.event.pull_request.head.repo.full_name == github.repository
       uses: dorny/test-reporter@v1
       with:
         name: IsaacLab Build and Test Results
