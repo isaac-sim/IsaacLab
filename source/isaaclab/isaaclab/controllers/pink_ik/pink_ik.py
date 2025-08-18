@@ -7,10 +7,16 @@
 
 This module provides integration between Pink inverse kinematics solver and IsaacLab.
 Pink is a differentiable inverse kinematics solver framework that provides task-space control capabilities.
+
+Reference:
+    Pink IK Solver: https://github.com/stephane-caron/pink
 """
+
+from __future__ import annotations
 
 import numpy as np
 import torch
+from typing import TYPE_CHECKING
 
 from pink import solve_ik
 from pink.configuration import Configuration
@@ -21,21 +27,38 @@ from isaaclab.assets import ArticulationCfg
 from isaaclab.utils.string import resolve_matching_names_values
 
 from .null_space_posture_task import NullSpacePostureTask
-from .pink_ik_cfg import PinkIKControllerCfg
+
+if TYPE_CHECKING:
+    from .pink_ik_cfg import PinkIKControllerCfg
 
 
 class PinkIKController:
     """Integration of Pink IK controller with Isaac Lab.
 
-    The Pink IK controller is available at: https://github.com/stephane-caron/pink
+    The Pink IK controller solves differential inverse kinematics through weighted tasks. Each task is defined
+    by a residual function e(q) that is driven to zero (e.g., e(q) = p_target - p_ee(q) for end-effector positioning).
+    The controller computes joint velocities v satisfying J_e(q)v = -αe(q), where J_e(q) is the task Jacobian.
+    Multiple tasks are resolved through weighted optimization, formulating a quadratic program that minimizes
+    weighted task errors while respecting joint velocity limits.
+
+    It supports user defined tasks, and we have provided a NullSpacePostureTask for maintaining desired joint configurations.
+
+    Reference:
+        Pink IK Solver: https://github.com/stephane-caron/pink
     """
 
     def __init__(self, cfg: PinkIKControllerCfg, robot_cfg: ArticulationCfg, device: str):
         """Initialize the Pink IK Controller.
 
         Args:
-            cfg: The configuration for the controller.
-            device: The device to use for computations (e.g., 'cuda:0').
+            cfg: The configuration for the Pink IK controller containing task definitions, solver parameters,
+                and joint configurations.
+            robot_cfg: The robot articulation configuration containing initial joint positions and robot
+                specifications.
+            device: The device to use for computations (e.g., 'cuda:0', 'cpu').
+
+        Raises:
+            KeyError: When Pink joint names cannot be matched to robot configuration joint positions.
         """
         # Initialize the robot model from URDF and mesh files
         self.robot_wrapper = RobotWrapper.BuildFromURDF(cfg.urdf_path, cfg.mesh_path, root_joint=None)
@@ -63,6 +86,7 @@ class PinkIKController:
 
         # Set the default targets for each task from the configuration
         for task in cfg.variable_input_tasks:
+            # If task is a NullSpacePostureTask, set the target to the initial joint positions
             if isinstance(task, NullSpacePostureTask):
                 task.set_target(self.init_joint_positions)
                 continue
@@ -91,30 +115,29 @@ class PinkIKController:
         self.cfg = cfg
         self.device = device
 
-    def reorder_array(self, input_array: list[float], reordering_array: list[int]) -> list[float]:
+    def _reorder_array(self, input_array: list[float], reordering_array: list[int]) -> list[float]:
         """Reorder the input array based on the provided ordering.
 
+        This utility method is used to convert between Isaac Lab and Pink joint ordering conventions.
+
         Args:
-            input_array: The array to reorder.
-            reordering_array: The indices to use for reordering.
+            input_array: The array to reorder, typically joint positions or velocities.
+            reordering_array: The indices to use for reordering, mapping from source to target ordering.
 
         Returns:
-            Reordered array.
+            Reordered array following the target joint ordering convention.
         """
         return [input_array[i] for i in reordering_array]
-
-    def initialize(self):
-        """Initialize the internals of the controller.
-
-        This method is called during setup but before the first compute call.
-        """
-        pass
 
     def update_null_space_joint_targets(self, curr_joint_pos: np.ndarray):
         """Update the null space joint targets.
 
+        This method updates the target joint positions for null space posture tasks based on the current
+        joint configuration. This is useful for maintaining desired joint configurations when the primary
+        task allows redundancy.
+
         Args:
-            curr_joint_pos: The current joint positions.
+            curr_joint_pos: The current joint positions of shape (num_joints,).
         """
         for task in self.cfg.variable_input_tasks:
             if isinstance(task, NullSpacePostureTask):
@@ -127,15 +150,20 @@ class PinkIKController:
     ) -> torch.Tensor:
         """Compute the target joint positions based on current state and tasks.
 
+        Performs inverse kinematics using the Pink solver to compute target joint positions that satisfy
+        the defined tasks. The solver uses quadratic programming to find optimal joint velocities that
+        minimize task errors while respecting constraints.
+
         Args:
-            curr_joint_pos: The current joint positions.
-            dt: The time step for computing joint position changes.
+            curr_joint_pos: The current joint positions of shape (num_joints,).
+            dt: The time step for computing joint position changes in seconds.
 
         Returns:
-            The target joint positions as a tensor.
+            The target joint positions as a tensor of shape (num_joints,) on the specified device.
+            If the IK solver fails, returns the current joint positions unchanged to maintain stability.
         """
         # Initialize joint positions for Pink, including the root and universal joints
-        joint_positions_pink = np.array(self.reorder_array(curr_joint_pos, self.isaac_lab_to_pink_ordering))
+        joint_positions_pink = np.array(self._reorder_array(curr_joint_pos, self.isaac_lab_to_pink_ordering))
 
         # Update Pink's robot configuration with the current joint positions
         self.pink_configuration.update(joint_positions_pink)
@@ -165,7 +193,7 @@ class PinkIKController:
 
         # Reorder the joint angle changes back to Isaac Lab conventions
         joint_vel_isaac_lab = torch.tensor(
-            self.reorder_array(pink_joint_angle_changes, self.pink_to_isaac_lab_ordering),
+            self._reorder_array(pink_joint_angle_changes, self.pink_to_isaac_lab_ordering),
             device=self.device,
             dtype=torch.float,
         )
