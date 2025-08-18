@@ -1,0 +1,199 @@
+##
+# Adapted from: _isaac_sim/apps/omni.isaac.sim.python.gym.headless.kit
+##
+
+[package]
+title = "Isaac Lab Python Headless"
+description = "An app for running Isaac Lab headlessly"
+version = "2.2.0"
+
+# That makes it browsable in UI with "experience" filter
+keywords = ["experience", "app", "isaaclab", "python", "headless"]
+
+[settings]
+# Note: This path was adapted to be respective to the kit-exe file location
+app.versionFile = "${exe-path}/VERSION"
+app.folder = "${exe-path}/"
+app.name = "Isaac-Sim"
+app.version = "4.5.0"
+
+##################################
+# Omniverse related dependencies #
+##################################
+[dependencies]
+"omni.physx" = {}
+"omni.physx.tensors" = {}
+"omni.physx.fabric" = {}
+"omni.warp.core" = {}
+"usdrt.scenegraph" = {}
+"omni.kit.telemetry" = {}
+"omni.kit.loop" = {}
+
+[settings]
+app.content.emptyStageOnStart = false
+
+# Disable print outs on extension startup information
+# this only disables the app print_and_log function
+app.enableStdoutOutput = false
+
+# default viewport is fill
+app.runLoops.rendering_0.fillResolution = false
+exts."omni.kit.window.viewport".blockingGetViewportDrawable = false
+
+# Fix PlayButtonGroup error
+exts."omni.kit.widget.toolbar".PlayButton.enabled = false
+
+# disable replicator orchestrator for better runtime perf
+exts."omni.replicator.core".Orchestrator.enabled = false
+
+[settings.app.settings]
+persistent = true
+dev_build = false
+fabricDefaultStageFrameHistoryCount = 3 # needed for omni.syntheticdata TODO105 still true?
+
+[settings.app.python]
+# These disable the kit app from also printing out python output, which gets confusing
+interceptSysStdOutput = false
+logSysStdOutput = false
+
+[settings]
+# MGPU is always on, you can turn it from the settings, and force this off to save even more resource if you
+# only want to use a single GPU on your MGPU system
+# False for Isaac Sim
+renderer.multiGpu.enabled = true
+renderer.multiGpu.autoEnable = true
+'rtx-transient'.resourcemanager.enableTextureStreaming = true
+app.asyncRendering = false
+app.asyncRenderingLowLatency = false
+app.hydraEngine.waitIdle = false
+# app.hydra.aperture.conform = 4 # in 105.1 pixels are square by default
+omni.replicator.asyncRendering = false
+
+# Enable Iray and pxr by setting this to "rtx,iray,pxr"
+renderer.enabled = "rtx"
+
+# Avoid warning on shutdown from audio context
+app.audio.enabled = false
+
+# Enable Vulkan - avoids torch+cu12 error on windows
+app.vulkan = true
+
+# hide NonToggleable Exts
+exts."omni.kit.window.extensions".hideNonToggleableExts = true
+exts."omni.kit.window.extensions".showFeatureOnly = false
+
+# set the default ros bridge to disable on startup
+isaac.startup.ros_bridge_extension = ""
+
+# Extensions
+###############################
+[settings.exts."omni.kit.registry.nucleus"]
+registries = [
+    { name = "kit/default", url = "https://ovextensionsprod.blob.core.windows.net/exts/kit/prod/106/shared" },
+    { name = "kit/sdk", url = "https://ovextensionsprod.blob.core.windows.net/exts/kit/prod/sdk/${kit_version_short}/${kit_git_hash}" },
+    { name = "kit/community", url = "https://dw290v42wisod.cloudfront.net/exts/kit/community" },
+]
+
+[settings.app.extensions]
+skipPublishVerification = false
+registryEnabled = true
+
+[settings.crashreporter.data]
+experience = "Isaac Sim"
+
+[settings.persistent]
+app.file.recentFiles = []
+app.stage.upAxis = "Z"
+app.stage.movePrimInPlace = false
+app.stage.instanceableOnCreatingReference = false
+app.stage.materialStrength = "weakerThanDescendants"
+
+app.transform.gizmoUseSRT = true
+app.viewport.grid.scale = 1.0
+app.viewport.pickingMode = "kind:model.ALL"
+app.viewport.camMoveVelocity = 0.05 # 5 m/s
+app.viewport.gizmo.scale = 0.01 # scaled to meters
+app.viewport.previewOnPeek = false
+app.viewport.snapToSurface = false
+app.viewport.displayOptions = 31951 # Disable Frame Rate and Resolution by default
+app.window.uiStyle = "NvidiaDark"
+app.primCreation.DefaultXformOpType = "Scale, Orient, Translate"
+app.primCreation.DefaultXformOpOrder="xformOp:translate, xformOp:orient, xformOp:scale"
+app.primCreation.typedDefaults.camera.clippingRange = [0.01, 10000000.0]
+simulation.minFrameRate = 15
+simulation.defaultMetersPerUnit = 1.0
+omnigraph.updateToUsd = false
+omnigraph.useSchemaPrims = true
+omnigraph.disablePrimNodes = true
+omni.replicator.captureOnPlay = true
+omnihydra.useSceneGraphInstancing = true
+renderer.startupMessageDisplayed = true # hides the IOMMU popup window
+
+# Make Detail panel visible by default
+app.omniverse.content_browser.options_menu.show_details = true
+app.omniverse.filepicker.options_menu.show_details = true
+
+[settings.physics]
+updateToUsd = false
+updateParticlesToUsd = false
+updateVelocitiesToUsd = false
+updateForceSensorsToUsd = false
+outputVelocitiesLocalSpace = false
+useFastCache = false
+visualizationDisplayJoints = false
+fabricUpdateTransformations = false
+fabricUpdateVelocities = false
+fabricUpdateForceSensors = false
+fabricUpdateJointStates = false
+
+# Performance improvement
+resourcemonitor.timeBetweenQueries = 100
+
+# Register extension folder from this repo in kit
+[settings.app.exts]
+folders = [
+    "${exe-path}/exts",  # kit extensions
+    "${exe-path}/extscore",  # kit core extensions
+    "${exe-path}/../exts",  # isaac extensions
+    "${exe-path}/../extsDeprecated",  # deprecated isaac extensions
+    "${exe-path}/../extscache",  # isaac cache extensions
+    "${exe-path}/../extsPhysics",  # isaac physics extensions
+    "${exe-path}/../isaacsim/exts",  # isaac extensions for pip
+    "${exe-path}/../isaacsim/extsDeprecated",  # deprecated isaac extensions
+    "${exe-path}/../isaacsim/extscache",  # isaac cache extensions for pip
+    "${exe-path}/../isaacsim/extsPhysics",  # isaac physics extensions for pip
+    "${app}", # needed to find other app files
+    "${app}/../../source", # needed to find extensions in Isaac Lab
+]
+
+[settings.ngx]
+enabled=true # Enable this for DLSS
+
+########################
+# Isaac Sim Extensions #
+########################
+[dependencies]
+"isaacsim.simulation_app" = {}
+"isaacsim.core.api" = {}
+"isaacsim.core.cloner" = {}
+"isaacsim.core.utils" = {}
+"isaacsim.core.version" = {}
+
+########################
+# Isaac Lab Extensions #
+########################
+
+# Load Isaac Lab extensions last
+"isaaclab" = {order = 1000}
+"isaaclab_assets" = {order = 1000}
+"isaaclab_tasks" = {order = 1000}
+"isaaclab_mimic" = {order = 1000}
+"isaaclab_rl" = {order = 1000}
+
+# Asset path
+# set the S3 directory manually to the latest published S3
+# note: this is done to ensure prior versions of Isaac Sim still use the latest assets
+[settings]
+persistent.isaac.asset_root.default = "http://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/4.5"
+persistent.isaac.asset_root.cloud = "http://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/4.5"
+persistent.isaac.asset_root.nvidia = "http://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/4.5"

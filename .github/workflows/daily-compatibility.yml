@@ -1,0 +1,231 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+name: Daily Backwards Compatibility Tests
+
+on:
+  schedule:
+    # Run daily at 8 PM PST (4 AM UTC)
+    - cron: '0 4 * * *'
+  workflow_dispatch:
+    inputs:
+      isaacsim_version:
+        description: 'IsaacSim version image tag to test'
+        required: true
+        default: '4.5.0'
+        type: string
+
+# Concurrency control to prevent parallel runs
+concurrency:
+  group: daily-compatibilit y-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+env:
+  NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
+  ISAACSIM_BASE_IMAGE: ${{ vars.ISAACSIM_BASE_IMAGE || 'nvcr.io/nvidia/isaac-sim' }}
+  ISAACSIM_DEFAULT_VERSION: '4.5.0'
+  DOCKER_IMAGE_TAG: isaac-lab-compat:${{ github.ref_name }}-${{ github.sha }}
+
+jobs:
+  test-isaaclab-tasks-compat:
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 180
+    continue-on-error: true
+    env:
+        CUDA_VISIBLE_DEVICES: all
+        NVIDIA_VISIBLE_DEVICES: all
+        NVIDIA_DRIVER_CAPABILITIES: all
+        CUDA_HOME: /usr/local/cuda
+        LD_LIBRARY_PATH: /usr/local/cuda/lib64:/usr/local/cuda/extras/CUPTI/lib64
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+        lfs: true
+
+    - name: Build Docker Image
+      uses: ./.github/actions/docker-build
+      with:
+        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
+        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
+        isaacsim-version: ${{ github.event.inputs.isaacsim_version || env.ISAACSIM_DEFAULT_VERSION }}
+
+    - name: Run IsaacLab Tasks Tests
+      uses: ./.github/actions/run-tests
+      with:
+        test-path: "tools"
+        result-file: "isaaclab-tasks-compat-report.xml"
+        container-name: "isaac-lab-tasks-compat-test-$$"
+        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
+        pytest-options: ""
+        filter-pattern: "isaaclab_tasks"
+
+    - name: Copy All Test Results from IsaacLab Tasks Container
+      run: |
+        CONTAINER_NAME="isaac-lab-tasks-compat-test-$$"
+        if docker ps -a | grep -q $CONTAINER_NAME; then
+          echo "Copying all test results from IsaacLab Tasks container..."
+          docker cp $CONTAINER_NAME:/workspace/isaaclab/tests/isaaclab-tasks-compat-report.xml reports/ 2>/dev/null || echo "No test results to copy from IsaacLab Tasks container"
+        fi
+
+    - name: Upload IsaacLab Tasks Test Results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: isaaclab-tasks-compat-results
+        path: reports/isaaclab-tasks-compat-report.xml
+        retention-days: 7
+        compression-level: 9
+
+  test-general-compat:
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 180
+    env:
+        CUDA_VISIBLE_DEVICES: all
+        NVIDIA_VISIBLE_DEVICES: all
+        NVIDIA_DRIVER_CAPABILITIES: all
+        CUDA_HOME: /usr/local/cuda
+        LD_LIBRARY_PATH: /usr/local/cuda/lib64:/usr/local/cuda/extras/CUPTI/lib64
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+        lfs: true
+
+    - name: Build Docker Image
+      uses: ./.github/actions/docker-build
+      with:
+        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
+        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
+        isaacsim-version: ${{ github.event.inputs.isaacsim_version || env.ISAACSIM_DEFAULT_VERSION }}
+
+    - name: Run General Tests
+      uses: ./.github/actions/run-tests
+      with:
+        test-path: "tools"
+        result-file: "general-tests-compat-report.xml"
+        container-name: "isaac-lab-general-compat-test-$$"
+        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
+        pytest-options: ""
+        filter-pattern: "not isaaclab_tasks"
+
+    - name: Copy All Test Results from General Tests Container
+      run: |
+        CONTAINER_NAME="isaac-lab-general-compat-test-$$"
+        if docker ps -a | grep -q $CONTAINER_NAME; then
+          echo "Copying all test results from General Tests container..."
+          docker cp $CONTAINER_NAME:/workspace/isaaclab/tests/general-tests-compat-report.xml reports/ 2>/dev/null || echo "No test results to copy from General Tests container"
+        fi
+
+    - name: Upload General Test Results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: general-tests-compat-results
+        path: reports/general-tests-compat-report.xml
+        retention-days: 7
+        compression-level: 9
+
+  combine-compat-results:
+    needs: [test-isaaclab-tasks-compat, test-general-compat]
+    runs-on: [self-hosted, gpu]
+    if: always()
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+        lfs: false
+
+    - name: Create Reports Directory
+      run: |
+        mkdir -p reports
+
+    - name: Download Test Results
+      uses: actions/download-artifact@v4
+      with:
+        name: isaaclab-tasks-compat-results
+        path: reports/
+      continue-on-error: true
+
+    - name: Download General Test Results
+      uses: actions/download-artifact@v4
+      with:
+        name: general-tests-compat-results
+        path: reports/
+      continue-on-error: true
+
+    - name: Combine All Test Results
+      uses: ./.github/actions/combine-results
+      with:
+        tests-dir: "reports"
+        output-file: "reports/combined-compat-results.xml"
+
+    - name: Upload Combined Test Results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: daily-compat-${{ github.run_id }}-combined-test-results
+        path: reports/combined-compat-results.xml
+        retention-days: 30
+        compression-level: 9
+
+    - name: Report Test Results
+      uses: dorny/test-reporter@v1
+      if: always()
+      with:
+        name: IsaacLab Compatibility Test Results
+        path: reports/combined-compat-results.xml
+        reporter: java-junit
+        max-annotations: '50'
+        report-title: "IsaacLab Compatibility Test Results - ${{ github.workflow }}"
+
+  notify-compatibility-status:
+    needs: [combine-compat-results]
+    runs-on: [self-hosted, gpu]
+    if: always()
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+        lfs: false
+
+    - name: Create Compatibility Report
+      run: |
+        ISAACSIM_VERSION_USED="${{ github.event.inputs.isaacsim_version || env.ISAACSIM_DEFAULT_VERSION }}"
+        echo "## Daily Backwards Compatibility Test Results" > compatibility-report.md
+        echo "" >> compatibility-report.md
+        echo "**IsaacSim Version:** $ISAACSIM_VERSION_USED" >> compatibility-report.md
+        echo "**Branch:** ${{ github.ref_name }}" >> compatibility-report.md
+        echo "**Commit:** ${{ github.sha }}" >> compatibility-report.md
+        echo "**Run ID:** ${{ github.run_id }}" >> compatibility-report.md
+        echo "" >> compatibility-report.md
+        echo "### Test Status:" >> compatibility-report.md
+        echo "- Results: ${{ needs.combine-compat-results.result }}" >> compatibility-report.md
+        echo "" >> compatibility-report.md
+        echo "### Artifacts:" >> compatibility-report.md
+        echo "- [Combined Test Results](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> compatibility-report.md
+        echo "" >> compatibility-report.md
+        echo "---" >> compatibility-report.md
+        echo "*This report was generated automatically by the daily compatibility workflow.*" >> compatibility-report.md
+
+    - name: Upload Compatibility Report
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: compatibility-report-${{ github.run_id }}
+        path: compatibility-report.md
+        retention-days: 30

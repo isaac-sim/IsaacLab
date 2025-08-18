@@ -13,10 +13,10 @@ from collections.abc import Sequence
 from prettytable import PrettyTable
 from typing import TYPE_CHECKING
 
-import isaacsim.core.utils.stage as stage_utils
 import omni.log
 import omni.physics.tensors.impl.api as physx
 from isaacsim.core.simulation_manager import SimulationManager
+from isaacsim.core.version import get_version
 from pxr import PhysxSchema, UsdPhysics
 
 import isaaclab.sim as sim_utils
@@ -127,6 +127,11 @@ class Articulation(AssetBase):
         return self.root_physx_view.max_fixed_tendons
 
     @property
+    def num_spatial_tendons(self) -> int:
+        """Number of spatial tendons in articulation."""
+        return self.root_physx_view.max_spatial_tendons
+
+    @property
     def num_bodies(self) -> int:
         """Number of bodies in articulation."""
         return self.root_physx_view.shared_metatype.link_count
@@ -140,6 +145,11 @@ class Articulation(AssetBase):
     def fixed_tendon_names(self) -> list[str]:
         """Ordered names of fixed tendons in articulation."""
         return self._fixed_tendon_names
+
+    @property
+    def spatial_tendon_names(self) -> list[str]:
+        """Ordered names of spatial tendons in articulation."""
+        return self._spatial_tendon_names
 
     @property
     def body_names(self) -> list[str]:
@@ -169,6 +179,7 @@ class Articulation(AssetBase):
         # reset external wrench
         self._external_force_b[env_ids] = 0.0
         self._external_torque_b[env_ids] = 0.0
+        self._external_wrench_positions_b[env_ids] = 0.0
 
     def write_data_to_sim(self):
         """Write external wrenches and joint commands to the simulation.
@@ -182,13 +193,22 @@ class Articulation(AssetBase):
         """
         # write external wrench
         if self.has_external_wrench:
-            self.root_physx_view.apply_forces_and_torques_at_position(
-                force_data=self._external_force_b.view(-1, 3),
-                torque_data=self._external_torque_b.view(-1, 3),
-                position_data=None,
-                indices=self._ALL_INDICES,
-                is_global=False,
-            )
+            if self.uses_external_wrench_positions:
+                self.root_physx_view.apply_forces_and_torques_at_position(
+                    force_data=self._external_force_b.view(-1, 3),
+                    torque_data=self._external_torque_b.view(-1, 3),
+                    position_data=self._external_wrench_positions_b.view(-1, 3),
+                    indices=self._ALL_INDICES,
+                    is_global=self._use_global_wrench_frame,
+                )
+            else:
+                self.root_physx_view.apply_forces_and_torques_at_position(
+                    force_data=self._external_force_b.view(-1, 3),
+                    torque_data=self._external_torque_b.view(-1, 3),
+                    position_data=None,
+                    indices=self._ALL_INDICES,
+                    is_global=self._use_global_wrench_frame,
+                )
 
         # apply actuator models
         self._apply_actuator_model()
@@ -264,6 +284,28 @@ class Articulation(AssetBase):
         if tendon_subsets is None:
             # tendons follow the joint names they are attached to
             tendon_subsets = self.fixed_tendon_names
+        # find tendons
+        return string_utils.resolve_matching_names(name_keys, tendon_subsets, preserve_order)
+
+    def find_spatial_tendons(
+        self, name_keys: str | Sequence[str], tendon_subsets: list[str] | None = None, preserve_order: bool = False
+    ) -> tuple[list[int], list[str]]:
+        """Find spatial tendons in the articulation based on the name keys.
+
+        Please see the :func:`isaaclab.utils.string.resolve_matching_names` function for more information
+        on the name matching.
+
+        Args:
+            name_keys: A regular expression or a list of regular expressions to match the tendon names.
+            tendon_subsets: A subset of tendons to search for. Defaults to None, which means all tendons
+                in the articulation are searched.
+            preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
+
+        Returns:
+            A tuple of lists containing the tendon indices and names.
+        """
+        if tendon_subsets is None:
+            tendon_subsets = self.spatial_tendon_names
         # find tendons
         return string_utils.resolve_matching_names(name_keys, tendon_subsets, preserve_order)
 
@@ -788,19 +830,19 @@ class Articulation(AssetBase):
         joint_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | None = None,
     ):
-        r"""Write joint friction coefficients into the simulation.
+        r"""Write joint static friction coefficients into the simulation.
 
-        The joint friction is a unitless quantity. It relates the magnitude of the spatial force transmitted
-        from the parent body to the child body to the maximal friction force that may be applied by the solver
+        The joint static friction is a unitless quantity. It relates the magnitude of the spatial force transmitted
+        from the parent body to the child body to the maximal static friction force that may be applied by the solver
         to resist the joint motion.
 
         Mathematically, this means that: :math:`F_{resist} \leq \mu F_{spatial}`, where :math:`F_{resist}`
         is the resisting force applied by the solver and :math:`F_{spatial}` is the spatial force
-        transmitted from the parent body to the child body. The simulated friction effect is therefore
-        similar to static and Coulomb friction.
+        transmitted from the parent body to the child body. The simulated static friction effect is therefore
+        similar to static and Coulomb static friction.
 
         Args:
-            joint_friction: Joint friction. Shape is (len(env_ids), len(joint_ids)).
+            joint_friction_coeff: Joint static friction coefficient. Shape is (len(env_ids), len(joint_ids)).
             joint_ids: The joint indices to set the joint torque limits for. Defaults to None (all joints).
             env_ids: The environment indices to set the joint torque limits for. Defaults to None (all environments).
         """
@@ -817,9 +859,63 @@ class Articulation(AssetBase):
         # set into internal buffers
         self._data.joint_friction_coeff[env_ids, joint_ids] = joint_friction_coeff
         # set into simulation
-        self.root_physx_view.set_dof_friction_coefficients(
-            self._data.joint_friction_coeff.cpu(), indices=physx_env_ids.cpu()
-        )
+        if int(get_version()[2]) < 5:
+            self.root_physx_view.set_dof_friction_coefficients(
+                self._data.joint_friction_coeff.cpu(), indices=physx_env_ids.cpu()
+            )
+        else:
+            friction_props = self.root_physx_view.get_dof_friction_properties()
+            friction_props[physx_env_ids.cpu(), :, 0] = self._data.joint_friction_coeff[physx_env_ids, :].cpu()
+
+    def write_joint_dynamic_friction_coefficient_to_sim(
+        self,
+        joint_dynamic_friction_coeff: torch.Tensor | float,
+        joint_ids: Sequence[int] | slice | None = None,
+        env_ids: Sequence[int] | None = None,
+    ):
+        if int(get_version()[2]) < 5:
+            omni.log.warn("Setting joint dynamic friction coefficients are not supported in Isaac Sim < 5.0")
+            return
+        # resolve indices
+        physx_env_ids = env_ids
+        if env_ids is None:
+            env_ids = slice(None)
+            physx_env_ids = self._ALL_INDICES
+        if joint_ids is None:
+            joint_ids = slice(None)
+        # broadcast env_ids if needed to allow double indexing
+        if env_ids != slice(None) and joint_ids != slice(None):
+            env_ids = env_ids[:, None]
+        # set into internal buffers
+        self._data.joint_dynamic_friction_coeff[env_ids, joint_ids] = joint_dynamic_friction_coeff
+        # set into simulation
+        friction_props = self.root_physx_view.get_dof_friction_properties()
+        friction_props[physx_env_ids.cpu(), :, 1] = self._data.joint_dynamic_friction_coeff[physx_env_ids, :].cpu()
+
+    def write_joint_viscous_friction_coefficient_to_sim(
+        self,
+        joint_viscous_friction_coeff: torch.Tensor | float,
+        joint_ids: Sequence[int] | slice | None = None,
+        env_ids: Sequence[int] | None = None,
+    ):
+        if int(get_version()[2]) < 5:
+            omni.log.warn("Setting joint viscous friction coefficients are not supported in Isaac Sim < 5.0")
+            return
+        # resolve indices
+        physx_env_ids = env_ids
+        if env_ids is None:
+            env_ids = slice(None)
+            physx_env_ids = self._ALL_INDICES
+        if joint_ids is None:
+            joint_ids = slice(None)
+        # broadcast env_ids if needed to allow double indexing
+        if env_ids != slice(None) and joint_ids != slice(None):
+            env_ids = env_ids[:, None]
+        # set into internal buffers
+        self._data.joint_viscous_friction_coeff[env_ids, joint_ids] = joint_viscous_friction_coeff
+        # set into simulation
+        friction_props = self.root_physx_view.get_dof_friction_properties()
+        friction_props[physx_env_ids.cpu(), :, 2] = self._data.joint_viscous_friction_coeff[physx_env_ids, :].cpu()
 
     """
     Operations - Setters.
@@ -829,14 +925,17 @@ class Articulation(AssetBase):
         self,
         forces: torch.Tensor,
         torques: torch.Tensor,
+        positions: torch.Tensor | None = None,
         body_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | None = None,
+        is_global: bool = False,
     ):
         """Set external force and torque to apply on the asset's bodies in their local frame.
 
         For many applications, we want to keep the applied external force on rigid bodies constant over a period of
         time (for instance, during the policy control). This function allows us to store the external force and torque
-        into buffers which are then applied to the simulation at every step.
+        into buffers which are then applied to the simulation at every step. Optionally, set the position to apply the
+        external wrench at (in the local link frame of the bodies).
 
         .. caution::
             If the function is called with empty forces and torques, then this function disables the application
@@ -847,6 +946,18 @@ class Articulation(AssetBase):
                 # example of disabling external wrench
                 asset.set_external_force_and_torque(forces=torch.zeros(0, 3), torques=torch.zeros(0, 3))
 
+        .. caution::
+            If the function is called consecutively with and with different values for ``is_global``, then the
+            all the external wrenches will be applied in the frame specified by the last call.
+
+            .. code-block:: python
+
+                # example of setting external wrench in the global frame
+                asset.set_external_force_and_torque(forces=torch.ones(1, 1, 3), env_ids=[0], is_global=True)
+                # example of setting external wrench in the link frame
+                asset.set_external_force_and_torque(forces=torch.ones(1, 1, 3), env_ids=[1], is_global=False)
+                # Both environments will have the external wrenches applied in the link frame
+
         .. note::
             This function does not apply the external wrench to the simulation. It only fills the buffers with
             the desired values. To apply the external wrench, call the :meth:`write_data_to_sim` function
@@ -855,8 +966,11 @@ class Articulation(AssetBase):
         Args:
             forces: External forces in bodies' local frame. Shape is (len(env_ids), len(body_ids), 3).
             torques: External torques in bodies' local frame. Shape is (len(env_ids), len(body_ids), 3).
+            positions: Positions to apply external wrench. Shape is (len(env_ids), len(body_ids), 3). Defaults to None.
             body_ids: Body indices to apply external wrench to. Defaults to None (all bodies).
             env_ids: Environment indices to apply external wrench to. Defaults to None (all instances).
+            is_global: Whether to apply the external wrench in the global frame. Defaults to False. If set to False,
+                the external wrench is applied in the link frame of the articulations' bodies.
         """
         if forces.any() or torques.any():
             self.has_external_wrench = True
@@ -886,6 +1000,24 @@ class Articulation(AssetBase):
         # note: these are applied in the write_to_sim function
         self._external_force_b.flatten(0, 1)[indices] = forces.flatten(0, 1)
         self._external_torque_b.flatten(0, 1)[indices] = torques.flatten(0, 1)
+
+        if is_global != self._use_global_wrench_frame:
+            omni.log.warn(
+                f"The external wrench frame has been changed from {self._use_global_wrench_frame} to {is_global}. This"
+                " may lead to unexpected behavior."
+            )
+            self._use_global_wrench_frame = is_global
+
+        # If the positions are not provided, the behavior and performance of the simulation should not be affected.
+        if positions is not None:
+            # Generates a flag that is set for a full simulation step. This is done to avoid discarding
+            # the external wrench positions when multiple calls to this functions are made with and without positions.
+            self.uses_external_wrench_positions = True
+            self._external_wrench_positions_b.flatten(0, 1)[indices] = positions.flatten(0, 1)
+        else:
+            # If the positions are not provided, and the flag is set, then we need to ensure that the desired positions are zeroed.
+            if self.uses_external_wrench_positions:
+                self._external_wrench_positions_b.flatten(0, 1)[indices] = 0.0
 
     def set_joint_position_target(
         self, target: torch.Tensor, joint_ids: Sequence[int] | slice | None = None, env_ids: Sequence[int] | None = None
@@ -1148,6 +1280,157 @@ class Articulation(AssetBase):
             indices=physx_env_ids,
         )
 
+    def set_spatial_tendon_stiffness(
+        self,
+        stiffness: torch.Tensor,
+        spatial_tendon_ids: Sequence[int] | slice | None = None,
+        env_ids: Sequence[int] | None = None,
+    ):
+        """Set spatial tendon stiffness into internal buffers.
+
+        This function does not apply the tendon stiffness to the simulation. It only fills the buffers with
+        the desired values. To apply the tendon stiffness, call the :meth:`write_spatial_tendon_properties_to_sim` function.
+
+        Args:
+            stiffness: Spatial tendon stiffness. Shape is (len(env_ids), len(spatial_tendon_ids)).
+            spatial_tendon_ids: The tendon indices to set the stiffness for. Defaults to None (all spatial tendons).
+            env_ids: The environment indices to set the stiffness for. Defaults to None (all environments).
+        """
+        if int(get_version()[2]) < 5:
+            omni.log.warn(
+                "Spatial tendons are not supported in Isaac Sim < 5.0. Please update to Isaac Sim 5.0 or later."
+            )
+            return
+        # resolve indices
+        if env_ids is None:
+            env_ids = slice(None)
+        if spatial_tendon_ids is None:
+            spatial_tendon_ids = slice(None)
+        if env_ids != slice(None) and spatial_tendon_ids != slice(None):
+            env_ids = env_ids[:, None]
+        # set stiffness
+        self._data.spatial_tendon_stiffness[env_ids, spatial_tendon_ids] = stiffness
+
+    def set_spatial_tendon_damping(
+        self,
+        damping: torch.Tensor,
+        spatial_tendon_ids: Sequence[int] | slice | None = None,
+        env_ids: Sequence[int] | None = None,
+    ):
+        """Set spatial tendon damping into internal buffers.
+
+        This function does not apply the tendon damping to the simulation. It only fills the buffers with
+        the desired values. To apply the tendon damping, call the :meth:`write_spatial_tendon_properties_to_sim` function.
+
+        Args:
+            damping: Spatial tendon damping. Shape is (len(env_ids), len(spatial_tendon_ids)).
+            spatial_tendon_ids: The tendon indices to set the damping for. Defaults to None (all spatial tendons).
+            env_ids: The environment indices to set the damping for. Defaults to None (all environments).
+        """
+        if int(get_version()[2]) < 5:
+            omni.log.warn(
+                "Spatial tendons are not supported in Isaac Sim < 5.0. Please update to Isaac Sim 5.0 or later."
+            )
+            return
+        # resolve indices
+        if env_ids is None:
+            env_ids = slice(None)
+        if spatial_tendon_ids is None:
+            spatial_tendon_ids = slice(None)
+        if env_ids != slice(None) and spatial_tendon_ids != slice(None):
+            env_ids = env_ids[:, None]
+        # set damping
+        self._data.spatial_tendon_damping[env_ids, spatial_tendon_ids] = damping
+
+    def set_spatial_tendon_limit_stiffness(
+        self,
+        limit_stiffness: torch.Tensor,
+        spatial_tendon_ids: Sequence[int] | slice | None = None,
+        env_ids: Sequence[int] | None = None,
+    ):
+        """Set spatial tendon limit stiffness into internal buffers.
+
+        This function does not apply the tendon limit stiffness to the simulation. It only fills the buffers with
+        the desired values. To apply the tendon limit stiffness, call the :meth:`write_spatial_tendon_properties_to_sim` function.
+
+        Args:
+            limit_stiffness: Spatial tendon limit stiffness. Shape is (len(env_ids), len(spatial_tendon_ids)).
+            spatial_tendon_ids: The tendon indices to set the limit stiffness for. Defaults to None (all spatial tendons).
+            env_ids: The environment indices to set the limit stiffness for. Defaults to None (all environments).
+        """
+        if int(get_version()[2]) < 5:
+            omni.log.warn(
+                "Spatial tendons are not supported in Isaac Sim < 5.0. Please update to Isaac Sim 5.0 or later."
+            )
+            return
+        # resolve indices
+        if env_ids is None:
+            env_ids = slice(None)
+        if spatial_tendon_ids is None:
+            spatial_tendon_ids = slice(None)
+        if env_ids != slice(None) and spatial_tendon_ids != slice(None):
+            env_ids = env_ids[:, None]
+        # set limit stiffness
+        self._data.spatial_tendon_limit_stiffness[env_ids, spatial_tendon_ids] = limit_stiffness
+
+    def set_spatial_tendon_offset(
+        self,
+        offset: torch.Tensor,
+        spatial_tendon_ids: Sequence[int] | slice | None = None,
+        env_ids: Sequence[int] | None = None,
+    ):
+        """Set spatial tendon offset efforts into internal buffers.
+
+        This function does not apply the tendon offset to the simulation. It only fills the buffers with
+        the desired values. To apply the tendon offset, call the :meth:`write_spatial_tendon_properties_to_sim` function.
+
+        Args:
+            offset: Spatial tendon offset. Shape is (len(env_ids), len(spatial_tendon_ids)).
+            spatial_tendon_ids: The tendon indices to set the offset for. Defaults to None (all spatial tendons).
+            env_ids: The environment indices to set the offset for. Defaults to None (all environments).
+        """
+        if int(get_version()[2]) < 5:
+            omni.log.warn(
+                "Spatial tendons are not supported in Isaac Sim < 5.0. Please update to Isaac Sim 5.0 or later."
+            )
+            return
+        # resolve indices
+        if env_ids is None:
+            env_ids = slice(None)
+        if spatial_tendon_ids is None:
+            spatial_tendon_ids = slice(None)
+        if env_ids != slice(None) and spatial_tendon_ids != slice(None):
+            env_ids = env_ids[:, None]
+        # set offset
+        self._data.spatial_tendon_offset[env_ids, spatial_tendon_ids] = offset
+
+    def write_spatial_tendon_properties_to_sim(
+        self,
+        spatial_tendon_ids: Sequence[int] | slice | None = None,
+        env_ids: Sequence[int] | None = None,
+    ):
+        """Write spatial tendon properties into the simulation.
+
+        Args:
+            spatial_tendon_ids: The spatial tendon indices to set the properties for. Defaults to None (all spatial tendons).
+            env_ids: The environment indices to set the properties for. Defaults to None (all environments).
+        """
+        # resolve indices
+        physx_env_ids = env_ids
+        if env_ids is None:
+            physx_env_ids = self._ALL_INDICES
+        if spatial_tendon_ids is None:
+            spatial_tendon_ids = slice(None)
+
+        # set into simulation
+        self.root_physx_view.set_spatial_tendon_properties(
+            self._data.spatial_tendon_stiffness,
+            self._data.spatial_tendon_damping,
+            self._data.spatial_tendon_limit_stiffness,
+            self._data.spatial_tendon_offset,
+            indices=physx_env_ids,
+        )
+
     """
     Internal helper.
     """
@@ -1198,6 +1481,21 @@ class Articulation(AssetBase):
         if self._root_physx_view._backend is None:
             raise RuntimeError(f"Failed to create articulation at: {root_prim_path_expr}. Please check PhysX logs.")
 
+        if int(get_version()[2]) < 5:
+            omni.log.warn(
+                "Spatial tendons are not supported in Isaac Sim < 5.0: patching spatial-tendon getter"
+                " and setter to use dummy value"
+            )
+            self._root_physx_view.max_spatial_tendons = 0
+            self._root_physx_view.get_spatial_tendon_stiffnesses = lambda: torch.empty(0, device=self.device)
+            self._root_physx_view.get_spatial_tendon_dampings = lambda: torch.empty(0, device=self.device)
+            self._root_physx_view.get_spatial_tendon_limit_stiffnesses = lambda: torch.empty(0, device=self.device)
+            self._root_physx_view.get_spatial_tendon_offsets = lambda: torch.empty(0, device=self.device)
+            self._root_physx_view.set_spatial_tendon_properties = lambda *args, **kwargs: omni.log.warn(
+                "Spatial tendons are not supported in Isaac Sim < 5.0: Calling"
+                " set_spatial_tendon_properties has no effect"
+            )
+
         # log information about the articulation
         omni.log.info(f"Articulation initialized at: {self.cfg.prim_path} with root '{root_prim_path_expr}'.")
         omni.log.info(f"Is fixed root: {self.is_fixed_base}")
@@ -1215,7 +1513,7 @@ class Articulation(AssetBase):
         # process configuration
         self._process_cfg()
         self._process_actuators_cfg()
-        self._process_fixed_tendons()
+        self._process_tendons()
         # validate configuration
         self._validate_cfg()
         # update the robot data
@@ -1229,22 +1527,33 @@ class Articulation(AssetBase):
 
         # external forces and torques
         self.has_external_wrench = False
+        self.uses_external_wrench_positions = False
         self._external_force_b = torch.zeros((self.num_instances, self.num_bodies, 3), device=self.device)
         self._external_torque_b = torch.zeros_like(self._external_force_b)
+        self._external_wrench_positions_b = torch.zeros_like(self._external_force_b)
+        self._use_global_wrench_frame = False
 
         # asset named data
         self._data.joint_names = self.joint_names
         self._data.body_names = self.body_names
-        # tendon names are set in _process_fixed_tendons function
+        # tendon names are set in _process_tendons function
 
         # -- joint properties
         self._data.default_joint_pos_limits = self.root_physx_view.get_dof_limits().to(self.device).clone()
         self._data.default_joint_stiffness = self.root_physx_view.get_dof_stiffnesses().to(self.device).clone()
         self._data.default_joint_damping = self.root_physx_view.get_dof_dampings().to(self.device).clone()
         self._data.default_joint_armature = self.root_physx_view.get_dof_armatures().to(self.device).clone()
-        self._data.default_joint_friction_coeff = (
-            self.root_physx_view.get_dof_friction_coefficients().to(self.device).clone()
-        )
+        if int(get_version()[2]) < 5:
+            self._data.default_joint_friction_coeff = (
+                self.root_physx_view.get_dof_friction_coefficients().to(self.device).clone()
+            )
+            self._data.default_joint_dynamic_friction_coeff = torch.zeros_like(self._data.default_joint_friction_coeff)
+            self._data.default_joint_viscous_friction_coeff = torch.zeros_like(self._data.default_joint_friction_coeff)
+        else:
+            friction_props = self.root_physx_view.get_dof_friction_properties()
+            self._data.default_joint_friction_coeff = friction_props[:, :, 0].to(self.device).clone()
+            self._data.default_joint_dynamic_friction_coeff = friction_props[:, :, 1].to(self.device).clone()
+            self._data.default_joint_viscous_friction_coeff = friction_props[:, :, 2].to(self.device).clone()
 
         self._data.joint_pos_limits = self._data.default_joint_pos_limits.clone()
         self._data.joint_vel_limits = self.root_physx_view.get_dof_max_velocities().to(self.device).clone()
@@ -1253,6 +1562,8 @@ class Articulation(AssetBase):
         self._data.joint_damping = self._data.default_joint_damping.clone()
         self._data.joint_armature = self._data.default_joint_armature.clone()
         self._data.joint_friction_coeff = self._data.default_joint_friction_coeff.clone()
+        self._data.joint_dynamic_friction_coeff = self._data.default_joint_dynamic_friction_coeff.clone()
+        self._data.joint_viscous_friction_coeff = self._data.default_joint_viscous_friction_coeff.clone()
 
         # -- body properties
         self._data.default_mass = self.root_physx_view.get_masses().clone()
@@ -1364,6 +1675,8 @@ class Articulation(AssetBase):
                 damping=self._data.default_joint_damping[:, joint_ids],
                 armature=self._data.default_joint_armature[:, joint_ids],
                 friction=self._data.default_joint_friction_coeff[:, joint_ids],
+                dynamic_friction=self._data.default_joint_dynamic_friction_coeff[:, joint_ids],
+                viscous_friction=self._data.default_joint_viscous_friction_coeff[:, joint_ids],
                 effort_limit=self._data.joint_effort_limits[:, joint_ids],
                 velocity_limit=self._data.joint_vel_limits[:, joint_ids],
             )
@@ -1392,6 +1705,13 @@ class Articulation(AssetBase):
             self.write_joint_velocity_limit_to_sim(actuator.velocity_limit_sim, joint_ids=actuator.joint_indices)
             self.write_joint_armature_to_sim(actuator.armature, joint_ids=actuator.joint_indices)
             self.write_joint_friction_coefficient_to_sim(actuator.friction, joint_ids=actuator.joint_indices)
+            if int(get_version()[2]) >= 5:
+                self.write_joint_dynamic_friction_coefficient_to_sim(
+                    actuator.dynamic_friction, joint_ids=actuator.joint_indices
+                )
+                self.write_joint_viscous_friction_coefficient_to_sim(
+                    actuator.viscous_friction, joint_ids=actuator.joint_indices
+                )
 
             # Store the configured values from the actuator model
             # note: this is the value configured in the actuator model (for implicit and explicit actuators)
@@ -1399,6 +1719,9 @@ class Articulation(AssetBase):
             self._data.default_joint_damping[:, actuator.joint_indices] = actuator.damping
             self._data.default_joint_armature[:, actuator.joint_indices] = actuator.armature
             self._data.default_joint_friction_coeff[:, actuator.joint_indices] = actuator.friction
+            if int(get_version()[2]) >= 5:
+                self._data.default_joint_dynamic_friction_coeff[:, actuator.joint_indices] = actuator.dynamic_friction
+                self._data.default_joint_viscous_friction_coeff[:, actuator.joint_indices] = actuator.viscous_friction
 
         # perform some sanity checks to ensure actuators are prepared correctly
         total_act_joints = sum(actuator.num_joints for actuator in self.actuators.values())
@@ -1408,28 +1731,46 @@ class Articulation(AssetBase):
                 f" joints available: {total_act_joints} != {self.num_joints - self.num_fixed_tendons}."
             )
 
-    def _process_fixed_tendons(self):
-        """Process fixed tendons."""
+        if self.cfg.actuator_value_resolution_debug_print:
+            t = PrettyTable(["Group", "Property", "Name", "ID", "USD Value", "ActutatorCfg Value", "Applied"])
+            for actuator_group, actuator in self.actuators.items():
+                group_count = 0
+                for property, resolution_details in actuator.joint_property_resolution_table.items():
+                    for prop_idx, resolution_detail in enumerate(resolution_details):
+                        actuator_group_str = actuator_group if group_count == 0 else ""
+                        property_str = property if prop_idx == 0 else ""
+                        fmt = [f"{v:.2e}" if isinstance(v, float) else str(v) for v in resolution_detail]
+                        t.add_row([actuator_group_str, property_str, *fmt])
+                        group_count += 1
+            omni.log.warn(f"\nActuatorCfg-USD Value Discrepancy Resolution (matching values are skipped): \n{t}")
+
+    def _process_tendons(self):
+        """Process fixed and spatial tendons."""
         # create a list to store the fixed tendon names
         self._fixed_tendon_names = list()
-
+        self._spatial_tendon_names = list()
         # parse fixed tendons properties if they exist
-        if self.num_fixed_tendons > 0:
-            stage = stage_utils.get_current_stage()
+        if self.num_fixed_tendons > 0 or self.num_spatial_tendons > 0:
+
             joint_paths = self.root_physx_view.dof_paths[0]
 
             # iterate over all joints to find tendons attached to them
             for j in range(self.num_joints):
                 usd_joint_path = joint_paths[j]
                 # check whether joint has tendons - tendon name follows the joint name it is attached to
-                joint = UsdPhysics.Joint.Get(stage, usd_joint_path)
+                joint = UsdPhysics.Joint.Get(self.stage, usd_joint_path)
                 if joint.GetPrim().HasAPI(PhysxSchema.PhysxTendonAxisRootAPI):
                     joint_name = usd_joint_path.split("/")[-1]
                     self._fixed_tendon_names.append(joint_name)
+                elif joint.GetPrim().HasAPI(PhysxSchema.PhysxTendonAttachmentRootAPI) or joint.GetPrim().HasAPI(
+                    PhysxSchema.PhysxTendonAttachmentLeafAPI
+                ):
+                    joint_name = usd_joint_path.split("/")[-1]
+                    self._spatial_tendon_names.append(joint_name)
 
             # store the fixed tendon names
             self._data.fixed_tendon_names = self._fixed_tendon_names
-
+            self._data.spatial_tendon_names = self._spatial_tendon_names
             # store the current USD fixed tendon properties
             self._data.default_fixed_tendon_stiffness = self.root_physx_view.get_fixed_tendon_stiffnesses().clone()
             self._data.default_fixed_tendon_damping = self.root_physx_view.get_fixed_tendon_dampings().clone()
@@ -1439,6 +1780,12 @@ class Articulation(AssetBase):
             self._data.default_fixed_tendon_pos_limits = self.root_physx_view.get_fixed_tendon_limits().clone()
             self._data.default_fixed_tendon_rest_length = self.root_physx_view.get_fixed_tendon_rest_lengths().clone()
             self._data.default_fixed_tendon_offset = self.root_physx_view.get_fixed_tendon_offsets().clone()
+            self._data.default_spatial_tendon_stiffness = self.root_physx_view.get_spatial_tendon_stiffnesses().clone()
+            self._data.default_spatial_tendon_damping = self.root_physx_view.get_spatial_tendon_dampings().clone()
+            self._data.default_spatial_tendon_limit_stiffness = (
+                self.root_physx_view.get_spatial_tendon_limit_stiffnesses().clone()
+            )
+            self._data.default_spatial_tendon_offset = self.root_physx_view.get_spatial_tendon_offsets().clone()
 
             # store a copy of the default values for the fixed tendons
             self._data.fixed_tendon_stiffness = self._data.default_fixed_tendon_stiffness.clone()
@@ -1447,6 +1794,10 @@ class Articulation(AssetBase):
             self._data.fixed_tendon_pos_limits = self._data.default_fixed_tendon_pos_limits.clone()
             self._data.fixed_tendon_rest_length = self._data.default_fixed_tendon_rest_length.clone()
             self._data.fixed_tendon_offset = self._data.default_fixed_tendon_offset.clone()
+            self._data.spatial_tendon_stiffness = self._data.default_spatial_tendon_stiffness.clone()
+            self._data.spatial_tendon_damping = self._data.default_spatial_tendon_damping.clone()
+            self._data.spatial_tendon_limit_stiffness = self._data.default_spatial_tendon_limit_stiffness.clone()
+            self._data.spatial_tendon_offset = self._data.default_spatial_tendon_offset.clone()
 
     def _apply_actuator_model(self):
         """Processes joint commands for the articulation by forwarding them to the actuators.
@@ -1542,7 +1893,13 @@ class Articulation(AssetBase):
         dampings = self.root_physx_view.get_dof_dampings()[0].tolist()
         # -- properties
         armatures = self.root_physx_view.get_dof_armatures()[0].tolist()
-        frictions = self.root_physx_view.get_dof_friction_coefficients()[0].tolist()
+        if int(get_version()[2]) < 5:
+            static_frictions = self.root_physx_view.get_dof_friction_coefficients()[0].tolist()
+        else:
+            friction_props = self.root_physx_view.get_dof_friction_properties()
+            static_frictions = friction_props[:, :, 0][0].tolist()
+            dynamic_frictions = friction_props[:, :, 1][0].tolist()
+            viscous_frictions = friction_props[:, :, 2][0].tolist()
         # -- limits
         position_limits = self.root_physx_view.get_dof_limits()[0].tolist()
         velocity_limits = self.root_physx_view.get_dof_max_velocities()[0].tolist()
@@ -1550,38 +1907,68 @@ class Articulation(AssetBase):
         # create table for term information
         joint_table = PrettyTable()
         joint_table.title = f"Simulation Joint Information (Prim path: {self.cfg.prim_path})"
-        joint_table.field_names = [
-            "Index",
-            "Name",
-            "Stiffness",
-            "Damping",
-            "Armature",
-            "Friction",
-            "Position Limits",
-            "Velocity Limits",
-            "Effort Limits",
-        ]
+        if int(get_version()[2]) < 5:
+            joint_table.field_names = [
+                "Index",
+                "Name",
+                "Stiffness",
+                "Damping",
+                "Armature",
+                "Static Friction",
+                "Position Limits",
+                "Velocity Limits",
+                "Effort Limits",
+            ]
+        else:
+            joint_table.field_names = [
+                "Index",
+                "Name",
+                "Stiffness",
+                "Damping",
+                "Armature",
+                "Static Friction",
+                "Dynamic Friction",
+                "Viscous Friction",
+                "Position Limits",
+                "Velocity Limits",
+                "Effort Limits",
+            ]
         joint_table.float_format = ".3"
         joint_table.custom_format["Position Limits"] = lambda f, v: f"[{v[0]:.3f}, {v[1]:.3f}]"
         # set alignment of table columns
         joint_table.align["Name"] = "l"
         # add info on each term
         for index, name in enumerate(self.joint_names):
-            joint_table.add_row([
-                index,
-                name,
-                stiffnesses[index],
-                dampings[index],
-                armatures[index],
-                frictions[index],
-                position_limits[index],
-                velocity_limits[index],
-                effort_limits[index],
-            ])
+            if int(get_version()[2]) < 5:
+                joint_table.add_row([
+                    index,
+                    name,
+                    stiffnesses[index],
+                    dampings[index],
+                    armatures[index],
+                    static_frictions[index],
+                    position_limits[index],
+                    velocity_limits[index],
+                    effort_limits[index],
+                ])
+            else:
+                joint_table.add_row([
+                    index,
+                    name,
+                    stiffnesses[index],
+                    dampings[index],
+                    armatures[index],
+                    static_frictions[index],
+                    dynamic_frictions[index],
+                    viscous_frictions[index],
+                    position_limits[index],
+                    velocity_limits[index],
+                    effort_limits[index],
+                ])
         # convert table to string
         omni.log.info(f"Simulation parameters for joints in {self.cfg.prim_path}:\n" + joint_table.get_string())
 
-        # read out all tendon parameters from simulation
+        # read out all fixed tendon parameters from simulation
         if self.num_fixed_tendons > 0:
             # -- gains
             ft_stiffnesses = self.root_physx_view.get_fixed_tendon_stiffnesses()[0].tolist()
@@ -1617,7 +2004,41 @@ class Articulation(AssetBase):
                     ft_offsets[index],
                 ])
             # convert table to string
-            omni.log.info(f"Simulation parameters for tendons in {self.cfg.prim_path}:\n" + tendon_table.get_string())
+            omni.log.info(
+                f"Simulation parameters for fixed tendons in {self.cfg.prim_path}:\n" + tendon_table.get_string()
+            )
+
+        if self.num_spatial_tendons > 0:
+            # -- gains
+            st_stiffnesses = self.root_physx_view.get_spatial_tendon_stiffnesses()[0].tolist()
+            st_dampings = self.root_physx_view.get_spatial_tendon_dampings()[0].tolist()
+            # -- limits
+            st_limit_stiffnesses = self.root_physx_view.get_spatial_tendon_limit_stiffnesses()[0].tolist()
+            st_offsets = self.root_physx_view.get_spatial_tendon_offsets()[0].tolist()
+            # create table for term information
+            tendon_table = PrettyTable()
+            tendon_table.title = f"Simulation Spatial Tendon Information (Prim path: {self.cfg.prim_path})"
+            tendon_table.field_names = [
+                "Index",
+                "Stiffness",
+                "Damping",
+                "Limit Stiffness",
+                "Offset",
+            ]
+            tendon_table.float_format = ".3"
+            # add info on each term
+            for index in range(self.num_spatial_tendons):
+                tendon_table.add_row([
+                    index,
+                    st_stiffnesses[index],
+                    st_dampings[index],
+                    st_limit_stiffnesses[index],
+                    st_offsets[index],
+                ])
+            # convert table to string
+            omni.log.info(
+                f"Simulation parameters for spatial tendons in {self.cfg.prim_path}:\n" + tendon_table.get_string()
+            )
 
     """
     Deprecated methods.

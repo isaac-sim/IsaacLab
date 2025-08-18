@@ -37,6 +37,7 @@ Guidelines for modifications:
 ## Contributors
 
 * Alessandro Assirelli
+* Alex Omar
 * Alice Zhou
 * Amr Mousa
 * Andrej Orsula
@@ -58,6 +59,7 @@ Guidelines for modifications:
 * David Yang
 * Dhananjay Shendre
 * Dorsa Rohani
+* Emily Sturman
 * Fabian Jenelten
 * Felipe Mohr
 * Felix Yu
@@ -113,6 +115,7 @@ Guidelines for modifications:
 * Ryley McCarroll
 * Shafeef Omar
 * Shaoshu Su
+* Shaurya Dewan
 * Shundo Kishi
 * Stefan Van de Mosselaer
 * Stephan Pleines
@@ -125,6 +128,7 @@ Guidelines for modifications:
 * Yang Jin
 * Yanzi Zhu
 * Yijie Guo
+* Yohan Choi
 * Yujian Zhang
 * Yun Liu
 * Ziqi Fan
