@@ -266,11 +266,16 @@ def gripper_pos(
     """
     robot: Articulation = env.scene[robot_cfg.name]
 
-    if hasattr(env.scene, "surface_grippers") and env.scene.surface_grippers is not None:
-        assert len(env.scene.surface_grippers) == 1, "Observations only support one surface gripper per scene for now"
-        surface_gripper = env.scene.surface_grippers["surface_gripper"]
-        suction_cup_status = surface_gripper.state.view(-1, 1)
-        return suction_cup_status
+    if hasattr(env.scene, "surface_grippers") and len(env.scene.surface_grippers) > 0:
+        # Handle multiple surface grippers by concatenating their states
+        gripper_states = []
+        for gripper_name, surface_gripper in env.scene.surface_grippers.items():
+            gripper_states.append(surface_gripper.state.view(-1, 1))
+        
+        if len(gripper_states) == 1:
+            return gripper_states[0]
+        else:
+            return torch.cat(gripper_states, dim=1)
 
     else:
         if hasattr(env.cfg, "gripper_joint_names"):
@@ -300,7 +305,7 @@ def object_grasped(
     end_effector_pos = ee_frame.data.target_pos_w[:, 0, :]
     pose_diff = torch.linalg.vector_norm(object_pos - end_effector_pos, dim=1)
 
-    if hasattr(env.scene, "surface_grippers") and env.scene.surface_grippers is not None:
+    if hasattr(env.scene, "surface_grippers") and len(env.scene.surface_grippers) > 0:
         surface_gripper = env.scene.surface_grippers["surface_gripper"]
         suction_cup_status = surface_gripper.state.view(-1, 1)  # 1: closed, 0: closing, -1: open
         suction_cup_is_closed = (suction_cup_status == 1).to(torch.float32)
@@ -352,7 +357,7 @@ def object_stacked(
 
     stacked = torch.logical_and(xy_dist < xy_threshold, (height_dist - height_diff) < height_threshold)
 
-    if hasattr(env.scene, "surface_grippers") and env.scene.surface_grippers is not None:
+    if hasattr(env.scene, "surface_grippers") and len(env.scene.surface_grippers) > 0:
         surface_gripper = env.scene.surface_grippers["surface_gripper"]
         suction_cup_status = surface_gripper.state.view(-1, 1)  # 1: closed, 0: closing, -1: open
         suction_cup_is_open = (suction_cup_status == -1).to(torch.float32)

@@ -57,7 +57,7 @@ def cubes_stacked(
     stacked = torch.logical_and(pos_diff_c23[:, 2] < 0.0, stacked)
 
     # Check gripper positions
-    if hasattr(env.scene, "surface_grippers") and env.scene.surface_grippers is not None:
+    if hasattr(env.scene, "surface_grippers") and len(env.scene.surface_grippers) > 0:
         surface_gripper = env.scene.surface_grippers["surface_gripper"]
         suction_cup_status = surface_gripper.state.view(-1, 1)  # 1: closed, 0: closing, -1: open
         suction_cup_is_open = (suction_cup_status == -1).to(torch.float32)
