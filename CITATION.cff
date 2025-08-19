@@ -1,0 +1,53 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite both the Isaac Lab repository and the Orbit paper."
+title: Isaac Lab
+version: 2.2.0
+repository-code: https://github.com/NVIDIA-Omniverse/IsaacLab
+type: software
+authors:
+  - name: Isaac Lab Project Developers
+identifiers:
+  - type: url
+    value: https://github.com/NVIDIA-Omniverse/IsaacLab
+url: https://isaac-sim.github.io/IsaacLab/main/index.html
+license: BSD-3-Clause
+preferred-citation:
+  type: article
+  title: Orbit - A Unified Simulation Framework for Interactive Robot Learning Environments
+  authors:
+    - family-names: Mittal
+      given-names: Mayank
+    - family-names: Yu
+      given-names: Calvin
+    - family-names: Yu
+      given-names: Qinxi
+    - family-names: Liu
+      given-names: Jingzhou
+    - family-names: Rudin
+      given-names: Nikita
+    - family-names: Hoeller
+      given-names: David
+    - family-names: Yuan
+      given-names: Jia Lin
+    - family-names: Singh
+      given-names: Ritvik
+    - family-names: Guo
+      given-names: Yunrong
+    - family-names: Mazhar
+      given-names: Hammad
+    - family-names: Mandlekar
+      given-names: Ajay
+    - family-names: Babich
+      given-names: Buck
+    - family-names: State
+      given-names: Gavriel
+    - family-names: Hutter
+      given-names: Marco
+    - family-names: Garg
+      given-names: Animesh
+  journal: IEEE Robotics and Automation Letters
+  volume: 8
+  issue: 6
+  pages: 3740-3747
+  year: 2023
+  doi: 10.1109/LRA.2023.3270034

@@ -868,13 +868,11 @@ class AppLauncher:
 
         rendering_mode = launcher_args.get("rendering_mode")
 
-        # use default kit rendering settings if cameras are disabled and a rendering mode is not selected
-        if not self._enable_cameras and rendering_mode is None:
-            return
-
-        # default to balanced mode
         if rendering_mode is None:
-            rendering_mode = "balanced"
+            # use default kit rendering settings if cameras are disabled and a rendering mode is not selected
+            if not self._enable_cameras:
+                return
+            rendering_mode = ""
 
         # store rendering mode in carb settings
         carb_settings = carb.settings.get_settings()
