@@ -73,7 +73,7 @@ class UR10CubeStackEnvCfg(StackEnvCfg):
         max_depenetration_velocity=5.0,
         disable_gravity=False,
     )
-    cube_scale = (1.5, 1.5, 1.5)
+    cube_scale = (1.0, 1.0, 1.0)
     # Listens to the required transforms
     marker_cfg = FRAME_MARKER_CFG.copy()
     marker_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
