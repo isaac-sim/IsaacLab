@@ -35,7 +35,7 @@ class EventCfgLongSuction:
 
     init_franka_arm_pose = EventTerm(
         func=franka_stack_events.set_default_joint_pose,
-        mode="startup",
+        mode="reset",
         params={
             "default_pose": [0.0, -1.5707, 1.5707, -1.5707, -1.5707, 0.0],
         },
