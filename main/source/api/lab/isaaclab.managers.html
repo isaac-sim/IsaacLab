@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.2.0" />
-    <meta name="docbuild:last-update" content="Aug 18, 2025"/>
+    <meta name="docbuild:last-update" content="Aug 19, 2025"/>
   </head>
   
   
@@ -356,6 +356,7 @@
 <li class="toctree-l1"><a class="reference internal" href="../../setup/installation/cloud_installation.html">Running Isaac Lab in the Cloud</a></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../policy_deployment/index.html">Sim2Real Deployment of Policies Trained in Isaac Lab</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../policy_deployment/00_hover/hover_policy.html">Training &amp; Deploying HOVER Policy</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../policy_deployment/01_io_descriptors/io_descriptors_101.html">IO Descriptors 101</a></li>
 </ul>
 </details></li>
 </ul>
@@ -671,6 +672,7 @@
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.managers.ObservationManager.group_obs_dim"><code class="docutils literal notranslate"><span class="pre">ObservationManager.group_obs_dim</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.managers.ObservationManager.group_obs_term_dim"><code class="docutils literal notranslate"><span class="pre">ObservationManager.group_obs_term_dim</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.managers.ObservationManager.group_obs_concatenate"><code class="docutils literal notranslate"><span class="pre">ObservationManager.group_obs_concatenate</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.managers.ObservationManager.get_IO_descriptors"><code class="docutils literal notranslate"><span class="pre">ObservationManager.get_IO_descriptors</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.managers.ObservationManager.reset"><code class="docutils literal notranslate"><span class="pre">ObservationManager.reset()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.managers.ObservationManager.compute"><code class="docutils literal notranslate"><span class="pre">ObservationManager.compute()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.managers.ObservationManager.compute_group"><code class="docutils literal notranslate"><span class="pre">ObservationManager.compute_group()</span></code></a></li>
@@ -710,6 +712,7 @@
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.managers.ActionManager.action"><code class="docutils literal notranslate"><span class="pre">ActionManager.action</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.managers.ActionManager.prev_action"><code class="docutils literal notranslate"><span class="pre">ActionManager.prev_action</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.managers.ActionManager.has_debug_vis_implementation"><code class="docutils literal notranslate"><span class="pre">ActionManager.has_debug_vis_implementation</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.managers.ActionManager.get_IO_descriptors"><code class="docutils literal notranslate"><span class="pre">ActionManager.get_IO_descriptors</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.managers.ActionManager.get_active_iterable_terms"><code class="docutils literal notranslate"><span class="pre">ActionManager.get_active_iterable_terms()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.managers.ActionManager.set_debug_vis"><code class="docutils literal notranslate"><span class="pre">ActionManager.set_debug_vis()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.managers.ActionManager.reset"><code class="docutils literal notranslate"><span class="pre">ActionManager.reset()</span></code></a></li>
@@ -728,6 +731,8 @@
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.managers.ActionTerm.raw_actions"><code class="docutils literal notranslate"><span class="pre">ActionTerm.raw_actions</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.managers.ActionTerm.processed_actions"><code class="docutils literal notranslate"><span class="pre">ActionTerm.processed_actions</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.managers.ActionTerm.has_debug_vis_implementation"><code class="docutils literal notranslate"><span class="pre">ActionTerm.has_debug_vis_implementation</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.managers.ActionTerm.IO_descriptor"><code class="docutils literal notranslate"><span class="pre">ActionTerm.IO_descriptor</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.managers.ActionTerm.export_IO_descriptor"><code class="docutils literal notranslate"><span class="pre">ActionTerm.export_IO_descriptor</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.managers.ActionTerm.set_debug_vis"><code class="docutils literal notranslate"><span class="pre">ActionTerm.set_debug_vis()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.managers.ActionTerm.process_actions"><code class="docutils literal notranslate"><span class="pre">ActionTerm.process_actions()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.managers.ActionTerm.apply_actions"><code class="docutils literal notranslate"><span class="pre">ActionTerm.apply_actions()</span></code></a></li>
@@ -1498,10 +1503,13 @@ The observations are clipped and scaled as per the configuration settings.</p>
 <tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.managers.ObservationManager.group_obs_concatenate" title="isaaclab.managers.ObservationManager.group_obs_concatenate"><code class="xref py py-obj docutils literal notranslate"><span class="pre">group_obs_concatenate</span></code></a></p></td>
 <td><p>Whether the observation terms are concatenated in each group or not.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.managers.ObservationManager.device" title="isaaclab.managers.ObservationManager.device"><code class="xref py py-obj docutils literal notranslate"><span class="pre">device</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.managers.ObservationManager.get_IO_descriptors" title="isaaclab.managers.ObservationManager.get_IO_descriptors"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_IO_descriptors</span></code></a></p></td>
+<td><p>Get the IO descriptors for the observation manager.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.managers.ObservationManager.device" title="isaaclab.managers.ObservationManager.device"><code class="xref py py-obj docutils literal notranslate"><span class="pre">device</span></code></a></p></td>
 <td><p>Device on which to perform computations.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.managers.ObservationManager.num_envs" title="isaaclab.managers.ObservationManager.num_envs"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_envs</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.managers.ObservationManager.num_envs" title="isaaclab.managers.ObservationManager.num_envs"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_envs</span></code></a></p></td>
 <td><p>Number of environments.</p></td>
 </tr>
 </tbody>
@@ -1577,6 +1585,17 @@ This matches the order of the terms in the <a class="reference internal" href="#
 are concatenated into a single tensor. If True, the observations are concatenated along the last dimension.</p>
 <p>The values are set based on the <a class="reference internal" href="#isaaclab.managers.ObservationGroupCfg.concatenate_terms" title="isaaclab.managers.ObservationGroupCfg.concatenate_terms"><code class="xref py py-attr docutils literal notranslate"><span class="pre">concatenate_terms</span></code></a> attribute in the group
 configuration.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="isaaclab.managers.ObservationManager.get_IO_descriptors">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">get_IO_descriptors</span></span><a class="headerlink" href="#isaaclab.managers.ObservationManager.get_IO_descriptors" title="Permalink to this definition">#</a></dt>
+<dd><p>Get the IO descriptors for the observation manager.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>A dictionary with keys as the group names and values as the IO descriptors.</p>
+</dd>
+</dl>
 </dd></dl>
 
 <dl class="py method">
@@ -1950,10 +1969,13 @@ scene (such as robots). It should be called before every simulation step.</p></l
 <tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.managers.ActionManager.has_debug_vis_implementation" title="isaaclab.managers.ActionManager.has_debug_vis_implementation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">has_debug_vis_implementation</span></code></a></p></td>
 <td><p>Whether the command terms have debug visualization implemented.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.managers.ActionManager.device" title="isaaclab.managers.ActionManager.device"><code class="xref py py-obj docutils literal notranslate"><span class="pre">device</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.managers.ActionManager.get_IO_descriptors" title="isaaclab.managers.ActionManager.get_IO_descriptors"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_IO_descriptors</span></code></a></p></td>
+<td><p>Get the IO descriptors for the action manager.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.managers.ActionManager.device" title="isaaclab.managers.ActionManager.device"><code class="xref py py-obj docutils literal notranslate"><span class="pre">device</span></code></a></p></td>
 <td><p>Device on which to perform computations.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.managers.ActionManager.num_envs" title="isaaclab.managers.ActionManager.num_envs"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_envs</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.managers.ActionManager.num_envs" title="isaaclab.managers.ActionManager.num_envs"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_envs</span></code></a></p></td>
 <td><p>Number of environments.</p></td>
 </tr>
 </tbody>
@@ -2010,6 +2032,17 @@ scene (such as robots). It should be called before every simulation step.</p></l
 <dt class="sig sig-object py" id="isaaclab.managers.ActionManager.has_debug_vis_implementation">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">has_debug_vis_implementation</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></em><a class="headerlink" href="#isaaclab.managers.ActionManager.has_debug_vis_implementation" title="Permalink to this definition">#</a></dt>
 <dd><p>Whether the command terms have debug visualization implemented.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="isaaclab.managers.ActionManager.get_IO_descriptors">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">get_IO_descriptors</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.13)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.13)"><span class="pre">Any</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#isaaclab.managers.ActionManager.get_IO_descriptors" title="Permalink to this definition">#</a></dt>
+<dd><p>Get the IO descriptors for the action manager.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>A dictionary with keys as the term names and values as the IO descriptors.</p>
+</dd>
+</dl>
 </dd></dl>
 
 <dl class="py method">
@@ -2191,6 +2224,12 @@ responsible for applying the processed actions to the asset managed by the term.
 <tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.managers.ActionTerm.has_debug_vis_implementation" title="isaaclab.managers.ActionTerm.has_debug_vis_implementation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">has_debug_vis_implementation</span></code></a></p></td>
 <td><p>Whether the action term has a debug visualization implemented.</p></td>
 </tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.managers.ActionTerm.IO_descriptor" title="isaaclab.managers.ActionTerm.IO_descriptor"><code class="xref py py-obj docutils literal notranslate"><span class="pre">IO_descriptor</span></code></a></p></td>
+<td><p>The IO descriptor for the action term.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.managers.ActionTerm.export_IO_descriptor" title="isaaclab.managers.ActionTerm.export_IO_descriptor"><code class="xref py py-obj docutils literal notranslate"><span class="pre">export_IO_descriptor</span></code></a></p></td>
+<td><p>Whether to export the IO descriptor for the action term.</p></td>
+</tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.managers.ActionTerm.device" title="isaaclab.managers.ActionTerm.device"><code class="xref py py-obj docutils literal notranslate"><span class="pre">device</span></code></a></p></td>
 <td><p>Device on which to perform computations.</p></td>
 </tr>
@@ -2236,6 +2275,18 @@ responsible for applying the processed actions to the asset managed by the term.
 <dt class="sig sig-object py" id="isaaclab.managers.ActionTerm.has_debug_vis_implementation">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">has_debug_vis_implementation</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></em><a class="headerlink" href="#isaaclab.managers.ActionTerm.has_debug_vis_implementation" title="Permalink to this definition">#</a></dt>
 <dd><p>Whether the action term has a debug visualization implemented.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="isaaclab.managers.ActionTerm.IO_descriptor">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">IO_descriptor</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">GenericActionIODescriptor</span></em><a class="headerlink" href="#isaaclab.managers.ActionTerm.IO_descriptor" title="Permalink to this definition">#</a></dt>
+<dd><p>The IO descriptor for the action term.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="isaaclab.managers.ActionTerm.export_IO_descriptor">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">export_IO_descriptor</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></em><a class="headerlink" href="#isaaclab.managers.ActionTerm.export_IO_descriptor" title="Permalink to this definition">#</a></dt>
+<dd><p>Whether to export the IO descriptor for the action term.</p>
 </dd></dl>
 
 <dl class="py method">
@@ -4088,6 +4139,7 @@ all environments are considered.</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.managers.ObservationManager.group_obs_dim"><code class="docutils literal notranslate"><span class="pre">ObservationManager.group_obs_dim</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.managers.ObservationManager.group_obs_term_dim"><code class="docutils literal notranslate"><span class="pre">ObservationManager.group_obs_term_dim</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.managers.ObservationManager.group_obs_concatenate"><code class="docutils literal notranslate"><span class="pre">ObservationManager.group_obs_concatenate</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.managers.ObservationManager.get_IO_descriptors"><code class="docutils literal notranslate"><span class="pre">ObservationManager.get_IO_descriptors</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.managers.ObservationManager.reset"><code class="docutils literal notranslate"><span class="pre">ObservationManager.reset()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.managers.ObservationManager.compute"><code class="docutils literal notranslate"><span class="pre">ObservationManager.compute()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.managers.ObservationManager.compute_group"><code class="docutils literal notranslate"><span class="pre">ObservationManager.compute_group()</span></code></a></li>
@@ -4127,6 +4179,7 @@ all environments are considered.</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.managers.ActionManager.action"><code class="docutils literal notranslate"><span class="pre">ActionManager.action</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.managers.ActionManager.prev_action"><code class="docutils literal notranslate"><span class="pre">ActionManager.prev_action</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.managers.ActionManager.has_debug_vis_implementation"><code class="docutils literal notranslate"><span class="pre">ActionManager.has_debug_vis_implementation</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.managers.ActionManager.get_IO_descriptors"><code class="docutils literal notranslate"><span class="pre">ActionManager.get_IO_descriptors</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.managers.ActionManager.get_active_iterable_terms"><code class="docutils literal notranslate"><span class="pre">ActionManager.get_active_iterable_terms()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.managers.ActionManager.set_debug_vis"><code class="docutils literal notranslate"><span class="pre">ActionManager.set_debug_vis()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.managers.ActionManager.reset"><code class="docutils literal notranslate"><span class="pre">ActionManager.reset()</span></code></a></li>
@@ -4145,6 +4198,8 @@ all environments are considered.</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.managers.ActionTerm.raw_actions"><code class="docutils literal notranslate"><span class="pre">ActionTerm.raw_actions</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.managers.ActionTerm.processed_actions"><code class="docutils literal notranslate"><span class="pre">ActionTerm.processed_actions</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.managers.ActionTerm.has_debug_vis_implementation"><code class="docutils literal notranslate"><span class="pre">ActionTerm.has_debug_vis_implementation</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.managers.ActionTerm.IO_descriptor"><code class="docutils literal notranslate"><span class="pre">ActionTerm.IO_descriptor</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.managers.ActionTerm.export_IO_descriptor"><code class="docutils literal notranslate"><span class="pre">ActionTerm.export_IO_descriptor</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.managers.ActionTerm.set_debug_vis"><code class="docutils literal notranslate"><span class="pre">ActionTerm.set_debug_vis()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.managers.ActionTerm.process_actions"><code class="docutils literal notranslate"><span class="pre">ActionTerm.process_actions()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.managers.ActionTerm.apply_actions"><code class="docutils literal notranslate"><span class="pre">ActionTerm.apply_actions()</span></code></a></li>
@@ -4342,7 +4397,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Aug 18, 2025.
+  Last updated on Aug 19, 2025.
   <br/>
 </p>
   </div>

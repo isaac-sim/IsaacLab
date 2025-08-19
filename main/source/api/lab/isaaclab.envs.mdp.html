@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.2.0" />
-    <meta name="docbuild:last-update" content="Aug 18, 2025"/>
+    <meta name="docbuild:last-update" content="Aug 19, 2025"/>
   </head>
   
   
@@ -356,6 +356,7 @@
 <li class="toctree-l1"><a class="reference internal" href="../../setup/installation/cloud_installation.html">Running Isaac Lab in the Cloud</a></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../policy_deployment/index.html">Sim2Real Deployment of Policies Trained in Isaac Lab</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../policy_deployment/00_hover/hover_policy.html">Training &amp; Deploying HOVER Policy</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../policy_deployment/01_io_descriptors/io_descriptors_101.html">IO Descriptors 101</a></li>
 </ul>
 </details></li>
 </ul>
@@ -1104,7 +1105,7 @@ the observation introduced by the function.</p>
 <tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.observations.last_action" title="isaaclab.envs.mdp.observations.last_action"><code class="xref py py-obj docutils literal notranslate"><span class="pre">last_action</span></code></a>(env[, action_name])</p></td>
 <td><p>The last input action to the environment.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.observations.generated_commands" title="isaaclab.envs.mdp.observations.generated_commands"><code class="xref py py-obj docutils literal notranslate"><span class="pre">generated_commands</span></code></a>(env, command_name)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.observations.generated_commands" title="isaaclab.envs.mdp.observations.generated_commands"><code class="xref py py-obj docutils literal notranslate"><span class="pre">generated_commands</span></code></a>(env[, command_name])</p></td>
 <td><p>The generated command from command term in the command manager with the given name.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.mdp.observations.current_time_s" title="isaaclab.envs.mdp.observations.current_time_s"><code class="xref py py-obj docutils literal notranslate"><span class="pre">current_time_s</span></code></a>(env)</p></td>
@@ -1472,7 +1473,7 @@ entire action tensor is returned.</p>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="isaaclab.envs.mdp.observations.generated_commands">
-<span class="sig-prename descclassname"><span class="pre">isaaclab.envs.mdp.observations.</span></span><span class="sig-name descname"><span class="pre">generated_commands</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="isaaclab.envs.html#isaaclab.envs.ManagerBasedRLEnv" title="isaaclab.envs.ManagerBasedRLEnv"><span class="pre">ManagerBasedRLEnv</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">command_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.8)"><span class="pre">torch.Tensor</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab/envs/mdp/observations.html#generated_commands"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.envs.mdp.observations.generated_commands" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">isaaclab.envs.mdp.observations.</span></span><span class="sig-name descname"><span class="pre">generated_commands</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="isaaclab.envs.html#isaaclab.envs.ManagerBasedRLEnv" title="isaaclab.envs.ManagerBasedRLEnv"><span class="pre">ManagerBasedRLEnv</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">command_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.8)"><span class="pre">torch.Tensor</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab/envs/mdp/observations.html#generated_commands"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.envs.mdp.observations.generated_commands" title="Permalink to this definition">#</a></dt>
 <dd><p>The generated command from command term in the command manager with the given name.</p>
 </dd></dl>
 
@@ -5211,7 +5212,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Aug 18, 2025.
+  Last updated on Aug 19, 2025.
   <br/>
 </p>
   </div>

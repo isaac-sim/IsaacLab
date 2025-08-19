@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.2.0" />
-    <meta name="docbuild:last-update" content="Aug 18, 2025"/>
+    <meta name="docbuild:last-update" content="Aug 19, 2025"/>
   </head>
   
   
@@ -355,6 +355,7 @@
 <li class="toctree-l1"><a class="reference internal" href="source/setup/installation/cloud_installation.html">Running Isaac Lab in the Cloud</a></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="source/policy_deployment/index.html">Sim2Real Deployment of Policies Trained in Isaac Lab</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="source/policy_deployment/00_hover/hover_policy.html">Training &amp; Deploying HOVER Policy</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/policy_deployment/01_io_descriptors/io_descriptors_101.html">IO Descriptors 101</a></li>
 </ul>
 </details></li>
 </ul>
@@ -2848,8 +2849,6 @@
 </li>
       <li><a href="source/api/lab/isaaclab.sim.html#isaaclab.sim.RenderCfg.enable_direct_lighting">enable_direct_lighting (isaaclab.sim.RenderCfg attribute)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab/isaaclab.sim.html#isaaclab.sim.RenderCfg.enable_dl_denoiser">enable_dl_denoiser (isaaclab.sim.RenderCfg attribute)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.sim.html#isaaclab.sim.RenderCfg.enable_dlssg">enable_dlssg (isaaclab.sim.RenderCfg attribute)</a>
@@ -2858,6 +2857,8 @@
 </li>
       <li><a href="source/api/lab/isaaclab.sim.html#isaaclab.sim.RenderCfg.enable_global_illumination">enable_global_illumination (isaaclab.sim.RenderCfg attribute)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab/isaaclab.sim.schemas.html#isaaclab.sim.schemas.RigidBodyPropertiesCfg.enable_gyroscopic_forces">enable_gyroscopic_forces (isaaclab.sim.schemas.RigidBodyPropertiesCfg attribute)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.sim.html#isaaclab.sim.RenderCfg.enable_reflections">enable_reflections (isaaclab.sim.RenderCfg attribute)</a>
@@ -2926,6 +2927,26 @@
 </li>
       <li><a href="source/api/lab/isaaclab.managers.html#isaaclab.managers.RecorderManager.export_episodes">export_episodes() (isaaclab.managers.RecorderManager method)</a>
 </li>
+      <li><a href="source/api/lab/isaaclab.managers.html#isaaclab.managers.ActionTerm.export_IO_descriptor">export_IO_descriptor (isaaclab.managers.ActionTerm property)</a>
+</li>
+      <li><a href="source/api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedEnvCfg.export_io_descriptors">export_io_descriptors (isaaclab.envs.ManagerBasedEnvCfg attribute)</a>
+
+      <ul>
+        <li><a href="source/api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedRLEnvCfg.export_io_descriptors">(isaaclab.envs.ManagerBasedRLEnvCfg attribute)</a>
+</li>
+        <li><a href="source/api/lab_mimic/isaaclab_mimic.envs.html#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.export_io_descriptors">(isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="source/api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedEnv.export_IO_descriptors">export_IO_descriptors() (isaaclab.envs.ManagerBasedEnv method)</a>
+
+      <ul>
+        <li><a href="source/api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedRLEnv.export_IO_descriptors">(isaaclab.envs.ManagerBasedRLEnv method)</a>
+</li>
+        <li><a href="source/api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedRLMimicEnv.export_IO_descriptors">(isaaclab.envs.ManagerBasedRLMimicEnv method)</a>
+</li>
+        <li><a href="source/api/lab_mimic/isaaclab_mimic.envs.html#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.export_IO_descriptors">(isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv method)</a>
+</li>
+      </ul></li>
       <li><a href="source/api/lab_rl/isaaclab_rl.html#isaaclab_rl.rsl_rl.export_policy_as_jit">export_policy_as_jit() (in module isaaclab_rl.rsl_rl)</a>
 </li>
       <li><a href="source/api/lab_rl/isaaclab_rl.html#isaaclab_rl.rsl_rl.export_policy_as_onnx">export_policy_as_onnx() (in module isaaclab_rl.rsl_rl)</a>
@@ -3374,6 +3395,20 @@
 </li>
       <li><a href="source/api/lab/isaaclab.sim.html#isaaclab.sim.SimulationContext.get_initial_stage">get_initial_stage() (isaaclab.sim.SimulationContext method)</a>
 </li>
+      <li><a href="source/api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedEnv.get_IO_descriptors">get_IO_descriptors (isaaclab.envs.ManagerBasedEnv property)</a>
+
+      <ul>
+        <li><a href="source/api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedRLEnv.get_IO_descriptors">(isaaclab.envs.ManagerBasedRLEnv property)</a>
+</li>
+        <li><a href="source/api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedRLMimicEnv.get_IO_descriptors">(isaaclab.envs.ManagerBasedRLMimicEnv property)</a>
+</li>
+        <li><a href="source/api/lab/isaaclab.managers.html#isaaclab.managers.ActionManager.get_IO_descriptors">(isaaclab.managers.ActionManager property)</a>
+</li>
+        <li><a href="source/api/lab/isaaclab.managers.html#isaaclab.managers.ObservationManager.get_IO_descriptors">(isaaclab.managers.ObservationManager property)</a>
+</li>
+        <li><a href="source/api/lab_mimic/isaaclab_mimic.envs.html#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.get_IO_descriptors">(isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv property)</a>
+</li>
+      </ul></li>
       <li><a href="source/api/lab_rl/isaaclab_rl.html#isaaclab_rl.rl_games.RlGamesGpuEnv.get_number_of_agents">get_number_of_agents() (isaaclab_rl.rl_games.RlGamesGpuEnv method)</a>
 
       <ul>
@@ -3396,6 +3431,8 @@
       </ul></li>
       <li><a href="source/api/lab/isaaclab.sim.html#isaaclab.sim.SimulationContext.get_setting">get_setting() (isaaclab.sim.SimulationContext method)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab/isaaclab.scene.html#isaaclab.scene.InteractiveScene.get_state">get_state() (isaaclab.scene.InteractiveScene method)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedRLMimicEnv.get_subtask_term_signals">get_subtask_term_signals() (isaaclab.envs.ManagerBasedRLMimicEnv method)</a>
@@ -3404,8 +3441,6 @@
         <li><a href="source/api/lab_mimic/isaaclab_mimic.envs.html#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.get_subtask_term_signals">(isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv method)</a>
 </li>
       </ul></li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab/isaaclab.managers.html#isaaclab.managers.ActionManager.get_term">get_term() (isaaclab.managers.ActionManager method)</a>
 
       <ul>
@@ -3864,6 +3899,16 @@
       </ul></li>
       <li><a href="source/api/lab/isaaclab.terrains.html#isaaclab.terrains.trimesh.mesh_terrains.inverted_pyramid_stairs_terrain">inverted_pyramid_stairs_terrain() (in module isaaclab.terrains.trimesh.mesh_terrains)</a>
 </li>
+      <li><a href="source/api/lab/isaaclab.managers.html#isaaclab.managers.ActionTerm.IO_descriptor">IO_descriptor (isaaclab.managers.ActionTerm property)</a>
+</li>
+      <li><a href="source/api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedEnvCfg.io_descriptors_output_dir">io_descriptors_output_dir (isaaclab.envs.ManagerBasedEnvCfg attribute)</a>
+
+      <ul>
+        <li><a href="source/api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedRLEnvCfg.io_descriptors_output_dir">(isaaclab.envs.ManagerBasedRLEnvCfg attribute)</a>
+</li>
+        <li><a href="source/api/lab_mimic/isaaclab_mimic.envs.html#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.io_descriptors_output_dir">(isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg attribute)</a>
+</li>
+      </ul></li>
       <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.rewards.is_alive">is_alive() (in module isaaclab.envs.mdp.rewards)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.sim.html#isaaclab.sim.utils.is_current_stage_in_memory">is_current_stage_in_memory() (in module isaaclab.sim.utils)</a>
@@ -3994,6 +4039,8 @@
         <li><a href="source/api/lab/isaaclab.envs.html#module-isaaclab.envs">module</a>
 </li>
       </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li>
     isaaclab.envs.mdp
 
@@ -4001,8 +4048,6 @@
         <li><a href="source/api/lab/isaaclab.envs.mdp.html#module-isaaclab.envs.mdp">module</a>
 </li>
       </ul></li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li>
     isaaclab.envs.mdp.actions
 
@@ -8822,7 +8867,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Aug 18, 2025.
+  Last updated on Aug 19, 2025.
   <br/>
 </p>
   </div>

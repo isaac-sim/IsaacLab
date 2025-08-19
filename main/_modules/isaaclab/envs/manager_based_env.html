@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.2.0" />
-    <meta name="docbuild:last-update" content="Aug 18, 2025"/>
+    <meta name="docbuild:last-update" content="Aug 19, 2025"/>
   </head>
   
   
@@ -355,6 +355,7 @@
 <li class="toctree-l1"><a class="reference internal" href="../../../source/setup/installation/cloud_installation.html">Running Isaac Lab in the Cloud</a></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../../source/policy_deployment/index.html">Sim2Real Deployment of Policies Trained in Isaac Lab</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/policy_deployment/00_hover/hover_policy.html">Training &amp; Deploying HOVER Policy</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/policy_deployment/01_io_descriptors/io_descriptors_101.html">IO Descriptors 101</a></li>
 </ul>
 </details></li>
 </ul>
@@ -583,6 +584,7 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">.common</span><span class="w"> </span><span class="kn">import</span> <span class="n">VecEnvObs</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">.manager_based_env_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">ManagerBasedEnvCfg</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">.ui</span><span class="w"> </span><span class="kn">import</span> <span class="n">ViewportCameraController</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.utils.io_descriptors</span><span class="w"> </span><span class="kn">import</span> <span class="n">export_articulations_data</span><span class="p">,</span> <span class="n">export_scene_data</span>
 
 
 <div class="viewcode-block" id="ManagerBasedEnv"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedEnv">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">ManagerBasedEnv</span><span class="p">:</span>
@@ -742,7 +744,11 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">_window</span> <span class="o">=</span> <span class="kc">None</span>
 
         <span class="c1"># initialize observation buffers</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">obs_buf</span> <span class="o">=</span> <span class="p">{}</span></div>
+        <span class="bp">self</span><span class="o">.</span><span class="n">obs_buf</span> <span class="o">=</span> <span class="p">{}</span>
+
+        <span class="c1"># export IO descriptors if requested</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">export_io_descriptors</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">export_IO_descriptors</span><span class="p">()</span></div>
 
     <span class="k">def</span><span class="w"> </span><span class="fm">__del__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Cleanup for the environment.&quot;&quot;&quot;</span>
@@ -777,6 +783,46 @@
     <span class="k">def</span><span class="w"> </span><span class="nf">device</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;The device on which the environment is running.&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">device</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_IO_descriptors</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Get the IO descriptors for the environment.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            A dictionary with keys as the group names and values as the IO descriptors.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="s2">&quot;observations&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">observation_manager</span><span class="o">.</span><span class="n">get_IO_descriptors</span><span class="p">,</span>
+            <span class="s2">&quot;actions&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">action_manager</span><span class="o">.</span><span class="n">get_IO_descriptors</span><span class="p">,</span>
+            <span class="s2">&quot;articulations&quot;</span><span class="p">:</span> <span class="n">export_articulations_data</span><span class="p">(</span><span class="bp">self</span><span class="p">),</span>
+            <span class="s2">&quot;scene&quot;</span><span class="p">:</span> <span class="n">export_scene_data</span><span class="p">(</span><span class="bp">self</span><span class="p">),</span>
+        <span class="p">}</span>
+
+<div class="viewcode-block" id="ManagerBasedEnv.export_IO_descriptors"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedEnv.export_IO_descriptors">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">export_IO_descriptors</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">output_dir</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Export the IO descriptors for the environment.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            output_dir: The directory to export the IO descriptors to.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+        <span class="kn">import</span><span class="w"> </span><span class="nn">yaml</span>
+
+        <span class="n">IO_descriptors</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_IO_descriptors</span>
+
+        <span class="k">if</span> <span class="n">output_dir</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">output_dir</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">io_descriptors_output_dir</span>
+        <span class="k">if</span> <span class="n">output_dir</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">&quot;Output directory is not set. Please set the output directory using the `io_descriptors_output_dir`&quot;</span>
+                <span class="s2">&quot; configuration.&quot;</span>
+            <span class="p">)</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">output_dir</span><span class="p">):</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">output_dir</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">output_dir</span><span class="p">,</span> <span class="s2">&quot;IO_descriptors.yaml&quot;</span><span class="p">),</span> <span class="s2">&quot;w&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[INFO]: Exporting IO descriptors to </span><span class="si">{</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">output_dir</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;IO_descriptors.yaml&#39;</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="n">yaml</span><span class="o">.</span><span class="n">safe_dump</span><span class="p">(</span><span class="n">IO_descriptors</span><span class="p">,</span> <span class="n">f</span><span class="p">)</span></div>
 
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Operations - Setup.</span>
@@ -1119,7 +1165,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Aug 18, 2025.
+  Last updated on Aug 19, 2025.
   <br/>
 </p>
   </div>

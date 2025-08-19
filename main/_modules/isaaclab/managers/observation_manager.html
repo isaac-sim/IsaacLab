@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.2.0" />
-    <meta name="docbuild:last-update" content="Aug 18, 2025"/>
+    <meta name="docbuild:last-update" content="Aug 19, 2025"/>
   </head>
   
   
@@ -355,6 +355,7 @@
 <li class="toctree-l1"><a class="reference internal" href="../../../source/setup/installation/cloud_installation.html">Running Isaac Lab in the Cloud</a></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../../source/policy_deployment/index.html">Sim2Real Deployment of Policies Trained in Isaac Lab</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/policy_deployment/00_hover/hover_policy.html">Training &amp; Deploying HOVER Policy</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/policy_deployment/01_io_descriptors/io_descriptors_101.html">IO Descriptors 101</a></li>
 </ul>
 </details></li>
 </ul>
@@ -784,6 +785,70 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_group_obs_concatenate</span>
 
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_IO_descriptors</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">group_names_to_export</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;policy&quot;</span><span class="p">]):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Get the IO descriptors for the observation manager.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            A dictionary with keys as the group names and values as the IO descriptors.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">group_data</span> <span class="o">=</span> <span class="p">{}</span>
+
+        <span class="k">for</span> <span class="n">group_name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_group_obs_term_names</span><span class="p">:</span>
+            <span class="n">group_data</span><span class="p">[</span><span class="n">group_name</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="c1"># check if group name is valid</span>
+            <span class="k">if</span> <span class="n">group_name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_group_obs_term_names</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;Unable to find the group &#39;</span><span class="si">{</span><span class="n">group_name</span><span class="si">}</span><span class="s2">&#39; in the observation manager.&quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot; Available groups are: </span><span class="si">{</span><span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_group_obs_term_names</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span><span class="si">}</span><span class="s2">&quot;</span>
+                <span class="p">)</span>
+            <span class="c1"># iterate over all the terms in each group</span>
+            <span class="n">group_term_names</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_group_obs_term_names</span><span class="p">[</span><span class="n">group_name</span><span class="p">]</span>
+            <span class="c1"># read attributes for each term</span>
+            <span class="n">obs_terms</span> <span class="o">=</span> <span class="nb">zip</span><span class="p">(</span><span class="n">group_term_names</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_group_obs_term_cfgs</span><span class="p">[</span><span class="n">group_name</span><span class="p">])</span>
+
+            <span class="k">for</span> <span class="n">term_name</span><span class="p">,</span> <span class="n">term_cfg</span> <span class="ow">in</span> <span class="n">obs_terms</span><span class="p">:</span>
+                <span class="c1"># Call to the observation function to get the IO descriptor with the inspect flag set to True</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">term_cfg</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_env</span><span class="p">,</span> <span class="o">**</span><span class="n">term_cfg</span><span class="o">.</span><span class="n">params</span><span class="p">,</span> <span class="n">inspect</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+                    <span class="c1"># Copy the descriptor and update with the term&#39;s own extra parameters</span>
+                    <span class="n">desc</span> <span class="o">=</span> <span class="n">term_cfg</span><span class="o">.</span><span class="n">func</span><span class="o">.</span><span class="n">_descriptor</span><span class="o">.</span><span class="vm">__dict__</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+                    <span class="c1"># Create a dictionary to store the overloads</span>
+                    <span class="n">overloads</span> <span class="o">=</span> <span class="p">{}</span>
+                    <span class="c1"># Iterate over the term&#39;s own parameters and add them to the overloads dictionary</span>
+                    <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">term_cfg</span><span class="o">.</span><span class="vm">__dict__</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                        <span class="c1"># For now we do not add the noise modifier</span>
+                        <span class="k">if</span> <span class="n">k</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;modifiers&quot;</span><span class="p">,</span> <span class="s2">&quot;clip&quot;</span><span class="p">,</span> <span class="s2">&quot;scale&quot;</span><span class="p">,</span> <span class="s2">&quot;history_length&quot;</span><span class="p">,</span> <span class="s2">&quot;flatten_history_dim&quot;</span><span class="p">]:</span>
+                            <span class="n">overloads</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">v</span>
+                    <span class="n">desc</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">overloads</span><span class="p">)</span>
+                    <span class="n">group_data</span><span class="p">[</span><span class="n">group_name</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">desc</span><span class="p">)</span>
+                <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Error getting IO descriptor for term &#39;</span><span class="si">{</span><span class="n">term_name</span><span class="si">}</span><span class="s2">&#39; in group &#39;</span><span class="si">{</span><span class="n">group_name</span><span class="si">}</span><span class="s2">&#39;: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="c1"># Format the data for YAML export</span>
+        <span class="n">formatted_data</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">group_name</span><span class="p">,</span> <span class="n">data</span> <span class="ow">in</span> <span class="n">group_data</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">formatted_data</span><span class="p">[</span><span class="n">group_name</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">data</span><span class="p">:</span>
+                <span class="n">name</span> <span class="o">=</span> <span class="n">item</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">&quot;name&quot;</span><span class="p">)</span>
+                <span class="n">formatted_item</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="n">name</span><span class="p">,</span> <span class="s2">&quot;overloads&quot;</span><span class="p">:</span> <span class="p">{},</span> <span class="s2">&quot;extras&quot;</span><span class="p">:</span> <span class="n">item</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">&quot;extras&quot;</span><span class="p">)}</span>
+                <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">item</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                    <span class="c1"># Check if v is a tuple and convert to list</span>
+                    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">):</span>
+                        <span class="n">v</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+                    <span class="c1"># Check if v is a tensor and convert to list</span>
+                    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">):</span>
+                        <span class="n">v</span> <span class="o">=</span> <span class="n">v</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">()</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
+                    <span class="k">if</span> <span class="n">k</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;scale&quot;</span><span class="p">,</span> <span class="s2">&quot;clip&quot;</span><span class="p">,</span> <span class="s2">&quot;history_length&quot;</span><span class="p">,</span> <span class="s2">&quot;flatten_history_dim&quot;</span><span class="p">]:</span>
+                        <span class="n">formatted_item</span><span class="p">[</span><span class="s2">&quot;overloads&quot;</span><span class="p">][</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">v</span>
+                    <span class="k">elif</span> <span class="n">k</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;modifiers&quot;</span><span class="p">,</span> <span class="s2">&quot;description&quot;</span><span class="p">,</span> <span class="s2">&quot;units&quot;</span><span class="p">]:</span>
+                        <span class="n">formatted_item</span><span class="p">[</span><span class="s2">&quot;extras&quot;</span><span class="p">][</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">v</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">formatted_item</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">v</span>
+                <span class="n">formatted_data</span><span class="p">[</span><span class="n">group_name</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">formatted_item</span><span class="p">)</span>
+        <span class="n">formatted_data</span> <span class="o">=</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">formatted_data</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">group_names_to_export</span><span class="p">}</span>
+        <span class="k">return</span> <span class="n">formatted_data</span>
+
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Operations.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
@@ -1187,7 +1252,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Aug 18, 2025.
+  Last updated on Aug 19, 2025.
   <br/>
 </p>
   </div>

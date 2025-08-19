@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.2.0" />
-    <meta name="docbuild:last-update" content="Aug 18, 2025"/>
+    <meta name="docbuild:last-update" content="Aug 19, 2025"/>
   </head>
   
   
@@ -355,6 +355,7 @@
 <li class="toctree-l1"><a class="reference internal" href="../../../source/setup/installation/cloud_installation.html">Running Isaac Lab in the Cloud</a></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../../source/policy_deployment/index.html">Sim2Real Deployment of Policies Trained in Isaac Lab</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/policy_deployment/00_hover/hover_policy.html">Training &amp; Deploying HOVER Policy</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/policy_deployment/01_io_descriptors/io_descriptors_101.html">IO Descriptors 101</a></li>
 </ul>
 </details></li>
 </ul>
@@ -683,7 +684,13 @@
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for viewing and interacting with the environment through an XR device.&quot;&quot;&quot;</span>
 
     <span class="n">teleop_devices</span><span class="p">:</span> <span class="n">DevicesCfg</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">DevicesCfg</span><span class="p">)</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for teleoperation devices.&quot;&quot;&quot;</span></div>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for teleoperation devices.&quot;&quot;&quot;</span>
+
+    <span class="n">export_io_descriptors</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to export the IO descriptors for the environment. Defaults to False.&quot;&quot;&quot;</span>
+
+    <span class="n">io_descriptors_output_dir</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The directory to export the IO descriptors to. Defaults to None.&quot;&quot;&quot;</span></div>
 </pre></div>
 
                 </article>
@@ -731,7 +738,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Aug 18, 2025.
+  Last updated on Aug 19, 2025.
   <br/>
 </p>
   </div>
