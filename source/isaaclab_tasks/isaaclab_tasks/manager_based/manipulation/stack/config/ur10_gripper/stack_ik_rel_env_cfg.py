@@ -7,6 +7,7 @@
 from isaaclab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
 from isaaclab.devices.device_base import DevicesCfg
 from isaaclab.devices.keyboard import Se3KeyboardCfg
+from isaaclab.devices.spacemouse import Se3SpaceMouseCfg
 from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
 from isaaclab.utils import configclass
 
@@ -37,6 +38,11 @@ class UR10LongSuctionCubeStackEnvCfg(stack_joint_pos_env_cfg.UR10LongSuctionCube
                     rot_sensitivity=0.05,
                     sim_device=self.sim.device,
                 ),
+                "spacemouse": Se3SpaceMouseCfg(
+                    pos_sensitivity=0.05,
+                    rot_sensitivity=0.05,
+                    sim_device=self.sim.device,
+                ),
             }
         )
 
@@ -61,6 +67,11 @@ class UR10ShortSuctionCubeStackEnvCfg(stack_joint_pos_env_cfg.UR10ShortSuctionCu
         self.teleop_devices = DevicesCfg(
             devices={
                 "keyboard": Se3KeyboardCfg(
+                    pos_sensitivity=0.05,
+                    rot_sensitivity=0.05,
+                    sim_device=self.sim.device,
+                ),
+                "spacemouse": Se3SpaceMouseCfg(
                     pos_sensitivity=0.05,
                     rot_sensitivity=0.05,
                     sim_device=self.sim.device,

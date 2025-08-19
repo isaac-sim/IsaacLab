@@ -9,7 +9,14 @@ from isaaclab.controllers import DifferentialIKControllerCfg, OperationalSpaceCo
 from isaaclab.managers.action_manager import ActionTerm, ActionTermCfg
 from isaaclab.utils import configclass
 
-from . import binary_joint_actions, joint_actions, joint_actions_to_limits, non_holonomic_actions, task_space_actions
+from . import (
+    binary_joint_actions,
+    joint_actions,
+    joint_actions_to_limits,
+    non_holonomic_actions,
+    surface_gripper_actions,
+    task_space_actions,
+)
 
 ##
 # Joint actions.
@@ -339,7 +346,7 @@ class SurfaceGripperBinaryActionCfg(SurfaceGripperActionCfg):
     See :class:`SurfaceGripperBinaryAction` for more details.
     """
 
-    class_type: type[ActionTerm] = binary_joint_actions.SurfaceGripperBinaryAction
+    class_type: type[ActionTerm] = surface_gripper_actions.SurfaceGripperBinaryAction
 
 
 @configclass
@@ -349,4 +356,4 @@ class SurfaceGripperContinuousActionCfg(SurfaceGripperActionCfg):
     See :class:`SurfaceGripperContinuousAction` for more details.
     """
 
-    class_type: type[ActionTerm] = binary_joint_actions.SurfaceGripperContinuousAction
+    class_type: type[ActionTerm] = surface_gripper_actions.SurfaceGripperContinuousAction
