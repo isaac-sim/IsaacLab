@@ -68,18 +68,6 @@ class EventCfg:
         },
     )
 
-    randomize_galbot_joint_state = EventTerm(
-        func=franka_stack_events.randomize_galbot_joint_by_gaussian_offset,
-        mode="reset",  # for reset init_pose of robot
-        params={
-            "mean": 0.0,
-            "std": (
-                0.0
-            ),  # No error is tolerant for Rmpflow close-loop Rel IK control, otherwise even no teleop control will result in robot motion
-            "asset_cfg": SceneEntityCfg("robot"),
-        },
-    )
-
     randomize_cube_positions = EventTerm(
         func=franka_stack_events.randomize_object_pose,
         mode="reset",  # move the cubes closer to galbot, with translation of (-0.6, 0., 0.)

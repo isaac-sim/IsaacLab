@@ -58,34 +58,6 @@ def randomize_joint_by_gaussian_offset(
     asset.set_joint_velocity_target(joint_vel, env_ids=env_ids)
     asset.write_joint_state_to_sim(joint_pos, joint_vel, env_ids=env_ids)
 
-
-def randomize_galbot_joint_by_gaussian_offset(
-    env: ManagerBasedEnv,
-    env_ids: torch.Tensor,
-    mean: float,
-    std: float,
-    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
-):
-    asset: Articulation = env.scene[asset_cfg.name]
-
-    # Add gaussian noise to joint states
-    joint_pos = asset.data.default_joint_pos[env_ids].clone()
-    joint_vel = asset.data.default_joint_vel[env_ids].clone()
-    joint_pos += math_utils.sample_gaussian(mean, std, joint_pos.shape, joint_pos.device)
-
-    # Clamp joint pos to limits
-    joint_pos_limits = asset.data.soft_joint_pos_limits[env_ids]
-    joint_pos = joint_pos.clamp_(joint_pos_limits[..., 0], joint_pos_limits[..., 1])
-
-    # Don't noise the gripper poses, which has 3 gripper joints for galbot
-    joint_pos[:, -3:] = asset.data.default_joint_pos[env_ids, -3:]
-
-    # Set into the physics simulation
-    asset.set_joint_position_target(joint_pos, env_ids=env_ids)
-    asset.set_joint_velocity_target(joint_vel, env_ids=env_ids)
-    asset.write_joint_state_to_sim(joint_pos, joint_vel, env_ids=env_ids)
-
-
 def sample_random_color(base=(0.75, 0.75, 0.75), variation=0.1):
     """
     Generates a randomized color that stays close to the base color while preserving overall brightness.
