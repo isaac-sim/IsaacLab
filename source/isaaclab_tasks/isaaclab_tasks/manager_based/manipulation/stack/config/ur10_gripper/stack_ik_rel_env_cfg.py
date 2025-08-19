@@ -34,7 +34,7 @@ class UR10LongSuctionCubeStackEnvCfg(stack_joint_pos_env_cfg.UR10LongSuctionCube
         self.teleop_devices = DevicesCfg(
             devices={
                 "keyboard": Se3KeyboardCfg(
-                    pos_sensitivity=0.05,
+                    pos_sensitivity=0.02,
                     rot_sensitivity=0.05,
                     sim_device=self.sim.device,
                 ),
@@ -67,7 +67,7 @@ class UR10ShortSuctionCubeStackEnvCfg(stack_joint_pos_env_cfg.UR10ShortSuctionCu
         self.teleop_devices = DevicesCfg(
             devices={
                 "keyboard": Se3KeyboardCfg(
-                    pos_sensitivity=0.05,
+                    pos_sensitivity=0.02,
                     rot_sensitivity=0.05,
                     sim_device=self.sim.device,
                 ),
