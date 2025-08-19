@@ -3,7 +3,7 @@ import numpy as np
 import PIL.Image
 import tempfile
 import torch
-from pxr import Sdf, UsdGeom, UsdPhysics, Usd, UsdShade, Kind
+from pxr import Sdf, UsdGeom, Usd, UsdShade, Kind
 from occupancy_map import OccupancyMap
 from PIL import ImageDraw
 

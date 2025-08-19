@@ -543,7 +543,6 @@ class ObservationsCfg:
         right_eef_quat = ObsTerm(func=manip_mdp.get_right_eef_quat, params={"link_name": "right_wrist_yaw_link"})
 
         hand_joint_state = ObsTerm(func=manip_mdp.get_hand_state, params={"hand_joint_names": [".*_hand.*"]})
-        # head_joint_state = ObsTerm(func=manip_mdp.get_head_state, params={"head_joint_names": []})
 
         object = ObsTerm(
             func=manip_mdp.object_obs,
@@ -554,7 +553,6 @@ class ObservationsCfg:
             self.enable_corruption = False
             self.concatenate_terms = False
 
-    # observation groups
     policy: PolicyCfg = PolicyCfg()
 
     lower_body_policy: LowerBodyPolicyObsCfg = LowerBodyPolicyObsCfg()
@@ -590,7 +588,6 @@ class PreStepLowerBodyPolicyObservationsRecorderCfg(RecorderTermCfg):
 
 class RecorderManagerCfg(ActionStateRecorderManagerCfg):
     record_pre_step_lower_body_policy_observations = PreStepLowerBodyPolicyObservationsRecorderCfg()
-
 
 
 @configclass

@@ -16,22 +16,22 @@ from isaaclab.app import AppLauncher
 
 # Launch Isaac Lab
 parser = argparse.ArgumentParser(description="Disjoint navigation")
-parser.add_argument("--dataset", type=str)
-parser.add_argument("--output_dir", type=str)
-parser.add_argument("--output_file_name", type=str)
-parser.add_argument("--lift_step", type=int)
-parser.add_argument("--navigate_step", type=int)
-parser.add_argument("--demo", type=str, default="demo_0")
-parser.add_argument("--num_runs", type=int, default=1)
-parser.add_argument("--draw_visualization", type=bool, default=False)
-parser.add_argument("--angular_gain", type=float, default=2.0)
-parser.add_argument("--linear_gain", type=float, default=1.0)
-parser.add_argument("--linear_max", type=float, default=1.0)
-parser.add_argument("--distance_threshold", type=float, default=0.2)
-parser.add_argument("--following_offset", type=float, default=0.6)
-parser.add_argument("--angle_threshold", type=float, default=0.2)
-parser.add_argument("--approach_distance", type=float, default=0.5)
-parser.add_argument("--randomize_placement", type=bool, default=True)
+parser.add_argument("--dataset", type=str, help="The static manipulation dataset recorded via teleoperation.")
+parser.add_argument("--output_dir", type=str, help="The directory to output the generated dataset.")
+parser.add_argument("--output_file_name", type=str, help="The file name for the generated output dataset.")
+parser.add_argument("--lift_step", type=int, help="The step index in the input recording where the robot is ready to lift the object.  Aka, where the grasp is finished.")
+parser.add_argument("--navigate_step", type=int, help="The step index in the input recording where the robot is ready to navigate.  Aka, where it has finished lifting the object")
+parser.add_argument("--demo", type=str, default="demo_0", help="The demo in the input dataset to use.")
+parser.add_argument("--num_runs", type=int, default=1, help="The number of trajectories to generate.")
+parser.add_argument("--draw_visualization", type=bool, default=False, help="Draw the occupancy map and path planning visualization.")
+parser.add_argument("--angular_gain", type=float, default=2.0, help="The angular gain to use for determining an angular control velocity when driving the robot during navigation.")
+parser.add_argument("--linear_gain", type=float, default=1.0, help="The linear gain to use for determining the linear control velocity when driving the robot during navigation.")
+parser.add_argument("--linear_max", type=float, default=1.0, help="The maximum linear control velocity allowable during navigation.")
+parser.add_argument("--distance_threshold", type=float, default=0.2, help="The distance threshold in meters to perform state transitions between navigation and manipulation tasks.")
+parser.add_argument("--following_offset", type=float, default=0.6, help="The target point offset distance used for local path following during navigation.  A larger value will result in smoother trajectories, but may cut path corners.")
+parser.add_argument("--angle_threshold", type=float, default=0.2, help="The angle threshold in radians to determine when the robot can move forward or transition between navigation and manipulation tasks.")
+parser.add_argument("--approach_distance", type=float, default=0.5, help="An offset distance added to the destination to allow a buffer zone for reliably approaching the goal.")
+parser.add_argument("--randomize_placement", type=bool, default=True, help="Whether or not to randomize the placement of fixtures in the scene upon scenario initialization.")
 AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
 
@@ -57,8 +57,6 @@ from common import (
     transform_mul, 
     transform_relative_pose,
     plan_path,
-    SceneFixture,
-    HasOccupancyMap,
     place_randomly
 )
 from g1_29dof import (
