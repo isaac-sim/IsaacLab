@@ -97,6 +97,7 @@ class PinkIKController:
         # Map joint names from Isaac Lab to Pink's joint conventions
         self.pink_joint_names = self.robot_wrapper.model.names.tolist()[1:]  # Skip the root and universal joints
         self.isaac_lab_joint_names = cfg.joint_names
+        assert cfg.joint_names is not None, "cfg.joint_names cannot be None"
 
         # Frame task link names
         self.frame_task_link_names = []
@@ -105,29 +106,15 @@ class PinkIKController:
                 self.frame_task_link_names.append(task.frame)
 
         # Create reordering arrays for joint indices
-        self.isaac_lab_to_pink_ordering = [
-            self.isaac_lab_joint_names.index(pink_joint) for pink_joint in self.pink_joint_names
-        ]
-        self.pink_to_isaac_lab_ordering = [
-            self.pink_joint_names.index(isaac_lab_joint) for isaac_lab_joint in self.isaac_lab_joint_names
-        ]
+        self.isaac_lab_to_pink_ordering = np.array(
+            [self.isaac_lab_joint_names.index(pink_joint) for pink_joint in self.pink_joint_names]
+        )
+        self.pink_to_isaac_lab_ordering = np.array(
+            [self.pink_joint_names.index(isaac_lab_joint) for isaac_lab_joint in self.isaac_lab_joint_names]
+        )
 
         self.cfg = cfg
         self.device = device
-
-    def _reorder_array(self, input_array: list[float], reordering_array: list[int]) -> list[float]:
-        """Reorder the input array based on the provided ordering.
-
-        This utility method is used to convert between Isaac Lab and Pink joint ordering conventions.
-
-        Args:
-            input_array: The array to reorder, typically joint positions or velocities.
-            reordering_array: The indices to use for reordering, mapping from source to target ordering.
-
-        Returns:
-            Reordered array following the target joint ordering convention.
-        """
-        return [input_array[i] for i in reordering_array]
 
     def update_null_space_joint_targets(self, curr_joint_pos: np.ndarray):
         """Update the null space joint targets.
@@ -162,8 +149,8 @@ class PinkIKController:
             The target joint positions as a tensor of shape (num_joints,) on the specified device.
             If the IK solver fails, returns the current joint positions unchanged to maintain stability.
         """
-        # Initialize joint positions for Pink, including the root and universal joints
-        joint_positions_pink = np.array(self._reorder_array(curr_joint_pos, self.isaac_lab_to_pink_ordering))
+        # Initialize joint positions for Pink, change from isaac_lab to pink/pinocchio joint ordering.
+        joint_positions_pink = curr_joint_pos[self.isaac_lab_to_pink_ordering]
 
         # Update Pink's robot configuration with the current joint positions
         self.pink_configuration.update(joint_positions_pink)
@@ -193,7 +180,7 @@ class PinkIKController:
 
         # Reorder the joint angle changes back to Isaac Lab conventions
         joint_vel_isaac_lab = torch.tensor(
-            self._reorder_array(pink_joint_angle_changes, self.pink_to_isaac_lab_ordering),
+            pink_joint_angle_changes[self.pink_to_isaac_lab_ordering],
             device=self.device,
             dtype=torch.float,
         )
