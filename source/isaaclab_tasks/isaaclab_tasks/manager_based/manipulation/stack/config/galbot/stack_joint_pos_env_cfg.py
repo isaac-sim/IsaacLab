@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -17,7 +17,6 @@ from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
-
 from isaaclab_tasks.manager_based.manipulation.stack import mdp
 from isaaclab_tasks.manager_based.manipulation.stack.mdp import franka_stack_events
 from isaaclab_tasks.manager_based.manipulation.stack.stack_env_cfg import ObservationsCfg, StackEnvCfg
@@ -35,7 +34,7 @@ class EventCfg:
 
     init_galbot_pose = EventTerm(
         func=franka_stack_events.set_default_joint_pose,
-        mode="startup",  # for input default config
+        mode="reset",  # for input default config
         params={
             # 0-6 ['leg_joint1', 'leg_joint2', 'leg_joint3', 'leg_joint4', 'head_joint1', 'left_arm_joint1', 'right_arm_joint1',
             # 7-12 'head_joint2', 'left_arm_joint2', 'right_arm_joint2', 'left_arm_joint3', 'right_arm_joint3', 'left_arm_joint4',
@@ -85,7 +84,12 @@ class EventCfg:
         func=franka_stack_events.randomize_object_pose,
         mode="reset",  # move the cubes closer to galbot, with translation of (-0.6, 0., 0.)
         params={
-            "pose_range": {"x": (0.4 - 0.6, 0.6 - 0.6), "y": (-0.10, 0.10), "z": (0.0203, 0.0203), "yaw": (-1.0, 1.0, 0.0)},
+            "pose_range": {
+                "x": (0.4 - 0.6, 0.6 - 0.6),
+                "y": (-0.10, 0.10),
+                "z": (0.0203, 0.0203),
+                "yaw": (-1.0, 1.0, 0.0),
+            },
             "min_separation": 0.1,
             "asset_cfgs": [SceneEntityCfg("cube_1"), SceneEntityCfg("cube_2"), SceneEntityCfg("cube_3")],
         },

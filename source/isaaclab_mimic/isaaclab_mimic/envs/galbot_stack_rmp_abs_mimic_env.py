@@ -1,12 +1,12 @@
-# Copyright (c) 2024-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2024-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import torch
 from collections.abc import Sequence
 
 import isaaclab.utils.math as PoseUtils
+
 from .franka_stack_ik_abs_mimic_env import FrankaCubeStackIKAbsMimicEnv
 
 
@@ -15,10 +15,9 @@ class RmpFlowGalbotCubeStackAbsMimicEnv(FrankaCubeStackIKAbsMimicEnv):
     Isaac Lab Mimic environment wrapper class for Galbot Cube Stack RmpFlow Absolute env.
     """
 
-
     def get_object_poses(self, env_ids: Sequence[int] | None = None):
         """
-        Rewrite this function to get the pose of each object in robot base frame, 
+        Rewrite this function to get the pose of each object in robot base frame,
         relevant to Isaac Lab Mimic data generation in the current scene.
 
         Args:

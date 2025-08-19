@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -19,6 +19,7 @@ from isaaclab.managers.action_manager import ActionTerm
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
+
     from . import rmpflow_actions_cfg
 
 
@@ -137,6 +138,7 @@ class RMPFlowAction(ActionTerm):
     """
     Operations.
     """
+
     # This is called each env.step()
     def process_actions(self, actions: torch.Tensor):
         # store the raw actions
@@ -159,7 +161,7 @@ class RMPFlowAction(ActionTerm):
             self.ee_pos_des, self.ee_quat_des = math_utils.apply_delta_pose(
                 ee_pos_curr, ee_quat_curr, self._processed_actions
             )
-        else:  ## If use_relative_mode is False, then the controller will apply absolute ee_pose.
+        else:  # If use_relative_mode is False, then the controller will apply absolute ee_pose.
             self.ee_pos_des = self._processed_actions[:, 0:3]
             self.ee_quat_des = self._processed_actions[:, 3:7]
 
@@ -181,7 +183,6 @@ class RMPFlowAction(ActionTerm):
         # set the joint position command
         self._asset.set_joint_position_target(joint_pos_des, self._joint_ids)
         self._asset.set_joint_velocity_target(joint_vel_des, self._joint_ids)
-
 
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
         self._raw_actions[env_ids] = 0.0

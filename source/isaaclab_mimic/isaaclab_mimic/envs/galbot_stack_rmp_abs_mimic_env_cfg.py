@@ -1,7 +1,8 @@
-# Copyright (c) 2024-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2024-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: Apache-2.0
+
 
 from isaaclab.envs.mimic_env_cfg import MimicEnvCfg, SubTaskConfig
 from isaaclab.utils import configclass
@@ -47,7 +48,7 @@ class RmpFlowGalbotLeftArmGripperCubeStackAbsMimicEnvCfg(RmpFlowGalbotLeftArmCub
                 subtask_term_offset_range=(
                     18,
                     25,
-                ), 
+                ),
                 # Selection strategy for the source subtask segment during data generation
                 selection_strategy="nearest_neighbor_object",
                 # Optional parameters for the selection strategy function

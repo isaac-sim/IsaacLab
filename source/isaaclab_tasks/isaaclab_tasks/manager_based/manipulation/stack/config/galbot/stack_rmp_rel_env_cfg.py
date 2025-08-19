@@ -1,26 +1,33 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+
 import os
 
 import isaaclab.sim as sim_utils
+from isaaclab.devices.device_base import DevicesCfg
+from isaaclab.devices.keyboard import Se3KeyboardCfg
+from isaaclab.devices.spacemouse import Se3SpaceMouseCfg
 from isaaclab.envs.mdp.actions.rmpflow_actions_cfg import RMPFlowActionCfg
 from isaaclab.sensors import CameraCfg, FrameTransformerCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
 from isaaclab.utils import configclass
+
 from isaaclab_tasks.manager_based.manipulation.stack import mdp
+
 from . import stack_joint_pos_env_cfg
-from isaaclab.devices.device_base import DevicesCfg
-from isaaclab.devices.keyboard import Se3KeyboardCfg
-from isaaclab.devices.spacemouse import Se3SpaceMouseCfg
 
 ##
 # Pre-defined configs
 ##
+from isaaclab.controllers.config.rmp_flow import (  # isort: skip
+    GALBOT_LEFT_ARM_RMPFLOW_CFG,
+    GALBOT_RIGHT_ARM_RMPFLOW_CFG,
+)
 from isaaclab.markers.config import FRAME_MARKER_CFG  # isort: skip
-from isaaclab.controllers.config.rmp_flow import GALBOT_LEFT_ARM_RMPFLOW_CFG, GALBOT_RIGHT_ARM_RMPFLOW_CFG  # isort: skip
+
 
 ##
 # RmpFlow Controller for Galbot Left Arm Cube Stack Task (with Parallel Gripper)
@@ -71,6 +78,7 @@ class RmpFlowGalbotLeftArmCubeStackEnvCfg(stack_joint_pos_env_cfg.GalbotLeftArmC
             }
         )
 
+
 ##
 # RmpFlow Controller for Galbot Right Arm Cube Stack Task (with Surface Gripper)
 ##
@@ -118,6 +126,7 @@ class RmpFlowGalbotRightArmCubeStackEnvCfg(stack_joint_pos_env_cfg.GalbotRightAr
                 ),
             }
         )
+
 
 ##
 # Visuomotor Env for Record, Generate and Replay (in Task Space)
@@ -220,16 +229,18 @@ class RmpFlowGalbotLeftArmCubeStackVisuomotorEnvCfg(RmpFlowGalbotLeftArmCubeStac
             ],
         )
 
-         # Set settings for camera rendering
+        # Set settings for camera rendering
         self.rerender_on_reset = True
         self.sim.render.antialiasing_mode = "OFF"  # disable dlss
 
         # List of image observations in policy observations
         self.image_obs_list = ["ego_cam", "left_wrist_cam", "right_wrist_cam"]
 
+
 ##
 # Task Env for VLA Policy Close-loop Evaluation (in Joint Space)
 ##
+
 
 @configclass
 class GalbotLeftArmJointPositionCubeStackVisuomotorEnvCfg_PLAY(RmpFlowGalbotLeftArmCubeStackVisuomotorEnvCfg):
@@ -250,6 +261,7 @@ class GalbotLeftArmJointPositionCubeStackVisuomotorEnvCfg_PLAY(RmpFlowGalbotLeft
             # real gripper close data is 0.0235, close to it to meet data distribution, but smaller to ensure robust grasping.
             # during VLA inference, we set the close command to '0.023' since the VLA has never seen the gripper fully closed.
         )
+
 
 ##
 # Task Envs for VLA Policy Close-loop Evaluation (in Task Space)

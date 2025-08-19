@@ -10,6 +10,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import omni.log
+
 from isaaclab.assets.surface_gripper import SurfaceGripper
 from isaaclab.managers.action_manager import ActionTerm
 
@@ -17,6 +18,7 @@ if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
 
     from . import actions_cfg
+
 
 class SurfaceGripperAction(ActionTerm):
     """Base class for surface gripper actions.

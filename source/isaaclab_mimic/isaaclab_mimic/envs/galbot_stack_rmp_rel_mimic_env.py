@@ -1,11 +1,13 @@
-# Copyright (c) 2024-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2024-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: Apache-2.0
 
+
 from collections.abc import Sequence
 
 import isaaclab.utils.math as PoseUtils
+
 from .franka_stack_ik_rel_mimic_env import FrankaCubeStackIKRelMimicEnv
 
 
@@ -14,10 +16,9 @@ class RmpFlowGalbotCubeStackRelMimicEnv(FrankaCubeStackIKRelMimicEnv):
     Isaac Lab Mimic environment wrapper class for Galbot Cube Stack RmpFlow Rel env.
     """
 
-
     def get_object_poses(self, env_ids: Sequence[int] | None = None):
         """
-        Rewrite this function to get the pose of each object in robot base frame, 
+        Rewrite this function to get the pose of each object in robot base frame,
         relevant to Isaac Lab Mimic data generation in the current scene.
 
         Args:
