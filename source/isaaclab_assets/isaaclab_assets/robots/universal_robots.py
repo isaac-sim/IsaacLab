@@ -68,10 +68,10 @@ UR10_LONG_SUCTION_CFG = ArticulationCfg(
     init_state=ArticulationCfg.InitialStateCfg(
         joint_pos={
             "shoulder_pan_joint": 0.0,
-            "shoulder_lift_joint": -1.712,
-            "elbow_joint": 1.712,
-            "wrist_1_joint": 0.0,
-            "wrist_2_joint": 0.0,
+            "shoulder_lift_joint": -1.5707,
+            "elbow_joint": 1.5707,
+            "wrist_1_joint": -1.5707,
+            "wrist_2_joint": 1.5707,
             "wrist_3_joint": 0.0,
         },
     ),
@@ -100,10 +100,10 @@ UR10_SHORT_SUCTION_CFG = ArticulationCfg(
     init_state=ArticulationCfg.InitialStateCfg(
         joint_pos={
             "shoulder_pan_joint": 0.0,
-            "shoulder_lift_joint": -1.712,
-            "elbow_joint": 1.712,
-            "wrist_1_joint": 0.0,
-            "wrist_2_joint": 0.0,
+            "shoulder_lift_joint": -1.5707,
+            "elbow_joint": 1.5707,
+            "wrist_1_joint": -1.5707,
+            "wrist_2_joint": 1.5707,
             "wrist_3_joint": 0.0,
         },
     ),

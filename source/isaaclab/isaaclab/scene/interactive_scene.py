@@ -552,6 +552,10 @@ class InteractiveScene:
             root_velocity = asset_state["root_velocity"].clone()
             rigid_object.write_root_pose_to_sim(root_pose, env_ids=env_ids)
             rigid_object.write_root_velocity_to_sim(root_velocity, env_ids=env_ids)
+        # surface grippers
+        for asset_name, surface_gripper in self._surface_grippers.items():
+            asset_state = state["gripper"][asset_name]
+            surface_gripper.set_grippers_command(asset_state)
 
         # write data to simulation to make sure initial state is set
         # this propagates the joint targets to the simulation
@@ -638,10 +642,10 @@ class InteractiveScene:
                 asset_state["root_pose"][:, :3] -= self.env_origins
             asset_state["root_velocity"] = rigid_object.data.root_vel_w.clone()
             state["rigid_object"][asset_name] = asset_state
-        # # surface grippers
-        # state["gripper"] = dict()
-        # for asset_name, gripper in self._surface_grippers.items():
-        #     state["gripper"][asset_name] = gripper.state.clone()
+        # surface grippers
+        state["gripper"] = dict()
+        for asset_name, gripper in self._surface_grippers.items():
+            state["gripper"][asset_name] = gripper.state.clone()
         return state
 
     """
