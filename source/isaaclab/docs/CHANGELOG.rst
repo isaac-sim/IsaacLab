@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.44.10 (2025-08-19)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added periodic logging when checking if a USD path exists on a Nucleus Server to improve
+  user experience when the check takes a while.
+
+
 0.44.9 (2025-07-30)
 ~~~~~~~~~~~~~~~~~~~
 
