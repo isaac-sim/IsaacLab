@@ -98,22 +98,6 @@ class NewtonManager:
         NewtonManager._cfg = NewtonCfg()
         NewtonManager._up_axis = "Z"
 
-    @property
-    def model(cls) -> Model:
-        return NewtonManager._model
-
-    @property
-    def state_0(cls) -> State:
-        return NewtonManager._state_0
-
-    @property
-    def state_1(cls) -> State:
-        return NewtonManager._state_1
-
-    @property
-    def control(cls) -> Control:
-        return NewtonManager._control
-
     @classmethod
     def set_builder(cls, builder):
         NewtonManager._builder = builder
@@ -281,16 +265,21 @@ class NewtonManager:
             NewtonManager.simulate()
 
         if NewtonManager._cfg.debug_mode:
-            niter = NewtonManager._solver.mjw_data.solver_niter.numpy()
-            max_niter = np.max(niter)
-            mean_niter = np.mean(niter)
-            min_niter = np.min(niter)
-            std_niter = np.std(niter)
-            print(f"solver niter: max={max_niter}, mean={mean_niter}, min={min_niter}, std={std_niter}")
-            if max_niter == NewtonManager._solver.mjw_model.opt.iterations:
-                print("solver didn't converge!", max_niter)
+            convergence_data = NewtonManager.get_solver_convergence_steps()
+            print(f"solver niter: {convergence_data}")
+            if convergence_data["max"] == NewtonManager._solver.mjw_model.opt.iterations:
+                print("solver didn't converge!", convergence_data["max"])
 
         NewtonManager._sim_time += NewtonManager._solver_dt * NewtonManager._num_substeps
+
+    @classmethod
+    def get_solver_convergence_steps(cls) -> dict[str, float | int]:
+        niter = NewtonManager._solver.mjw_data.solver_niter.numpy()
+        max_niter = np.max(niter)
+        mean_niter = np.mean(niter)
+        min_niter = np.min(niter)
+        std_niter = np.std(niter)
+        return {"max": max_niter, "mean": mean_niter, "min": min_niter, "std": std_niter}
 
     @classmethod
     def set_simulation_dt(cls, dt: float) -> None:
