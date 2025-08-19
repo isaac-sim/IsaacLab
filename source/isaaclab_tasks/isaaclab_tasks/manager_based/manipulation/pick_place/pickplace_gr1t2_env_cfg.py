@@ -11,7 +11,6 @@ from pink.tasks import DampingTask, FrameTask
 import isaaclab.controllers.utils as ControllerUtils
 import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
-from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.controllers.pink_ik import NullSpacePostureTask, PinkIKControllerCfg
 from isaaclab.devices.device_base import DevicesCfg
@@ -31,7 +30,7 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 
 from . import mdp
 
-from isaaclab_assets.robots.fourier import GR1T2_CFG  # isort: skip
+from isaaclab_assets.robots.fourier import GR1T2_PICK_PLACE_CFG  # isort: skip
 
 
 ##
@@ -60,8 +59,8 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
         ),
     )
 
-    # Humanoid robot w/ arms higher
-    robot: ArticulationCfg = GR1T2_CFG.replace(
+    # Humanoid robot configured for pick-place manipulation tasks
+    robot: ArticulationCfg = GR1T2_PICK_PLACE_CFG.replace(
         prim_path="/World/envs/env_.*/Robot",
         init_state=ArticulationCfg.InitialStateCfg(
             pos=(0, 0, 0.93),
@@ -94,52 +93,6 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
             },
             joint_vel={".*": 0.0},
         ),
-        actuators={
-            "trunk": ImplicitActuatorCfg(
-                joint_names_expr=[
-                    "waist_.*",
-                ],
-                effort_limit=None,
-                velocity_limit=None,
-                stiffness=4400,
-                damping=40.0,
-                armature=0.01,
-            ),
-            "right-arm": ImplicitActuatorCfg(
-                joint_names_expr=[
-                    "right_shoulder_.*",
-                    "right_elbow_.*",
-                    "right_wrist_.*",
-                ],
-                stiffness=4400.0,
-                damping=40.0,
-                armature=0.01,
-            ),
-            "left-arm": ImplicitActuatorCfg(
-                joint_names_expr=[
-                    "left_shoulder_.*",
-                    "left_elbow_.*",
-                    "left_wrist_.*",
-                ],
-                stiffness=4400.0,
-                damping=40.0,
-                armature=0.01,
-            ),
-            "right-hand": ImplicitActuatorCfg(
-                joint_names_expr=[
-                    "R_.*",
-                ],
-                stiffness=None,
-                damping=None,
-            ),
-            "left-hand": ImplicitActuatorCfg(
-                joint_names_expr=[
-                    "L_.*",
-                ],
-                stiffness=None,
-                damping=None,
-            ),
-        },
     )
 
     # Ground plane
@@ -280,16 +233,13 @@ class ActionsCfg:
                     cost=0.5,  # [cost] * [s] / [rad]
                 ),
                 NullSpacePostureTask(
-                    cost=0.1,
+                    cost=0.2,
                     lm_damping=1,
                     frame_task_controlled_joints={
                         "GR1T2_fourier_hand_6dof_left_hand_pitch_link": [
                             "left_shoulder_pitch_joint",
                             "left_shoulder_roll_joint",
                             "left_shoulder_yaw_joint",
-                            "left_wrist_yaw_joint",
-                            "left_wrist_roll_joint",
-                            "left_wrist_pitch_joint",
                             "waist_yaw_joint",
                             "waist_pitch_joint",
                             "waist_roll_joint",
@@ -298,9 +248,6 @@ class ActionsCfg:
                             "right_shoulder_pitch_joint",
                             "right_shoulder_roll_joint",
                             "right_shoulder_yaw_joint",
-                            "right_wrist_yaw_joint",
-                            "right_wrist_roll_joint",
-                            "right_wrist_pitch_joint",
                             "waist_yaw_joint",
                             "waist_pitch_joint",
                             "waist_roll_joint",
@@ -308,14 +255,7 @@ class ActionsCfg:
                     },
                 ),
             ],
-            fixed_input_tasks=[
-                # COMMENT OUT IF LOCKING WAIST/HEAD
-                # FrameTask(
-                #     "GR1T2_fourier_hand_6dof_head_yaw_link",
-                #     position_cost=1.0,  # [cost] / [m]
-                #     orientation_cost=0.05,  # [cost] / [rad]
-                # ),
-            ],
+            fixed_input_tasks=[],
         ),
     )
 
@@ -414,6 +354,9 @@ class PickPlaceGR1T2EnvCfg(ManagerBasedRLEnvCfg):
         anchor_rot=(1.0, 0.0, 0.0, 0.0),
     )
 
+    # OpenXR hand tracking has 26 joints per hand
+    NUM_OPENXR_HAND_JOINTS = 26
+
     # Temporary directory for URDF files
     temp_urdf_dir = tempfile.gettempdir()
 
@@ -486,8 +429,8 @@ class PickPlaceGR1T2EnvCfg(ManagerBasedRLEnvCfg):
                     retargeters=[
                         GR1T2RetargeterCfg(
                             enable_visualization=True,
-                            # OpenXR hand tracking has 26 joints per hand
-                            num_open_xr_hand_joints=2 * 26,
+                            # number of joints in both hands
+                            num_open_xr_hand_joints=2 * self.NUM_OPENXR_HAND_JOINTS,
                             sim_device=self.sim.device,
                             hand_joint_names=self.actions.pink_ik_cfg.hand_joint_names,
                         ),

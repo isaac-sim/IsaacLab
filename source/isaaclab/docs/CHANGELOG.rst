@@ -19,8 +19,8 @@ Changed
   improvements, our unit tests pass position and orientation accuracy test within **(1 mm, 1 degree)**. Previously, the position accuracy tolerances
   were set to **(30 mm, 10 degrees)**.
 * Including a new config parameter :attr:`fail_on_ik_error` to :class:`~isaaclab.controllers.pink_ik.PinkIKControllerCfg`
-  to control whether the IK controller should fail if robot joint limits are exceeded. This adds to stability of the controller and avoids
-  operator experiencing sudden large delays in control.
+  to control whether the IK controller raise an exception if robot joint limits are exceeded. In the case of an exception, the controller will hold the
+  last joint position. This adds to stability of the controller and avoids operator experiencing what is perceived as sudden large delays in robot control.
 
 
 0.45.7 (2025-08-21)

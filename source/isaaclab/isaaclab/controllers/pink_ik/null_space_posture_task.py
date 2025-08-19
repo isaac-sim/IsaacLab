@@ -151,31 +151,29 @@ class NullSpacePostureTask(Task):
         _, root_nv = get_root_joint_dim(configuration.model)
 
         # Compute configuration difference
-        diff = pin.difference(
+        return pin.difference(
             configuration.model,
             self.target_q,
             configuration.q,
         )[root_nv:]
 
-        return diff
-
     def compute_jacobian(self, configuration: Configuration) -> np.ndarray:
-        r"""Compute the posture task Jacobian (null space projector).
+        r"""Computes the product of left and right null space projectors
+        :math:`N(q) = I - J^+J`, where :math:`J^+` is the pseudoinverse of the
+        corresponding end-effector Jacobian. The null space projector ensures
+        joint velocities in the null space produce zero end-effector velocity
+        (:math:`J \cdot \dot{q}_{\text{null}} = 0`), allowing posture control
+        without affecting end-effector motion.
 
-        This method computes the sum of the left and right null space projectors,
-        each defined as :math:`N(q) = I - J^+J`, where :math:`J^+` is the pseudoinverse
-        of the corresponding end-effector Jacobian. The null space projectors are
-        masked to only affect the selected controlled joints for each side.
+            The final Jacobian returned is:
+                :math:`J(q) = N_{\text{task_1}}(q) * N_{\text{task_2}}(q)`
 
-        The final Jacobian returned is:
-            :math:`J(q) = N_{\text{left}}(q) + N_{\text{right}}(q)`
+            Args:
+                configuration: Robot configuration :math:`q`.
 
-        Args:
-            configuration: Robot configuration :math:`q`.
-
-        Returns:
-            Posture task Jacobian :math:`J(q)`, which is the sum of the left and right
-            null space projectors, each masked to their respective controlled joints.
+            Returns:
+                Posture task Jacobian :math:`J(q)`, which is the sum of the left and right
+                null space projectors, each masked to their respective controlled joints.
         """
         # Initialize joint mapping if needed
         if self._joint_name_to_index is None:
@@ -199,19 +197,23 @@ class NullSpacePostureTask(Task):
             self._jacobian_dim = J_frame_tasks[0].shape[1]
 
         # Initialize null space task matrix
-        null_space_task = np.zeros((self._jacobian_dim, self._jacobian_dim))
+        null_space_task = np.eye(self._jacobian_dim)
 
-        # Compute null space projectors efficiently
-        for i, (J_frame_task, selected_indices) in enumerate(zip(J_frame_tasks, self._selected_joint_indices or [])):
-            # Create mask for selected joints
-            mask = np.zeros(J_frame_task.shape[1], dtype=bool)
+        # Create mask for all controlled joints
+        mask = np.zeros(self._jacobian_dim, dtype=bool)
+        for selected_indices in self._selected_joint_indices or []:
             mask[selected_indices] = True
 
+        # Compute null space projectors efficiently
+        for J_frame_task, selected_indices in zip(J_frame_tasks, self._selected_joint_indices or []):
             # Compute pseudoinverse and null space projector
             J_pinv = np.linalg.pinv(J_frame_task)
             null_space_full = np.eye(J_frame_task.shape[1]) - J_pinv @ J_frame_task
 
             # Only update rows corresponding to selected joints
-            null_space_task[mask, :] += null_space_full[mask, :]
+            null_space_task @= null_space_full
+
+        # Apply mask to the final result
+        null_space_task = null_space_task * mask[:, np.newaxis]
 
         return null_space_task

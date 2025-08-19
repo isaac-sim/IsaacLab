@@ -9,7 +9,6 @@ from dataclasses import MISSING
 
 import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
-from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.devices.openxr import XrCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
@@ -29,7 +28,7 @@ from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 from . import mdp
 
-from isaaclab_assets.robots.fourier import GR1T2_CFG  # isort: skip
+from isaaclab_assets.robots.fourier import GR1T2_PICK_PLACE_CFG  # isort: skip
 
 
 ##
@@ -101,7 +100,7 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
         ),
     )
 
-    robot: ArticulationCfg = GR1T2_CFG.replace(
+    robot: ArticulationCfg = GR1T2_PICK_PLACE_CFG.replace(
         prim_path="/World/envs/env_.*/Robot",
         init_state=ArticulationCfg.InitialStateCfg(
             pos=(0, 0, 0.93),
@@ -156,52 +155,6 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
             },
             joint_vel={".*": 0.0},
         ),
-        actuators={
-            "trunk": ImplicitActuatorCfg(
-                joint_names_expr=[
-                    "waist_.*",
-                ],
-                effort_limit=None,
-                velocity_limit=None,
-                stiffness=9000,
-                damping=160.0,
-                armature=0.01,
-            ),
-            "right-arm": ImplicitActuatorCfg(
-                joint_names_expr=[
-                    "right_shoulder_.*",
-                    "right_elbow_.*",
-                    "right_wrist_.*",
-                ],
-                stiffness=9000.0,
-                damping=160.0,
-                armature=0.01,
-            ),
-            "left-arm": ImplicitActuatorCfg(
-                joint_names_expr=[
-                    "left_shoulder_.*",
-                    "left_elbow_.*",
-                    "left_wrist_.*",
-                ],
-                stiffness=9000.0,
-                damping=160.0,
-                armature=0.01,
-            ),
-            "right-hand": ImplicitActuatorCfg(
-                joint_names_expr=[
-                    "R_.*",
-                ],
-                stiffness=400,
-                damping=8,
-            ),
-            "left-hand": ImplicitActuatorCfg(
-                joint_names_expr=[
-                    "L_.*",
-                ],
-                stiffness=400,
-                damping=8,
-            ),
-        },
     )
 
     # Set table view camera
@@ -344,6 +297,9 @@ class NutPourGR1T2BaseEnvCfg(ManagerBasedRLEnvCfg):
         anchor_pos=(0.0, 0.0, 0.0),
         anchor_rot=(1.0, 0.0, 0.0, 0.0),
     )
+
+    # OpenXR hand tracking has 26 joints per hand
+    NUM_OPENXR_HAND_JOINTS = 26
 
     # Temporary directory for URDF files
     temp_urdf_dir = tempfile.gettempdir()

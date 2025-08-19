@@ -360,3 +360,4 @@ def print_debug_info(errors, test_counter):
     for hand in ["left", "right"]:
         print(f"Measured {hand} hand position error:", errors[f"{hand}_pos_error"])
         print(f"Measured {hand} hand rotation error:", errors[f"{hand}_rot_error"])
+        print(f"Measured {hand} hand PD error:", errors[f"{hand}_pd_error"])
