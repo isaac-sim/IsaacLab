@@ -173,6 +173,7 @@ G1_CFG = ArticulationCfg(
                 ".*_knee_joint": 0.1,
                 "torso_joint": 0.1,
             },
+            friction=0.00001,
         ),
         "feet": ImplicitActuatorCfg(
             control_mode="position",
@@ -181,6 +182,7 @@ G1_CFG = ArticulationCfg(
             stiffness=20.0,
             damping=2.0,
             armature=0.1,
+            friction=0.00001,
         ),
         "arms": ImplicitActuatorCfg(
             joint_names_expr=[
@@ -213,6 +215,7 @@ G1_CFG = ArticulationCfg(
                 ".*_one_joint": 0.1,
                 ".*_two_joint": 0.1,
             },
+            friction=0.00001,
         ),
     },
 )
@@ -225,24 +228,13 @@ G1_MINIMAL_CFG.spawn.usd_path = f"{ISAACLAB_NUCLEUS_DIR}/Robots/Unitree/G1/g1_mi
 
 """Configuration for the Unitree G1 Humanoid robot with all 29 degrees of freedom + 7 DOF per hand."""
 
-G129_CFG = ArticulationCfg(
+G1_29_DOF_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/Unitree/G1/g1.usd",
         activate_contact_sensors=True,
-        # rigid_props=sim_utils.RigidBodyPropertiesCfg(
-        #     disable_gravity=False,
-        #     retain_accelerations=False,
-        #     linear_damping=0.0,
-        #     angular_damping=0.0,
-        #     max_linear_velocity=1000.0,
-        #     max_angular_velocity=1000.0,
-        #     max_depenetration_velocity=1.0,
-        # ),
-        # articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-        #     enabled_self_collisions=False,
-        #     solver_position_iteration_count=8,
-        #     solver_velocity_iteration_count=4,
-        # ),
+        articulation_props=sim_utils.ArticulationRootPropertiesCfg(
+            enabled_self_collisions=False,
+        ),
     ),
     soft_joint_pos_limit_factor=0.9,
     init_state=ArticulationCfg.InitialStateCfg(
@@ -291,6 +283,7 @@ G129_CFG = ArticulationCfg(
                 ".*_hip_.*": 0.01,
                 ".*_knee_joint": 0.01,
             },
+            friction=0.00001,
         ),
         "feet": ImplicitActuatorCfg(
             effort_limit=50,
@@ -298,6 +291,7 @@ G129_CFG = ArticulationCfg(
             stiffness=20.0,
             damping=1.5,
             armature=0.01,
+            friction=0.00001,
         ),
         "waist": ImplicitActuatorCfg(
             joint_names_expr=[
@@ -308,6 +302,7 @@ G129_CFG = ArticulationCfg(
             stiffness=300.0,
             damping=6.0,
             armature=0.01,
+            friction=0.00001,
         ),
         "arms": ImplicitActuatorCfg(
             joint_names_expr=[
@@ -342,6 +337,7 @@ G129_CFG = ArticulationCfg(
                 ".*_wrist_.*_joint": 0.03,
                 ".*_hand_.*": 0.03,
             },
+            friction=0.00001,
         ),
     },
 )

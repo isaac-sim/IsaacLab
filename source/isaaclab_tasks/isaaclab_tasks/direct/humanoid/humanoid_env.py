@@ -40,7 +40,7 @@ class HumanoidEnvCfg(DirectRLEnvCfg):
     newton_cfg = NewtonCfg(
         solver_cfg=solver_cfg,
         num_substeps=2,
-        debug_mode=True,
+        debug_mode=False,
     )
 
     # simulation

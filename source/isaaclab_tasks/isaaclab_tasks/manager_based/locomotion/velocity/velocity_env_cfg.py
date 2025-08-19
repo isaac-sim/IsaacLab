@@ -124,12 +124,6 @@ class PolicyCfg(ObsGroup):
     joint_pos = ObsTerm(func=mdp.joint_pos_rel, noise=Unoise(n_min=-0.01, n_max=0.01))
     joint_vel = ObsTerm(func=mdp.joint_vel_rel, noise=Unoise(n_min=-1.5, n_max=1.5))
     actions = ObsTerm(func=mdp.last_action)
-    # height_scan = ObsTerm(
-    #     func=mdp.height_scan,
-    #     params={"sensor_cfg": SceneEntityCfg("height_scanner")},
-    #     noise=Unoise(n_min=-0.1, n_max=0.1),
-    #     clip=(-1.0, 1.0),
-    # )
 
     def __post_init__(self):
         self.enable_corruption = True
@@ -141,8 +135,6 @@ class StudentPolicyCfg(ObsGroup):
     """Observations for policy group."""
 
     # observation terms (order preserved)
-    # remove the privileged observations
-    # base_lin_vel = ObsTerm(func=mdp.base_lin_vel, noise=Unoise(n_min=-0.1, n_max=0.1))
     base_ang_vel = ObsTerm(func=mdp.base_ang_vel, noise=Unoise(n_min=-0.2, n_max=0.2))
     projected_gravity = ObsTerm(
         func=mdp.projected_gravity,
@@ -152,12 +144,6 @@ class StudentPolicyCfg(ObsGroup):
     joint_pos = ObsTerm(func=mdp.joint_pos_rel, noise=Unoise(n_min=-0.01, n_max=0.01))
     joint_vel = ObsTerm(func=mdp.joint_vel_rel, noise=Unoise(n_min=-1.5, n_max=1.5))
     actions = ObsTerm(func=mdp.last_action)
-    # height_scan = ObsTerm(
-    #     func=mdp.height_scan,
-    #     params={"sensor_cfg": SceneEntityCfg("height_scanner")},
-    #     noise=Unoise(n_min=-0.1, n_max=0.1),
-    #     clip=(-1.0, 1.0),
-    # )
 
     def __post_init__(self):
         self.enable_corruption = True
@@ -211,7 +197,7 @@ class EventCfg:
         func=mdp.randomize_rigid_body_mass,
         mode="startup",
         params={
-            "asset_cfg": SceneEntityCfg("robot", body_names="torso_link"),
+            "asset_cfg": SceneEntityCfg("robot", body_names="base"),
             "mass_distribution_params": (-5.0, 5.0),
             "operation": "add",
         },
@@ -231,7 +217,7 @@ class EventCfg:
         func=mdp.apply_external_force_torque,
         mode="reset",
         params={
-            "asset_cfg": SceneEntityCfg("robot", body_names="torso_link"),
+            "asset_cfg": SceneEntityCfg("robot", body_names="base"),
             "force_range": (0.0, 0.0),
             "torque_range": (-0.0, 0.0),
         },
@@ -316,7 +302,6 @@ class TerminationsCfg:
         func=mdp.illegal_contact,
         params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names="base"), "threshold": 1.0},
     )
-    Base_too_low = DoneTerm(func=mdp.root_height_below_minimum, params={"minimum_height": 0.5})
 
 
 @configclass

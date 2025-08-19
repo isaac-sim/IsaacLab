@@ -62,6 +62,7 @@ def replicate_environment(
         source,
         prototype_builder,
         root_path=prototype_path,
+        load_non_physics_prims=False,
         **usd_kwargs,
     )
     prototype_builder.approximate_meshes("convex_hull")

@@ -10,15 +10,6 @@ from isaaclab.sim._impl.solvers_cfg import MJWarpSolverCfg
 from isaaclab.utils import configclass
 
 from .rough_env_cfg import G1RoughEnvCfg
-from isaaclab_tasks.manager_based.locomotion.velocity.velocity_env_cfg import TeacherStudentObservationsCfg, StudentObservationsCfg
-from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
-
-from isaaclab_tasks.manager_based.locomotion.velocity.velocity_env_cfg import (
-    StudentObservationsCfg,
-    TeacherStudentObservationsCfg,
-)
-
-from .rough_env_cfg import G1RoughEnvCfg
 
 
 @configclass
@@ -26,8 +17,9 @@ class G1FlatEnvCfg(G1RoughEnvCfg):
     sim: SimulationCfg = SimulationCfg(
         newton_cfg=NewtonCfg(
             solver_cfg=MJWarpSolverCfg(
-                nefc_per_env=40,
-                ls_iterations=5,
+                nefc_per_env=70,
+                ls_iterations=10,
+                ls_parallel=True,
                 cone="pyramidal",
                 impratio=1,
                 integrator="implicitfast",
@@ -62,7 +54,7 @@ class G1FlatEnvCfg(G1RoughEnvCfg):
             "robot", joint_names=[".*_hip_.*", ".*_knee_joint"]
         )
         # Commands
-        self.commands.base_velocity.ranges.lin_vel_x = (-1.0, 1.0)
+        self.commands.base_velocity.ranges.lin_vel_x = (0.0, 1.0)
         self.commands.base_velocity.ranges.lin_vel_y = (-0.5, 0.5)
         self.commands.base_velocity.ranges.ang_vel_z = (-1.0, 1.0)
 
@@ -80,44 +72,3 @@ class G1FlatEnvCfg_PLAY(G1FlatEnvCfg):
         # remove random pushing
         self.events.base_external_force_torque = None
         self.events.push_robot = None
-
-
-@configclass
-class G1FlatTeacherStudentEnvCfg(G1FlatEnvCfg):
-    observations: TeacherStudentObservationsCfg = TeacherStudentObservationsCfg()
-
-    def __post_init__(self) -> None:
-        super().__post_init__()
-        self.scene.num_envs = 256
-        self.observations.policy.joint_pos.params["asset_cfg"] = SceneEntityCfg(
-            "robot", joint_names=self.observed_joint_names
-        )
-        self.observations.policy.joint_vel.params["asset_cfg"] = SceneEntityCfg(
-            "robot", joint_names=self.observed_joint_names
-        )
-        self.observations.teacher.joint_pos.params["asset_cfg"] = SceneEntityCfg(
-            "robot", joint_names=self.observed_joint_names
-        )
-        self.observations.teacher.joint_vel.params["asset_cfg"] = SceneEntityCfg(
-            "robot", joint_names=self.observed_joint_names
-        )
-        # reduce the teacher observation noise during distillation
-        self.observations.teacher.base_lin_vel.noise = Unoise(n_min=-0.001, n_max=0.001)
-        self.observations.teacher.base_ang_vel.noise = Unoise(n_min=-0.002, n_max=0.002)
-        self.observations.teacher.projected_gravity.noise = Unoise(n_min=-0.0005, n_max=0.0005)
-        self.observations.teacher.joint_pos.noise = Unoise(n_min=-0.0001, n_max=0.0001)
-        self.observations.teacher.joint_vel.noise = Unoise(n_min=-0.0001, n_max=0.0001)
-
-
-@configclass
-class G1FlatStudentEnvCfg(G1FlatEnvCfg):
-    observations: StudentObservationsCfg = StudentObservationsCfg()
-
-    def __post_init__(self) -> None:
-        super().__post_init__()
-        self.observations.policy.joint_pos.params["asset_cfg"] = SceneEntityCfg(
-            "robot", joint_names=self.observed_joint_names
-        )
-        self.observations.policy.joint_vel.params["asset_cfg"] = SceneEntityCfg(
-            "robot", joint_names=self.observed_joint_names
-        )

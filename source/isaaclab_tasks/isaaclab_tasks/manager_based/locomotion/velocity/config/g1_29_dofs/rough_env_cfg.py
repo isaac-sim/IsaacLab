@@ -13,11 +13,11 @@ from isaaclab_tasks.manager_based.locomotion.velocity.velocity_env_cfg import Lo
 ##
 # Pre-defined configs
 ##
-from isaaclab_assets import G1_MINIMAL_CFG  # isort: skip
+from isaaclab_assets import G1_29_DOF_CFG  # isort: skip
 
 
 @configclass
-class G1Rewards(RewardsCfg):
+class G1_29_DOFs_Rewards(RewardsCfg):
     """Reward terms for the MDP."""
 
     termination_penalty = RewTerm(func=mdp.is_terminated, weight=-200.0)
@@ -59,6 +59,7 @@ class G1Rewards(RewardsCfg):
         weight=-0.1,
         params={"asset_cfg": SceneEntityCfg("robot", joint_names=[".*_hip_yaw_joint", ".*_hip_roll_joint"])},
     )
+
     joint_deviation_arms = RewTerm(
         func=mdp.joint_deviation_l1,
         weight=-0.1,
@@ -69,46 +70,29 @@ class G1Rewards(RewardsCfg):
                     ".*_shoulder_pitch_joint",
                     ".*_shoulder_roll_joint",
                     ".*_shoulder_yaw_joint",
-                    ".*_elbow_pitch_joint",
-                    ".*_elbow_roll_joint",
-                ],
-            )
-        },
-    )
-    joint_deviation_fingers = RewTerm(
-        func=mdp.joint_deviation_l1,
-        weight=-0.05,
-        params={
-            "asset_cfg": SceneEntityCfg(
-                "robot",
-                joint_names=[
-                    ".*_five_joint",
-                    ".*_three_joint",
-                    ".*_six_joint",
-                    ".*_four_joint",
-                    ".*_zero_joint",
-                    ".*_one_joint",
-                    ".*_two_joint",
+                    ".*.*_elbow_joint",
+                    ".*_wrist_.*_joint",
                 ],
             )
         },
     )
     joint_deviation_torso = RewTerm(
         func=mdp.joint_deviation_l1,
-        weight=-0.1,
-        params={"asset_cfg": SceneEntityCfg("robot", joint_names="torso_joint")},
+        weight=-0.2,
+        params={"asset_cfg": SceneEntityCfg("robot", joint_names="waist_.*_joint")},
     )
 
 
 @configclass
-class G1RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
-    rewards: G1Rewards = G1Rewards()
+class G1_29_DOFs_RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
+    rewards: G1_29_DOFs_Rewards = G1_29_DOFs_Rewards()
+    observed_joint_names: list[str] = ["waist.*", ".*_hip.*", ".*_knee.*", ".*_ankle.*"]
 
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
         # Scene
-        self.scene.robot = G1_MINIMAL_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot = G1_29_DOF_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
         # self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/torso_link"
 
         # Randomization
@@ -150,10 +134,17 @@ class G1RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
 
         # terminations
         self.terminations.base_contact.params["sensor_cfg"].body_names = "torso_link"
+        self.actions.joint_pos.joint_names = self.observed_joint_names
+        self.observations.policy.joint_pos.params["asset_cfg"] = SceneEntityCfg(
+            "robot", joint_names=self.observed_joint_names
+        )
+        self.observations.policy.joint_vel.params["asset_cfg"] = SceneEntityCfg(
+            "robot", joint_names=self.observed_joint_names
+        )
 
 
 @configclass
-class G1RoughEnvCfg_PLAY(G1RoughEnvCfg):
+class G1_29_DOFs_RoughEnvCfg_PLAY(G1_29_DOFs_RoughEnvCfg):
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
