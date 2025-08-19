@@ -19,7 +19,7 @@ class AnymalDFlatEnvCfg(AnymalDRoughEnvCfg):
                 nefc_per_env=65,
                 ls_iterations=15,
                 cone="eilliptic",
-                impratio=100.0,
+                # impratio=100.0,
                 ls_parallel=True,
             ),
             num_substeps=1,

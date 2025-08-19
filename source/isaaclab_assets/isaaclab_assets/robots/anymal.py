@@ -21,7 +21,7 @@ Reference:
 
 
 import isaaclab.sim as sim_utils
-from isaaclab.actuators import DCMotorCfg, ActuatorNetLSTMCfg
+from isaaclab.actuators import ActuatorNetLSTMCfg, DCMotorCfg
 from isaaclab.assets.articulation import ArticulationCfg
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
