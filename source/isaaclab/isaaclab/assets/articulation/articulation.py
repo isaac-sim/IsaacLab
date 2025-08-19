@@ -1484,6 +1484,9 @@ class Articulation(AssetBase):
             self.cfg.init_state.joint_pos, self.joint_names
         )
         self._data.default_joint_pos[:, indices_list] = torch.tensor(values_list, device=self.device)
+        print("************** self._data.default_joint_pos : ", self._data.default_joint_pos)
+        print("************** self.joint_names : ", self.joint_names)
+
         # joint vel
         indices_list, _, values_list = string_utils.resolve_matching_names_values(
             self.cfg.init_state.joint_vel, self.joint_names
@@ -1582,6 +1585,10 @@ class Articulation(AssetBase):
             self._data.default_joint_damping[:, actuator.joint_indices] = actuator.damping
             self._data.default_joint_armature[:, actuator.joint_indices] = actuator.armature
             self._data.default_joint_friction_coeff[:, actuator.joint_indices] = actuator.friction
+
+        print("default_joint_stiffness : ", self._data.default_joint_stiffness[0])
+        print("default_joint_damping : ", self._data.default_joint_damping[0])
+        print("default_joint_armature : ", self._data.default_joint_armature[0])
 
         # perform some sanity checks to ensure actuators are prepared correctly
         total_act_joints = sum(actuator.num_joints for actuator in self.actuators.values())

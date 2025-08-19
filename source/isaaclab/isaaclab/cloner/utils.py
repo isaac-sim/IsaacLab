@@ -4,13 +4,10 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import numpy as np
-import tqdm
 from typing import Any
 
-import omni.log
 import warp as wp
 from newton import AxisType, ModelBuilder
-from newton.geometry import remesh_mesh
 from newton.utils import parse_usd
 
 
@@ -67,30 +64,7 @@ def replicate_environment(
         root_path=prototype_path,
         **usd_kwargs,
     )
-
-    # If enabled, simplify the meshes to reduce the number of triangles. This is useful when meshes with complex
-    # geometry are used as collision meshes.
-    if simplify_meshes:
-        simplified_meshes = {}
-        meshes = tqdm.tqdm(prototype_builder.shape_source, desc="Simplifying meshes")
-
-        for i, m in enumerate(meshes):
-            if m is None:
-                continue
-            hash_m = hash(m)
-            if hash_m in simplified_meshes:
-                prototype_builder.shape_source[i] = simplified_meshes[hash_m]
-            else:
-                simplified = remesh_mesh(m, visualize=False, method="convex_hull", recompute_inertia=False)
-                try:
-                    simplified = remesh_mesh(
-                        simplified, visualize=False, target_reduction=None, target_count=32, recompute_inertia=False
-                    )
-                except Exception as e:
-                    omni.log.warn(f"Error simplifying mesh {i}: {e}")
-                    simplified = m
-                prototype_builder.shape_source[i] = simplified
-                simplified_meshes[hash_m] = simplified
+    prototype_builder.approximate_meshes("convex_hull")
 
     # clone the prototype env with updated paths
     for i, (pos, ori) in enumerate(zip(positions, orientations)):

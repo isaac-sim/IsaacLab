@@ -57,3 +57,28 @@ gym.register(
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_flat_ppo_cfg.yaml",
     },
 )
+
+###############################
+# Teacher-Student Distillation #
+###############################
+gym.register(
+    id="Velocity-G1-Distillation-v0",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.flat_env_cfg:G1FlatTeacherStudentEnvCfg",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:G1VelocityDistillationRunnerCfg",
+    },
+)
+########################
+# Student-Finetune #
+########################
+gym.register(
+    id="Velocity-G1-Student-Finetune-v0",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.flat_env_cfg:G1FlatStudentEnvCfg",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:G1FlatStudentPPORunnerCfg",
+    },
+)

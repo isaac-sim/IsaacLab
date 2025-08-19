@@ -5,7 +5,14 @@
 
 from isaaclab.utils import configclass
 
-from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlPpoActorCriticCfg, RslRlPpoAlgorithmCfg
+from isaaclab_rl.rsl_rl import (
+    RslRlDistillationAlgorithmCfg,
+    RslRlDistillationStudentTeacherRecurrentCfg,
+    RslRlOnPolicyRunnerCfg,
+    RslRlPpoActorCriticCfg,
+    RslRlPpoActorCriticRecurrentCfg,
+    RslRlPpoAlgorithmCfg,
+)
 
 
 @configclass
@@ -21,6 +28,7 @@ class G1RoughPPORunnerCfg(RslRlOnPolicyRunnerCfg):
         critic_hidden_dims=[512, 256, 128],
         activation="elu",
     )
+
     algorithm = RslRlPpoAlgorithmCfg(
         value_loss_coef=1.0,
         use_clipped_value_loss=True,
@@ -46,3 +54,56 @@ class G1FlatPPORunnerCfg(G1RoughPPORunnerCfg):
         self.experiment_name = "g1_flat"
         self.policy.actor_hidden_dims = [256, 128, 128]
         self.policy.critic_hidden_dims = [256, 128, 128]
+
+
+@configclass
+class G1VelocityDistillationRunnerCfg(G1FlatPPORunnerCfg):
+    seed = 42
+    num_steps_per_env = 24
+    max_iterations = 10000
+    save_interval = 100
+    run_name = "distillation"
+    algorithm = RslRlDistillationAlgorithmCfg(
+        num_learning_epochs=5,
+        gradient_length=5,
+        learning_rate=1e-3,
+        loss_type="mse",
+    )
+    policy = RslRlDistillationStudentTeacherRecurrentCfg(
+        student_hidden_dims=[256, 256, 128],
+        teacher_hidden_dims=[256, 128, 128],
+        activation="elu",
+        init_noise_std=0.1,
+        class_name="StudentTeacherRecurrent",
+        rnn_type="lstm",
+        rnn_hidden_dim=256,
+        rnn_num_layers=3,
+        teacher_recurrent=False,
+    )
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.max_iterations = 1500
+
+
+#########################
+# Student Fine Tuning ###
+#########################
+
+
+@configclass
+class G1FlatStudentPPORunnerCfg(G1FlatPPORunnerCfg):
+    def __post_init__(self):
+        super().__post_init__()
+        policy = RslRlPpoActorCriticRecurrentCfg(
+            class_name="ActorCriticRecurrent",
+            init_noise_std=0.1,
+            actor_hidden_dims=[512, 256, 128],
+            critic_hidden_dims=[512, 256, 128],
+            activation="elu",
+            rnn_type="lstm",
+            rnn_hidden_dim=256,
+            rnn_num_layers=2,
+        )
+        self.max_iterations = 4000
+        self.run_name = "student_finetune"
