@@ -198,8 +198,8 @@ class ExhaustPipeGR1T2PinkIKEnvCfg(ExhaustPipeGR1T2BaseEnvCfg):
                     retargeters=[
                         GR1T2RetargeterCfg(
                             enable_visualization=True,
-                            # OpenXR hand tracking has 26 joints per hand
-                            num_open_xr_hand_joints=2 * 26,
+                            # number of joints in both hands
+                            num_open_xr_hand_joints=2 * self.NUM_OPENXR_HAND_JOINTS,
                             sim_device=self.sim.device,
                             hand_joint_names=self.actions.gr1_action.hand_joint_names,
                         ),

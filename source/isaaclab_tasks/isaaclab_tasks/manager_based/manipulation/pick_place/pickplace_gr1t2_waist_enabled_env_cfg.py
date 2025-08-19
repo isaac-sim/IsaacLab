@@ -39,6 +39,9 @@ class PickPlaceGR1T2WaistEnabledEnvCfg(ManagerBasedRLEnvCfg):
         anchor_rot=(1.0, 0.0, 0.0, 0.0),
     )
 
+    # OpenXR hand tracking has 26 joints per hand
+    NUM_OPENXR_HAND_JOINTS = 26
+
     # Temporary directory for URDF files
     temp_urdf_dir = tempfile.gettempdir()
 
@@ -52,12 +55,10 @@ class PickPlaceGR1T2WaistEnabledEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.render_interval = 2
 
         # Add waist joint to pink_ik_cfg
-        self.actions.pink_ik_cfg.pink_controlled_joint_names.append("waist_yaw_joint")
-        self.actions.pink_ik_cfg.pink_controlled_joint_names.append("waist_pitch_joint")
-        self.actions.pink_ik_cfg.pink_controlled_joint_names.append("waist_roll_joint")
-        self.actions.pink_ik_cfg.ik_urdf_fixed_joint_names.remove("waist_yaw_joint")
-        self.actions.pink_ik_cfg.ik_urdf_fixed_joint_names.remove("waist_pitch_joint")
-        self.actions.pink_ik_cfg.ik_urdf_fixed_joint_names.remove("waist_roll_joint")
+        waist_joint_names = ["waist_yaw_joint", "waist_pitch_joint", "waist_roll_joint"]
+        for joint_name in waist_joint_names:
+            self.actions.pink_ik_cfg.pink_controlled_joint_names.append(joint_name)
+            self.actions.pink_ik_cfg.ik_urdf_fixed_joint_names.remove(joint_name)
 
         # Convert USD to URDF and change revolute joints to fixed
         temp_urdf_output_path, temp_urdf_meshes_output_path = ControllerUtils.convert_usd_to_urdf(
@@ -77,8 +78,8 @@ class PickPlaceGR1T2WaistEnabledEnvCfg(ManagerBasedRLEnvCfg):
                     retargeters=[
                         GR1T2RetargeterCfg(
                             enable_visualization=True,
-                            # OpenXR hand tracking has 26 joints per hand
-                            num_open_xr_hand_joints=2 * 26,
+                            # number of joints in both hands
+                            num_open_xr_hand_joints=2 * self.NUM_OPENXR_HAND_JOINTS,
                             sim_device=self.sim.device,
                             hand_joint_names=self.actions.pink_ik_cfg.hand_joint_names,
                         ),

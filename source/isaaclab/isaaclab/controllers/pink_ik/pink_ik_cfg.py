@@ -59,4 +59,6 @@ class PinkIKControllerCfg:
     """Show warning if IK solver fails to find a solution."""
 
     fail_on_joint_limit_violation: bool = True
-    """Fail the IK solver if a joint limit is violated."""
+    """If True, the Pink IK solver will fail and raise an error if any joint limit is violated during optimization. PinkIKController
+    will handle the error by setting the last joint positions. If False, the solver will ignore joint limit violations and return the
+    closest solution found."""
