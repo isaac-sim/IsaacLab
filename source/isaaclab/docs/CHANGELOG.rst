@@ -17,8 +17,6 @@ Added
 Added
 ^^^^^
 
-* Added periodic logging when checking if a USD path exists on a Nucleus Server to improve
-  user experience when the check takes a while.
 * Added :meth:`~isaaclab.managers.ObservationManager.get_IO_descriptors` to export the IO descriptors for the observation manager.
 * Added :meth:`~isaaclab.envs.ManagerBasedEnvCfg.io_descriptors_output_dir` to configure the directory to export the IO descriptors to.
 * Added :meth:`~isaaclab.envs.ManagerBasedEnvCfg.export_io_descriptors` to toggle the export of the IO descriptors.
