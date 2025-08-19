@@ -99,35 +99,19 @@ class NewtonManager:
         NewtonManager._up_axis = "Z"
 
     @property
-    def gravity_vector(self) -> tuple[float, float, float]:
-        return NewtonManager._gravity_vector
-
-    @gravity_vector.setter
-    def gravity_vector(self, gravity_vector: tuple[float, float, float]):
-        NewtonManager._gravity_vector = gravity_vector
-
-    @property
-    def up_axis(self) -> str:
-        return NewtonManager._up_axis
-
-    @up_axis.setter
-    def up_axis(self, up_axis: str):
-        NewtonManager._up_axis = up_axis
-
-    @property
-    def model(self) -> Model:
+    def model(cls) -> Model:
         return NewtonManager._model
 
     @property
-    def state_0(self) -> State:
+    def state_0(cls) -> State:
         return NewtonManager._state_0
 
     @property
-    def state_1(self) -> State:
+    def state_1(cls) -> State:
         return NewtonManager._state_1
 
     @property
-    def control(self) -> Control:
+    def control(cls) -> Control:
         return NewtonManager._control
 
     @classmethod

@@ -5,18 +5,14 @@
 
 import builtins
 import enum
-import glob
 import numpy as np
 import os
-import re
-import time
 import toml
 import torch
 import traceback
 import weakref
 from collections.abc import Iterator
 from contextlib import contextmanager
-from datetime import datetime
 from typing import Any
 
 import carb
@@ -31,7 +27,7 @@ from isaacsim.core.utils.carb import get_carb_setting, set_carb_setting
 from isaacsim.core.utils.viewports import set_camera_view
 from isaacsim.core.version import get_version
 from omni.physics.stageupdate import get_physics_stage_update_node_interface
-from pxr import Gf, PhysxSchema, Usd, UsdPhysics
+from pxr import Usd
 
 from isaaclab.sim._impl.newton_manager import NewtonManager
 from isaaclab.sim.utils import create_new_stage_in_memory, use_stage
@@ -166,9 +162,6 @@ class SimulationContext(_SimulationContext):
             if self.carb_settings.get("/app/xr/enabled") is not None
             else False
         )
-
-        # read flags anim recording config and init timestamps
-        self._setup_anim_recording()
 
         # read flag for whether the Isaac Lab viewport capture pipeline will be used,
         # casting None to False if the flag doesn't exist
@@ -308,28 +301,6 @@ class SimulationContext(_SimulationContext):
         # enable hydra scene-graph instancing
         # note: this allows rendering of instanceable assets on the GUI
         set_carb_setting(self.carb_settings, "/persistent/omnihydra/useSceneGraphInstancing", True)
-        # change dispatcher to use the default dispatcher in PhysX SDK instead of carb tasking
-        # note: dispatcher handles how threads are launched for multi-threaded physics
-        set_carb_setting(self.carb_settings, "/physics/physxDispatcher", True)
-        # disable contact processing in omni.physx
-        # note: we disable it by default to avoid the overhead of contact processing when it isn't needed.
-        #   The physics flag gets enabled when a contact sensor is created.
-        if hasattr(self.cfg, "disable_contact_processing"):
-            omni.log.warn(
-                "The `disable_contact_processing` attribute is deprecated and always set to True"
-                " to avoid unnecessary overhead. Contact processing is automatically enabled when"
-                " a contact sensor is created, so manual configuration is no longer required."
-            )
-        # FIXME: From investigation, it seems this flag only affects CPU physics. For GPU physics, contacts
-        #  are always processed. The issue is reported to the PhysX team by @mmittal.
-        set_carb_setting(self.carb_settings, "/physics/disableContactProcessing", True)
-        # disable custom geometry for cylinder and cone collision shapes to allow contact reporting for them
-        # reason: cylinders and cones aren't natively supported by PhysX so we need to use custom geometry flags
-        # reference: https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/docs/Geometry.html?highlight=capsule#geometry
-        set_carb_setting(self.carb_settings, "/physics/collisionConeCustomGeometry", False)
-        set_carb_setting(self.carb_settings, "/physics/collisionCylinderCustomGeometry", False)
-        # hide the Simulation Settings window
-        set_carb_setting(self.carb_settings, "/physics/autoPopupSimulationOutputWindow", False)
 
     def _apply_render_settings_from_cfg(self):
         """Sets rtx settings specified in the RenderCfg."""
@@ -624,13 +595,6 @@ class SimulationContext(_SimulationContext):
             builtins.ISAACLAB_CALLBACK_EXCEPTION = None
             raise exception_to_raise
 
-        # update anim recording if needed
-        if self._anim_recording_enabled:
-            is_anim_recording_finished = self._update_anim_recording()
-            if is_anim_recording_finished:
-                carb.log_warn("[INFO][SimulationContext]: Animation recording finished. Closing app.")
-                self._app.shutdown()
-
         # check if the simulation timeline is paused. in that case keep stepping until it is playing
         if not self.is_playing():
             # step the simulator (but not the physics) to have UI still active
@@ -742,7 +706,7 @@ class SimulationContext(_SimulationContext):
             self._app.update()
             self.set_setting("/app/player/playSimulations", True)
             # set additional physx parameters and bind material
-            self._set_additional_physx_params()
+            self._set_additional_physics_params()
             # load flatcache/fabric interface
             # self._load_fabric_interface()
             # return the stage
@@ -751,7 +715,7 @@ class SimulationContext(_SimulationContext):
     async def _initialize_stage_async(self, *args, **kwargs) -> Usd.Stage:
         await super()._initialize_stage_async(*args, **kwargs)
         # set additional physx parameters and bind material
-        self._set_additional_physx_params()
+        self._set_additional_physics_params()
         # load flatcache/fabric interface
         # self._load_fabric_interface()
         # return the stage
@@ -772,30 +736,15 @@ class SimulationContext(_SimulationContext):
     Helper Functions
     """
 
-    def _set_additional_physx_params(self):
-        """Sets additional PhysX parameters that are not directly supported by the parent class."""
-        # obtain the physics scene api
-        physics_scene: UsdPhysics.Scene = self._physics_context._physics_scene
-        physx_scene_api: PhysxSchema.PhysxSceneAPI = self._physics_context._physx_scene_api
-        # assert that scene api is not None
-        if physx_scene_api is None:
-            raise RuntimeError("Physics scene API is None! Please create the scene first.")
-        # set parameters not directly supported by the constructor
-
+    def _set_additional_physics_params(self):
+        """Sets additional physical parameters that are not directly supported by the parent class."""
         # -- Gravity
-        # note: Isaac sim only takes the "up-axis" as the gravity direction. But physics allows any direction so we
-        #  need to convert the gravity vector to a direction and magnitude pair explicitly.
         gravity = np.asarray(self.cfg.gravity)
-        gravity_magnitude = np.linalg.norm(gravity)
 
         # Avoid division by zero
-        if gravity_magnitude != 0.0:
-            gravity_direction = gravity / gravity_magnitude
-        else:
-            gravity_direction = gravity
+        gravity_direction = gravity
 
-        physics_scene.CreateGravityDirectionAttr(Gf.Vec3f(*gravity_direction))
-        physics_scene.CreateGravityMagnitudeAttr(gravity_magnitude)
+        NewtonManager._gravity_vector = gravity_direction
 
         # create the default physics material
         # this material is used when no material is specified for a primitive
@@ -821,119 +770,6 @@ class SimulationContext(_SimulationContext):
             else:
                 # Needed for backward compatibility with older Isaac Sim versions
                 self._update_fabric = self._fabric_iface.update
-
-    def _update_anim_recording(self):
-        """Tracks anim recording timestamps and triggers finish animation recording if the total time has elapsed."""
-        if self._anim_recording_started_timestamp is None:
-            self._anim_recording_started_timestamp = time.time()
-
-        if self._anim_recording_started_timestamp is not None:
-            anim_recording_total_time = time.time() - self._anim_recording_started_timestamp
-            if anim_recording_total_time > self._anim_recording_stop_time:
-                self._finish_anim_recording()
-                return True
-        return False
-
-    def _setup_anim_recording(self):
-        """Sets up anim recording settings and initializes the recording."""
-
-        self._anim_recording_enabled = bool(self.carb_settings.get("/isaaclab/anim_recording/enabled"))
-        if not self._anim_recording_enabled:
-            return
-
-        # Import omni.physx.pvd.bindings here since it is not available by default
-        from omni.physxpvd.bindings import _physxPvd
-
-        # Init anim recording settings
-        self._anim_recording_start_time = self.carb_settings.get("/isaaclab/anim_recording/start_time")
-        self._anim_recording_stop_time = self.carb_settings.get("/isaaclab/anim_recording/stop_time")
-        self._anim_recording_first_step_timestamp = None
-        self._anim_recording_started_timestamp = None
-
-        # Make output path relative to repo path
-        repo_path = os.path.join(carb.tokens.get_tokens_interface().resolve("${app}"), "..")
-        self._anim_recording_timestamp = datetime.now().strftime("%Y_%m_%d_%H%M%S")
-        self._anim_recording_output_dir = (
-            os.path.join(repo_path, "anim_recordings", self._anim_recording_timestamp).replace("\\", "/").rstrip("/")
-            + "/"
-        )
-        os.makedirs(self._anim_recording_output_dir, exist_ok=True)
-
-        # Acquire physx pvd interface and set output directory
-        self._physxPvdInterface = _physxPvd.acquire_physx_pvd_interface()
-
-        # Set carb settings for the output path and enabling pvd recording
-        set_carb_setting(
-            self.carb_settings, "/persistent/physics/omniPvdOvdRecordingDirectory", self._anim_recording_output_dir
-        )
-        set_carb_setting(self.carb_settings, "/physics/omniPvdOutputEnabled", True)
-
-    def _update_usda_start_time(self, file_path, start_time):
-        """Updates the start time of the USDA baked anim recordingfile."""
-
-        # Read the USDA file
-        with open(file_path) as file:
-            content = file.read()
-
-        # Extract the timeCodesPerSecond value
-        time_code_match = re.search(r"timeCodesPerSecond\s*=\s*(\d+)", content)
-        if not time_code_match:
-            raise ValueError("timeCodesPerSecond not found in the file.")
-        time_codes_per_second = int(time_code_match.group(1))
-
-        # Compute the new start time code
-        new_start_time_code = int(start_time * time_codes_per_second)
-
-        # Replace the startTimeCode in the file
-        content = re.sub(r"startTimeCode\s*=\s*\d+", f"startTimeCode = {new_start_time_code}", content)
-
-        # Write the updated content back to the file
-        with open(file_path, "w") as file:
-            file.write(content)
-
-    def _finish_anim_recording(self):
-        """Finishes the animation recording and outputs the baked animation recording."""
-
-        carb.log_warn(
-            "[INFO][SimulationContext]: Finishing animation recording. Stage must be saved. Might take a few minutes."
-        )
-
-        # Detaching the stage will also close it and force the serialization of the OVD file
-        physx = omni.physx.get_physx_simulation_interface()
-        physx.detach_stage()
-
-        # Save stage to disk
-        stage_path = os.path.join(self._anim_recording_output_dir, "stage_simulation.usdc")
-        stage_utils.save_stage(stage_path, save_and_reload_in_place=False)
-
-        # Find the latest ovd file not named tmp.ovd
-        ovd_files = [
-            f for f in glob.glob(os.path.join(self._anim_recording_output_dir, "*.ovd")) if not f.endswith("tmp.ovd")
-        ]
-        input_ovd_path = max(ovd_files, key=os.path.getctime)
-
-        # Invoke pvd interface to create recording
-        stage_filename = "baked_animation_recording.usda"
-        result = self._physxPvdInterface.ovd_to_usd_over_with_layer_creation(
-            input_ovd_path,
-            stage_path,
-            self._anim_recording_output_dir,
-            stage_filename,
-            self._anim_recording_start_time,
-            self._anim_recording_stop_time,
-            True,  # True: ASCII layers / False : USDC layers
-            False,  # True: verify over layer
-        )
-
-        # Workaround for manually setting the truncated start time in the baked animation recording
-        self._update_usda_start_time(
-            os.path.join(self._anim_recording_output_dir, stage_filename), self._anim_recording_start_time
-        )
-
-        # Disable recording
-        set_carb_setting(self.carb_settings, "/physics/omniPvdOutputEnabled", False)
-
-        return result
 
     """
     Callbacks.
@@ -1020,10 +856,10 @@ def build_simulation_context(
             # Set up gravity
             if gravity_enabled:
                 sim_cfg.gravity = (0.0, 0.0, -9.81)
-                NewtonManager.gravity_vector = (0.0, 0.0, -9.81)
+                NewtonManager._gravity_vector = (0.0, 0.0, -9.81)
             else:
                 sim_cfg.gravity = (0.0, 0.0, 0.0)
-                NewtonManager.gravity_vector = (0.0, 0.0, 0.0)
+                NewtonManager._gravity_vector = (0.0, 0.0, 0.0)
 
             # Set device
             sim_cfg.device = device
