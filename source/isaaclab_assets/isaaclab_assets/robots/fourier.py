@@ -8,7 +8,7 @@
 The following configuration parameters are available:
 
 * :obj:`GR1T2_CFG`: The GR1T2 humanoid.
-* :obj:`GR1T2_PICK_PLACE_CFG`: The GR1T2 humanoid configured for pick-place manipulation tasks.
+* :obj:`GR1T2_HIGH_PD_CFG`: The GR1T2 humanoid configured with high PD gains on upper body joints for pick-place manipulation tasks.
 
 Reference: https://www.fftai.com/products-gr1
 """
@@ -126,7 +126,7 @@ GR1T2_CFG = ArticulationCfg(
 """Configuration for the GR1T2 Humanoid robot."""
 
 
-GR1T2_PICK_PLACE_CFG = GR1T2_CFG.replace(
+GR1T2_HIGH_PD_CFG = GR1T2_CFG.replace(
     actuators={
         "trunk": ImplicitActuatorCfg(
             joint_names_expr=[
