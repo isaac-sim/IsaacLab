@@ -9,6 +9,7 @@ from dataclasses import MISSING
 
 import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
+from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.devices.openxr import XrCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
@@ -155,6 +156,52 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
             },
             joint_vel={".*": 0.0},
         ),
+        actuators={
+            "trunk": ImplicitActuatorCfg(
+                joint_names_expr=[
+                    "waist_.*",
+                ],
+                effort_limit=None,
+                velocity_limit=None,
+                stiffness=9000,
+                damping=160.0,
+                armature=0.01,
+            ),
+            "right-arm": ImplicitActuatorCfg(
+                joint_names_expr=[
+                    "right_shoulder_.*",
+                    "right_elbow_.*",
+                    "right_wrist_.*",
+                ],
+                stiffness=9000.0,
+                damping=160.0,
+                armature=0.01,
+            ),
+            "left-arm": ImplicitActuatorCfg(
+                joint_names_expr=[
+                    "left_shoulder_.*",
+                    "left_elbow_.*",
+                    "left_wrist_.*",
+                ],
+                stiffness=9000.0,
+                damping=160.0,
+                armature=0.01,
+            ),
+            "right-hand": ImplicitActuatorCfg(
+                joint_names_expr=[
+                    "R_.*",
+                ],
+                stiffness=400,
+                damping=8,
+            ),
+            "left-hand": ImplicitActuatorCfg(
+                joint_names_expr=[
+                    "L_.*",
+                ],
+                stiffness=400,
+                damping=8,
+            ),
+        },
     )
 
     # Set table view camera

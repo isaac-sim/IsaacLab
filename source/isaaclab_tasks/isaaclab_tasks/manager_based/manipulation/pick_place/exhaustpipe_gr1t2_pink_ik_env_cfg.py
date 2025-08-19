@@ -3,9 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from pink.tasks import FrameTask
+from pink.tasks import DampingTask, FrameTask
 
 import isaaclab.controllers.utils as ControllerUtils
+from isaaclab.controllers.null_space_posture_task import NullSpacePostureTask
 from isaaclab.controllers.pink_ik_cfg import PinkIKControllerCfg
 from isaaclab.devices import DevicesCfg
 from isaaclab.devices.openxr import OpenXRDeviceCfg
@@ -108,6 +109,10 @@ class ExhaustPipeGR1T2PinkIKEnvCfg(ExhaustPipeGR1T2BaseEnvCfg):
                 "L_thumb_distal_joint",
                 "R_thumb_distal_joint",
             ],
+            target_eef_link_names={
+                "left_wrist": "left_hand_pitch_link",
+                "right_wrist": "right_hand_pitch_link",
+            },
             # the robot in the sim scene we are controlling
             asset_name="robot",
             # Configuration for the IK controller
@@ -118,20 +123,52 @@ class ExhaustPipeGR1T2PinkIKEnvCfg(ExhaustPipeGR1T2BaseEnvCfg):
                 base_link_name="base_link",
                 num_hand_joints=22,
                 show_ik_warnings=False,
+                fail_on_joint_limit_violation=False,  # Determines whether to pink solver will fail due to a joint limit violation
                 variable_input_tasks=[
                     FrameTask(
                         "GR1T2_fourier_hand_6dof_left_hand_pitch_link",
-                        position_cost=1.0,  # [cost] / [m]
+                        position_cost=8.0,  # [cost] / [m]
                         orientation_cost=1.0,  # [cost] / [rad]
                         lm_damping=10,  # dampening for solver for step jumps
-                        gain=0.1,
+                        gain=0.5,
                     ),
                     FrameTask(
                         "GR1T2_fourier_hand_6dof_right_hand_pitch_link",
-                        position_cost=1.0,  # [cost] / [m]
+                        position_cost=8.0,  # [cost] / [m]
                         orientation_cost=1.0,  # [cost] / [rad]
                         lm_damping=10,  # dampening for solver for step jumps
-                        gain=0.1,
+                        gain=0.5,
+                    ),
+                    DampingTask(
+                        cost=0.5,  # [cost] * [s] / [rad]
+                    ),
+                    NullSpacePostureTask(
+                        cost=0.2,
+                        lm_damping=1,
+                        frame_task_controlled_joints={
+                            "GR1T2_fourier_hand_6dof_left_hand_pitch_link": [
+                                "left_shoulder_pitch_joint",
+                                "left_shoulder_roll_joint",
+                                "left_shoulder_yaw_joint",
+                                "left_wrist_yaw_joint",
+                                "left_wrist_roll_joint",
+                                "left_wrist_pitch_joint",
+                                "waist_yaw_joint",
+                                "waist_pitch_joint",
+                                "waist_roll_joint",
+                            ],
+                            "GR1T2_fourier_hand_6dof_right_hand_pitch_link": [
+                                "right_shoulder_pitch_joint",
+                                "right_shoulder_roll_joint",
+                                "right_shoulder_yaw_joint",
+                                "right_wrist_yaw_joint",
+                                "right_wrist_roll_joint",
+                                "right_wrist_pitch_joint",
+                                "waist_yaw_joint",
+                                "waist_pitch_joint",
+                                "waist_roll_joint",
+                            ],
+                        },
                     ),
                 ],
                 fixed_input_tasks=[

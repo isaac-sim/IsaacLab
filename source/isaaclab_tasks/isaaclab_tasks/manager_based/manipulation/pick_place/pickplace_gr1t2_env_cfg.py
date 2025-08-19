@@ -6,12 +6,14 @@
 import tempfile
 import torch
 
-from pink.tasks import FrameTask
+from pink.tasks import DampingTask, FrameTask
 
 import isaaclab.controllers.utils as ControllerUtils
 import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
+from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
+from isaaclab.controllers.null_space_posture_task import NullSpacePostureTask
 from isaaclab.controllers.pink_ik_cfg import PinkIKControllerCfg
 from isaaclab.devices.device_base import DevicesCfg
 from isaaclab.devices.openxr import OpenXRDeviceCfg, XrCfg
@@ -93,6 +95,52 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
             },
             joint_vel={".*": 0.0},
         ),
+        actuators={
+            "trunk": ImplicitActuatorCfg(
+                joint_names_expr=[
+                    "waist_.*",
+                ],
+                effort_limit=None,
+                velocity_limit=None,
+                stiffness=4400,
+                damping=40.0,
+                armature=0.01,
+            ),
+            "right-arm": ImplicitActuatorCfg(
+                joint_names_expr=[
+                    "right_shoulder_.*",
+                    "right_elbow_.*",
+                    "right_wrist_.*",
+                ],
+                stiffness=4400.0,
+                damping=40.0,
+                armature=0.01,
+            ),
+            "left-arm": ImplicitActuatorCfg(
+                joint_names_expr=[
+                    "left_shoulder_.*",
+                    "left_elbow_.*",
+                    "left_wrist_.*",
+                ],
+                stiffness=4400.0,
+                damping=40.0,
+                armature=0.01,
+            ),
+            "right-hand": ImplicitActuatorCfg(
+                joint_names_expr=[
+                    "R_.*",
+                ],
+                stiffness=None,
+                damping=None,
+            ),
+            "left-hand": ImplicitActuatorCfg(
+                joint_names_expr=[
+                    "L_.*",
+                ],
+                stiffness=None,
+                damping=None,
+            ),
+        },
     )
 
     # Ground plane
@@ -199,6 +247,10 @@ class ActionsCfg:
             "L_thumb_distal_joint",
             "R_thumb_distal_joint",
         ],
+        target_eef_link_names={
+            "left_wrist": "left_hand_pitch_link",
+            "right_wrist": "right_hand_pitch_link",
+        },
         # the robot in the sim scene we are controlling
         asset_name="robot",
         # Configuration for the IK controller
@@ -209,20 +261,52 @@ class ActionsCfg:
             base_link_name="base_link",
             num_hand_joints=22,
             show_ik_warnings=False,
+            fail_on_joint_limit_violation=False,  # Determines whether to pink solver will fail due to a joint limit violation
             variable_input_tasks=[
                 FrameTask(
                     "GR1T2_fourier_hand_6dof_left_hand_pitch_link",
-                    position_cost=1.0,  # [cost] / [m]
+                    position_cost=8.0,  # [cost] / [m]
                     orientation_cost=1.0,  # [cost] / [rad]
                     lm_damping=10,  # dampening for solver for step jumps
-                    gain=0.1,
+                    gain=0.5,
                 ),
                 FrameTask(
                     "GR1T2_fourier_hand_6dof_right_hand_pitch_link",
-                    position_cost=1.0,  # [cost] / [m]
+                    position_cost=8.0,  # [cost] / [m]
                     orientation_cost=1.0,  # [cost] / [rad]
                     lm_damping=10,  # dampening for solver for step jumps
-                    gain=0.1,
+                    gain=0.5,
+                ),
+                DampingTask(
+                    cost=0.5,  # [cost] * [s] / [rad]
+                ),
+                NullSpacePostureTask(
+                    cost=0.1,
+                    lm_damping=1,
+                    frame_task_controlled_joints={
+                        "GR1T2_fourier_hand_6dof_left_hand_pitch_link": [
+                            "left_shoulder_pitch_joint",
+                            "left_shoulder_roll_joint",
+                            "left_shoulder_yaw_joint",
+                            "left_wrist_yaw_joint",
+                            "left_wrist_roll_joint",
+                            "left_wrist_pitch_joint",
+                            "waist_yaw_joint",
+                            "waist_pitch_joint",
+                            "waist_roll_joint",
+                        ],
+                        "GR1T2_fourier_hand_6dof_right_hand_pitch_link": [
+                            "right_shoulder_pitch_joint",
+                            "right_shoulder_roll_joint",
+                            "right_shoulder_yaw_joint",
+                            "right_wrist_yaw_joint",
+                            "right_wrist_roll_joint",
+                            "right_wrist_pitch_joint",
+                            "waist_yaw_joint",
+                            "waist_pitch_joint",
+                            "waist_roll_joint",
+                        ],
+                    },
                 ),
             ],
             fixed_input_tasks=[

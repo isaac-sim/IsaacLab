@@ -46,7 +46,7 @@ For more information about the framework, please refer to the `paper <https://ar
 
 
 License
-=======
+========
 
 The Isaac Lab framework is open-sourced under the BSD-3-Clause license,
 with certain parts under Apache-2.0 license. Please refer to :ref:`license` for more details.
