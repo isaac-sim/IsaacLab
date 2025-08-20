@@ -40,11 +40,9 @@ simulation_app = app_launcher.app  # noqa: F401  (kept alive for lifetime of the
 # --- Now safe to import isaaclab / rsl_rl modules ---
 import torch
 from isaaclab.envs import ManagerBasedRLEnv
-try:
-    from isaaclab_tasks import make as make_task
-except Exception:
-    from isaaclab_tasks import task_registry
-    make_task = task_registry.make
+
+from isaaclab_tasks import task_registry
+make_task = task_registry.make
 
 # Your models/algorithms
 from rsl_rl.modules import StudentTeacher  # your class signature posted earlier
