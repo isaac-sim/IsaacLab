@@ -7,13 +7,12 @@ from __future__ import annotations
 
 import argparse
 import os
-from typing import List, Dict
 
 from common import ROOT_DIR
 from generator import generate, get_algorithms_per_rl_library
 
 
-def _parse_workflow_arg(item: str) -> Dict[str, str]:
+def _parse_workflow_arg(item: str) -> dict[str, str]:
     raw = item.strip().lower()
     # Enforce strict underscore format: "<name>_<type>"
     if "_" not in raw or any(sep in raw for sep in ("|", ":", " ")):
@@ -24,13 +23,9 @@ def _parse_workflow_arg(item: str) -> Dict[str, str]:
     type_token = type_token_raw.replace("_", "-")  # normalize to single-agent / multi-agent
 
     if name_token not in {"direct", "manager-based"}:
-        raise ValueError(
-            f"Invalid workflow name: {name_token}. Allowed: 'direct' or 'manager-based'"
-        )
+        raise ValueError(f"Invalid workflow name: {name_token}. Allowed: 'direct' or 'manager-based'")
     if type_token not in {"single-agent", "multi-agent"}:
-        raise ValueError(
-            f"Invalid workflow type: {type_token}. Allowed: 'single-agent' or 'multi-agent'"
-        )
+        raise ValueError(f"Invalid workflow type: {type_token}. Allowed: 'single-agent' or 'multi-agent'")
 
     return {"name": name_token, "type": type_token}
 
@@ -40,14 +35,14 @@ def _validate_external_path(path: str) -> None:
         raise ValueError("External project path cannot be within the Isaac Lab project")
 
 
-def main(argv: List[str] | None = None) -> None:
-    '''
+def main(argv: list[str] | None = None) -> None:
+    """
     Non-interactive entrypoint for the template generator workflow.
 
     Parses command-line flags, builds the specification dict, and calls generate().
     This avoids any interactive prompts or dependencies on Inquirer-based flow.
-    '''
-    
+    """
+
     parser = argparse.ArgumentParser(add_help=False)
     supported_workflows = [
         "direct_single_agent",
@@ -57,9 +52,7 @@ def main(argv: List[str] | None = None) -> None:
     supported_rl_libraries = ["rl_games", "rsl_rl", "skrl", "sb3"]
     # All known algorithms across libraries (lowercase for consistent CLI input)
     _all_algos_map = get_algorithms_per_rl_library(True, True)
-    rl_algo_choices = sorted(
-        {algo.lower() for algos in _all_algos_map.values() for algo in algos}
-    )
+    rl_algo_choices = sorted({algo.lower() for algos in _all_algos_map.values() for algo in algos})
 
     parser.add_argument("--task-type", "--task_type", type=str, required=True, choices=["External", "Internal"])
     parser.add_argument("--project-path", "--project_path", type=str)
@@ -116,5 +109,3 @@ def main(argv: List[str] | None = None) -> None:
 
 if __name__ == "__main__":
     main()
-
-
