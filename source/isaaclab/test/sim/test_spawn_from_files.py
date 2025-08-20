@@ -59,7 +59,9 @@ def test_spawn_usd(sim):
 def test_spawn_usd_fails(sim):
     """Test loading prim from Usd file fails when asset usd path is invalid."""
     # Spawn cone
-    cfg = sim_utils.UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/FrankaRobotics/FrankaEmika/panda2_instanceable.usd")
+    cfg = sim_utils.UsdFileCfg(
+        usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/FrankaRobotics/FrankaEmika/panda2_instanceable.usd"
+    )
 
     with pytest.raises(FileNotFoundError):
         cfg.func("/World/Franka", cfg)
