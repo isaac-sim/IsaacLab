@@ -21,8 +21,6 @@ AppLauncher.add_app_launcher_args(parser)
 args_cli, hydra_args = parser.parse_known_args()
 
 # ensure cameras are available only if you need them
-if args_cli.headless:
-    os.environ["HEADLESS"] = "1"
 # clear argv for hydra
 sys.argv = [sys.argv[0]] + hydra_args
 
