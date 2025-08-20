@@ -743,6 +743,14 @@ def test_joint_pos_limits(sim, num_articulations, device, add_ground_plane):
     out = joint_pos_out_of_limit(env, robot_subset)  # [N]
     assert torch.all(~out)
 
+    # Negative test: force OOB by very tight limits around zero
+    limits = torch.empty(num_articulations, articulation.num_joints, 2, device=device, dtype=default_joint_pos.dtype)
+    limits[..., 0] = -1.0e-3
+    limits[..., 1] = 1.0e-3
+    articulation.write_joint_position_limit_to_sim(limits)
+    out = joint_pos_out_of_limit(env, robot_all)  # [N]
+    assert torch.all(out)
+
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
