@@ -325,10 +325,10 @@ class OperationalSpaceControllerActionCfg(ActionTermCfg):
 
 
 @configclass
-class SurfaceGripperActionCfg(ActionTermCfg):
-    """Configuration for the base surface gripper action term.
+class SurfaceGripperBinaryActionCfg(ActionTermCfg):
+    """Configuration for the binary surface gripper action term.
 
-    See :class:`SurfaceGripperAction` for more details.
+    See :class:`SurfaceGripperBinaryAction` for more details.
     """
 
     asset_name: str = MISSING
@@ -338,22 +338,4 @@ class SurfaceGripperActionCfg(ActionTermCfg):
     close_command: float = 1.0
     """The command value to close the gripper. Defaults to 1.0."""
 
-
-@configclass
-class SurfaceGripperBinaryActionCfg(SurfaceGripperActionCfg):
-    """Configuration for the binary surface gripper action term.
-
-    See :class:`SurfaceGripperBinaryAction` for more details.
-    """
-
     class_type: type[ActionTerm] = surface_gripper_actions.SurfaceGripperBinaryAction
-
-
-@configclass
-class SurfaceGripperContinuousActionCfg(SurfaceGripperActionCfg):
-    """Configuration for the continuous surface gripper action term.
-
-    See :class:`SurfaceGripperContinuousAction` for more details.
-    """
-
-    class_type: type[ActionTerm] = surface_gripper_actions.SurfaceGripperContinuousAction

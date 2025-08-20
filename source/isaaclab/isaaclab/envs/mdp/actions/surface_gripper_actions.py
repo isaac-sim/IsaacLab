@@ -20,8 +20,8 @@ if TYPE_CHECKING:
     from . import actions_cfg
 
 
-class SurfaceGripperAction(ActionTerm):
-    """Base class for surface gripper actions.
+class SurfaceGripperBinaryAction(ActionTerm):
+    """Surface gripper binary action.
 
     This action term maps a binary action to the *open* or *close* surface gripper configurations.
     The surface gripper behavior is as follows:
@@ -38,12 +38,12 @@ class SurfaceGripperAction(ActionTerm):
     interface than joint-based grippers.
     """
 
-    cfg: actions_cfg.SurfaceGripperActionCfg
+    cfg: actions_cfg.SurfaceGripperBinaryActionCfg
     """The configuration of the action term."""
     _asset: SurfaceGripper
     """The surface gripper asset on which the action term is applied."""
 
-    def __init__(self, cfg: actions_cfg.SurfaceGripperActionCfg, env: ManagerBasedEnv) -> None:
+    def __init__(self, cfg: actions_cfg.SurfaceGripperBinaryActionCfg, env: ManagerBasedEnv) -> None:
         # initialize the action term
         super().__init__(cfg, env)
 
@@ -104,24 +104,3 @@ class SurfaceGripperAction(ActionTerm):
             self._raw_actions[:] = 0.0
         else:
             self._raw_actions[env_ids] = 0.0
-
-
-class SurfaceGripperBinaryAction(SurfaceGripperAction):
-    """Surface gripper action that maps binary actions to open/close commands."""
-
-    cfg: actions_cfg.SurfaceGripperBinaryActionCfg
-    """The configuration of the action term."""
-
-
-class SurfaceGripperContinuousAction(SurfaceGripperAction):
-    """Surface gripper action that maps continuous actions to gripper commands."""
-
-    cfg: actions_cfg.SurfaceGripperContinuousActionCfg
-    """The configuration of the action term."""
-
-    def process_actions(self, actions: torch.Tensor):
-        # store the raw actions
-        self._raw_actions[:] = actions
-        # For continuous actions, we directly use the input values
-        # but clamp them to the valid range [-1, 1]
-        self._processed_actions = torch.clamp(actions, min=-1.0, max=1.0)
