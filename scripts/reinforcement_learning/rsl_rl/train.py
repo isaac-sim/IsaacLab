@@ -28,6 +28,15 @@ parser.add_argument("--max_iterations", type=int, default=None, help="RL Policy 
 parser.add_argument(
     "--distributed", action="store_true", default=False, help="Run training with multiple GPUs or nodes."
 )
+parser.add_argument(
+    "--student_group", type=str, default=None,
+    help="Observation group to use for the STUDENT (e.g., camera_ext2)."
+)
+parser.add_argument(
+    "--teacher_group", type=str, default="policy",
+    help="Observation group to expose as TEACHER (default: policy)."
+)
++parser.add_argument("--teacher_ckpt", type=str, default=None, help="Path to PPO checkpoint to load into teacher.")
 # append RSL-RL cli arguments
 cli_args.add_rsl_rl_args(parser)
 # append AppLauncher cli args
@@ -145,6 +154,28 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     # create isaac environment
     env = gym.make(args_cli.task, cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None)
 
+    # Alias TEACHER observations to infos['observations']['teacher'] so RSL-RL distillation can find them.
+    # This is a no-op for PPO.
+    import gymnasium as _gym
+    class _TeacherObsAliasWrapper(_gym.Wrapper):
+        def __init__(self, env, teacher_group: str):
+            super().__init__(env)
+            self._teacher_group = teacher_group
+        def _alias(self, info):
+            obs_dict = info.get("observations", {})
+            if self._teacher_group in obs_dict:
+                obs_dict["teacher"] = obs_dict[self._teacher_group]
+            elif "critic" in obs_dict:
+                obs_dict["teacher"] = obs_dict["critic"]
+            elif obs_dict:
+                obs_dict["teacher"] = obs_dict[next(iter(obs_dict))]
+            info["observations"] = obs_dict
+        def reset(self, **kw):
+            obs, info = self.env.reset(**kw); self._alias(info); return obs, info
+        def step(self, act):
+            obs, r, d, t, info = self.env.step(act); self._alias(info); return obs, r, d, t, info
+    env = _TeacherObsAliasWrapper(env, teacher_group=args_cli.teacher_group)
+
     # convert to single-agent instance if required by the RL algorithm
     if isinstance(env.unwrapped, DirectMARLEnv):
         env = multi_agent_to_single_agent(env)
@@ -173,10 +204,18 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     # write git state to logs
     runner.add_git_repo_to_log(__file__)
     # load the checkpoint
-    if agent_cfg.resume or agent_cfg.algorithm.class_name == "Distillation":
-        print(f"[INFO]: Loading model checkpoint from: {resume_path}")
-        # load previously trained model
-        runner.load(resume_path)
+    # Distillation: if a TEACHER checkpoint is provided, switch algorithm/policy and load the teacher weights.
+    if args_cli.teacher_ckpt:
+        # Ensure Distillation path is used (policy StudentTeacher, algorithm Distillation)
+        agent_cfg.algorithm.class_name = "Distillation"
+        agent_cfg.policy.class_name = "StudentTeacher"
+        print(f"[INFO]: Loading TEACHER checkpoint: {args_cli.teacher_ckpt}")
+        runner.load(args_cli.teacher_ckpt, load_optimizer=False)
+    else:
+        # PPO resume / regular resume path
+        if agent_cfg.resume or agent_cfg.algorithm.class_name == "Distillation":
+            print(f"[INFO]: Loading model checkpoint from: {resume_path}")
+            runner.load(resume_path)
 
     # dump the configuration into log-directory
     dump_yaml(os.path.join(log_dir, "params", "env.yaml"), env_cfg)
