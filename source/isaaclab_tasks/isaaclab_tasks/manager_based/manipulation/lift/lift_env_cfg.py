@@ -110,22 +110,36 @@ class ObservationsCfg:
             self.enable_corruption = True
             self.concatenate_terms = True
     
+    # ---------- Teacher (privileged) ----------
     @configclass
-    class ImageCfg(ObsGroup):
-        """Observations for image group."""
-        image = ObsTerm(func=mdp.image, params={"sensor_cfg": SceneEntityCfg("camera"), "data_type": "rgb"})
-        image1 = ObsTerm(func=mdp.image, params={"sensor_cfg": SceneEntityCfg("camera_ext1"), "data_type": "rgb"})
-        image2 = ObsTerm(func=mdp.image, params={"sensor_cfg": SceneEntityCfg("camera_ext2"), "data_type": "rgb"})
-        image3 = ObsTerm(func=mdp.image, params={"sensor_cfg": SceneEntityCfg("camera_bird"), "data_type": "rgb"})
-        
+    class Teacher(ObsGroup):
+        joint_pos = ObsTerm(func=mdp.joint_pos_rel)
+        joint_vel = ObsTerm(func=mdp.joint_vel_rel)
+        object_position = ObsTerm(func=mdp.object_position_in_robot_root_frame)
+        target_object_position = ObsTerm(func=mdp.generated_commands, params={"command_name": "object_pose"})
+        actions = ObsTerm(func=mdp.last_action)
+
         def __post_init__(self):
             self.enable_corruption = True
-            self.concatenate_terms = False
+            self.concatenate_terms = True   # produces a flat vector (D,)
 
+    # ---------- Student (camera only) ----------
+    @configclass
+    class StudentCam(ObsGroup):
+        # RGB tensor from the camera sensor declared in the scene
+        rgb = ObsTerm(
+            func=mdp.camera_rgb,
+            params={"camera_name": "camera_ext2", "normalize": True},  # normalize to [0,1] float32
+        )
 
+        def __post_init__(self):
+            self.enable_corruption = False
+            self.concatenate_terms = False  # keep as (C,H,W) for CNN
 
     # observation groups
     policy: PolicyCfg = PolicyCfg()
+    teacher: Teacher = Teacher()
+    student: StudentCam = StudentCam()
 
 
 @configclass
