@@ -722,9 +722,10 @@ def test_joint_pos_limits(sim, num_articulations, device, add_ground_plane):
     assert torch.all(~out)
 
     # Set new joint limits that (narrowly) constrain default joint pos
-    limits = torch.zeros(num_articulations, articulation.num_joints, 2, device=device)
-    limits[..., 0] = torch.rand(num_articulations, articulation.num_joints, device=device) * -0.1
-    limits[..., 1] = torch.rand(num_articulations, articulation.num_joints, device=device) * 0.1
+    margin = 0.10
+    limits = torch.empty(num_articulations, articulation.num_joints, 2, device=device, dtype=default_joint_pos.dtype)
+    limits[..., 0] = default_joint_pos - margin
+    limits[..., 1] = default_joint_pos + margin
     articulation.write_joint_position_limit_to_sim(limits)
 
     # Check if all values are within the bounds
@@ -732,9 +733,10 @@ def test_joint_pos_limits(sim, num_articulations, device, add_ground_plane):
     assert torch.all(~out)
 
     # Set new joint limits that invalidate default joint pos with indexing
-    limits = torch.zeros(env_ids.shape[0], joint_ids.shape[0], 2, device=device)
-    limits[..., 0] = torch.rand(env_ids.shape[0], joint_ids.shape[0], device=device) * -0.1
-    limits[..., 1] = torch.rand(env_ids.shape[0], joint_ids.shape[0], device=device) * 0.1
+    sub_defaults = default_joint_pos[env_ids][:, joint_ids]
+    limits = torch.empty(env_ids.shape[0], joint_ids.shape[0], 2, device=device, dtype=sub_defaults.dtype)
+    limits[..., 0] = sub_defaults - margin
+    limits[..., 1] = sub_defaults + margin
     articulation.write_joint_position_limit_to_sim(limits, env_ids=env_ids, joint_ids=joint_ids)
 
     # Validate via function on selected joints
