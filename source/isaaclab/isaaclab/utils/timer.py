@@ -215,7 +215,12 @@ class Timer(ContextDecorator):
         self.stop()
         # print message
         if self._msg is not None:
-            print(self._msg, f": {self._elapsed_time:0.6f} seconds")
+            print(
+                f"Last: {(self._elapsed_time * self._multiplier):0.6f} {self._format}, "
+                f"Mean: {(self._mean * self._multiplier):0.6f} {self._format}, "
+                f"Std: {(self._std * self._multiplier):0.6f} {self._format}, "
+                f"N: {self._n}"
+            )
 
     """
     Static Methods
