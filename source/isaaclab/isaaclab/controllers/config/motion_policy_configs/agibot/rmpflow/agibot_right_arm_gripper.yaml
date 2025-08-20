@@ -1,0 +1,57 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+# The robot description defines the generalized coordinates and how to map those
+# to the underlying URDF dofs.
+
+api_version: 1.0
+
+# Defines the generalized coordinates. Each generalized coordinate is assumed
+# to have an entry in the URDF.
+# Lula will only use these joints to control the robot position.
+cspace:
+    - right_arm_joint1
+    - right_arm_joint2
+    - right_arm_joint3
+    - right_arm_joint4
+    - right_arm_joint5
+    - right_arm_joint6
+    - right_arm_joint7
+
+default_q: [
+    -1.04, 1.4, 0.35, 1.4, -1.52, -0.3, 0.0,
+    ]
+
+acceleration_limits: [
+   10,10,10,10,10,10,10
+]
+
+jerk_limits: [
+   10000,10000,10000,10000,10000,10000,10000
+]
+
+# Most dimensions of the cspace have a direct corresponding element
+# in the URDF. This list of rules defines how unspecified coordinates
+# should be extracted or how values in the URDF should be overwritten.
+
+
+cspace_to_urdf_rules:
+    - {name: joint_lift_body, rule: fixed, value: 0.1995}
+    - {name: joint_body_pitch, rule: fixed, value: 0.6025}
+    - {name: joint_head_yaw, rule: fixed, value: 0.0}
+    - {name: joint_head_pitch, rule: fixed, value: 0.6708}
+    - {name: left_arm_joint1, rule: fixed, value: 1.04}
+    - {name: left_arm_joint2, rule: fixed, value: -1.4}
+    - {name: left_arm_joint3, rule: fixed, value: -0.35}
+    - {name: left_arm_joint4, rule: fixed, value: -1.4}
+    - {name: left_arm_joint5, rule: fixed, value: 1.52}
+    - {name: left_arm_joint6, rule: fixed, value: 0.3}
+    - {name: left_arm_joint7, rule: fixed, value: 0.0}
+
+# Lula uses collision spheres to define the robot geometry in order to avoid
+# collisions with external obstacles.  If no spheres are specified, Lula will
+# not be able to avoid obstacles.
+
+collision_spheres:
