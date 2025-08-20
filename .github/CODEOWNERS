@@ -16,62 +16,81 @@
 
 # App experience files
 # These are the files that are used to launch the app with the correct settings and configurations
-/apps/ @kellyguo11 @hhansen-bdai @Mayankm96 @Dhoeller19
+/apps/ @kellyguo11 @hhansen-bdai @Mayankm96
 
 # Core Framework
-/source/isaaclab/ @Dhoeller19 @Mayankm96 @jsmith-bdai @kellyguo11
-/source/isaaclab/isaaclab/actuators @Dhoeller19 @Mayankm96 @nikitardn @jtigue-bdai
+/source/isaaclab/isaaclab/actuators @Mayankm96 @jtigue-bdai
 /source/isaaclab/isaaclab/app @hhansen-bdai @kellyguo11
-/source/isaaclab/isaaclab/assets @jsmith-bdai @Dhoeller19 @kellyguo11 @Mayankm96 @jtigue-bdai
-/source/isaaclab/isaaclab/assets/deformable_object @kellyguo11 @Mayankm96 @masoudmoghani
+/source/isaaclab/isaaclab/assets @kellyguo11 @Mayankm96 @jtigue-bdai
+/source/isaaclab/isaaclab/assets/deformable_object @masoudmoghani @ooctipus
 /source/isaaclab/isaaclab/controllers @Mayankm96
-/source/isaaclab/isaaclab/envs @jsmith-bdai @Dhoeller19 @kellyguo11 @Mayankm96
-/source/isaaclab/isaaclab/envs/manager_based_* @jsmith-bdai @Dhoeller19 @Mayankm96
+/source/isaaclab/isaaclab/envs/manager_based_* @Mayankm96 @jtigue-bdai @ooctipus
 /source/isaaclab/isaaclab/envs/direct_* @kellyguo11
-/source/isaaclab/isaaclab/managers @jsmith-bdai @Dhoeller19 @Mayankm96
-/source/isaaclab/isaaclab/sensors @jsmith-bdai @Dhoeller19 @pascal-roth @Mayankm96 @jtigue-bdai
+/source/isaaclab/isaaclab/envs/mdp @ooctipus
+/source/isaaclab/isaaclab/envs/mimic_* @peterd-NV
+/source/isaaclab/isaaclab/envs/ui @ooctipus @ossamaAhmed
+/source/isaaclab/isaaclab/envs/utils @Toni-SM
+/source/isaaclab/isaaclab/managers @jtigue-bdai @Mayankm96 @ooctipus
+/source/isaaclab/isaaclab/sensors/sensor_base* @pascal-roth
 /source/isaaclab/isaaclab/sensors/camera @kellyguo11 @pascal-roth
-/source/isaaclab/isaaclab/sensors/contact_sensor @jtigue-bdai
-/source/isaaclab/isaaclab/sensors/frame_transformer @jsmith-bdai
-/source/isaaclab/isaaclab/sensors/ray_caster @pascal-roth @Dhoeller19
-/source/isaaclab/isaaclab/sim @Mayankm96 @jsmith-bdai
-/source/isaaclab/isaaclab/sim/simulation_context.py @Dhoeller19 @kellyguo11
-/source/isaaclab/isaaclab/terrains @Dhoeller19 @Mayankm96 @nikitardn
-/source/isaaclab/isaaclab/utils @Mayankm96 @jsmith-bdai
-/source/isaaclab/isaaclab/utils/modifiers @jtigue-bdai
+/source/isaaclab/isaaclab/sensors/contact_sensor @jtigue-bdai @ooctipus
+/source/isaaclab/isaaclab/sensors/imu @jtigue-bdai @pascal-roth
+/source/isaaclab/isaaclab/sensors/ray_caster @pascal-roth
+/source/isaaclab/isaaclab/sensors/frame_transformer @jtigue-bdai
+/source/isaaclab/isaaclab/sim/converters @Mayankm96 @jtigue-bdai @kellyguo11
+/source/isaaclab/isaaclab/sim/schemas @Mayankm96 @jtigue-bdai @kellyguo11
+/source/isaaclab/isaaclab/sim/spawners @Mayankm96 @jtigue-bdai @ooctipus
+/source/isaaclab/isaaclab/sim/simulation_* @matthewtrepte @ossamaAhmed @kellyguo11
+/source/isaaclab/isaaclab/terrains @Mayankm96
+/source/isaaclab/isaaclab/ui @pascal-roth @jtigue-bdai
+/source/isaaclab/isaaclab/utils/buffers @ooctipus @jtigue-bdai
+/source/isaaclab/isaaclab/utils/datasets @Peter-NV
 /source/isaaclab/isaaclab/utils/interpolation @jtigue-bdai
+/source/isaaclab/isaaclab/utils/io @ooctipus
+/source/isaaclab/isaaclab/utils/modifiers @jtigue-bdai
 /source/isaaclab/isaaclab/utils/noise @jtigue-bdai @kellyguo11
-/source/isaaclab/isaaclab/utils/warp @Dhoeller19 @pascal-roth
-/source/isaaclab/isaaclab/utils/assets.py @Dhoeller19 @kellyguo11 @Mayankm96
-/source/isaaclab/isaaclab/utils/math.py @jsmith-bdai @Dhoeller19 @Mayankm96
-/source/isaaclab/isaaclab/utils/configclass.py @Mayankm96 @Dhoeller19
+/source/isaaclab/isaaclab/utils/warp @pascal-roth
+/source/isaaclab/isaaclab/utils/assets.py @kellyguo11 @Mayankm96
+/source/isaaclab/isaaclab/utils/math.py @jtigue-bdai @Mayankm96
+/source/isaaclab/isaaclab/utils/configclass.py @Mayankm96
+/source/isaaclab/isaaclab/utils/sensors.py @kellyguo11 @pascal-roth
 
 # RL Environment
-/source/isaaclab_tasks/ @Dhoeller19 @Mayankm96 @jsmith-bdai @kellyguo11
-/source/isaaclab_tasks/isaaclab_tasks/direct @Dhoeller19 @kellyguo11
-/source/isaaclab_tasks/isaaclab_tasks/manager_based @Dhoeller19 @Mayankm96 @jsmith-bdai @jtigue-bdai
+/source/isaaclab_tasks/isaaclab_tasks/direct @kellyguo11
+/source/isaaclab_tasks/isaaclab_tasks/manager_based @Mayankm96
+/source/isaaclab_tasks/isaaclab_tasks/utils @Mayankm96
 
 # Assets
-/source/isaaclab_assets/isaaclab_assets/ @Dhoeller19 @pascal-roth @jsmith-bdai
+/source/isaaclab_assets/isaaclab_assets/ @pascal-roth
+
+# Mimic
+/source/isaaclab_mimic/isaaclab_mimic @peterd-NV
+
+# RL
+/source/isaaclab_rl/isaaclab_rl/rsl_rl @Mayankm96 @ClemensSchwarke
+/source/isaaclab_rl/isaaclab_rl/rl_games @Toni-SM
+/source/isaaclab_rl/isaaclab_rl/sb3 @Toni-SM
+/source/isaaclab_rl/isaaclab_rl/skrl @Toni-SM
 
 # Standalone Scripts
-/scripts/demos/ @jsmith-bdai @jtigue-bdai @Dhoeller19 @kellyguo11 @Mayankm96
-/scripts/environments/ @Mayankm96
-/scripts/tools/ @jsmith-bdai @Mayankm96
-/scripts/tutorials/ @jsmith-bdai @pascal-roth @kellyguo11 @Dhoeller19 @Mayankm96
-/scripts/reinforcement_learning/ @jsmith-bdai @Dhoeller19 @kellyguo11 @Mayankm96
-/scripts/imitation_learning/ @jsmith-bdai @Dhoeller19 @kellyguo11 @Mayankm96
+/scripts/benchmarks/ @ooctipus @kellyguo11
+/scripts/demos/ @ooctipus
+/scripts/environments/ @ooctipus
+/scripts/imitation_learning/ @Peter-NV
+/scripts/reinforcement_learning/ @ooctipus @Toni-NV
+/scripts/tools/ @jtigue-bdai @Mayankm96
+/scripts/tutorials/ @jtigue-bdai @pascal-roth
 
 # Github Actions
 # This list is for people wanting to be notified every time there's a change
 # related to Github Actions
-/.github/ @kellyguo11 @jsmith-bdai
+/.github/ @kellyguo11 @hhansen-bdai
 
 # Visual Studio Code
 /.vscode/ @hhansen-bdai @Mayankm96
 
 # Infrastructure (Docker, Docs, Tools)
 /docker/ @hhansen-bdai @pascal-roth
-/docs/ @jsmith-bdai @Dhoeller19 @kellyguo11 @Mayankm96
-/tools/ @hhansen-bdai @jsmith-bdai @Dhoeller19
-/isaaclab.* @hhansen-bdai @Dhoeller19 @Mayankm96 @kellyguo11
+/docs/ @jtigue-bdai @kellyguo11 @Mayankm96
+/tools/ @hhansen-bdai
+/isaaclab.* @hhansen-bdai @Mayankm96 @kellyguo11

@@ -65,7 +65,7 @@ Prior to using CloudXR with Isaac Lab, please review the following system requir
     * Ubuntu 22.04 or Ubuntu 24.04
     * `Docker`_ 26.0.0+, `Docker Compose`_ 2.25.0+, and the `NVIDIA Container Toolkit`_. Refer to
       the Isaac Lab :ref:`deployment-docker` for how to install.
-    * NVIDIA Driver version 550 or greater
+    * For details on driver requirements, please see the `Technical Requirements <https://docs.omniverse.nvidia.com/materials-and-rendering/latest/common/technical-requirements.html>`_ guide
     * Required for best performance: 16 cores Intel Core i9, X-series or higher AMD Ryzen 9,
       Threadripper or higher
     * Required for best performance: 64GB RAM
@@ -130,7 +130,7 @@ There are two options to run the CloudXR Runtime Docker container:
              --files docker-compose.cloudxr-runtime.patch.yaml \
              --env-file .env.cloudxr-runtime
 
-      If prompted, elect to activate X11 forwarding, which is necessary to see the Isaac Lab UI.
+      If prompted, elect to activate X11 forwarding, which is necessary to see the Isaac Sim UI.
 
       .. note::
 
@@ -225,12 +225,12 @@ There are two options to run the CloudXR Runtime Docker container:
 
 With Isaac Lab and the CloudXR Runtime running:
 
-#. In the Isaac Lab UI: locate the Panel named **AR**.
+#. In the Isaac Sim UI: locate the Panel named **AR**.
 
    .. figure:: ../_static/setup/cloudxr_ar_panel.jpg
       :align: center
       :figwidth: 50%
-      :alt: Isaac Lab UI: AR Panel
+      :alt: Isaac Sim UI: AR Panel
 
 #. Click **Start AR**.
 
@@ -313,7 +313,7 @@ Back on your Apple Vision Pro:
    .. figure:: ../_static/setup/cloudxr_avp_connect_ui.jpg
       :align: center
       :figwidth: 50%
-      :alt: Isaacl Lab UI: AR Panel
+      :alt: Isaac Sim UI: AR Panel
 
 #. Enter the IP address of your Isaac Lab workstation.
 
@@ -335,7 +335,7 @@ Back on your Apple Vision Pro:
    .. figure:: ../_static/setup/cloudxr_avp_teleop_ui.jpg
       :align: center
       :figwidth: 50%
-      :alt: Isaac Lab UI: AR Panel
+      :alt: Isaac Sim UI: AR Panel
 
 #. Click **Play** to begin teleoperating the simulated robot. The robot motion should now be
    directed by your hand movements.

@@ -107,7 +107,7 @@ class PreTrainedPolicyAction(ActionTerm):
         # set visibility of markers
         # note: parent only deals with callbacks. not their visibility
         if debug_vis:
-            # create markers if necessary for the first tome
+            # create markers if necessary for the first time
             if not hasattr(self, "base_vel_goal_visualizer"):
                 # -- goal
                 marker_cfg = GREEN_ARROW_X_MARKER_CFG.copy()

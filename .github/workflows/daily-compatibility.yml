@@ -181,11 +181,15 @@ jobs:
         retention-days: 30
         compression-level: 9
 
-    - name: Publish Test Results
-      uses: EnricoMi/publish-unit-test-result-action@v2
+    - name: Report Test Results
+      uses: dorny/test-reporter@v1
       if: always()
       with:
-        files: "reports/combined-compat-results.xml"
+        name: IsaacLab Compatibility Test Results
+        path: reports/combined-compat-results.xml
+        reporter: java-junit
+        max-annotations: '50'
+        report-title: "IsaacLab Compatibility Test Results - ${{ github.workflow }}"
 
   notify-compatibility-status:
     needs: [combine-compat-results]

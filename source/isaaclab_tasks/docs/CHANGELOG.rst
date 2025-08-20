@@ -1,6 +1,47 @@
 Changelog
 ---------
 
+0.10.46 (2025-08-16)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added symmetry data augmentation example with RSL-RL for cartpole and anymal locomotion environments.
+* Added :attr:`--agent` to RL workflow scripts to allow switching between different configurations.
+
+
+0.10.45 (2025-07-16)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``from __future__ import annotations`` to isaaclab_tasks files to fix Sphinx
+  doc warnings for IsaacLab Mimic docs.
+
+
+0.10.44 (2025-07-16)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``Isaac-Forge-PegInsert-Direct-v0``, ``Isaac-Forge-GearMesh-Direct-v0``,
+  and ``Isaac-Forge-NutThread-Direct-v0`` environments as direct RL envs. These
+  environments extend ``Isaac-Factory-*-v0`` with force sensing, an excessive force
+  penalty, dynamics randomization, and success prediction.
+
+
+0.10.43 (2025-07-24)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed un-set camera observations in the ``Isaac-Stack-Cube-Instance-Randomize-Franka-v0`` environment.
+
+
 0.10.42 (2025-07-11)
 ~~~~~~~~~~~~~~~~~~~~
 

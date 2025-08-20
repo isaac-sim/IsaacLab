@@ -1,0 +1,126 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+name: Check Python Dependency Licenses
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  license-check:
+    runs-on: ubuntu-24.04
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    # - name: Install jq
+    #   run: sudo apt-get update && sudo apt-get install -y jq
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'  # Adjust as needed
+
+    - name: Install dependencies using ./isaaclab.sh -i
+      run: |
+        # first install isaac sim
+        pip install --upgrade pip
+        pip install 'isaacsim[all,extscache]==4.5.0' --extra-index-url https://pypi.nvidia.com
+        chmod +x ./isaaclab.sh  # Make sure the script is executable
+        # install all lab dependencies
+        ./isaaclab.sh -i
+
+    - name: Install pip-licenses
+      run: |
+        pip install pip-licenses
+        pip install -r tools/template/requirements.txt
+        pip install -r docs/requirements.txt
+
+    # Optional: Print the license report for visibility
+    - name: Print License Report
+      run: pip-licenses --from=mixed --format=markdown
+
+    - name: Check licenses against whitelist and exceptions
+      run: |
+        # Define the whitelist of allowed licenses
+        ALLOWED_LICENSES="MIT Apache BSD ISC zlib"
+
+        # Load the exceptions list from the exceptions.json file
+        EXCEPTIONS_FILE=".github/workflows/license-exceptions.json"
+
+        # Initialize counter for failed packages
+        FAILED_PACKAGES=0
+
+        # Get the list of installed packages and their licenses
+        pip-licenses --from=mixed --format=json > licenses.json
+
+        # Check the output of pip-licenses to ensure it is valid JSON
+        if ! jq empty licenses.json; then
+          echo "ERROR: Failed to parse pip-licenses output. Exiting..."
+          exit 1
+        fi
+
+        # Split ALLOWED_LICENSES into individual words
+        IFS=' ' read -r -a allowed_licenses <<< "$ALLOWED_LICENSES"
+
+        # Loop through the installed packages and their licenses
+        for pkg in $(jq -r '.[].Name' licenses.json); do
+          LICENSE=$(jq -r --arg pkg "$pkg" '.[] | select(.Name == $pkg) | .License' licenses.json)
+
+          # Check if any of the allowed licenses are a substring of the package's license
+          match_found=false
+          for allowed_license in "${allowed_licenses[@]}"; do
+            if [[ "$LICENSE" == *"$allowed_license"* ]]; then
+              match_found=true
+              break
+            fi
+          done
+
+          if [ "$match_found" = false ]; then
+            # Check if the package is in the exceptions list
+            EXCEPTION=$(jq -r --arg pkg "$pkg" --arg license "$LICENSE" \
+              '.[] | select(.package == $pkg)' "$EXCEPTIONS_FILE")
+
+            # If the package is in the exceptions list
+            if [ -n "$EXCEPTION" ]; then
+              # If the license is provided in the exceptions list, check the license
+              EXCEPTION_LICENSE=$(echo "$EXCEPTION" | jq -r '.license')
+
+              # echo "Comparing licenses for $pkg:"
+              # echo "  EXCEPTION_LICENSE='${EXCEPTION_LICENSE}' (len=${#EXCEPTION_LICENSE})"
+              # echo "  LICENSE='${LICENSE}' (len=${#LICENSE})"
+
+              # If the exceptions list has a license and doesn't match the current license
+              if [ "$EXCEPTION_LICENSE" != "null" ] && [ "$EXCEPTION_LICENSE" != "$LICENSE" ]; then
+                echo "ERROR: $pkg has license: $LICENSE"
+                FAILED_PACKAGES=$((FAILED_PACKAGES + 1))  # Increment the counter
+              fi
+            else
+              # If the package is not in the exceptions list
+              echo "ERROR: $pkg has license: $LICENSE"
+              FAILED_PACKAGES=$((FAILED_PACKAGES + 1))  # Increment the counter
+            fi
+          fi
+        done
+
+        # After all packages are processed, check if there were any errors
+        if [ "$FAILED_PACKAGES" -gt 0 ]; then
+          echo "ERROR: $FAILED_PACKAGES packages were flagged."
+          exit 1  # Fail the build
+        else
+          echo "All packages were checked."
+        fi
+
+    # Print pipdeptree
+    - name: Print pipdeptree
+      run: |
+        pip install pipdeptree
+        pipdeptree

@@ -24,6 +24,7 @@ from isaaclab.utils.timer import Timer
 from .common import VecEnvObs
 from .manager_based_env_cfg import ManagerBasedEnvCfg
 from .ui import ViewportCameraController
+from .utils.io_descriptors import export_articulations_data, export_scene_data
 
 
 class ManagerBasedEnv:
@@ -185,6 +186,10 @@ class ManagerBasedEnv:
         # initialize observation buffers
         self.obs_buf = {}
 
+        # export IO descriptors if requested
+        if self.cfg.export_io_descriptors:
+            self.export_IO_descriptors()
+
     def __del__(self):
         """Cleanup for the environment."""
         self.close()
@@ -218,6 +223,46 @@ class ManagerBasedEnv:
     def device(self):
         """The device on which the environment is running."""
         return self.sim.device
+
+    @property
+    def get_IO_descriptors(self):
+        """Get the IO descriptors for the environment.
+
+        Returns:
+            A dictionary with keys as the group names and values as the IO descriptors.
+        """
+        return {
+            "observations": self.observation_manager.get_IO_descriptors,
+            "actions": self.action_manager.get_IO_descriptors,
+            "articulations": export_articulations_data(self),
+            "scene": export_scene_data(self),
+        }
+
+    def export_IO_descriptors(self, output_dir: str | None = None):
+        """Export the IO descriptors for the environment.
+
+        Args:
+            output_dir: The directory to export the IO descriptors to.
+        """
+        import os
+        import yaml
+
+        IO_descriptors = self.get_IO_descriptors
+
+        if output_dir is None:
+            output_dir = self.cfg.io_descriptors_output_dir
+        if output_dir is None:
+            raise ValueError(
+                "Output directory is not set. Please set the output directory using the `io_descriptors_output_dir`"
+                " configuration."
+            )
+
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir, exist_ok=True)
+
+        with open(os.path.join(output_dir, "IO_descriptors.yaml"), "w") as f:
+            print(f"[INFO]: Exporting IO descriptors to {os.path.join(output_dir, 'IO_descriptors.yaml')}")
+            yaml.safe_dump(IO_descriptors, f)
 
     """
     Operations - Setup.

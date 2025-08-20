@@ -24,10 +24,9 @@ If you encounter any issues, please report them to the
 
 .. attention::
 
-   On Windows with CUDA 12, the GPU driver version 552.86 is required.
+   For details on driver requirements, please see the `Technical Requirements <https://docs.omniverse.nvidia.com/materials-and-rendering/latest/common/technical-requirements.html>`_ guide!
 
-   Also, on Windows, it may be necessary to `enable long path <https://pip.pypa.io/warnings/enable-long-paths>`_
-   support to avoid installation errors due to OS limitations.
+   On Windows, it may be necessary to `enable long path support <https://learn.microsoft.com/en-us/windows/win32/fileio/maximum-file-path-limitation?tabs=registry#enable-long-paths-in-windows-10-version-1607-and-later>`_ to avoid installation errors due to OS limitations.
 
 .. attention::
 
@@ -75,6 +74,7 @@ If you encounter any issues, please report them to the
                   # activate the virtual environment
                   env_isaaclab\Scripts\activate
 
+
 -  Before installing Isaac Sim, ensure the latest pip version is installed. To update pip, run
 
    .. tab-set::
@@ -93,6 +93,14 @@ If you encounter any issues, please report them to the
          .. code-block:: batch
 
             python -m pip install --upgrade pip
+
+
+-  Next, install a CUDA-enabled PyTorch 2.7.0 build.
+
+   .. code-block:: bash
+
+      pip install torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
+
 
 -  Then, install the Isaac Sim packages.
 

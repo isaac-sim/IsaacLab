@@ -1,0 +1,384 @@
+[
+  {
+    "package": "isaaclab",
+    "license": null
+  },
+  {
+    "package": "isaaclab_assets",
+    "license": null
+  },
+  {
+    "package": "isaaclab_mimic",
+    "license": null
+  },
+  {
+    "package": "isaaclab_rl",
+    "license": null
+  },
+  {
+    "package": "isaaclab_tasks",
+    "license": null
+  },
+  {
+    "package": "isaacsim",
+    "license": null
+  },
+  {
+    "package": "isaacsim-app",
+    "license": null
+  },
+  {
+    "package": "isaacsim-asset",
+    "license": null
+  },
+  {
+    "package": "isaacsim-benchmark",
+    "license": null
+  },
+  {
+    "package": "isaacsim-code-editor",
+    "license": null
+  },
+  {
+    "package": "isaacsim-core",
+    "license": null
+  },
+  {
+    "package": "isaacsim-cortex",
+    "license": null
+  },
+  {
+    "package": "isaacsim-example",
+    "license": null
+  },
+  {
+    "package": "isaacsim-extscache-kit",
+    "license": null
+  },
+  {
+    "package": "isaacsim-extscache-kit-sdk",
+    "license": null
+  },
+  {
+    "package": "isaacsim-extscache-physics",
+    "license": null
+  },
+  {
+    "package": "isaacsim-gui",
+    "license": null
+  },
+  {
+    "package": "isaacsim-kernel",
+    "license": null
+  },
+  {
+    "package": "isaacsim-replicator",
+    "license": null
+  },
+  {
+    "package": "isaacsim-rl",
+    "license": null
+  },
+  {
+    "package": "isaacsim-robot",
+    "license": null
+  },
+  {
+    "package": "isaacsim-robot-motion",
+    "license": null
+  },
+  {
+    "package": "isaacsim-robot-setup",
+    "license": null
+  },
+  {
+    "package": "isaacsim-ros1",
+    "license": null
+  },
+  {
+    "package": "isaacsim-ros2",
+    "license": null
+  },
+  {
+    "package": "isaacsim-sensor",
+    "license": null
+  },
+  {
+    "package": "isaacsim-storage",
+    "license": null
+  },
+  {
+    "package": "isaacsim-template",
+    "license": null
+  },
+  {
+    "package": "isaacsim-test",
+    "license": null
+  },
+  {
+    "package": "isaacsim-utils",
+    "license": null
+  },
+  {
+    "package": "nvidia-cublas-cu12",
+    "license": null
+  },
+  {
+    "package": "nvidia-cuda-cupti-cu12",
+    "license": null
+  },
+  {
+    "package": "nvidia-cuda-nvrtc-cu12",
+    "license": null
+  },
+  {
+    "package": "nvidia-cuda-runtime-cu12",
+    "license": null
+  },
+  {
+    "package": "nvidia-cudnn-cu12",
+    "license": null
+  },
+  {
+    "package": "nvidia-cufft-cu12",
+    "license": null
+  },
+  {
+    "package": "nvidia-cufile-cu12",
+    "license": null
+  },
+  {
+    "package": "nvidia-curand-cu12",
+    "license": null
+  },
+  {
+    "package": "nvidia-cusolver-cu12",
+    "license": null
+  },
+  {
+    "package": "nvidia-cusparse-cu12",
+    "license": null
+  },
+  {
+    "package": "nvidia-cusparselt-cu12",
+    "license": null
+  },
+  {
+    "package": "nvidia-nccl-cu12",
+    "license": null
+  },
+  {
+    "package": "nvidia-nvjitlink-cu12",
+    "license": null
+  },
+  {
+    "package": "nvidia-nvtx-cu12",
+    "license": null
+  },
+  {
+    "package": "omniverse-kit",
+    "license": null
+  },
+  {
+    "package": "warp-lang",
+    "license": null
+  },
+  {
+    "package": "cmeel",
+    "license": "UNKNOWN",
+    "comment": "BSD"
+  },
+  {
+    "package": "cmeel-assimp",
+    "license": "UNKNOWN",
+    "comment": "BSD"
+  },
+  {
+    "package": "cmeel-boost",
+    "license": "UNKNOWN",
+    "comment": "BSL"
+  },
+  {
+    "package": "cmeel-console-bridge",
+    "license": "UNKNOWN",
+    "comment": "BSD"
+  },
+  {
+    "package": "cmeel-octomap",
+    "license": "UNKNOWN",
+    "comment": "BSD"
+  },
+  {
+    "package": "cmeel-qhull",
+    "license": "UNKNOWN",
+    "comment": "custom / OSRB"
+  },
+  {
+    "package": "cmeel-tinyxml",
+    "license": "UNKNOWN",
+    "comment": "ZLIBL"
+  },
+  {
+    "package": "cmeel-urdfdom",
+    "license": "UNKNOWN",
+    "comment": "BSD"
+  },
+  {
+    "package": "cmeel-zlib",
+    "license": "UNKNOWN",
+    "comment": "ZLIBL"
+  },
+  {
+    "package": "matplotlib",
+    "license": "Python Software Foundation License"
+  },
+  {
+    "package": "certifi",
+    "license": "Mozilla Public License 2.0 (MPL 2.0)"
+  },
+  {
+      "package": "rl_games",
+      "license": "UNKNOWN",
+      "comment": "MIT"
+  },
+  {
+      "package": "robomimic",
+      "license": "UNKNOWN",
+      "comment": "MIT"
+  },
+  {
+      "package": "hpp-fcl",
+      "license": "UNKNOWN",
+      "comment": "BSD"
+  },
+  {
+      "package": "pin",
+      "license": "UNKNOWN",
+      "comment": "BSD"
+  },
+  {
+      "package": "eigenpy",
+      "license": "UNKNOWN",
+      "comment": "BSD"
+  },
+  {
+      "package": "qpsolvers",
+      "license": "GNU Lesser General Public License v3 (LGPLv3)",
+      "comment": "OSRB"
+  },
+  {
+      "package": "quadprog",
+      "license": "GNU General Public License v2 or later (GPLv2+)",
+      "comment": "OSRB"
+  },
+  {
+    "package": "Markdown",
+    "license": "UNKNOWN",
+    "comment": "BSD"
+  },
+  {
+    "package": "anytree",
+    "license": "UNKNOWN",
+    "comment": "Apache"
+  },
+  {
+    "package": "click",
+    "license": "UNKNOWN",
+    "comment": "BSD"
+  },
+  {
+    "package": "egl_probe",
+    "license": "UNKNOWN",
+    "comment": "MIT"
+  },
+  {
+    "package": "filelock",
+    "license": "The Unlicense (Unlicense)",
+    "comment": "no condition"
+  },
+  {
+    "package": "proglog",
+    "license": "UNKNOWN",
+    "comment": "MIT"
+  },
+  {
+    "package": "termcolor",
+    "license": "UNKNOWN",
+    "comment": "MIT"
+  },
+  {
+    "package": "typing_extensions",
+    "license": "UNKNOWN",
+    "comment": "PSFL / OSRB"
+  },
+  {
+    "package": "urllib3",
+    "license": "UNKNOWN",
+    "comment": "MIT"
+  },
+  {
+    "package": "h5py",
+    "license": "UNKNOWN",
+    "comment": "BSD"
+  },
+  {
+    "package": "pillow",
+    "license": "UNKNOWN",
+    "comment": "MIT"
+  },
+  {
+    "package": "pygame",
+    "license": "GNU Library or Lesser General Public License (LGPL)",
+    "comment": "OSRB"
+  },
+  {
+    "package": "scikit-learn",
+    "license": "UNKNOWN",
+    "comment": "BSD"
+  },
+  {
+    "package": "tensorboardX",
+    "license": "UNKNOWN",
+    "comment": "MIT"
+  },
+  {
+    "package": "attrs",
+    "license": "UNKNOWN",
+    "comment": "MIT"
+  },
+  {
+    "package": "jsonschema",
+    "license": "UNKNOWN",
+    "comment": "MIT"
+  },
+  {
+    "package": "jsonschema-specifications",
+    "license": "UNKNOWN",
+    "comment": "MIT"
+  },
+  {
+    "package": "referencing",
+    "license": "UNKNOWN",
+    "comment": "MIT"
+  },
+  {
+    "package": "regex",
+    "license": "UNKNOWN",
+    "comment": "Apache 2.0"
+  },
+  {
+    "package": "anyio",
+    "license": "UNKNOWN",
+    "comment": "MIT"
+  },
+  {
+    "package" : "hf-xet",
+    "license" : "UNKNOWN",
+    "comment": "Apache 2.0"
+  },
+  {
+    "package": "rpds-py",
+    "license" : "UNKNOWN",
+    "comment": "MIT"
+  }
+]

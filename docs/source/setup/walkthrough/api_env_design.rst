@@ -82,7 +82,7 @@ Next, let's take a look at the contents of the other python file in our task dir
 
 .. code-block:: python
 
-  #imports
+  # imports
   .
   .
   .

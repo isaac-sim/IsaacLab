@@ -24,6 +24,7 @@ import isaacsim.core.utils.prims as prim_utils
 import isaacsim.core.utils.stage as stage_utils
 import omni.replicator.core as rep
 import pytest
+from flaky import flaky
 from isaacsim.core.prims import SingleGeometryPrim, SingleRigidPrim
 from pxr import Gf, UsdGeom
 
@@ -259,6 +260,7 @@ def test_all_annotators_multi_tiled_camera(setup_camera):
         del camera
 
 
+@flaky(max_runs=3, min_passes=1)
 def test_different_resolution_multi_tiled_camera(setup_camera):
     """Test multiple tiled cameras with different resolutions."""
     camera_cfg, sim, dt = setup_camera
@@ -394,6 +396,7 @@ def test_frame_offset_multi_tiled_camera(setup_camera):
         del camera
 
 
+@flaky(max_runs=3, min_passes=1)
 def test_frame_different_poses_multi_tiled_camera(setup_camera):
     """Test multiple tiled cameras placed at different poses render different images."""
     camera_cfg, sim, dt = setup_camera

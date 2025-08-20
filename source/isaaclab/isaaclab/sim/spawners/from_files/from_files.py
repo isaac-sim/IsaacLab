@@ -262,9 +262,7 @@ def _spawn_from_usd_file(
     # check file path exists
     if not stage.ResolveIdentifierToEditTarget(usd_path):
         if "4.5" in usd_path:
-            usd_5_0_path = (
-                usd_path.replace("http", "https").replace("-production.", "-staging.").replace("/4.5", "/5.0")
-            )
+            usd_5_0_path = usd_path.replace("http", "https").replace("/4.5", "/5.0")
             if not stage.ResolveIdentifierToEditTarget(usd_5_0_path):
                 raise FileNotFoundError(f"USD file not found at path at either: '{usd_path}' or '{usd_5_0_path}'.")
             usd_path = usd_5_0_path

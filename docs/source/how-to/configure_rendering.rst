@@ -18,16 +18,12 @@ Rendering modes can be selected in 2 ways.
      # scripts/tutorials/00_sim/set_rendering_mode.py
      render_cfg = sim_utils.RenderCfg(rendering_mode="performance")
 
-2. using the ``--rendering_mode`` CLI argument and not passing ``rendering_mode`` to :class:`~sim.RenderCfg`, since :class:`~sim.RenderCfg` takes precedence.
+2. using the ``--rendering_mode`` CLI argument, which takes precedence over the ``rendering_mode`` argument in :class:`~sim.RenderCfg`.
 
    .. code-block:: bash
 
      ./isaaclab.sh -p scripts/tutorials/00_sim/set_rendering_mode.py --rendering_mode {performance/balanced/quality}
 
-   .. code-block:: bash
-
-     # in the tutorial script example, remove the rendering_mode passed to RenderCfg
-     render_cfg = sim_utils.RenderCfg()
 
 Note, the ``rendering_mode`` defaults to ``balanced``.
 However, in the case where the launcher argument ``--enable_cameras`` is not set, then

@@ -125,3 +125,9 @@ class ManagerBasedEnvCfg:
 
     teleop_devices: DevicesCfg = field(default_factory=DevicesCfg)
     """Configuration for teleoperation devices."""
+
+    export_io_descriptors: bool = False
+    """Whether to export the IO descriptors for the environment. Defaults to False."""
+
+    io_descriptors_output_dir: str | None = None
+    """The directory to export the IO descriptors to. Defaults to None."""

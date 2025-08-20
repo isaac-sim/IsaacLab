@@ -127,7 +127,7 @@ class UniformPoseCommand(CommandTerm):
         pass
 
     def _set_debug_vis_impl(self, debug_vis: bool):
-        # create markers if necessary for the first tome
+        # create markers if necessary for the first time
         if debug_vis:
             if not hasattr(self, "goal_pose_visualizer"):
                 # -- goal pose

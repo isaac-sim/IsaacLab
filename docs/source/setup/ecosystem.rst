@@ -83,14 +83,45 @@ be the single robot learning framework for Isaac Sim. Previously released framew
 and we encourage users to follow our migration guides to transition over to Isaac Lab.
 
 
+Is Isaac Lab a simulator?
+-------------------------
+
+Often, when people think of simulators, they think of various commonly available engines, such as
+`MuJoCo`_, `Bullet`_, and `Flex`_. These engines are powerful and have been used in a number of
+research projects. However, they are not designed to be a general purpose simulator for robotics.
+Rather they are primarily physics engines that are used to simulate the dynamics of rigid and
+deformable bodies. They are shipped with some basic rendering capabilities to visualize the
+simulation and provide parsing capabilities of different scene description formats.
+
+Various recent works combine these physics engines with different rendering engines to provide
+a more complete simulation environment. They include APIs that allow reading and writing to the
+physics and rendering engines. In some cases, they support ROS and hardware-in-the-loop simulation
+for more robotic-specific applications. An example of these include `AirSim`_, `DoorGym`_, `ManiSkill`_,
+`ThreeDWorld`_ and lastly, `Isaac Sim`_.
+
+At its core, Isaac Lab is **not** a robotics simulator, but a framework for building robot learning
+applications on top of Isaac Sim. An equivalent example of such a framework is `RoboSuite`_, which
+is built on top of `MuJoCo`_ and is specific to fixed-base robots. Other examples include
+`MuJoCo Playground`_ and `Isaac Gym`_ which use `MJX`_ and `PhysX`_ respectively. They
+include a number of pre-built tasks with separated out stand-alone implementations for individual
+tasks. While this is a good starting point (and often convenient), a lot of code
+repetition occurs across different task implementations, which can reduce code-reuse for larger
+projects and teams.
+
+The main goal of Isaac Lab is to provide a unified framework for robot learning that includes
+a variety of tooling and features that are required for robot learning, while being easy to
+use and extend. It includes design patterns that simplify many of the common requirements for
+robotics research. These include simulating sensors at different frequencies, connecting to different
+teleoperation interfaces for data collection, switching action spaces for policy learning,
+using Hydra for configuration management, supporting different learning libraries and more.
+Isaac Lab supports designing tasks using *manager-based (modularized)* and *direct (single-script
+similar to Isaac Gym)* patterns, leaving it up to the user to choose the best approach for their
+use-case. For each of these patterns, Isaac Lab includes a number of pre-built tasks that can be
+used for benchmarking and research.
+
+
 Why should I use Isaac Lab?
 ---------------------------
-
-Since Isaac Sim remains closed-sourced, it is difficult for users to contribute to the simulator and build a
-common framework for research. On its current path, we see the community using the simulator will simply
-develop their own frameworks that will result in scattered efforts with a lot of duplication of work.
-This has happened in the past with other simulators, and we believe that it is not the best way to move
-forward as a community.
 
 Isaac Lab provides an open-sourced platform for the community to drive progress with consolidated efforts
 toward designing benchmarks and robot learning systems as a joint initiative. This allows us to reuse
@@ -113,3 +144,12 @@ to Isaac Lab, please reach out to us.
 .. _OmniIsaacGymEnvs: https://github.com/isaac-sim/OmniIsaacGymEnvs
 .. _Orbit: https://isaac-orbit.github.io/
 .. _Isaac Automator: https://github.com/isaac-sim/IsaacAutomator
+.. _AirSim: https://microsoft.github.io/AirSim/
+.. _DoorGym: https://github.com/PSVL/DoorGym/
+.. _ManiSkill: https://github.com/haosulab/ManiSkill
+.. _ThreeDWorld: https://www.threedworld.org/
+.. _RoboSuite: https://robosuite.ai/
+.. _MuJoCo Playground: https://playground.mujoco.org/
+.. _MJX: https://mujoco.readthedocs.io/en/stable/mjx.html
+.. _Bullet: https://github.com/bulletphysics/bullet3
+.. _Flex: https://developer.nvidia.com/flex

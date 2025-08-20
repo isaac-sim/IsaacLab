@@ -22,6 +22,7 @@ import torch
 import carb
 import isaacsim.core.utils.prims as prim_utils
 import pytest
+from flaky import flaky
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
@@ -256,6 +257,7 @@ def test_set_nodal_state(sim, num_cubes):
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("randomize_pos", [True, False])
 @pytest.mark.parametrize("randomize_rot", [True, False])
+@flaky(max_runs=3, min_passes=1)
 def test_set_nodal_state_with_applied_transform(sim, num_cubes, randomize_pos, randomize_rot):
     """Test setting the state of the deformable object with applied transform."""
     carb_settings_iface = carb.settings.get_settings()

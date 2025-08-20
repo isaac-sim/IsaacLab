@@ -34,6 +34,12 @@ Local Installation
     For the full list of system requirements for Isaac Sim, please refer to the
     `Isaac Sim system requirements <https://docs.isaacsim.omniverse.nvidia.com/latest/installation/requirements.html#system-requirements>`_.
 
+    For details on driver requirements, please see the `Technical Requirements <https://docs.omniverse.nvidia.com/materials-and-rendering/latest/common/technical-requirements.html>`_ guide
+
+    * See `Linux Troubleshooting <https://docs.omniverse.nvidia.com/dev-guide/latest/linux-troubleshooting.html>`_ to resolve driver installation issues in linux
+    * If you are on a new GPU or are experiencing issues with the current drivers, we recommend installing the **latest production branch version** drivers from the `Unix Driver Archive <https://www.nvidia.com/en-us/drivers/unix/>`_ using the ``.run`` installer on Linux.
+    * NVIDIA driver version ``535.216.01`` or later is recommended when upgrading to **Ubuntu 22.04.5 kernel 6.8.0-48-generic** or later
+
 
 Isaac Lab is built on top of the Isaac Sim platform. Therefore, it is required to first install Isaac Sim
 before using Isaac Lab.

@@ -17,6 +17,7 @@ from isaaclab.managers.action_manager import ActionTerm
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
+    from isaaclab.envs.utils.io_descriptors import GenericActionIODescriptor
 
     from . import pink_actions_cfg
 
@@ -124,6 +125,31 @@ class PinkInverseKinematicsAction(ActionTerm):
     def processed_actions(self) -> torch.Tensor:
         """Get the processed actions tensor."""
         return self._processed_actions
+
+    @property
+    def IO_descriptor(self) -> GenericActionIODescriptor:
+        """The IO descriptor of the action term.
+
+        This descriptor is used to describe the action term of the pink inverse kinematics action.
+        It adds the following information to the base descriptor:
+        - scale: The scale of the action term.
+        - offset: The offset of the action term.
+        - clip: The clip of the action term.
+        - pink_controller_joint_names: The names of the pink controller joints.
+        - hand_joint_names: The names of the hand joints.
+        - controller_cfg: The configuration of the pink controller.
+
+        Returns:
+            The IO descriptor of the action term.
+        """
+        super().IO_descriptor
+        self._IO_descriptor.shape = (self.action_dim,)
+        self._IO_descriptor.dtype = str(self.raw_actions.dtype)
+        self._IO_descriptor.action_type = "PinkInverseKinematicsAction"
+        self._IO_descriptor.pink_controller_joint_names = self._pink_controlled_joint_names
+        self._IO_descriptor.hand_joint_names = self._hand_joint_names
+        self._IO_descriptor.extras["controller_cfg"] = self.cfg.controller.__dict__
+        return self._IO_descriptor
 
     # """
     # Operations.

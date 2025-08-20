@@ -1,0 +1,42 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+name: Cherry-pick from main to devel
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  cherry-pick:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # fetch full history to access other branches
+
+      - name: Set up Git config
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Get latest commit SHA on main
+        id: get_commit
+        run: echo "::set-output name=sha::$(git rev-parse HEAD)"
+
+      - name: Checkout devel branch
+        run: git checkout devel
+
+      - name: Cherry-pick latest commit from main
+        run: |
+          git cherry-pick ${{ steps.get_commit.outputs.sha }}
+
+      - name: Push changes to devel
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git push origin devel
