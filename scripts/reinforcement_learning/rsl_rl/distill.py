@@ -15,7 +15,6 @@ parser.add_argument("--total_steps", type=int, default=200_000)
 parser.add_argument("--update_every", type=int, default=32)
 parser.add_argument("--lr", type=float, default=1e-3)
 parser.add_argument("--out_dir", type=str, default="outputs/distill_student")
-parser.add_argument("--headless", action="store_true")
 # passthrough kit/hydra args
 AppLauncher.add_app_launcher_args(parser)
 args_cli, hydra_args = parser.parse_known_args()
