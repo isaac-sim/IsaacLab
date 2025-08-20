@@ -7,12 +7,13 @@ Changelog
 Added
 ^^^^^
 
-* Added :class:`~isaaclab.utils.timer.Timer` to track the time taken for different parts of the code.
 * Added :attr:`~isaaclab.utils.timer.Timer.enable` to toggle the timer globally.
 * Added :attr:`~isaaclab.utils.timer.Timer.enable_display_output` to toggle the display output of the timer.
 * Added :attr:`~isaaclab.utils.timer.Timer._format` to configure the format of the elapsed time.
+* Added :attr:`~isaaclab.utils.timer.Timer._enable` to toggle the timer for a specific instance.
 * Added :meth:`~isaaclab.utils.timer.Timer.get_timer_statistics` to retrieve the statistics of the timer (mean, std, n).
 * Added :meth:`~isaaclab.utils.timer.Timer.update_welford` to update the welford's algorithm with a new value.
+* Added improved timer to better benchmark the performance of the code.
 
 
 0.45.2 (2025-08-18)
