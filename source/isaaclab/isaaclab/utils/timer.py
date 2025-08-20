@@ -99,11 +99,11 @@ class Timer(ContextDecorator):
         self._start_time = None
         self._stop_time = None
         self._elapsed_time = None
-        self._enable = enable
+        self._enable = enable if Timer.enable else False
         self._format = format
 
         # Check if the format is valid
-        assert format in ["s", "ms", "us", "ns"], "Invalid format"
+        assert format in ["s", "ms", "us", "ns"], f"Invalid format, {format} is not in [s, ms, us, ns]"
         # Convert the format to a multiplier
         self._multiplier = {
             "s": 1.0,
@@ -150,7 +150,7 @@ class Timer(ContextDecorator):
 
     def start(self):
         """Start timing."""
-        if (not self._enable) or (not Timer.enable):
+        if not self._enable:
             return
 
         if self._start_time is not None:
@@ -160,7 +160,7 @@ class Timer(ContextDecorator):
 
     def stop(self):
         """Stop timing."""
-        if (not self._enable) or (not Timer.enable):
+        if not self._enable:
             return
 
         if self._start_time is None:
@@ -174,13 +174,14 @@ class Timer(ContextDecorator):
         self._elapsed_time = self._stop_time - self._start_time
         self._start_time = None
 
-        if (self._name is not None) and Timer.enable_display_output:
+        if (self._name is not None) and (self._enable):
             # Update the welford's algorithm
             self.update_welford(self._elapsed_time)
 
             # Update the timing info
             Timer.timing_info[self._name] = {
                 "last": self._elapsed_time,
+                "m2": self._m2,
                 "mean": self._mean,
                 "std": self._std,
                 "n": self._n,
@@ -198,7 +199,7 @@ class Timer(ContextDecorator):
             delta = value - Timer.timing_info[self._name]["mean"]
             self._mean = Timer.timing_info[self._name]["mean"] + delta / self._n
             delta2 = value - self._mean
-            self._m2 = Timer.timing_info[self._name]["m2"] + delta2 * delta2
+            self._m2 = Timer.timing_info[self._name]["m2"] + delta * delta2
         except KeyError:
             self._n = 1
             self._mean = value
@@ -220,13 +221,15 @@ class Timer(ContextDecorator):
         """Stop timing."""
         self.stop()
         # print message
-        if self._msg is not None:
-            print(
-                f"Last: {(self._elapsed_time * self._multiplier):0.6f} {self._format}, "
-                f"Mean: {(self._mean * self._multiplier):0.6f} {self._format}, "
-                f"Std: {(self._std * self._multiplier):0.6f} {self._format}, "
-                f"N: {self._n}"
-            )
+        if self._enable:
+            if (self._msg is not None) and (Timer.enable_display_output):
+                print(
+                    self._msg,
+                    f"Last: {(self._elapsed_time * self._multiplier):0.6f} {self._format}, "
+                    f"Mean: {(self._mean * self._multiplier):0.6f} {self._format}, "
+                    f"Std: {(self._std * self._multiplier):0.6f} {self._format}, "
+                    f"N: {self._n}",
+                )
 
     """
     Static Methods
