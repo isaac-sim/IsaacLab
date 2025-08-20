@@ -36,7 +36,7 @@ parser.add_argument(
     "--teacher_group", type=str, default="policy",
     help="Observation group to expose as TEACHER (default: policy)."
 )
-+parser.add_argument("--teacher_ckpt", type=str, default=None, help="Path to PPO checkpoint to load into teacher.")
+parser.add_argument("--teacher_ckpt", type=str, default=None, help="Path to PPO checkpoint to load into teacher.")
 # append RSL-RL cli arguments
 cli_args.add_rsl_rl_args(parser)
 # append AppLauncher cli args
