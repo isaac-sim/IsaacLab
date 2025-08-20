@@ -398,7 +398,7 @@ class PlanVisualizer:
             )
 
         # Set timeline for static visualization (separate from animation)
-        rr.set_time_sequence("static_plan", self._current_frame)
+        rr.set_time("static_plan", sequence=self._current_frame)
         self._current_frame += 1
 
         # Clear previous visualization of dynamic entities (keep static meshes)
@@ -709,7 +709,7 @@ class PlanVisualizer:
         # Iterate over timesteps and log a frame on the chosen timeline
         for idx, pos in enumerate(ee_positions):
             # Set time on the chosen timeline (creates it if needed)
-            rr.set_time_sequence(timeline, idx)
+            rr.set_time(timeline, sequence=idx)
 
             # Log end-effector marker (needs offset for multi-env)
             rr.log(
@@ -803,7 +803,7 @@ class PlanVisualizer:
         # Animate spheres along the interpolated trajectory
         for frame_idx, joint_positions in enumerate(interpolated_positions):
             # Set time on the animation timeline with consistent timing
-            rr.set_time_sequence(timeline, frame_idx)
+            rr.set_time(timeline, sequence=frame_idx)
 
             # Create joint state for this interpolated position
             if isinstance(joint_positions, torch.Tensor):
@@ -909,7 +909,9 @@ class PlanVisualizer:
         """
         if len(plan.position) < 2:
             # If only one waypoint, just return it
-            return [plan.position[0] if isinstance(plan.position[0], torch.Tensor) else torch.tensor(plan.position[0])]
+            return [
+                plan.position[0] if isinstance(plan.position[0], torch.Tensor) else torch.tensor(plan.position[0])
+            ]  # type: ignore
 
         interpolated_positions = []
 
