@@ -58,6 +58,7 @@ def randomize_joint_by_gaussian_offset(
     asset.set_joint_velocity_target(joint_vel, env_ids=env_ids)
     asset.write_joint_state_to_sim(joint_pos, joint_vel, env_ids=env_ids)
 
+
 def sample_random_color(base=(0.75, 0.75, 0.75), variation=0.1):
     """
     Generates a randomized color that stays close to the base color while preserving overall brightness.

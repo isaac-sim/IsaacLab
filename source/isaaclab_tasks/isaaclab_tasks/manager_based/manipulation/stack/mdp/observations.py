@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 import torch
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 import isaaclab.utils.math as math_utils
 from isaaclab.assets import Articulation, RigidObject, RigidObjectCollection
@@ -271,7 +271,7 @@ def gripper_pos(
         gripper_states = []
         for gripper_name, surface_gripper in env.scene.surface_grippers.items():
             gripper_states.append(surface_gripper.state.view(-1, 1))
-        
+
         if len(gripper_states) == 1:
             return gripper_states[0]
         else:
@@ -393,13 +393,14 @@ def object_stacked(
 
 def cube_poses_in_base_frame(
     env: ManagerBasedRLEnv,
-    return_key: str = "pos",
     cube_1_cfg: SceneEntityCfg = SceneEntityCfg("cube_1"),
     cube_2_cfg: SceneEntityCfg = SceneEntityCfg("cube_2"),
     cube_3_cfg: SceneEntityCfg = SceneEntityCfg("cube_3"),
     robot_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    return_key: Literal["pos", "quat", None] = None,
 ) -> torch.Tensor:
-    """The position of the cubes in the world frame."""
+    """The position and orientation of the cubes in the robot base frame."""
+
     cube_1: RigidObject = env.scene[cube_1_cfg.name]
     cube_2: RigidObject = env.scene[cube_2_cfg.name]
     cube_3: RigidObject = env.scene[cube_3_cfg.name]
@@ -412,7 +413,6 @@ def cube_poses_in_base_frame(
     quat_cube_2_world = cube_2.data.root_quat_w
     quat_cube_3_world = cube_3.data.root_quat_w
 
-    """The position of the robot in the world frame."""
     robot: Articulation = env.scene[robot_cfg.name]
     root_pos_w = robot.data.root_pos_w
     root_quat_w = robot.data.root_quat_w
@@ -434,8 +434,8 @@ def cube_poses_in_base_frame(
         return pos_cubes_base
     elif return_key == "quat":
         return quat_cubes_base
-    else:
-        raise NotImplementedError
+    elif return_key is None:
+        return torch.cat((pos_cubes_base, quat_cubes_base), dim=1)
 
 
 def object_abs_obs_in_base_frame(
@@ -447,7 +447,7 @@ def object_abs_obs_in_base_frame(
     robot_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
 ):
     """
-    Object Abs observations (in base frame): remove the relative observations, and add abs gripper pos and quat in base frame
+    Object Abs observations (in base frame): remove the relative observations, and add abs gripper pos and quat in robot base frame
         cube_1 pos,
         cube_1 quat,
         cube_2 pos,
@@ -508,10 +508,10 @@ def ee_frame_pose_in_base_frame(
     env: ManagerBasedRLEnv,
     ee_frame_cfg: SceneEntityCfg = SceneEntityCfg("ee_frame"),
     robot_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
-    return_key: str = "pos",
+    return_key: Literal["pos", "quat", None] = None,
 ) -> torch.Tensor:
     """
-    The end effector pose in the base frame.
+    The end effector pose in the robot base frame.
     """
     ee_frame: FrameTransformer = env.scene[ee_frame_cfg.name]
     ee_frame_pos_w = ee_frame.data.target_pos_w[:, 0, :]
@@ -528,5 +528,5 @@ def ee_frame_pose_in_base_frame(
         return ee_pos_in_base
     elif return_key == "quat":
         return ee_quat_in_base
-    else:
-        raise NotImplementedError
+    elif return_key is None:
+        return torch.cat((ee_pos_in_base, ee_quat_in_base), dim=1)
