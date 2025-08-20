@@ -71,6 +71,12 @@ class Timer(ContextDecorator):
     is recorded in the dictionary.
     """
 
+    enable = True
+    """Whether to enable the timer."""
+
+    enable_display_output = True
+    """Whether to enable the display output."""
+
     def __init__(
         self,
         msg: str | None = None,
@@ -144,7 +150,7 @@ class Timer(ContextDecorator):
 
     def start(self):
         """Start timing."""
-        if not self._enable:
+        if (not self._enable) or (not Timer.enable):
             return
 
         if self._start_time is not None:
@@ -154,7 +160,7 @@ class Timer(ContextDecorator):
 
     def stop(self):
         """Stop timing."""
-        if not self._enable:
+        if (not self._enable) or (not Timer.enable):
             return
 
         if self._start_time is None:
@@ -168,7 +174,7 @@ class Timer(ContextDecorator):
         self._elapsed_time = self._stop_time - self._start_time
         self._start_time = None
 
-        if self._name:
+        if (self._name is not None) and Timer.enable_display_output:
             # Update the welford's algorithm
             self.update_welford(self._elapsed_time)
 
