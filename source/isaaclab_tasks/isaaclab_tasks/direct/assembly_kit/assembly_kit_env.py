@@ -15,7 +15,6 @@ from collections.abc import Sequence
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation, RigidObject, RigidObjectCfg
 from isaaclab.envs import DirectRLEnv
-from isaaclab.markers import VisualizationMarkers
 from isaaclab.sensors import Camera, FrameTransformer
 from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
 from isaaclab.utils.math import euler_xyz_from_quat, quat_apply, quat_from_euler_xyz
@@ -77,7 +76,6 @@ class AssemblyKitEnv(DirectRLEnv):
         self.tcp_transformer = FrameTransformer(self.cfg.tcp_cfg)
         self.scene.sensors["tcp"] = self.tcp_transformer
 
-        self.vis_marker = VisualizationMarkers(self.cfg.marker_cfg.replace(prim_path="/Visual/Markers"))
         # clone and replicate
         self.scene.clone_environments(copy_from_source=True)
         # add articulation to scene
@@ -310,14 +308,7 @@ class AssemblyKitEnv(DirectRLEnv):
 
         height_correct = target_model_pose[:, 2] < height_thr
 
-        self.vis_marker.visualize(
-            self.target_model_goal_pos[:, :3] + self.scene.env_origins,
-            torch.zeros((self.num_envs, 4), dtype=torch.float32, device=self.device),
-        )
-
-        success = pos_correct & rot_correct & height_correct
-
-        return success
+        return pos_correct & rot_correct & height_correct
 
     def _reset_idx(self, env_ids: Sequence[int] | None):
         """Resets robot, kit, and object states for the given env indices.
