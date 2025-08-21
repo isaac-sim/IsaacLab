@@ -1,4 +1,14 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+# Copyright (c) 2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -15,7 +25,7 @@ from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.controllers.pink_ik_cfg import PinkIKControllerCfg
 from isaaclab.devices.device_base import DevicesCfg
 from isaaclab.devices.openxr import OpenXRDeviceCfg, XrCfg
-from isaaclab.devices.openxr.retargeters.humanoid.fourier.gr1t2_retargeter import GR1T2RetargeterCfg
+from isaaclab.devices.openxr.retargeters.humanoid.unitree.unitree_g1_retargeter import UnitreeG1RetargeterCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.envs.mdp.actions.pink_actions_cfg import PinkInverseKinematicsActionCfg
 from isaaclab.managers import EventTermCfg as EventTerm
@@ -30,7 +40,7 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 
 from . import mdp
 
-from isaaclab_assets.robots.fourier import GR1T2_CFG  # isort: skip
+from isaaclab_assets.robots.unitree import G1_INSPIRE_FTP_CFG  # isort: skip
 
 
 ##
@@ -51,7 +61,7 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
 
     object = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/Object",
-        init_state=RigidObjectCfg.InitialStateCfg(pos=[-0.45, 0.45, 0.9996], rot=[1, 0, 0, 0]),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=[-0.25, 0.40, 0.9996], rot=[1, 0, 0, 0]),
         spawn=UsdFileCfg(
             usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Mimic/pick_place_task/pick_place_assets/steering_wheel.usd",
             scale=(0.75, 0.75, 0.75),
@@ -60,17 +70,17 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
     )
 
     # Humanoid robot w/ arms higher
-    robot: ArticulationCfg = GR1T2_CFG.replace(
+    robot: ArticulationCfg = G1_INSPIRE_FTP_CFG.replace(
         prim_path="/World/envs/env_.*/Robot",
         init_state=ArticulationCfg.InitialStateCfg(
-            pos=(0, 0, 0.93),
+            pos=(0.05, 0.08, 1.0),
             rot=(0.7071, 0, 0, 0.7071),
             joint_pos={
                 # right-arm
                 "right_shoulder_pitch_joint": 0.0,
                 "right_shoulder_roll_joint": 0.0,
                 "right_shoulder_yaw_joint": 0.0,
-                "right_elbow_pitch_joint": -1.5708,
+                "right_elbow_joint": 0.0,
                 "right_wrist_yaw_joint": 0.0,
                 "right_wrist_roll_joint": 0.0,
                 "right_wrist_pitch_joint": 0.0,
@@ -78,18 +88,21 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
                 "left_shoulder_pitch_joint": 0.0,
                 "left_shoulder_roll_joint": 0.0,
                 "left_shoulder_yaw_joint": 0.0,
-                "left_elbow_pitch_joint": -1.5708,
+                "left_elbow_joint": 0.0,
                 "left_wrist_yaw_joint": 0.0,
                 "left_wrist_roll_joint": 0.0,
                 "left_wrist_pitch_joint": 0.0,
                 # --
-                "head_.*": 0.0,
                 "waist_.*": 0.0,
                 ".*_hip_.*": 0.0,
                 ".*_knee_.*": 0.0,
                 ".*_ankle_.*": 0.0,
-                "R_.*": 0.0,
-                "L_.*": 0.0,
+                # -- left/right hand
+                ".*_thumb_.*": 0.0,
+                ".*_index_.*": 0.0,
+                ".*_middle_.*": 0.0,
+                ".*_ring_.*": 0.0,
+                ".*_pinky_.*": 0.0,
             },
             joint_vel={".*": 0.0},
         ),
@@ -117,87 +130,83 @@ class ActionsCfg:
 
     pink_ik_cfg = PinkInverseKinematicsActionCfg(
         pink_controlled_joint_names=[
-            "left_shoulder_pitch_joint",
-            "left_shoulder_roll_joint",
-            "left_shoulder_yaw_joint",
-            "left_elbow_pitch_joint",
-            "left_wrist_yaw_joint",
-            "left_wrist_roll_joint",
-            "left_wrist_pitch_joint",
-            "right_shoulder_pitch_joint",
-            "right_shoulder_roll_joint",
-            "right_shoulder_yaw_joint",
-            "right_elbow_pitch_joint",
-            "right_wrist_yaw_joint",
-            "right_wrist_roll_joint",
-            "right_wrist_pitch_joint",
+            ".*_shoulder_pitch_joint",
+            ".*_shoulder_roll_joint",
+            ".*_shoulder_yaw_joint",
+            ".*_elbow_joint",
+            ".*_wrist_yaw_joint",
+            ".*_wrist_roll_joint",
+            ".*_wrist_pitch_joint",
         ],
         # Joints to be locked in URDF
         ik_urdf_fixed_joint_names=[
+            # Important, use ".*" will result in error of ControllerUtils.change_revolute_to_fixed
             "left_hip_roll_joint",
             "right_hip_roll_joint",
             "left_hip_yaw_joint",
             "right_hip_yaw_joint",
             "left_hip_pitch_joint",
             "right_hip_pitch_joint",
-            "left_knee_pitch_joint",
-            "right_knee_pitch_joint",
+            "left_knee_joint",
+            "right_knee_joint",
             "left_ankle_pitch_joint",
             "right_ankle_pitch_joint",
             "left_ankle_roll_joint",
             "right_ankle_roll_joint",
-            "L_index_proximal_joint",
-            "L_middle_proximal_joint",
-            "L_pinky_proximal_joint",
-            "L_ring_proximal_joint",
             "L_thumb_proximal_yaw_joint",
-            "R_index_proximal_joint",
-            "R_middle_proximal_joint",
-            "R_pinky_proximal_joint",
-            "R_ring_proximal_joint",
-            "R_thumb_proximal_yaw_joint",
-            "L_index_intermediate_joint",
-            "L_middle_intermediate_joint",
-            "L_pinky_intermediate_joint",
-            "L_ring_intermediate_joint",
             "L_thumb_proximal_pitch_joint",
-            "R_index_intermediate_joint",
-            "R_middle_intermediate_joint",
-            "R_pinky_intermediate_joint",
-            "R_ring_intermediate_joint",
-            "R_thumb_proximal_pitch_joint",
+            "L_thumb_intermediate_joint",
             "L_thumb_distal_joint",
+            "L_index_proximal_joint",
+            "L_index_intermediate_joint",
+            "L_middle_proximal_joint",
+            "L_middle_intermediate_joint",
+            "L_ring_proximal_joint",
+            "L_ring_intermediate_joint",
+            "L_pinky_proximal_joint",
+            "L_pinky_intermediate_joint",
+            "R_thumb_proximal_yaw_joint",
+            "R_thumb_proximal_pitch_joint",
+            "R_thumb_intermediate_joint",
             "R_thumb_distal_joint",
-            "head_roll_joint",
-            "head_pitch_joint",
-            "head_yaw_joint",
+            "R_index_proximal_joint",
+            "R_index_intermediate_joint",
+            "R_middle_proximal_joint",
+            "R_middle_intermediate_joint",
+            "R_ring_proximal_joint",
+            "R_ring_intermediate_joint",
+            "R_pinky_proximal_joint",
+            "R_pinky_intermediate_joint",
             "waist_yaw_joint",
             "waist_pitch_joint",
             "waist_roll_joint",
         ],
         hand_joint_names=[
-            "L_index_proximal_joint",
-            "L_middle_proximal_joint",
-            "L_pinky_proximal_joint",
-            "L_ring_proximal_joint",
+            # All the drive and mimic joints, total 24 joints
             "L_thumb_proximal_yaw_joint",
-            "R_index_proximal_joint",
-            "R_middle_proximal_joint",
-            "R_pinky_proximal_joint",
-            "R_ring_proximal_joint",
-            "R_thumb_proximal_yaw_joint",
-            "L_index_intermediate_joint",
-            "L_middle_intermediate_joint",
-            "L_pinky_intermediate_joint",
-            "L_ring_intermediate_joint",
             "L_thumb_proximal_pitch_joint",
-            "R_index_intermediate_joint",
-            "R_middle_intermediate_joint",
-            "R_pinky_intermediate_joint",
-            "R_ring_intermediate_joint",
-            "R_thumb_proximal_pitch_joint",
+            "L_thumb_intermediate_joint",
             "L_thumb_distal_joint",
+            "L_index_proximal_joint",
+            "L_index_intermediate_joint",
+            "L_middle_proximal_joint",
+            "L_middle_intermediate_joint",
+            "L_ring_proximal_joint",
+            "L_ring_intermediate_joint",
+            "L_pinky_proximal_joint",
+            "L_pinky_intermediate_joint",
+            "R_thumb_proximal_yaw_joint",
+            "R_thumb_proximal_pitch_joint",
+            "R_thumb_intermediate_joint",
             "R_thumb_distal_joint",
+            "R_index_proximal_joint",
+            "R_index_intermediate_joint",
+            "R_middle_proximal_joint",
+            "R_middle_intermediate_joint",
+            "R_ring_proximal_joint",
+            "R_ring_intermediate_joint",
+            "R_pinky_proximal_joint",
+            "R_pinky_intermediate_joint",
         ],
         # the robot in the sim scene we are controlling
         asset_name="robot",
@@ -206,19 +215,19 @@ class ActionsCfg:
         # The urdf has to be generated from the USD that is being used in the scene
         controller=PinkIKControllerCfg(
             articulation_name="robot",
-            base_link_name="base_link",
-            num_hand_joints=22,
-            show_ik_warnings=False,
+            base_link_name="pelvis",
+            num_hand_joints=24,
+            show_ik_warnings=True,
             variable_input_tasks=[
                 FrameTask(
-                    "GR1T2_fourier_hand_6dof_left_hand_pitch_link",
+                    "g1_29dof_rev_1_0_left_wrist_yaw_link",
                     position_cost=1.0,  # [cost] / [m]
                     orientation_cost=1.0,  # [cost] / [rad]
                     lm_damping=10,  # dampening for solver for step jumps
                     gain=0.1,
                 ),
                 FrameTask(
-                    "GR1T2_fourier_hand_6dof_right_hand_pitch_link",
+                    "g1_29dof_rev_1_0_right_wrist_yaw_link",
                     position_cost=1.0,  # [cost] / [m]
                     orientation_cost=1.0,  # [cost] / [rad]
                     lm_damping=10,  # dampening for solver for step jumps
@@ -262,7 +271,7 @@ class ObservationsCfg:
         right_eef_quat = ObsTerm(func=mdp.get_right_eef_quat)
 
         hand_joint_state = ObsTerm(func=mdp.get_hand_state)
-        head_joint_state = ObsTerm(func=mdp.get_head_state)
+        # head_joint_state = ObsTerm(func=mdp.get_head_state)   # For unitree g1, no head joint
 
         object = ObsTerm(func=mdp.object_obs)
 
@@ -308,7 +317,7 @@ class EventCfg:
 
 
 @configclass
-class PickPlaceGR1T2EnvCfg(ManagerBasedRLEnvCfg):
+class PickPlaceG1InspireFTPEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the GR1T2 environment."""
 
     # Scene settings
@@ -333,26 +342,30 @@ class PickPlaceGR1T2EnvCfg(ManagerBasedRLEnvCfg):
 
     # Temporary directory for URDF files
     temp_urdf_dir = tempfile.gettempdir()
-    robot_name = "Fourier_GR1T2"
+    robot_name = "Unitree_G1"
 
     # Idle action to hold robot in default pose
     # Action format: [left arm pos (3), left arm quat (4), right arm pos (3), right arm quat (4),
-    #                 left hand joint pos (11), right hand joint pos (11)]
+    #                 left hand joint pos (12), right hand joint pos (12)]
     idle_action = torch.tensor([
-        -0.22878,
-        0.2536,
-        1.0953,
-        0.5,
-        0.5,
-        -0.5,
-        0.5,
-        0.22878,
-        0.2536,
-        1.0953,
-        0.5,
-        0.5,
-        -0.5,
-        0.5,
+        # 14 hand joints for EEF control
+        -0.1487,
+        0.0538 + 0.15,  # y - left hand
+        1.0952,  # z - left hand
+        0.707,
+        0.0,
+        0.0,
+        0.707,
+        0.1487,
+        0.0538 + 0.15,  # y - right hand
+        1.0952,  # z - right hand
+        0.707,
+        0.0,
+        0.0,
+        0.707,
+        # 12 hand positive joints + 12 hand passive joints
+        0.0,
+        0.0,
         0.0,
         0.0,
         0.0,
@@ -402,7 +415,7 @@ class PickPlaceGR1T2EnvCfg(ManagerBasedRLEnvCfg):
             devices={
                 "handtracking": OpenXRDeviceCfg(
                     retargeters=[
-                        GR1T2RetargeterCfg(
+                        UnitreeG1RetargeterCfg(
                             enable_visualization=True,
                             # OpenXR hand tracking has 26 joints per hand
                             num_open_xr_hand_joints=2 * 26,
