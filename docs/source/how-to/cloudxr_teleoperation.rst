@@ -276,7 +276,7 @@ On your Mac:
 #. Check out the version tag corresponding to your Isaac Lab version:
 
    +-------------------+---------------------+
-   | Isaac Lab version | Client Version Tag  |
+   | Isaac Lab Version | Client Version Tag  |
    +-------------------+---------------------+
    | 2.2.x             | v2.2.0              |
    +-------------------+---------------------+
