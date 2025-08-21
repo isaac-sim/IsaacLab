@@ -273,7 +273,7 @@ On your Mac:
 
       git clone git@github.com:isaac-sim/isaac-xr-teleop-sample-client-apple.git
 
-#. Checkout the tag regarding the Isaac Lab version you are using:
+#. Check out the version tag corresponding to your Isaac Lab version:
 
    +-------------------+-------------------+
    | Isaac Lab version | Tag               |
