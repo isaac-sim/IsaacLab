@@ -28,7 +28,7 @@ from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 from . import mdp
 
-from isaaclab_assets.robots.fourier import GR1T2_CFG  # isort: skip
+from isaaclab_assets.robots.fourier import GR1T2_HIGH_PD_CFG  # isort: skip
 
 
 ##
@@ -100,7 +100,7 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
         ),
     )
 
-    robot: ArticulationCfg = GR1T2_CFG.replace(
+    robot: ArticulationCfg = GR1T2_HIGH_PD_CFG.replace(
         prim_path="/World/envs/env_.*/Robot",
         init_state=ArticulationCfg.InitialStateCfg(
             pos=(0, 0, 0.93),
@@ -297,6 +297,9 @@ class NutPourGR1T2BaseEnvCfg(ManagerBasedRLEnvCfg):
         anchor_pos=(0.0, 0.0, 0.0),
         anchor_rot=(1.0, 0.0, 0.0, 0.0),
     )
+
+    # OpenXR hand tracking has 26 joints per hand
+    NUM_OPENXR_HAND_JOINTS = 26
 
     # Temporary directory for URDF files
     temp_urdf_dir = tempfile.gettempdir()
