@@ -2,7 +2,6 @@ Changelog
 ---------
 
 0.45.3 (2025-08-21)
-~~~~~~~~~~~~~~~~~~~
 
 Fixed
 ^^^^^
@@ -10,6 +9,17 @@ Fixed
 * Fixed :meth:`~isaaclab.assets.Articulation.write_joint_friction_coefficient_to_sim` to set the friction coefficients in the simulation.
 * Fixed :meth:`~isaaclab.assets.Articulation.write_joint_dynamic_friction_coefficient_to_sim` to set the friction coefficients in the simulation.* Added :meth:`~isaaclab.envs.ManagerBasedEnvCfg.export_io_descriptors` to toggle the export of the IO descriptors.
 * Fixed :meth:`~isaaclab.assets.Articulation.write_joint_viscous_friction_coefficient_to_sim` to set the friction coefficients in the simulation.
+
+
+0.45.3 (2025-08-20)
+
+Fixed
+^^^^^
+
+* Fixed :meth:`isaaclab.envs.mdp.terminations.joint_effort_out_of_limit` so that it correctly reports whether a joint
+  effort limit has been violated. Previously, the implementation marked a violation when the applied and computed
+  torques were equal; in fact, equality should indicate no violation, and vice versa.
+
 
 0.45.2 (2025-08-18)
 ~~~~~~~~~~~~~~~~~~~
