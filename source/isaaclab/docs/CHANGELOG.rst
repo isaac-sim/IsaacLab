@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.45.3 (2025-08-21)
+0.45.5 (2025-08-21)
 
 Fixed
 ^^^^^
@@ -9,6 +9,16 @@ Fixed
 * Fixed :meth:`~isaaclab.assets.Articulation.write_joint_friction_coefficient_to_sim` to set the friction coefficients in the simulation.
 * Fixed :meth:`~isaaclab.assets.Articulation.write_joint_dynamic_friction_coefficient_to_sim` to set the friction coefficients in the simulation.* Added :meth:`~isaaclab.envs.ManagerBasedEnvCfg.export_io_descriptors` to toggle the export of the IO descriptors.
 * Fixed :meth:`~isaaclab.assets.Articulation.write_joint_viscous_friction_coefficient_to_sim` to set the friction coefficients in the simulation.
+
+
+0.45.4 (2025-08-21)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added unit tests for :class:`~isaaclab.sensor.sensor_base`
+
 
 
 0.45.3 (2025-08-20)
@@ -90,7 +100,6 @@ Fixed
 * Fixed the old termination manager in :class:`~isaaclab.managers.TerminationManager` term_done logging that logs the
 instantaneous term done count at reset. This let to inaccurate aggregation of termination count, obscuring the what really
 happeningduring the traing. Instead we log the episodic term done.
-
 
 
 0.44.9 (2025-07-30)
