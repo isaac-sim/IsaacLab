@@ -117,6 +117,7 @@ Guidelines for modifications:
 * Shafeef Omar
 * Shaoshu Su
 * Shaurya Dewan
+* Sixiang Chen
 * Shundo Kishi
 * Stefan Van de Mosselaer
 * Stephan Pleines
