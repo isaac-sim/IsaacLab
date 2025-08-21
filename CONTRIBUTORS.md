@@ -19,6 +19,7 @@ Guidelines for modifications:
 
 ---
 
+* Antoine Richard
 * Antonio Serrano-Muñoz
 * David Hoeller
 * Farbod Farshidian
