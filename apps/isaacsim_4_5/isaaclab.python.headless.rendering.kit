@@ -83,6 +83,9 @@ app.audio.enabled = false
 # Enable Vulkan - avoids torch+cu12 error on windows
 app.vulkan = true
 
+# Set profiler backend to NVTX by default
+app.profilerBackend = "nvtx"
+
 # disable replicator orchestrator for better runtime perf
 exts."omni.replicator.core".Orchestrator.enabled = false
 
