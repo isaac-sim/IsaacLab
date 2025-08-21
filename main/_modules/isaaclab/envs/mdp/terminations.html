@@ -694,12 +694,12 @@
 
 <span class="sd">    In the actuators, the applied torque are the efforts applied on the joints. These are computed by clipping</span>
 <span class="sd">    the computed torques to the joint limits. Hence, we check if the computed torques are equal to the applied</span>
-<span class="sd">    torques.</span>
+<span class="sd">    torques. If they are not, it means that clipping has occurred.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="c1"># extract the used quantities (to enable type-hinting)</span>
     <span class="n">asset</span><span class="p">:</span> <span class="n">Articulation</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">scene</span><span class="p">[</span><span class="n">asset_cfg</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>
     <span class="c1"># check if any joint effort is out of limit</span>
-    <span class="n">out_of_limits</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">isclose</span><span class="p">(</span>
+    <span class="n">out_of_limits</span> <span class="o">=</span> <span class="o">~</span><span class="n">torch</span><span class="o">.</span><span class="n">isclose</span><span class="p">(</span>
         <span class="n">asset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">computed_torque</span><span class="p">[:,</span> <span class="n">asset_cfg</span><span class="o">.</span><span class="n">joint_ids</span><span class="p">],</span> <span class="n">asset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">applied_torque</span><span class="p">[:,</span> <span class="n">asset_cfg</span><span class="o">.</span><span class="n">joint_ids</span><span class="p">]</span>
     <span class="p">)</span>
     <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">out_of_limits</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span></div>

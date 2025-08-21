@@ -4527,7 +4527,7 @@ sampled. It is useful in situations where delayed rewards are used <span id="id3
 <dd><p>Terminate when effort applied on the asset’s joints are outside of the soft joint limits.</p>
 <p>In the actuators, the applied torque are the efforts applied on the joints. These are computed by clipping
 the computed torques to the joint limits. Hence, we check if the computed torques are equal to the applied
-torques.</p>
+torques. If they are not, it means that clipping has occurred.</p>
 </dd></dl>
 
 <dl class="py function">
