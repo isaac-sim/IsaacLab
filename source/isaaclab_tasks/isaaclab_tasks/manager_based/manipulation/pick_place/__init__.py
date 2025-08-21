@@ -6,7 +6,13 @@
 import gymnasium as gym
 import os
 
-from . import agents, exhaustpipe_gr1t2_pink_ik_env_cfg, nutpour_gr1t2_pink_ik_env_cfg, pickplace_gr1t2_env_cfg, pickplace_unitree_g1_inspire_hand_env_cfg
+from . import (
+    agents,
+    exhaustpipe_gr1t2_pink_ik_env_cfg,
+    nutpour_gr1t2_pink_ik_env_cfg,
+    pickplace_gr1t2_env_cfg,
+    pickplace_unitree_g1_inspire_hand_env_cfg,
+)
 
 gym.register(
     id="Isaac-PickPlace-GR1T2-Abs-v0",

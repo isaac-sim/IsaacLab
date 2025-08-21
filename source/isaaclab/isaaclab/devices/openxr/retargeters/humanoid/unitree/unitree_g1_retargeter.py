@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
@@ -24,7 +29,6 @@ from isaaclab.devices import OpenXRDevice
 from isaaclab.devices.retargeter_base import RetargeterBase, RetargeterCfg
 from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
 
-
 # This import exception is suppressed because unitree_g1_dex_retargeting_utils depends on pinocchio which is not available on windows
 with contextlib.suppress(Exception):
     from .unitree_g1_dex_retargeting_utils import UnitreeG1DexRetargeting
@@ -37,7 +41,6 @@ class UnitreeG1RetargeterCfg(RetargeterCfg):
     enable_visualization: bool = False
     num_open_xr_hand_joints: int = 100
     hand_joint_names: list[str] | None = None  # List of robot hand joint names
-
 
 
 class UnitreeG1Retargeter(RetargeterBase):
@@ -123,8 +126,12 @@ class UnitreeG1Retargeter(RetargeterBase):
         retargeted_hand_joints = left_hand_joints + right_hand_joints
 
         # Convert numpy arrays to tensors and concatenate them
-        left_wrist_tensor = torch.tensor(self._retarget_abs(left_wrist, True), dtype=torch.float32, device=self._sim_device)
-        right_wrist_tensor = torch.tensor(self._retarget_abs(right_wrist, False), dtype=torch.float32, device=self._sim_device)
+        left_wrist_tensor = torch.tensor(
+            self._retarget_abs(left_wrist, True), dtype=torch.float32, device=self._sim_device
+        )
+        right_wrist_tensor = torch.tensor(
+            self._retarget_abs(right_wrist, False), dtype=torch.float32, device=self._sim_device
+        )
         hand_joints_tensor = torch.tensor(retargeted_hand_joints, dtype=torch.float32, device=self._sim_device)
 
         # Combine all tensors into a single tensor
