@@ -21,14 +21,14 @@ from isaaclab.devices.openxr.retargeters import (
     G1TriHandUpperBodyRetargeterCfg,
     GR1T2Retargeter,
     GR1T2RetargeterCfg,
-    UnitreeG1RetargeterCfg,
-    UnitreeG1Retargeter,
     GripperRetargeter,
     GripperRetargeterCfg,
     Se3AbsRetargeter,
     Se3AbsRetargeterCfg,
     Se3RelRetargeter,
     Se3RelRetargeterCfg,
+    UnitreeG1Retargeter,
+    UnitreeG1RetargeterCfg,
 )
 from isaaclab.devices.retargeter_base import RetargeterBase, RetargeterCfg
 from isaaclab.devices.spacemouse import Se2SpaceMouse, Se2SpaceMouseCfg, Se3SpaceMouse, Se3SpaceMouseCfg

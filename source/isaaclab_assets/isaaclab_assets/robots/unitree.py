@@ -564,26 +564,26 @@ Necessary modifications should be made to ensure the correct parent–child rela
 """
 
 G1_INSPIRE_FTP_CFG = G1_29DOF_CFG.copy()
-G1_INSPIRE_FTP_CFG.spawn.usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/Unitree/G1/g1_29dof_inspire_hand.usd",
+G1_INSPIRE_FTP_CFG.spawn.usd_path = (f"{ISAAC_NUCLEUS_DIR}/Robots/Unitree/G1/g1_29dof_inspire_hand.usd",)
 G1_INSPIRE_FTP_CFG.spawn.activate_contact_sensors = True
 G1_INSPIRE_FTP_CFG.spawn.rigid_props.disable_gravity = True
 G1_INSPIRE_FTP_CFG.spawn.articulation_props.fix_root_link = True
 G1_INSPIRE_FTP_CFG.init_state = ArticulationCfg.InitialStateCfg(
-        pos=(0.0, 0.0, 1.0),
-        joint_pos={".*": 0.0},
-        joint_vel={".*": 0.0},
-    )
+    pos=(0.0, 0.0, 1.0),
+    joint_pos={".*": 0.0},
+    joint_vel={".*": 0.0},
+)
 G1_INSPIRE_FTP_CFG.actuators["hands"] = ImplicitActuatorCfg(
-        joint_names_expr=[
-            ".*_index_.*",
-            ".*_middle_.*",
-            ".*_thumb_.*",
-            ".*_ring_.*",
-            ".*_pinky_.*",
-        ],
-        effort_limit_sim=2.0,
-        velocity_limit_sim=10.0,
-        stiffness=10.0,
-        damping=0.2,
-        armature=0.001,
-    )
+    joint_names_expr=[
+        ".*_index_.*",
+        ".*_middle_.*",
+        ".*_thumb_.*",
+        ".*_ring_.*",
+        ".*_pinky_.*",
+    ],
+    effort_limit_sim=2.0,
+    velocity_limit_sim=10.0,
+    stiffness=10.0,
+    damping=0.2,
+    armature=0.001,
+)

@@ -2,10 +2,10 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
-import carb
 import tempfile
 import torch
 
+import carb
 from pink.tasks import DampingTask, FrameTask
 
 import isaaclab.controllers.utils as ControllerUtils
@@ -25,10 +25,10 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.sim.schemas.schemas_cfg import MassPropertiesCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
-from isaaclab.sim.schemas.schemas_cfg import MassPropertiesCfg
 
 from . import mdp
 
@@ -135,30 +135,30 @@ class ActionsCfg:
         ],
         hand_joint_names=[
             # All the drive and mimic joints, total 24 joints
-            "L_index_proximal_joint", 
-            "L_middle_proximal_joint", 
-            "L_pinky_proximal_joint", 
+            "L_index_proximal_joint",
+            "L_middle_proximal_joint",
+            "L_pinky_proximal_joint",
             "L_ring_proximal_joint",
-            "L_thumb_proximal_yaw_joint", 
-            "R_index_proximal_joint", 
-            "R_middle_proximal_joint", 
+            "L_thumb_proximal_yaw_joint",
+            "R_index_proximal_joint",
+            "R_middle_proximal_joint",
             "R_pinky_proximal_joint",
-            "R_ring_proximal_joint", 
-            "R_thumb_proximal_yaw_joint", 
+            "R_ring_proximal_joint",
+            "R_thumb_proximal_yaw_joint",
             "L_index_intermediate_joint",
-            "L_middle_intermediate_joint", 
-            "L_pinky_intermediate_joint", 
+            "L_middle_intermediate_joint",
+            "L_pinky_intermediate_joint",
             "L_ring_intermediate_joint",
-            "L_thumb_proximal_pitch_joint", 
-            "R_index_intermediate_joint", 
+            "L_thumb_proximal_pitch_joint",
+            "R_index_intermediate_joint",
             "R_middle_intermediate_joint",
-            "R_pinky_intermediate_joint", 
-            "R_ring_intermediate_joint", 
+            "R_pinky_intermediate_joint",
+            "R_ring_intermediate_joint",
             "R_thumb_proximal_pitch_joint",
-            "L_thumb_intermediate_joint", 
-            "R_thumb_intermediate_joint", 
-            "L_thumb_distal_joint", 
-            "R_thumb_distal_joint"
+            "L_thumb_intermediate_joint",
+            "R_thumb_intermediate_joint",
+            "L_thumb_distal_joint",
+            "R_thumb_distal_joint",
         ],
         target_eef_link_names={
             "left_wrist": "left_wrist_yaw_link",
