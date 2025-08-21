@@ -99,14 +99,14 @@ class Timer(ContextDecorator):
 
     global_enable: ClassVar[bool] = True
     """Whether to enable the timer.
-    
+
     This variable allows to override the timers from a single global setting.
     If set to False, no timers will be used.
     """
 
     enable_display_output: ClassVar[bool] = True
     """Whether to enable the display output.
-    
+
     This variable allows to override the timers from a single global setting.
     If set to False, no display output will be printed. However, the timers will still be updated and logged.
     """
@@ -233,7 +233,7 @@ class Timer(ContextDecorator):
 
     def _update_welford(self, value: float):
         """Update the welford's algorithm with a new value.
-        
+
         This algorithm computes the mean and standard deviation of the elapsed time in a numerically stable way.
         It may become numerically unstable if n becomes very large.
 
@@ -307,7 +307,7 @@ class Timer(ContextDecorator):
         """Retrieves the statistics of the time logged in the global dictionary based on name.
 
         Returns a dictionary containing the mean, standard deviation, and number of samples as
-        well as the lastest measurement. Available keys are:
+        well as the last measurement. Available keys are:
         - mean: The mean of the elapsed time
         - std: The standard deviation of the elapsed time
         - n: The number of samples
