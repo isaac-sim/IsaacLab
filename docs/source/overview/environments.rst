@@ -917,11 +917,11 @@ inferencing, including reading from an already trained checkpoint and disabling 
       -
       - Manager Based
       -
-    * - Isaac-Stack-Cube-Instance-Randomize-Franka-IK-Rel-v0 (Requires running with ``--enable_cameras``)
+    * - Isaac-Stack-Cube-Instance-Randomize-Franka-IK-Rel-v0
       -
       - Manager Based
       -
-    * - Isaac-Stack-Cube-Instance-Randomize-Franka-v0 (Requires running with ``--enable_cameras``)
+    * - Isaac-Stack-Cube-Instance-Randomize-Franka-v0
       -
       - Manager Based
       -

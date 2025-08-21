@@ -19,23 +19,10 @@ import torch
 
 import omni.usd
 import pytest
+from env_test_utils import setup_environment
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import parse_env_cfg
-
-
-# @pytest.fixture(scope="module", autouse=True)
-def setup_environment():
-    # acquire all Isaac environments names
-    registered_tasks = list()
-    for task_spec in gym.registry.values():
-        if "Isaac" in task_spec.id:
-            registered_tasks.append(task_spec.id)
-    # sort environments by name
-    registered_tasks.sort()
-    # print all existing task names
-    print(">>> All registered environments:", registered_tasks)
-    return registered_tasks
 
 
 @pytest.fixture(scope="function")
@@ -49,7 +36,7 @@ def setup_video_params():
     return num_envs, device, step_trigger, video_length
 
 
-@pytest.mark.parametrize("task_name", setup_environment())
+@pytest.mark.parametrize("task_name", setup_environment(include_play=True))
 def test_record_video(task_name, setup_video_params):
     """Run random actions agent with recording of videos."""
     num_envs, device, step_trigger, video_length = setup_video_params

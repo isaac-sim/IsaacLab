@@ -285,7 +285,8 @@ def train(config: Config, device: str, log_dir: str, ckpt_dir: str, video_dir: s
                 and (epoch % config.experiment.save.every_n_epochs == 0)
             )
             epoch_list_check = epoch in config.experiment.save.epochs
-            should_save_ckpt = time_check or epoch_check or epoch_list_check
+            last_epoch_check = epoch == config.train.num_epochs
+            should_save_ckpt = time_check or epoch_check or epoch_list_check or last_epoch_check
         ckpt_reason = None
         if should_save_ckpt:
             last_ckpt_time = time.time()
@@ -383,6 +384,9 @@ def main(args: argparse.Namespace):
     if args.name is not None:
         config.experiment.name = args.name
 
+    if args.epochs is not None:
+        config.train.num_epochs = args.epochs
+
     # change location of experiment directory
     config.train.output_dir = os.path.abspath(os.path.join("./logs", args.log_dir, args.task))
 
@@ -428,6 +432,15 @@ if __name__ == "__main__":
     parser.add_argument("--algo", type=str, default=None, help="Name of the algorithm.")
     parser.add_argument("--log_dir", type=str, default="robomimic", help="Path to log directory")
     parser.add_argument("--normalize_training_actions", action="store_true", default=False, help="Normalize actions")
+    parser.add_argument(
+        "--epochs",
+        type=int,
+        default=None,
+        help=(
+            "Optional: Number of training epochs. If specified, overrides the number of epochs from the JSON training"
+            " config."
+        ),
+    )
 
     args = parser.parse_args()
 
