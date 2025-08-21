@@ -700,7 +700,7 @@ and we encourage users to follow our migration guides to transition over to Isaa
 <section id="is-isaac-lab-a-simulator">
 <h2>Is Isaac Lab a simulator?<a class="headerlink" href="#is-isaac-lab-a-simulator" title="Permalink to this heading">#</a></h2>
 <p>Often, when people think of simulators, they think of various commonly available engines, such as
-<a href="#id8"><span class="problematic" id="id9">`MuJoCo`_</span></a>, <a class="reference external" href="https://github.com/bulletphysics/bullet3">Bullet</a>, and <a class="reference external" href="https://developer.nvidia.com/flex">Flex</a>. These engines are powerful and have been used in a number of
+<a class="reference external" href="https://mujoco.org/">MuJoCo</a>, <a class="reference external" href="https://github.com/bulletphysics/bullet3">Bullet</a>, and <a class="reference external" href="https://developer.nvidia.com/flex">Flex</a>. These engines are powerful and have been used in a number of
 research projects. However, they are not designed to be a general purpose simulator for robotics.
 Rather they are primarily physics engines that are used to simulate the dynamics of rigid and
 deformable bodies. They are shipped with some basic rendering capabilities to visualize the
@@ -712,7 +712,7 @@ for more robotic-specific applications. An example of these include <a class="re
 <a class="reference external" href="https://www.threedworld.org/">ThreeDWorld</a> and lastly, <a class="reference external" href="https://developer.nvidia.com/isaac-sim">Isaac Sim</a>.</p>
 <p>At its core, Isaac Lab is <strong>not</strong> a robotics simulator, but a framework for building robot learning
 applications on top of Isaac Sim. An equivalent example of such a framework is <a class="reference external" href="https://robosuite.ai/">RoboSuite</a>, which
-is built on top of <a href="#id10"><span class="problematic" id="id11">`MuJoCo`_</span></a> and is specific to fixed-base robots. Other examples include
+is built on top of <a class="reference external" href="https://mujoco.org/">MuJoCo</a> and is specific to fixed-base robots. Other examples include
 <a class="reference external" href="https://playground.mujoco.org/">MuJoCo Playground</a> and <a class="reference external" href="https://developer.nvidia.com/isaac-gym">Isaac Gym</a> which use <a class="reference external" href="https://mujoco.readthedocs.io/en/stable/mjx.html">MJX</a> and <a class="reference external" href="https://developer.nvidia.com/physx-sdk">PhysX</a> respectively. They
 include a number of pre-built tasks with separated out stand-alone implementations for individual
 tasks. While this is a good starting point (and often convenient), a lot of code
