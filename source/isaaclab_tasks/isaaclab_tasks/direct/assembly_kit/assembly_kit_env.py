@@ -15,9 +15,10 @@ from collections.abc import Sequence
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation, RigidObject, RigidObjectCfg
 from isaaclab.envs import DirectRLEnv
+from isaaclab.markers import VisualizationMarkers
 from isaaclab.sensors import Camera, FrameTransformer
 from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
-from isaaclab.utils.math import euler_xyz_from_quat, quat_from_euler_xyz
+from isaaclab.utils.math import euler_xyz_from_quat, quat_apply, quat_from_euler_xyz
 
 from .assembly_kit_env_cfg import AssemblyKitEnvCfg, get_kit_cfg, get_model_cfg
 
@@ -53,6 +54,9 @@ class AssemblyKitEnv(DirectRLEnv):
 
         self.joint_ids, _ = self.robot.find_joints("panda_joint.*|panda_finger_joint.*")
 
+        self.target_model_goal_pos = torch.zeros((self.num_envs, 3), dtype=torch.float32, device=self.device)
+        self.target_model_goal_rot = torch.zeros((self.num_envs,), dtype=torch.float32, device=self.device)
+
     def _load_table_scene(self):
         """Spawns the ground plane, table, robot, and camera into the simulation.
 
@@ -73,6 +77,7 @@ class AssemblyKitEnv(DirectRLEnv):
         self.tcp_transformer = FrameTransformer(self.cfg.tcp_cfg)
         self.scene.sensors["tcp"] = self.tcp_transformer
 
+        self.vis_marker = VisualizationMarkers(self.cfg.marker_cfg.replace(prim_path="/Visual/Markers"))
         # clone and replicate
         self.scene.clone_environments(copy_from_source=True)
         # add articulation to scene
@@ -244,10 +249,6 @@ class AssemblyKitEnv(DirectRLEnv):
         return target_model_pose
 
     def _get_rewards(self) -> torch.Tensor:
-        total_reward = self.compute_rewards()
-        return total_reward
-
-    def compute_rewards(self):
         success_mask = self.is_success()
         ones = torch.ones_like(success_mask, dtype=torch.int, device=self.device)
         return torch.where(success_mask, ones, -ones)
@@ -295,7 +296,24 @@ class AssemblyKitEnv(DirectRLEnv):
         rot_correct = rot_diff < rot_eps
 
         # Check height to determine if the object is correctly placed in the slot
-        height_correct = target_model_pose[:, 2] < height_eps
+
+        local_up = torch.tensor([0.0, 0.0, 1.0], device=self.device).expand(self.num_envs, 3)
+        env_normal = torch.tensor([0.0, 0.0, 1.0], device=self.device).expand(self.num_envs, 3)
+        obj_up_world = quat_apply(target_model_quat, local_up)
+
+        upright_cos = (obj_up_world * env_normal).sum(dim=1).clamp(-1.0, 1.0)
+        flip_mask = upright_cos < 0
+
+        thr_upright = torch.full((self.num_envs,), height_eps, device=self.device)
+        thr_flipped = torch.full((self.num_envs,), 0.023, device=self.device)
+        height_thr = torch.where(flip_mask, thr_flipped, thr_upright)
+
+        height_correct = target_model_pose[:, 2] < height_thr
+
+        self.vis_marker.visualize(
+            self.target_model_goal_pos[:, :3] + self.scene.env_origins,
+            torch.zeros((self.num_envs, 4), dtype=torch.float32, device=self.device),
+        )
 
         success = pos_correct & rot_correct & height_correct
 
@@ -330,7 +348,6 @@ class AssemblyKitEnv(DirectRLEnv):
         # sample objects for the environments
         self.sample_models_for_envs(torch.as_tensor(env_ids, dtype=torch.long, device=self.device))
 
-    # TODO make env IDs compatible
     def sample_models_for_envs(self, env_ids: torch.Tensor) -> None:
         """Randomly selects a target model and places others at goal or side positions.
 
@@ -345,8 +362,8 @@ class AssemblyKitEnv(DirectRLEnv):
 
         # determine kit positions
         kit_ids = self.kit_ids_per_env[env_ids]
-        kit_def = self.kit.data.default_root_state.clone()[env_ids]
-        kit_pos_w = kit_def[:, :3] + self.scene.env_origins[env_ids]
+        kit_default_state = self.kit.data.default_root_state.clone()[env_ids]
+        kit_pos = kit_default_state[:, :3]
 
         # pulling JSON target poses for the other model
         model_rel_pos = self.model_target_pos[kit_ids]
@@ -372,7 +389,7 @@ class AssemblyKitEnv(DirectRLEnv):
             device=device,
         )
         offsets = self.kit_target_starting_pos[kit_ids, sampled_idx]
-        target_pos = kit_pos_w + offsets
+        target_pos = kit_pos + offsets
         rot_t = torch.rand(num_envs, device=device) * 2 * math.pi
         target_quat = quat_from_euler_xyz(
             torch.zeros(num_envs, device=device),
@@ -381,28 +398,31 @@ class AssemblyKitEnv(DirectRLEnv):
         )
 
         # Storing the target poses and orientations for observation and reward
-        self.target_model_pos = offsets
-        self.target_model_quat = target_quat
-        self.target_model_goal_pos = model_rel_pos[torch.arange(model_rel_pos.size(0), device=choice.device), choice]
-        self.target_model_goal_rot = model_rel_rot[torch.arange(model_rel_pos.size(0), device=choice.device), choice]
-        self.target_model_goal_pos[env_ids] += kit_pos_w[env_ids] - self.scene.env_origins[env_ids]
+        self.target_model_goal_pos[env_ids] = (
+            model_rel_pos[torch.arange(model_rel_pos.size(0), device=choice.device), choice][env_ids] + kit_pos[env_ids]
+        )
+        self.target_model_goal_rot[env_ids] = model_rel_rot[
+            torch.arange(model_rel_pos.size(0), device=choice.device), choice
+        ]
 
         # compute world-space poses + rots for others models
         idx_b = torch.arange(num_envs, device=device).unsqueeze(1)
         others_pos = model_rel_pos[idx_b, others_idx]
         others_rot = model_rel_rot[idx_b, others_idx]
 
+        # determine which others to place at the side
         mask_other_to_side = torch.zeros_like(others_rot, dtype=torch.bool, device=device)
         do_pick = torch.rand(num_envs, device=device) < 0.5
-        cols = torch.randint(0, num_models - 1, (num_envs,), device=device)
-        rows = torch.arange(num_envs, device=device)
-        mask_other_to_side[rows[do_pick], cols[do_pick]] = True
+        if do_pick.any():
+            cols = torch.randint(0, num_models - 1, (num_envs,), device=device)
+            rows = torch.arange(num_envs, device=device)
+            mask_other_to_side[rows[do_pick], cols[do_pick]] = True
         others_pos[mask_other_to_side] = torch.tensor(
             [[-self.cfg.TABLE_OFFSET, 0.2, 0.1]],
             device=device,
             dtype=others_pos.dtype,
         )
-        others_pos_w = kit_pos_w.unsqueeze(1).expand(num_envs, num_models - 1, 3) + others_pos
+        others_pos_w = kit_pos.unsqueeze(1).expand(num_envs, num_models - 1, 3) + others_pos
         others_rot_w = others_rot
         # flatten for per-model grouping
         envs_o_flat = env_ids.unsqueeze(1).expand(num_envs, num_models - 1).reshape(-1)
@@ -410,6 +430,7 @@ class AssemblyKitEnv(DirectRLEnv):
         pos_o_flat = others_pos_w.reshape(-1, 3)
         rot_o_flat = others_rot_w.reshape(-1)
 
+        # Setting poses and orientations for the target and other models
         for model_idx in range(num_models):
             default = models[model_idx].data.default_root_state[env_ids].clone()
 
@@ -437,4 +458,5 @@ class AssemblyKitEnv(DirectRLEnv):
                 default[envs_o, :3] = poses_o
                 default[envs_o, 3:7] = quats_o
 
+            default[:, :3] += self.scene.env_origins[env_ids]
             models[model_idx].write_root_pose_to_sim(default[:, :7], env_ids)
