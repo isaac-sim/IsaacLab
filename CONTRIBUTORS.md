@@ -90,6 +90,7 @@ Guidelines for modifications:
 * Lukas Fröhlich
 * Manuel Schweiger
 * Masoud Moghani
+* Maurice Rahme
 * Michael Gussert
 * Michael Noseworthy
 * Miguel Alonso Jr

@@ -134,12 +134,12 @@ def joint_effort_out_of_limit(
 
     In the actuators, the applied torque are the efforts applied on the joints. These are computed by clipping
     the computed torques to the joint limits. Hence, we check if the computed torques are equal to the applied
-    torques.
+    torques. If they are not, it means that clipping has occurred.
     """
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
     # check if any joint effort is out of limit
-    out_of_limits = torch.isclose(
+    out_of_limits = ~torch.isclose(
         asset.data.computed_torque[:, asset_cfg.joint_ids], asset.data.applied_torque[:, asset_cfg.joint_ids]
     )
     return torch.any(out_of_limits, dim=1)
