@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -91,7 +96,7 @@ class PathHelper:
         min_pt_seg = None
         min_pt = None
         min_pt_dist_along_path = None
-        
+
         for a_idx in range(0, len(self.points) - 1):
             b_idx = a_idx + 1
             a = self.points[a_idx]

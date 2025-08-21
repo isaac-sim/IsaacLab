@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -13,23 +18,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import PIL.Image
-from PIL import ImageDraw
-import os
-import typing as tp
-import numpy as np
 import enum
 import math
+import numpy as np
+import os
+import typing as tp
 import yaml
-import cv2
 from dataclasses import dataclass
+
+import cv2
+import PIL.Image
+from PIL import ImageDraw
 
 
 @dataclass
 class Point2d:
     x: float
     y: float
-
 
 
 ROS_FREESPACE_THRESH_DEFAULT = 0.196
@@ -69,8 +74,7 @@ class OccupancyMap:
 
     ROS_IMAGE_FILENAME = "map.png"
     ROS_YAML_FILENAME = "map.yaml"
-    ROS_YAML_TEMPLATE = \
-"""
+    ROS_YAML_TEMPLATE = """
 image: {image_filename}
 resolution: {resolution}
 origin: {origin}
@@ -79,14 +83,10 @@ occupied_thresh: {occupied_thresh}
 free_thresh: {free_thresh}
 """
 
-    def __init__(self, 
-            data: np.ndarray,
-            resolution: int,
-            origin: tp.Tuple[int, int, int]
-        ):
+    def __init__(self, data: np.ndarray, resolution: int, origin: tp.Tuple[int, int, int]):
         self.data = data
-        self.resolution = resolution # meters per pixel
-        self.origin = origin # x, y, yaw.  where (x, y) is the bottom-left of image
+        self.resolution = resolution  # meters per pixel
+        self.origin = origin  # x, y, yaw.  where (x, y) is the bottom-left of image
         self._width_pixels = data.shape[1]
         self._height_pixels = data.shape[0]
 
@@ -146,7 +146,7 @@ free_thresh: {free_thresh}
             origin=list(self.origin),
             negate=1 if negate else 0,
             occupied_thresh=ROS_OCCUPIED_THRESH_DEFAULT,
-            free_thresh=ROS_FREESPACE_THRESH_DEFAULT
+            free_thresh=ROS_FREESPACE_THRESH_DEFAULT,
         )
 
     def save_ros(self, path: str):
@@ -160,9 +160,9 @@ free_thresh: {free_thresh}
         """
         if not os.path.exists(path):
             os.makedirs(path)
-        assert os.path.isdir(path) # safety check
+        assert os.path.isdir(path)  # safety check
         self.ros_image().save(os.path.join(path, self.ROS_IMAGE_FILENAME))
-        with open(os.path.join(path, self.ROS_YAML_FILENAME), 'w') as f:
+        with open(os.path.join(path, self.ROS_YAML_FILENAME), "w") as f:
             f.write(self.ros_yaml())
 
     @staticmethod
@@ -170,8 +170,8 @@ free_thresh: {free_thresh}
         """Load an occupancy map from a ROS YAML file.
 
         This method loads an occupancy map from a ROS yaml file.
-        This method looks up the occupancy map image from the 
-        value specified in the YAML file, and requires that 
+        This method looks up the occupancy map image from the
+        value specified in the YAML file, and requires that
         the image exists at the specified path.
 
         Args:
@@ -180,30 +180,30 @@ free_thresh: {free_thresh}
         Returns:
             _type_: OccupancyMap
         """
-        with open(ros_yaml_path, 'r') as f:
+        with open(ros_yaml_path) as f:
             yaml_data = yaml.safe_load(f)
         yaml_dir = os.path.dirname(ros_yaml_path)
-        image_path = os.path.join(yaml_dir, yaml_data['image'])
+        image_path = os.path.join(yaml_dir, yaml_data["image"])
         image = PIL.Image.open(image_path).convert("L")
         occupancy_map = OccupancyMap.from_ros_image(
             ros_image=image,
-            resolution=yaml_data['resolution'],
-            origin=yaml_data['origin'],
-            negate=yaml_data['negate'],
-            occupied_thresh=yaml_data['occupied_thresh'],
-            free_thresh=yaml_data['free_thresh']
+            resolution=yaml_data["resolution"],
+            origin=yaml_data["origin"],
+            negate=yaml_data["negate"],
+            occupied_thresh=yaml_data["occupied_thresh"],
+            free_thresh=yaml_data["free_thresh"],
         )
         return occupancy_map
-    
+
     @staticmethod
     def from_ros_image(
-            ros_image: PIL.Image.Image,
-            resolution: float,
-            origin: tp.Tuple[float, float, float],
-            negate: bool = False,
-            occupied_thresh: float = ROS_OCCUPIED_THRESH_DEFAULT,
-            free_thresh: float = ROS_FREESPACE_THRESH_DEFAULT
-        ) -> "OccupancyMap":
+        ros_image: PIL.Image.Image,
+        resolution: float,
+        origin: tp.Tuple[float, float, float],
+        negate: bool = False,
+        occupied_thresh: float = ROS_OCCUPIED_THRESH_DEFAULT,
+        free_thresh: float = ROS_FREESPACE_THRESH_DEFAULT,
+    ) -> "OccupancyMap":
         """Create an occupancy map from a ROS formatted image, and other data.
 
         This method is intended to be used as a utility by other methods,
@@ -214,9 +214,9 @@ free_thresh: {free_thresh}
             resolution (int): The resolution (meter/px) of the occupancy map.
             origin (tp.Tuple[float, float, float]): The origin of the occupancy map in world coordinates.
             negate (bool, optional): See "negate" in ROS occupancy map documentation. Defaults to False.
-            occupied_thresh (float, optional): The threshold to consider a value occupied. 
+            occupied_thresh (float, optional): The threshold to consider a value occupied.
                 Defaults to ROS_OCCUPIED_THRESH_DEFAULT.
-            free_thresh (float, optional): The threshold to consider a value free. Defaults to 
+            free_thresh (float, optional): The threshold to consider a value free. Defaults to
                 ROS_FREESPACE_THRESH_DEFAULT.
 
         Returns:
@@ -230,25 +230,19 @@ free_thresh: {free_thresh}
         data = np.asarray(ros_image)
 
         if not negate:
-            data = (255 - data)
-        
+            data = 255 - data
+
         freespace_mask = data < free_thresh
         occupied_mask = data > occupied_thresh
-        
+
         return OccupancyMap.from_masks(
-            freespace_mask=freespace_mask,
-            occupied_mask=occupied_mask,
-            resolution=resolution,
-            origin=origin
+            freespace_mask=freespace_mask, occupied_mask=occupied_mask, resolution=resolution, origin=origin
         )
-    
+
     @staticmethod
     def from_masks(
-            freespace_mask: np.ndarray, 
-            occupied_mask: np.ndarray,
-            resolution: float,
-            origin: tp.Tuple[float, float, float]
-        ) -> "OccupancyMap":
+        freespace_mask: np.ndarray, occupied_mask: np.ndarray, resolution: float, origin: tp.Tuple[float, float, float]
+    ) -> "OccupancyMap":
         """Creates an occupancy map from binary masks and other data
 
         This method is intended as a utility by other methods, but not necessarily
@@ -268,23 +262,16 @@ free_thresh: {free_thresh}
         data[...] = OccupancyMapDataValue.UNKNOWN
         data[freespace_mask] = OccupancyMapDataValue.FREESPACE
         data[occupied_mask] = OccupancyMapDataValue.OCCUPIED
-        
-        occupancy_map = OccupancyMap(
-            data=data,
-            resolution=resolution,
-            origin=origin
-        )
+
+        occupancy_map = OccupancyMap(data=data, resolution=resolution, origin=origin)
 
         return occupancy_map
 
     @staticmethod
-    def from_occupancy_boundary(
-            boundary: np.ndarray,
-            resolution: float
-        ):
+    def from_occupancy_boundary(boundary: np.ndarray, resolution: float):
         min_xy = boundary.min(axis=0)
         max_xy = boundary.max(axis=0)
-        origin = (float(min_xy[0]), float(min_xy[1]), 0.)
+        origin = (float(min_xy[0]), float(min_xy[1]), 0.0)
         width_meters = max_xy[0] - min_xy[0]
         height_meters = max_xy[1] - min_xy[1]
         width_pixels = math.ceil(width_meters / resolution)
@@ -306,16 +293,15 @@ free_thresh: {free_thresh}
         draw.polygon(xy_px.tolist(), fill="white", outline="red")
         image = np.asarray(image)
 
-        occupied_mask = (image[:, :, 0] > 0)
+        occupied_mask = image[:, :, 0] > 0
 
         freespace_mask = ~occupied_mask
-
 
         return OccupancyMap.from_masks(freespace_mask, occupied_mask, resolution, origin)
 
     @staticmethod
     def make_empty(start: tuple[float, float], end: tuple[float, float], resolution: float):
-        origin = (start[0], start[1], 0.)
+        origin = (start[0], start[1], 0.0)
         width_meters = end[0] - start[0]
         height_meters = end[1] - start[1]
         width_pixels = math.ceil(width_meters / resolution)
@@ -323,7 +309,7 @@ free_thresh: {free_thresh}
         occupied_mask = np.zeros((height_pixels, width_pixels), dtype=np.uint8) > 0
         freespace_mask = np.ones((height_pixels, width_pixels), dtype=np.uint8) > 0
         return OccupancyMap.from_masks(freespace_mask, occupied_mask, resolution, origin)
-        
+
     def width_pixels(self) -> int:
         """Get the width of the occupancy map in pixels.
 
@@ -331,7 +317,7 @@ free_thresh: {free_thresh}
             int: The width in pixels.
         """
         return self._width_pixels
-    
+
     def height_pixels(self) -> int:
         """Get the height of the occupancy map in pixels.
 
@@ -339,7 +325,7 @@ free_thresh: {free_thresh}
             int: The height in pixels.
         """
         return self._height_pixels
-    
+
     def width_meters(self):
         """Get the width of the occupancy map in meters.
 
@@ -347,7 +333,7 @@ free_thresh: {free_thresh}
             _type_: The width in meters.
         """
         return self.resolution * self.width_pixels()
-    
+
     def height_meters(self):
         """Get the height of the occupancy map in meters.
 
@@ -355,7 +341,7 @@ free_thresh: {free_thresh}
             _type_: The height in meters.
         """
         return self.resolution * self.height_pixels()
-    
+
     def bottom_left_pixel_world_coords(self) -> tp.Tuple[float, float]:
         """Get the world coordinates of the bottom left pixel.
 
@@ -364,7 +350,7 @@ free_thresh: {free_thresh}
                 bottom left pixel in the occupancy map.
         """
         return (self.origin[0], self.origin[1])
-    
+
     def top_left_pixel_world_coords(self) -> tp.Tuple[float, float]:
         """Get the world coordinates of the top left pixel.
 
@@ -373,7 +359,7 @@ free_thresh: {free_thresh}
                 top left pixel in the occupancy map.
         """
         return (self.origin[0], self.origin[1] + self.height_meters())
-    
+
     def bottom_right_pixel_world_coords(self) -> tp.Tuple[float, float]:
         """Get the world coordinates of the bottom right pixel.
 
@@ -382,7 +368,7 @@ free_thresh: {free_thresh}
                 bottom right pixel in the occupancy map.
         """
         return (self.origin[0] + self.width_meters(), self.origin[1])
-    
+
     def top_right_pixel_world_coords(self) -> tp.Tuple[float, float]:
         """Get the world coordinates of the top right pixel.
 
@@ -391,7 +377,7 @@ free_thresh: {free_thresh}
                 top right pixel in the occupancy map.
         """
         return (self.origin[0] + self.width_meters(), self.origin[1] + self.height_meters())
-    
+
     def buffered(self, buffer_distance_pixels: int) -> "OccupancyMap":
         """Get a buffered occupancy map by dilating the occupied regions.
 
@@ -411,7 +397,7 @@ free_thresh: {free_thresh}
         """
 
         buffer_distance_pixels = int(buffer_distance_pixels)
-        
+
         radius = buffer_distance_pixels
         diameter = radius * 2
         kernel = np.zeros((diameter, diameter), np.uint8)
@@ -423,10 +409,7 @@ free_thresh: {free_thresh}
         free_mask[occupied_mask] = False
 
         return OccupancyMap.from_masks(
-            freespace_mask=free_mask,
-            occupied_mask=occupied_mask,
-            resolution=self.resolution,
-            origin=self.origin
+            freespace_mask=free_mask, occupied_mask=occupied_mask, resolution=self.resolution, origin=self.origin
         )
 
     def buffered_meters(self, buffer_distance_meters: float) -> "OccupancyMap":
@@ -442,12 +425,12 @@ free_thresh: {free_thresh}
         """
         buffer_distance_pixels = int(buffer_distance_meters / self.resolution)
         return self.buffered(buffer_distance_pixels)
-    
+
     def pixel_to_world(self, point: Point2d):
         """Convert a pixel coordinate to world coordinates.
 
         Args:
-            point (Point2d): The pixel coordinate.    
+            point (Point2d): The pixel coordinate.
 
         Returns:
             _type_: The world coordinate.
@@ -491,7 +474,7 @@ free_thresh: {free_thresh}
         x_px = u * self.width_pixels()
         y_px = v * self.height_pixels()
         return np.concatenate([x_px[:, None], y_px[:, None]], axis=-1)
-        
+
     def check_world_point_in_bounds(self, point: Point2d) -> bool:
         """Check if a world coordinate is inside the bounds of the occupancy map.
 
@@ -506,7 +489,7 @@ free_thresh: {free_thresh}
         pixel = self.world_to_pixel_numpy(np.array([[point.x, point.y]]))
         x_px = int(pixel[0, 0])
         y_px = int(pixel[0, 1])
-        
+
         if x_px < 0:
             return False
         elif x_px >= self.width_pixels():
@@ -519,7 +502,7 @@ free_thresh: {free_thresh}
         return True
 
     def check_world_point_in_freespace(self, point: Point2d) -> bool:
-        """Check if a world coordinate is inside the freespace region of the occupancy map  
+        """Check if a world coordinate is inside the freespace region of the occupancy map
 
         Args:
             point (Point2d): The world coordinate.
@@ -543,13 +526,7 @@ free_thresh: {free_thresh}
         return merge_occupancy_maps([self, other])
 
 
-def _omap_world_to_px(
-        points, 
-        origin, 
-        width_meters, 
-        height_meters, 
-        width_pixels, 
-        height_pixels):
+def _omap_world_to_px(points, origin, width_meters, height_meters, width_pixels, height_pixels):
 
     bot_left_world = (origin[0], origin[1])
     u = (points[:, 0] - bot_left_world[0]) / width_meters
@@ -559,7 +536,9 @@ def _omap_world_to_px(
     return np.stack([x_px, y_px], axis=-1)
 
 
-def merge_occupancy_maps(src_omaps: list[OccupancyMap], method: OccupancyMapMergeMethod = OccupancyMapMergeMethod.UNION):
+def merge_occupancy_maps(
+    src_omaps: list[OccupancyMap], method: OccupancyMapMergeMethod = OccupancyMapMergeMethod.UNION
+):
 
     dst_resolution = min([o.resolution for o in src_omaps])
 
@@ -568,10 +547,10 @@ def merge_occupancy_maps(src_omaps: list[OccupancyMap], method: OccupancyMapMerg
     max_x = max([o.top_right_pixel_world_coords()[0] for o in src_omaps])
     max_y = max([o.top_right_pixel_world_coords()[1] for o in src_omaps])
 
-    dst_origin = (min_x, min_y, 0.)
+    dst_origin = (min_x, min_y, 0.0)
 
-    dst_width_meters = (max_x - min_x)
-    dst_height_meters = (max_y - min_y)
+    dst_width_meters = max_x - min_x
+    dst_height_meters = max_y - min_y
     dst_width_pixels = math.ceil(dst_width_meters / dst_resolution)
     dst_height_pixels = math.ceil(dst_height_meters / dst_resolution)
 
@@ -580,42 +559,45 @@ def merge_occupancy_maps(src_omaps: list[OccupancyMap], method: OccupancyMapMerg
     elif method == OccupancyMapMergeMethod.INTERSECTION:
         dst_occupied_mask = np.ones((dst_height_pixels, dst_width_pixels), dtype=bool)
 
-
     for src_omap in src_omaps:
 
-        omap_corners_in_world_coords = np.array([
-            src_omap.top_left_pixel_world_coords(),
-            src_omap.bottom_right_pixel_world_coords()
-        ])
-        
-        omap_corners_in_dst_image_coords = _omap_world_to_px(
-            omap_corners_in_world_coords,
-            dst_origin, dst_width_meters, dst_height_meters, dst_width_pixels, dst_height_pixels
-        ).astype(np.int64).flatten()
+        omap_corners_in_world_coords = np.array(
+            [src_omap.top_left_pixel_world_coords(), src_omap.bottom_right_pixel_world_coords()]
+        )
+
+        omap_corners_in_dst_image_coords = (
+            _omap_world_to_px(
+                omap_corners_in_world_coords,
+                dst_origin,
+                dst_width_meters,
+                dst_height_meters,
+                dst_width_pixels,
+                dst_height_pixels,
+            )
+            .astype(np.int64)
+            .flatten()
+        )
 
         omap_dst_width = omap_corners_in_dst_image_coords[2] - omap_corners_in_dst_image_coords[0]
         omap_dst_height = omap_corners_in_dst_image_coords[3] - omap_corners_in_dst_image_coords[1]
 
-        omap_occupied_image = PIL.Image.fromarray(
-            255 * src_omap.occupied_mask().astype(np.uint8)
-        ).resize((omap_dst_width, omap_dst_height))
+        omap_occupied_image = PIL.Image.fromarray(255 * src_omap.occupied_mask().astype(np.uint8)).resize(
+            (omap_dst_width, omap_dst_height)
+        )
 
         omap_occupied_image_tmp = omap_occupied_image.copy()
 
         dst_occupied_image = PIL.Image.fromarray(np.zeros_like(dst_occupied_mask).astype(np.uint8))
 
         dst_occupied_image.paste(omap_occupied_image_tmp, box=omap_corners_in_dst_image_coords)
-        
+
         if method == OccupancyMapMergeMethod.UNION:
             dst_occupied_mask = dst_occupied_mask | (np.asarray(dst_occupied_image) > 0)
         elif method == OccupancyMapMergeMethod.INTERSECTION:
             dst_occupied_mask = dst_occupied_mask & (np.asarray(dst_occupied_image) > 0)
 
     dst_occupancy_map = OccupancyMap.from_masks(
-        freespace_mask=~dst_occupied_mask,
-        occupied_mask=dst_occupied_mask,
-        resolution=dst_resolution,
-        origin=dst_origin
+        freespace_mask=~dst_occupied_mask, occupied_mask=dst_occupied_mask, resolution=dst_resolution, origin=dst_origin
     )
 
     return dst_occupancy_map
@@ -634,23 +616,15 @@ def transform_points(points: np.ndarray, transform: np.ndarray):
 
 
 def make_rotate_transform(angle):
-    return np.array([
-        [np.cos(angle), -np.sin(angle), 0.],
-        [np.sin(angle), np.cos(angle), 0.],
-        [0., 0., 1.]
-    ])
+    return np.array([[np.cos(angle), -np.sin(angle), 0.0], [np.sin(angle), np.cos(angle), 0.0], [0.0, 0.0, 1.0]])
 
 
 def make_translate_transform(dx, dy):
-    return np.array([
-        [1., 0., dx],
-        [0., 1., dy],
-        [0., 0., 1.]
-    ])
+    return np.array([[1.0, 0.0, dx], [0.0, 1.0, dy], [0.0, 0.0, 1.0]])
 
 
 def transform_occupancy_map(omap: OccupancyMap, transform: np.ndarray):
-    
+
     src_box_world_coords = np.array([
         [omap.origin[0], omap.origin[1]],
         [omap.origin[0] + omap.width_meters(), omap.origin[1]],
@@ -659,7 +633,7 @@ def transform_occupancy_map(omap: OccupancyMap, transform: np.ndarray):
     ])
 
     src_box_pixel_coords = omap.world_to_pixel_numpy(src_box_world_coords)
-    
+
     dst_box_world_coords = transform_points(src_box_world_coords, transform)
 
     dst_min_xy = np.min(dst_box_world_coords, axis=0)
@@ -673,36 +647,20 @@ def transform_occupancy_map(omap: OccupancyMap, transform: np.ndarray):
     dst_height_pixels = int(dst_height_meters / dst_resolution)
 
     dst_box_pixel_coords = _omap_world_to_px(
-        dst_box_world_coords, 
-        dst_origin, 
-        dst_width_meters, 
-        dst_height_meters, 
-        dst_width_pixels, 
-        dst_height_pixels
+        dst_box_world_coords, dst_origin, dst_width_meters, dst_height_meters, dst_width_pixels, dst_height_pixels
     )
 
     persp_transform = cv2.getPerspectiveTransform(
-        src_box_pixel_coords.astype(np.float32), 
-        dst_box_pixel_coords.astype(np.float32)
+        src_box_pixel_coords.astype(np.float32), dst_box_pixel_coords.astype(np.float32)
     )
 
     src_occupied_mask = omap.occupied_mask().astype(np.uint8) * 255
 
-    dst_occupied_mask = cv2.warpPerspective(
-        src_occupied_mask,
-        persp_transform,
-        (dst_width_pixels, dst_height_pixels)
-    )
+    dst_occupied_mask = cv2.warpPerspective(src_occupied_mask, persp_transform, (dst_width_pixels, dst_height_pixels))
 
-    dst_occupied_mask = (dst_occupied_mask > 0)
+    dst_occupied_mask = dst_occupied_mask > 0
     dst_freespace_mask = ~dst_occupied_mask
 
-    dst_omap = OccupancyMap.from_masks(
-        dst_freespace_mask,
-        dst_occupied_mask,
-        dst_resolution,
-        dst_origin
-    )
+    dst_omap = OccupancyMap.from_masks(dst_freespace_mask, dst_occupied_mask, dst_resolution, dst_origin)
 
     return dst_omap
-

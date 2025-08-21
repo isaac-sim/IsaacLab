@@ -8,15 +8,15 @@ from __future__ import annotations
 import torch
 from dataclasses import MISSING
 from typing import TYPE_CHECKING
+
 from pink.tasks import FrameTask
 
 from isaaclab.assets.articulation import Articulation
+from isaaclab.controllers.pink_ik_cfg import PinkIKControllerCfg
+from isaaclab.controllers.utils import load_torchscript_model
+from isaaclab.envs.mdp.actions.pink_actions_cfg import PinkInverseKinematicsActionCfg
 from isaaclab.managers.action_manager import ActionTerm, ActionTermCfg
 from isaaclab.utils import configclass
-
-from isaaclab.controllers.utils import load_torchscript_model
-from isaaclab.controllers.pink_ik_cfg import PinkIKControllerCfg
-from isaaclab.envs.mdp.actions.pink_actions_cfg import PinkInverseKinematicsActionCfg
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
@@ -33,16 +33,16 @@ G1_UPPER_BODY_IK_CONTROLLER_CFG = PinkIKControllerCfg(
     variable_input_tasks=[
         FrameTask(
             "g1_29dof_with_hand_rev_1_0_left_wrist_yaw_link",
-            position_cost=1.0,    # [cost] / [m]
-            orientation_cost=1.0,    # [cost] / [rad]
-            lm_damping=10,    # dampening for solver for step jumps
+            position_cost=1.0,  # [cost] / [m]
+            orientation_cost=1.0,  # [cost] / [rad]
+            lm_damping=10,  # dampening for solver for step jumps
             gain=0.1,
         ),
         FrameTask(
             "g1_29dof_with_hand_rev_1_0_right_wrist_yaw_link",
-            position_cost=1.0,    # [cost] / [m]
-            orientation_cost=1.0,    # [cost] / [rad]
-            lm_damping=10,    # dampening for solver for step jumps
+            position_cost=1.0,  # [cost] / [m]
+            orientation_cost=1.0,  # [cost] / [rad]
+            lm_damping=10,  # dampening for solver for step jumps
             gain=0.1,
         ),
     ],
@@ -81,6 +81,7 @@ G1_UPPER_BODY_IK_ACTION_CFG = PinkInverseKinematicsActionCfg(
 Lower Body Action
 """
 
+
 class LowerBodyAction(ActionTerm):
     cfg: LowerBodyActionCfg
     """The configuration of the action term."""
@@ -110,14 +111,13 @@ class LowerBodyAction(ActionTerm):
         self._raw_actions = torch.zeros(self.num_envs, len(self._joint_ids), device=self.device)
         self._processed_actions = torch.zeros(self.num_envs, len(self._joint_ids), device=self.device)
 
-
     """
     Properties.
     """
 
     @property
     def action_dim(self) -> int:
-        """ Lower Body Action: [vx, vy, wz, hip_height]"""
+        """Lower Body Action: [vx, vy, wz, hip_height]"""
         return 4
 
     @property
@@ -138,7 +138,7 @@ class LowerBodyAction(ActionTerm):
         # Extract base command from the action tensor
         # Assuming the base command [vx, vy, wz, hip_height]
         base_command = actions  # Shape: [num_envs, 4]
-        
+
         obs_tensor = self._env.obs_buf[self._obs_group_name]
 
         # Concatenate actions repeated by history length
@@ -159,16 +159,15 @@ class LowerBodyAction(ActionTerm):
 
         # Clip actions if configured
         if self.cfg.clip is not None:
-            import pdb; pdb.set_trace()
             self._processed_actions = torch.clamp(
                 self._processed_actions, min=self._clip[:, :, 0], max=self._clip[:, :, 1]
             )
 
-
     def apply_actions(self):
-        """Apply the actions to the environment. """
+        """Apply the actions to the environment."""
         # Store the raw actions
         self._asset.set_joint_position_target(self._processed_actions, joint_ids=self._joint_ids)
+
 
 @configclass
 class LowerBodyActionCfg(ActionTermCfg):
@@ -188,6 +187,6 @@ class LowerBodyActionCfg(ActionTermCfg):
 
     obs_group_name: str = MISSING
     """The name of the observation group to use."""
-    
+
     offset: float = 0.0
     """The offset of the action."""

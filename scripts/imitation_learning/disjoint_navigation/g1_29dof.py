@@ -1,53 +1,45 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # Copyright (c) 2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import tempfile
+import numpy as np
 import torch
 from pathlib import Path
 
-from pink.tasks import FrameTask
+from common import DisjointNavRecording, DisjointNavRecordingItem, DisjointNavScenario, HasPose, SceneBody, SceneFixture
+from mdp.actions import G1_UPPER_BODY_IK_ACTION_CFG, LowerBodyActionCfg
+from occupancy_map import OccupancyMap
 
-import isaaclab.controllers.utils as ControllerUtils
 import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
-from isaaclab.actuators import DCMotorCfg
+from isaaclab.actuators import DCMotorCfg, ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.devices.openxr import XrCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
+from isaaclab.envs.manager_based_rl_mimic_env import ManagerBasedRLMimicEnv
+from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg as ActionStateRecorderManagerCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
+from isaaclab.managers.recorder_manager import RecorderTerm, RecorderTermCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR, retrieve_file_path
+from isaaclab.utils.datasets import HDF5DatasetFileHandler
 
-from isaaclab_tasks.manager_based.locomanipulation.pick_place import mdp as locomanip_mdp
 from isaaclab_tasks.manager_based.manipulation.pick_place import mdp as manip_mdp
-from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg as ActionStateRecorderManagerCfg
 
-from isaaclab.managers.recorder_manager import RecorderManagerBaseCfg, RecorderTerm, RecorderTermCfg
-
-
-import torch
-import numpy as np
-
-import isaaclab.sim as sim_utils
-from isaaclab.actuators import ImplicitActuatorCfg
-from isaaclab.assets import ArticulationCfg
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-
-from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
-from isaaclab.envs.manager_based_rl_mimic_env import ManagerBasedRLMimicEnv
-
-from common import HasPose, DisjointNavScenario, SceneBody, SceneAsset, SceneFixture, DisjointNavRecording, DisjointNavRecordingItem
-from occupancy_map import OccupancyMap
-from mdp.actions import LowerBodyActionCfg, G1_UPPER_BODY_IK_ACTION_CFG
-
+from dataclasses import asdict
+from common import DisjointNavReplayState
 
 G1_LOCOMANIPULATION_ROBOT_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
@@ -198,24 +190,6 @@ G1_LOCOMANIPULATION_ROBOT_CFG = ArticulationCfg(
     },
     prim_path="/World/envs/env_.*/Robot",
 )
-"""Configuration for the Unitree G1 Humanoid robot for locomanipulation tasks.
-
-This configuration sets up the G1 humanoid robot for locomanipulation tasks,
-allowing both locomotion and manipulation capabilities. The robot can be configured
-for either fixed base or mobile scenarios by modifying the fix_root_link parameter.
-
-Key features:
-- Configurable base (fixed or mobile) via fix_root_link parameter
-
-Usage examples:
-    # For fixed base scenarios (upper body manipulation only)
-    fixed_base_cfg = G1_LOCOMANIPULATION_ROBOT_CFG.copy()
-    fixed_base_cfg.spawn.articulation_props.fix_root_link = True
-
-    # For mobile scenarios (locomotion + manipulation)
-    mobile_cfg = G1_LOCOMANIPULATION_ROBOT_CFG.copy()
-    mobile_cfg.spawn.articulation_props.fix_root_link = False
-"""
 
 
 ##
@@ -236,9 +210,11 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
 
     packing_table_2 = AssetBaseCfg(
         prim_path="/World/envs/env_.*/PackingTable2",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=[-2, -3.55, -.3],
-                                                # rot=[0, 0, 0, 1]),
-                                                rot=[0.9238795, 0, 0, -0.3826834]),
+        init_state=AssetBaseCfg.InitialStateCfg(
+            pos=[-2, -3.55, -0.3],
+            # rot=[0, 0, 0, 1]),
+            rot=[0.9238795, 0, 0, -0.3826834],
+        ),
         spawn=UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/PackingTable/packing_table.usd",
             rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
@@ -247,7 +223,7 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
 
     forklift_0 = AssetBaseCfg(
         prim_path="/World/envs/env_.*/Forklift0",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0., 0.], rot=[1.0, 0.0, 0.0, 0.0]),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[1.0, 0.0, 0.0, 0.0]),
         spawn=UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Forklift/forklift.usd",
             rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
@@ -255,7 +231,7 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
     )
     forklift_1 = AssetBaseCfg(
         prim_path="/World/envs/env_.*/Forklift1",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0., 0.], rot=[1.0, 0.0, 0.0, 0.0]),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[1.0, 0.0, 0.0, 0.0]),
         spawn=UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Forklift/forklift.usd",
             rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
@@ -264,7 +240,7 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
 
     forklift_2 = AssetBaseCfg(
         prim_path="/World/envs/env_.*/Forklift2",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0., 0.], rot=[1.0, 0.0, 0.0, 0.0]),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[1.0, 0.0, 0.0, 0.0]),
         spawn=UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Forklift/forklift.usd",
             rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
@@ -273,7 +249,7 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
 
     forklift_3 = AssetBaseCfg(
         prim_path="/World/envs/env_.*/Forklift3",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0., 0.], rot=[1.0, 0.0, 0.0, 0.0]),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[1.0, 0.0, 0.0, 0.0]),
         spawn=UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Forklift/forklift.usd",
             rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
@@ -282,7 +258,7 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
 
     forklift_4 = AssetBaseCfg(
         prim_path="/World/envs/env_.*/Forklift4",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0., 0.], rot=[1.0, 0.0, 0.0, 0.0]),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[1.0, 0.0, 0.0, 0.0]),
         spawn=UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Forklift/forklift.usd",
             rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
@@ -291,7 +267,7 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
 
     forklift_5 = AssetBaseCfg(
         prim_path="/World/envs/env_.*/Forklift5",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0., 0.], rot=[1.0, 0.0, 0.0, 0.0]),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[1.0, 0.0, 0.0, 0.0]),
         spawn=UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Forklift/forklift.usd",
             rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
@@ -300,92 +276,92 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
 
     box_0 = AssetBaseCfg(
         prim_path="/World/envs/env_.*/Box0",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0., 0.], rot=[1.0, 0.0, 0.0, 0.0]),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[1.0, 0.0, 0.0, 0.0]),
         spawn=UsdFileCfg(
-            usd_path=f"https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.0/Isaac/Environments/Simple_Warehouse/Props/SM_CardBoxB_01_681.usd",
+            usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Simple_Warehouse/Props/SM_CardBoxB_01_681.usd",
             rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
         ),
     )
 
     box_1 = AssetBaseCfg(
         prim_path="/World/envs/env_.*/Box1",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0., 0.], rot=[1.0, 0.0, 0.0, 0.0]),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[1.0, 0.0, 0.0, 0.0]),
         spawn=UsdFileCfg(
-            usd_path=f"https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.0/Isaac/Environments/Simple_Warehouse/Props/SM_CardBoxB_01_681.usd",
+            usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Simple_Warehouse/Props/SM_CardBoxB_01_681.usd",
             rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
         ),
     )
 
     box_2 = AssetBaseCfg(
         prim_path="/World/envs/env_.*/Box2",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0., 0.], rot=[1.0, 0.0, 0.0, 0.0]),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[1.0, 0.0, 0.0, 0.0]),
         spawn=UsdFileCfg(
-            usd_path=f"https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.0/Isaac/Environments/Simple_Warehouse/Props/SM_CardBoxB_01_681.usd",
+            usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Simple_Warehouse/Props/SM_CardBoxB_01_681.usd",
             rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
         ),
     )
 
     box_3 = AssetBaseCfg(
         prim_path="/World/envs/env_.*/Box3",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0., 0.], rot=[1.0, 0.0, 0.0, 0.0]),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[1.0, 0.0, 0.0, 0.0]),
         spawn=UsdFileCfg(
-            usd_path=f"https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.0/Isaac/Environments/Simple_Warehouse/Props/SM_CardBoxB_01_681.usd",
+            usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Simple_Warehouse/Props/SM_CardBoxB_01_681.usd",
             rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
         ),
     )
     box_4 = AssetBaseCfg(
         prim_path="/World/envs/env_.*/Box4",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0., 0.], rot=[1.0, 0.0, 0.0, 0.0]),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[1.0, 0.0, 0.0, 0.0]),
         spawn=UsdFileCfg(
-            usd_path=f"https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.0/Isaac/Environments/Simple_Warehouse/Props/SM_CardBoxB_01_681.usd",
+            usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Simple_Warehouse/Props/SM_CardBoxB_01_681.usd",
             rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
         ),
     )
     box_5 = AssetBaseCfg(
         prim_path="/World/envs/env_.*/Box5",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0., 0.], rot=[1.0, 0.0, 0.0, 0.0]),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[1.0, 0.0, 0.0, 0.0]),
         spawn=UsdFileCfg(
-            usd_path=f"https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.0/Isaac/Environments/Simple_Warehouse/Props/SM_CardBoxB_01_681.usd",
+            usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Simple_Warehouse/Props/SM_CardBoxB_01_681.usd",
             rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
         ),
     )
     box_6 = AssetBaseCfg(
         prim_path="/World/envs/env_.*/Box6",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0., 0.], rot=[1.0, 0.0, 0.0, 0.0]),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[1.0, 0.0, 0.0, 0.0]),
         spawn=UsdFileCfg(
-            usd_path=f"https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.0/Isaac/Environments/Simple_Warehouse/Props/SM_CardBoxB_01_681.usd",
+            usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Simple_Warehouse/Props/SM_CardBoxB_01_681.usd",
             rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
         ),
     )
     box_7 = AssetBaseCfg(
         prim_path="/World/envs/env_.*/Box7",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0., 0.], rot=[1.0, 0.0, 0.0, 0.0]),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[1.0, 0.0, 0.0, 0.0]),
         spawn=UsdFileCfg(
-            usd_path=f"https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.0/Isaac/Environments/Simple_Warehouse/Props/SM_CardBoxB_01_681.usd",
+            usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Simple_Warehouse/Props/SM_CardBoxB_01_681.usd",
             rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
         ),
     )
     box_8 = AssetBaseCfg(
         prim_path="/World/envs/env_.*/Box8",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0., 0.], rot=[1.0, 0.0, 0.0, 0.0]),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[1.0, 0.0, 0.0, 0.0]),
         spawn=UsdFileCfg(
-            usd_path=f"https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.0/Isaac/Environments/Simple_Warehouse/Props/SM_CardBoxB_01_681.usd",
+            usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Simple_Warehouse/Props/SM_CardBoxB_01_681.usd",
             rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
         ),
     )
     box_9 = AssetBaseCfg(
         prim_path="/World/envs/env_.*/Box9",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0., 0.], rot=[1.0, 0.0, 0.0, 0.0]),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[1.0, 0.0, 0.0, 0.0]),
         spawn=UsdFileCfg(
-            usd_path=f"https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.0/Isaac/Environments/Simple_Warehouse/Props/SM_CardBoxB_01_681.usd",
+            usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Simple_Warehouse/Props/SM_CardBoxB_01_681.usd",
             rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
         ),
     )
     box_10 = AssetBaseCfg(
         prim_path="/World/envs/env_.*/Box10",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0., 0.], rot=[1.0, 0.0, 0.0, 0.0]),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[1.0, 0.0, 0.0, 0.0]),
         spawn=UsdFileCfg(
-            usd_path=f"https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.0/Isaac/Environments/Simple_Warehouse/Props/SM_CardBoxB_01_681.usd",
+            usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Simple_Warehouse/Props/SM_CardBoxB_01_681.usd",
             rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
         ),
     )
@@ -400,8 +376,7 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
         ),
     )
     # Humanoid robot w/ arms higher
-    robot: ArticulationCfg = G1_LOCOMANIPULATION_ROBOT_CFG.replace(
-        prim_path="/World/envs/env_.*/Robot")
+    robot: ArticulationCfg = G1_LOCOMANIPULATION_ROBOT_CFG.replace(prim_path="/World/envs/env_.*/Robot")
 
     # Ground plane
     ground = AssetBaseCfg(
@@ -441,7 +416,7 @@ class ActionsCfg:
             ".*_ankle_.*_joint",
         ],
         scale=0.25,
-        obs_group_name="lower_body_policy", # need to be the same name as the on in ObservationCfg
+        obs_group_name="lower_body_policy",  # need to be the same name as the on in ObservationCfg
         policy_path=Path(__file__).parent / "policy/g1/agile_locomotion.pt",
     )
 
@@ -449,6 +424,7 @@ class ActionsCfg:
 @configclass
 class LowerBodyPolicyObsCfg(ObsGroup):
     """Observations for policy group with state values."""
+
     """Observation specifications for the MDP."""
 
     base_lin_vel = ObsTerm(
@@ -469,19 +445,18 @@ class LowerBodyPolicyObsCfg(ObsGroup):
     joint_pos = ObsTerm(
         func=base_mdp.joint_pos_rel,
         params={
-            "asset_cfg":
-                SceneEntityCfg(
-                    "robot",
-                    joint_names=[
-                        ".*_shoulder_.*_joint",
-                        ".*_elbow_joint",
-                        ".*_wrist_.*_joint",
-                        ".*_hip_.*_joint",
-                        ".*_knee_joint",
-                        ".*_ankle_.*_joint",
-                        "waist_.*_joint",
-                    ],
-                ),
+            "asset_cfg": SceneEntityCfg(
+                "robot",
+                joint_names=[
+                    ".*_shoulder_.*_joint",
+                    ".*_elbow_joint",
+                    ".*_wrist_.*_joint",
+                    ".*_hip_.*_joint",
+                    ".*_knee_joint",
+                    ".*_ankle_.*_joint",
+                    "waist_.*_joint",
+                ],
+            ),
         },
     )
 
@@ -489,19 +464,18 @@ class LowerBodyPolicyObsCfg(ObsGroup):
         func=base_mdp.joint_vel_rel,
         scale=0.1,
         params={
-            "asset_cfg":
-                SceneEntityCfg(
-                    "robot",
-                    joint_names=[
-                        ".*_shoulder_.*_joint",
-                        ".*_elbow_joint",
-                        ".*_wrist_.*_joint",
-                        ".*_hip_.*_joint",
-                        ".*_knee_joint",
-                        ".*_ankle_.*_joint",
-                        "waist_.*_joint",
-                    ],
-                ),
+            "asset_cfg": SceneEntityCfg(
+                "robot",
+                joint_names=[
+                    ".*_shoulder_.*_joint",
+                    ".*_elbow_joint",
+                    ".*_wrist_.*_joint",
+                    ".*_hip_.*_joint",
+                    ".*_knee_joint",
+                    ".*_ankle_.*_joint",
+                    "waist_.*_joint",
+                ],
+            ),
         },
     )
 
@@ -586,8 +560,41 @@ class PreStepLowerBodyPolicyObservationsRecorderCfg(RecorderTermCfg):
     class_type: type[RecorderTerm] = PreStepLowerBodyPolicyObservationsRecorder
 
 
+class DisjointNavReplayStateRecorder(RecorderTerm):
+
+    def record_pre_step(self):
+        replay_state: DisjointNavReplayState = self._env._replay_state
+
+        replay_state_dict = {
+            "left_hand_pose_target": replay_state.left_hand_pose_target[None, :],
+            "right_hand_pose_target": replay_state.right_hand_pose_target[None, :],
+            "left_hand_joint_positions_target": replay_state.left_hand_joint_positions_target[None, :],
+            "right_hand_joint_positions_target": replay_state.right_hand_joint_positions_target[None, :],
+            "base_velocity_target": replay_state.base_velocity_target[None, :],
+            "start_fixture_pose": replay_state.start_fixture_pose,
+            "end_fixture_pose": replay_state.end_fixture_pose,
+            "object_pose": replay_state.object_pose,
+            "base_pose": replay_state.base_pose,
+            "task": torch.tensor([[replay_state.task]]),
+            "base_goal_pose": replay_state.base_goal_pose,
+            "base_goal_approach_pose": replay_state.base_goal_approach_pose,
+            "base_path": replay_state.base_path[None, :],
+            "recording_step": torch.tensor([[replay_state.recording_step]])
+        }
+        
+        return "replay_state", replay_state_dict
+
+
+@configclass
+class DisjointNavReplayStateRecorderCfg(RecorderTermCfg):
+    """Configuration for the step policy observation recorder term."""
+
+    class_type: type[RecorderTerm] = DisjointNavReplayStateRecorder
+
+
 class RecorderManagerCfg(ActionStateRecorderManagerCfg):
     record_pre_step_lower_body_policy_observations = PreStepLowerBodyPolicyObservationsRecorderCfg()
+    record_pre_step_disjoint_nav_replay_state = DisjointNavReplayStateRecorderCfg()
 
 
 @configclass
@@ -595,9 +602,7 @@ class G129DoFDisjointNavEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the G1 29DoF environment."""
 
     # Scene settings
-    scene: ObjectTableSceneCfg = ObjectTableSceneCfg(num_envs=1,
-                                                     env_spacing=2.5,
-                                                     replicate_physics=True)
+    scene: ObjectTableSceneCfg = ObjectTableSceneCfg(num_envs=1, env_spacing=2.5, replicate_physics=True)
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
@@ -622,13 +627,13 @@ class G129DoFDisjointNavEnvCfg(ManagerBasedRLEnvCfg):
         self.decimation = 4
         self.episode_length_s = 60.0
         # simulation settings
-        self.sim.dt = 1 / 200    # 100Hz
+        self.sim.dt = 1 / 200  # 100Hz
         self.sim.render_interval = 2
 
         # Set the URDF and mesh paths for the IK controller
         urdf_omniverse_path = "omniverse://isaac-dev.ov.nvidia.com/Projects/agile/Robots/urdf/g1/g1_minimal_with_leg_hand_collision_corrected.urdf"
         mesh_omniverse_path = "omniverse://isaac-dev.ov.nvidia.com/Projects/agile/Robots/urdf/g1/meshes"
-        
+
         # Retrieve local paths for the URDF and mesh files. Will be cached for call after the first time.
         self.actions.upper_body_ik.controller.urdf_path = retrieve_file_path(urdf_omniverse_path)
         self.actions.upper_body_ik.controller.mesh_path = retrieve_file_path(mesh_omniverse_path)
@@ -638,9 +643,9 @@ class PackingTable(SceneFixture):
 
     def get_occupancy_map(self):
 
-        local_occupancy_map = OccupancyMap.from_occupancy_boundary(boundary=np.array(
-            [[-1.45, -0.45], [1.45, -0.45], [1.45, 0.45], [-1.45, 0.45]]),
-                                                                   resolution=0.05)
+        local_occupancy_map = OccupancyMap.from_occupancy_boundary(
+            boundary=np.array([[-1.45, -0.45], [1.45, -0.45], [1.45, 0.45], [-1.45, 0.45]]), resolution=0.05
+        )
 
         transform = self.get_transform_2d().detach().cpu().numpy()
 
@@ -653,9 +658,9 @@ class Forklift(SceneFixture):
 
     def get_occupancy_map(self):
 
-        local_occupancy_map = OccupancyMap.from_occupancy_boundary(boundary=np.array(
-            [[-1., -1.9], [1., -1.9], [1., 2.1], [-1., 2.1]]),
-                                                                   resolution=0.05)
+        local_occupancy_map = OccupancyMap.from_occupancy_boundary(
+            boundary=np.array([[-1.0, -1.9], [1.0, -1.9], [1.0, 2.1], [-1.0, 2.1]]), resolution=0.05
+        )
 
         transform = self.get_transform_2d().detach().cpu().numpy()
 
@@ -668,9 +673,9 @@ class CardboardBox(SceneFixture):
 
     def get_occupancy_map(self):
 
-        local_occupancy_map = OccupancyMap.from_occupancy_boundary(boundary=np.array(
-            [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]]),
-                                                                   resolution=0.05)
+        local_occupancy_map = OccupancyMap.from_occupancy_boundary(
+            boundary=np.array([[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]]), resolution=0.05
+        )
 
         transform = self.get_transform_2d().detach().cpu().numpy()
 
@@ -685,8 +690,7 @@ class G1DisjointNavRecording(DisjointNavRecording):
         self.dataset_file_handler = HDF5DatasetFileHandler()
         self.dataset_file_handler.open(path)
         self.episode_data = self.dataset_file_handler.load_episode(demo, device)
-        self._robot_base_pose = self.episode_data.get_initial_state(
-        )['articulation']['robot']['root_pose']
+        self._robot_base_pose = self.episode_data.get_initial_state()["articulation"]["robot"]["root_pose"]
 
     def get_initial_state(self):
 
@@ -700,12 +704,12 @@ class G1DisjointNavRecording(DisjointNavRecording):
 
         if dataset_action is None:
             return None
-        
+
         if dataset_state is None:
             return None
 
-        base_pose = dataset_state['articulation']['robot']['root_pose']
-        object_pose = dataset_state['rigid_object']['object']['root_pose']
+        base_pose = dataset_state["articulation"]["robot"]["root_pose"]
+        object_pose = dataset_state["rigid_object"]["object"]["root_pose"]
 
         target = DisjointNavRecordingItem(
             left_hand_pose_target=dataset_action[0:7],
@@ -714,8 +718,9 @@ class G1DisjointNavRecording(DisjointNavRecording):
             right_hand_joint_positions_target=dataset_action[21:28],
             base_pose=self._robot_base_pose,
             object_pose=object_pose,
-            fixture_pose=torch.tensor([0.0, 0.55, -0.3, 1.0, 0.0, 0.0,
-                                       0.0])    # Table pose is not recorded for this env.
+            fixture_pose=torch.tensor(
+                [0.0, 0.55, -0.3, 1.0, 0.0, 0.0, 0.0]
+            ),  # Table pose is not recorded for this env.
         )
 
         return target
@@ -734,7 +739,6 @@ class G1DisjointNavScenario(DisjointNavScenario):
         self._env_cfg.recorders.dataset_export_dir_path = output_dir
         self._env_cfg.recorders.dataset_filename = output_file_name
 
-
         self._env = ManagerBasedRLMimicEnv(cfg=self._env_cfg)
 
         self._env.sim.set_camera_view([10.5, 10.5, 10.5], [0.0, 0.0, 0.5])
@@ -748,29 +752,40 @@ class G1DisjointNavScenario(DisjointNavScenario):
 
     def set_left_hand_pose_target(self, pose: torch.Tensor):
         assert pose.shape == (self._frame_pose_dim,), f"Expected pose shape ({self._frame_pose_dim},), got {pose.shape}"
-        self._env_action[0, :self._frame_pose_dim] = pose
+        self._env_action[0, : self._frame_pose_dim] = pose
 
     def set_right_hand_pose_target(self, pose: torch.Tensor):
         assert pose.shape == (self._frame_pose_dim,), f"Expected pose shape ({self._frame_pose_dim},), got {pose.shape}"
-        self._env_action[0, self._frame_pose_dim:2*self._frame_pose_dim] = pose
+        self._env_action[0, self._frame_pose_dim : 2 * self._frame_pose_dim] = pose
 
     def set_left_hand_joint_positions_target(self, joint_positions: torch.Tensor):
-        assert joint_positions.shape == (self._number_of_finger_joints,), f"Expected joint_positions shape ({self._number_of_finger_joints},), got {joint_positions.shape}"
-        self._env_action[0, 2*self._frame_pose_dim:2*self._frame_pose_dim + self._number_of_finger_joints] = joint_positions
+        assert joint_positions.shape == (
+            self._number_of_finger_joints,
+        ), f"Expected joint_positions shape ({self._number_of_finger_joints},), got {joint_positions.shape}"
+        self._env_action[0, 2 * self._frame_pose_dim : 2 * self._frame_pose_dim + self._number_of_finger_joints] = (
+            joint_positions
+        )
 
     def set_right_hand_joint_positions_target(self, joint_positions: torch.Tensor):
-        assert joint_positions.shape == (self._number_of_finger_joints,), f"Expected joint_positions shape ({self._number_of_finger_joints},), got {joint_positions.shape}"
-        self._env_action[0, 2*self._frame_pose_dim + self._number_of_finger_joints:2*self._frame_pose_dim + 2*self._number_of_finger_joints] = joint_positions
+        assert joint_positions.shape == (
+            self._number_of_finger_joints,
+        ), f"Expected joint_positions shape ({self._number_of_finger_joints},), got {joint_positions.shape}"
+        self._env_action[
+            0,
+            2 * self._frame_pose_dim
+            + self._number_of_finger_joints : 2 * self._frame_pose_dim
+            + 2 * self._number_of_finger_joints,
+        ] = joint_positions
 
     def set_base_velocity_target(self, velocity: torch.Tensor):
         assert velocity.shape == (3,), f"Expected velocity shape (3,), got {velocity.shape}"
         lower_body_index_offset = self._upper_body_dim + self._waist_dim
-        self._env_action[0, lower_body_index_offset:lower_body_index_offset + 3] = velocity
-    
+        self._env_action[0, lower_body_index_offset : lower_body_index_offset + 3] = velocity
+
     def set_base_height_target(self, height: torch.Tensor = torch.tensor([0.72])):
         assert height.shape == (1,), f"Expected height shape (1,), got {height.shape}"
         lower_body_index_offset = self._upper_body_dim + self._waist_dim
-        self._env_action[0, lower_body_index_offset + 3:lower_body_index_offset + 4] = height
+        self._env_action[0, lower_body_index_offset + 3 : lower_body_index_offset + 4] = height
 
     def get_base(self) -> HasPose:
         return SceneBody(self._env.scene, "robot", "pelvis")
@@ -794,13 +809,16 @@ class G1DisjointNavScenario(DisjointNavScenario):
         obstacles = [Forklift(self._env.scene, f"forklift_{i}") for i in range(6)]
         obstacles += [CardboardBox(self._env.scene, f"box_{i}") for i in range(11)]
         return obstacles
-    
-    def reset(self, initial_state = None):
+
+    def reset(self, initial_state=None):
         if initial_state is not None:
             self._env.reset_to(initial_state, env_ids=torch.tensor([0]))
         else:
             self._env.reset()
 
+    def get_env(self):
+        return self._env
+    
     def step(self):
         self._env.step(self._env_action)
 
