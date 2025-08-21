@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.45.4 (2025-08-21)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added unit tests for :class:`~isaaclab.sensor.sensor_base`
+
+
 0.45.3 (2025-08-20)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -10,6 +19,7 @@ Fixed
 * Fixed :meth:`isaaclab.envs.mdp.terminations.joint_effort_out_of_limit` so that it correctly reports whether a joint
   effort limit has been violated. Previously, the implementation marked a violation when the applied and computed
   torques were equal; in fact, equality should indicate no violation, and vice versa.
+
 
 0.45.2 (2025-08-18)
 ~~~~~~~~~~~~~~~~~~~
@@ -80,7 +90,6 @@ Fixed
 * Fixed the old termination manager in :class:`~isaaclab.managers.TerminationManager` term_done logging that logs the
 instantaneous term done count at reset. This let to inaccurate aggregation of termination count, obscuring the what really
 happeningduring the traing. Instead we log the episodic term done.
-
 
 
 0.44.9 (2025-07-30)
