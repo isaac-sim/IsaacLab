@@ -1,6 +1,49 @@
 Changelog
 ---------
 
+0.45.5 (2025-08-21)
+
+Fixed
+^^^^^
+
+* Fixed :meth:`~isaaclab.assets.Articulation.write_joint_friction_coefficient_to_sim` to set the friction coefficients in the simulation.
+* Fixed :meth:`~isaaclab.assets.Articulation.write_joint_dynamic_friction_coefficient_to_sim` to set the friction coefficients in the simulation.* Added :meth:`~isaaclab.envs.ManagerBasedEnvCfg.export_io_descriptors` to toggle the export of the IO descriptors.
+* Fixed :meth:`~isaaclab.assets.Articulation.write_joint_viscous_friction_coefficient_to_sim` to set the friction coefficients in the simulation.
+
+
+0.45.4 (2025-08-21)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added unit tests for :class:`~isaaclab.sensor.sensor_base`
+
+
+
+0.45.3 (2025-08-20)
+
+Fixed
+^^^^^
+
+* Fixed :meth:`isaaclab.envs.mdp.terminations.joint_effort_out_of_limit` so that it correctly reports whether a joint
+  effort limit has been violated. Previously, the implementation marked a violation when the applied and computed
+  torques were equal; in fact, equality should indicate no violation, and vice versa.
+
+
+0.45.2 (2025-08-18)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :meth:`~isaaclab.managers.ObservationManager.get_IO_descriptors` to export the IO descriptors for the observation manager.
+* Added :meth:`~isaaclab.envs.ManagerBasedEnvCfg.io_descriptors_output_dir` to configure the directory to export the IO descriptors to.
+* Added :meth:`~isaaclab.envs.ManagerBasedEnvCfg.export_io_descriptors` to toggle the export of the IO descriptors.
+* Added the option to export the Observation and Action of the managed environments into a YAML file. This can be used to more easily
+  deploy policies trained in Isaac Lab.
+
+
 0.45.1 (2025-08-16)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -57,7 +100,6 @@ Fixed
 * Fixed the old termination manager in :class:`~isaaclab.managers.TerminationManager` term_done logging that logs the
 instantaneous term done count at reset. This let to inaccurate aggregation of termination count, obscuring the what really
 happeningduring the traing. Instead we log the episodic term done.
-
 
 
 0.44.9 (2025-07-30)

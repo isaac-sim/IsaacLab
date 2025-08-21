@@ -90,6 +90,7 @@ Guidelines for modifications:
 * Lukas Fröhlich
 * Manuel Schweiger
 * Masoud Moghani
+* Maurice Rahme
 * Michael Gussert
 * Michael Noseworthy
 * Miguel Alonso Jr
@@ -116,6 +117,7 @@ Guidelines for modifications:
 * Shafeef Omar
 * Shaoshu Su
 * Shaurya Dewan
+* Sixiang Chen
 * Shundo Kishi
 * Stefan Van de Mosselaer
 * Stephan Pleines
