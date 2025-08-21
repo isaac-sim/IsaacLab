@@ -14,13 +14,12 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
-import time
 import random
-
-from isaaclab.utils.timer import Timer, TimerError
+import time
 
 import pytest
 
+from isaaclab.utils.timer import Timer, TimerError
 
 # number of decimal places to check
 PRECISION_PLACES = 2
@@ -45,6 +44,7 @@ def test_timer_as_context_manager():
         time.sleep(1)
         assert abs(1 - timer.time_elapsed) < 10 ** (-PRECISION_PLACES)
 
+
 def test_timer_mean_and_std():
     """Test the mean and std of the timer."""
 
@@ -56,6 +56,7 @@ def test_timer_mean_and_std():
     assert abs(timer_stats["mean"] - 0.002) < 10 ** (-PRECISION_PLACES_MS)
     assert abs(timer_stats["std"] - 0.0001) < 10 ** (-PRECISION_PLACES_MS)
     assert timer_stats["n"] == 1000
+
 
 def test_timer_global_enable():
     """Test the global enable flag."""
@@ -72,18 +73,29 @@ def test_timer_global_enable():
 def test_timer_global_enable_display_output(capsys):
     """Test the global enable display output flag."""
     Timer.global_enable = True
-    with Timer(name="test_timer_global_enable_display_output", msg="Test timer global enable display output took:", enable=True, format="us"):
+    with Timer(
+        name="test_timer_global_enable_display_output",
+        msg="Test timer global enable display output took:",
+        enable=True,
+        format="us",
+    ):
         time.sleep(1)
 
     captured = capsys.readouterr()
     assert "Test timer global enable display output took:" in captured.out
-    
+
     Timer.enable_display_output = False
-    with Timer(name="test_timer_global_enable_display_output", msg="Test timer global enable display output took:", enable=True, format="us"):
+    with Timer(
+        name="test_timer_global_enable_display_output",
+        msg="Test timer global enable display output took:",
+        enable=True,
+        format="us",
+    ):
         time.sleep(1)
 
     captured = capsys.readouterr()
     assert "Test timer global enable display output took:" not in captured.out
+
 
 def test_timer_format():
     """Test the format of the timer."""
@@ -95,7 +107,7 @@ def test_timer_format():
 
     # Check that an invalid format raises an error
     with pytest.raises(ValueError):
-        timer = Timer(name="test_timer_format_invalid", msg="Test timer format took:", enable=True, format="invalid")
+        Timer(name="test_timer_format_invalid", msg="Test timer format took:", enable=True, format="invalid")
 
     timer_s.start()
     time.sleep(0.1)
