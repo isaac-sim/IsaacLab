@@ -46,7 +46,7 @@ class Timer(ContextDecorator):
 
         time.sleep(1)
         timer.stop()
-        print(2 <= stopwatch.total_run_time)  # Output: True
+        print(2 <= timer.total_run_time)  # Output: True
 
     As a context manager:
 
@@ -60,6 +60,25 @@ class Timer(ContextDecorator):
             time.sleep(1)
             print(1 <= timer.time_elapsed <= 2)  # Output: True
 
+    As a global object:
+
+    .. code-block:: python
+
+        import time
+        import random
+
+        from isaaclab.utils.timer import Timer
+
+        for i in range(1000):
+            with Timer(name="test_timer_mean_and_std", msg="Test timer mean and std took:", enable=True, format="us"):
+                time.sleep(random.normalvariate(0.001, 0.001))
+
+        timer_stats = Timer.get_timer_statistics("test_timer_mean_and_std")
+        print(abs(timer_stats["mean"] - 0.001) < 10 ** (-2))  # Output: True
+        print(abs(timer_stats["std"] - 0.001) < 10 ** (-2))  # Output: True
+        print(timer_stats["n"])  # Output: 1000
+        print(timer_stats["last"])
+
     Reference: https://gist.github.com/sumeet/1123871
     """
 
@@ -69,13 +88,28 @@ class Timer(ContextDecorator):
     This dictionary logs the timer information. The keys are the names given to the timer class
     at its initialization. If no :attr:`name` is passed to the constructor, no time
     is recorded in the dictionary.
+
+    In each of the dictionaries, we store the following information:
+    - last: The last elapsed time
+    - m2: The sum of squares of differences from the current mean (Intermediate value in Welford's Algorithm)
+    - mean: The mean of the elapsed time
+    - std: The standard deviation of the elapsed time
+    - n: The number of samples
     """
 
-    enable = True
-    """Whether to enable the timer."""
+    global_enable: ClassVar[bool] = True
+    """Whether to enable the timer.
+    
+    This variable allows to override the timers from a single global setting.
+    If set to False, no timers will be used.
+    """
 
-    enable_display_output = True
-    """Whether to enable the display output."""
+    enable_display_output: ClassVar[bool] = True
+    """Whether to enable the display output.
+    
+    This variable allows to override the timers from a single global setting.
+    If set to False, no display output will be printed. However, the timers will still be updated and logged.
+    """
 
     def __init__(
         self,
@@ -85,6 +119,10 @@ class Timer(ContextDecorator):
         format: Literal["s", "ms", "us", "ns"] = "s",
     ):
         """Initializes the timer.
+
+        Note: The format flag is only used for display purposes, and does not affect the values stored in the dictionary.
+        This is done to avoid any confusion with the unit of the values stored in the dictionary. All the values
+        in the dictionary are stored in seconds.
 
         Args:
             msg: The message to display when using the timer
@@ -99,18 +137,16 @@ class Timer(ContextDecorator):
         self._start_time = None
         self._stop_time = None
         self._elapsed_time = None
-        self._enable = enable if Timer.enable else False
+        self._enable = enable if Timer.global_enable else False
         self._format = format
 
         # Check if the format is valid
-        assert format in ["s", "ms", "us", "ns"], f"Invalid format, {format} is not in [s, ms, us, ns]"
+        # Check if the format is valid
+        if format not in ["s", "ms", "us", "ns"]:
+            raise ValueError(f"Invalid format, {format} is not in [s, ms, us, ns]")
+
         # Convert the format to a multiplier
-        self._multiplier = {
-            "s": 1.0,
-            "ms": 1000.0,
-            "us": 1000000.0,
-            "ns": 1000000000.0,
-        }[format]
+        self._unit_multiplier = {"s": 1.0, "ms": 1e3, "us": 1e6, "ns": 1e9}[format]
 
         # Online welford's algorithm to compute the mean and std of the elapsed time
         self._mean = 0.0
@@ -124,7 +160,7 @@ class Timer(ContextDecorator):
         Returns:
             A string containing the elapsed time.
         """
-        return f"{(self.time_elapsed * self._multiplier):0.6f} {self._format}"
+        return f"{(self.time_elapsed * self._unit_multiplier):0.6f} {self._format}"
 
     """
     Properties
@@ -137,11 +173,15 @@ class Timer(ContextDecorator):
         Note:
             This is used for checking how much time has elapsed while the timer is still running.
         """
+        if self._start_time is None:
+            raise TimerError("Timer is not running. Use .start() to start it")
+
         return time.perf_counter() - self._start_time
 
     @property
     def total_run_time(self) -> float:
         """The number of seconds that elapsed from when the timer started to when it ended."""
+
         return self._elapsed_time
 
     """
@@ -176,7 +216,7 @@ class Timer(ContextDecorator):
 
         if (self._name is not None) and (self._enable):
             # Update the welford's algorithm
-            self.update_welford(self._elapsed_time)
+            self._update_welford(self._elapsed_time)
 
             # Update the timing info
             Timer.timing_info[self._name] = {
@@ -188,12 +228,21 @@ class Timer(ContextDecorator):
             }
 
     """
-    Online welford's algorithm to compute the mean and std of the elapsed time
+    Internal helpers.
     """
 
-    def update_welford(self, value: float):
-        """Update the welford's algorithm with a new value."""
+    def _update_welford(self, value: float):
+        """Update the welford's algorithm with a new value.
+        
+        This algorithm computes the mean and standard deviation of the elapsed time in a numerically stable way.
+        It may become numerically unstable if n becomes very large.
 
+        Note: We use the global dictionary to retrieve the current values. We do this to make the timer
+        instances stateful.
+
+        Args:
+            value: The new value to add to the statistics.
+        """
         try:
             self._n = Timer.timing_info[self._name]["n"] + 1
             delta = value - Timer.timing_info[self._name]["mean"]
@@ -225,9 +274,9 @@ class Timer(ContextDecorator):
             if (self._msg is not None) and (Timer.enable_display_output):
                 print(
                     self._msg,
-                    f"Last: {(self._elapsed_time * self._multiplier):0.6f} {self._format}, "
-                    f"Mean: {(self._mean * self._multiplier):0.6f} {self._format}, "
-                    f"Std: {(self._std * self._multiplier):0.6f} {self._format}, "
+                    f"Last: {(self._elapsed_time * self._unit_multiplier):0.6f} {self._format}, "
+                    f"Mean: {(self._mean * self._unit_multiplier):0.6f} {self._format}, "
+                    f"Std: {(self._std * self._unit_multiplier):0.6f} {self._format}, "
                     f"N: {self._n}",
                 )
 
@@ -255,8 +304,20 @@ class Timer(ContextDecorator):
 
     @staticmethod
     def get_timer_statistics(name: str) -> dict[str, float]:
-        """Retrieves the time logged in the global dictionary
-            based on name.
+        """Retrieves the statistics of the time logged in the global dictionary based on name.
+
+        Returns a dictionary containing the mean, standard deviation, and number of samples as
+        well as the lastest measurement. Available keys are:
+        - mean: The mean of the elapsed time
+        - std: The standard deviation of the elapsed time
+        - n: The number of samples
+        - last: The last elapsed time
+
+        Args:
+            name: Name of the the entry to be retrieved.
+
+        Raises:
+            TimerError: If name doesn't exist in the log.
 
         Returns:
             A dictionary containing the time logged for all timers.
@@ -265,6 +326,6 @@ class Timer(ContextDecorator):
         if name not in Timer.timing_info:
             raise TimerError(f"Timer {name} does not exist")
 
-        keys = ["mean", "std", "n"]
+        keys = ["mean", "std", "n", "last"]
 
         return {k: Timer.timing_info[name][k] for k in keys}
