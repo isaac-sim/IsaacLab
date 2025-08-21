@@ -121,9 +121,7 @@ class AssemblyKitEnv(DirectRLEnv):
         self.init_model_sampling()
 
         # Filtering collisions for optimization of collisions between environment instances
-        self.scene.filter_collisions([
-            "/World/ground",
-        ])
+        self.scene.filter_collisions(["/World/ground"])
 
     def _get_assets_info_per_env(
         self,
