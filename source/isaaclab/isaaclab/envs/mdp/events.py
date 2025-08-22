@@ -418,7 +418,7 @@ def randomize_rigid_body_com(
     coms = asset.root_physx_view.get_coms().clone()
 
     # Randomize the com in range
-    coms[:, body_ids, :3] += rand_samples
+    coms[env_ids[:, None], body_ids, :3] += rand_samples
 
     # Set the new coms
     asset.root_physx_view.set_coms(coms, env_ids)
