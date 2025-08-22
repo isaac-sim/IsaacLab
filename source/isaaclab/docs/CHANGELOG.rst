@@ -1,6 +1,128 @@
 Changelog
 ---------
 
+0.45.7 (2025-08-21)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added periodic logging when checking if a USD path exists on a Nucleus server
+  to improve user experience when the checks takes a while.
+
+
+0.45.6 (2025-08-22)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :meth:`~isaaclab.envs.mdp.events.randomize_rigid_body_com` to broadcasts the environment ids.
+
+
+0.45.5 (2025-08-21)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :meth:`~isaaclab.assets.Articulation.write_joint_friction_coefficient_to_sim` to set the friction coefficients in the simulation.
+* Fixed :meth:`~isaaclab.assets.Articulation.write_joint_dynamic_friction_coefficient_to_sim` to set the friction coefficients in the simulation.* Added :meth:`~isaaclab.envs.ManagerBasedEnvCfg.export_io_descriptors` to toggle the export of the IO descriptors.
+* Fixed :meth:`~isaaclab.assets.Articulation.write_joint_viscous_friction_coefficient_to_sim` to set the friction coefficients in the simulation.
+
+
+
+0.45.4 (2025-08-21)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added unit tests for :class:`~isaaclab.sensor.sensor_base`
+
+
+0.45.3 (2025-08-20)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :meth:`isaaclab.envs.mdp.terminations.joint_effort_out_of_limit` so that it correctly reports whether a joint
+  effort limit has been violated. Previously, the implementation marked a violation when the applied and computed
+  torques were equal; in fact, equality should indicate no violation, and vice versa.
+
+
+0.45.2 (2025-08-18)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :meth:`~isaaclab.managers.ObservationManager.get_IO_descriptors` to export the IO descriptors for the observation manager.
+* Added :meth:`~isaaclab.envs.ManagerBasedEnvCfg.io_descriptors_output_dir` to configure the directory to export the IO descriptors to.
+* Added :meth:`~isaaclab.envs.ManagerBasedEnvCfg.export_io_descriptors` to toggle the export of the IO descriptors.
+* Added the option to export the Observation and Action of the managed environments into a YAML file. This can be used to more easily
+  deploy policies trained in Isaac Lab.
+
+
+0.45.1 (2025-08-16)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added validations for scale-based randomization ranges across mass, actuator, joint, and tendon parameters.
+
+Changed
+^^^^^^^
+
+* Refactored randomization functions into classes with initialization-time checks to avoid runtime overhead.
+
+
+0.45.0 (2025-08-07)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab.sensors.contact_sensor.ContactSensorCfg.track_contact_points` to toggle tracking of contact
+  point locations between sensor bodies and filtered bodies.
+* Added :attr:`~isaaclab.sensors.contact_sensor.ContactSensorCfg.max_contact_data_per_prim` to configure the maximum
+  amount of contacts per sensor body.
+* Added :attr:`~isaaclab.sensors.contact_sensor.ContactSensorData.contact_pos_w` data field for tracking contact point
+  locations.
+
+
+0.44.12 (2025-08-12)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed IndexError in :meth:`isaaclab.envs.mdp.events.reset_joints_by_scale`,
+  :meth:`isaaclab.envs.mdp.events.reset_joints_by_offsets` by adding dimension to env_ids when indexing.
+
+
+0.44.11 (2025-08-11)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed rendering preset mode when an experience CLI arg is provided.
+
+
+0.44.10 (2025-08-06)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the old termination manager in :class:`~isaaclab.managers.TerminationManager` term_done logging that logs the
+instantaneous term done count at reset. This let to inaccurate aggregation of termination count, obscuring the what really
+happeningduring the traing. Instead we log the episodic term done.
+
+
 0.44.9 (2025-07-30)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -299,7 +421,6 @@ Changed
 
 Added
 ^^^^^
-
 
 * Added unit test for :func:`~isaaclab.utils.math.quat_inv`.
 
