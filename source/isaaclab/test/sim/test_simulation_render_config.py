@@ -14,12 +14,14 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 
 """Rest everything follows."""
 
+import os
 import toml
 
 import carb
 import flatdict
 import pytest
 from isaacsim.core.utils.carb import get_carb_setting
+from isaacsim.core.version import get_version
 
 from isaaclab.sim.simulation_cfg import RenderCfg, SimulationCfg
 from isaaclab.sim.simulation_context import SimulationContext
@@ -89,50 +91,58 @@ def test_render_cfg():
     assert carb_settings_iface.get("/rtx/ambientOcclusion/enabled") == sim.cfg.render.enable_ambient_occlusion
     assert carb_settings_iface.get("/rtx/post/aa/op") == 4  # dlss = 3, dlaa=4
 
-    def test_render_cfg_presets(self):
-        """Test that the simulation context is created with the correct render cfg preset with overrides."""
 
-        # carb setting dictionary overrides
-        carb_settings = {"/rtx/raytracing/subpixel/mode": 3, "/rtx/pathtracing/maxSamplesPerLaunch": 999999}
-        # user-friendly setting overrides
-        dlss_mode = ("/rtx/post/dlss/execMode", 5)
+def test_render_cfg_presets():
+    """Test that the simulation context is created with the correct render cfg preset with overrides."""
 
-        rendering_modes = ["performance", "balanced", "quality", "xr"]
+    # carb setting dictionary overrides
+    carb_settings = {"/rtx/raytracing/subpixel/mode": 3, "/rtx/pathtracing/maxSamplesPerLaunch": 999999}
+    # user-friendly setting overrides
+    dlss_mode = ("/rtx/post/dlss/execMode", 5)
 
-        for rendering_mode in rendering_modes:
-            # grab groundtruth preset settings
-            preset_filename = f"apps/rendering_modes/{rendering_mode}.kit"
-            with open(preset_filename) as file:
-                preset_dict = toml.load(file)
-            preset_dict = dict(flatdict.FlatDict(preset_dict, delimiter="."))
+    rendering_modes = ["performance", "balanced", "quality"]
 
-            render_cfg = RenderCfg(
-                rendering_mode=rendering_mode,
-                dlss_mode=dlss_mode[1],
-                carb_settings=carb_settings,
-            )
+    for rendering_mode in rendering_modes:
+        # grab isaac lab apps path
+        isaaclab_app_exp_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), *[".."] * 4, "apps")
+        # for Isaac Sim 4.5 compatibility, we use the 4.5 rendering mode app files in a different folder
+        isaac_sim_version = float(".".join(get_version()[2]))
+        if isaac_sim_version < 5:
+            isaaclab_app_exp_path = os.path.join(isaaclab_app_exp_path, "isaacsim_4_5")
 
-            cfg = SimulationCfg(render=render_cfg)
+        # grab preset settings
+        preset_filename = os.path.join(isaaclab_app_exp_path, f"rendering_modes/{rendering_mode}.kit")
+        with open(preset_filename) as file:
+            preset_dict = toml.load(file)
+        preset_dict = dict(flatdict.FlatDict(preset_dict, delimiter="."))
 
-            SimulationContext(cfg)
+        render_cfg = RenderCfg(
+            rendering_mode=rendering_mode,
+            dlss_mode=dlss_mode[1],
+            carb_settings=carb_settings,
+        )
 
-            carb_settings_iface = carb.settings.get_settings()
-            for key, val in preset_dict.items():
-                setting_name = "/" + key.replace(".", "/")  # convert to carb setting format
+        cfg = SimulationCfg(render=render_cfg)
 
-                if setting_name in carb_settings:
-                    # grab groundtruth from carb setting dictionary overrides
-                    setting_gt = carb_settings[setting_name]
-                elif setting_name == dlss_mode[0]:
-                    # grab groundtruth from user-friendly setting overrides
-                    setting_gt = dlss_mode[1]
-                else:
-                    # grab groundtruth from preset
-                    setting_gt = val
+        SimulationContext(cfg)
 
-                setting_val = get_carb_setting(carb_settings_iface, setting_name)
+        carb_settings_iface = carb.settings.get_settings()
+        for key, val in preset_dict.items():
+            setting_name = "/" + key.replace(".", "/")  # convert to carb setting format
 
-                self.assertEqual(setting_gt, setting_val)
+            if setting_name in carb_settings:
+                # grab groundtruth from carb setting dictionary overrides
+                setting_gt = carb_settings[setting_name]
+            elif setting_name == dlss_mode[0]:
+                # grab groundtruth from user-friendly setting overrides
+                setting_gt = dlss_mode[1]
+            else:
+                # grab groundtruth from preset
+                setting_gt = val
+
+            setting_val = get_carb_setting(carb_settings_iface, setting_name)
+
+            assert setting_gt == setting_val
 
 
 @pytest.mark.skip(reason="Timeline not stopped")

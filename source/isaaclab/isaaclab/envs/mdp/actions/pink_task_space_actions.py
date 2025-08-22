@@ -3,11 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 from __future__ import annotations
 
 import copy
@@ -22,6 +17,7 @@ from isaaclab.managers.action_manager import ActionTerm
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
+    from isaaclab.envs.utils.io_descriptors import GenericActionIODescriptor
 
     from . import pink_actions_cfg
 
@@ -130,6 +126,31 @@ class PinkInverseKinematicsAction(ActionTerm):
         """Get the processed actions tensor."""
         return self._processed_actions
 
+    @property
+    def IO_descriptor(self) -> GenericActionIODescriptor:
+        """The IO descriptor of the action term.
+
+        This descriptor is used to describe the action term of the pink inverse kinematics action.
+        It adds the following information to the base descriptor:
+        - scale: The scale of the action term.
+        - offset: The offset of the action term.
+        - clip: The clip of the action term.
+        - pink_controller_joint_names: The names of the pink controller joints.
+        - hand_joint_names: The names of the hand joints.
+        - controller_cfg: The configuration of the pink controller.
+
+        Returns:
+            The IO descriptor of the action term.
+        """
+        super().IO_descriptor
+        self._IO_descriptor.shape = (self.action_dim,)
+        self._IO_descriptor.dtype = str(self.raw_actions.dtype)
+        self._IO_descriptor.action_type = "PinkInverseKinematicsAction"
+        self._IO_descriptor.pink_controller_joint_names = self._pink_controlled_joint_names
+        self._IO_descriptor.hand_joint_names = self._hand_joint_names
+        self._IO_descriptor.extras["controller_cfg"] = self.cfg.controller.__dict__
+        return self._IO_descriptor
+
     # """
     # Operations.
     # """
@@ -197,10 +218,12 @@ class PinkInverseKinematicsAction(ActionTerm):
             joint_pos_des = ik_controller.compute(curr_joint_pos, self._sim_dt)
             all_envs_joint_pos_des.append(joint_pos_des)
         all_envs_joint_pos_des = torch.stack(all_envs_joint_pos_des)
+
         # Combine IK joint positions with hand joint positions
         all_envs_joint_pos_des = torch.cat((all_envs_joint_pos_des, self._target_hand_joint_positions), dim=1)
+        self._processed_actions = all_envs_joint_pos_des
 
-        self._asset.set_joint_position_target(all_envs_joint_pos_des, self._joint_ids)
+        self._asset.set_joint_position_target(self._processed_actions, self._joint_ids)
 
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
         """Reset the action term for specified environments.

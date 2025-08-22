@@ -38,6 +38,33 @@ if not exist "%isaac_path%" (
 )
 goto :eof
 
+rem -----------------------------------------------------------------------
+rem Returns success (exit code 0) if Isaac Sim's version starts with "4.5"
+rem -----------------------------------------------------------------------
+:is_isaacsim_version_4_5
+    rem make sure we have %python_exe%
+    call :extract_python_exe
+
+    rem 1) try to locate the VERSION file via the kit install
+    for /f "delims=" %%V in ('!python_exe! -c "import isaacsim,os;print(os.path.abspath(os.path.join(os.path.dirname(isaacsim.__file__), os.pardir, os.pardir, 'VERSION')))"') do set "VERSION_PATH=%%V"
+    if exist "!VERSION_PATH!" (
+        for /f "usebackq delims=" %%L in ("!VERSION_PATH!") do set "ISAACSIM_VER=%%L"
+    ) else (
+        rem 2) fallback to importlib.metadata if no VERSION file
+        for /f "delims=" %%L in ('!python_exe! -c "from importlib.metadata import version;print(version(''isaacsim''))"') do set "ISAACSIM_VER=%%L"
+    )
+
+    rem Clean up the version string (remove any trailing whitespace or newlines)
+    set "ISAACSIM_VER=!ISAACSIM_VER: =!"
+
+    rem Use string comparison instead of findstr for more reliable matching
+    if "!ISAACSIM_VER:~0,3!"=="4.5" (
+        exit /b 0
+    ) else (
+        exit /b 1
+    )
+    goto :eof
+
 rem extract the python from isaacsim
 :extract_python_exe
 rem check if using conda
@@ -114,6 +141,17 @@ if errorlevel 1 (
     echo [ERROR] Conda could not be found. Please install conda and try again.
     exit /b 1
 )
+
+rem check if _isaac_sim symlink exists and isaacsim-rl is not installed via pip
+if not exist "%ISAACLAB_PATH%\_isaac_sim" (
+    python -m pip list | findstr /C:"isaacsim-rl" >nul
+    if errorlevel 1 (
+        echo [WARNING] _isaac_sim symlink not found at %ISAACLAB_PATH%\_isaac_sim
+        echo     This warning can be ignored if you plan to install Isaac Sim via pip.
+        echo     If you are using a binary installation of Isaac Sim, please ensure the symlink is created before setting up the conda environment.
+    )
+)
+
 rem check if the environment exists
 call conda env list | findstr /c:"%env_name%" >nul
 if %errorlevel% equ 0 (
@@ -121,6 +159,30 @@ if %errorlevel% equ 0 (
 ) else (
     echo [INFO] Creating conda environment named '%env_name%'...
     echo [INFO] Installing dependencies from %ISAACLAB_PATH%\environment.yml
+    rem ————————————————————————————————
+    rem patch Python version if needed, but back up first
+    rem ————————————————————————————————
+    copy "%ISAACLAB_PATH%environment.yml" "%ISAACLAB_PATH%environment.yml.bak" >nul
+    call :is_isaacsim_version_4_5
+    if !ERRORLEVEL! EQU 0 (
+        echo [INFO] Detected Isaac Sim 4.5 --^> forcing python=3.10
+        rem Use findstr to replace the python version line
+        (
+            for /f "delims=" %%L in ('type "%ISAACLAB_PATH%environment.yml"') do (
+                set "line=%%L"
+                set "line=!line: =!"
+                if "!line:~0,15!"=="-python=3.11" (
+                    echo   - python=3.10
+                ) else (
+                    echo %%L
+                )
+            )
+        ) > "%ISAACLAB_PATH%environment.yml.tmp"
+        rem Replace the original file with the modified version
+        move /y "%ISAACLAB_PATH%environment.yml.tmp" "%ISAACLAB_PATH%environment.yml" >nul
+    ) else (
+        echo [INFO] Isaac Sim ^>=5.0, installing python=3.11
+    )
     call conda env create -y --file %ISAACLAB_PATH%\environment.yml -n %env_name%
 )
 rem cache current paths for later
@@ -270,6 +332,26 @@ if "%arg%"=="-i" (
     rem install the python packages in isaaclab/source directory
     echo [INFO] Installing extensions inside the Isaac Lab repository...
     call :extract_python_exe
+    rem check if pytorch is installed and its version
+    rem install pytorch with cuda 12.8 for blackwell support
+    call !python_exe! -m pip list | findstr /C:"torch" >nul
+    if %errorlevel% equ 0 (
+        for /f "tokens=2" %%i in ('!python_exe! -m pip show torch ^| findstr /C:"Version:"') do (
+            set torch_version=%%i
+        )
+        if not "!torch_version!"=="2.7.0+cu128" (
+            echo [INFO] Uninstalling PyTorch version !torch_version!...
+            call !python_exe! -m pip uninstall -y torch torchvision torchaudio
+            echo [INFO] Installing PyTorch 2.7.0 with CUDA 12.8 support...
+            call !python_exe! -m pip install torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
+        ) else (
+            echo [INFO] PyTorch 2.7.0 is already installed.
+        )
+    ) else (
+        echo [INFO] Installing PyTorch 2.7.0 with CUDA 12.8 support...
+        call !python_exe! -m pip install torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
+    )
+
     for /d %%d in ("%ISAACLAB_PATH%\source\*") do (
         set ext_folder="%%d"
         call :install_isaaclab_extension
@@ -295,6 +377,27 @@ if "%arg%"=="-i" (
     rem install the python packages in source directory
     echo [INFO] Installing extensions inside the Isaac Lab repository...
     call :extract_python_exe
+
+    rem check if pytorch is installed and its version
+    rem install pytorch with cuda 12.8 for blackwell support
+    call !python_exe! -m pip list | findstr /C:"torch" >nul
+    if %errorlevel% equ 0 (
+        for /f "tokens=2" %%i in ('!python_exe! -m pip show torch ^| findstr /C:"Version:"') do (
+            set torch_version=%%i
+        )
+        if not "!torch_version!"=="2.7.0+cu128" (
+            echo [INFO] Uninstalling PyTorch version !torch_version!...
+            call !python_exe! -m pip uninstall -y torch torchvision torchaudio
+            echo [INFO] Installing PyTorch 2.7.0 with CUDA 12.8 support...
+            call !python_exe! -m pip install torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
+        ) else (
+            echo [INFO] PyTorch 2.7.0 is already installed.
+        )
+    ) else (
+        echo [INFO] Installing PyTorch 2.7.0 with CUDA 12.8 support...
+        call !python_exe! -m pip install torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
+    )
+
     for /d %%d in ("%ISAACLAB_PATH%\source\*") do (
         set ext_folder="%%d"
         call :install_isaaclab_extension
@@ -413,7 +516,7 @@ if "%arg%"=="-i" (
             set "skip=1"
         )
     )
-    !python_exe! !allArgs!
+    call !python_exe! !allArgs!
     goto :end
 ) else if "%arg%"=="--python" (
     rem run the python provided by Isaac Sim
@@ -429,7 +532,7 @@ if "%arg%"=="-i" (
             set "skip=1"
         )
     )
-    !python_exe! !allArgs!
+    call !python_exe! !allArgs!
     goto :end
 ) else if "%arg%"=="-s" (
     rem run the simulator exe provided by isaacsim
@@ -474,11 +577,11 @@ if "%arg%"=="-i" (
         )
     )
     echo [INFO] Installing template dependencies...
-    !python_exe! -m pip install -q -r tools\template\requirements.txt
+    call !python_exe! -m pip install -q -r tools\template\requirements.txt
     echo.
     echo [INFO] Running template generator...
     echo.
-    !python_exe! tools\template\cli.py !allArgs!
+    call !python_exe! tools\template\cli.py !allArgs!
     goto :end
 ) else if "%arg%"=="--new" (
     rem run the template generator script
@@ -493,11 +596,11 @@ if "%arg%"=="-i" (
         )
     )
     echo [INFO] Installing template dependencies...
-    !python_exe! -m pip install -q -r tools\template\requirements.txt
+    call !python_exe! -m pip install -q -r tools\template\requirements.txt
     echo.
     echo [INFO] Running template generator...
     echo.
-    !python_exe! tools\template\cli.py !allArgs!
+    call !python_exe! tools\template\cli.py !allArgs!
     goto :end
 ) else if "%arg%"=="-t" (
     rem run the python provided by Isaac Sim
@@ -511,7 +614,7 @@ if "%arg%"=="-i" (
             set "skip=1"
         )
     )
-    !python_exe! -m pytest tools !allArgs!
+    call !python_exe! -m pytest tools !allArgs!
     goto :end
 ) else if "%arg%"=="--test" (
     rem run the python provided by Isaac Sim
@@ -525,7 +628,7 @@ if "%arg%"=="-i" (
             set "skip=1"
         )
     )
-    !python_exe! -m pytest tools !allArgs!
+    call !python_exe! -m pytest tools !allArgs!
     goto :end
 ) else if "%arg%"=="-v" (
     rem update the vscode settings

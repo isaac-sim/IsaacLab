@@ -1,0 +1,140 @@
+##
+# Adapted from: https://github.com/NVIDIA-Omniverse/OmniIsaacGymEnvs/blob/main/apps/omni.isaac.sim.python.gym.camera.kit
+#
+# This app file designed specifically towards vision-based RL tasks. It provides necessary settings to enable
+# multiple cameras to be rendered each frame. Additional settings are also applied to increase performance when
+# rendering cameras across multiple environments.
+##
+
+[package]
+title = "Isaac Lab Python Camera"
+description = "An app for running Isaac Lab with rendering enabled"
+version = "2.2.0"
+
+# That makes it browsable in UI with "experience" filter
+keywords = ["experience", "app", "isaaclab", "python", "camera", "minimal"]
+
+[dependencies]
+# Isaac Lab minimal app
+"isaaclab.python" = {}
+
+# PhysX
+"omni.kit.property.physx" = {}
+
+# Rendering
+"omni.kit.material.library" = {}
+
+[settings.isaaclab]
+# This is used to check that this experience file is loaded when using cameras
+cameras_enabled = true
+
+[settings]
+# Note: This path was adapted to be respective to the kit-exe file location
+app.versionFile = "${exe-path}/VERSION"
+app.folder = "${exe-path}/"
+app.name = "Isaac-Sim"
+app.version = "4.5.0"
+
+# Disable print outs on extension startup information
+# this only disables the app print_and_log function
+app.enableStdoutOutput = false
+
+# set the default ros bridge to disable on startup
+isaac.startup.ros_bridge_extension = ""
+
+# Flags for better rendering performance
+# Disabling these settings reduces renderer VRAM usage and improves rendering performance, but at some quality cost
+rtx.translucency.enabled = false
+rtx.reflections.enabled = false
+rtx.indirectDiffuse.enabled = false
+rtx-transient.dlssg.enabled = false
+rtx.directLighting.sampledLighting.enabled = true
+rtx.directLighting.sampledLighting.samplesPerPixel = 1
+rtx.sceneDb.ambientLightIntensity = 1.0
+# rtx.shadows.enabled = false
+
+# Avoids replicator warning
+rtx.pathtracing.maxSamplesPerLaunch = 1000000
+# Avoids silent trimming of tiles
+rtx.viewTile.limit = 1000000
+
+# Disable present thread to improve performance
+exts."omni.renderer.core".present.enabled=false
+
+# Disabling these settings reduces renderer VRAM usage and improves rendering performance, but at some quality cost
+rtx.raytracing.cached.enabled = false
+rtx.ambientOcclusion.enabled = false
+
+# Set the DLSS model
+rtx.post.dlss.execMode = 0 # can be 0 (Performance), 1 (Balanced), 2 (Quality), or 3 (Auto)
+
+# Avoids unnecessary GPU context initialization
+renderer.multiGpu.maxGpuCount=1
+
+# Force synchronous rendering to improve training results
+omni.replicator.asyncRendering = false
+
+# Avoids frame offset issue
+app.updateOrder.checkForHydraRenderComplete = 1000
+app.renderer.waitIdle=true
+app.hydraEngine.waitIdle=true
+
+app.audio.enabled = false
+
+# disable replicator orchestrator for better runtime perf
+exts."omni.replicator.core".Orchestrator.enabled = false
+
+[settings.physics]
+updateToUsd = false
+updateParticlesToUsd = false
+updateVelocitiesToUsd = false
+updateForceSensorsToUsd = false
+outputVelocitiesLocalSpace = false
+useFastCache = false
+visualizationDisplayJoints = false
+fabricUpdateTransformations = false
+fabricUpdateVelocities = false
+fabricUpdateForceSensors = false
+fabricUpdateJointStates = false
+
+[settings.exts."omni.kit.registry.nucleus"]
+registries = [
+    { name = "kit/default", url = "https://ovextensionsprod.blob.core.windows.net/exts/kit/prod/106/shared" },
+    { name = "kit/sdk", url = "https://ovextensionsprod.blob.core.windows.net/exts/kit/prod/sdk/${kit_version_short}/${kit_git_hash}" },
+    { name = "kit/community", url = "https://dw290v42wisod.cloudfront.net/exts/kit/community" },
+]
+
+[settings.app.python]
+# These disable the kit app from also printing out python output, which gets confusing
+interceptSysStdOutput = false
+logSysStdOutput = false
+
+[settings.app.renderer]
+skipWhileMinimized = false
+sleepMsOnFocus = 0
+sleepMsOutOfFocus = 0
+
+# Register extension folder from this repo in kit
+[settings.app.exts]
+folders = [
+    "${exe-path}/exts",  # kit extensions
+    "${exe-path}/extscore",  # kit core extensions
+    "${exe-path}/../exts",  # isaac extensions
+    "${exe-path}/../extsDeprecated",  # deprecated isaac extensions
+    "${exe-path}/../extscache",  # isaac cache extensions
+    "${exe-path}/../extsPhysics",  # isaac physics extensions
+    "${exe-path}/../isaacsim/exts",  # isaac extensions for pip
+    "${exe-path}/../isaacsim/extsDeprecated",  # deprecated isaac extensions
+    "${exe-path}/../isaacsim/extscache",  # isaac cache extensions for pip
+    "${exe-path}/../isaacsim/extsPhysics",  # isaac physics extensions for pip
+    "${app}", # needed to find other app files
+    "${app}/../../source", # needed to find extensions in Isaac Lab
+]
+
+# Asset path
+# set the S3 directory manually to the latest published S3
+# note: this is done to ensure prior versions of Isaac Sim still use the latest assets
+[settings]
+persistent.isaac.asset_root.default = "http://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/4.5"
+persistent.isaac.asset_root.cloud = "http://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/4.5"
+persistent.isaac.asset_root.nvidia = "http://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/4.5"

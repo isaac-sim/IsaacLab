@@ -1,7 +1,37 @@
 Changelog
 ---------
 
-0.1.6 (2025-06-26)
+0.2.4 (2025-08-07)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Disallowed string values in ``sb3_ppo_cfg.yaml`` from being passed to ``eval()`` in
+  :meth:`~isaaclab_rl.sb3.process_sb3_cfg`. This change prevents accidental or malicious
+  code execution when loading configuration files, improving overall security and reliability.
+
+
+0.2.3 (2025-06-29)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Support SB3 VecEnv wrapper to configure with composite observation spaces properly so that the cnn creation pipelines
+  natively supported by sb3 can be automatically triggered
+
+
+0.2.2 (2025-06-30)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Call :meth:`eval` during :meth:`forward`` RSL-RL OnnxPolicyExporter
+
+
+0.2.1 (2025-06-26)
 ~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -10,13 +40,24 @@ Fixed
 * Relaxed upper range pin for protobuf python dependency for more permissive installation.
 
 
+0.2.0 (2025-04-24)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Switched to a 3.11 compatible branch for rl-games as Isaac Sim 5.0 is now using Python 3.11.
+
+
 0.1.5 (2025-04-11)
 ~~~~~~~~~~~~~~~~~~
 
 Changed
 ^^^^^^^
+
 * Optimized Stable-Baselines3 wrapper ``Sb3VecEnvWrapper`` (now 4x faster) by using Numpy buffers and only logging episode and truncation information by default.
 * Upgraded minimum SB3 version to 2.6.0 and added optional dependencies for progress bar
+
 
 0.1.4 (2025-04-10)
 ~~~~~~~~~~~~~~~~~~

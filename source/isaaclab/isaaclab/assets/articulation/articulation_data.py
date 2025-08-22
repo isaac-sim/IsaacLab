@@ -110,6 +110,9 @@ class ArticulationData:
     fixed_tendon_names: list[str] = None
     """Fixed tendon names in the order parsed by the simulation view."""
 
+    spatial_tendon_names: list[str] = None
+    """Spatial tendon names in the order parsed by the simulation view."""
+
     ##
     # Defaults - Initial state.
     ##
@@ -187,9 +190,25 @@ class ArticulationData:
     """
 
     default_joint_friction_coeff: torch.Tensor = None
-    """Default joint friction coefficient of all joints. Shape is (num_instances, num_joints).
+    """Default joint static friction coefficient of all joints. Shape is (num_instances, num_joints).
 
     This quantity is configured through the actuator model's :attr:`isaaclab.actuators.ActuatorBaseCfg.friction`
+    parameter. If the parameter's value is None, the value parsed from the USD schema, at the time of initialization,
+    is used.
+    """
+
+    default_joint_dynamic_friction_coeff: torch.Tensor = None
+    """Default joint dynamic friction coefficient of all joints. Shape is (num_instances, num_joints).
+
+    This quantity is configured through the actuator model's :attr:`isaaclab.actuators.ActuatorBaseCfg.dynamic_friction`
+    parameter. If the parameter's value is None, the value parsed from the USD schema, at the time of initialization,
+    is used.
+    """
+
+    default_joint_viscous_friction_coeff: torch.Tensor = None
+    """Default joint viscous friction coefficient of all joints. Shape is (num_instances, num_joints).
+
+    This quantity is configured through the actuator model's :attr:`isaaclab.actuators.ActuatorBaseCfg.viscous_friction`
     parameter. If the parameter's value is None, the value parsed from the USD schema, at the time of initialization,
     is used.
     """
@@ -199,42 +218,65 @@ class ArticulationData:
 
     The limits are in the order :math:`[lower, upper]`. They are parsed from the USD schema at the time of initialization.
     """
-
     default_fixed_tendon_stiffness: torch.Tensor = None
-    """Default tendon stiffness of all tendons. Shape is (num_instances, num_fixed_tendons).
+    """Default tendon stiffness of all fixed tendons. Shape is (num_instances, num_fixed_tendons).
 
     This quantity is parsed from the USD schema at the time of initialization.
     """
 
     default_fixed_tendon_damping: torch.Tensor = None
-    """Default tendon damping of all tendons. Shape is (num_instances, num_fixed_tendons).
+    """Default tendon damping of all fixed tendons. Shape is (num_instances, num_fixed_tendons).
 
     This quantity is parsed from the USD schema at the time of initialization.
     """
 
     default_fixed_tendon_limit_stiffness: torch.Tensor = None
-    """Default tendon limit stiffness of all tendons. Shape is (num_instances, num_fixed_tendons).
+    """Default tendon limit stiffness of all fixed tendons. Shape is (num_instances, num_fixed_tendons).
 
     This quantity is parsed from the USD schema at the time of initialization.
     """
 
     default_fixed_tendon_rest_length: torch.Tensor = None
-    """Default tendon rest length of all tendons. Shape is (num_instances, num_fixed_tendons).
+    """Default tendon rest length of all fixed tendons. Shape is (num_instances, num_fixed_tendons).
 
     This quantity is parsed from the USD schema at the time of initialization.
     """
 
     default_fixed_tendon_offset: torch.Tensor = None
-    """Default tendon offset of all tendons. Shape is (num_instances, num_fixed_tendons).
+    """Default tendon offset of all fixed tendons. Shape is (num_instances, num_fixed_tendons).
 
     This quantity is parsed from the USD schema at the time of initialization.
     """
 
     default_fixed_tendon_pos_limits: torch.Tensor = None
-    """Default tendon position limits of all tendons. Shape is (num_instances, num_fixed_tendons, 2).
+    """Default tendon position limits of all fixed tendons. Shape is (num_instances, num_fixed_tendons, 2).
 
     The position limits are in the order :math:`[lower, upper]`. They are parsed from the USD schema at the time of
     initialization.
+    """
+
+    default_spatial_tendon_stiffness: torch.Tensor = None
+    """Default tendon stiffness of all spatial tendons. Shape is (num_instances, num_spatial_tendons).
+
+    This quantity is parsed from the USD schema at the time of initialization.
+    """
+
+    default_spatial_tendon_damping: torch.Tensor = None
+    """Default tendon damping of all spatial tendons. Shape is (num_instances, num_spatial_tendons).
+
+    This quantity is parsed from the USD schema at the time of initialization.
+    """
+
+    default_spatial_tendon_limit_stiffness: torch.Tensor = None
+    """Default tendon limit stiffness of all spatial tendons. Shape is (num_instances, num_spatial_tendons).
+
+    This quantity is parsed from the USD schema at the time of initialization.
+    """
+
+    default_spatial_tendon_offset: torch.Tensor = None
+    """Default tendon offset of all spatial tendons. Shape is (num_instances, num_spatial_tendons).
+
+    This quantity is parsed from the USD schema at the time of initialization.
     """
 
     ##
@@ -304,7 +346,13 @@ class ArticulationData:
     """Joint armature provided to the simulation. Shape is (num_instances, num_joints)."""
 
     joint_friction_coeff: torch.Tensor = None
-    """Joint friction coefficient provided to the simulation. Shape is (num_instances, num_joints)."""
+    """Joint static friction coefficient provided to the simulation. Shape is (num_instances, num_joints)."""
+
+    joint_dynamic_friction_coeff: torch.Tensor = None
+    """Joint dynamic friction coefficient provided to the simulation. Shape is (num_instances, num_joints)."""
+
+    joint_viscous_friction_coeff: torch.Tensor = None
+    """Joint viscous friction coefficient provided to the simulation. Shape is (num_instances, num_joints)."""
 
     joint_pos_limits: torch.Tensor = None
     """Joint position limits provided to the simulation. Shape is (num_instances, num_joints, 2).
@@ -374,6 +422,22 @@ class ArticulationData:
     """Fixed tendon position limits provided to the simulation. Shape is (num_instances, num_fixed_tendons, 2)."""
 
     ##
+    # Spatial tendon properties.
+    ##
+
+    spatial_tendon_stiffness: torch.Tensor = None
+    """Spatial tendon stiffness provided to the simulation. Shape is (num_instances, num_spatial_tendons)."""
+
+    spatial_tendon_damping: torch.Tensor = None
+    """Spatial tendon damping provided to the simulation. Shape is (num_instances, num_spatial_tendons)."""
+
+    spatial_tendon_limit_stiffness: torch.Tensor = None
+    """Spatial tendon limit stiffness provided to the simulation. Shape is (num_instances, num_spatial_tendons)."""
+
+    spatial_tendon_offset: torch.Tensor = None
+    """Spatial tendon offset provided to the simulation. Shape is (num_instances, num_spatial_tendons)."""
+
+    ##
     # Root state properties.
     ##
 
@@ -406,7 +470,7 @@ class ArticulationData:
             vel = self.root_com_vel_w.clone()
             # adjust linear velocity to link from center of mass
             vel[:, :3] += torch.linalg.cross(
-                vel[:, 3:], math_utils.quat_rotate(self.root_link_quat_w, -self.body_com_pos_b[:, 0]), dim=-1
+                vel[:, 3:], math_utils.quat_apply(self.root_link_quat_w, -self.body_com_pos_b[:, 0]), dim=-1
             )
             # set the buffer data and timestamp
             self._root_link_vel_w.data = vel
@@ -522,7 +586,7 @@ class ArticulationData:
             velocities = self.body_com_vel_w.clone()
             # adjust linear velocity to link from center of mass
             velocities[..., :3] += torch.linalg.cross(
-                velocities[..., 3:], math_utils.quat_rotate(self.body_link_quat_w, -self.body_com_pos_b), dim=-1
+                velocities[..., 3:], math_utils.quat_apply(self.body_link_quat_w, -self.body_com_pos_b), dim=-1
             )
             # set the buffer data and timestamp
             self._body_link_vel_w.data = velocities
