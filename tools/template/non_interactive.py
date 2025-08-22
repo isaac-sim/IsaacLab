@@ -62,16 +62,22 @@ def main(argv: list[str] | None = None) -> None:
         action="append",
         required=True,
         type=str.lower,
-        choices=[w.lower() for w in supported_workflows],
+        choices=[*([w.lower() for w in supported_workflows]), "all"],
     )
-    parser.add_argument("--rl-library", "--rl_library", type=str.lower, required=True, choices=supported_rl_libraries)
+    parser.add_argument(
+        "--rl-library",
+        "--rl_library",
+        type=str.lower,
+        required=True,
+        choices=[*supported_rl_libraries, "all"],
+    )
     parser.add_argument(
         "--rl-algorithm",
         "--rl_algorithm",
         type=str.lower,
         required=False,
         default=None,
-        choices=rl_algo_choices,
+        choices=[*rl_algo_choices, "all"],
         help=(
             "RL algorithm to use. If omitted, the tool auto-selects when exactly one algorithm "
             "is valid for the chosen workflows and library."
@@ -92,36 +98,87 @@ def main(argv: list[str] | None = None) -> None:
     if not args.project_name.isidentifier():
         raise ValueError("--project-name must be a valid identifier (letters, numbers, underscores)")
 
-    workflows = [_parse_workflow_arg(item) for item in args.workflow]
+    # Expand workflows: allow "all" to mean all supported workflows
+    if any(item == "all" for item in args.workflow):
+        workflows = [_parse_workflow_arg(item) for item in supported_workflows]
+    else:
+        workflows = [_parse_workflow_arg(item) for item in args.workflow]
     single_agent = any(wf["type"] == "single-agent" for wf in workflows)
     multi_agent = any(wf["type"] == "multi-agent" for wf in workflows)
 
     # Filter allowed algorithms per RL library under given workflow capabilities
     algos_map = get_algorithms_per_rl_library(single_agent, multi_agent)
-    lib = args.rl_library.strip().lower()
-    supported_algos = [a.lower() for a in algos_map.get(lib, [])]
+
+    # Expand RL libraries: allow "all" to mean all libraries that have at least one supported algorithm
+    rl_lib_input = args.rl_library.strip().lower()
+    if rl_lib_input == "all":
+        selected_libs = [lib for lib, algos in algos_map.items() if len(algos) > 0]
+        if not selected_libs:
+            raise ValueError(
+                "No RL libraries are supported under the selected workflows. Please choose different workflows."
+            )
+    else:
+        selected_libs = [rl_lib_input]
+        if rl_lib_input not in algos_map:
+            raise ValueError(f"Unknown RL library: {rl_lib_input}")
+    # Pre-compute supported algorithms per selected library (lowercased)
+    supported_algos_per_lib = {lib: [a.lower() for a in algos_map.get(lib, [])] for lib in selected_libs}
 
     # Auto-select algorithm if not provided
-    if args.rl_algorithm is None:
-        if len(supported_algos) == 0:
-            raise ValueError(
-                f"No algorithms are supported for {lib} under the selected workflows. "
-                "Please choose a different combination."
-            )
-        if len(supported_algos) > 1:
-            allowed = ", ".join(supported_algos)
-            raise ValueError(
-                "Multiple algorithms are valid for the selected workflows and library. "
-                f"Please specify one using --rl-algorithm. Allowed: {allowed}"
-            )
-        algo = supported_algos[0]
+    rl_algo_input = args.rl_algorithm.strip().lower() if args.rl_algorithm is not None else None
+
+    rl_libraries_spec = []
+    if rl_algo_input is None:
+        # If a single library is selected, preserve previous behavior
+        if len(selected_libs) == 1:
+            lib = selected_libs[0]
+            supported_algos = supported_algos_per_lib.get(lib, [])
+            if len(supported_algos) == 0:
+                raise ValueError(
+                    f"No algorithms are supported for {lib} under the selected workflows. "
+                    "Please choose a different combination."
+                )
+            if len(supported_algos) > 1:
+                allowed = ", ".join(supported_algos)
+                raise ValueError(
+                    "Multiple algorithms are valid for the selected workflows and library. "
+                    f"Please specify one using --rl-algorithm or use --rl-algorithm all. Allowed: {allowed}"
+                )
+            rl_libraries_spec.append({"name": lib, "algorithms": [supported_algos[0]]})
+        else:
+            # Multiple libraries selected. If each has exactly one algorithm, auto-select; otherwise require explicit choice.
+            libs_with_multi = [lib for lib, algos in supported_algos_per_lib.items() if len(algos) > 1]
+            if libs_with_multi:
+                details = "; ".join(f"{lib}: {', '.join(supported_algos_per_lib[lib])}" for lib in libs_with_multi)
+                raise ValueError(
+                    "Multiple algorithms are valid for one or more libraries under the selected workflows. "
+                    "Please specify --rl-algorithm or use --rl-algorithm all. Details: "
+                    + details
+                )
+            for lib, algos in supported_algos_per_lib.items():
+                if not algos:
+                    continue
+                rl_libraries_spec.append({"name": lib, "algorithms": [algos[0]]})
+    elif rl_algo_input == "all":
+        # Include all supported algorithms per selected library
+        for lib, algos in supported_algos_per_lib.items():
+            if not algos:
+                continue
+            rl_libraries_spec.append({"name": lib, "algorithms": algos})
+        if not rl_libraries_spec:
+            raise ValueError("No algorithms are supported under the selected workflows.")
     else:
-        algo = args.rl_algorithm.strip().lower()
-        if algo not in supported_algos:
-            allowed = ", ".join(supported_algos) if supported_algos else "none"
+        # Specific algorithm requested: include only libraries that support it
+        matching_libs = []
+        for lib, algos in supported_algos_per_lib.items():
+            if rl_algo_input in algos:
+                matching_libs.append(lib)
+                rl_libraries_spec.append({"name": lib, "algorithms": [rl_algo_input]})
+        if not matching_libs:
+            allowed_desc = {lib: algos for lib, algos in supported_algos_per_lib.items() if algos}
             raise ValueError(
-                f"Algorithm '{args.rl_algorithm}' is not supported for {lib} under selected workflows. Allowed:"
-                f" {allowed}"
+                f"Algorithm '{args.rl_algorithm}' is not supported under the selected workflows for the chosen"
+                f" libraries. Supported per library: {allowed_desc}"
             )
 
     specification = {
@@ -129,7 +186,7 @@ def main(argv: list[str] | None = None) -> None:
         "path": project_path,
         "name": args.project_name,
         "workflows": workflows,
-        "rl_libraries": [{"name": lib, "algorithms": [algo]}],
+        "rl_libraries": rl_libraries_spec,
     }
 
     generate(specification)
