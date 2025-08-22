@@ -8,7 +8,6 @@ import numpy as np
 import pinocchio as pin
 from pink.configuration import Configuration
 from pink.tasks import Task
-from pink.utils import get_root_joint_dim
 
 
 class NullSpacePostureTask(Task):
@@ -48,7 +47,7 @@ class NullSpacePostureTask(Task):
 
     where:
         - :math:`\mathbf{q}^*` is the target joint configuration
-        - :math:`\mathbf{q}` is the current joint configuration  
+        - :math:`\mathbf{q}` is the current joint configuration
         - :math:`\mathbf{M}` is a joint selection mask matrix
 
     2. **Jacobian Matrix**: The task Jacobian is the null space projector:
@@ -138,10 +137,10 @@ class NullSpacePostureTask(Task):
         """
         # Create joint mask for full configuration size
         self._joint_mask = np.zeros(configuration.model.nq)
-        
+
         # Create dictionary for joint names to indices (exclude root joint)
         joint_names = configuration.model.names.tolist()[1:]
-        
+
         # Build joint mask efficiently
         for i, joint_name in enumerate(joint_names):
             if joint_name in self.controlled_joints:
@@ -206,7 +205,7 @@ class NullSpacePostureTask(Task):
             self.target_q,
             configuration.q,
         )
-        
+
         # Apply pre-computed joint mask to select only controlled joints
         return self._joint_mask * err
 
@@ -247,7 +246,7 @@ class NullSpacePostureTask(Task):
         # Get Jacobians for all frame tasks and combine them
         J_frame_tasks = [configuration.get_frame_jacobian(frame_name) for frame_name in self._frame_names]
         J_combined = np.concatenate(J_frame_tasks, axis=0)
-        
+
         # Compute null space projector: N = I - J^+ * J
         N_combined = np.eye(J_combined.shape[1]) - np.linalg.pinv(J_combined) @ J_combined
 
