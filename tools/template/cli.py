@@ -151,7 +151,7 @@ def main() -> None:
     lab_module = importlib.import_module("isaaclab")
     lab_path = os.path.realpath(getattr(lab_module, "__file__", "") or (getattr(lab_module, "__path__", [""])[0]))
     is_lab_pip_installed = ("site-packages" in lab_path) or ("dist-packages" in lab_path)
-    
+
     if not is_lab_pip_installed:
         # project type
         is_external_project = (

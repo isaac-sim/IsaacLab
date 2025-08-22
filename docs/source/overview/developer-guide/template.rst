@@ -24,8 +24,8 @@ The template generator enables you to create an:
 
   .. warning::
 
-    Pip installations of Isaac Lab do not support *Internal* templates.  
-    If ``isaaclab`` is loaded from ``site-packages`` or ``dist-packages``, the *Internal* option is disabled 
+    Pip installations of Isaac Lab do not support *Internal* templates.
+    If ``isaaclab`` is loaded from ``site-packages`` or ``dist-packages``, the *Internal* option is disabled
     and the *External* template will be used instead.
 
 Running the template generator
