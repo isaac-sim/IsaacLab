@@ -31,7 +31,7 @@ import torch
 from carb.input import GamepadInput  # <-- for callbacks
 
 from isaaclab.controllers import DifferentialIKController, DifferentialIKControllerCfg
-from isaaclab.devices import Se3Gamepad
+from isaaclab.devices import Se3Gamepad, Se3GamepadCfg
 from isaaclab.utils.math import subtract_frame_transforms
 
 from isaaclab_tasks.utils import parse_env_cfg
@@ -75,12 +75,18 @@ def main():
     R_hand_jac = R_hand_body - 1 if franka_R.is_fixed_base else R_hand_body
 
     # Gamepad
-    teleop = Se3Gamepad(pos_sensitivity=0.1, rot_sensitivity=0.16, dead_zone=0.07)
+    teleop_cfg = Se3GamepadCfg(
+        sim_device="cuda:0",
+        dead_zone=0.07,  # dead zone for gamepad input
+        pos_sensitivity=0.1,  # sensitivity for position control
+        rot_sensitivity=0.16,  # sensitivity for rotation control
+    )
+    teleop = Se3Gamepad(teleop_cfg)
     teleop.reset()
 
     # Controller: relative, position-only
     ik_cfg = DifferentialIKControllerCfg(
-        command_type="position",  # position only
+        command_type="pose",  # position only
         use_relative_mode=True,  # deltas in EE frame
         ik_method="dls",
         ik_params={"lambda_val": 0.15},
@@ -115,77 +121,51 @@ def main():
     # Bind callback (change to any GamepadInput.* you like, e.g., GamepadInput.Y)
     teleop.add_callback(GamepadInput.RIGHT_SHOULDER, on_swap_arm)
 
-    # Start by holding current joints for both, but we'll compute only active side each frame
-    qL_des = franka_L.data.joint_pos[:, L_arm_ids].clone()
-    qR_des = franka_R.data.joint_pos[:, R_arm_ids].clone()
-
     # ---- Main loop ----
     while simulation_app.is_running():
-        delta_pose, grip_cmd = teleop.advance()
-        delta_pose[1] = delta_pose[1] * -1.0  # flip y-axis for consistent control form viewpoint
+        delta = teleop.advance()
 
-        # Active arm selection
-        if state["active"] == "left":
-            # Bases & hand pose
-            base_pos_w = franka_L.data.root_pose_w[:, :3]
-            base_quat_w = franka_L.data.root_pose_w[:, 3:7]
-            hand_pos_w = franka_L.data.body_pos_w[:, L_hand_body]
-            hand_quat_w = franka_L.data.body_quat_w[:, L_hand_body]
+        grip_cmd = delta[6]
+        delta = delta[:6]
 
-            # EE (hand) in base
-            ee_pos_b, ee_quat_b = subtract_frame_transforms(base_pos_w, base_quat_w, hand_pos_w, hand_quat_w)
+        delta[1] = delta[1] * -1.0  # flip y-axis for consistent control form viewpoint
+        delta[3:5] = 0  # no roll/pitch control
 
-            # Device delta already in EE frame → position-only relative step
-            delta = torch.tensor(delta_pose, device=ee_pos_b.device, dtype=ee_pos_b.dtype)
-            dpos_e = delta[:3].unsqueeze(0).expand_as(ee_pos_b)  # (N,3)
+        left_robot_active = state["active"] == "left"
+        robot = franka_L if left_robot_active else franka_R
 
-            # Jacobian and IK
-            J = franka_L.root_physx_view.get_jacobians()[:, L_hand_jac, :, L_arm_ids]
-            ik_ctrl.set_command(dpos_e, ee_pos=ee_pos_b, ee_quat=ee_quat_b)
-            qL_des = ik_ctrl.compute(ee_pos_b, ee_quat_b, J, franka_L.data.joint_pos[:, L_arm_ids])
+        base_pos_w = robot.data.root_pose_w[:, :3]
+        base_quat_w = robot.data.root_pose_w[:, 3:7]
+        hand_pos_w = robot.data.body_pos_w[:, L_hand_body if left_robot_active else R_hand_body]
+        hand_quat_w = robot.data.body_quat_w[:, L_hand_body if left_robot_active else R_hand_body]
 
-            # Right arm stalled at latched
-            qR_des = holds["R_q"]
+        # Compute EE pose in base frame
+        ee_pos_b, ee_quat_b = subtract_frame_transforms(base_pos_w, base_quat_w, hand_pos_w, hand_quat_w)
+        # Device delta is already in EE frame, so we can use it directly
+        dpos_e = delta.unsqueeze(0).expand(num_envs, -1)
+        # Get Jacobian for the active arm
+        J = robot.root_physx_view.get_jacobians()[
+            :,
+            L_hand_jac if left_robot_active else R_hand_jac,
+            :,
+            L_arm_ids if left_robot_active else R_arm_ids,
+        ]
+        ik_ctrl.set_command(dpos_e, ee_pos=ee_pos_b, ee_quat=ee_quat_b)
+        # Compute desired joint positions
+        q_des = ik_ctrl.compute(
+            ee_pos_b, ee_quat_b, J, robot.data.joint_pos[:, L_arm_ids if left_robot_active else R_arm_ids]
+        )
 
-            # Build actions
-            actions = torch.zeros((num_envs, act_dim), device=device)
-            actions[:, 0:7] = qL_des
-            # left gripper from grip_cmd
-            f_target = F_CLOSED if grip_cmd else F_OPEN
-            f_vec = torch.full((num_envs, 1), f_target, device=device)
-            actions[:, 7:9] = f_vec.expand(-1, 2)
-            # right hold
-            actions[:, 9:16] = qR_des
-            actions[:, 16:18] = holds["R_qf"]
-
-        else:  # active == "right"
-            base_pos_w = franka_R.data.root_pose_w[:, :3]
-            base_quat_w = franka_R.data.root_pose_w[:, 3:7]
-            hand_pos_w = franka_R.data.body_pos_w[:, R_hand_body]
-            hand_quat_w = franka_R.data.body_quat_w[:, R_hand_body]
-
-            ee_pos_b, ee_quat_b = subtract_frame_transforms(base_pos_w, base_quat_w, hand_pos_w, hand_quat_w)
-
-            delta = torch.tensor(delta_pose, device=ee_pos_b.device, dtype=ee_pos_b.dtype)
-            dpos_e = delta[:3].unsqueeze(0).expand_as(ee_pos_b)
-
-            J = franka_R.root_physx_view.get_jacobians()[:, R_hand_jac, :, R_arm_ids]
-            ik_ctrl.set_command(dpos_e, ee_pos=ee_pos_b, ee_quat=ee_quat_b)
-            qR_des = ik_ctrl.compute(ee_pos_b, ee_quat_b, J, franka_R.data.joint_pos[:, R_arm_ids])
-
-            # Left arm stalled
-            qL_des = holds["L_q"]
-
-            actions = torch.zeros((num_envs, act_dim), device=device)
-            # left hold
-            actions[:, 0:7] = qL_des
-            actions[:, 7:9] = holds["L_qf"]
-            # right controlled
-            actions[:, 9:16] = qR_des
-            # right gripper from grip_cmd
-            f_target = F_CLOSED if grip_cmd else F_OPEN
-            f_vec = torch.full((num_envs, 1), f_target, device=device)
-            actions[:, 16:18] = f_vec.expand(-1, 2)
+        actions = torch.zeros((num_envs, act_dim), device=device)
+        actions_left = q_des if left_robot_active else holds["L_q"]
+        actions_right = q_des if not left_robot_active else holds["R_q"]
+        actions[:, 0:7] = actions_left
+        actions[:, 9:16] = actions_right
+        # Set gripper commands based on grip_cmd
+        f_target = F_CLOSED if grip_cmd == -1 else F_OPEN
+        f_vec = torch.full((num_envs, 1), f_target, device=device)
+        actions[:, 7:9] = f_vec.expand(-1, 2) if left_robot_active else holds["L_qf"]
+        actions[:, 16:18] = f_vec.expand(-1, 2) if not left_robot_active else holds["R_qf"]
 
         env.step(actions)
 

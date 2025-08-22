@@ -29,7 +29,7 @@ import gymnasium as gym
 import torch
 
 from isaaclab.controllers import DifferentialIKController, DifferentialIKControllerCfg
-from isaaclab.devices import Se3Gamepad
+from isaaclab.devices import Se3Gamepad, Se3GamepadCfg
 from isaaclab.utils.math import subtract_frame_transforms
 
 from isaaclab_tasks.utils import parse_env_cfg
@@ -68,12 +68,17 @@ def main():
     hand_jac = hand_body - 1 if franka.is_fixed_base else hand_body
 
     # Gamepad
-    teleop = Se3Gamepad(pos_sensitivity=0.1, rot_sensitivity=0.16, dead_zone=0.07)
+    teleop_cfg = Se3GamepadCfg(
+        dead_zone=0.07,  # dead zone for gamepad input
+        pos_sensitivity=0.1,  # sensitivity for position control
+        rot_sensitivity=0.16,  # sensitivity for rotation control
+    )
+    teleop = Se3Gamepad(teleop_cfg)
     teleop.reset()
 
     # Controller: relative, position-only
     ik_cfg = DifferentialIKControllerCfg(
-        command_type="pose",  # position only
+        command_type="pose",
         use_relative_mode=True,  # deltas in EE frame
         ik_method="dls",
         ik_params={"lambda_val": 0.15},
@@ -82,9 +87,11 @@ def main():
 
     # ---- Main loop ----
     while simulation_app.is_running():
-        delta_pose, grip_cmd = teleop.advance()
-        delta_pose[0] = delta_pose[0] * -1.0  # flip y-axis for consistent control form viewpoint
-        delta_pose[3:5] = 0  # no roll/pitch control
+        delta = teleop.advance()
+        grip_cmd = delta[6]
+        delta = delta[:6]
+        delta[0] = delta[0] * -1.0  # flip y-axis for consistent control form viewpoint
+        delta[3:5] = 0  # no roll/pitch control
 
         base_pos_w = franka.data.root_pose_w[:, :3]
         base_quat_w = franka.data.root_pose_w[:, 3:7]
@@ -95,7 +102,6 @@ def main():
         ee_pos_b, ee_quat_b = subtract_frame_transforms(base_pos_w, base_quat_w, hand_pos_w, hand_quat_w)
 
         # Device delta already in EE frame → position-only relative step
-        delta = torch.tensor(delta_pose, device=ee_pos_b.device, dtype=ee_pos_b.dtype)
         dpos_e = delta.unsqueeze(0).expand(num_envs, -1)  # expand to num_envs
 
         # Jacobian and IK
@@ -107,7 +113,7 @@ def main():
         actions = torch.zeros((num_envs, act_dim), device=device)
         actions[:, 0:7] = qL_des
         # left gripper from grip_cmd
-        f_target = F_CLOSED if grip_cmd else F_OPEN
+        f_target = F_CLOSED if grip_cmd == -1 else F_OPEN
         f_vec = torch.full((num_envs, 1), f_target, device=device)
         actions[:, 7:9] = f_vec.expand(-1, 2)
 
