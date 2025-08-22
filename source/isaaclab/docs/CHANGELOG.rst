@@ -1,7 +1,20 @@
 Changelog
 ---------
 
+
+
+0.45.6 (2025-08-22)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :meth:`~isaaclab.envs.mdp.events.randomize_rigid_body_com` to broadcasts the environment ids.
+
+
+
 0.45.5 (2025-08-21)
+~~~~~~~~~~~~~~~~~~~~
 
 Fixed
 ^^^^^
@@ -9,6 +22,7 @@ Fixed
 * Fixed :meth:`~isaaclab.assets.Articulation.write_joint_friction_coefficient_to_sim` to set the friction coefficients in the simulation.
 * Fixed :meth:`~isaaclab.assets.Articulation.write_joint_dynamic_friction_coefficient_to_sim` to set the friction coefficients in the simulation.* Added :meth:`~isaaclab.envs.ManagerBasedEnvCfg.export_io_descriptors` to toggle the export of the IO descriptors.
 * Fixed :meth:`~isaaclab.assets.Articulation.write_joint_viscous_friction_coefficient_to_sim` to set the friction coefficients in the simulation.
+
 
 
 0.45.4 (2025-08-21)
