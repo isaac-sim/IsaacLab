@@ -1,6 +1,14 @@
 Changelog
 ---------
 
+0.45.7 (2025-08-21)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added periodic logging when checking if a USD path exists on a Nucleus server
+  to improve user experience when the checks takes a while.
 
 
 0.45.6 (2025-08-22)
@@ -10,7 +18,6 @@ Fixed
 ^^^^^
 
 * Fixed :meth:`~isaaclab.envs.mdp.events.randomize_rigid_body_com` to broadcasts the environment ids.
-
 
 
 0.45.5 (2025-08-21)
@@ -34,8 +41,8 @@ Added
 * Added unit tests for :class:`~isaaclab.sensor.sensor_base`
 
 
-
 0.45.3 (2025-08-20)
+~~~~~~~~~~~~~~~~~~~
 
 Fixed
 ^^^^^
