@@ -65,7 +65,18 @@ def main(argv: list[str] | None = None) -> None:
         choices=[w.lower() for w in supported_workflows],
     )
     parser.add_argument("--rl-library", "--rl_library", type=str.lower, required=True, choices=supported_rl_libraries)
-    parser.add_argument("--rl-algorithm", "--rl_algorithm", type=str.lower, required=True, choices=rl_algo_choices)
+    parser.add_argument(
+        "--rl-algorithm",
+        "--rl_algorithm",
+        type=str.lower,
+        required=False,
+        default=None,
+        choices=rl_algo_choices,
+        help=(
+            "RL algorithm to use. If omitted, the tool auto-selects when exactly one algorithm "
+            "is valid for the chosen workflows and library."
+        ),
+    )
 
     args, _ = parser.parse_known_args(argv)
 
@@ -88,13 +99,30 @@ def main(argv: list[str] | None = None) -> None:
     # Filter allowed algorithms per RL library under given workflow capabilities
     algos_map = get_algorithms_per_rl_library(single_agent, multi_agent)
     lib = args.rl_library.strip().lower()
-    algo = args.rl_algorithm.strip().lower()
     supported_algos = [a.lower() for a in algos_map.get(lib, [])]
-    if algo not in supported_algos:
-        allowed = ", ".join(supported_algos) if supported_algos else "none"
-        raise ValueError(
-            f"Algorithm '{args.rl_algorithm}' is not supported for {lib} under selected workflows. Allowed: {allowed}"
-        )
+
+    # Auto-select algorithm if not provided
+    if args.rl_algorithm is None:
+        if len(supported_algos) == 0:
+            raise ValueError(
+                f"No algorithms are supported for {lib} under the selected workflows. "
+                "Please choose a different combination."
+            )
+        if len(supported_algos) > 1:
+            allowed = ", ".join(supported_algos)
+            raise ValueError(
+                "Multiple algorithms are valid for the selected workflows and library. "
+                f"Please specify one using --rl-algorithm. Allowed: {allowed}"
+            )
+        algo = supported_algos[0]
+    else:
+        algo = args.rl_algorithm.strip().lower()
+        if algo not in supported_algos:
+            allowed = ", ".join(supported_algos) if supported_algos else "none"
+            raise ValueError(
+                f"Algorithm '{args.rl_algorithm}' is not supported for {lib} under selected workflows. Allowed:"
+                f" {allowed}"
+            )
 
     specification = {
         "external": is_external,
