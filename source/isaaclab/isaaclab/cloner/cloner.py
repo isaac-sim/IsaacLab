@@ -21,6 +21,8 @@ import omni.log
 import omni.usd
 from pxr import Gf, Sdf, Usd, UsdGeom, Vt
 
+from isaaclab.utils.timer import Timer
+
 
 class Cloner:
     """This class provides a set of simple APIs to make duplication of objects simple.
@@ -66,6 +68,7 @@ class Cloner:
         self._root_path = root_path + "_"
         return [f"{root_path}_{i}" for i in range(num_paths)]
 
+    @Timer(name="usd_clone", msg="Clone took:", enable=True, format="ms")
     def clone(  # noqa: C901
         self,
         source_prim_path: str,

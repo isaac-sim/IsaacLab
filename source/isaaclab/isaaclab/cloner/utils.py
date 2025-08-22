@@ -10,7 +10,10 @@ import warp as wp
 from newton import AxisType, ModelBuilder
 from newton.utils import parse_usd
 
+from isaaclab.utils.timer import Timer
 
+
+@Timer(name="replicate_environment", msg="Replicate environment took:", enable=True, format="ms")
 def replicate_environment(
     source,
     prototype_path: str,
@@ -41,53 +44,57 @@ def replicate_environment(
         (ModelBuilder, dict): The resulting ModelBuilder containing all replicated environments and a dictionary with USD stage information.
     """
 
-    builder = ModelBuilder(up_axis=up_axis)
+    with Timer(name="newton_env_builder", msg="Env Builder took:", enable=True, format="ms"):
+        builder = ModelBuilder(up_axis=up_axis)
 
-    # first, load everything except the prototype env
-    stage_info = parse_usd(
-        source,
-        builder,
-        ignore_paths=[prototype_path],
-        **usd_kwargs,
-    )
-
-    # up_axis sanity check
-    stage_up_axis = stage_info.get("up_axis")
-    if isinstance(stage_up_axis, str) and stage_up_axis.upper() != up_axis.upper():
-        print(f"WARNING: up_axis '{up_axis}' does not match USD stage up_axis '{stage_up_axis}'")
-
-    # load just the prototype env
-    prototype_builder = ModelBuilder(up_axis=up_axis)
-    parse_usd(
-        source,
-        prototype_builder,
-        root_path=prototype_path,
-        load_non_physics_prims=False,
-        **usd_kwargs,
-    )
-    prototype_builder.approximate_meshes("convex_hull")
-
-    # clone the prototype env with updated paths
-    for i, (pos, ori) in enumerate(zip(positions, orientations)):
-        body_start = builder.body_count
-        shape_start = builder.shape_count
-        joint_start = builder.joint_count
-        articulation_start = builder.articulation_count
-
-        builder.add_builder(
-            prototype_builder, xform=wp.transform(np.array(pos) + np.array(spawn_offset), wp.quat_identity())
+        # first, load everything except the prototype env
+        stage_info = parse_usd(
+            source,
+            builder,
+            ignore_paths=[prototype_path],
+            **usd_kwargs,
         )
 
-        if i > 0:
-            update_paths(
-                builder,
-                prototype_path,
-                path_pattern.format(i),
-                body_start=body_start,
-                shape_start=shape_start,
-                joint_start=joint_start,
-                articulation_start=articulation_start,
-            )
+        # up_axis sanity check
+        stage_up_axis = stage_info.get("up_axis")
+        if isinstance(stage_up_axis, str) and stage_up_axis.upper() != up_axis.upper():
+            print(f"WARNING: up_axis '{up_axis}' does not match USD stage up_axis '{stage_up_axis}'")
+
+    with Timer(name="newton_prototype_builder", msg="Prototype Builder took:", enable=True, format="ms"):
+        # load just the prototype env
+        prototype_builder = ModelBuilder(up_axis=up_axis)
+        parse_usd(
+            source,
+            prototype_builder,
+            root_path=prototype_path,
+            load_non_physics_prims=False,
+            **usd_kwargs,
+        )
+        prototype_builder.approximate_meshes("convex_hull")
+
+    with Timer(name="newton_multiple_add_to_builder", msg="All add to builder took:", enable=True, format="ms"):
+        # clone the prototype env with updated paths
+        for i, (pos, ori) in enumerate(zip(positions, orientations)):
+            body_start = builder.body_count
+            shape_start = builder.shape_count
+            joint_start = builder.joint_count
+            articulation_start = builder.articulation_count
+
+            with Timer(name="newton_add_builder", msg="Add builder took:", enable=False, format="ms"):
+                builder.add_builder(
+                    prototype_builder, xform=wp.transform(np.array(pos) + np.array(spawn_offset), wp.quat_identity())
+                )
+
+                if i > 0:
+                    update_paths(
+                        builder,
+                        prototype_path,
+                        path_pattern.format(i),
+                        body_start=body_start,
+                        shape_start=shape_start,
+                        joint_start=joint_start,
+                        articulation_start=articulation_start,
+                    )
 
     return builder, stage_info
 

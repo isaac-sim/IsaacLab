@@ -17,6 +17,7 @@ from newton.utils import parse_usd
 from newton.viewer import RendererOpenGL
 
 from isaaclab.sim._impl.newton_manager_cfg import NewtonCfg
+from isaaclab.utils.timer import Timer
 
 
 def flipped_match(x: str, y: str) -> re.Match | None:
@@ -97,6 +98,7 @@ class NewtonManager:
         NewtonManager._usdrt_stage = None
         NewtonManager._cfg = NewtonCfg()
         NewtonManager._up_axis = "Z"
+        NewtonManager._first_call = True
 
     @classmethod
     def set_builder(cls, builder):
@@ -116,6 +118,7 @@ class NewtonManager:
 
         This function finalizes the model and initializes the simulation state.
         """
+
         print(f"[INFO] Builder: {NewtonManager._builder}")
         if NewtonManager._builder is None:
             NewtonManager.instantiate_builder_from_stage()
@@ -125,7 +128,8 @@ class NewtonManager:
         print(f"[INFO] Finalizing model on device: {NewtonManager._device}")
         NewtonManager._builder.gravity = np.array(NewtonManager._gravity_vector)
         NewtonManager._builder.up_axis = Axis.from_string(NewtonManager._up_axis)
-        NewtonManager._model = NewtonManager._builder.finalize(device=NewtonManager._device)
+        with Timer(name="newton_finalize_builder", msg="Finalize builder took:", enable=True, format="ms"):
+            NewtonManager._model = NewtonManager._builder.finalize(device=NewtonManager._device)
         NewtonManager._state_0 = NewtonManager._model.state()
         NewtonManager._state_1 = NewtonManager._model.state()
         NewtonManager._state_temp = NewtonManager._model.state()
@@ -173,18 +177,20 @@ class NewtonManager:
             simulation once to capture the graph. Hence, this function should only be called after everything else in
             the simulation is initialized.
         """
-        NewtonManager._num_substeps = NewtonManager._cfg.num_substeps
-        NewtonManager._solver_dt = NewtonManager._solver_dt / NewtonManager._num_substeps
-        NewtonManager._solver = NewtonManager._get_solver(NewtonManager._model, NewtonManager._cfg.solver_cfg)
+        with Timer(name="newton_initialize_solver", msg="Initialize solver took:", enable=True, format="ms"):
+            NewtonManager._num_substeps = NewtonManager._cfg.num_substeps
+            NewtonManager._solver_dt = NewtonManager._dt / NewtonManager._num_substeps
+            NewtonManager._solver = NewtonManager._get_solver(NewtonManager._model, NewtonManager._cfg.solver_cfg)
 
         # Ensure we are using a CUDA enabled device
         assert NewtonManager._device.startswith("cuda"), "NewtonManager only supports CUDA enabled devices"
 
         # Capture the graph if CUDA is enabled
-        if NewtonManager._cfg.use_cuda_graph:
-            with wp.ScopedCapture() as capture:
-                NewtonManager.simulate()
-            NewtonManager._graph = capture.graph
+        with Timer(name="newton_cuda_graph", msg="CUDA graph took:", enable=True, format="ms"):
+            if NewtonManager._cfg.use_cuda_graph:
+                with wp.ScopedCapture() as capture:
+                    NewtonManager.simulate()
+                NewtonManager._graph = capture.graph
 
     @classmethod
     def simulate(cls) -> None:
@@ -258,7 +264,6 @@ class NewtonManager:
 
         This function steps the simulation by the specified time step in the simulation configuration.
         """
-
         if NewtonManager._cfg.use_cuda_graph:
             wp.capture_launch(NewtonManager._graph)
         else:

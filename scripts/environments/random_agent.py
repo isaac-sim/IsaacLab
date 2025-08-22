@@ -33,6 +33,11 @@ simulation_app = app_launcher.app
 import gymnasium as gym
 import torch
 
+from isaaclab.utils.timer import Timer
+
+Timer.enable = False
+Timer.enable_display_output = False
+
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import parse_env_cfg
 

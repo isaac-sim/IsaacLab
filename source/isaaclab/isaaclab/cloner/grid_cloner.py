@@ -21,6 +21,7 @@ from pxr import Gf, Usd, UsdGeom
 from isaaclab.cloner import Cloner
 from isaaclab.cloner.utils import replicate_environment
 from isaaclab.sim._impl.newton_manager import NewtonManager
+from isaaclab.utils.timer import Timer
 
 
 class GridCloner(Cloner):
@@ -128,6 +129,7 @@ class GridCloner(Cloner):
 
         return positions, orientations
 
+    @Timer(name="newton_clone", msg="Clone took:", enable=True, format="ms")
     def clone(
         self,
         source_prim_path: str,

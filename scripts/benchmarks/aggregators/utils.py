@@ -78,7 +78,7 @@ def rework_data(json_data: list[dict], phases: list[str] = ["startup", "train", 
     ]
     excludes = {
         "startup": default_excludes,
-        "runtime": default_excludes + ["Min Collection FPS", "Max Collection FPS", "Mean Collection FPS"],
+        "runtime": default_excludes,
         "train": default_excludes,
     }
 
@@ -94,7 +94,6 @@ def rework_data(json_data: list[dict], phases: list[str] = ["startup", "train", 
             if phase not in reworked_data[task][num_envs]:
                 reworked_data[task][num_envs][phase] = {}
             for metric in data[phase].keys():
-                print(metric)
                 if metric not in excludes[phase]:
                     if metric not in reworked_data[task][num_envs][phase]:
                         reworked_data[task][num_envs][phase][metric] = []
@@ -197,7 +196,12 @@ def bar_table_single_env(
 
 
 def bar_plot(
-    data_s: dict, metrics: list[str], num_envs: int = 4096, titles: list[str] = None, y_axes_labels: list[str] = None
+    data_s: dict,
+    metrics: list[str],
+    num_envs: int = 4096,
+    titles: list[str] = None,
+    y_axes_labels: list[str] = None,
+    scale_y_axis: list[float] = None,
 ):
     reworked_data = {}
     for benchmark_names, benchmark_data in data_s.items():
@@ -227,25 +231,39 @@ def bar_plot(
     task_names = list(list(list(reworked_data.values())[0].values())[0].keys())
     task_names.sort()
     cleaned_task_names = clean_task_names(task_names)
+    metric_data_list = {}
     for i, metric_name in enumerate(metrics):
         metric_data = reworked_data[metric_name]
+        metric_data_list[metric_name] = {}
         plt.figure(figsize=(10, 5))
         data = []
         for benchmark_name in metric_data.keys():
             d = []
+            metric_data_list[metric_name][clean_benchmark_name(benchmark_name)] = {}
             for task_name in task_names:
-                d.append(metric_data[benchmark_name][task_name])
-            data.append(d)
+                d.append(metric_data[benchmark_name][task_name] * (scale_y_axis[i] if scale_y_axis is not None else 1))
+                metric_data_list[metric_name][clean_benchmark_name(benchmark_name)][
+                    clean_task_names([task_name])[0]
+                ] = metric_data[benchmark_name][task_name]
 
+            data.append(d)
         for k, d in enumerate(data):
             offset = [bar_width * (k + (num_benchmarks + 1) * j) for j in range(len(task_names))]
-            if clean_benchmark_name(benchmark_names[k]) == "PhysX":
+            if (clean_benchmark_name(benchmark_names[k]) == "PhysX") or (
+                clean_benchmark_name(benchmark_names[k]) == "PhysX_train"
+            ):
                 plt.bar(offset, d, width=bar_width, label=clean_benchmark_name(benchmark_names[k]), color="gold")
             else:
                 bars = plt.bar(offset, d, width=bar_width, label=clean_benchmark_name(benchmark_names[k]))
-                if "PhysX" in [clean_benchmark_name(bn) for bn in benchmark_names]:
+                if ("PhysX" in [clean_benchmark_name(bn) for bn in benchmark_names]) or (
+                    "PhysX_train" in [clean_benchmark_name(bn) for bn in benchmark_names]
+                ):
                     try:
-                        physx_idx = [clean_benchmark_name(bn) for bn in benchmark_names].index("PhysX")
+                        try:
+                            physx_idx = [clean_benchmark_name(bn) for bn in benchmark_names].index("PhysX")
+                        except Exception as e:
+                            print(e)
+                            physx_idx = [clean_benchmark_name(bn) for bn in benchmark_names].index("PhysX_train")
                         physx_data = data[physx_idx]
                         for j, bar in enumerate(bars):
                             physx_val = physx_data[j]
@@ -255,7 +273,10 @@ def bar_plot(
                             else:
                                 delta_pct = (this_val - physx_val) / physx_val * 100
                             # Only annotate if not PhysX itself
-                            if clean_benchmark_name(benchmark_names[k]) != "PhysX":
+                            if (
+                                clean_benchmark_name(benchmark_names[k]) != "PhysX"
+                                and clean_benchmark_name(benchmark_names[k]) != "PhysX_train"
+                            ):
                                 plt.text(
                                     bar.get_x() + bar.get_width() / 2,
                                     bar.get_height(),
@@ -281,6 +302,7 @@ def bar_plot(
         plt.xticks(offset, cleaned_task_names)
         plt.legend()
     plt.show()
+    return metric_data_list
 
 
 def plot_scaling_curves(
@@ -381,6 +403,67 @@ def plot_scaling_curves(
         else:
             plt.suptitle(metric_name)
         plt.tight_layout()
+    plt.show()
+
+
+def compute_lab_overhead(data_s: dict, num_envs: int = 4096, decimations: list[int] | None = None):
+
+    metrics = ["Simulate Time", "Env Step Time"]
+
+    reworked_data = {}
+    for benchmark_names, benchmark_data in data_s.items():
+        for task_name, task_data in benchmark_data.items():
+            if task_name == "Metadata":
+                continue
+            for num_envs_key, num_envs_data in task_data.items():
+                if int(num_envs_key) != num_envs:
+                    continue
+                data = {}
+                for phase, phase_data in num_envs_data.items():
+                    data.update({k: v for k, v in phase_data.items()})
+                for metric_name, metric_data in data.items():
+                    if metric_name not in metrics:
+                        continue
+                    if metric_name not in reworked_data:
+                        reworked_data[metric_name] = {}
+                    if benchmark_names not in reworked_data[metric_name]:
+                        reworked_data[metric_name][benchmark_names] = {}
+                    reworked_data[metric_name][benchmark_names][task_name] = metric_data["mean"]
+
+    bar_width = 0.25
+
+    # For each metric, plot the data in an individual figure
+    num_benchmarks = len(list(reworked_data.values())[0].keys())
+    benchmark_names = list(list(reworked_data.values())[0].keys())
+    task_names = list(list(list(reworked_data.values())[0].values())[0].keys())
+    task_names.sort()
+    cleaned_task_names = clean_task_names(task_names)
+
+    env_step_time = reworked_data["Env Step Time"]
+    simulate_time = reworked_data["Simulate Time"]
+
+    print(env_step_time)
+
+    data = []
+    for benchmark_name in benchmark_names:
+        d = []
+        for j, task_name in enumerate(task_names):
+            env_step_time_mean = env_step_time[benchmark_name][task_name]
+            simulate_time_mean = simulate_time[benchmark_name][task_name]
+            lab_overhead = env_step_time_mean - simulate_time_mean * decimations[j]
+            d.append(lab_overhead)
+        data.append(d)
+
+    for k, d in enumerate(data):
+        offset = [bar_width * (k + (num_benchmarks + 1) * j) for j in range(len(task_names))]
+        plt.bar(offset, d, width=bar_width, label=clean_benchmark_name(benchmark_names[k]))
+        plt.xlabel("Tasks")
+        plt.ylabel("Time (ms)")
+        plt.title("Lab Overhead")
+        k = (len(benchmark_names) - 1) / 2.0
+        offset = [bar_width * (k + (num_benchmarks + 1) * j) for j in range(len(task_names))]
+        plt.xticks(offset, cleaned_task_names)
+        plt.legend()
     plt.show()
 
 

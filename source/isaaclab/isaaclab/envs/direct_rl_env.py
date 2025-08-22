@@ -309,6 +309,7 @@ class DirectRLEnv(gym.Env):
         # return observations
         return self._get_observations(), self.extras
 
+    @Timer(name="env_step", msg="Step took:", enable=True, format="us")
     def step(self, action: torch.Tensor) -> VecEnvStepReturn:
         """Execute one time-step of the environment's dynamics.
 
@@ -353,7 +354,8 @@ class DirectRLEnv(gym.Env):
             # set actions into simulator
             self.scene.write_data_to_sim()
             # simulate
-            self.sim.step(render=False)
+            with Timer(name="simulate", msg="Newton simulation step took:", enable=True, format="us"):
+                self.sim.step(render=False)
             # render between steps only if the GUI or an RTX sensor needs it
             # note: we assume the render interval to be the shortest accepted rendering interval.
             #    If a camera needs rendering at a faster frequency, this will lead to unexpected behavior.

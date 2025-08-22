@@ -59,6 +59,11 @@ import os
 import time
 import torch
 
+from isaaclab.utils.timer import Timer
+
+Timer.enable = False
+Timer.enable_display_output = False
+
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import VecNormalize
 

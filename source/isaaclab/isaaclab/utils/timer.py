@@ -7,9 +7,12 @@
 
 from __future__ import annotations
 
+import math
 import time
 from contextlib import ContextDecorator
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Literal
+
+import warp as wp
 
 
 class TimerError(Exception):
@@ -60,7 +63,7 @@ class Timer(ContextDecorator):
     Reference: https://gist.github.com/sumeet/1123871
     """
 
-    timing_info: ClassVar[dict[str, float]] = dict()
+    timing_info: ClassVar[dict[str, dict[str, float]]] = dict()
     """Dictionary for storing the elapsed time per timer instances globally.
 
     This dictionary logs the timer information. The keys are the names given to the timer class
@@ -68,7 +71,19 @@ class Timer(ContextDecorator):
     is recorded in the dictionary.
     """
 
-    def __init__(self, msg: str | None = None, name: str | None = None):
+    enable = True
+    """Whether to enable the timer."""
+
+    enable_display_output = True
+    """Whether to enable the display output."""
+
+    def __init__(
+        self,
+        msg: str | None = None,
+        name: str | None = None,
+        enable: bool = True,
+        format: Literal["s", "ms", "us", "ns"] = "s",
+    ):
         """Initializes the timer.
 
         Args:
@@ -76,12 +91,32 @@ class Timer(ContextDecorator):
                 class in a context manager. Defaults to None.
             name: The name to use for logging times in a global
                 dictionary. Defaults to None.
+            enable: Whether to enable the timer. Defaults to True.
+            format: The format to use for the elapsed time. Defaults to "s".
         """
         self._msg = msg
         self._name = name
         self._start_time = None
         self._stop_time = None
         self._elapsed_time = None
+        self._enable = enable if Timer.enable else False
+        self._format = format
+
+        # Check if the format is valid
+        assert format in ["s", "ms", "us", "ns"], f"Invalid format, {format} is not in [s, ms, us, ns]"
+        # Convert the format to a multiplier
+        self._multiplier = {
+            "s": 1.0,
+            "ms": 1000.0,
+            "us": 1000000.0,
+            "ns": 1000000000.0,
+        }[format]
+
+        # Online welford's algorithm to compute the mean and std of the elapsed time
+        self._mean = 0.0
+        self._m2 = 0.0
+        self._std = 0.0
+        self._n = 0
 
     def __str__(self) -> str:
         """A string representation of the class object.
@@ -89,7 +124,7 @@ class Timer(ContextDecorator):
         Returns:
             A string containing the elapsed time.
         """
-        return f"{self.time_elapsed:0.6f} seconds"
+        return f"{(self.time_elapsed * self._multiplier):0.6f} {self._format}"
 
     """
     Properties
@@ -115,6 +150,9 @@ class Timer(ContextDecorator):
 
     def start(self):
         """Start timing."""
+        if not self._enable:
+            return
+
         if self._start_time is not None:
             raise TimerError("Timer is running. Use .stop() to stop it")
 
@@ -122,15 +160,53 @@ class Timer(ContextDecorator):
 
     def stop(self):
         """Stop timing."""
+        if not self._enable:
+            return
+
         if self._start_time is None:
             raise TimerError("Timer is not running. Use .start() to start it")
 
+        # Synchronize the device to make sure we time the whole operation
+        wp.synchronize_device()
+
+        # Get the elapsed time
         self._stop_time = time.perf_counter()
         self._elapsed_time = self._stop_time - self._start_time
         self._start_time = None
 
-        if self._name:
-            Timer.timing_info[self._name] = self._elapsed_time
+        if (self._name is not None) and (self._enable):
+            # Update the welford's algorithm
+            self.update_welford(self._elapsed_time)
+
+            # Update the timing info
+            Timer.timing_info[self._name] = {
+                "last": self._elapsed_time,
+                "m2": self._m2,
+                "mean": self._mean,
+                "std": self._std,
+                "n": self._n,
+            }
+
+    """
+    Online welford's algorithm to compute the mean and std of the elapsed time
+    """
+
+    def update_welford(self, value: float):
+        """Update the welford's algorithm with a new value."""
+
+        try:
+            self._n = Timer.timing_info[self._name]["n"] + 1
+            delta = value - Timer.timing_info[self._name]["mean"]
+            self._mean = Timer.timing_info[self._name]["mean"] + delta / self._n
+            delta2 = value - self._mean
+            self._m2 = Timer.timing_info[self._name]["m2"] + delta * delta2
+        except KeyError:
+            self._n = 1
+            self._mean = value
+            self._m2 = 0.0
+
+        # Update the std
+        self._std = math.sqrt(self._m2 / self._n)
 
     """
     Context managers
@@ -145,8 +221,15 @@ class Timer(ContextDecorator):
         """Stop timing."""
         self.stop()
         # print message
-        if self._msg is not None:
-            print(self._msg, f": {self._elapsed_time:0.6f} seconds")
+        if self._enable:
+            if (self._msg is not None) and (Timer.enable_display_output):
+                print(
+                    self._msg,
+                    f"Last: {(self._elapsed_time * self._multiplier):0.6f} {self._format}, "
+                    f"Mean: {(self._mean * self._multiplier):0.6f} {self._format}, "
+                    f"Std: {(self._std * self._multiplier):0.6f} {self._format}, "
+                    f"N: {self._n}",
+                )
 
     """
     Static Methods
@@ -168,4 +251,20 @@ class Timer(ContextDecorator):
         """
         if name not in Timer.timing_info:
             raise TimerError(f"Timer {name} does not exist")
-        return Timer.timing_info.get(name)
+        return Timer.timing_info.get(name)["last"]
+
+    @staticmethod
+    def get_timer_statistics(name: str) -> dict[str, float]:
+        """Retrieves the time logged in the global dictionary
+            based on name.
+
+        Returns:
+            A dictionary containing the time logged for all timers.
+        """
+
+        if name not in Timer.timing_info:
+            raise TimerError(f"Timer {name} does not exist")
+
+        keys = ["mean", "std", "n"]
+
+        return {k: Timer.timing_info[name][k] for k in keys}

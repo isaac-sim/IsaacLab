@@ -81,6 +81,10 @@ from datetime import datetime
 
 from rsl_rl.runners import OnPolicyRunner
 
+from isaaclab.utils.timer import Timer
+
+Timer.enable_display_output = False
+
 from isaaclab.envs import DirectRLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.utils.dict import print_dict
 from isaaclab.utils.io import dump_pickle, dump_yaml
@@ -107,12 +111,21 @@ settings.set("/exts/isaacsim.benchmark.services/metrics/randomize_filename_prefi
 
 from isaacsim.benchmark.services import BaseIsaacBenchmark
 
-from isaaclab.utils.timer import Timer
 from scripts.benchmarks.utils import (
     get_isaaclab_version,
     get_mujoco_warp_version,
     get_newton_version,
     log_app_start_time,
+    log_env_step_time,
+    log_newton_cloning_time,
+    log_newton_cuda_graph_time,
+    log_newton_environment_creation_time,
+    log_newton_finalize_builder_time,
+    log_newton_initialize_solver_time,
+    log_newton_multiple_add_to_builder_time,
+    log_newton_prototype_creation_time,
+    log_newton_replication_time,
+    log_newton_simulate_time,
     log_python_imports_time,
     log_rl_policy_episode_lengths,
     log_rl_policy_rewards,
@@ -265,6 +278,18 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg, agent_cfg: RslRlOnPolic
         log_task_start_time(benchmark, (task_startup_time_end - task_startup_time_begin) / 1e6)
         log_scene_creation_time(benchmark, Timer.get_timer_info("scene_creation") * 1000)
         log_simulation_start_time(benchmark, Timer.get_timer_info("simulation_start") * 1000)
+        log_newton_cloning_time(benchmark, Timer.get_timer_info("newton_clone") * 1000)
+        log_newton_replication_time(benchmark, Timer.get_timer_info("replicate_environment") * 1000)
+        log_newton_environment_creation_time(benchmark, Timer.get_timer_info("newton_env_builder") * 1000)
+        log_newton_prototype_creation_time(benchmark, Timer.get_timer_info("newton_prototype_builder") * 1000)
+        log_newton_multiple_add_to_builder_time(
+            benchmark, Timer.get_timer_info("newton_multiple_add_to_builder") * 1000
+        )
+        log_newton_finalize_builder_time(benchmark, Timer.get_timer_info("newton_finalize_builder") * 1000)
+        log_newton_initialize_solver_time(benchmark, Timer.get_timer_info("newton_initialize_solver") * 1000)
+        log_newton_cuda_graph_time(benchmark, Timer.get_timer_info("newton_cuda_graph") * 1000)
+        log_newton_simulate_time(benchmark, Timer.get_timer_statistics("simulate")["mean"] * 1000)
+        log_env_step_time(benchmark, Timer.get_timer_statistics("env_step")["mean"] * 1000)
         log_total_start_time(benchmark, (task_startup_time_end - app_start_time_begin) / 1e6)
         log_runtime_step_times(benchmark, rl_training_times, compute_stats=True)
         log_rl_policy_rewards(benchmark, log_data["Train/mean_reward"])

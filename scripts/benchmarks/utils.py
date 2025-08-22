@@ -73,6 +73,56 @@ def log_scene_creation_time(benchmark: BaseIsaacBenchmark, value: float):
     benchmark.store_custom_measurement("startup", measurement)
 
 
+def log_newton_cloning_time(benchmark: BaseIsaacBenchmark, value: float):
+    measurement = SingleMeasurement(name="Newton Cloning Time", value=value, unit="ms")
+    benchmark.store_custom_measurement("startup", measurement)
+
+
+def log_newton_replication_time(benchmark: BaseIsaacBenchmark, value: float):
+    measurement = SingleMeasurement(name="Newton Replication Time", value=value, unit="ms")
+    benchmark.store_custom_measurement("startup", measurement)
+
+
+def log_newton_environment_creation_time(benchmark: BaseIsaacBenchmark, value: float):
+    measurement = SingleMeasurement(name="Newton Environment Creation Time", value=value, unit="ms")
+    benchmark.store_custom_measurement("startup", measurement)
+
+
+def log_newton_prototype_creation_time(benchmark: BaseIsaacBenchmark, value: float):
+    measurement = SingleMeasurement(name="Newton Prototype Creation Time", value=value, unit="ms")
+    benchmark.store_custom_measurement("startup", measurement)
+
+
+def log_newton_multiple_add_to_builder_time(benchmark: BaseIsaacBenchmark, value: float):
+    measurement = SingleMeasurement(name="Newton Multiple Add to Builder Time", value=value, unit="ms")
+    benchmark.store_custom_measurement("startup", measurement)
+
+
+def log_newton_finalize_builder_time(benchmark: BaseIsaacBenchmark, value: float):
+    measurement = SingleMeasurement(name="Newton Finalize Builder Time", value=value, unit="ms")
+    benchmark.store_custom_measurement("startup", measurement)
+
+
+def log_newton_initialize_solver_time(benchmark: BaseIsaacBenchmark, value: float):
+    measurement = SingleMeasurement(name="Newton Initialize Solver Time", value=value, unit="ms")
+    benchmark.store_custom_measurement("startup", measurement)
+
+
+def log_newton_cuda_graph_time(benchmark: BaseIsaacBenchmark, value: float):
+    measurement = SingleMeasurement(name="Newton CUDA Graph Time", value=value, unit="ms")
+    benchmark.store_custom_measurement("startup", measurement)
+
+
+def log_newton_simulate_time(benchmark: BaseIsaacBenchmark, value: float):
+    measurement = SingleMeasurement(name="Simulate Time", value=value, unit="ms")
+    benchmark.store_custom_measurement("runtime", measurement)
+
+
+def log_env_step_time(benchmark: BaseIsaacBenchmark, value: float):
+    measurement = SingleMeasurement(name="Env Step Time", value=value, unit="ms")
+    benchmark.store_custom_measurement("runtime", measurement)
+
+
 def log_simulation_start_time(benchmark: BaseIsaacBenchmark, value: float):
     measurement = SingleMeasurement(name="Simulation Start Time", value=value, unit="ms")
     benchmark.store_custom_measurement("startup", measurement)
