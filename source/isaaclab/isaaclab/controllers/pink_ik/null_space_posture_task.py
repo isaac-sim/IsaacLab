@@ -12,15 +12,14 @@ from pink.utils import get_root_joint_dim
 
 
 class NullSpacePostureTask(Task):
-    r"""Pink-based task that enforces a postural constraint on the robot using null space projection.
+    r"""Pink-based task that enforces a postural constraint using null space projection.
 
-    This task implements a null space posture control strategy within the Pink inverse kinematics framework.
-    It enforces a desired joint configuration while operating in the null space of higher priority tasks
-    (typically end-effector pose tasks). The mathematical formulation follows the Pink optimization framework.
+    This task implements posture control in the null space of higher priority tasks
+    (typically end-effector pose tasks) within the Pink inverse kinematics framework.
 
     **Mathematical Formulation:**
 
-    The Pink inverse kinematics framework solves the following constrained optimization problem:
+    The Pink inverse kinematics framework solves:
 
     .. math::
 
@@ -37,18 +36,58 @@ class NullSpacePostureTask(Task):
         - :math:`\mathcal{C}` is the set of feasible velocities (joint velocity limits)
         - :math:`\mathbf{v}_{\min}(\mathbf{q})`, :math:`\mathbf{v}_{\max}(\mathbf{q})` are the lower and upper joint velocity bounds
 
+    **Null Space Posture Task Implementation:**
 
-    This NullSpacePostureTask implements one of the residual functions
+    This task consists of two components:
+
+    1. **Error Function**: The posture error is computed as:
 
     .. math::
 
-        e(q) = N^+(q) \cdot (q^* - q)
+        \mathbf{e}(\mathbf{q}) = \mathbf{M} \cdot (\mathbf{q}^* - \mathbf{q})
 
     where:
-    - :math:`N^+(q)` is the pseudoinverse of the null space projector :math:`N(q) = I - J^+J`
-      :math:`J` is the Jacobian of the primary task
-    - :math:`q^*` is the target joint configuration
-    - :math:`q` is the current joint configuration
+        - :math:`\mathbf{q}^*` is the target joint configuration
+        - :math:`\mathbf{q}` is the current joint configuration  
+        - :math:`\mathbf{M}` is a joint selection mask matrix
+
+    2. **Jacobian Matrix**: The task Jacobian is the null space projector:
+
+    .. math::
+
+        \mathbf{J}_{\text{posture}}(\mathbf{q}) = \mathbf{N}(\mathbf{q}) = \mathbf{I} - \mathbf{J}_{\text{primary}}^+ \mathbf{J}_{\text{primary}}
+
+    where:
+        - :math:`\mathbf{J}_{\text{primary}}` is the combined Jacobian of all higher priority tasks
+        - :math:`\mathbf{J}_{\text{primary}}^+` is the pseudoinverse of the primary task Jacobian
+        - :math:`\mathbf{N}(\mathbf{q})` is the null space projector matrix
+
+    For example, if there are two frame tasks (e.g., controlling the pose of two end-effectors), the combined Jacobian
+    :math:`\mathbf{J}_{\text{primary}}` is constructed by stacking the individual Jacobians for each frame vertically:
+
+    .. math::
+
+        \mathbf{J}_{\text{primary}} =
+        \begin{bmatrix}
+            \mathbf{J}_1(\mathbf{q}) \\
+            \mathbf{J}_2(\mathbf{q})
+        \end{bmatrix}
+
+    where :math:`\mathbf{J}_1(\mathbf{q})` and :math:`\mathbf{J}_2(\mathbf{q})` are the Jacobians for the first and second frame tasks, respectively.
+
+    The null space projector ensures that joint velocities in the null space produce zero velocity
+    for the primary tasks: :math:`\mathbf{J}_{\text{primary}} \cdot \dot{\mathbf{q}}_{\text{null}} = \mathbf{0}`.
+
+    **Task Integration:**
+
+    When integrated into the Pink framework, this task contributes to the optimization as:
+
+    .. math::
+
+        \left\| \mathbf{N}(\mathbf{q}) \mathbf{v} + \mathbf{M} \cdot (\mathbf{q}^* - \mathbf{q}) \right\|_{W_{\text{posture}}}^2
+
+    This formulation allows the robot to maintain a desired posture while respecting the constraints
+    imposed by higher priority tasks (e.g., end-effector positioning).
 
     """
 
@@ -57,63 +96,68 @@ class NullSpacePostureTask(Task):
         cost: float,
         lm_damping: float = 0.0,
         gain: float = 1.0,
-        frame_task_controlled_joints: dict[str, list[str]] | None = None,
+        controlled_frames: list[str] | None = None,
+        controlled_joints: list[str] | None = None,
     ) -> None:
-        r"""Create task.
+        r"""Create a null space posture task.
 
         Args:
-            cost: value used to cast joint angle differences to a homogeneous
-                cost, in :math:`[\mathrm{cost}] / [\mathrm{rad}]`.
-            lm_damping: Unitless scale of the Levenberg-Marquardt (only when
-                the error is large) regularization term, which helps when
-                targets are infeasible. Increase this value if the task is too
-                jerky under infeasible targets, but beware that too large a
-                damping can slow down the task.
-            gain: Task gain :math:`\alpha \in [0, 1]` for additional low-pass
-                filtering. Defaults to 1.0 (no filtering).
-            frame_task_controlled_joints: Dictionary of frame link names to controlled joint names.
+            cost: Weighting factor for the posture task in the optimization objective,
+                in :math:`[\mathrm{cost}] / [\mathrm{rad}]`.
+            lm_damping: Unitless scale of the Levenberg-Marquardt regularization term.
+                Increase if the task is too jerky under infeasible targets.
+            gain: Task gain :math:`\alpha \in [0, 1]` for low-pass filtering.
+                Defaults to 1.0 (no filtering).
+            controlled_frames: List of frame names whose Jacobians define the primary tasks
+                for null space projection. If None or empty, no null space projection is applied.
+            controlled_joints: List of joint names to control in the posture task.
+                If None or empty, all actuated joints are controlled.
         """
         super().__init__(cost=cost, gain=gain, lm_damping=lm_damping)
         self.target_q: np.ndarray | None = None
-        self.frame_task_controlled_joints: dict[str, list[str]] = frame_task_controlled_joints or {}
-        self._joint_name_to_index: dict[str, int] | None = None
-        self._selected_joint_indices: list[np.ndarray] | None = None
-        self._jacobian_dim: int = 0
+        self.controlled_frames: list[str] = controlled_frames or []
+        self.controlled_joints: list[str] = controlled_joints or []
+        self._joint_mask: np.ndarray | None = None
+        self._frame_names: list[str] | None = None
 
     def __repr__(self) -> str:
         """Human-readable representation of the task."""
         return (
             f"NullSpacePostureTask(cost={self.cost}, gain={self.gain}, lm_damping={self.lm_damping},"
-            f" frame_task_controlled_joints={self.frame_task_controlled_joints})"
+            f" controlled_frames={self.controlled_frames}, controlled_joints={self.controlled_joints})"
         )
 
     def _build_joint_mapping(self, configuration: Configuration) -> None:
-        """Build efficient joint name to index mapping.
+        """Build joint mask and cache frequently used values.
+
+        Creates a binary mask that selects which joints should be controlled
+        in the posture task.
 
         Args:
-            configuration: Robot configuration.
+            configuration: Robot configuration containing the model and joint information.
         """
-        if self._joint_name_to_index is not None:
-            return
+        # Create joint mask for full configuration size
+        self._joint_mask = np.zeros(configuration.model.nq)
+        
+        # Create dictionary for joint names to indices (exclude root joint)
+        joint_names = configuration.model.names.tolist()[1:]
+        
+        # Build joint mask efficiently
+        for i, joint_name in enumerate(joint_names):
+            if joint_name in self.controlled_joints:
+                self._joint_mask[i] = 1.0
 
-        # Create O(1) lookup dictionary for joint names
-        joint_names = configuration.model.names.tolist()[1:]  # Skip root joint
-        self._joint_name_to_index = {name: idx for idx, name in enumerate(joint_names)}
-
-        # Build selected joint indices efficiently
-        self._selected_joint_indices = []
-        for controlled_joints in self.frame_task_controlled_joints.values():
-            indices = [self._joint_name_to_index[joint] for joint in controlled_joints]
-            self._selected_joint_indices.append(np.array(sorted(indices), dtype=int))
+        # Cache frame names for performance
+        self._frame_names = list(self.controlled_frames)
 
     def set_target(self, target_q: np.ndarray) -> None:
-        """Set target posture.
+        """Set target posture configuration.
 
         Args:
             target_q: Target vector in the configuration space. If the model
                 has a floating base, then this vector should include
                 floating-base coordinates (although they have no effect on the
-                posture task).
+                posture task since only actuated joints are controlled).
         """
         self.target_q = target_q.copy()
 
@@ -121,26 +165,29 @@ class NullSpacePostureTask(Task):
         """Set target posture from a robot configuration.
 
         Args:
-            configuration: Robot configuration.
+            configuration: Robot configuration whose joint angles will be used
+                as the target posture.
         """
         self.set_target(configuration.q)
 
     def compute_error(self, configuration: Configuration) -> np.ndarray:
         r"""Compute posture task error.
 
-        This method computes the posture error for the null space posture task.
-        The error is the difference between the target and current configuration,
-        excluding the floating base coordinates (if present).
+        The error computation follows:
 
-        Note:
-            The actual null space projection is applied in the Jacobian (see `compute_jacobian`).
-            This function only returns the configuration difference in the actuated joint space.
+        .. math::
+
+            \mathbf{e}(\mathbf{q}) = \mathbf{M} \cdot (\mathbf{q}^* - \mathbf{q})
+
+        where :math:`\mathbf{M}` is the joint selection mask and :math:`\mathbf{q}^* - \mathbf{q}`
+        is computed using Pinocchio's difference function to handle joint angle wrapping.
 
         Args:
-            configuration: Robot configuration :math:`q`.
+            configuration: Robot configuration :math:`\mathbf{q}`.
 
         Returns:
-            Posture task error :math:`e(q) = q^* - q`, where only actuated joints are considered.
+            Posture task error :math:`\mathbf{e}(\mathbf{q})` with the same dimension
+            as the configuration vector, but with zeros for non-controlled joints.
 
         Raises:
             ValueError: If no posture target has been set.
@@ -148,72 +195,60 @@ class NullSpacePostureTask(Task):
         if self.target_q is None:
             raise ValueError("No posture target has been set. Call set_target() first.")
 
-        _, root_nv = get_root_joint_dim(configuration.model)
+        # Initialize joint mapping if needed
+        if self._joint_mask is None:
+            self._build_joint_mapping(configuration)
 
-        # Compute configuration difference
-        return pin.difference(
+        # Compute configuration difference using Pinocchio's difference function
+        # This handles joint angle wrapping correctly
+        err = pin.difference(
             configuration.model,
             self.target_q,
             configuration.q,
-        )[root_nv:]
+        )
+        
+        # Apply pre-computed joint mask to select only controlled joints
+        return self._joint_mask * err
 
     def compute_jacobian(self, configuration: Configuration) -> np.ndarray:
-        r"""Computes the product of left and right null space projectors
-        :math:`N(q) = I - J^+J`, where :math:`J^+` is the pseudoinverse of the
-        corresponding end-effector Jacobian. The null space projector ensures
-        joint velocities in the null space produce zero end-effector velocity
-        (:math:`J \cdot \dot{q}_{\text{null}} = 0`), allowing posture control
-        without affecting end-effector motion.
+        r"""Compute the null space projector Jacobian.
 
-            The final Jacobian returned is:
-                :math:`J(q) = N_{\text{task_1}}(q) * N_{\text{task_2}}(q)`
+        The null space projector is defined as:
 
-            Args:
-                configuration: Robot configuration :math:`q`.
+        .. math::
 
-            Returns:
-                Posture task Jacobian :math:`J(q)`, which is the sum of the left and right
-                null space projectors, each masked to their respective controlled joints.
+            \mathbf{N}(\mathbf{q}) = \mathbf{I} - \mathbf{J}_{\text{primary}}^+ \mathbf{J}_{\text{primary}}
+
+        where:
+            - :math:`\mathbf{J}_{\text{primary}}` is the combined Jacobian of all controlled frames
+            - :math:`\mathbf{J}_{\text{primary}}^+` is the pseudoinverse of the primary task Jacobian
+            - :math:`\mathbf{I}` is the identity matrix
+
+        The null space projector ensures that joint velocities in the null space produce
+        zero velocity for the primary tasks: :math:`\mathbf{J}_{\text{primary}} \cdot \dot{\mathbf{q}}_{\text{null}} = \mathbf{0}`.
+
+        If no controlled frames are specified, returns the identity matrix.
+
+        Args:
+            configuration: Robot configuration :math:`\mathbf{q}`.
+
+        Returns:
+            Null space projector matrix :math:`\mathbf{N}(\mathbf{q})` with dimensions
+            :math:`n_q \times n_q` where :math:`n_q` is the number of configuration variables.
         """
         # Initialize joint mapping if needed
-        if self._joint_name_to_index is None:
+        if self._frame_names is None:
             self._build_joint_mapping(configuration)
 
-        # Early return if no frame tasks defined
-        if not self.frame_task_controlled_joints:
-            print("No frame tasks defined")
-            # Return identity matrix if no frame tasks defined
-            n_joints = len(configuration.model.names) - 1  # Exclude root joint
-            return np.eye(n_joints)
+        # If no frame tasks are defined, return identity matrix (no null space projection)
+        if not self._frame_names:
+            return np.eye(configuration.model.nq)
 
-        # Get frame names
-        frame_names = list(self.frame_task_controlled_joints.keys())
+        # Get Jacobians for all frame tasks and combine them
+        J_frame_tasks = [configuration.get_frame_jacobian(frame_name) for frame_name in self._frame_names]
+        J_combined = np.concatenate(J_frame_tasks, axis=0)
+        
+        # Compute null space projector: N = I - J^+ * J
+        N_combined = np.eye(J_combined.shape[1]) - np.linalg.pinv(J_combined) @ J_combined
 
-        # Get Jacobians for all frame tasks
-        J_frame_tasks = [configuration.get_frame_jacobian(frame_name) for frame_name in frame_names]
-
-        # Cache Jacobian dimension
-        if self._jacobian_dim == 0:
-            self._jacobian_dim = J_frame_tasks[0].shape[1]
-
-        # Initialize null space task matrix
-        null_space_task = np.eye(self._jacobian_dim)
-
-        # Create mask for all controlled joints
-        mask = np.zeros(self._jacobian_dim, dtype=bool)
-        for selected_indices in self._selected_joint_indices or []:
-            mask[selected_indices] = True
-
-        # Compute null space projectors efficiently
-        for J_frame_task, selected_indices in zip(J_frame_tasks, self._selected_joint_indices or []):
-            # Compute pseudoinverse and null space projector
-            J_pinv = np.linalg.pinv(J_frame_task)
-            null_space_full = np.eye(J_frame_task.shape[1]) - J_pinv @ J_frame_task
-
-            # Only update rows corresponding to selected joints
-            null_space_task @= null_space_full
-
-        # Apply mask to the final result
-        null_space_task = null_space_task * mask[:, np.newaxis]
-
-        return null_space_task
+        return N_combined
