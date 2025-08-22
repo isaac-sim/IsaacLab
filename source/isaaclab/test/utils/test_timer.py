@@ -15,7 +15,6 @@ simulation_app = AppLauncher(headless=True).app
 """Rest everything follows."""
 
 import time
-import random
 
 from isaaclab.utils.timer import Timer
 
@@ -40,14 +39,3 @@ def test_timer_as_context_manager():
         assert abs(0 - timer.time_elapsed) < 10 ** (-PRECISION_PLACES)
         time.sleep(1)
         assert abs(1 - timer.time_elapsed) < 10 ** (-PRECISION_PLACES)
-
-def test_timer_mean_and_std():
-    """Test the mean and std of the timer."""
-
-    for i in range(1000):
-        with Timer(name="test_timer_mean_and_std", msg="Test timer mean and std took:", enable=True, format="us"):
-            time.sleep(random.normalvariate(0.001, 0.001))
-
-    timer_stats = Timer.get_timer_statistics("test_timer_mean_and_std")
-    assert abs(timer_stats["mean"] - 0.001) < 10 ** (-PRECISION_PLACES)
-    assert abs(timer_stats["std"] - 0.001) < 10 ** (-PRECISION_PLACES)

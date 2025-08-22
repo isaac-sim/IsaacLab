@@ -399,6 +399,22 @@ while [[ $# -gt 0 ]]; do
                 update_vscode_settings
             fi
 
+            # pull omni.warp binary from https://github.com/NVIDIA/warp/releases/tag/v1.9.0rc1 and place it in the apps/ directory
+            # if the extracted directory does not exist in the apps/ directory
+            if [ ! -d "${ISAACLAB_PATH}/apps/warp-1.9.0rc1" ]; then
+                echo "[INFO] Downloading omni.warp binary..."
+                # download the zip file to a temporary location
+                temp_zip="${ISAACLAB_PATH}/apps/warp-1.9.0rc1.zip"
+                curl -L -o "${temp_zip}" "https://github.com/NVIDIA/warp/archive/refs/tags/v1.9.0rc1.zip"
+                # unzip the file to the apps directory
+                unzip "${temp_zip}" -d "${ISAACLAB_PATH}/apps/"
+                # clean up the temporary zip file
+                rm -f "${temp_zip}"
+                echo "[INFO] Successfully downloaded and extracted omni.warp binary."
+            else
+                echo "[INFO] omni.warp binary directory already exists at ${ISAACLAB_PATH}/apps/warp-1.9.0rc1"
+            fi
+
             # unset local variables
             unset extract_python_exe
             unset install_isaaclab_extension

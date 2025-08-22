@@ -56,7 +56,7 @@ class HumanoidEnvCfg(DirectRLEnvCfg):
             dynamic_friction=1.0,
             restitution=0.0,
         ),
-        debug_vis=True,
+        debug_vis=False,
     )
 
     # scene

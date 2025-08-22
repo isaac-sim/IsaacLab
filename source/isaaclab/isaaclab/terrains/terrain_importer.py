@@ -77,6 +77,10 @@ class TerrainImporter:
         # private variables
         self._terrain_flat_patches = dict()
 
+        # TODO: remove this when all terrains are supported
+        if self.cfg.terrain_type != "plane":
+            raise ValueError(f"Terrain type '{self.cfg.terrain_type}' not available.")
+
         # auto-import the terrain based on the config
         if self.cfg.terrain_type == "generator":
             # check config is provided
