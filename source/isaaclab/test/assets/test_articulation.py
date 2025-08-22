@@ -29,6 +29,8 @@ import isaaclab.utils.math as math_utils
 import isaaclab.utils.string as string_utils
 from isaaclab.actuators import ActuatorBase, IdealPDActuatorCfg, ImplicitActuatorCfg
 from isaaclab.assets import Articulation, ArticulationCfg
+from isaaclab.envs.mdp.terminations import joint_effort_out_of_limit
+from isaaclab.managers import SceneEntityCfg
 from isaaclab.sim import build_simulation_context
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
@@ -726,6 +728,39 @@ def test_joint_pos_limits(sim, num_articulations, device, add_ground_plane):
         articulation._data.default_joint_pos[env_ids][:, joint_ids] <= limits[..., 1]
     )
     assert torch.all(within_bounds)
+
+
+@pytest.mark.parametrize("num_articulations", [1, 2])
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("add_ground_plane", [True])
+def test_joint_effort_limits(sim, num_articulations, device, add_ground_plane):
+    """Validate joint effort limits via joint_effort_out_of_limit()."""
+    # Create articulation
+    articulation_cfg = generate_articulation_cfg(articulation_type="panda")
+    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device)
+
+    # Minimal env wrapper exposing scene["robot"]
+    class _Env:
+        def __init__(self, art):
+            self.scene = {"robot": art}
+
+    env = _Env(articulation)
+    robot_all = SceneEntityCfg(name="robot")
+
+    sim.reset()
+    assert articulation.is_initialized
+
+    # Case A: no clipping → should NOT terminate
+    articulation._data.computed_torque.zero_()
+    articulation._data.applied_torque.zero_()
+    out = joint_effort_out_of_limit(env, robot_all)  # [N]
+    assert torch.all(~out)
+
+    # Case B: simulate clipping → should terminate
+    articulation._data.computed_torque.fill_(100.0)  # pretend controller commanded 100
+    articulation._data.applied_torque.fill_(50.0)  # pretend actuator clipped to 50
+    out = joint_effort_out_of_limit(env, robot_all)  # [N]
+    assert torch.all(out)
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
