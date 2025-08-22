@@ -18,7 +18,7 @@ parser.add_argument(
 )
 parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
-parser.add_argument("--newton_renderer", action="store_true", default=False, help="Enable Newton rendering.")
+parser.add_argument("--newton_visualizer", action="store_true", default=False, help="Enable Newton rendering.")
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
@@ -52,7 +52,7 @@ def main():
         device=args_cli.device,
         num_envs=args_cli.num_envs,
         use_fabric=not args_cli.disable_fabric,
-        newton_renderer=args_cli.newton_renderer,
+        newton_visualizer=args_cli.newton_visualizer,
     )
     # create environment
     env = gym.make(args_cli.task, cfg=env_cfg)

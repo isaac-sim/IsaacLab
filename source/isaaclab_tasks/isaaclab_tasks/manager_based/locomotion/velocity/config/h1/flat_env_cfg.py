@@ -21,6 +21,7 @@ class H1FlatEnvCfg(H1RoughEnvCfg):
                 cone="pyramidal",
                 impratio=1,
                 ls_parallel=True,
+                integrator="implicit",
             ),
             num_substeps=1,
             debug_mode=False,

@@ -48,9 +48,9 @@ INSTALL_REQUIRES = [
     "flatdict==4.0.1",
     # newton
     "usd-core==25.05.0",
-    "mujoco",
-    "mujoco-warp @ git+https://github.com/google-deepmind/mujoco_warp.git@main",
-    "newton-physics @ git+https://github.com/camevor/newton.git@main",
+    "mujoco==3.3.6.dev798190254",
+    "mujoco-warp @ git+https://github.com/google-deepmind/mujoco_warp.git@baeb10e73237df13802217d310788e1f02dcf92d",
+    "newton-physics @ git+https://github.com/newton-physics/newton.git@alpha-1",
 ]
 
 
@@ -82,7 +82,6 @@ setup(
         "Natural Language :: English",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
-        "Isaac Sim :: 4.5.0",
         "Isaac Sim :: 5.0.0",
     ],
     zip_safe=False,

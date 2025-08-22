@@ -39,7 +39,7 @@ parser.add_argument(
     default=False,
     help="Use a slower SB3 wrapper but keep all the extra training info.",
 )
-parser.add_argument("--newton_renderer", action="store_true", default=False, help="Enable Newton rendering.")
+parser.add_argument("--newton_visualizer", action="store_true", default=False, help="Enable Newton rendering.")
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
@@ -87,7 +87,7 @@ def main():
         device=args_cli.device,
         num_envs=args_cli.num_envs,
         use_fabric=not args_cli.disable_fabric,
-        newton_renderer=args_cli.newton_renderer,
+        newton_visualizer=args_cli.newton_visualizer,
     )
 
     task_name = args_cli.task.split(":")[-1]

@@ -8,6 +8,7 @@ rem SPDX-License-Identifier: BSD-3-Clause
 
 rem Configurations
 set "ISAACLAB_PATH=%~dp0"
+set "PIP_FIND_LINKS=https://py.mujoco.org/"
 goto main
 
 rem Helper functions

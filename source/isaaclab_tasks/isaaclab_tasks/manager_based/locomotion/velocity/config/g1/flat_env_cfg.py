@@ -22,7 +22,7 @@ class G1FlatEnvCfg(G1RoughEnvCfg):
                 ls_parallel=True,
                 cone="pyramidal",
                 impratio=1,
-                integrator="implicitfast",
+                integrator="implicit",
             ),
             num_substeps=1,
             debug_mode=False,
