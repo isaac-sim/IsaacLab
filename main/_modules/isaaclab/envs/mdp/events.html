@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.2.0" />
-    <meta name="docbuild:last-update" content="Aug 21, 2025"/>
+    <meta name="docbuild:last-update" content="Aug 22, 2025"/>
   </head>
   
   
@@ -978,7 +978,7 @@
     <span class="n">coms</span> <span class="o">=</span> <span class="n">asset</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">get_coms</span><span class="p">()</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
 
     <span class="c1"># Randomize the com in range</span>
-    <span class="n">coms</span><span class="p">[:,</span> <span class="n">body_ids</span><span class="p">,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span> <span class="o">+=</span> <span class="n">rand_samples</span>
+    <span class="n">coms</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">body_ids</span><span class="p">,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span> <span class="o">+=</span> <span class="n">rand_samples</span>
 
     <span class="c1"># Set the new coms</span>
     <span class="n">asset</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">set_coms</span><span class="p">(</span><span class="n">coms</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">)</span></div>
@@ -2355,7 +2355,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Aug 21, 2025.
+  Last updated on Aug 22, 2025.
   <br/>
 </p>
   </div>

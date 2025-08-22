@@ -63,7 +63,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.2.0" />
-    <meta name="docbuild:last-update" content="Aug 21, 2025"/>
+    <meta name="docbuild:last-update" content="Aug 22, 2025"/>
   </head>
   
   
@@ -730,6 +730,7 @@
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.utils.attach_stage_to_usd_context"><code class="docutils literal notranslate"><span class="pre">attach_stage_to_usd_context()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.utils.is_current_stage_in_memory"><code class="docutils literal notranslate"><span class="pre">is_current_stage_in_memory()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.utils.select_usd_variants"><code class="docutils literal notranslate"><span class="pre">select_usd_variants()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.utils.check_usd_path_with_timeout"><code class="docutils literal notranslate"><span class="pre">check_usd_path_with_timeout()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.utils.use_stage"><code class="docutils literal notranslate"><span class="pre">use_stage()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.utils.create_new_stage_in_memory"><code class="docutils literal notranslate"><span class="pre">create_new_stage_in_memory()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.utils.get_current_stage_id"><code class="docutils literal notranslate"><span class="pre">get_current_stage_id()</span></code></a></li>
@@ -1864,13 +1865,16 @@ Defaults to False. This is useful for debugging tests in the GUI.</p></li>
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.utils.select_usd_variants" title="isaaclab.sim.utils.select_usd_variants"><code class="xref py py-obj docutils literal notranslate"><span class="pre">select_usd_variants</span></code></a>(prim_path, variants[, stage])</p></td>
 <td><p>Sets the variant selections from the specified variant sets on a USD prim.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.utils.use_stage" title="isaaclab.sim.utils.use_stage"><code class="xref py py-obj docutils literal notranslate"><span class="pre">use_stage</span></code></a>(stage)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.utils.check_usd_path_with_timeout" title="isaaclab.sim.utils.check_usd_path_with_timeout"><code class="xref py py-obj docutils literal notranslate"><span class="pre">check_usd_path_with_timeout</span></code></a>(usd_path[, ...])</p></td>
+<td><p>Synchronously runs an asynchronous USD path availability check, logging progress periodically until it completes.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.utils.use_stage" title="isaaclab.sim.utils.use_stage"><code class="xref py py-obj docutils literal notranslate"><span class="pre">use_stage</span></code></a>(stage)</p></td>
 <td><p>Context manager that sets a thread-local stage, if supported.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.utils.create_new_stage_in_memory" title="isaaclab.sim.utils.create_new_stage_in_memory"><code class="xref py py-obj docutils literal notranslate"><span class="pre">create_new_stage_in_memory</span></code></a>()</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.utils.create_new_stage_in_memory" title="isaaclab.sim.utils.create_new_stage_in_memory"><code class="xref py py-obj docutils literal notranslate"><span class="pre">create_new_stage_in_memory</span></code></a>()</p></td>
 <td><p>Create a new stage in memory, if supported.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.utils.get_current_stage_id" title="isaaclab.sim.utils.get_current_stage_id"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_current_stage_id</span></code></a>()</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.utils.get_current_stage_id" title="isaaclab.sim.utils.get_current_stage_id"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_current_stage_id</span></code></a>()</p></td>
 <td><p>Get the current open stage id.</p></td>
 </tr>
 </tbody>
@@ -2280,6 +2284,27 @@ selections as follows:</p>
 </dd></dl>
 
 <dl class="py function">
+<dt class="sig sig-object py" id="isaaclab.sim.utils.check_usd_path_with_timeout">
+<span class="sig-prename descclassname"><span class="pre">isaaclab.sim.utils.</span></span><span class="sig-name descname"><span class="pre">check_usd_path_with_timeout</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">usd_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">timeout</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">300</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">log_interval</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">30</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab/sim/utils.html#check_usd_path_with_timeout"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.sim.utils.check_usd_path_with_timeout" title="Permalink to this definition">#</a></dt>
+<dd><p>Synchronously runs an asynchronous USD path availability check,
+logging progress periodically until it completes.</p>
+<p>This is useful for checking server responsiveness before attempting to load a remote asset.
+It will block execution until the check completes or times out.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>usd_path</strong> – The remote USD file path to check.</p></li>
+<li><p><strong>timeout</strong> – Maximum time (in seconds) to wait for the server check.</p></li>
+<li><p><strong>log_interval</strong> – Interval (in seconds) at which progress is logged.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>True if the file is available (HTTP 200 / OK), False otherwise.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
 <dt class="sig sig-object py" id="isaaclab.sim.utils.use_stage">
 <span class="sig-prename descclassname"><span class="pre">isaaclab.sim.utils.</span></span><span class="sig-name descname"><span class="pre">use_stage</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">stage</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">pxr.Usd.Stage</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab/sim/utils.html#use_stage"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.sim.utils.use_stage" title="Permalink to this definition">#</a></dt>
 <dd><p>Context manager that sets a thread-local stage, if supported.</p>
@@ -2473,6 +2498,7 @@ selections as follows:</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.utils.attach_stage_to_usd_context"><code class="docutils literal notranslate"><span class="pre">attach_stage_to_usd_context()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.utils.is_current_stage_in_memory"><code class="docutils literal notranslate"><span class="pre">is_current_stage_in_memory()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.utils.select_usd_variants"><code class="docutils literal notranslate"><span class="pre">select_usd_variants()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.utils.check_usd_path_with_timeout"><code class="docutils literal notranslate"><span class="pre">check_usd_path_with_timeout()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.utils.use_stage"><code class="docutils literal notranslate"><span class="pre">use_stage()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.utils.create_new_stage_in_memory"><code class="docutils literal notranslate"><span class="pre">create_new_stage_in_memory()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.utils.get_current_stage_id"><code class="docutils literal notranslate"><span class="pre">get_current_stage_id()</span></code></a></li>
@@ -2511,7 +2537,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Aug 21, 2025.
+  Last updated on Aug 22, 2025.
   <br/>
 </p>
   </div>

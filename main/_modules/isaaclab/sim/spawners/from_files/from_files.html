@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.2.0" />
-    <meta name="docbuild:last-update" content="Aug 21, 2025"/>
+    <meta name="docbuild:last-update" content="Aug 22, 2025"/>
   </head>
   
   
@@ -584,6 +584,7 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim.utils</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
     <span class="n">bind_physics_material</span><span class="p">,</span>
     <span class="n">bind_visual_material</span><span class="p">,</span>
+    <span class="n">check_usd_path_with_timeout</span><span class="p">,</span>
     <span class="n">clone</span><span class="p">,</span>
     <span class="n">is_current_stage_in_memory</span><span class="p">,</span>
     <span class="n">select_usd_variants</span><span class="p">,</span>
@@ -816,18 +817,16 @@
 <span class="sd">    Raises:</span>
 <span class="sd">        FileNotFoundError: If the USD file does not exist at the given path.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="c1"># get stage handle</span>
-    <span class="n">stage</span> <span class="o">=</span> <span class="n">get_current_stage</span><span class="p">()</span>
-
-    <span class="c1"># check file path exists</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="n">stage</span><span class="o">.</span><span class="n">ResolveIdentifierToEditTarget</span><span class="p">(</span><span class="n">usd_path</span><span class="p">):</span>
+    <span class="c1"># check if usd path exists with periodic logging until timeout</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">check_usd_path_with_timeout</span><span class="p">(</span><span class="n">usd_path</span><span class="p">):</span>
         <span class="k">if</span> <span class="s2">&quot;4.5&quot;</span> <span class="ow">in</span> <span class="n">usd_path</span><span class="p">:</span>
             <span class="n">usd_5_0_path</span> <span class="o">=</span> <span class="n">usd_path</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;http&quot;</span><span class="p">,</span> <span class="s2">&quot;https&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;/4.5&quot;</span><span class="p">,</span> <span class="s2">&quot;/5.0&quot;</span><span class="p">)</span>
-            <span class="k">if</span> <span class="ow">not</span> <span class="n">stage</span><span class="o">.</span><span class="n">ResolveIdentifierToEditTarget</span><span class="p">(</span><span class="n">usd_5_0_path</span><span class="p">):</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">check_usd_path_with_timeout</span><span class="p">(</span><span class="n">usd_5_0_path</span><span class="p">):</span>
                 <span class="k">raise</span> <span class="ne">FileNotFoundError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;USD file not found at path at either: &#39;</span><span class="si">{</span><span class="n">usd_path</span><span class="si">}</span><span class="s2">&#39; or &#39;</span><span class="si">{</span><span class="n">usd_5_0_path</span><span class="si">}</span><span class="s2">&#39;.&quot;</span><span class="p">)</span>
             <span class="n">usd_path</span> <span class="o">=</span> <span class="n">usd_5_0_path</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">FileNotFoundError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;USD file not found at path at: &#39;</span><span class="si">{</span><span class="n">usd_path</span><span class="si">}</span><span class="s2">&#39;.&quot;</span><span class="p">)</span>
+
     <span class="c1"># spawn asset if it doesn&#39;t exist.</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">prim_utils</span><span class="o">.</span><span class="n">is_prim_path_valid</span><span class="p">(</span><span class="n">prim_path</span><span class="p">):</span>
         <span class="c1"># add prim as reference to stage</span>
@@ -933,7 +932,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Aug 21, 2025.
+  Last updated on Aug 22, 2025.
   <br/>
 </p>
   </div>
