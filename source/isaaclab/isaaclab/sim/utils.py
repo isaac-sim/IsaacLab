@@ -7,10 +7,12 @@
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import functools
 import inspect
 import re
+import time
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
@@ -996,6 +998,72 @@ def select_usd_variants(prim_path: str, variants: object | dict[str, str], stage
                 f"Setting variant selection '{variant_selection}' for variant set '{variant_set_name}' on"
                 f" prim '{prim_path}'."
             )
+
+
+"""
+Nucleus Connection
+"""
+
+
+async def _is_usd_path_available(usd_path: str, timeout: float) -> bool:
+    """
+    Asynchronously checks whether the given USD path is available on the server.
+
+    Args:
+        usd_path: The remote or local USD file path to check.
+        timeout: Timeout in seconds for the async stat call.
+
+    Returns:
+        True if the server responds with OK, False otherwise.
+    """
+    try:
+        result, _ = await asyncio.wait_for(omni.client.stat_async(usd_path), timeout=timeout)
+        return result == omni.client.Result.OK
+    except asyncio.TimeoutError:
+        omni.log.warn(f"Timed out after {timeout}s while checking for USD: {usd_path}")
+        return False
+    except Exception as ex:
+        omni.log.warn(f"Exception during USD file check: {type(ex).__name__}: {ex}")
+        return False
+
+
+def check_usd_path_with_timeout(usd_path: str, timeout: float = 300, log_interval: float = 30) -> bool:
+    """
+    Synchronously runs an asynchronous USD path availability check,
+    logging progress periodically until it completes.
+
+    This is useful for checking server responsiveness before attempting to load a remote asset.
+    It will block execution until the check completes or times out.
+
+    Args:
+        usd_path: The remote USD file path to check.
+        timeout: Maximum time (in seconds) to wait for the server check.
+        log_interval: Interval (in seconds) at which progress is logged.
+
+    Returns:
+        True if the file is available (HTTP 200 / OK), False otherwise.
+    """
+    start_time = time.time()
+    loop = asyncio.get_event_loop()
+
+    coroutine = _is_usd_path_available(usd_path, timeout)
+    task = asyncio.ensure_future(coroutine)
+
+    next_log_time = start_time + log_interval
+
+    first_log = True
+    while not task.done():
+        now = time.time()
+        if now >= next_log_time:
+            elapsed = int(now - start_time)
+            if first_log:
+                omni.log.warn(f"Checking server availability for USD path: {usd_path} (timeout: {timeout}s)")
+                first_log = False
+            omni.log.warn(f"Waiting for server response... ({elapsed}s elapsed)")
+            next_log_time += log_interval
+        loop.run_until_complete(asyncio.sleep(0.1))  # Yield to allow async work
+
+    return task.result()
 
 
 """

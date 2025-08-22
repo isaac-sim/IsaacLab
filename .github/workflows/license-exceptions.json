@@ -380,5 +380,10 @@
     "package": "rpds-py",
     "license" : "UNKNOWN",
     "comment": "MIT"
+  },
+  {
+    "package": "typing-inspection",
+    "license" : "UNKNOWN",
+    "comment": "MIT"
   }
 ]
