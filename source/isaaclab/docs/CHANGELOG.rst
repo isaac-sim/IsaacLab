@@ -16,7 +16,7 @@ Changed
 * Updated pink inverse kinematics controller configuration for the following tasks (Isaac-PickPlace-GR1T2, Isaac-NutPour-GR1T2, Isaac-ExhaustPipe-GR1T2)
   to increase end-effector tracking accuracy and speed. Also added a null-space regularizer that enables turning on of waist degrees-of-freedom.
 * Improved the test_pink_ik script to more comprehensive test on controller accuracy. Also, migrated to use pytest. With the current IK controller
-  improvements, our unit tests pass position and orientation accuracy test within **(2 mm, 1 degree)**. Previously, the position accuracy tolerances
+  improvements, our unit tests pass position and orientation accuracy test within **(1 mm, 1 degree)**. Previously, the position accuracy tolerances
   were set to **(30 mm, 10 degrees)**.
 * Including a new config parameter :attr:`fail_on_ik_error` to :class:`~isaaclab.controllers.pink_ik.PinkIKControllerCfg`
   to control whether the IK controller raise an exception if robot joint limits are exceeded. In the case of an exception, the controller will hold the

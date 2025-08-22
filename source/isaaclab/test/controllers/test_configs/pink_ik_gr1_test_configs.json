@@ -1,11 +1,10 @@
 {
     "tolerances": {
-        "position": 0.002,
+        "position": 0.001,
         "pd_position": 0.001,
         "rotation": 0.02,
         "check_errors": true
     },
-    "num_iterations": 12,
     "tests": {
         "stay_still": {
             "left_hand_pose": [
@@ -64,7 +63,7 @@
                 [0.23, 0.28, 1.1, 0.5, 0.5, -0.5, 0.5],
                 [0.23, 0.5, 1.05, 0.5, 0.5, -0.5, 0.5]
             ],
-            "allowed_steps_per_motion": 70,
+            "allowed_steps_per_motion": 30,
             "repeat": 3
         },
         "rotation_movements": {
@@ -80,7 +79,7 @@
                 [0.23, 0.28, 1.1, 0.5, 0.5, -0.5, 0.5],
                 [0.23, 0.32, 1.1, 0.7071, 0.7071, 0.0, 0.0]
             ],
-            "allowed_steps_per_motion": 25,
+            "allowed_steps_per_motion": 20,
             "repeat": 2
         }
     }
