@@ -14,7 +14,7 @@ from newton.sensors import ContactSensor as NewtonContactSensor
 from newton.sensors import populate_contacts
 from newton.solvers import SolverBase, SolverFeatherstone, SolverMuJoCo, SolverXPBD
 from newton.utils import parse_usd
-from newton.viewer import RendererOpenGL
+from newton.viewer import ViewerGL
 
 from isaaclab.sim._impl.newton_manager_cfg import NewtonCfg
 from isaaclab.utils.timer import Timer
@@ -302,18 +302,15 @@ class NewtonManager:
         This function renders the simulation using the OpenGL renderer.
         """
         if NewtonManager._renderer is None:
-            NewtonManager._renderer = RendererOpenGL(
-                path="example.usd",
-                model=NewtonManager._model,
-                scaling=1.0,
-                up_axis=NewtonManager._up_axis,
-                screen_width=1280,
-                screen_height=720,
-                camera_pos=(0, 3, 10),
-            )
+            NewtonManager._renderer = ViewerGL(width=1280, height=720)
+            NewtonManager._renderer.camera.pos = (0, 3, 10)
+            NewtonManager._renderer.up_axis = NewtonManager._up_axis
+            NewtonManager._renderer.scaling = 1.0
+            NewtonManager._renderer._paused = False
+            NewtonManager._renderer.set_model(NewtonManager._model)
         else:
             NewtonManager._renderer.begin_frame(NewtonManager._sim_time)
-            NewtonManager._renderer.render(NewtonManager._state_0)
+            NewtonManager._renderer.log_state(NewtonManager._state_0)
             NewtonManager._renderer.end_frame()
 
     @classmethod
