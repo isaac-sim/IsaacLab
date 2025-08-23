@@ -11,9 +11,6 @@ import trimesh
 
 from pxr import Usd, UsdGeom
 
-PRIMITIVE_MESH_TYPES = ["Cube", "Plane"]
-"""List of supported primitive mesh types that can be converted to a trimesh."""
-
 
 def create_trimesh_from_geom_mesh(mesh_prim: Usd.Prim) -> tuple[np.ndarray, np.ndarray]:
     """Reads the vertices and faces of a mesh prim.
@@ -43,6 +40,30 @@ def create_trimesh_from_geom_mesh(mesh_prim: Usd.Prim) -> tuple[np.ndarray, np.n
     return points, convert_faces_to_triangles(indices, num_vertex_per_face)
 
 
+def _create_plane_trimesh(prim: Usd.Prim) -> trimesh.Trimesh:
+    """Creates a trimesh for a plane primitive."""
+    size = (2e6, 2e6)
+    vertices = np.array([[size[0], size[1], 0], [size[0], 0.0, 0], [0.0, size[1], 0], [0.0, 0.0, 0]]) - np.array(
+        [size[0] / 2.0, size[1] / 2.0, 0.0]
+    )
+    faces = np.array([[1, 0, 2], [2, 3, 1]])
+    return trimesh.Trimesh(vertices=vertices, faces=faces)
+
+
+def _create_cube_trimesh(prim: Usd.Prim) -> trimesh.Trimesh:
+    """Creates a trimesh for a cube primitive."""
+    size = prim.GetAttribute("size").Get()
+    extends = [size, size, size]
+    return trimesh.creation.box(extends)
+
+
+def _create_sphere_trimesh(prim: Usd.Prim, subdivisions: int = 2) -> trimesh.Trimesh:
+    """Creates a trimesh for a sphere primitive."""
+    radius = prim.GetAttribute("radius").Get()
+    mesh = trimesh.creation.icosphere(radius=radius, subdivisions=subdivisions)
+    return mesh
+
+
 def create_mesh_from_geom_shape(prim: Usd.Prim) -> trimesh.Trimesh:
     """Converts a primitive object to a trimesh.
 
@@ -59,23 +80,7 @@ def create_mesh_from_geom_shape(prim: Usd.Prim) -> trimesh.Trimesh:
     if prim.GetTypeName() not in PRIMITIVE_MESH_TYPES:
         raise ValueError(f"Prim at path '{prim.GetPath()}' is not a primitive mesh. Cannot convert to trimesh.")
 
-    # Create primitive mesh for the provided shapes
-    if prim.GetTypeName() == "Plane":
-        size = (2e6, 2e6)
-        vertices = np.array([[size[0], size[1], 0], [size[0], 0.0, 0], [0.0, size[1], 0], [0.0, 0.0, 0]]) - np.array(
-            [size[0] / 2.0, size[1] / 2.0, 0.0]
-        )
-        faces = np.array([[1, 0, 2], [2, 3, 1]])
-        mesh = trimesh.Trimesh(vertices=vertices, faces=faces)
-
-    elif prim.GetTypeName() == "Cube":
-        size = prim.GetAttribute("size").Get()
-        extends = [size, size, size]
-        mesh = trimesh.creation.box(extends)
-    else:
-        raise ValueError(f"Prim at path '{prim.GetPath()}' is not a primitive mesh. Cannot convert to trimesh.")
-
-    return mesh
+    return _MESH_CONVERTERS_CALLBACKS[prim.GetTypeName()](prim)
 
 
 def convert_faces_to_triangles(faces: np.ndarray, point_counts: np.ndarray) -> np.ndarray:
@@ -115,3 +120,13 @@ def convert_faces_to_triangles(faces: np.ndarray, point_counts: np.ndarray) -> n
 
         vertex_counter += num_points
     return np.asarray(all_faces)
+
+
+_MESH_CONVERTERS_CALLBACKS: dict[str, callable] = {
+    "Plane": _create_plane_trimesh,
+    "Cube": _create_cube_trimesh,
+    "Sphere": _create_sphere_trimesh,
+}
+
+PRIMITIVE_MESH_TYPES = list(_MESH_CONVERTERS_CALLBACKS.keys())
+"""List of supported primitive mesh types that can be converted to a trimesh."""
