@@ -314,8 +314,8 @@ class NewtonManager:
             if not NewtonManager._renderer.is_paused():
                 NewtonManager._renderer.begin_frame(NewtonManager._sim_time)
                 NewtonManager._renderer.log_state(NewtonManager._state_0)
-                # NewtonManager._renderer.end_frame()
-                NewtonManager._renderer._update()
+                NewtonManager._renderer.end_frame()  # Pending Newton PR #625 merge
+                # NewtonManager._renderer._update() # Works without the above PR
             else:
                 NewtonManager._paused_update_counter += 1
                 if NewtonManager._paused_update_counter >= 10:
