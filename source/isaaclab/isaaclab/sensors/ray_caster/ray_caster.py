@@ -339,6 +339,8 @@ class RayCaster(SensorBase):
                 self.ray_visualizer.set_visibility(False)
 
     def _debug_vis_callback(self, event):
+        if self._data.ray_hits_w is None:
+            return
         # remove possible inf values
         viz_points = self._data.ray_hits_w.reshape(-1, 3)
         viz_points = viz_points[~torch.any(torch.isinf(viz_points), dim=1)]
