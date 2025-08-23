@@ -36,6 +36,26 @@ gym.register(
 )
 
 gym.register(
+    id="Isaac-Velocity-Flat-Anymal-D-Distillation-v0",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.flat_env_cfg:AnymalDFlatEnvCfg",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_distillation_cfg:AnymalDFlatDistillationRunnerCfg",
+    },
+)
+
+gym.register(
+    id="Isaac-Velocity-Flat-Anymal-D-Distillation-Play-v0",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.flat_env_cfg:AnymalDFlatEnvCfg_PLAY",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_distillation_cfg:AnymalDFlatDistillationRunnerCfg",
+    },
+)
+
+gym.register(
     id="Isaac-Velocity-Rough-Anymal-D-v0",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
