@@ -30,7 +30,8 @@ def terrain_out_of_bounds(
     to the edge of the terrain is calculated based on the size of the terrain and the distance buffer.
     """
     if env.scene.cfg.terrain.terrain_type == "plane":
-        return False  # we have infinite terrain because it is a plane
+        # we have infinite terrain because it is a plane
+        return torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
     elif env.scene.cfg.terrain.terrain_type == "generator":
         # obtain the size of the sub-terrains
         terrain_gen_cfg = env.scene.terrain.cfg.terrain_generator
