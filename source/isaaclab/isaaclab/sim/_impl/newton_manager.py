@@ -309,9 +309,14 @@ class NewtonManager:
             NewtonManager._renderer._paused = False
             NewtonManager._renderer.set_model(NewtonManager._model)
         else:
-            NewtonManager._renderer.begin_frame(NewtonManager._sim_time)
-            NewtonManager._renderer.log_state(NewtonManager._state_0)
-            NewtonManager._renderer.end_frame()
+            if not NewtonManager._renderer.is_paused():
+                NewtonManager._renderer.begin_frame(NewtonManager._sim_time)
+                NewtonManager._renderer.log_state(NewtonManager._state_0)
+                # NewtonManager._renderer.end_frame()
+                NewtonManager._renderer._update()
+            else:
+                # When rendering is paused, still process events but don't render new frames
+                NewtonManager._renderer._update()
 
     @classmethod
     def sync_fabric_transforms(cls) -> None:
