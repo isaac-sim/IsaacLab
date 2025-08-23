@@ -549,6 +549,26 @@ def resolve_world_scale(prim: Usd.Prim) -> tuple[float, float, float]:
     return tuple([*(v.GetLength() for v in world_transform.ExtractRotationMatrix())])
 
 
+def resolve_world_pose(prim: Usd.Prim) -> tuple[list[float], list[float]]:
+    """Resolve the world pose (position and orientation) of a prim.
+
+    Args:
+        prim: The USD prim to resolve the world pose for.
+
+    Returns:
+        A tuple containing the world position (as a 3D vector) and the world orientation (as a quaternion, format wxyz).
+    """
+
+    xform = UsdGeom.Xformable(prim)
+    world_transform = xform.ComputeLocalToWorldTransform(Usd.TimeCode.Default())
+    world_position = [*world_transform.ExtractTranslation()]
+    world_orientation = [
+        world_transform.ExtractRotation().GetQuaternion().GetNormalized().real,
+        *world_transform.ExtractRotation().GetQuaternion().GetNormalized().imaginary,
+    ]
+    return world_position, world_orientation
+
+
 """
 USD Stage traversal.
 """
