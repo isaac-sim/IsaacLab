@@ -134,7 +134,13 @@ class MultiMeshRayCaster(RayCaster):
                     target_prim.GetPath(), lambda prim: prim.GetTypeName() in PRIMITIVE_MESH_TYPES + ["Mesh"]
                 )
                 if len(mesh_prims) == 0:
-                    raise RuntimeError(f"No mesh prims found at path: {target_prim.GetPath()}")
+                    error_msg = (
+                        f"No mesh prims found at path: {target_prim.GetPath()} with supported types:"
+                        f" {PRIMITIVE_MESH_TYPES + ['Mesh']}"
+                    )
+                    for prim in sim_utils.get_all_matching_child_prims(target_prim.GetPath(), lambda prim: True):
+                        error_msg += f"\n - Available prim '{prim.GetPath()}' of type '{prim.GetTypeName()}'"
+                    raise RuntimeError(error_msg)
 
                 trimesh_meshes = []
 
@@ -242,10 +248,33 @@ class MultiMeshRayCaster(RayCaster):
                 f"No meshes found for ray-casting! Please check the mesh prim paths: {self.cfg.mesh_prim_paths}"
             )
 
-        if self.cfg.track_mesh_transforms:
-            total_n_meshes_per_env = sum(self._num_meshes_per_env.values())
-            self._mesh_positions_w = torch.zeros(self._num_envs, total_n_meshes_per_env, 3, device=self.device)
-            self._mesh_orientations_w = torch.zeros(self._num_envs, total_n_meshes_per_env, 4, device=self.device)
+        total_n_meshes_per_env = sum(self._num_meshes_per_env.values())
+        self._mesh_positions_w = torch.zeros(self._num_envs, total_n_meshes_per_env, 3, device=self.device)
+        self._mesh_orientations_w = torch.zeros(self._num_envs, total_n_meshes_per_env, 4, device=self.device)
+
+        # Update the mesh positions and rotations
+        mesh_idx = 0
+        for target_cfg in self._raycast_targets_cfg:
+            # update position of the target meshes
+            pos_w, ori_w = [], []
+            for prim in sim_utils.find_matching_prims(target_cfg.target_prim_expr):
+                translation, quat = sim_utils.resolve_world_pose(prim)
+                pos_w.append(translation)
+                ori_w.append(quat)
+            pos_w = torch.tensor(pos_w, device=self.device, dtype=torch.float32)
+            ori_w = torch.tensor(ori_w, device=self.device, dtype=torch.float32)
+
+            if target_cfg.is_global:
+                import pdb
+
+                pdb.set_trace()
+                # only one prim exists for global targets. But we need to update the pose for all environments
+                pos_w = pos_w.unsqueeze(0)
+                ori_w = ori_w.unsqueeze(0)
+
+            self._mesh_positions_w[:, mesh_idx] = pos_w
+            self._mesh_orientations_w[:, mesh_idx] = ori_w
+            mesh_idx += 1
 
         # flatten the list of meshes that are included in mesh_prim_paths of the specific ray caster
         multi_mesh_ids_flattened = []
@@ -316,8 +345,8 @@ class MultiMeshRayCaster(RayCaster):
             ray_directions_w,
             mesh_ids_wp=self._mesh_ids_wp,  # list with shape num_envs x num_meshes_per_env
             max_dist=self.cfg.max_distance,
-            mesh_positions_w=self._mesh_positions_w[env_ids] if self.cfg.track_mesh_transforms else None,
-            mesh_orientations_w=self._mesh_orientations_w[env_ids] if self.cfg.track_mesh_transforms else None,
+            mesh_positions_w=self._mesh_positions_w[env_ids],
+            mesh_orientations_w=self._mesh_orientations_w[env_ids],
             return_mesh_id=self.cfg.update_mesh_ids,
         )
 
