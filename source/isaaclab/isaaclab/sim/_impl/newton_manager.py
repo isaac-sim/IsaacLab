@@ -76,6 +76,7 @@ class NewtonManager:
     _gravity_vector: tuple[float, float, float] = (0.0, 0.0, -9.81)
     _up_axis: str = "Z"
     _num_envs: int = None
+    _paused_update_counter: int = 0
 
     @classmethod
     def clear(cls):
@@ -99,6 +100,7 @@ class NewtonManager:
         NewtonManager._cfg = NewtonCfg()
         NewtonManager._up_axis = "Z"
         NewtonManager._first_call = True
+        NewtonManager._paused_update_counter = 0
 
     @classmethod
     def set_builder(cls, builder):
@@ -315,8 +317,10 @@ class NewtonManager:
                 # NewtonManager._renderer.end_frame()
                 NewtonManager._renderer._update()
             else:
-                # When rendering is paused, still process events but don't render new frames
-                NewtonManager._renderer._update()
+                NewtonManager._paused_update_counter += 1
+                if NewtonManager._paused_update_counter >= 10:
+                    NewtonManager._renderer._update()
+                    NewtonManager._paused_update_counter = 0
 
     @classmethod
     def sync_fabric_transforms(cls) -> None:
