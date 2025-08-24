@@ -17,6 +17,7 @@ from collections.abc import Sequence
 from scipy.spatial.transform import Rotation
 from typing import TYPE_CHECKING
 
+import carb
 import omni.log
 import omni.usd
 import warp as wp
@@ -24,7 +25,7 @@ from isaacsim.core.prims import XFormPrim
 from pxr import UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
-from isaaclab.utils.math import quat_apply, quat_apply_yaw, matrix_from_quat, subtract_frame_transforms
+from isaaclab.utils.math import matrix_from_quat, quat_mul, subtract_frame_transforms
 from isaaclab.utils.mesh import PRIMITIVE_MESH_TYPES, create_mesh_from_geom_shape, create_trimesh_from_geom_mesh
 from isaaclab.utils.warp import convert_to_warp_mesh, raycast_dynamic_meshes
 
@@ -51,6 +52,8 @@ class MultiMeshRayCaster(RayCaster):
     cfg: MultiMeshRayCasterCfg
     """The configuration parameters."""
 
+    mesh_offsets: dict[str, tuple[torch.Tensor, torch.Tensor]] = {}
+
     def __init__(self, cfg: MultiMeshRayCasterCfg):
         """Initializes the ray-caster object.
 
@@ -73,6 +76,10 @@ class MultiMeshRayCaster(RayCaster):
                 self._raycast_targets_cfg.append(cfg.RaycastTargetCfg(target_prim_expr=target, is_global=True))
             else:
                 self._raycast_targets_cfg.append(target)
+
+        # Resolve regex namespace if set
+        for cfg in self._raycast_targets_cfg:
+            cfg.target_prim_expr = cfg.target_prim_expr.format(ENV_REGEX_NS="/World/envs/env_.*")
 
         # overwrite the data class
         self._data = MultiMeshRayCasterData()
@@ -107,7 +114,6 @@ class MultiMeshRayCaster(RayCaster):
 
     def _initialize_warp_meshes(self):
         multi_mesh_ids: dict[str, list[list[int]]] = {}
-
         for target_cfg in self._raycast_targets_cfg:
             # target prim path to ray cast against
             target_prim_path = target_cfg.target_prim_expr
@@ -136,10 +142,12 @@ class MultiMeshRayCaster(RayCaster):
                     error_msg = (
                         f"No mesh prims found at path: {target_prim.GetPath()} with supported types:"
                         f" {PRIMITIVE_MESH_TYPES + ['Mesh']}"
+                        " Skipping this target."
                     )
                     for prim in sim_utils.get_all_matching_child_prims(target_prim.GetPath(), lambda prim: True):
                         error_msg += f"\n - Available prim '{prim.GetPath()}' of type '{prim.GetTypeName()}'"
-                    raise RuntimeError(error_msg)
+                    carb.log_warn(error_msg)
+                    continue
 
                 trimesh_meshes = []
 
@@ -153,7 +161,7 @@ class MultiMeshRayCaster(RayCaster):
                         mesh = trimesh.Trimesh(points, faces)
                     else:
                         mesh = create_mesh_from_geom_shape(mesh_prim)
-                    
+
                     mesh_prim_pos, mesh_prim_quat = sim_utils.resolve_world_pose(mesh_prim)
                     target_prim_pos, target_prim_quat = sim_utils.resolve_world_pose(target_prim)
                     relative_pos, relative_quat = subtract_frame_transforms(
@@ -237,25 +245,45 @@ class MultiMeshRayCaster(RayCaster):
                     mesh_idx += n_meshes_per_env
 
             if self.cfg.track_mesh_transforms:
-                # create view based on the type of prim
-                mesh_prim_api = sim_utils.find_first_matching_prim(target_prim_path)
-                if mesh_prim_api.HasAPI(UsdPhysics.ArticulationRootAPI):
-                    self.mesh_views[target_prim_path] = self._physics_sim_view.create_articulation_view(
-                        target_prim_path.replace(".*", "*")
-                    )
-                    omni.log.info(f"Created articulation view for mesh prim at path: {target_prim_path}")
-                elif mesh_prim_api.HasAPI(UsdPhysics.RigidBodyAPI):
-                    self.mesh_views[target_prim_path] = self._physics_sim_view.create_rigid_body_view(
-                        target_prim_path.replace(".*", "*")
-                    )
-                    omni.log.info(f"Created rigid body view for mesh prim at path: {target_prim_path}")
-                else:
-                    self.mesh_views[target_prim_path] = XFormPrim(target_prim_path, reset_xform_properties=False)
-                    omni.log.warn(
-                        f"The prim at path {target_prim_path} is not a physics prim, but track_mesh_transforms is"
-                        " enabled! Defaulting to XFormPrim. \n The pose of the mesh will most likely not"
-                        " be updated correctly when running in headless mode."
-                    )
+                mesh_prim = sim_utils.find_first_matching_prim(target_prim_path)
+                current_prim = mesh_prim
+                current_path_expr = target_prim_path
+
+                while True:
+                    # create view based on the type of prim
+                    pos, orientation = sim_utils.resolve_relative_pose(mesh_prim, current_prim)
+
+                    if current_prim.HasAPI(UsdPhysics.ArticulationRootAPI):
+                        self.mesh_views[target_prim_path] = self._physics_sim_view.create_articulation_view(
+                            current_path_expr.replace(".*", "*")
+                        )
+                        pos, orientation = sim_utils.resolve_relative_pose(current_prim, current_prim)
+                        omni.log.info(f"Created articulation view for mesh prim at path: {target_prim_path}")
+                        break
+
+                    if current_prim.HasAPI(UsdPhysics.RigidBodyAPI):
+                        self.mesh_views[target_prim_path] = self._physics_sim_view.create_rigid_body_view(
+                            current_path_expr.replace(".*", "*")
+                        )
+                        pos, orientation = sim_utils.resolve_relative_pose(current_prim, current_prim)
+                        omni.log.info(f"Created rigid body view for mesh prim at path: {target_prim_path}")
+                        break
+
+                    new_root_prim = current_prim.GetParent()
+                    current_path_expr = current_path_expr.rsplit("/", 1)[0]
+                    if not new_root_prim.IsValid():
+                        self.mesh_views[target_prim_path] = XFormPrim(target_prim_path, reset_xform_properties=False)
+                        omni.log.warn(
+                            f"The prim at path {target_prim_path} is not a physics prim, but track_mesh_transforms is"
+                            " enabled! Defaulting to XFormPrim. \n The pose of the mesh will most likely not"
+                            " be updated correctly when running in headless mode."
+                        )
+                        break
+                    current_prim = new_root_prim
+
+                # Cache offset to rigid body
+                MultiMeshRayCaster.mesh_offsets[target_prim_path] = (pos, orientation)
+
         # throw an error if no meshes are found
         if all([target_cfg.target_prim_expr not in multi_mesh_ids for target_cfg in self._raycast_targets_cfg]):
             raise RuntimeError(
@@ -267,8 +295,7 @@ class MultiMeshRayCaster(RayCaster):
         self._mesh_orientations_w = torch.zeros(self._num_envs, total_n_meshes_per_env, 4, device=self.device)
 
         # Update the mesh positions and rotations
-        mesh_idx = 0
-        for target_cfg in self._raycast_targets_cfg:
+        for mesh_idx, target_cfg in enumerate(self._raycast_targets_cfg):
             # update position of the target meshes
             pos_w, ori_w = [], []
             for prim in sim_utils.find_matching_prims(target_cfg.target_prim_expr):
@@ -280,7 +307,6 @@ class MultiMeshRayCaster(RayCaster):
 
             self._mesh_positions_w[:, mesh_idx] = pos_w
             self._mesh_orientations_w[:, mesh_idx] = ori_w
-            mesh_idx += 1
 
         # flatten the list of meshes that are included in mesh_prim_paths of the specific ray caster
         multi_mesh_ids_flattened = []
@@ -307,25 +333,8 @@ class MultiMeshRayCaster(RayCaster):
 
     def _update_buffers_impl(self, env_ids: Sequence[int]):
         """Fills the buffers of the sensor data."""
-        # obtain the poses of the sensors
-        pos_w, quat_w = compute_world_poses(self._view, env_ids, clone=True)
-        # apply drift
-        pos_w += self.drift[env_ids]
-        # store the poses
-        self._data.pos_w[env_ids] = pos_w
-        self._data.quat_w[env_ids] = quat_w
 
-        # ray cast based on the sensor poses
-        if self.cfg.attach_yaw_only:
-            # only yaw orientation is considered and directions are not rotated
-            ray_starts_w = quat_apply_yaw(quat_w.repeat(1, self.num_rays), self.ray_starts[env_ids])
-            ray_starts_w += pos_w.unsqueeze(1)
-            ray_directions_w = self.ray_directions[env_ids]
-        else:
-            # full orientation is considered
-            ray_starts_w = quat_apply(quat_w.repeat(1, self.num_rays), self.ray_starts[env_ids])
-            ray_starts_w += pos_w.unsqueeze(1)
-            ray_directions_w = quat_apply(quat_w.repeat(1, self.num_rays), self.ray_directions[env_ids])
+        self._update_ray_infos(env_ids)
 
         if self.cfg.track_mesh_transforms:
             # Update the mesh positions and rotations
@@ -335,6 +344,11 @@ class MultiMeshRayCaster(RayCaster):
                 pos_w, ori_w = compute_world_poses(view, None)
                 pos_w = pos_w.squeeze(0) if len(pos_w.shape) == 3 else pos_w
                 ori_w = ori_w.squeeze(0) if len(ori_w.shape) == 3 else ori_w
+
+                if target_cfg.target_prim_expr in MultiMeshRayCaster.mesh_offsets:
+                    pos_offset, ori_offset = MultiMeshRayCaster.mesh_offsets[target_cfg.target_prim_expr]
+                    pos_w -= pos_offset
+                    ori_w = quat_mul(ori_offset.unsqueeze(0).repeat(ori_w.shape[0], 1), ori_w)
 
                 count = view.count
                 if not target_cfg.is_global:
@@ -347,8 +361,8 @@ class MultiMeshRayCaster(RayCaster):
                 mesh_idx += count
 
         self._data.ray_hits_w[env_ids], _, _, _, mesh_ids = raycast_dynamic_meshes(
-            ray_starts_w,
-            ray_directions_w,
+            self._ray_starts_w[env_ids],
+            self._ray_directions_w[env_ids],
             mesh_ids_wp=self._mesh_ids_wp,  # list with shape num_envs x num_meshes_per_env
             max_dist=self.cfg.max_distance,
             mesh_positions_w=self._mesh_positions_w[env_ids],
@@ -358,6 +372,11 @@ class MultiMeshRayCaster(RayCaster):
 
         if self.cfg.update_mesh_ids:
             self._data.ray_mesh_ids[env_ids] = mesh_ids
+
+    def __del__(self):
+        super().__del__()
+        if RayCaster._instance_count == 0:
+            MultiMeshRayCaster.mesh_offsets.clear()
 
 
 """

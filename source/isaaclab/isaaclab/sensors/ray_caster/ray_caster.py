@@ -16,6 +16,7 @@ import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, ClassVar
 
+import isaacsim.core.utils.stage as stage_utils
 import omni.log
 import omni.physics.tensors.impl.api as physx
 import warp as wp
@@ -154,7 +155,10 @@ class RayCaster(SensorBase):
         found_supported_prim_class = False
         prim = sim_utils.find_first_matching_prim(self.cfg.prim_path)
         if prim is None:
-            raise RuntimeError(f"Failed to find a prim at path expression: {self.cfg.prim_path}")
+            available_prims = ",".join([str(p.GetPath()) for p in stage_utils.get_current_stage().Traverse()])
+            raise RuntimeError(
+                f"Failed to find a prim at path expression: {self.cfg.prim_path}. Available prims: {available_prims}"
+            )
         # create view based on the type of prim
         if prim.HasAPI(UsdPhysics.ArticulationRootAPI):
             self._view = self._physics_sim_view.create_articulation_view(self.cfg.prim_path.replace(".*", "*"))
@@ -171,7 +175,11 @@ class RayCaster(SensorBase):
             )
         # check if prim view class is found
         if not found_supported_prim_class:
-            raise RuntimeError(f"Failed to find a valid prim view class for the prim paths: {self.cfg.prim_path}")
+            available_prims = ",".join([p.GetPath() for p in stage_utils.get_current_stage().Traverse()])
+            raise RuntimeError(
+                f"Failed to find a valid prim view class for the prim paths: {self.cfg.prim_path}. Available prims:"
+                f" {available_prims}"
+            )
 
         # load the meshes by parsing the stage
         self._initialize_warp_meshes()
@@ -251,9 +259,11 @@ class RayCaster(SensorBase):
         self._data.pos_w = torch.zeros(self._view.count, 3, device=self.device)
         self._data.quat_w = torch.zeros(self._view.count, 4, device=self.device)
         self._data.ray_hits_w = torch.zeros(self._view.count, self.num_rays, 3, device=self.device)
+        self._ray_starts_w = torch.zeros(self._view.count, self.num_rays, 3, device=self.device)
+        self._ray_directions_w = torch.zeros(self._view.count, self.num_rays, 3, device=self.device)
 
-    def _update_buffers_impl(self, env_ids: Sequence[int]):
-        """Fills the buffers of the sensor data."""
+    def _update_ray_infos(self, env_ids: Sequence[int]):
+        """Updates the ray information buffers."""
         # obtain the poses of the sensors
         if isinstance(self._view, XFormPrim):
             pos_w, quat_w = self._view.get_world_poses(env_ids)
@@ -314,11 +324,18 @@ class RayCaster(SensorBase):
         else:
             raise RuntimeError(f"Unsupported ray_alignment type: {self.cfg.ray_alignment}.")
 
+        self._ray_starts_w[env_ids] = ray_starts_w
+        self._ray_directions_w[env_ids] = ray_directions_w
+
+    def _update_buffers_impl(self, env_ids: Sequence[int]):
+        """Fills the buffers of the sensor data."""
+        self._update_ray_infos(env_ids)
+
         # ray cast and store the hits
         # TODO: Make this work for multiple meshes?
         self._data.ray_hits_w[env_ids] = raycast_mesh(
-            ray_starts_w,
-            ray_directions_w,
+            self._ray_starts_w[env_ids],
+            self._ray_directions_w[env_ids],
             max_dist=self.cfg.max_distance,
             mesh=RayCaster.meshes[self.cfg.mesh_prim_paths[0]],
         )[0]
@@ -344,7 +361,7 @@ class RayCaster(SensorBase):
         # remove possible inf values
         viz_points = self._data.ray_hits_w.reshape(-1, 3)
         viz_points = viz_points[~torch.any(torch.isinf(viz_points), dim=1)]
-        # show ray hit positions
+
         self.ray_visualizer.visualize(viz_points)
 
     """

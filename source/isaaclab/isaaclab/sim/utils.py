@@ -25,6 +25,9 @@ try:
 except ModuleNotFoundError:
     from pxr import Semantics
 
+import torch
+
+from isaaclab.utils.math import subtract_frame_transforms
 from isaaclab.utils.string import to_camel_case
 
 from . import schemas
@@ -184,7 +187,7 @@ def apply_nested(func: Callable) -> Callable:
             # if successful, do not look at children
             # this is based on the physics behavior that nested schemas are not allowed
             if not success:
-                all_prims += child_prim.GetChildren()
+                all_prims += child_prim.GetFilteredChildren(Usd.TraverseInstanceProxies())
             else:
                 count_success += 1
         # check if we were successful in applying the function to any prim
@@ -531,7 +534,7 @@ def make_uninstanceable(prim_path: str | Sdf.Path, stage: Usd.Stage | None = Non
             # make the prim uninstanceable
             child_prim.SetInstanceable(False)
         # add children to list
-        all_prims += child_prim.GetChildren()
+        all_prims += child_prim.GetFilteredChildren(Usd.TraverseInstanceProxies())
 
 
 def resolve_world_scale(prim: Usd.Prim) -> tuple[float, float, float]:
@@ -567,6 +570,36 @@ def resolve_world_pose(prim: Usd.Prim) -> tuple[list[float], list[float]]:
         *world_transform.ExtractRotation().GetQuaternion().GetNormalized().imaginary,
     ]
     return world_position, world_orientation
+
+
+def resolve_relative_pose(
+    prim: Usd.Prim, relative_to: Usd.Prim | None = None, device: torch.device | None = None
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Resolve the relative pose (position and orientation) of a prim with respect to another prim.
+
+    Args:
+        prim: The USD prim to resolve the relative pose for.
+        relative_to: The USD prim to resolve the relative pose with respect to. If None, the world frame is used.
+            Defaults to None.
+        device: The torch device to use for tensor operations. If None, the default device is used.
+            Defaults to None.
+
+    Returns:
+        A tuple containing the relative position (as a 3D vector) and the relative orientation (as a quaternion, format wxyz).
+    """
+
+    prim_pos, prim_quat = resolve_world_pose(prim)
+    if relative_to is None:
+        return torch.tensor(prim_pos, device=device), torch.tensor(prim_quat, device=device)
+
+    relative_to_pos, relative_to_quat = resolve_world_pose(relative_to)
+    relative_pos, relative_quat = subtract_frame_transforms(
+        torch.tensor(prim_pos, dtype=torch.float32),
+        torch.tensor(prim_quat, dtype=torch.float32),
+        torch.tensor(relative_to_pos, dtype=torch.float32),
+        torch.tensor(relative_to_quat, dtype=torch.float32),
+    )
+    return relative_pos, relative_quat
 
 
 """
@@ -612,7 +645,7 @@ def get_first_matching_child_prim(
         if predicate(child_prim):
             return child_prim
         # add children to list
-        all_prims += child_prim.GetChildren()
+        all_prims += child_prim.GetFilteredChildren(Usd.TraverseInstanceProxies()())
     return None
 
 
@@ -667,7 +700,9 @@ def get_all_matching_child_prims(
             output_prims.append(child_prim)
         # add children to list
         if depth is None or current_depth < depth:
-            all_prims_queue += [(child, current_depth + 1) for child in child_prim.GetChildren()]
+            all_prims_queue += [
+                (child, current_depth + 1) for child in child_prim.GetFilteredChildren(Usd.TraverseInstanceProxies())
+            ]
 
     return output_prims
 
