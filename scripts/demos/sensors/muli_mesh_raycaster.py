@@ -11,6 +11,9 @@ from isaaclab.app import AppLauncher
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Example on using the raycaster sensor.")
 parser.add_argument("--num_envs", type=int, default=2, help="Number of environments to spawn.")
+parser.add_argument(
+    "--robot", type=str, default="allegro_hand", help="Robot type to use.", choices=["allegro_hand", "anymal_d"]
+)
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
@@ -28,6 +31,7 @@ import torch
 # Pre-defined configs
 ##
 from isaaclab_assets.robots.allegro import ALLEGRO_HAND_CFG
+from isaaclab_assets.robots.anymal import ANYMAL_D_CFG
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg
@@ -35,6 +39,51 @@ from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors.ray_caster import MultiMeshRayCasterCfg, patterns
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+
+if args_cli.robot == "allegro_hand":
+    robot_cfg = ALLEGRO_HAND_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    ray_caster_cfg = MultiMeshRayCasterCfg(
+        prim_path="{ENV_REGEX_NS}/Robot",
+        update_period=1 / 60,
+        offset=MultiMeshRayCasterCfg.OffsetCfg(pos=(0, -0.1, 0.3)),
+        mesh_prim_paths=[
+            "/World/Ground",
+            MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/thumb_link_.*/visuals_xform"),
+            MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/index_link.*/visuals_xform"),
+            MultiMeshRayCasterCfg.RaycastTargetCfg(
+                target_prim_expr="{ENV_REGEX_NS}/Robot/middle_link_.*/visuals_xform"
+            ),
+            MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/ring_link_.*/visuals_xform"),
+            MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/palm_link/visuals_xform"),
+            MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/allegro_mount/visuals_xform"),
+        ],
+        ray_alignment="world",
+        pattern_cfg=patterns.GridPatternCfg(resolution=0.005, size=(0.4, 0.4), direction=(0, 0, -1)),
+        track_mesh_transforms=True,
+        debug_vis=not args_cli.headless,
+    )
+
+elif args_cli.robot == "anymal_d":
+    robot_cfg = ANYMAL_D_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    ray_caster_cfg = MultiMeshRayCasterCfg(
+        prim_path="{ENV_REGEX_NS}/Robot",
+        update_period=1 / 60,
+        offset=MultiMeshRayCasterCfg.OffsetCfg(pos=(0, -0.1, 0.3)),
+        mesh_prim_paths=[
+            "/World/Ground",
+            MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/LF_.*/visuals"),
+            MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/RF_.*/visuals"),
+            MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/LH_.*/visuals"),
+            MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/RH_.*/visuals"),
+            MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/base/visuals"),
+        ],
+        ray_alignment="world",
+        pattern_cfg=patterns.GridPatternCfg(resolution=0.02, size=(2.5, 2.5), direction=(0, 0, -1)),
+        track_mesh_transforms=True,
+        debug_vis=not args_cli.headless,
+    )
+else:
+    raise ValueError(f"Unknown robot type: {args_cli.robot}")
 
 
 @configclass
@@ -56,27 +105,9 @@ class RaycasterSensorSceneCfg(InteractiveSceneCfg):
     )
 
     # robot
-    robot = ALLEGRO_HAND_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-    ray_caster = MultiMeshRayCasterCfg(
-        prim_path="{ENV_REGEX_NS}/Robot",
-        update_period=1 / 60,
-        offset=MultiMeshRayCasterCfg.OffsetCfg(pos=(0, -0.1, 0.3)),
-        mesh_prim_paths=[
-            "/World/Ground",
-            MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/thumb_link_.*/visuals_xform"),
-            MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/index_link.*/visuals_xform"),
-            MultiMeshRayCasterCfg.RaycastTargetCfg(
-                target_prim_expr="{ENV_REGEX_NS}/Robot/middle_link_.*/visuals_xform"
-            ),
-            MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/ring_link_.*/visuals_xform"),
-            MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/palm_link/visuals_xform"),
-            MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/allegro_mount/visuals_xform"),
-        ],
-        ray_alignment="world",
-        pattern_cfg=patterns.GridPatternCfg(resolution=0.005, size=(0.4, 0.4), direction=(0, 0, -1)),
-        track_mesh_transforms=True,
-        debug_vis=not args_cli.headless,
-    )
+    robot = robot_cfg
+    # ray caster
+    ray_caster = ray_caster_cfg
 
 
 def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
