@@ -24,7 +24,7 @@ from isaacsim.core.prims import XFormPrim
 from pxr import UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
-from isaaclab.utils.math import quat_apply, quat_apply_yaw
+from isaaclab.utils.math import quat_apply, quat_apply_yaw, matrix_from_quat, subtract_frame_transforms
 from isaaclab.utils.mesh import PRIMITIVE_MESH_TYPES, create_mesh_from_geom_shape, create_trimesh_from_geom_mesh
 from isaaclab.utils.warp import convert_to_warp_mesh, raycast_dynamic_meshes
 
@@ -124,7 +124,6 @@ class MultiMeshRayCaster(RayCaster):
             loaded_vertices: list[np.ndarray | None] = []
             wp_mesh_ids = []
             for target_prim in target_prims:
-
                 if target_prim in MultiMeshRayCaster.meshes:
                     wp_mesh_ids.append(MultiMeshRayCaster.meshes[target_prim.GetPath()].id)
                     continue
@@ -154,19 +153,34 @@ class MultiMeshRayCaster(RayCaster):
                         mesh = trimesh.Trimesh(points, faces)
                     else:
                         mesh = create_mesh_from_geom_shape(mesh_prim)
+                    
+                    mesh_prim_pos, mesh_prim_quat = sim_utils.resolve_world_pose(mesh_prim)
+                    target_prim_pos, target_prim_quat = sim_utils.resolve_world_pose(target_prim)
+                    relative_pos, relative_quat = subtract_frame_transforms(
+                        torch.tensor(target_prim_pos, dtype=torch.float32),
+                        torch.tensor(target_prim_quat, dtype=torch.float32),
+                        torch.tensor(mesh_prim_pos, dtype=torch.float32),
+                        torch.tensor(mesh_prim_quat, dtype=torch.float32),
+                    )
+                    rotation = matrix_from_quat(relative_quat)
+                    transform = np.eye(4)
+                    transform[:3, :3] = rotation.numpy()
+                    transform[:3, 3] = relative_pos.numpy()
+                    mesh.apply_transform(transform)
 
-                    # account for local offsets and world scale of the prim
-                    transform = np.asarray(omni.usd.get_local_transform_matrix(mesh_prim)).T
-                    world_scale = sim_utils.resolve_world_scale(mesh_prim)
-                    # remove local scale from transform and apply world scale
-                    rotation = transform[:3, :3]
-                    for i in range(3):
-                        rotation[:, i] /= np.linalg.norm(rotation[:, i])
-                    # apply world scale
-                    transform_scaled = transform.copy()
-                    transform_scaled[:3, :3] = rotation * world_scale
-                    # apply transformation to the mesh (includes affine transform)
-                    mesh.apply_transform(transform_scaled)
+                    # # account for local offsets and world scale of the prim
+                    # transform = np.asarray(omni.usd.get_local_transform_matrix(mesh_prim)).T
+                    # world_scale = sim_utils.resolve_world_scale(mesh_prim)
+                    # # remove local scale from transform and apply world scale
+                    # rotation = transform[:3, :3]
+                    # for i in range(3):
+                    #     rotation[:, i] /= np.linalg.norm(rotation[:, i])
+                    # # apply world scale
+                    # transform_scaled = transform.copy()
+                    # transform_scaled[:3, :3] = rotation * world_scale
+                    # # apply transformation to the mesh (includes affine transform)
+                    # print("Transforming mesh with matrix:", transform_scaled)
+                    # mesh.apply_transform(transform_scaled)
 
                     # add to list of parsed meshes
                     trimesh_meshes.append(mesh)
@@ -263,14 +277,6 @@ class MultiMeshRayCaster(RayCaster):
                 ori_w.append(quat)
             pos_w = torch.tensor(pos_w, device=self.device, dtype=torch.float32)
             ori_w = torch.tensor(ori_w, device=self.device, dtype=torch.float32)
-
-            if target_cfg.is_global:
-                import pdb
-
-                pdb.set_trace()
-                # only one prim exists for global targets. But we need to update the pose for all environments
-                pos_w = pos_w.unsqueeze(0)
-                ori_w = ori_w.unsqueeze(0)
 
             self._mesh_positions_w[:, mesh_idx] = pos_w
             self._mesh_orientations_w[:, mesh_idx] = ori_w
