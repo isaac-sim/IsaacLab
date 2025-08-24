@@ -24,17 +24,17 @@ simulation_app = app_launcher.app
 
 import torch
 
-import isaaclab.sim as sim_utils
-from isaaclab.assets import AssetBaseCfg
-from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
-from isaaclab.sensors.ray_caster import MultiMeshRayCasterCfg, patterns, RayCasterCfg
-from isaaclab.utils import configclass
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-
 ##
 # Pre-defined configs
 ##
 from isaaclab_assets.robots.allegro import ALLEGRO_HAND_CFG
+
+import isaaclab.sim as sim_utils
+from isaaclab.assets import AssetBaseCfg
+from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
+from isaaclab.sensors.ray_caster import MultiMeshRayCasterCfg, patterns
+from isaaclab.utils import configclass
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 
 @configclass
@@ -61,39 +61,20 @@ class RaycasterSensorSceneCfg(InteractiveSceneCfg):
         prim_path="{ENV_REGEX_NS}/Robot",
         update_period=1 / 60,
         offset=MultiMeshRayCasterCfg.OffsetCfg(pos=(0, -0.1, 0.3)),
-        mesh_prim_paths=["/World/Ground",
-            MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/thumb_link_3/visuals_xform"),
-            MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/thumb_link_2/visuals_xform"),
-            MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/thumb_link_1/visuals_xform"),
-            MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/thumb_link_0/visuals_xform"),
-
-            MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/index_link_3/visuals_xform"),
-            MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/index_link_2/visuals_xform"),
-            MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/index_link_1/visuals_xform"),
-            MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/index_link_0/visuals_xform"),
-
-
-            MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/middle_link_3/visuals_xform"),
-            MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/middle_link_2/visuals_xform"),
-            MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/middle_link_1/visuals_xform"),
-            MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/middle_link_0/visuals_xform"),
-
-            MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/ring_link_3/visuals_xform"),
-            MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/ring_link_2/visuals_xform"),
-            MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/ring_link_1/visuals_xform"),
-            MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/ring_link_0/visuals_xform"),
-
+        mesh_prim_paths=[
+            "/World/Ground",
+            MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/thumb_link_.*/visuals_xform"),
+            MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/index_link.*/visuals_xform"),
+            MultiMeshRayCasterCfg.RaycastTargetCfg(
+                target_prim_expr="{ENV_REGEX_NS}/Robot/middle_link_.*/visuals_xform"
+            ),
+            MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/ring_link_.*/visuals_xform"),
             MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/palm_link/visuals_xform"),
             MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/allegro_mount/visuals_xform"),
         ],
-        # ray_alignment="yaw",
-        # pattern_cfg=patterns.LidarPatternCfg(
-        #     channels=100, vertical_fov_range=[-90, 90], horizontal_fov_range=[-90, 90], horizontal_res=1.0
-        # ),
         ray_alignment="world",
         pattern_cfg=patterns.GridPatternCfg(resolution=0.005, size=(0.4, 0.4), direction=(0, 0, -1)),
         track_mesh_transforms=True,
-
         debug_vis=not args_cli.headless,
     )
 
@@ -134,7 +115,9 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
             print("[INFO]: Resetting robot state...")
         # Apply default actions to the robot
         # -- generate actions/commands
-        targets = scene["robot"].data.default_joint_pos + 5 * (torch.rand_like(scene["robot"].data.default_joint_pos) - 0.5)
+        targets = scene["robot"].data.default_joint_pos + 5 * (
+            torch.rand_like(scene["robot"].data.default_joint_pos) - 0.5
+        )
         # -- apply action to the robot
         scene["robot"].set_joint_position_target(targets)
         # -- write data to sim

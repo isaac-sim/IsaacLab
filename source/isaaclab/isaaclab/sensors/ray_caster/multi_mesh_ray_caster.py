@@ -257,7 +257,6 @@ class MultiMeshRayCaster(RayCaster):
                         self.mesh_views[target_prim_path] = self._physics_sim_view.create_articulation_view(
                             current_path_expr.replace(".*", "*")
                         )
-                        pos, orientation = sim_utils.resolve_relative_pose(current_prim, current_prim)
                         omni.log.info(f"Created articulation view for mesh prim at path: {target_prim_path}")
                         break
 
@@ -265,7 +264,6 @@ class MultiMeshRayCaster(RayCaster):
                         self.mesh_views[target_prim_path] = self._physics_sim_view.create_rigid_body_view(
                             current_path_expr.replace(".*", "*")
                         )
-                        pos, orientation = sim_utils.resolve_relative_pose(current_prim, current_prim)
                         omni.log.info(f"Created rigid body view for mesh prim at path: {target_prim_path}")
                         break
 
@@ -281,8 +279,26 @@ class MultiMeshRayCaster(RayCaster):
                         break
                     current_prim = new_root_prim
 
+                mesh_prims = sim_utils.find_matching_prims(target_prim_path)
+                target_prims = sim_utils.find_matching_prims(target_prim_path)
+                if len(mesh_prims) != len(target_prims):
+                    raise RuntimeError(
+                        f"The number of mesh prims ({len(mesh_prims)}) does not match the number of physics prims"
+                        f" ({len(target_prims)})Please specify the correct mesh and physics prim paths more"
+                        " specifically in your target expressions."
+                    )
+                positions = []
+                quaternions = []
+                for mesh, target in zip(mesh_prims, target_prims):
+                    pos, orientation = sim_utils.resolve_relative_pose(mesh, target)
+                    positions.append(pos)
+                    quaternions.append(orientation)
+
+                positions = torch.stack(positions).to(device=self.device, dtype=torch.float32)
+                quaternions = torch.stack(quaternions).to(device=self.device, dtype=torch.float32)
+
                 # Cache offset to rigid body
-                MultiMeshRayCaster.mesh_offsets[target_prim_path] = (pos, orientation)
+                MultiMeshRayCaster.mesh_offsets[target_prim_path] = (positions, quaternions)
 
         # throw an error if no meshes are found
         if all([target_cfg.target_prim_expr not in multi_mesh_ids for target_cfg in self._raycast_targets_cfg]):
@@ -295,18 +311,22 @@ class MultiMeshRayCaster(RayCaster):
         self._mesh_orientations_w = torch.zeros(self._num_envs, total_n_meshes_per_env, 4, device=self.device)
 
         # Update the mesh positions and rotations
-        for mesh_idx, target_cfg in enumerate(self._raycast_targets_cfg):
+        mesh_idx = 0
+        for target_cfg in self._raycast_targets_cfg:
+            n_meshes = self._num_meshes_per_env[target_cfg.target_prim_expr]
+
             # update position of the target meshes
             pos_w, ori_w = [], []
             for prim in sim_utils.find_matching_prims(target_cfg.target_prim_expr):
                 translation, quat = sim_utils.resolve_world_pose(prim)
                 pos_w.append(translation)
                 ori_w.append(quat)
-            pos_w = torch.tensor(pos_w, device=self.device, dtype=torch.float32)
-            ori_w = torch.tensor(ori_w, device=self.device, dtype=torch.float32)
+            pos_w = torch.tensor(pos_w, device=self.device, dtype=torch.float32).view(-1, n_meshes, 3)
+            ori_w = torch.tensor(ori_w, device=self.device, dtype=torch.float32).view(-1, n_meshes, 4)
 
-            self._mesh_positions_w[:, mesh_idx] = pos_w
-            self._mesh_orientations_w[:, mesh_idx] = ori_w
+            self._mesh_positions_w[:, mesh_idx : mesh_idx + n_meshes] = pos_w
+            self._mesh_orientations_w[:, mesh_idx : mesh_idx + n_meshes] = ori_w
+            mesh_idx += n_meshes
 
         # flatten the list of meshes that are included in mesh_prim_paths of the specific ray caster
         multi_mesh_ids_flattened = []
@@ -348,7 +368,7 @@ class MultiMeshRayCaster(RayCaster):
                 if target_cfg.target_prim_expr in MultiMeshRayCaster.mesh_offsets:
                     pos_offset, ori_offset = MultiMeshRayCaster.mesh_offsets[target_cfg.target_prim_expr]
                     pos_w -= pos_offset
-                    ori_w = quat_mul(ori_offset.unsqueeze(0).repeat(ori_w.shape[0], 1), ori_w)
+                    ori_w = quat_mul(ori_offset.expand(ori_w.shape[0], -1), ori_w)
 
                 count = view.count
                 if not target_cfg.is_global:

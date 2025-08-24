@@ -645,7 +645,7 @@ def get_first_matching_child_prim(
         if predicate(child_prim):
             return child_prim
         # add children to list
-        all_prims += child_prim.GetFilteredChildren(Usd.TraverseInstanceProxies()())
+        all_prims += child_prim.GetFilteredChildren(Usd.TraverseInstanceProxies())
     return None
 
 
