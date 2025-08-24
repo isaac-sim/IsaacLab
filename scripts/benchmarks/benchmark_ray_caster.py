@@ -43,7 +43,7 @@ parser = argparse.ArgumentParser(description="Benchmark ray caster sensors.")
 parser.add_argument(
     "--num_envs",
     type=int,
-    default=[4, 8, 16],  # 256, 512, 1024],
+    default=[256, 512, 1024],
     nargs="+",
     help="List of environment counts to benchmark (e.g., 256 512 1024).",
 )
@@ -67,14 +67,14 @@ parser.add_argument(
     nargs="+",
     help="List of grid resolutions to benchmark (meters).",
 )
-parser.add_argument("--steps", type=int, default=20, help="Steps per resolution for timing.")
+parser.add_argument("--steps", type=int, default=200, help="Steps per resolution for timing.")
 parser.add_argument("--warmup", type=int, default=10, help="Warmup steps before timing.")
 
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
 args_cli, _ = parser.parse_known_args()
-# args_cli.headless = True
+args_cli.headless = True
 
 # launch omniverse app
 app_launcher = AppLauncher(args_cli)
@@ -86,17 +86,13 @@ import isaacsim.core.utils.stage as stage_utils
 from isaacsim.core.simulation_manager import SimulationManager
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
+from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors.ray_caster import MultiMeshRayCaster, MultiMeshRayCasterCfg, RayCaster, RayCasterCfg, patterns
 from isaaclab.sim import SimulationContext
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.mesh import _MESH_CONVERTERS_CALLBACKS, _create_sphere_trimesh
-
-# Robot config
-from isaaclab_assets.robots.anymal import ANYMAL_D_CFG  # isort: skip
-
 
 
 @configclass
@@ -114,17 +110,27 @@ class RayCasterBenchmarkSceneCfg(InteractiveSceneCfg):
         prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
     )
 
-    # robot
-    robot: ArticulationCfg = ANYMAL_D_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")  # type: ignore[attr-defined]
+    robot: RigidObjectCfg = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/ray_caster_origin",
+        spawn=sim_utils.SphereCfg(
+            radius=0.1,
+            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.6, 0.0)),
+        ),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 4.0)),
+    )
+    # # robot
+    # robot: ArticulationCfg = ANYMAL_D_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")  # type: ignore[attr-defined]
 
     # spheres collection (optionally set at runtime)
     spheres: RigidObjectCfg = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/sphere",
         spawn=sim_utils.SphereCfg(
-            radius=0.1,
+            radius=0.2,
             rigid_props=sim_utils.RigidBodyPropertiesCfg(max_depenetration_velocity=1.0, disable_gravity=True),
-            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+            mass_props=sim_utils.MassPropertiesCfg(mass=100.0),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 0.0, 0.0)),
+            collision_props=sim_utils.CollisionPropertiesCfg(),
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 1.0)),
     )
@@ -137,7 +143,7 @@ class RayCasterBenchmarkSceneCfg(InteractiveSceneCfg):
 def _make_scene_cfg_single(num_envs: int, resolution: float, debug_vis: bool) -> RayCasterBenchmarkSceneCfg:
     scene_cfg = RayCasterBenchmarkSceneCfg(num_envs=num_envs, env_spacing=2.0)
     scene_cfg.height_scanner = RayCasterCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/base",
+        prim_path="{ENV_REGEX_NS}/ray_caster_origin",
         mesh_prim_paths=["/World/ground"],
         pattern_cfg=patterns.GridPatternCfg(resolution=resolution, size=(5.0, 5.0)),
         ray_alignment="yaw",
@@ -151,7 +157,12 @@ def _make_scene_cfg_multi(
     num_envs: int, resolution: float, debug_vis: bool, track_mesh_transforms: bool, num_assets: int = 1
 ) -> RayCasterBenchmarkSceneCfg:
     scene_cfg = RayCasterBenchmarkSceneCfg(num_envs=num_envs, env_spacing=2.0)
+
     obj_cfg = scene_cfg.spheres
+    if track_mesh_transforms:
+        # Enable gravity
+        obj_cfg.spawn.rigid_props.disable_gravity = False
+
     for i in range(num_assets):
         new_obj_cfg = obj_cfg.replace(prim_path=f"{{ENV_REGEX_NS}}/sphere_{i}")
         ratio = i / num_assets
@@ -160,13 +171,13 @@ def _make_scene_cfg_multi(
     del scene_cfg.spheres
 
     scene_cfg.height_scanner_multi = MultiMeshRayCasterCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/base",
-        mesh_prim_paths=[
+        prim_path="{ENV_REGEX_NS}/ray_caster_origin",
+        mesh_prim_paths=["/World/ground"]
+        + [
             MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr=f"/World/envs/env_.*/sphere_{i}")
             for i in range(num_assets)
         ],
-        pattern_cfg=patterns.GridPatternCfg(resolution=resolution, size=(5.0, 5.0)),
-        attach_yaw_only=True,
+        pattern_cfg=patterns.GridPatternCfg(resolution=resolution, size=(2.0, 2.0)),
         offset=RayCasterCfg.OffsetCfg(pos=(0.0, 0.0, 20.0)),
         debug_vis=debug_vis,
         track_mesh_transforms=track_mesh_transforms,
