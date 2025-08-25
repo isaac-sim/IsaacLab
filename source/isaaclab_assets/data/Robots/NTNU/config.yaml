@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 asset_path: /home/zhengyuz/Projects/IsaacGym_Preview_4_Package/aerial_gym_simulator/resources/robots/quad/quad.urdf
 usd_dir: /home/zhengyuz/Projects/IsaacLab/source/isaaclab_assets/data/Robots/NTNU
 usd_file_name: quad.usd

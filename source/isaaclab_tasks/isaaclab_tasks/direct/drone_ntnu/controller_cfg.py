@@ -1,11 +1,18 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 from isaaclab.utils import configclass
+
 from .lee_controller import BaseLeeController
+
 
 @configclass
 class LeeControllerCfg:
 
     class_type: type[BaseLeeController] = BaseLeeController
-    
+
     gravity: list[float] = [0.0, 0.0, -9.81]
 
     K_angvel_max: list[float] = [0.2, 0.2, 0.2]

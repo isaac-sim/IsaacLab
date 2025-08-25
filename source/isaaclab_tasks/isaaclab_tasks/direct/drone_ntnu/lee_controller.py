@@ -1,12 +1,22 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 from __future__ import annotations
-from typing import TYPE_CHECKING
+
 import torch
+from typing import TYPE_CHECKING
+
 import isaaclab.utils.math as math_utils
-from .utils import torch_rand_float_tensor, aggregate_inertia_about_robot_com
+
+from .utils import aggregate_inertia_about_robot_com, torch_rand_float_tensor
 
 if TYPE_CHECKING:
-    from .controller_cfg import LeeControllerCfg
     from isaaclab.assets import Articulation
+
+    from .controller_cfg import LeeControllerCfg
+
 
 class BaseLeeController:
     """
@@ -15,7 +25,7 @@ class BaseLeeController:
     """
 
     cfg: LeeControllerCfg
-    
+
     def __init__(self, cfg: LeeControllerCfg, env):
         self.cfg = cfg
         self.env = env
@@ -28,7 +38,7 @@ class BaseLeeController:
             self.robot.data.body_com_pos_b,
             self.robot.data.body_com_quat_b,
             math_utils.quat_apply_inverse(root_quat_exp, body_link_pos_delta),
-            math_utils.quat_mul(math_utils.quat_inv(root_quat_exp), self.robot.data.body_link_quat_w)
+            math_utils.quat_mul(math_utils.quat_inv(root_quat_exp), self.robot.data.body_link_quat_w),
         )
         self.gravity = torch.tensor(self.cfg.gravity, device=self.env.device).expand(self.env.num_envs, -1)
 
@@ -92,21 +102,30 @@ class BaseLeeController:
 
     def compute_acceleration(self, setpoint_position, setpoint_velocity):
         position_error_world_frame = setpoint_position - self.robot.data.root_pos_w
-        setpoint_velocity_world_frame = math_utils.quat_apply(math_utils.yaw_quat(self.robot.data.root_quat_w), setpoint_velocity)
+        setpoint_velocity_world_frame = math_utils.quat_apply(
+            math_utils.yaw_quat(self.robot.data.root_quat_w), setpoint_velocity
+        )
         velocity_error = setpoint_velocity_world_frame - self.robot.data.root_lin_vel_w
         accel_command = self.K_pos_current * position_error_world_frame + self.K_linvel_current * velocity_error
         return accel_command
 
     def compute_body_torque(self, setpoint_orientation, setpoint_angvel):
         setpoint_angvel[:, 2] = torch.clamp(setpoint_angvel[:, 2], -self.cfg.max_yaw_rate, self.cfg.max_yaw_rate)
-        RT_Rd_quat = math_utils.quat_mul(math_utils.quat_inv(self.robot.data.root_quat_w), setpoint_orientation)      # (N,4) wxyz
+        RT_Rd_quat = math_utils.quat_mul(
+            math_utils.quat_inv(self.robot.data.root_quat_w), setpoint_orientation
+        )  # (N,4) wxyz
         R_err = math_utils.matrix_from_quat(RT_Rd_quat)
         skew_matrix = R_err.transpose(-1, -2) - R_err
         rotation_error = 0.5 * torch.stack([-skew_matrix[:, 1, 2], skew_matrix[:, 0, 2], -skew_matrix[:, 0, 1]], dim=1)
         angvel_error = self.robot.data.root_ang_vel_b - math_utils.quat_apply(RT_Rd_quat, setpoint_angvel)
-        feed_forward_body_rates = torch.cross(self.robot.data.root_ang_vel_b, torch.bmm(self.robot_inertia, self.robot.data.root_ang_vel_b.unsqueeze(2)).squeeze(2), dim=1)
+        feed_forward_body_rates = torch.cross(
+            self.robot.data.root_ang_vel_b,
+            torch.bmm(self.robot_inertia, self.robot.data.root_ang_vel_b.unsqueeze(2)).squeeze(2),
+            dim=1,
+        )
         torque = -self.K_rot_current * rotation_error - self.K_angvel_current * angvel_error + feed_forward_body_rates
         return torque
+
 
 @torch.jit.script
 def euler_to_body_rate(curr_euler_rate, des_euler_rate, mat_euler_to_body_rate):
