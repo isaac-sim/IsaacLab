@@ -11,9 +11,12 @@ import isaaclab.utils.math as math_utils
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation
 from isaaclab.envs import DirectRLEnv
+from isaaclab.markers import VisualizationMarkers
 from .drone_env_cfg import DroneEnvCfg
 from .thruster_cfg import ThrusterCfg
 from .controller_cfg import LeeControllerCfg
+
+from isaaclab.markers import CUBOID_MARKER_CFG  # isort: skip
 
 class DroneEnv(DirectRLEnv):
     cfg: DroneEnvCfg
@@ -23,8 +26,8 @@ class DroneEnv(DirectRLEnv):
 
         self._actions = torch.zeros(self.num_envs, gym.spaces.flatdim(self.single_action_space), device=self.device)
         self._previous_actions = torch.zeros(self.num_envs, gym.spaces.flatdim(self.single_action_space), device=self.device)
-        self._commands = torch.zeros((self.num_envs, 3), device=self.device)
-        self.external_wrench = torch.zeros((self.num_envs, 9, 6), device=self.device)
+        self._commands_w = torch.zeros((self.num_envs, 3), device=self.device)
+        self.external_wrench_b = torch.zeros((self.num_envs, 9, 6), device=self.device)
         # Logging
         # self._episode_sums = {key: torch.zeros(self.num_envs, dtype=torch.float, device=self.device) for key in ["success_by_distance", "behavior shaping", "early termination"]}
         self._reward_buf = torch.zeros((self.num_envs,), device=self.device)
@@ -36,6 +39,8 @@ class DroneEnv(DirectRLEnv):
         self.body_vel_quadratic_damping_coefficient = torch.tensor(self.cfg.body_vel_quadratic_damping_coefficient).to(self.device)
         self.angvel_linear_damping_coefficient = torch.tensor(self.cfg.angvel_linear_damping_coefficient).to(self.device)
         self.angvel_quadratic_damping_coefficient = torch.tensor(self.cfg.angvel_quadratic_damping_coefficient).to(self.device)
+        
+        self.set_debug_vis(self.cfg.debug_vis)
 
     def _setup_scene(self):
         self._robot = Articulation(self.cfg.robot)
@@ -48,6 +53,84 @@ class DroneEnv(DirectRLEnv):
         
         
     def _pre_physics_step(self, actions: torch.Tensor):
+        self._actions = actions.clone()
+        self._processed_actions = actions.clamp(-10, 10)
+        controller_output = self.controller(self._processed_actions)
+        
+        # call actuator model to get forces and torque
+        ref_motor_thrusts = torch.bmm(self.inv_force_torque_allocation_matrix, controller_output.unsqueeze(-1)).squeeze(-1)
+        motor_thrusts = self.thruster.update_motor_thrusts(ref_motor_thrusts)
+        zero_thrust = torch.zeros_like(motor_thrusts)
+        motor_forces_b = torch.stack((zero_thrust, zero_thrust, motor_thrusts), dim=2)
+        motor_torques_b = self.thrust_to_torque_ratio * motor_forces_b * (-self.motor_directions[None, :, None])
+
+        self.external_wrench_b[:, self.cfg.application_mask, :3] = motor_forces_b
+        self.external_wrench_b[:, self.cfg.application_mask, 3:] = motor_torques_b
+        
+        drag_wrench = compute_drag_contributions(
+            linvel=self._robot.data.root_lin_vel_b,
+            angvel=self._robot.data.root_ang_vel_b,
+            k_lin_lin=self.body_vel_linear_damping_coefficient,
+            k_lin_quad=self.body_vel_quadratic_damping_coefficient,
+            k_ang_lin=self.angvel_linear_damping_coefficient,
+            k_ang_quad=self.angvel_quadratic_damping_coefficient
+        )
+        self.external_wrench_b[:, 0] += drag_wrench
+
+        # self.sim_env.robot_manager.robot.apply_disturbance()
+        if self.cfg.enable_disturbance:
+            max_disturb = torch.tensor(self.cfg.max_force_and_torque_disturbance, device=self.device).repeat(self.num_envs, 1)
+            disturb_occurence = torch.bernoulli(self.cfg.disturbance_probability * torch.ones((self.num_envs), device=self.device))
+            self.external_wrench_b[:, 0] += torch_rand_float_tensor(-max_disturb, max_disturb) * disturb_occurence.unsqueeze(1)
+
+
+    def _apply_action(self):
+        self._robot.set_external_force_and_torque(
+            self.external_wrench_b[..., :3],
+            self.external_wrench_b[..., 3:6],
+            is_global=False # very important
+        )
+
+    def _get_observations(self) -> dict:
+        pos_error_w = self._commands_w - self._robot.data.root_pos_w
+        obs = torch.cat(
+            [
+                tensor
+                for tensor in (
+                    math_utils.quat_apply_inverse(self._robot.data.root_quat_w, (pos_error_w)),
+                    self._robot.data.root_quat_w,
+                    self._robot.data.root_lin_vel_b,
+                    self._robot.data.root_ang_vel_b,
+                )
+            ],
+            dim=-1,
+        )
+        observations = {"policy": obs}
+        return observations
+
+    def _get_rewards(self) -> torch.Tensor:
+        robot_vehicle_orientation = math_utils.yaw_quat(self._robot.data.root_quat_w)
+        self._reward_buf[:] = compute_reward(
+            pos_error = math_utils.quat_apply_inverse(robot_vehicle_orientation, (self._commands_w - self._robot.data.root_pos_w)),
+            robot_quats = self._robot.data.root_quat_w,
+            robot_angvels = self._robot.data.root_ang_vel_w,
+            crashes = self._truncated,
+            curriculum_level_multiplier = 1.0
+        )
+        return self._reward_buf
+
+    def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:
+        self._terminated[:] = torch.norm(self._commands_w - self._robot.data.root_pos_w, dim=1) > 8.0
+        self._truncated[:] = self.episode_length_buf >= self.max_episode_length - 1
+        return self._terminated.clone(), self._truncated.clone()
+
+    def _reset_idx(self, env_ids: torch.Tensor | None):
+        if env_ids is None or len(env_ids) == self.num_envs:
+            env_ids = self._robot._ALL_INDICES
+        self._robot.reset(env_ids)
+        super()._reset_idx(env_ids)
+
+        self._commands_w[env_ids] = torch.zeros((len(env_ids), 3), device=self.device) + self.scene.env_origins[env_ids]
         if self._sim_step_counter == 0:
             # Controller
             controller_cfg = LeeControllerCfg()
@@ -59,82 +142,29 @@ class DroneEnv(DirectRLEnv):
             thruster_cfg = ThrusterCfg(dt=self.cfg.sim.dt)
             self.thruster = thruster_cfg.class_type(self.num_envs, cfg=thruster_cfg, device=self.device)
             self.thrust_to_torque_ratio = self.cfg.thrust_to_torque_ratio
-        
-        self._actions = actions.clone()
-        self._processed_actions = actions.clamp(-10, 10)
-        controller_output = self.controller(self._processed_actions)
-        
-        # call actuator model to get forces and torque
-        ref_motor_thrusts = torch.bmm(self.inv_force_torque_allocation_matrix, controller_output.unsqueeze(-1)).squeeze(-1)
-        motor_thrusts = self.thruster.update_motor_thrusts(ref_motor_thrusts)
-        zero_thrust = torch.zeros_like(motor_thrusts)
-        motor_forces = torch.stack((zero_thrust, zero_thrust, motor_thrusts), dim=2)
-        motor_torques = self.thrust_to_torque_ratio * motor_forces * (-self.motor_directions[None, :, None])
-        
-        self.external_wrench[:, self.cfg.application_mask, :3] = motor_forces
-        self.external_wrench[:, self.cfg.application_mask, 3:] = motor_torques
-        
-        drag_wrench = compute_drag_contributions(
-            linvel=self._robot.data.root_lin_vel_b,
-            angvel=self._robot.data.root_ang_vel_b,
-            k_lin_lin=self.body_vel_linear_damping_coefficient,
-            k_lin_quad=self.body_vel_quadratic_damping_coefficient,
-            k_ang_lin=self.angvel_linear_damping_coefficient,
-            k_ang_quad=self.angvel_quadratic_damping_coefficient
-        )
-        self.external_wrench[:, 0] += drag_wrench
+            
+            self.episode_length_buf[:] = torch.randint_like(self.episode_length_buf, high=int(self.max_episode_length))
 
-        # self.sim_env.robot_manager.robot.apply_disturbance()
-        if self.cfg.enable_disturbance:
-            max_disturb = torch.tensor(self.cfg.max_force_and_torque_disturbance).repeat(self.num_envs, 1)
-            disturb_occurence = torch.bernoulli(self.cfg.disturbance_probability * torch.ones((self.num_envs), device=self.device))
-            self.external_wrench[:, 0] += torch_rand_float_tensor(-max_disturb, max_disturb) * disturb_occurence.unsqueeze(1)
+        self.thruster.reset_idx(env_ids)
 
+    def _set_debug_vis_impl(self, debug_vis: bool):
+        # create markers if necessary for the first time
+        if debug_vis:
+            if not hasattr(self, "goal_pos_visualizer"):
+                marker_cfg = CUBOID_MARKER_CFG.copy()
+                marker_cfg.markers["cuboid"].size = (0.05, 0.05, 0.05)
+                # -- goal pose
+                marker_cfg.prim_path = "/Visuals/Command/goal_position"
+                self.goal_pos_visualizer = VisualizationMarkers(marker_cfg)
+            # set their visibility to true
+            self.goal_pos_visualizer.set_visibility(True)
+        else:
+            if hasattr(self, "goal_pos_visualizer"):
+                self.goal_pos_visualizer.set_visibility(False)
 
-    def _apply_action(self):
-        self._robot.set_external_force_and_torque(self.external_wrench[..., :3], self.external_wrench[..., 3:6])
-
-    def _get_observations(self) -> dict:
-        
-        obs = torch.cat(
-            [
-                tensor
-                for tensor in (
-                    self._commands - self._robot.data.root_pos_w,
-                    self._robot.data.root_quat_w,
-                    self._robot.data.root_lin_vel_b,
-                    self._robot.data.root_ang_vel_b,
-                    self._reward_buf.view(self.num_envs, 1),
-                    self._truncated.float().view(self.num_envs, 1),
-                    (self.episode_length_buf >= self.max_episode_length - 1).float().view(self.num_envs, 1)
-                )
-            ],
-            dim=-1,
-        )
-        observations = {"policy": obs}
-        return observations
-
-    def _get_rewards(self) -> torch.Tensor:
-        robot_vehicle_orientation = math_utils.yaw_quat(self._robot.data.root_quat_w)
-        self._reward_buf[:] = compute_reward(
-            pos_error = math_utils.quat_apply_inverse(robot_vehicle_orientation, (self._commands - self._robot.data.root_pos_w)),
-            robot_quats = self._robot.data.root_quat_w,
-            robot_angvels = self._robot.data.root_ang_vel_w,
-            crashes = self._truncated,
-            curriculum_level_multiplier = 1.0
-        )
-        return self._reward_buf
-
-    def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:
-        robot_vehicle_orientation = math_utils.yaw_quat(self._robot.data.root_quat_w)
-        pos_error = math_utils.quat_apply_inverse(robot_vehicle_orientation, (self._commands - self._robot.data.root_pos_w))
-        dist = torch.norm(pos_error, dim=1)
-        self._terminated[:] = torch.where(dist > 8.0, 1, self._truncated)
-        self._truncated[:] = self.episode_length_buf >= self.max_episode_length - 1
-        return self._terminated.clone(), self._truncated.clone()
-
-    def _reset_idx(self, env_ids: torch.Tensor | None):
-        self._commands[env_ids] = 0
+    def _debug_vis_callback(self, event):
+        # update the markers
+        self.goal_pos_visualizer.visualize(self._commands_w)
 
 
 @torch.jit.script

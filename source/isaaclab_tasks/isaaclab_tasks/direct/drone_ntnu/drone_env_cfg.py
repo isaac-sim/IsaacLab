@@ -1,9 +1,30 @@
+
+import isaaclab.envs.mdp as mdp
 import isaaclab.sim as sim_utils
+from isaaclab.managers import EventTermCfg as EventTerm
+from isaaclab.managers import SceneEntityCfg
 from isaaclab.assets import ArticulationCfg
 from isaaclab.envs import DirectRLEnvCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
+
+
+@configclass
+class EventCfg:
+    """Configuration for randomization."""
+
+    reset_robot_root_state = EventTerm(
+        func=mdp.reset_root_state_uniform,
+        mode="reset",
+        params={
+            "asset_cfg": SceneEntityCfg("robot", body_names=".*"),
+            "pose_range": {"x": (-2., 2.), "y": (-2., 2.), "z":(-2., 2.), "yaw": (-1.0, 1.0)},  # yaw translated from xyzw (0, 0, 0.5236, 1) from aerial gym
+            "velocity_range": {
+                "x": (-.2, .2), "y": (-.2, .2), "z":(-.2, .2), "roll": (-.2, .2), "pitch": (-.2, .2), "yaw": (-.2, .2)
+            }
+        },
+    )
 
 @configclass
 class DroneEnvCfg(DirectRLEnvCfg):
@@ -13,7 +34,7 @@ class DroneEnvCfg(DirectRLEnvCfg):
     action_space = 4
     observation_space = 13
     state_space = 0
-
+    debug_vis = True
     # simulation
     sim: SimulationCfg = SimulationCfg(dt=1 / 100, render_interval=decimation)
 
@@ -31,6 +52,8 @@ class DroneEnvCfg(DirectRLEnvCfg):
         ),
         actuators={}
     )
+    
+    events: EventCfg = EventCfg()
 
     # custom variables
     thrust_to_torque_ratio = 0.01

@@ -85,7 +85,7 @@ class BaseLeeController:
     def compute_acceleration(self, setpoint_position, setpoint_velocity):
         position_error_world_frame = setpoint_position - self.robot.data.root_pos_w
         setpoint_velocity_world_frame = math_utils.quat_apply(math_utils.yaw_quat(self.robot.data.root_quat_w), setpoint_velocity)
-        velocity_error = setpoint_velocity_world_frame - self.robot.data.root_vel_w
+        velocity_error = setpoint_velocity_world_frame - self.robot.data.root_lin_vel_w
         accel_command = self.K_pos_tensor_current * position_error_world_frame + self.K_linvel_tensor_current * velocity_error
         return accel_command
 
