@@ -8,21 +8,21 @@ class LeeControllerCfg:
     
     gravity: list[float] = [0.0, 0.0, -9.81]
 
-    K_angvel_tensor_max: list[float] = [0.2, 0.2, 0.2]
+    K_angvel_max: list[float] = [0.2, 0.2, 0.2]
 
-    K_angvel_tensor_min: list[float] = [0.1, 0.1, 0.1]
+    K_angvel_min: list[float] = [0.1, 0.1, 0.1]
 
-    K_pos_tensor_max: list[float] = [3.0, 3.0, 2.0]
+    K_pos_max: list[float] = [3.0, 3.0, 2.0]
 
-    K_pos_tensor_min: list[float] = [2.0, 2.0, 1.0]
+    K_pos_min: list[float] = [2.0, 2.0, 1.0]
 
-    K_rot_tensor_max: list[float] = [1.2, 1.2, 0.6]
+    K_rot_max: list[float] = [1.2, 1.2, 0.6]
 
-    K_rot_tensor_min: list[float] = [0.8, 0.8, 0.4]
+    K_rot_min: list[float] = [0.8, 0.8, 0.4]
 
-    K_vel_tensor_max: list[float] = [3.0, 3.0, 3.0]
+    K_vel_max: list[float] = [3.0, 3.0, 3.0]
 
-    K_vel_tensor_min: list[float] = [2.0, 2.0, 2.0]
+    K_vel_min: list[float] = [2.0, 2.0, 2.0]
 
     max_inclination_angle_rad: float = 1.0471975511965976
 

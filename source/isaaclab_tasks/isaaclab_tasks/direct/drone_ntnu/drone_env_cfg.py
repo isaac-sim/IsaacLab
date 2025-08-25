@@ -55,12 +55,19 @@ class DroneEnvCfg(DirectRLEnvCfg):
     
     events: EventCfg = EventCfg()
 
-    # custom variables
+    # robot related variables -- need furthur clean
     thrust_to_torque_ratio = 0.01
-    allocation_matrix = [[0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [1.0, 1.0, 1.0, 1.0], [-0.13, -0.13, 0.13, 0.13], [-0.13, 0.13, 0.13, -0.13], [-0.01, 0.01, -0.01, 0.01]]
-    application_mask = [5, 6, 7, 8]
+    application_mask = [5, 6, 7, 8]  # TODO: use SceneEntityCfg
     force_application_level = 'motor_link'
     motor_directions = [1, -1, 1, -1]
+    allocation_matrix = [
+        [0.0, 0.0, 0.0, 0.0],
+        [0.0, 0.0, 0.0, 0.0],
+        [1.0, 1.0, 1.0, 1.0],
+        [-0.13, -0.13, 0.13, 0.13],
+        [-0.13, 0.13, 0.13, -0.13],
+        [-0.01, 0.01, -0.01, 0.01]
+    ]
     
     #drag_variables
     body_vel_linear_damping_coefficient = [0.0, 0.0, 0.0]

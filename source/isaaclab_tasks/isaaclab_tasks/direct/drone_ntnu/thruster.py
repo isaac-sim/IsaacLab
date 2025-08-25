@@ -10,7 +10,7 @@ class Thruster:
     
     cfg: ThrusterCfg
     
-    def __init__(self, num_envs, cfg: ThrusterCfg, device="cuda:0"):
+    def __init__(self, num_envs, cfg: ThrusterCfg, device="cpu"):
         self.num_envs = num_envs
         self.cfg = cfg
         self.device = device

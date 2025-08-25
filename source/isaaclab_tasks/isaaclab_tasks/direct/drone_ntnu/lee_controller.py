@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 import torch
 import isaaclab.utils.math as math_utils
-from .utils import torch_rand_float_tensor
+from .utils import torch_rand_float_tensor, aggregate_inertia_about_robot_com
 
 if TYPE_CHECKING:
     from .controller_cfg import LeeControllerCfg
@@ -20,51 +20,59 @@ class BaseLeeController:
         self.cfg = cfg
         self.env = env
         self.robot: Articulation = env.scene["robot"]
-        self.mass, self.robot_inertia, _ = aggregate_inertia_about_robot_com(self.robot.root_physx_view, self.robot.data.body_link_pos_w, self.robot.data.body_link_quat_w)
+        root_quat_exp = self.robot.data.root_link_quat_w.unsqueeze(1).expand(env.num_envs, self.robot.num_bodies, 4)
+        body_link_pos_delta = self.robot.data.body_link_pos_w - self.robot.data.root_pos_w.unsqueeze(1)
+        self.mass, self.robot_inertia, _ = aggregate_inertia_about_robot_com(
+            self.robot.root_physx_view.get_inertias().to(env.device),
+            self.robot.root_physx_view.get_inv_masses().to(env.device),
+            self.robot.data.body_com_pos_b,
+            self.robot.data.body_com_quat_b,
+            math_utils.quat_apply_inverse(root_quat_exp, body_link_pos_delta),
+            math_utils.quat_mul(math_utils.quat_inv(root_quat_exp), self.robot.data.body_link_quat_w)
+        )
         self.gravity = torch.tensor(self.cfg.gravity, device=self.env.device).expand(self.env.num_envs, -1)
 
         # Read from config and set the values for controller parameters
-        self.K_pos_tensor_max = torch.tensor(self.cfg.K_pos_tensor_max, device=self.env.device).expand(self.env.num_envs, -1)
-        self.K_pos_tensor_min = torch.tensor(self.cfg.K_pos_tensor_min, device=self.env.device).expand(self.env.num_envs, -1)
-        self.K_linvel_tensor_max = torch.tensor(self.cfg.K_vel_tensor_max, device=self.env.device).expand(self.env.num_envs, -1)
-        self.K_linvel_tensor_min = torch.tensor(self.cfg.K_vel_tensor_min, device=self.env.device).expand(self.env.num_envs, -1)
-        self.K_rot_tensor_max = torch.tensor(self.cfg.K_rot_tensor_max, device=self.env.device).expand(self.env.num_envs, -1)
-        self.K_rot_tensor_min = torch.tensor(self.cfg.K_rot_tensor_min, device=self.env.device).expand(self.env.num_envs, -1)
-        self.K_angvel_tensor_max = torch.tensor(self.cfg.K_angvel_tensor_max, device=self.env.device).expand(self.env.num_envs, -1)
-        self.K_angvel_tensor_min = torch.tensor(self.cfg.K_angvel_tensor_min, device=self.env.device).expand(self.env.num_envs, -1)
+        self.K_pos_max = torch.tensor(self.cfg.K_pos_max, device=self.env.device).expand(self.env.num_envs, -1)
+        self.K_pos_min = torch.tensor(self.cfg.K_pos_min, device=self.env.device).expand(self.env.num_envs, -1)
+        self.K_linvel_max = torch.tensor(self.cfg.K_vel_max, device=self.env.device).expand(self.env.num_envs, -1)
+        self.K_linvel_min = torch.tensor(self.cfg.K_vel_min, device=self.env.device).expand(self.env.num_envs, -1)
+        self.K_rot_max = torch.tensor(self.cfg.K_rot_max, device=self.env.device).expand(self.env.num_envs, -1)
+        self.K_rot_min = torch.tensor(self.cfg.K_rot_min, device=self.env.device).expand(self.env.num_envs, -1)
+        self.K_angvel_max = torch.tensor(self.cfg.K_angvel_max, device=self.env.device).expand(self.env.num_envs, -1)
+        self.K_angvel_min = torch.tensor(self.cfg.K_angvel_min, device=self.env.device).expand(self.env.num_envs, -1)
 
         # Set the current values of the controller parameters
-        self.K_pos_tensor_current = (self.K_pos_tensor_max + self.K_pos_tensor_min) / 2.0
-        self.K_linvel_tensor_current = (self.K_linvel_tensor_max + self.K_linvel_tensor_min) / 2.0
-        self.K_rot_tensor_current = (self.K_rot_tensor_max + self.K_rot_tensor_min) / 2.0
-        self.K_angvel_tensor_current = (self.K_angvel_tensor_max + self.K_angvel_tensor_min) / 2.0
+        self.K_pos_current = (self.K_pos_max + self.K_pos_min) / 2.0
+        self.K_linvel_current = (self.K_linvel_max + self.K_linvel_min) / 2.0
+        self.K_rot_current = (self.K_rot_max + self.K_rot_min) / 2.0
+        self.K_angvel_current = (self.K_angvel_max + self.K_angvel_min) / 2.0
 
         # tensors that are needed later in the controller are predefined here
         self.accel = torch.zeros((self.env.num_envs, 3), device=self.env.device)
-        self.wrench_command = torch.zeros((self.env.num_envs, 6), device=self.env.device)  # [fx, fy, fz, tx, ty, tz]
+        self.wrench_command_b = torch.zeros((self.env.num_envs, 6), device=self.env.device)  # [fx, fy, fz, tx, ty, tz]
         # tensors that are needed later in the controller are predefined here
-        self.desired_quat = torch.zeros_like(self.robot.data.root_quat_w)
-        self.desired_body_angvel = torch.zeros_like(self.robot.data.root_ang_vel_b)
+        self.desired_body_angvel_w = torch.zeros_like(self.robot.data.root_ang_vel_b)
         self.euler_angle_rates = torch.zeros_like(self.robot.data.root_ang_vel_b)
 
         # buffer tensor to be used by torch.jit functions for various purposes
         self.buffer_tensor = torch.zeros((self.env.num_envs, 3, 3), device=self.env.device)
 
-    def __call__(self, command_actions):
-        robot_euler_angles = torch.stack(math_utils.euler_xyz_from_quat(self.robot.data.root_quat_w), dim=-1)
-        robot_euler_angles = math_utils.wrap_to_pi(robot_euler_angles)
-        self.wrench_command[:] = 0.0
-        self.wrench_command[:, 2] = (command_actions[:, 0] + 1.0) * self.mass * torch.norm(self.gravity, dim=1)
+    def __call__(self, command):
+        robot_euler_w = torch.stack(math_utils.euler_xyz_from_quat(self.robot.data.root_quat_w), dim=-1)
+        robot_euler_w = math_utils.wrap_to_pi(robot_euler_w)
+        self.wrench_command_b[:] = 0.0
+        self.wrench_command_b[:, 2] = (command[:, 0] + 1.0) * self.mass * torch.norm(self.gravity, dim=1)
         self.euler_angle_rates[:, :2] = 0.0
-        self.euler_angle_rates[:, 2] = command_actions[:, 3]
-        self.desired_body_angvel[:] = euler_rates_to_body_rates(robot_euler_angles, self.euler_angle_rates, self.buffer_tensor)
+        self.euler_angle_rates[:, 2] = command[:, 3]
+        self.desired_body_angvel_w[:] = euler_to_body_rate(robot_euler_w, self.euler_angle_rates, self.buffer_tensor)
 
         # quaternion desired
         # desired euler angle is equal to commanded roll, commanded pitch, and current yaw
-        quat_desired = math_utils.quat_from_euler_xyz(command_actions[:, 1], command_actions[:, 2], robot_euler_angles[:, 2])
-        self.wrench_command[:, 3:6] = self.compute_body_torque(quat_desired, self.desired_body_angvel)
+        quat_w_desired = math_utils.quat_from_euler_xyz(command[:, 1], command[:, 2], robot_euler_w[:, 2])
+        self.wrench_command_b[:, 3:6] = self.compute_body_torque(quat_w_desired, self.desired_body_angvel_w)
 
-        return self.wrench_command
+        return self.wrench_command_b
 
     def reset(self):
         self.reset_idx(env_ids=None)
@@ -77,16 +85,16 @@ class BaseLeeController:
     def randomize_params(self, env_ids):
         if self.cfg.randomize_params == False:
             return
-        self.K_pos_tensor_current[env_ids] = torch_rand_float_tensor(self.K_pos_tensor_min[env_ids], self.K_pos_tensor_max[env_ids])
-        self.K_linvel_tensor_current[env_ids] = torch_rand_float_tensor(self.K_linvel_tensor_min[env_ids], self.K_linvel_tensor_max[env_ids])
-        self.K_rot_tensor_current[env_ids] = torch_rand_float_tensor(self.K_rot_tensor_min[env_ids], self.K_rot_tensor_max[env_ids])
-        self.K_angvel_tensor_current[env_ids] = torch_rand_float_tensor(self.K_angvel_tensor_min[env_ids], self.K_angvel_tensor_max[env_ids])
+        self.K_pos_current[env_ids] = torch_rand_float_tensor(self.K_pos_min[env_ids], self.K_pos_max[env_ids])
+        self.K_linvel_current[env_ids] = torch_rand_float_tensor(self.K_linvel_min[env_ids], self.K_linvel_max[env_ids])
+        self.K_rot_current[env_ids] = torch_rand_float_tensor(self.K_rot_min[env_ids], self.K_rot_max[env_ids])
+        self.K_angvel_current[env_ids] = torch_rand_float_tensor(self.K_angvel_min[env_ids], self.K_angvel_max[env_ids])
 
     def compute_acceleration(self, setpoint_position, setpoint_velocity):
         position_error_world_frame = setpoint_position - self.robot.data.root_pos_w
         setpoint_velocity_world_frame = math_utils.quat_apply(math_utils.yaw_quat(self.robot.data.root_quat_w), setpoint_velocity)
         velocity_error = setpoint_velocity_world_frame - self.robot.data.root_lin_vel_w
-        accel_command = self.K_pos_tensor_current * position_error_world_frame + self.K_linvel_tensor_current * velocity_error
+        accel_command = self.K_pos_current * position_error_world_frame + self.K_linvel_current * velocity_error
         return accel_command
 
     def compute_body_torque(self, setpoint_orientation, setpoint_angvel):
@@ -97,80 +105,22 @@ class BaseLeeController:
         rotation_error = 0.5 * torch.stack([-skew_matrix[:, 1, 2], skew_matrix[:, 0, 2], -skew_matrix[:, 0, 1]], dim=1)
         angvel_error = self.robot.data.root_ang_vel_b - math_utils.quat_apply(RT_Rd_quat, setpoint_angvel)
         feed_forward_body_rates = torch.cross(self.robot.data.root_ang_vel_b, torch.bmm(self.robot_inertia, self.robot.data.root_ang_vel_b.unsqueeze(2)).squeeze(2), dim=1)
-        torque = -self.K_rot_tensor_current * rotation_error - self.K_angvel_tensor_current * angvel_error + feed_forward_body_rates
+        torque = -self.K_rot_current * rotation_error - self.K_angvel_current * angvel_error + feed_forward_body_rates
         return torque
 
 @torch.jit.script
-def euler_rates_to_body_rates(robot_euler_angles, desired_euler_rates, rotmat_euler_to_body_rates):
-    s_pitch = torch.sin(robot_euler_angles[:, 1])
-    c_pitch = torch.cos(robot_euler_angles[:, 1])
+def euler_to_body_rate(curr_euler_rate, des_euler_rate, mat_euler_to_body_rate):
+    s_pitch = torch.sin(curr_euler_rate[:, 1])
+    c_pitch = torch.cos(curr_euler_rate[:, 1])
 
-    s_roll = torch.sin(robot_euler_angles[:, 0])
-    c_roll = torch.cos(robot_euler_angles[:, 0])
+    s_roll = torch.sin(curr_euler_rate[:, 0])
+    c_roll = torch.cos(curr_euler_rate[:, 0])
 
-    rotmat_euler_to_body_rates[:, 0, 0] = 1.0
-    rotmat_euler_to_body_rates[:, 1, 1] = c_roll
-    rotmat_euler_to_body_rates[:, 0, 2] = -s_pitch
-    rotmat_euler_to_body_rates[:, 2, 1] = -s_roll
-    rotmat_euler_to_body_rates[:, 1, 2] = s_roll * c_pitch
-    rotmat_euler_to_body_rates[:, 2, 2] = c_roll * c_pitch
+    mat_euler_to_body_rate[:, 0, 0] = 1.0
+    mat_euler_to_body_rate[:, 1, 1] = c_roll
+    mat_euler_to_body_rate[:, 0, 2] = -s_pitch
+    mat_euler_to_body_rate[:, 2, 1] = -s_roll
+    mat_euler_to_body_rate[:, 1, 2] = s_roll * c_pitch
+    mat_euler_to_body_rate[:, 2, 2] = c_roll * c_pitch
 
-    return torch.bmm(rotmat_euler_to_body_rates, desired_euler_rates.unsqueeze(2)).squeeze(2)
-
-
-@torch.no_grad()
-def aggregate_inertia_about_robot_com(root_view, body_pos_w, body_quat_wxyz, eps=1e-12):
-    """
-    root_view: ArticulationView
-    body_pos_w:    (E,B,3) world positions of link frames
-    body_quat_wxyz:(E,B,4) world quaternions of link frames (w,x,y,z)
-
-    Returns:
-      total_mass: (E,)
-      I_total:    (E,3,3) inertia about robot COM, expressed in world axes
-      com_robot:  (E,3)
-    """
-    device = body_pos_w.device
-
-    # Inertia in mass frame (local to COM) -> (E,B,3,3)
-    I_local_any = root_view.get_inertias().to(device)
-    E, B, _ = I_local_any.shape
-    I_local = I_local_any.view(E, B, 3, 3)
-
-    # COM local pose (massLocalPose): [x,y,z,qx,qy,qz,qw]
-    com_local_pose = root_view.get_coms().to(device)
-    com_local = com_local_pose[..., :3]
-    q_mass_xyzw = com_local_pose[..., 3:7]
-    q_mass_wxyz = math_utils.convert_quat(q_mass_xyzw, to='wxyz')
-
-    # Masses
-    inv_m = root_view.get_inv_masses().to(device)
-    m = torch.where(inv_m > 0, 1.0 / inv_m, torch.zeros_like(inv_m))
-    m_sum = m.sum(dim=1, keepdim=True)
-    valid = (m > 0).float().unsqueeze(-1)
-
-    # World COM of each link: p_link + R_link * com_local
-    R_link = math_utils.matrix_from_quat(body_quat_wxyz)
-    com_world = body_pos_w + (R_link @ com_local[..., :, None]).squeeze(-1)
-
-    # Robot COM (mass-weighted)
-    com_robot = (m.unsqueeze(-1) * com_world).sum(dim=1) / (m_sum + eps)
-
-    # Rotate inertia from mass frame to world: R = R_link * R_mass
-    R_mass = math_utils.matrix_from_quat(q_mass_wxyz)
-    R = R_link @ R_mass
-    I_world = R @ I_local @ R.transpose(-1, -2)
-
-    # Parallel-axis to robot COM
-    r = com_world - com_robot[:, None, :]
-    rrT = r[..., :, None] @ r[..., None, :]
-    r2 = (r * r).sum(dim=-1, keepdim=True)
-    I3 = torch.eye(3, device=device).reshape(1,1,3,3).expand(E, B, 3, 3)
-    I_pa = m[..., None, None] * (r2[..., None] * I3 - rrT)
-
-    # Sum over links (ignore zero-mass pads)
-    I_total = ((I_world + I_pa) * valid[..., None]).sum(dim=1)
-    I_total = 0.5 * (I_total + I_total.transpose(-1, -2))
-    total_mass = m.sum(dim=1)
-
-    return total_mass, I_total, com_robot
+    return torch.bmm(mat_euler_to_body_rate, des_euler_rate.unsqueeze(2)).squeeze(2)
