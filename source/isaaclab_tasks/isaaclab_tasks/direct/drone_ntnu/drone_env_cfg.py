@@ -8,15 +8,14 @@ from isaaclab.utils import configclass
 @configclass
 class DroneEnvCfg(DirectRLEnvCfg):
     # env
-    episode_length_s = 20.0
+    episode_length_s = 5.0
     decimation = 1
-    action_scale = 0.5
-    action_space = 12
-    observation_space = 48
+    action_space = 4
+    observation_space = 13
     state_space = 0
 
     # simulation
-    sim: SimulationCfg = SimulationCfg(dt=1 / 200, render_interval=decimation)
+    sim: SimulationCfg = SimulationCfg(dt=1 / 100, render_interval=decimation)
 
     # scene
     scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=4096, env_spacing=4.0, replicate_physics=True)
@@ -25,15 +24,20 @@ class DroneEnvCfg(DirectRLEnvCfg):
     robot: ArticulationCfg = ArticulationCfg(
         prim_path="/World/envs/env_.*/Robot",
         spawn=sim_utils.UsdFileCfg(
-            usd_path="https://isaac-dev.ov.nvidia.com/omni/web3/omniverse://isaac-dev.ov.nvidia.com/Users/zhengyuz@nvidia.com/Robots/NTNU/Quad/quad.usd"
-        )
+            usd_path="/home/zhengyuz/Projects/IsaacLab/source/isaaclab_assets/data/Robots/NTNU/quad.usd"
+        ),
+        init_state=ArticulationCfg.InitialStateCfg(
+            pos=(0.0, 0.0, 0.0), rot=(1.0, 0.0, 0.0, 0.0), joint_pos={}, joint_vel={}
+        ),
+        actuators={}
     )
 
-    
     # custom variables
     thrust_to_torque_ratio = 0.01
-    motor_directions = [1, -1, 1, -1]
     allocation_matrix = [[0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [1.0, 1.0, 1.0, 1.0], [-0.13, -0.13, 0.13, 0.13], [-0.13, 0.13, 0.13, -0.13], [-0.01, 0.01, -0.01, 0.01]]
+    application_mask = [5, 6, 7, 8]
+    force_application_level = 'motor_link'
+    motor_directions = [1, -1, 1, -1]
     
     #drag_variables
     body_vel_linear_damping_coefficient = [0.0, 0.0, 0.0]

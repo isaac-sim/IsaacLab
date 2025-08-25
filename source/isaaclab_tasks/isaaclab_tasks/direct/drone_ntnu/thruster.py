@@ -15,7 +15,7 @@ class Thruster:
         self.cfg = cfg
         self.device = device
         self.dt = cfg.dt
-        self.num_motors_per_robot = num_envs.motors_per_robot
+        self.num_motors_per_robot = self.cfg.num_motors
         self.integration_scheme = cfg.integration_scheme
 
         self.max_thrust = torch.tensor(self.cfg.max_thrust, device=self.device, dtype=torch.float32).expand(self.num_envs, self.num_motors_per_robot)
