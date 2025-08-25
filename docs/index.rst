@@ -108,6 +108,7 @@ Table of Contents
    source/overview/augmented_imitation
    source/overview/showroom
    source/overview/simple_agents
+   source/overview/experimental-features.rst
 
 
 .. toctree::
@@ -119,7 +120,12 @@ Table of Contents
    Tiled Rendering</source/overview/core-concepts/sensors/camera>
    source/features/ray
    source/features/reproducibility
-   source/experimental-features/index
+   
+.. toctree::
+   :maxdepth: 2
+   :caption: Experimental Features
+
+   source/experimental-features/newton-physics-integration/index
 
 .. toctree::
    :maxdepth: 1
