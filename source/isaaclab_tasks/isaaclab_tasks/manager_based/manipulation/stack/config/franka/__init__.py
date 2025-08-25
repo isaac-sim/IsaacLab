@@ -27,7 +27,7 @@ from . import (
 
 gym.register(
     id="Isaac-Stack-Cube-Franka-v0",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    vector_entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": stack_joint_pos_env_cfg.FrankaCubeStackEnvCfg,
     },
@@ -36,7 +36,7 @@ gym.register(
 
 gym.register(
     id="Isaac-Stack-Cube-Instance-Randomize-Franka-v0",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    vector_entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": stack_joint_pos_instance_randomize_env_cfg.FrankaCubeStackInstanceRandomizeEnvCfg,
     },

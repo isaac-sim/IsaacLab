@@ -17,7 +17,7 @@ from . import agents
 
 gym.register(
     id="Isaac-Humanoid-AMP-Dance-Direct-v0",
-    entry_point=f"{__name__}.humanoid_amp_env:HumanoidAmpEnv",
+    vector_entry_point=f"{__name__}.humanoid_amp_env:HumanoidAmpEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.humanoid_amp_env_cfg:HumanoidAmpDanceEnvCfg",
@@ -27,7 +27,7 @@ gym.register(
 
 gym.register(
     id="Isaac-Humanoid-AMP-Run-Direct-v0",
-    entry_point=f"{__name__}.humanoid_amp_env:HumanoidAmpEnv",
+    vector_entry_point=f"{__name__}.humanoid_amp_env:HumanoidAmpEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.humanoid_amp_env_cfg:HumanoidAmpRunEnvCfg",
@@ -37,7 +37,7 @@ gym.register(
 
 gym.register(
     id="Isaac-Humanoid-AMP-Walk-Direct-v0",
-    entry_point=f"{__name__}.humanoid_amp_env:HumanoidAmpEnv",
+    vector_entry_point=f"{__name__}.humanoid_amp_env:HumanoidAmpEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.humanoid_amp_env_cfg:HumanoidAmpWalkEnvCfg",

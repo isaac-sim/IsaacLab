@@ -13,7 +13,7 @@ from . import agents
 
 gym.register(
     id="Isaac-Velocity-Flat-Unitree-Go1-v0",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    vector_entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.flat_env_cfg:UnitreeGo1FlatEnvCfg",
@@ -24,7 +24,7 @@ gym.register(
 
 gym.register(
     id="Isaac-Velocity-Flat-Unitree-Go1-Play-v0",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    vector_entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.flat_env_cfg:UnitreeGo1FlatEnvCfg_PLAY",
@@ -35,7 +35,7 @@ gym.register(
 
 gym.register(
     id="Isaac-Velocity-Rough-Unitree-Go1-v0",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    vector_entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.rough_env_cfg:UnitreeGo1RoughEnvCfg",
@@ -46,7 +46,7 @@ gym.register(
 
 gym.register(
     id="Isaac-Velocity-Rough-Unitree-Go1-Play-v0",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    vector_entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.rough_env_cfg:UnitreeGo1RoughEnvCfg_PLAY",
