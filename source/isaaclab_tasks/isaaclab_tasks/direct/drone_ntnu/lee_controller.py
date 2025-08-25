@@ -20,7 +20,7 @@ class BaseLeeController:
         self.cfg = cfg
         self.env = env
         self.robot: Articulation = env.scene["robot"]
-        self.mass, self.robot_inertia, _ = aggregate_inertia_about_robot_com(self.robot.root_physx_view, self.env.device)
+        self.mass, self.robot_inertia, _ = aggregate_inertia_about_robot_com(self.robot.root_physx_view, self.robot.data.body_link_pos_w, self.robot.data.body_link_quat_w)
         self.gravity = torch.tensor(self.cfg.gravity, device=self.env.device).expand(self.env.num_envs, -1)
 
         # Read from config and set the values for controller parameters
@@ -119,18 +119,18 @@ def euler_rates_to_body_rates(robot_euler_angles, desired_euler_rates, rotmat_eu
 
 
 @torch.no_grad()
-def aggregate_inertia_about_robot_com(root_view, device, eps=1e-12):
+def aggregate_inertia_about_robot_com(root_view, body_pos_w, body_quat_wxyz, eps=1e-12):
     """
     root_view: ArticulationView
+    body_pos_w:    (E,B,3) world positions of link frames
+    body_quat_wxyz:(E,B,4) world quaternions of link frames (w,x,y,z)
 
     Returns:
       total_mass: (E,)
       I_total:    (E,3,3) inertia about robot COM, expressed in world axes
       com_robot:  (E,3)
     """
-    body_pose_w = root_view.get_link_transforms().to(device)
-    body_pos_w = body_pose_w[..., :3]
-    body_quat_w = math_utils.convert_quat(body_pose_w[..., 3:7], to='wxyz')
+    device = body_pos_w.device
 
     # Inertia in mass frame (local to COM) -> (E,B,3,3)
     I_local_any = root_view.get_inertias().to(device)
@@ -139,7 +139,9 @@ def aggregate_inertia_about_robot_com(root_view, device, eps=1e-12):
 
     # COM local pose (massLocalPose): [x,y,z,qx,qy,qz,qw]
     com_local_pose = root_view.get_coms().to(device)
-    q_mass_wxyz = math_utils.convert_quat(com_local_pose[..., 3:7], to='wxyz')
+    com_local = com_local_pose[..., :3]
+    q_mass_xyzw = com_local_pose[..., 3:7]
+    q_mass_wxyz = math_utils.convert_quat(q_mass_xyzw, to='wxyz')
 
     # Masses
     inv_m = root_view.get_inv_masses().to(device)
@@ -147,16 +149,16 @@ def aggregate_inertia_about_robot_com(root_view, device, eps=1e-12):
     m_sum = m.sum(dim=1, keepdim=True)
     valid = (m > 0).float().unsqueeze(-1)
 
-    # World COM of each link: p_link + body_rot_matrix * com_pos_local
-    body_rot_matrix = math_utils.matrix_from_quat(body_quat_w)
-    com_world = body_pos_w + (body_rot_matrix @ com_local_pose[..., :3][..., :, None]).squeeze(-1)
+    # World COM of each link: p_link + R_link * com_local
+    R_link = math_utils.matrix_from_quat(body_quat_wxyz)
+    com_world = body_pos_w + (R_link @ com_local[..., :, None]).squeeze(-1)
 
     # Robot COM (mass-weighted)
     com_robot = (m.unsqueeze(-1) * com_world).sum(dim=1) / (m_sum + eps)
 
-    # Rotate inertia from mass frame to world: R = body_rot_matrix * R_mass
+    # Rotate inertia from mass frame to world: R = R_link * R_mass
     R_mass = math_utils.matrix_from_quat(q_mass_wxyz)
-    R = body_rot_matrix @ R_mass
+    R = R_link @ R_mass
     I_world = R @ I_local @ R.transpose(-1, -2)
 
     # Parallel-axis to robot COM

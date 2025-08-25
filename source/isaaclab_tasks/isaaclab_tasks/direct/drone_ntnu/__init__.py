@@ -15,7 +15,7 @@ from . import agents
 # Register Gym environments.
 
 gym.register(
-    id="Isaac-Drone-Direct-v0",
+    id="Isaac-Drone-NTNU-Direct-v0",
     entry_point=f"{__name__}.drone_env:DroneEnv",
     disable_env_checker=True,
     kwargs={

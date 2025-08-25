@@ -27,7 +27,6 @@ class DroneEnv(DirectRLEnv):
         self._actions = torch.zeros(self.num_envs, gym.spaces.flatdim(self.single_action_space), device=self.device)
         self._previous_actions = torch.zeros(self.num_envs, gym.spaces.flatdim(self.single_action_space), device=self.device)
         self._commands_w = torch.zeros((self.num_envs, 3), device=self.device)
-        self.external_wrench_b = torch.zeros((self.num_envs, 9, 6), device=self.device)
         # Logging
         # self._episode_sums = {key: torch.zeros(self.num_envs, dtype=torch.float, device=self.device) for key in ["success_by_distance", "behavior shaping", "early termination"]}
         self._reward_buf = torch.zeros((self.num_envs,), device=self.device)
@@ -64,6 +63,7 @@ class DroneEnv(DirectRLEnv):
         motor_forces_b = torch.stack((zero_thrust, zero_thrust, motor_thrusts), dim=2)
         motor_torques_b = self.thrust_to_torque_ratio * motor_forces_b * (-self.motor_directions[None, :, None])
 
+        self.external_wrench_b = torch.zeros((self.num_envs, self._robot.num_bodies, 6), device=self.device)
         self.external_wrench_b[:, self.cfg.application_mask, :3] = motor_forces_b
         self.external_wrench_b[:, self.cfg.application_mask, 3:] = motor_torques_b
         
