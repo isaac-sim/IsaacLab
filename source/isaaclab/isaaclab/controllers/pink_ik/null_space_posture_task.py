@@ -11,29 +11,14 @@ from pink.tasks import Task
 
 
 class NullSpacePostureTask(Task):
-    r"""Pink-based task that enforces a postural constraint using null space projection.
+    r"""Pink-based task that adds a posture objective that is in the null space projection of other tasks.
 
     This task implements posture control in the null space of higher priority tasks
     (typically end-effector pose tasks) within the Pink inverse kinematics framework.
 
     **Mathematical Formulation:**
 
-    The Pink inverse kinematics framework solves:
-
-    .. math::
-
-        \begin{align*}
-            &\min_{\mathbf{v} \in \mathcal{C}} \sum_{\text{task } e} \left\| J_e(\mathbf{q}) \mathbf{v} + \alpha_e(\mathbf{q}) \right\|_{W_e}^2 \\
-            &\text{subject to} \quad \mathbf{v}_{\min}(\mathbf{q}) \leq \mathbf{v} \leq \mathbf{v}_{\max}(\mathbf{q})
-        \end{align*}
-
-    where:
-        - :math:`\mathbf{v}` is the joint velocity vector (optimization variable)
-        - :math:`J_e(\mathbf{q})` is the task Jacobian for task :math:`e`
-        - :math:`\alpha_e(\mathbf{q})` is the task error/residual for task :math:`e`
-        - :math:`W_e` is the task weighting matrix
-        - :math:`\mathcal{C}` is the set of feasible velocities (joint velocity limits)
-        - :math:`\mathbf{v}_{\min}(\mathbf{q})`, :math:`\mathbf{v}_{\max}(\mathbf{q})` are the lower and upper joint velocity bounds
+    For details on Pink Inverse Kinematics optimization formulation visit: https://github.com/stephane-caron/pink
 
     **Null Space Posture Task Implementation:**
 
@@ -98,19 +83,23 @@ class NullSpacePostureTask(Task):
         controlled_frames: list[str] | None = None,
         controlled_joints: list[str] | None = None,
     ) -> None:
-        r"""Create a null space posture task.
+        r"""Initialize the null space posture task.
+
+        This task maintains a desired joint posture in the null space of higher-priority
+        frame tasks. Joint selection allows excluding specific joints (e.g., wrist joints
+        in humanoid manipulation) to prevent large rotational ranges from overwhelming
+        errors in critical joints like shoulders and waist.
 
         Args:
-            cost: Weighting factor for the posture task in the optimization objective,
-                in :math:`[\mathrm{cost}] / [\mathrm{rad}]`.
-            lm_damping: Unitless scale of the Levenberg-Marquardt regularization term.
-                Increase if the task is too jerky under infeasible targets.
+            cost: Task weighting factor in the optimization objective.
+                Units: :math:`[\text{cost}] / [\text{rad}]`.
+            lm_damping: Levenberg-Marquardt regularization scale (unitless). Defaults to 0.0.
             gain: Task gain :math:`\alpha \in [0, 1]` for low-pass filtering.
                 Defaults to 1.0 (no filtering).
-            controlled_frames: List of frame names whose Jacobians define the primary tasks
-                for null space projection. If None or empty, no null space projection is applied.
-            controlled_joints: List of joint names to control in the posture task.
-                If None or empty, all actuated joints are controlled.
+            controlled_frames: Frame names whose Jacobians define the primary tasks for
+                null space projection. If None or empty, no projection is applied.
+            controlled_joints: Joint names to control in the posture task. If None or
+                empty, all actuated joints are controlled.
         """
         super().__init__(cost=cost, gain=gain, lm_damping=lm_damping)
         self.target_q: np.ndarray | None = None

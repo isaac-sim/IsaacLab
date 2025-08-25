@@ -11,7 +11,7 @@ Added
   to specify the target end-effector link names for the pink inverse kinematics controller.
 
 Changed
-^^^^^
+^^^^^^^
 
 * Updated pink inverse kinematics controller configuration for the following tasks (Isaac-PickPlace-GR1T2, Isaac-NutPour-GR1T2, Isaac-ExhaustPipe-GR1T2)
   to increase end-effector tracking accuracy and speed. Also added a null-space regularizer that enables turning on of waist degrees-of-freedom.
