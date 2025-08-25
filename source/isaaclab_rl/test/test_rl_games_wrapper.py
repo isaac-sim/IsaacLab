@@ -22,8 +22,6 @@ import carb
 import omni.usd
 import pytest
 
-from isaaclab.envs import DirectMARLEnv, multi_agent_to_single_agent
-
 from isaaclab_rl.rl_games import RlGamesVecEnvWrapper
 
 import isaaclab_tasks  # noqa: F401
@@ -70,23 +68,20 @@ def test_random_actions(registered_tasks):
         omni.usd.get_context().new_stage()
         # reset the rtx sensors carb setting to False
         carb.settings.get_settings().set_bool("/isaaclab/render/rtx_sensors", False)
-        try:
-            # parse configuration
-            env_cfg = parse_env_cfg(task_name, device=device, num_envs=num_envs)
-            # create environment
-            env = gym.make(task_name, cfg=env_cfg)
-            # convert to single-agent instance if required by the RL algorithm
-            if isinstance(env.unwrapped, DirectMARLEnv):
-                env = multi_agent_to_single_agent(env)
-            # wrap environment
-            env = RlGamesVecEnvWrapper(env, "cuda:0", 100, 100)
-        except Exception as e:
-            if "env" in locals() and hasattr(env, "_is_closed"):
-                env.close()
-            else:
-                if hasattr(e, "obj") and hasattr(e.obj, "_is_closed"):
-                    e.obj.close()
-            pytest.fail(f"Failed to set-up the environment for task {task_name}. Error: {e}")
+        # try:
+        # parse configuration
+        env_cfg = parse_env_cfg(task_name, device=device, num_envs=num_envs)
+        # create environment
+        env = gym.make(task_name, cfg=env_cfg)
+        # wrap environment
+        env = RlGamesVecEnvWrapper(env, "cuda:0", 100, 100)
+        # except Exception as e:
+        #    if "env" in locals() and hasattr(env, "_is_closed"):
+        #        env.close()
+        #    else:
+        #        if hasattr(e, "obj") and hasattr(e.obj, "_is_closed"):
+        #            e.obj.close()
+        #    pytest.fail(f"Failed to set-up the environment for task {task_name}. Error: {e}")
 
         # avoid shutdown of process on simulation stop
         env.unwrapped.sim._app_control_on_stop_handle = None

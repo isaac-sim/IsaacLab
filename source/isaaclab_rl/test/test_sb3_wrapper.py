@@ -22,8 +22,6 @@ import carb
 import omni.usd
 import pytest
 
-from isaaclab.envs import DirectMARLEnv, multi_agent_to_single_agent
-
 from isaaclab_rl.sb3 import Sb3VecEnvWrapper
 
 import isaaclab_tasks  # noqa: F401
@@ -70,9 +68,6 @@ def test_random_actions(registered_tasks):
             env_cfg = parse_env_cfg(task_name, device=device, num_envs=num_envs)
             # create environment
             env = gym.make(task_name, cfg=env_cfg)
-            # convert to single-agent instance if required by the RL algorithm
-            if isinstance(env.unwrapped, DirectMARLEnv):
-                env = multi_agent_to_single_agent(env)
             # wrap environment
             env = Sb3VecEnvWrapper(env)
         except Exception as e:

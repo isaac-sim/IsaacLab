@@ -27,6 +27,7 @@ from isaacsim.core.utils.stage import get_current_stage
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationContext
+from isaaclab.sim._impl.newton_manager import NewtonManager
 
 if TYPE_CHECKING:
     from .sensor_base_cfg import SensorBaseCfg
@@ -80,12 +81,7 @@ class SensorBase(ABC):
         timeline_event_stream = omni.timeline.get_timeline_interface().get_timeline_event_stream()
 
         # the order is set to 10 which is arbitrary but should be lower priority than the default order of 0
-        # register timeline PLAY event callback (lower priority with order=10)
-        self._initialize_handle = timeline_event_stream.create_subscription_to_pop_by_type(
-            int(omni.timeline.TimelineEventType.PLAY),
-            lambda event, obj_ref=obj_ref: safe_callback("_initialize_callback", event, obj_ref),
-            order=10,
-        )
+        NewtonManager.add_on_start_callback(lambda: safe_callback("_initialize_callback", None, obj_ref))
         # register timeline STOP event callback (lower priority with order=10)
         self._invalidate_initialize_handle = timeline_event_stream.create_subscription_to_pop_by_type(
             int(omni.timeline.TimelineEventType.STOP),
@@ -208,6 +204,7 @@ class SensorBase(ABC):
             env_ids = slice(None)
         # Reset the timestamp for the sensors
         self._timestamp[env_ids] = 0.0
+
         self._timestamp_last_update[env_ids] = 0.0
         # Set all reset sensors to outdated so that they are updated when data is called the next time.
         self._is_outdated[env_ids] = True
@@ -237,10 +234,7 @@ class SensorBase(ABC):
         self._device = sim.device
         self._backend = sim.backend
         self._sim_physics_dt = sim.get_physics_dt()
-        # Count number of environments
-        env_prim_path_expr = self.cfg.prim_path.rsplit("/", 1)[0]
-        self._parent_prims = sim_utils.find_matching_prims(env_prim_path_expr)
-        self._num_envs = len(self._parent_prims)
+        self._num_envs = NewtonManager._num_envs
         # Boolean tensor indicating whether the sensor data has to be refreshed
         self._is_outdated = torch.ones(self._num_envs, dtype=torch.bool, device=self._device)
         # Current timestamp (in seconds)
@@ -328,9 +322,6 @@ class SensorBase(ABC):
         if self._prim_deletion_callback_id:
             SimulationManager.deregister_callback(self._prim_deletion_callback_id)
             self._prim_deletion_callback_id = None
-        if self._initialize_handle:
-            self._initialize_handle.unsubscribe()
-            self._initialize_handle = None
         if self._invalidate_initialize_handle:
             self._invalidate_initialize_handle.unsubscribe()
             self._invalidate_initialize_handle = None

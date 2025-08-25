@@ -25,7 +25,7 @@ setup(
     description=EXTENSION_TOML_DATA["package"]["description"],
     keywords=EXTENSION_TOML_DATA["package"]["keywords"],
     include_package_data=True,
-    python_requires=">=3.10",
+    python_requires=">=3.11",
     packages=["isaaclab_assets"],
     classifiers=[
         "Natural Language :: English",

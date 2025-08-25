@@ -12,6 +12,8 @@ from isaaclab.assets import ArticulationCfg
 from isaaclab.envs import DirectRLEnvCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
+from isaaclab.sim._impl.newton_manager_cfg import NewtonCfg
+from isaaclab.sim._impl.solvers_cfg import MJWarpSolverCfg
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass
 
@@ -28,8 +30,21 @@ class HumanoidEnvCfg(DirectRLEnvCfg):
     observation_space = 75
     state_space = 0
 
+    solver_cfg = MJWarpSolverCfg(
+        nefc_per_env=80,
+        ls_iterations=15,
+        ls_parallel=True,
+        cone="pyramidal",
+        impratio=1,
+    )
+    newton_cfg = NewtonCfg(
+        solver_cfg=solver_cfg,
+        num_substeps=2,
+        debug_mode=False,
+    )
+
     # simulation
-    sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation)
+    sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation, newton_cfg=newton_cfg)
     terrain = TerrainImporterCfg(
         prim_path="/World/ground",
         terrain_type="plane",
@@ -52,27 +67,27 @@ class HumanoidEnvCfg(DirectRLEnvCfg):
     # robot
     robot: ArticulationCfg = HUMANOID_CFG.replace(prim_path="/World/envs/env_.*/Robot")
     joint_gears: list = [
-        67.5000,  # lower_waist
-        67.5000,  # lower_waist
-        67.5000,  # right_upper_arm
-        67.5000,  # right_upper_arm
         67.5000,  # left_upper_arm
         67.5000,  # left_upper_arm
-        67.5000,  # pelvis
-        45.0000,  # right_lower_arm
         45.0000,  # left_lower_arm
-        45.0000,  # right_thigh: x
-        135.0000,  # right_thigh: y
-        45.0000,  # right_thigh: z
+        67.5000,  # lower_waist
+        67.5000,  # lower_waist
+        67.5000,  # pelvis
         45.0000,  # left_thigh: x
         135.0000,  # left_thigh: y
         45.0000,  # left_thigh: z
-        90.0000,  # right_knee
         90.0000,  # left_knee
-        22.5,  # right_foot
-        22.5,  # right_foot
         22.5,  # left_foot
         22.5,  # left_foot
+        45.0000,  # right_thigh: x
+        135.0000,  # right_thigh: y
+        45.0000,  # right_thigh: z
+        90.0000,  # right_knee
+        22.5,  # right_foot
+        22.5,  # right_foot
+        67.5000,  # right_upper_arm
+        67.5000,  # right_upper_arm
+        45.0000,  # right_lower_arm
     ]
 
     heading_weight: float = 0.5

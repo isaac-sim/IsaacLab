@@ -8,6 +8,7 @@ rem SPDX-License-Identifier: BSD-3-Clause
 
 rem Configurations
 set "ISAACLAB_PATH=%~dp0"
+set "PIP_FIND_LINKS=https://py.mujoco.org/"
 goto main
 
 rem Helper functions
@@ -372,6 +373,13 @@ if "%arg%"=="-i" (
     )
     rem install the rl-frameworks specified
     call !python_exe! -m pip install -e %ISAACLAB_PATH%\source\isaaclab_rl[!framework_name!]
+
+    rem install the rl-frameworks specified
+    call !python_exe! -m pip install -e %ISAACLAB_PATH%\source\isaaclab_rl[!framework_name!]
+    rem update the vscode settings
+    rem once we have a docker container, we need to disable vscode settings
+    call :update_vscode_settings
+
     shift
 ) else if "%arg%"=="--install" (
     rem install the python packages in source directory
@@ -421,6 +429,7 @@ if "%arg%"=="-i" (
     rem update the vscode settings
     rem once we have a docker container, we need to disable vscode settings
     call :update_vscode_settings
+
     shift
 ) else if "%arg%"=="-c" (
     rem use default name if not provided

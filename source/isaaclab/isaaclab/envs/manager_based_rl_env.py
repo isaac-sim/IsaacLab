@@ -17,6 +17,7 @@ from isaacsim.core.version import get_version
 
 from isaaclab.managers import CommandManager, CurriculumManager, RewardManager, TerminationManager
 from isaaclab.ui.widgets import ManagerLiveVisualizer
+from isaaclab.utils.timer import Timer
 
 from .common import VecEnvStepReturn
 from .manager_based_env import ManagerBasedEnv
@@ -151,6 +152,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
     Operations - MDP
     """
 
+    @Timer(name="env_step", msg="Step took:", enable=True, format="us")
     def step(self, action: torch.Tensor) -> VecEnvStepReturn:
         """Execute one time-step of the environment's dynamics and reset terminated environments.
 
@@ -187,7 +189,8 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             # set actions into simulator
             self.scene.write_data_to_sim()
             # simulate
-            self.sim.step(render=False)
+            with Timer(name="simulate", msg="Newton simulation step took:", enable=True, format="us"):
+                self.sim.step(render=False)
             # render between steps only if the GUI or an RTX sensor needs it
             # note: we assume the render interval to be the shortest accepted rendering interval.
             #    If a camera needs rendering at a faster frequency, this will lead to unexpected behavior.
@@ -221,7 +224,6 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             self._reset_idx(reset_env_ids)
             # update articulation kinematics
             self.scene.write_data_to_sim()
-            self.sim.forward()
 
             # if sensors are added to the scene, make sure we render to reflect changes in reset
             if self.sim.has_rtx_sensors() and self.cfg.rerender_on_reset:
@@ -345,6 +347,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         self.observation_space = gym.vector.utils.batch_space(self.single_observation_space, self.num_envs)
         self.action_space = gym.vector.utils.batch_space(self.single_action_space, self.num_envs)
 
+    @Timer(name="reset_idx", msg="Reset idx took:", enable=True, format="us")
     def _reset_idx(self, env_ids: Sequence[int]):
         """Reset environments based on specified indices.
 

@@ -24,13 +24,15 @@ INSTALL_REQUIRES = [
     "onnx==1.16.1",  # 1.16.2 throws access violation on Windows
     "prettytable==3.3.0",
     "toml",
+    "fast_simplification",
+    "tqdm",
     # devices
     "hidapi==0.14.0.post2",
     # reinforcement learning
     "gymnasium==1.2.0",
     # procedural-generation
     "trimesh",
-    "pyglet<2",
+    "pyglet>=2.1.6",
     # image processing
     "transformers",
     "einops",  # needed for transformers, doesn't always auto-install
@@ -44,7 +46,13 @@ INSTALL_REQUIRES = [
     "pytest-mock",
     "junitparser",
     "flatdict==4.0.1",
+    # newton
+    "usd-core==25.05.0",
+    "mujoco==3.3.6.dev798190254",
+    "mujoco-warp @ git+https://github.com/google-deepmind/mujoco_warp.git@baeb10e73237df13802217d310788e1f02dcf92d",
+    "newton-physics @ git+https://github.com/newton-physics/newton.git@alpha-1",
 ]
+
 
 # Additional dependencies that are only available on Linux platforms
 if platform.system() == "Linux":
@@ -74,7 +82,6 @@ setup(
         "Natural Language :: English",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
-        "Isaac Sim :: 4.5.0",
         "Isaac Sim :: 5.0.0",
     ],
     zip_safe=False,

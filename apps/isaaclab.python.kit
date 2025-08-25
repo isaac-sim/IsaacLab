@@ -88,12 +88,11 @@ keywords = ["experience", "app", "usd"]
 "omni.kit.window.stage" = {}
 "omni.kit.window.status_bar" = {}
 "omni.kit.window.toolbar" = {}
-"omni.physics.stageupdate" = {}
 "omni.rtx.settings.core" = {}
 "omni.uiaudio" = {}
 "omni.usd.metrics.assembler.ui" = {}
 "omni.usd.schema.metrics.assembler" = {}
-"omni.warp.core" = {}
+"omni.warp.core" = { version = "1.9.0-rc.1", exact = true }
 
 ########################
 # Isaac Lab Extensions #
@@ -103,7 +102,6 @@ keywords = ["experience", "app", "usd"]
 "isaaclab" = {order = 1000}
 "isaaclab_assets" = {order = 1000}
 "isaaclab_tasks" = {order = 1000}
-"isaaclab_mimic" = {order = 1000}
 "isaaclab_rl" = {order = 1000}
 
 [settings]
@@ -255,11 +253,10 @@ outDirectory = "${data}"
 ###############################
 [settings.exts."omni.kit.registry.nucleus"]
 registries = [
-    { name = "kit/default", url = "https://ovextensionsprod.blob.core.windows.net/exts/kit/prod/106/shared" },
+    { name = "kit/default", url = "https://ovextensionsprod.blob.core.windows.net/exts/kit/prod/107/shared" },
     { name = "kit/sdk", url = "https://ovextensionsprod.blob.core.windows.net/exts/kit/prod/sdk/${kit_version_short}/${kit_git_hash}" },
     { name = "kit/community", url = "https://dw290v42wisod.cloudfront.net/exts/kit/community" },
 ]
-
 [settings.app.extensions]
 skipPublishVerification = false
 registryEnabled = true
@@ -302,6 +299,6 @@ fabricUseGPUInterop = true
 # set the S3 directory manually to the latest published S3
 # note: this is done to ensure prior versions of Isaac Sim still use the latest assets
 [settings]
-persistent.isaac.asset_root.default = "https://omniverse-content-staging.s3-us-west-2.amazonaws.com/Assets/Isaac/5.0"
-persistent.isaac.asset_root.cloud = "https://omniverse-content-staging.s3-us-west-2.amazonaws.com/Assets/Isaac/5.0"
-persistent.isaac.asset_root.nvidia = "https://omniverse-content-staging.s3-us-west-2.amazonaws.com/Assets/Isaac/5.0"
+persistent.isaac.asset_root.default = "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.0"
+persistent.isaac.asset_root.cloud = "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.0"
+persistent.isaac.asset_root.nvidia = "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.0"

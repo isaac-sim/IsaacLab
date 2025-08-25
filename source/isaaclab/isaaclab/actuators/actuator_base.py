@@ -8,7 +8,7 @@ from __future__ import annotations
 import torch
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, ClassVar, Literal
 
 import isaaclab.utils.string as string_utils
 from isaaclab.utils.types import ArticulationActions
@@ -76,6 +76,16 @@ class ActuatorBase(ABC):
     For implicit actuators, the :attr:`velocity_limit` and :attr:`velocity_limit_sim` are the same.
     """
 
+    control_mode: Literal["position", "velocity", "none"]
+    """The control mode of the actuator.
+
+    The control mode can be one of the following:
+
+    * ``"position"``: Position control
+    * ``"velocity"``: Velocity control
+    * ``"none"``: No control (used for explicit actuators or direct effort control)
+    """
+
     stiffness: torch.Tensor
     """The stiffness (P gain) of the PD controller. Shape is (num_envs, num_joints)."""
 
@@ -102,6 +112,7 @@ class ActuatorBase(ABC):
         joint_ids: slice | torch.Tensor,
         num_envs: int,
         device: str,
+        control_mode: Literal["position", "velocity"] = "position",
         stiffness: torch.Tensor | float = 0.0,
         damping: torch.Tensor | float = 0.0,
         armature: torch.Tensor | float = 0.0,
@@ -125,6 +136,7 @@ class ActuatorBase(ABC):
                 the joints in the articulation are part of the group.
             num_envs: Number of articulations in the view.
             device: Device used for processing.
+            control_mode: The default control mode. Defaults to "position".
             stiffness: The default joint stiffness (P gain). Defaults to 0.0.
                 If a tensor, then the shape is (num_envs, num_joints).
             damping: The default joint damping (D gain). Defaults to 0.0.
@@ -150,6 +162,8 @@ class ActuatorBase(ABC):
         if not self.is_implicit_model and self.cfg.effort_limit_sim is None:
             self.cfg.effort_limit_sim = self._DEFAULT_MAX_EFFORT_SIM
 
+        # parse control mode
+        self.control_mode = control_mode
         # parse joint stiffness and damping
         self.stiffness = self._parse_joint_parameter(self.cfg.stiffness, stiffness)
         self.damping = self._parse_joint_parameter(self.cfg.damping, damping)

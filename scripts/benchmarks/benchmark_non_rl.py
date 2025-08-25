@@ -33,6 +33,7 @@ parser.add_argument(
     choices=["LocalLogMetrics", "JSONFileMetrics", "OsmoKPIFile", "OmniPerfKPIFile"],
     help="Benchmarking backend options, defaults OmniPerfKPIFile",
 )
+parser.add_argument("--output_folder", type=str, default=None, help="Output folder for the benchmark.")
 
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
@@ -59,12 +60,23 @@ app_start_time_end = time.perf_counter_ns()
 from isaacsim.core.utils.extensions import enable_extension
 
 enable_extension("isaacsim.benchmark.services")
+
+# Set the benchmark settings according to the inputs
+import carb
+
+settings = carb.settings.get_settings()
+settings.set("/exts/isaacsim.benchmark.services/metrics/metrics_output_folder", args_cli.output_folder)
+settings.set("/exts/isaacsim.benchmark.services/metrics/randomize_filename_prefix", True)
+
 from isaacsim.benchmark.services import BaseIsaacBenchmark
 
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../.."))
 
 from isaaclab.utils.timer import Timer
 from scripts.benchmarks.utils import (
+    get_isaaclab_version,
+    get_mujoco_warp_version,
+    get_newton_version,
     log_app_start_time,
     log_python_imports_time,
     log_runtime_step_times,
@@ -82,7 +94,7 @@ import os
 import torch
 from datetime import datetime
 
-from isaaclab.envs import DirectMARLEnvCfg, DirectRLEnvCfg, ManagerBasedRLEnvCfg
+from isaaclab.envs import DirectRLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.utils.dict import print_dict
 
 import isaaclab_tasks  # noqa: F401
@@ -100,6 +112,9 @@ benchmark = BaseIsaacBenchmark(
             {"name": "seed", "data": args_cli.seed},
             {"name": "num_envs", "data": args_cli.num_envs},
             {"name": "num_frames", "data": args_cli.num_frames},
+            {"name": "Mujoco Warp Info", "data": get_mujoco_warp_version()},
+            {"name": "Isaac Lab Info", "data": get_isaaclab_version()},
+            {"name": "Newton Info", "data": get_newton_version()},
         ]
     },
     backend_type=args_cli.benchmark_backend,
@@ -107,7 +122,7 @@ benchmark = BaseIsaacBenchmark(
 
 
 @hydra_task_config(args_cli.task, None)
-def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agent_cfg: dict):
+def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg, agent_cfg: dict):
     """Benchmark without RL in the loop."""
 
     # override configurations with non-hydra CLI arguments

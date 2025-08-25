@@ -1,0 +1,34 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+# Joint names in the target physics engine where policy is deployed (e.g., Newton/MJWarp)
+target_joint_names:
+  - "LF_HAA"
+  - "LF_HFE"
+  - "LF_KFE"
+  - "LH_HAA"
+  - "LH_HFE"
+  - "LH_KFE"
+  - "RF_HAA"
+  - "RF_HFE"
+  - "RF_KFE"
+  - "RH_HAA"
+  - "RH_HFE"
+  - "RH_KFE"
+
+# Joint names in the source physics engine where policy is trained (e.g., PhysX)
+source_joint_names:
+  - "LF_HAA"
+  - "LH_HAA"
+  - "RF_HAA"
+  - "RH_HAA"
+  - "LF_HFE"
+  - "LH_HFE"
+  - "RF_HFE"
+  - "RH_HFE"
+  - "LF_KFE"
+  - "LH_KFE"
+  - "RF_KFE"
+  - "RH_KFE"

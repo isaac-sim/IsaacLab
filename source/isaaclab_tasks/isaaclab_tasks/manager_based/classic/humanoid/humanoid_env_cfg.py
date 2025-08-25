@@ -10,7 +10,6 @@ from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
-from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.terrains import TerrainImporterCfg
@@ -92,11 +91,6 @@ class ObservationsCfg:
         base_heading_proj = ObsTerm(func=mdp.base_heading_proj, params={"target_pos": (1000.0, 0.0, 0.0)})
         joint_pos_norm = ObsTerm(func=mdp.joint_pos_limit_normalized)
         joint_vel_rel = ObsTerm(func=mdp.joint_vel_rel, scale=0.1)
-        feet_body_forces = ObsTerm(
-            func=mdp.body_incoming_wrench,
-            scale=0.01,
-            params={"asset_cfg": SceneEntityCfg("robot", body_names=["left_foot", "right_foot"])},
-        )
         actions = ObsTerm(func=mdp.last_action)
 
         def __post_init__(self):
@@ -213,9 +207,8 @@ class HumanoidEnvCfg(ManagerBasedRLEnvCfg):
         self.episode_length_s = 16.0
         # simulation settings
         self.sim.dt = 1 / 120.0
+        self.sim.newton_cfg.num_substeps = 2
         self.sim.render_interval = self.decimation
-        self.sim.physx.bounce_threshold_velocity = 0.2
         # default friction material
         self.sim.physics_material.static_friction = 1.0
         self.sim.physics_material.dynamic_friction = 1.0
-        self.sim.physics_material.restitution = 0.0

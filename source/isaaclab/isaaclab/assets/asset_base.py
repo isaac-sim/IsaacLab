@@ -22,6 +22,7 @@ from isaacsim.core.utils.stage import get_current_stage
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationContext
+from isaaclab.sim._impl.newton_manager import NewtonManager
 
 if TYPE_CHECKING:
     from .asset_base_cfg import AssetBaseCfg
@@ -110,11 +111,13 @@ class AssetBase(ABC):
 
         # the order is set to 10 which is arbitrary but should be lower priority than the default order of 0
         # register timeline PLAY event callback (lower priority with order=10)
-        self._initialize_handle = timeline_event_stream.create_subscription_to_pop_by_type(
-            int(omni.timeline.TimelineEventType.PLAY),
-            lambda event, obj_ref=obj_ref: safe_callback("_initialize_callback", event, obj_ref),
-            order=10,
-        )
+        NewtonManager.add_on_start_callback(lambda: safe_callback("_initialize_callback", None, obj_ref))
+        # self._initialize_handle = timeline_event_stream.create_subscription_to_pop_by_type(
+        #    int(omni.timeline.TimelineEventType.PLAY),
+        #    lambda event, obj_ref=obj_ref: safe_callback("_initialize_callback", event, obj_ref),
+        #    order=10,
+        # )
+
         # register timeline STOP event callback (lower priority with order=10)
         self._invalidate_initialize_handle = timeline_event_stream.create_subscription_to_pop_by_type(
             int(omni.timeline.TimelineEventType.STOP),
@@ -349,9 +352,6 @@ class AssetBase(ABC):
         if self._prim_deletion_callback_id:
             SimulationManager.deregister_callback(self._prim_deletion_callback_id)
             self._prim_deletion_callback_id = None
-        if self._initialize_handle:
-            self._initialize_handle.unsubscribe()
-            self._initialize_handle = None
         if self._invalidate_initialize_handle:
             self._invalidate_initialize_handle.unsubscribe()
             self._invalidate_initialize_handle = None

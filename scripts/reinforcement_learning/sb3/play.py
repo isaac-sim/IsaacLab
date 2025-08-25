@@ -39,6 +39,7 @@ parser.add_argument(
     default=False,
     help="Use a slower SB3 wrapper but keep all the extra training info.",
 )
+parser.add_argument("--newton_visualizer", action="store_true", default=False, help="Enable Newton rendering.")
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
@@ -58,10 +59,14 @@ import os
 import time
 import torch
 
+from isaaclab.utils.timer import Timer
+
+Timer.enable = False
+Timer.enable_display_output = False
+
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import VecNormalize
 
-from isaaclab.envs import DirectMARLEnv, multi_agent_to_single_agent
 from isaaclab.utils.dict import print_dict
 from isaaclab.utils.io import load_yaml
 from isaaclab.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
@@ -78,7 +83,11 @@ def main():
     """Play with stable-baselines agent."""
     # parse configuration
     env_cfg = parse_env_cfg(
-        args_cli.task, device=args_cli.device, num_envs=args_cli.num_envs, use_fabric=not args_cli.disable_fabric
+        args_cli.task,
+        device=args_cli.device,
+        num_envs=args_cli.num_envs,
+        use_fabric=not args_cli.disable_fabric,
+        newton_visualizer=args_cli.newton_visualizer,
     )
 
     task_name = args_cli.task.split(":")[-1]
@@ -111,10 +120,6 @@ def main():
     agent_cfg = load_yaml(os.path.join(log_dir, "params", "agent.yaml"))
     # post-process agent configuration
     agent_cfg = process_sb3_cfg(agent_cfg, env.unwrapped.num_envs)
-
-    # convert to single-agent instance if required by the RL algorithm
-    if isinstance(env.unwrapped, DirectMARLEnv):
-        env = multi_agent_to_single_agent(env)
 
     # wrap for video recording
     if args_cli.video:

@@ -43,7 +43,7 @@ from isaaclab.assets import Articulation
 ##
 # Pre-defined configs
 ##
-from isaaclab_assets import ANYMAL_C_CFG, FRANKA_PANDA_CFG  # isort:skip
+from isaaclab_assets import ANYMAL_C_CFG, CARTPOLE_CFG  # isort:skip
 
 
 def define_origins(num_origins: int, spacing: float) -> list[list[float]]:
@@ -77,7 +77,7 @@ def design_scene() -> tuple[dict, list[list[float]]]:
     # Origin 1 with Franka Panda
     prim_utils.create_prim("/World/Origin1", "Xform", translation=origins[0])
     # -- Robot
-    franka = Articulation(FRANKA_PANDA_CFG.replace(prim_path="/World/Origin1/Robot"))
+    cartpole = Articulation(CARTPOLE_CFG.replace(prim_path="/World/Origin1/Robot"))
 
     # Origin 2 with Anymal C
     prim_utils.create_prim("/World/Origin2", "Xform", translation=origins[1])
@@ -88,7 +88,7 @@ def design_scene() -> tuple[dict, list[list[float]]]:
 
     # return the scene information
     scene_entities = {
-        "franka": franka,
+        "cartpole": cartpole,
         "anymal_c": anymal_c,
     }
     return scene_entities, origins

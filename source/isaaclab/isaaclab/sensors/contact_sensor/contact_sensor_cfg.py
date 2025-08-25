@@ -30,13 +30,37 @@ class ContactSensorCfg(SensorBaseCfg):
     if :attr:`track_air_time` is True.
     """
 
-    filter_prim_paths_expr: list[str] = list()
-    """The list of primitive paths (or expressions) to filter contacts with. Defaults to an empty list, in which case
-    no filtering is applied.
+    shape_path: list[str] | None = None
+    """A list of expressions to filter contacts shapes with. Defaults to None. If both :attr:`body_names_expr` and
+    :attr:`shape_names_expr` are None, the contact with all bodies/shapes is reported.
 
-    The contact sensor allows reporting contacts between the primitive specified with :attr:`prim_path` and
-    other primitives in the scene. For instance, in a scene containing a robot, a ground plane and an object,
-    you can obtain individual contact reports of the base of the robot with the ground plane and the object.
+    Only one of :attr:`body_names_expr` or :attr:`shape_names_expr` can be provided.
+    If both are provided, an error will be raised.
+
+    We make an explicit difference between a body and a shape. A body is a rigid body, while a shape is a collision
+    shape. A body can have multiple shapes. The shape option allows a more fine-grained control over the contact
+    reporting.
+
+    .. note::
+        The expression in the list can contain the environment namespace regex ``{ENV_REGEX_NS}`` which
+        will be replaced with the environment namespace.
+    """
+
+    filter_prim_paths_expr: list[str] | None = None
+    """A list of expressions to filter contacts bodies with. Defaults to None. If both :attr:`contact_partners_body_expr` and
+    :attr:`contact_partners_shape_expr` are None, the contact with all bodies/shapes is reported.
+
+    Only one of :attr:`contact_partners_body_expr` or :attr:`contact_partners_shape_expr` can be provided.
+    If both are provided, an error will be raised.
+
+    The contact sensor allows reporting contacts between the primitive specified with either :attr:`body_names_expr` or
+    :attr:`shape_names_expr` and other primitives in the scene. For instance, in a scene containing a robot, a ground
+    plane and an object, you can obtain individual contact reports of the base of the robot with the ground plane and
+    the object.
+
+    We make an explicit difference between a body and a shape. A body is a rigid body, while a shape is a collision
+    shape. A body can have multiple shapes. The shape option allows a more fine-grained control over the contact
+    reporting.
 
     .. note::
         The expression in the list can contain the environment namespace regex ``{ENV_REGEX_NS}`` which
@@ -49,6 +73,30 @@ class ContactSensorCfg(SensorBaseCfg):
         single primitive in that environment. If the sensor primitive corresponds to multiple primitives, the
         filtering will not work as expected. Please check :class:`~isaaclab.sensors.contact_sensor.ContactSensor`
         for more details.
+    """
+
+    filter_shape_paths_expr: list[str] | None = None
+    """A list of expressions to filter contacts shapes with. Defaults to None. If both :attr:`contact_partners_body_expr` and
+    :attr:`contact_partners_shape_expr` are None, the contact with all bodies/shapes is reported.
+
+    Only one of :attr:`contact_partners_body_expr` or :attr:`contact_partners_shape_expr` can be provided.
+    If both are provided, an error will be raised.
+
+    The contact sensor allows reporting contacts between the primitive specified with either :attr:`body_names_expr` or
+    :attr:`shape_names_expr` and other primitives in the scene. For instance, in a scene containing a robot, a ground
+    plane and an object, you can obtain individual contact reports of the base of the robot with the ground plane and
+    the object.
+
+
+    We make an explicit difference between a body and a shape. A body is a rigid body, while a shape is a collision
+    shape. A body can have multiple shapes. The shape option allows a more fine-grained control over the contact
+    reporting.
+
+    .. note::
+        The expression in the list can contain the environment namespace regex ``{ENV_REGEX_NS}`` which
+        will be replaced with the environment namespace.
+
+        Example: ``{ENV_REGEX_NS}/Object`` will be replaced with ``/World/envs/env_.*/Object``.
     """
 
     visualizer_cfg: VisualizationMarkersCfg = CONTACT_SENSOR_MARKER_CFG.replace(prim_path="/Visuals/ContactSensor")

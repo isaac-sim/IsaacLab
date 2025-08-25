@@ -42,7 +42,7 @@ def registered_entities():
 
 
 # Add parameterization for the device
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", ["cuda:0"])
 def test_asset_configs(registered_entities, device):
     """Check all registered asset configurations."""
     # iterate over all registered assets

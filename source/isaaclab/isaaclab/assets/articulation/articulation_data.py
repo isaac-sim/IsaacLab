@@ -7,10 +7,10 @@ import torch
 import weakref
 
 import omni.log
-import omni.physics.tensors.impl.api as physx
-from isaacsim.core.simulation_manager import SimulationManager
+import warp as wp
 
 import isaaclab.utils.math as math_utils
+from isaaclab.sim._impl.newton_manager import NewtonManager
 from isaaclab.utils.buffers import TimestampedBuffer
 
 
@@ -32,11 +32,11 @@ class ArticulationData:
     can be interpreted as the link frame.
     """
 
-    def __init__(self, root_physx_view: physx.ArticulationView, device: str):
+    def __init__(self, root_newton_view, device: str):
         """Initializes the articulation data.
 
         Args:
-            root_physx_view: The root articulation view.
+            root_newton_view: The root articulation view.
             device: The device used for processing.
         """
         # Set the parameters
@@ -44,24 +44,27 @@ class ArticulationData:
         # Set the root articulation view
         # note: this is stored as a weak reference to avoid circular references between the asset class
         #  and the data container. This is important to avoid memory leaks.
-        self._root_physx_view: physx.ArticulationView = weakref.proxy(root_physx_view)
+        self._root_newton_view = weakref.proxy(root_newton_view)
 
         # Set initial time stamp
         self._sim_timestamp = 0.0
 
         # obtain global simulation view
-        self._physics_sim_view = SimulationManager.get_physics_sim_view()
-        gravity = self._physics_sim_view.get_gravity()
+        gravity = NewtonManager.get_model().gravity
         # Convert to direction vector
         gravity_dir = torch.tensor((gravity[0], gravity[1], gravity[2]), device=self.device)
         gravity_dir = math_utils.normalize(gravity_dir.unsqueeze(0)).squeeze(0)
 
         # Initialize constants
-        self.GRAVITY_VEC_W = gravity_dir.repeat(self._root_physx_view.count, 1)
-        self.FORWARD_VEC_B = torch.tensor((1.0, 0.0, 0.0), device=self.device).repeat(self._root_physx_view.count, 1)
+        self.GRAVITY_VEC_W = gravity_dir.repeat(self._root_newton_view.count, 1)
+        self.FORWARD_VEC_B = torch.tensor((1.0, 0.0, 0.0), device=self.device).repeat(self._root_newton_view.count, 1)
 
         # Initialize history for finite differencing
-        self._previous_joint_vel = self._root_physx_view.get_dof_velocities().clone()
+        velocity = wp.to_torch(self._root_newton_view.get_link_velocities(NewtonManager.get_state_0())).clone()
+        self._previous_body_com_vel = torch.cat((velocity[:, :, 3:], velocity[:, :, :3]), dim=-1)
+        self._previous_joint_vel = wp.to_torch(
+            self._root_newton_view.get_dof_velocities(NewtonManager.get_state_0())
+        ).clone()
 
         # Initialize the lazy buffers.
         # -- link frame w.r.t. world frame
@@ -267,16 +270,21 @@ class ArticulationData:
     # Joint commands -- Set into simulation.
     ##
 
-    joint_pos_target: torch.Tensor = None
-    """Joint position targets commanded by the user. Shape is (num_instances, num_joints).
+    joint_control_mode: torch.Tensor = None
+    """Joint control mode. Shape is (num_instances, num_joints).
 
-    For an implicit actuator model, the targets are directly set into the simulation.
-    For an explicit actuator model, the targets are used to compute the joint torques (see :attr:`applied_torque`),
-    which are then set into the simulation.
+    When using implicit actuator models Newton needs to know how the joints are controlled.
+    The control mode can be one of the following:
+
+    * None: 0
+    * Position control: 1
+    * Velocity control: 2
+
+    This quantity is set by the :meth:`Articulation.write_joint_control_mode_to_sim` method.
     """
 
-    joint_vel_target: torch.Tensor = None
-    """Joint velocity targets commanded by the user. Shape is (num_instances, num_joints).
+    joint_target: torch.Tensor = None
+    """Joint position targets commanded by the user. Shape is (num_instances, num_joints).
 
     For an implicit actuator model, the targets are directly set into the simulation.
     For an explicit actuator model, the targets are used to compute the joint torques (see :attr:`applied_torque`),
@@ -428,7 +436,8 @@ class ArticulationData:
         """
         if self._root_link_pose_w.timestamp < self._sim_timestamp:
             # read data from simulation
-            pose = self._root_physx_view.get_root_transforms().clone()
+            # Newton reads poses as [x, y, z, qx, qy, qz, qw] Isaac reads as [x, y, z, qw, qx, qy, qz]
+            pose = wp.to_torch(self._root_newton_view.get_root_transforms(NewtonManager.get_state_0())).clone()
             pose[:, 3:7] = math_utils.convert_quat(pose[:, 3:7], to="wxyz")
             # set the buffer data and timestamp
             self._root_link_pose_w.data = pose
@@ -482,7 +491,13 @@ class ArticulationData:
         relative to the world.
         """
         if self._root_com_vel_w.timestamp < self._sim_timestamp:
-            self._root_com_vel_w.data = self._root_physx_view.get_root_velocities()
+            # Newton reads velocities as [wx, wy, wz, vx, vy, vz] Isaac reads as [vx, vy, vz, wx, wy, wz]
+            velocity = self._root_newton_view.get_root_velocities(NewtonManager.get_state_0())
+            if velocity is None:
+                velocity = torch.zeros((self._root_newton_view.count, 6), device=self.device)
+            else:
+                velocity = wp.to_torch(velocity).clone()
+            self._root_com_vel_w.data = torch.cat((velocity[:, 3:], velocity[:, :3]), dim=-1)
             self._root_com_vel_w.timestamp = self._sim_timestamp
 
         return self._root_com_vel_w.data
@@ -541,9 +556,10 @@ class ArticulationData:
         """
         if self._body_link_pose_w.timestamp < self._sim_timestamp:
             # perform forward kinematics (shouldn't cause overhead if it happened already)
-            self._physics_sim_view.update_articulations_kinematic()
+            # self._physics_sim_view.update_articulations_kinematic()
             # read data from simulation
-            poses = self._root_physx_view.get_link_transforms().clone()
+            # Newton reads poses as [x, y, z, qx, qy, qz, qw] Isaac reads as [x, y, z, qw, qx, qy, qz]
+            poses = wp.to_torch(self._root_newton_view.get_link_transforms(NewtonManager.get_state_0())).clone()
             poses[..., 3:7] = math_utils.convert_quat(poses[..., 3:7], to="wxyz")
             # set the buffer data and timestamp
             self._body_link_pose_w.data = poses
@@ -600,7 +616,9 @@ class ArticulationData:
         relative to the world.
         """
         if self._body_com_vel_w.timestamp < self._sim_timestamp:
-            self._body_com_vel_w.data = self._root_physx_view.get_link_velocities()
+            # Newton reads velocities as [wx, wy, wz, vx, vy, vz] Isaac reads as [vx, vy, vz, wx, wy, wz]
+            velocity = wp.to_torch(self._root_newton_view.get_link_velocities(NewtonManager.get_state_0())).clone()
+            self._body_com_vel_w.data = torch.cat((velocity[:, :, 3:], velocity[:, :, :3]), dim=-1)
             self._body_com_vel_w.timestamp = self._sim_timestamp
 
         return self._body_com_vel_w.data
@@ -656,9 +674,11 @@ class ArticulationData:
         """
         if self._body_com_acc_w.timestamp < self._sim_timestamp:
             # read data from simulation and set the buffer data and timestamp
-            self._body_com_acc_w.data = self._root_physx_view.get_link_accelerations()
+            # self._body_com_acc_w.data = self._root_physx_view.get_link_accelerations()
+            time_elapsed = self._sim_timestamp - self._joint_acc.timestamp
+            self._body_com_acc_w.data = (self.body_com_vel_w - self._previous_body_com_vel) / time_elapsed
+            self._previous_body_com_vel[:] = self.body_com_vel_w
             self._body_com_acc_w.timestamp = self._sim_timestamp
-
         return self._body_com_acc_w.data
 
     @property
@@ -671,8 +691,11 @@ class ArticulationData:
         """
         if self._body_com_pose_b.timestamp < self._sim_timestamp:
             # read data from simulation
-            pose = self._root_physx_view.get_coms().to(self.device)
-            pose[..., 3:7] = math_utils.convert_quat(pose[..., 3:7], to="wxyz")
+
+            position = wp.to_torch(self._root_newton_view.get_attribute("body_com", NewtonManager.get_model())).clone()
+            quat = torch.zeros((position.shape[0], position.shape[1], 4), device=self.device)
+            quat[:, :, 0] = 1.0
+            pose = torch.cat((position, quat), dim=-1)
             # set the buffer data and timestamp
             self._body_com_pose_b.data = pose
             self._body_com_pose_b.timestamp = self._sim_timestamp
@@ -689,7 +712,7 @@ class ArticulationData:
         For more information on joint wrenches, please check the`PhysX documentation <https://nvidia-omniverse.github.io/PhysX/physx/5.5.1/docs/Articulations.html#link-incoming-joint-force>`__
         and the underlying `PhysX Tensor API <https://docs.omniverse.nvidia.com/kit/docs/omni_physics/latest/extensions/runtime/source/omni.physics.tensors/docs/api/python.html#omni.physics.tensors.impl.api.ArticulationView.get_link_incoming_joint_force>`__ .
         """
-
+        raise NotImplementedError("Body incoming joint wrench in body frame is not implemented for Newton.")
         if self._body_incoming_joint_wrench_b.timestamp < self._sim_timestamp:
             self._body_incoming_joint_wrench_b.data = self._root_physx_view.get_link_incoming_joint_force()
             self._body_incoming_joint_wrench_b.time_stamp = self._sim_timestamp
@@ -704,7 +727,7 @@ class ArticulationData:
         """Joint positions of all joints. Shape is (num_instances, num_joints)."""
         if self._joint_pos.timestamp < self._sim_timestamp:
             # read data from simulation and set the buffer data and timestamp
-            self._joint_pos.data = self._root_physx_view.get_dof_positions()
+            self._joint_pos.data = wp.to_torch(self._root_newton_view.get_dof_positions(NewtonManager.get_state_0()))
             self._joint_pos.timestamp = self._sim_timestamp
         return self._joint_pos.data
 
@@ -713,7 +736,7 @@ class ArticulationData:
         """Joint velocities of all joints. Shape is (num_instances, num_joints)."""
         if self._joint_vel.timestamp < self._sim_timestamp:
             # read data from simulation and set the buffer data and timestamp
-            self._joint_vel.data = self._root_physx_view.get_dof_velocities()
+            self._joint_vel.data = wp.to_torch(self._root_newton_view.get_dof_velocities(NewtonManager.get_state_0()))
             self._joint_vel.timestamp = self._sim_timestamp
         return self._joint_vel.data
 

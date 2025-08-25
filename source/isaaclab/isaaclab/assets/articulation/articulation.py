@@ -11,18 +11,21 @@ from __future__ import annotations
 import torch
 from collections.abc import Sequence
 from prettytable import PrettyTable
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 import omni.log
-import omni.physics.tensors.impl.api as physx
+import warp as wp
 from isaacsim.core.simulation_manager import SimulationManager
-from isaacsim.core.version import get_version
-from pxr import PhysxSchema, UsdPhysics
+from newton import JointMode, JointType, Model
+from newton.selection import ArticulationView as NewtonArticulationView
+from newton.solvers import SolverMuJoCo
+from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 import isaaclab.utils.string as string_utils
 from isaaclab.actuators import ActuatorBase, ActuatorBaseCfg, ImplicitActuator
+from isaaclab.sim._impl.newton_manager import NewtonManager
 from isaaclab.utils.types import ArticulationActions
 
 from ..asset_base import AssetBase
@@ -109,61 +112,68 @@ class Articulation(AssetBase):
 
     @property
     def num_instances(self) -> int:
-        return self.root_physx_view.count
+        return self._root_newton_view.count
 
     @property
     def is_fixed_base(self) -> bool:
         """Whether the articulation is a fixed-base or floating-base system."""
-        return self.root_physx_view.shared_metatype.fixed_base
+        return self._root_newton_view.is_fixed_base
 
     @property
     def num_joints(self) -> int:
         """Number of joints in articulation."""
-        return self.root_physx_view.shared_metatype.dof_count
+        return self._root_newton_view.joint_dof_count
 
     @property
     def num_fixed_tendons(self) -> int:
         """Number of fixed tendons in articulation."""
-        return self.root_physx_view.max_fixed_tendons
+        return 0
 
     @property
     def num_spatial_tendons(self) -> int:
         """Number of spatial tendons in articulation."""
-        return self.root_physx_view.max_spatial_tendons
+        return 0
 
     @property
     def num_bodies(self) -> int:
         """Number of bodies in articulation."""
-        return self.root_physx_view.shared_metatype.link_count
+        return self._root_newton_view.link_count
 
     @property
     def joint_names(self) -> list[str]:
         """Ordered names of joints in articulation."""
-        return self.root_physx_view.shared_metatype.dof_names
+        return self._root_newton_view.joint_dof_names
 
     @property
     def fixed_tendon_names(self) -> list[str]:
         """Ordered names of fixed tendons in articulation."""
-        return self._fixed_tendon_names
+        # TODO: check if the articulation has fixed tendons
+        return []
 
     @property
     def spatial_tendon_names(self) -> list[str]:
         """Ordered names of spatial tendons in articulation."""
-        return self._spatial_tendon_names
+        # TODO: check if the articulation has spatial tendons
+        return []
 
     @property
     def body_names(self) -> list[str]:
         """Ordered names of bodies in articulation."""
-        return self.root_physx_view.shared_metatype.link_names
+        return self._root_newton_view.body_names
 
     @property
-    def root_physx_view(self) -> physx.ArticulationView:
-        """Articulation view for the asset (PhysX).
+    def root_newton_view(self) -> NewtonArticulationView:
+        """Articulation view for the asset (Newton).
 
         Note:
             Use this view with caution. It requires handling of tensors in a specific way.
         """
-        return self._root_physx_view
+        return self._root_newton_view
+
+    @property
+    def root_newton_model(self) -> Model:
+        """Newton model for the asset."""
+        return self._root_newton_view.model
 
     """
     Operations.
@@ -192,22 +202,17 @@ class Articulation(AssetBase):
         """
         # write external wrench
         if self.has_external_wrench:
-            self.root_physx_view.apply_forces_and_torques_at_position(
-                force_data=self._external_force_b.view(-1, 3),
-                torque_data=self._external_torque_b.view(-1, 3),
-                position_data=None,
-                indices=self._ALL_INDICES,
-                is_global=False,
-            )
+            wrenches_b = torch.cat([self._external_force_b, self._external_force_b], dim=-1)
+            self._root_newton_view.set_attribute("body_f", NewtonManager.get_state_0(), wp.from_torch(wrenches_b))
 
         # apply actuator models
         self._apply_actuator_model()
         # write actions into simulation
-        self.root_physx_view.set_dof_actuation_forces(self._joint_effort_target_sim, self._ALL_INDICES)
+        self._root_newton_view.set_attribute("joint_f", NewtonManager.get_control(), self._joint_effort_target_sim)
         # position and velocity targets only for implicit actuators
         if self._has_implicit_actuators:
-            self.root_physx_view.set_dof_position_targets(self._joint_pos_target_sim, self._ALL_INDICES)
-            self.root_physx_view.set_dof_velocity_targets(self._joint_vel_target_sim, self._ALL_INDICES)
+            # Sets the position or velocity target for the implicit actuators depending on the actuator type.
+            self._root_newton_view.set_attribute("joint_target", NewtonManager.get_control(), self._joint_target_sim)
 
     def update(self, dt: float):
         self._data.update(dt)
@@ -313,6 +318,8 @@ class Articulation(AssetBase):
             root_state: Root state in simulation frame. Shape is (len(env_ids), 13).
             env_ids: Environment indices. If None, then all indices are used.
         """
+
+        # set into simulation
         self.write_root_link_pose_to_sim(root_state[:, :7], env_ids=env_ids)
         self.write_root_com_velocity_to_sim(root_state[:, 7:], env_ids=env_ids)
 
@@ -389,7 +396,9 @@ class Articulation(AssetBase):
         self._data._body_com_state_w.timestamp = -1.0
 
         # set into simulation
-        self.root_physx_view.set_root_transforms(root_poses_xyzw, indices=physx_env_ids)
+        self._mask.fill_(False)
+        self._mask[physx_env_ids] = True
+        self._root_newton_view.set_root_transforms(NewtonManager.get_state_0(), root_poses_xyzw, mask=self._mask)
 
     def write_root_com_pose_to_sim(self, root_pose: torch.Tensor, env_ids: Sequence[int] | None = None):
         """Set the root center of mass pose over selected environment indices into the simulation.
@@ -468,7 +477,11 @@ class Articulation(AssetBase):
         self._data.body_acc_w[env_ids] = 0.0
 
         # set into simulation
-        self.root_physx_view.set_root_velocities(self._data.root_com_vel_w, indices=physx_env_ids)
+        self._mask.fill_(False)
+        self._mask[physx_env_ids] = True
+        self._root_newton_view.set_root_velocities(
+            NewtonManager.get_state_0(), self._data.root_state_w[:, 7:].clone(), mask=self._mask
+        )
 
     def write_root_link_velocity_to_sim(self, root_velocity: torch.Tensor, env_ids: Sequence[int] | None = None):
         """Set the root link velocity over selected environment indices into the simulation.
@@ -559,7 +572,11 @@ class Articulation(AssetBase):
         self._data._body_link_state_w.timestamp = -1.0
         self._data._body_com_state_w.timestamp = -1.0
         # set into simulation
-        self.root_physx_view.set_dof_positions(self._data.joint_pos, indices=physx_env_ids)
+        self._mask.fill_(False)
+        self._mask[physx_env_ids] = True
+        self._root_newton_view.set_dof_positions(
+            NewtonManager.get_state_0(), self._data.joint_pos.clone(), mask=self._mask
+        )
 
     def write_joint_velocity_to_sim(
         self,
@@ -589,11 +606,59 @@ class Articulation(AssetBase):
         self._data._previous_joint_vel[env_ids, joint_ids] = velocity
         self._data.joint_acc[env_ids, joint_ids] = 0.0
         # set into simulation
-        self.root_physx_view.set_dof_velocities(self._data.joint_vel, indices=physx_env_ids)
+        self._mask.fill_(False)
+        self._mask[physx_env_ids] = True
+        self._root_newton_view.set_dof_velocities(
+            NewtonManager.get_state_0(), self._data.joint_vel.clone(), mask=self._mask
+        )
 
     """
     Operations - Simulation Parameters Writers.
     """
+
+    def write_joint_control_mode_to_sim(
+        self,
+        control_mode: Literal["position", "velocity", "none"] | None,
+        joint_ids: Sequence[int] | slice | None = None,
+        env_ids: Sequence[int] | None = None,
+    ):
+        """Write joint control mode into the simulation.
+
+        Args:
+            control_mode: Joint control mode. Shape is (len(env_ids), len(joint_ids)).
+            joint_ids: The joint indices to set the control mode for. Defaults to None (all joints).
+            env_ids: The environment indices to set the control mode for. Defaults to None (all environments).
+
+        Raises:
+            ValueError: If the control mode is invalid.
+        """
+        # resolve indices
+        physx_env_ids = env_ids
+        if env_ids is None:
+            env_ids = slice(None)
+            physx_env_ids = self._ALL_INDICES
+        if joint_ids is None:
+            joint_ids = slice(None)
+        # broadcast env_ids if needed to allow double indexing
+        if env_ids != slice(None) and joint_ids != slice(None):
+            env_ids = env_ids[:, None]
+        # set into internal buffers
+        if control_mode == "position":
+            self._data.joint_control_mode[env_ids, joint_ids] = JointMode.TARGET_POSITION
+        elif control_mode == "velocity":
+            self._data.joint_control_mode[env_ids, joint_ids] = JointMode.TARGET_VELOCITY
+        elif (control_mode is None) or (control_mode == "none"):
+            # Set the control mode to None when using explicit actuators
+            self._data.joint_control_mode[env_ids, joint_ids] = JointMode.NONE
+        else:
+            raise ValueError(f"Invalid control mode: {control_mode}")
+
+        # set into simulation
+        self._mask.fill_(False)
+        self._mask[physx_env_ids] = True
+        self._root_newton_view.set_attribute(
+            "joint_dof_mode", NewtonManager.get_model(), self._data.joint_control_mode, mask=self._mask
+        )
 
     def write_joint_stiffness_to_sim(
         self,
@@ -622,7 +687,11 @@ class Articulation(AssetBase):
         # set into internal buffers
         self._data.joint_stiffness[env_ids, joint_ids] = stiffness
         # set into simulation
-        self.root_physx_view.set_dof_stiffnesses(self._data.joint_stiffness.cpu(), indices=physx_env_ids.cpu())
+        self._mask.fill_(False)
+        self._mask[physx_env_ids] = True
+        self._root_newton_view.set_attribute(
+            "joint_target_ke", NewtonManager.get_model(), self._data.joint_stiffness, mask=self._mask
+        )
 
     def write_joint_damping_to_sim(
         self,
@@ -651,7 +720,11 @@ class Articulation(AssetBase):
         # set into internal buffers
         self._data.joint_damping[env_ids, joint_ids] = damping
         # set into simulation
-        self.root_physx_view.set_dof_dampings(self._data.joint_damping.cpu(), indices=physx_env_ids.cpu())
+        self._mask.fill_(False)
+        self._mask[physx_env_ids] = True
+        self._root_newton_view.set_attribute(
+            "joint_target_kd", NewtonManager.get_model(), self._data.joint_damping, mask=self._mask
+        )
 
     def write_joint_position_limit_to_sim(
         self,
@@ -701,7 +774,14 @@ class Articulation(AssetBase):
                 # info level is only written to log file
                 omni.log.info(violation_message)
         # set into simulation
-        self.root_physx_view.set_dof_limits(self._data.joint_pos_limits.cpu(), indices=physx_env_ids.cpu())
+        self._mask.fill_(False)
+        self._mask[physx_env_ids] = True
+        self._root_newton_view.set_attribute(
+            "joint_limit_lower", NewtonManager.get_model(), self._data.joint_pos_limits[..., 0], mask=self._mask
+        )
+        self._root_newton_view.set_attribute(
+            "joint_limit_upper", NewtonManager.get_model(), self._data.joint_pos_limits[..., 1], mask=self._mask
+        )
 
         # compute the soft limits based on the joint limits
         # TODO: Optimize this computation for only selected joints
@@ -725,11 +805,17 @@ class Articulation(AssetBase):
         be able to reach this velocity if the joint's effort limit is sufficiently large. If the joint is moving
         faster than this velocity, the physics engine will actually try to brake the joint to reach this velocity.
 
+        .. warn:: This function is ignored when using the Mujoco solver.
+
         Args:
             limits: Joint max velocity. Shape is (len(env_ids), len(joint_ids)).
             joint_ids: The joint indices to set the max velocity for. Defaults to None (all joints).
             env_ids: The environment indices to set the max velocity for. Defaults to None (all environments).
         """
+        # Warn if using Mujoco solver
+        if isinstance(NewtonManager._solver, SolverMuJoCo):
+            omni.log.warn("write_joint_velocity_limit_to_sim is ignored when using the Mujoco solver.")
+
         # resolve indices
         physx_env_ids = env_ids
         if env_ids is None:
@@ -746,7 +832,11 @@ class Articulation(AssetBase):
         # set into internal buffers
         self._data.joint_vel_limits[env_ids, joint_ids] = limits
         # set into simulation
-        self.root_physx_view.set_dof_max_velocities(self._data.joint_vel_limits.cpu(), indices=physx_env_ids.cpu())
+        self._mask.fill_(False)
+        self._mask[physx_env_ids] = True
+        self._root_newton_view.set_attribute(
+            "joint_velocity_limit", NewtonManager.get_model(), self._data.joint_vel_limits, mask=self._mask
+        )
 
     def write_joint_effort_limit_to_sim(
         self,
@@ -781,7 +871,11 @@ class Articulation(AssetBase):
         # set into internal buffers
         self._data.joint_effort_limits[env_ids, joint_ids] = limits
         # set into simulation
-        self.root_physx_view.set_dof_max_forces(self._data.joint_effort_limits.cpu(), indices=physx_env_ids.cpu())
+        self._mask.fill_(False)
+        self._mask[physx_env_ids] = True
+        self._root_newton_view.set_attribute(
+            "joint_effort_limit", NewtonManager.get_model(), self._data.joint_effort_limits, mask=self._mask
+        )
 
     def write_joint_armature_to_sim(
         self,
@@ -811,8 +905,12 @@ class Articulation(AssetBase):
             env_ids = env_ids[:, None]
         # set into internal buffers
         self._data.joint_armature[env_ids, joint_ids] = armature
-        # set into simulation
-        self.root_physx_view.set_dof_armatures(self._data.joint_armature.cpu(), indices=physx_env_ids.cpu())
+        # set into simulation: Only used by the Featherstone solver
+        self._mask.fill_(False)
+        self._mask[physx_env_ids] = True
+        self._root_newton_view.set_attribute(
+            "joint_armature", NewtonManager.get_model(), self._data.joint_armature, mask=self._mask
+        )
 
     def write_joint_friction_coefficient_to_sim(
         self,
@@ -849,8 +947,10 @@ class Articulation(AssetBase):
         # set into internal buffers
         self._data.joint_friction_coeff[env_ids, joint_ids] = joint_friction_coeff
         # set into simulation
-        self.root_physx_view.set_dof_friction_coefficients(
-            self._data.joint_friction_coeff.cpu(), indices=physx_env_ids.cpu()
+        self._mask.fill_(False)
+        self._mask[physx_env_ids] = True
+        self._root_newton_view.set_attribute(
+            "joint_friction", NewtonManager.get_model(), self._data.joint_friction_coeff, mask=self._mask
         )
 
     """
@@ -941,7 +1041,7 @@ class Articulation(AssetBase):
         if env_ids != slice(None) and joint_ids != slice(None):
             env_ids = env_ids[:, None]
         # set targets
-        self._data.joint_pos_target[env_ids, joint_ids] = target
+        self._data.joint_target[env_ids, joint_ids] = target
 
     def set_joint_velocity_target(
         self, target: torch.Tensor, joint_ids: Sequence[int] | slice | None = None, env_ids: Sequence[int] | None = None
@@ -965,7 +1065,7 @@ class Articulation(AssetBase):
         if env_ids != slice(None) and joint_ids != slice(None):
             env_ids = env_ids[:, None]
         # set targets
-        self._data.joint_vel_target[env_ids, joint_ids] = target
+        self._data.joint_target[env_ids, joint_ids] = target
 
     def set_joint_effort_target(
         self, target: torch.Tensor, joint_ids: Sequence[int] | slice | None = None, env_ids: Sequence[int] | None = None
@@ -1011,15 +1111,7 @@ class Articulation(AssetBase):
             fixed_tendon_ids: The tendon indices to set the stiffness for. Defaults to None (all fixed tendons).
             env_ids: The environment indices to set the stiffness for. Defaults to None (all environments).
         """
-        # resolve indices
-        if env_ids is None:
-            env_ids = slice(None)
-        if fixed_tendon_ids is None:
-            fixed_tendon_ids = slice(None)
-        if env_ids != slice(None) and fixed_tendon_ids != slice(None):
-            env_ids = env_ids[:, None]
-        # set stiffness
-        self._data.fixed_tendon_stiffness[env_ids, fixed_tendon_ids] = stiffness
+        raise NotImplementedError("Fixed tendon stiffness is not supported in Newton.")
 
     def set_fixed_tendon_damping(
         self,
@@ -1037,15 +1129,7 @@ class Articulation(AssetBase):
             fixed_tendon_ids: The tendon indices to set the damping for. Defaults to None (all fixed tendons).
             env_ids: The environment indices to set the damping for. Defaults to None (all environments).
         """
-        # resolve indices
-        if env_ids is None:
-            env_ids = slice(None)
-        if fixed_tendon_ids is None:
-            fixed_tendon_ids = slice(None)
-        if env_ids != slice(None) and fixed_tendon_ids != slice(None):
-            env_ids = env_ids[:, None]
-        # set damping
-        self._data.fixed_tendon_damping[env_ids, fixed_tendon_ids] = damping
+        raise NotImplementedError("Fixed tendon damping is not supported in Newton.")
 
     def set_fixed_tendon_limit_stiffness(
         self,
@@ -1063,15 +1147,7 @@ class Articulation(AssetBase):
             fixed_tendon_ids: The tendon indices to set the limit stiffness for. Defaults to None (all fixed tendons).
             env_ids: The environment indices to set the limit stiffness for. Defaults to None (all environments).
         """
-        # resolve indices
-        if env_ids is None:
-            env_ids = slice(None)
-        if fixed_tendon_ids is None:
-            fixed_tendon_ids = slice(None)
-        if env_ids != slice(None) and fixed_tendon_ids != slice(None):
-            env_ids = env_ids[:, None]
-        # set limit_stiffness
-        self._data.fixed_tendon_limit_stiffness[env_ids, fixed_tendon_ids] = limit_stiffness
+        raise NotImplementedError("Fixed tendon limit stiffness is not supported in Newton.")
 
     def set_fixed_tendon_position_limit(
         self,
@@ -1089,15 +1165,7 @@ class Articulation(AssetBase):
              fixed_tendon_ids: The tendon indices to set the limit for. Defaults to None (all fixed tendons).
              env_ids: The environment indices to set the limit for. Defaults to None (all environments).
         """
-        # resolve indices
-        if env_ids is None:
-            env_ids = slice(None)
-        if fixed_tendon_ids is None:
-            fixed_tendon_ids = slice(None)
-        if env_ids != slice(None) and fixed_tendon_ids != slice(None):
-            env_ids = env_ids[:, None]
-        # set limit
-        self._data.fixed_tendon_pos_limits[env_ids, fixed_tendon_ids] = limit
+        raise NotImplementedError("Fixed tendon position limit is not supported in Newton.")
 
     def set_fixed_tendon_rest_length(
         self,
@@ -1115,15 +1183,7 @@ class Articulation(AssetBase):
             fixed_tendon_ids: The tendon indices to set the rest length for. Defaults to None (all fixed tendons).
             env_ids: The environment indices to set the rest length for. Defaults to None (all environments).
         """
-        # resolve indices
-        if env_ids is None:
-            env_ids = slice(None)
-        if fixed_tendon_ids is None:
-            fixed_tendon_ids = slice(None)
-        if env_ids != slice(None) and fixed_tendon_ids != slice(None):
-            env_ids = env_ids[:, None]
-        # set rest_length
-        self._data.fixed_tendon_rest_length[env_ids, fixed_tendon_ids] = rest_length
+        raise NotImplementedError("Fixed tendon rest length is not supported in Newton.")
 
     def set_fixed_tendon_offset(
         self,
@@ -1141,15 +1201,7 @@ class Articulation(AssetBase):
             fixed_tendon_ids: The tendon indices to set the offset for. Defaults to None (all fixed tendons).
             env_ids: The environment indices to set the offset for. Defaults to None (all environments).
         """
-        # resolve indices
-        if env_ids is None:
-            env_ids = slice(None)
-        if fixed_tendon_ids is None:
-            fixed_tendon_ids = slice(None)
-        if env_ids != slice(None) and fixed_tendon_ids != slice(None):
-            env_ids = env_ids[:, None]
-        # set offset
-        self._data.fixed_tendon_offset[env_ids, fixed_tendon_ids] = offset
+        raise NotImplementedError("Fixed tendon offset is not supported in Newton.")
 
     def write_fixed_tendon_properties_to_sim(
         self,
@@ -1162,23 +1214,7 @@ class Articulation(AssetBase):
             fixed_tendon_ids: The fixed tendon indices to set the limits for. Defaults to None (all fixed tendons).
             env_ids: The environment indices to set the limits for. Defaults to None (all environments).
         """
-        # resolve indices
-        physx_env_ids = env_ids
-        if env_ids is None:
-            physx_env_ids = self._ALL_INDICES
-        if fixed_tendon_ids is None:
-            fixed_tendon_ids = slice(None)
-
-        # set into simulation
-        self.root_physx_view.set_fixed_tendon_properties(
-            self._data.fixed_tendon_stiffness,
-            self._data.fixed_tendon_damping,
-            self._data.fixed_tendon_limit_stiffness,
-            self._data.fixed_tendon_pos_limits,
-            self._data.fixed_tendon_rest_length,
-            self._data.fixed_tendon_offset,
-            indices=physx_env_ids,
-        )
+        raise NotImplementedError("Fixed tendon properties are not supported in Newton.")
 
     def set_spatial_tendon_stiffness(
         self,
@@ -1196,15 +1232,7 @@ class Articulation(AssetBase):
             spatial_tendon_ids: The tendon indices to set the stiffness for. Defaults to None (all spatial tendons).
             env_ids: The environment indices to set the stiffness for. Defaults to None (all environments).
         """
-        # resolve indices
-        if env_ids is None:
-            env_ids = slice(None)
-        if spatial_tendon_ids is None:
-            spatial_tendon_ids = slice(None)
-        if env_ids != slice(None) and spatial_tendon_ids != slice(None):
-            env_ids = env_ids[:, None]
-        # set stiffness
-        self._data.spatial_tendon_stiffness[env_ids, spatial_tendon_ids] = stiffness
+        raise NotImplementedError("Spatial tendon stiffness is not supported in Newton.")
 
     def set_spatial_tendon_damping(
         self,
@@ -1222,15 +1250,7 @@ class Articulation(AssetBase):
             spatial_tendon_ids: The tendon indices to set the damping for. Defaults to None (all spatial tendons).
             env_ids: The environment indices to set the damping for. Defaults to None (all environments).
         """
-        # resolve indices
-        if env_ids is None:
-            env_ids = slice(None)
-        if spatial_tendon_ids is None:
-            spatial_tendon_ids = slice(None)
-        if env_ids != slice(None) and spatial_tendon_ids != slice(None):
-            env_ids = env_ids[:, None]
-        # set damping
-        self._data.spatial_tendon_damping[env_ids, spatial_tendon_ids] = damping
+        raise NotImplementedError("Spatial tendon damping is not supported in Newton.")
 
     def set_spatial_tendon_limit_stiffness(
         self,
@@ -1248,15 +1268,7 @@ class Articulation(AssetBase):
             spatial_tendon_ids: The tendon indices to set the limit stiffness for. Defaults to None (all spatial tendons).
             env_ids: The environment indices to set the limit stiffness for. Defaults to None (all environments).
         """
-        # resolve indices
-        if env_ids is None:
-            env_ids = slice(None)
-        if spatial_tendon_ids is None:
-            spatial_tendon_ids = slice(None)
-        if env_ids != slice(None) and spatial_tendon_ids != slice(None):
-            env_ids = env_ids[:, None]
-        # set limit stiffness
-        self._data.spatial_tendon_limit_stiffness[env_ids, spatial_tendon_ids] = limit_stiffness
+        raise NotImplementedError("Spatial tendon limit stiffness is not supported in Newton.")
 
     def set_spatial_tendon_offset(
         self,
@@ -1274,15 +1286,7 @@ class Articulation(AssetBase):
             spatial_tendon_ids: The tendon indices to set the offset for. Defaults to None (all spatial tendons).
             env_ids: The environment indices to set the offset for. Defaults to None (all environments).
         """
-        # resolve indices
-        if env_ids is None:
-            env_ids = slice(None)
-        if spatial_tendon_ids is None:
-            spatial_tendon_ids = slice(None)
-        if env_ids != slice(None) and spatial_tendon_ids != slice(None):
-            env_ids = env_ids[:, None]
-        # set offset
-        self._data.spatial_tendon_offset[env_ids, spatial_tendon_ids] = offset
+        raise NotImplementedError("Spatial tendon offset is not supported in Newton.")
 
     def write_spatial_tendon_properties_to_sim(
         self,
@@ -1295,21 +1299,7 @@ class Articulation(AssetBase):
             spatial_tendon_ids: The spatial tendon indices to set the properties for. Defaults to None (all spatial tendons).
             env_ids: The environment indices to set the properties for. Defaults to None (all environments).
         """
-        # resolve indices
-        physx_env_ids = env_ids
-        if env_ids is None:
-            physx_env_ids = self._ALL_INDICES
-        if spatial_tendon_ids is None:
-            spatial_tendon_ids = slice(None)
-
-        # set into simulation
-        self.root_physx_view.set_spatial_tendon_properties(
-            self._data.spatial_tendon_stiffness,
-            self._data.spatial_tendon_damping,
-            self._data.spatial_tendon_limit_stiffness,
-            self._data.spatial_tendon_offset,
-            indices=physx_env_ids,
-        )
+        raise NotImplementedError("Spatial tendon properties are not supported in Newton.")
 
     """
     Internal helper.
@@ -1348,45 +1338,28 @@ class Articulation(AssetBase):
                     " Please ensure that there is only one articulation in the prim path tree."
                 )
 
-            # Now we convert the found articulation root from the first
-            # environment back into a regex that matches all environments.
+            # resolve articulation root prim back into regex expression
             first_env_root_prim_path = first_env_root_prims[0].GetPath().pathString
             root_prim_path_relative_to_prim_path = first_env_root_prim_path[len(first_env_matching_prim_path) :]
             root_prim_path_expr = self.cfg.prim_path + root_prim_path_relative_to_prim_path
 
-        # -- articulation
-        self._root_physx_view = self._physics_sim_view.create_articulation_view(root_prim_path_expr.replace(".*", "*"))
+        prim_path = root_prim_path_expr.replace(".*", "*")
 
-        # check if the articulation was created
-        if self._root_physx_view._backend is None:
-            raise RuntimeError(f"Failed to create articulation at: {root_prim_path_expr}. Please check PhysX logs.")
-
-        if int(get_version()[2]) < 5:
-            omni.log.warn(
-                "Spatial tendons are not supported in Isaac Sim < 5.0: patching spatial-tendon getter"
-                " and setter to use dummy value"
-            )
-            self._root_physx_view.max_spatial_tendons = 0
-            self._root_physx_view.get_spatial_tendon_stiffnesses = lambda: torch.empty(0, device=self.device)
-            self._root_physx_view.get_spatial_tendon_dampings = lambda: torch.empty(0, device=self.device)
-            self._root_physx_view.get_spatial_tendon_limit_stiffnesses = lambda: torch.empty(0, device=self.device)
-            self._root_physx_view.get_spatial_tendon_offsets = lambda: torch.empty(0, device=self.device)
-            self._root_physx_view.set_spatial_tendon_properties = lambda *args, **kwargs: omni.log.warn(
-                "Spatial tendons are not supported in Isaac Sim < 5.0: Calling"
-                " set_spatial_tendon_properties has no effect"
-            )
+        self._root_newton_view = NewtonArticulationView(
+            NewtonManager.get_model(), prim_path, verbose=True, exclude_joint_types=[JointType.FREE, JointType.FIXED]
+        )
 
         # log information about the articulation
-        omni.log.info(f"Articulation initialized at: {self.cfg.prim_path} with root '{root_prim_path_expr}'.")
-        omni.log.info(f"Is fixed root: {self.is_fixed_base}")
-        omni.log.info(f"Number of bodies: {self.num_bodies}")
-        omni.log.info(f"Body names: {self.body_names}")
-        omni.log.info(f"Number of joints: {self.num_joints}")
-        omni.log.info(f"Joint names: {self.joint_names}")
-        omni.log.info(f"Number of fixed tendons: {self.num_fixed_tendons}")
+        print(f"[INFO]:Articulation initialized at: {self.cfg.prim_path} with root '{prim_path}'.")
+        print(f"[INFO]:Is fixed root: {self.is_fixed_base}")
+        print(f"[INFO]:Number of bodies: {self.num_bodies}")
+        print(f"[INFO]:Body names: {self.body_names}")
+        print(f"[INFO]:Number of joints: {self.num_joints}")
+        print(f"[INFO]:Joint names: {self.joint_names}")
+        print(f"[INFO]:Number of fixed tendons: {self.num_fixed_tendons}")
 
         # container for data access
-        self._data = ArticulationData(self.root_physx_view, self.device)
+        self._data = ArticulationData(self._root_newton_view, self.device)
 
         # create buffers
         self._create_buffers()
@@ -1410,44 +1383,71 @@ class Articulation(AssetBase):
         self._external_force_b = torch.zeros((self.num_instances, self.num_bodies, 3), device=self.device)
         self._external_torque_b = torch.zeros_like(self._external_force_b)
 
+        # mask for writing to simulation
+        self._mask = torch.zeros(self.num_instances, dtype=torch.bool, device=self.device)
+
         # asset named data
         self._data.joint_names = self.joint_names
         self._data.body_names = self.body_names
         # tendon names are set in _process_tendons function
 
         # -- joint properties
-        self._data.default_joint_pos_limits = self.root_physx_view.get_dof_limits().to(self.device).clone()
-        self._data.default_joint_stiffness = self.root_physx_view.get_dof_stiffnesses().to(self.device).clone()
-        self._data.default_joint_damping = self.root_physx_view.get_dof_dampings().to(self.device).clone()
-        self._data.default_joint_armature = self.root_physx_view.get_dof_armatures().to(self.device).clone()
-        self._data.default_joint_friction_coeff = (
-            self.root_physx_view.get_dof_friction_coefficients().to(self.device).clone()
-        )
+        self._data.default_joint_pos_limits = torch.stack(
+            (
+                wp.to_torch(self._root_newton_view.get_attribute("joint_limit_lower", NewtonManager.get_model())),
+                wp.to_torch(self._root_newton_view.get_attribute("joint_limit_upper", NewtonManager.get_model())),
+            ),
+            dim=2,
+        ).clone()
+        self._data.default_joint_stiffness = wp.to_torch(
+            self._root_newton_view.get_attribute("joint_target_ke", NewtonManager.get_model())
+        ).clone()
+        self._data.default_joint_damping = wp.to_torch(
+            self._root_newton_view.get_attribute("joint_target_kd", NewtonManager.get_model())
+        ).clone()
+        self._data.default_joint_armature = wp.to_torch(
+            self._root_newton_view.get_attribute("joint_armature", NewtonManager.get_model())
+        ).clone()
+        self._data.default_joint_friction_coeff = wp.to_torch(
+            self._root_newton_view.get_attribute("joint_friction", NewtonManager.get_model())
+        ).clone()
 
         self._data.joint_pos_limits = self._data.default_joint_pos_limits.clone()
-        self._data.joint_vel_limits = self.root_physx_view.get_dof_max_velocities().to(self.device).clone()
-        self._data.joint_effort_limits = self.root_physx_view.get_dof_max_forces().to(self.device).clone()
+        self._data.joint_vel_limits = wp.to_torch(
+            self._root_newton_view.get_attribute("joint_velocity_limit", NewtonManager.get_model())
+        ).clone()
+        self._data.joint_effort_limits = wp.to_torch(
+            self._root_newton_view.get_attribute("joint_effort_limit", NewtonManager.get_model())
+        ).clone()
         self._data.joint_stiffness = self._data.default_joint_stiffness.clone()
         self._data.joint_damping = self._data.default_joint_damping.clone()
         self._data.joint_armature = self._data.default_joint_armature.clone()
         self._data.joint_friction_coeff = self._data.default_joint_friction_coeff.clone()
 
         # -- body properties
-        self._data.default_mass = self.root_physx_view.get_masses().clone()
-        self._data.default_inertia = self.root_physx_view.get_inertias().clone()
+        self._data.default_mass = wp.to_torch(
+            self._root_newton_view.get_attribute("body_mass", NewtonManager.get_model())
+        ).clone()
+        self._data.default_inertia = (
+            wp.to_torch(self._root_newton_view.get_attribute("body_inertia", NewtonManager.get_model()))
+            .clone()
+            .reshape(self.num_instances, self.num_bodies, 9)
+        )
 
+        # -- joint control mode
+        self._data.joint_control_mode = torch.zeros(
+            self.num_instances, self.num_joints, dtype=torch.int32, device=self.device
+        )
         # -- joint commands (sent to the actuator from the user)
-        self._data.joint_pos_target = torch.zeros(self.num_instances, self.num_joints, device=self.device)
-        self._data.joint_vel_target = torch.zeros_like(self._data.joint_pos_target)
-        self._data.joint_effort_target = torch.zeros_like(self._data.joint_pos_target)
+        self._data.joint_target = torch.zeros(self.num_instances, self.num_joints, device=self.device)
+        self._data.joint_effort_target = torch.zeros_like(self._data.joint_target)
         # -- joint commands (sent to the simulation after actuator processing)
-        self._joint_pos_target_sim = torch.zeros_like(self._data.joint_pos_target)
-        self._joint_vel_target_sim = torch.zeros_like(self._data.joint_pos_target)
-        self._joint_effort_target_sim = torch.zeros_like(self._data.joint_pos_target)
+        self._joint_target_sim = torch.zeros_like(self._data.joint_target)
+        self._joint_effort_target_sim = torch.zeros_like(self._data.joint_target)
 
         # -- computed joint efforts from the actuator models
-        self._data.computed_torque = torch.zeros_like(self._data.joint_pos_target)
-        self._data.applied_torque = torch.zeros_like(self._data.joint_pos_target)
+        self._data.computed_torque = torch.zeros_like(self._data.joint_target)
+        self._data.applied_torque = torch.zeros_like(self._data.joint_target)
 
         # -- other data that are filled based on explicit actuator models
         self._data.soft_joint_vel_limits = torch.zeros(self.num_instances, self.num_joints, device=self.device)
@@ -1484,6 +1484,7 @@ class Articulation(AssetBase):
             self.cfg.init_state.joint_pos, self.joint_names
         )
         self._data.default_joint_pos[:, indices_list] = torch.tensor(values_list, device=self.device)
+
         # joint vel
         indices_list, _, values_list = string_utils.resolve_matching_names_values(
             self.cfg.init_state.joint_vel, self.joint_names
@@ -1554,16 +1555,21 @@ class Articulation(AssetBase):
             # store actuator group
             self.actuators[actuator_name] = actuator
             # set the passed gains and limits into the simulation
+            # TODO: write out all joint parameters from simulation
             if isinstance(actuator, ImplicitActuator):
                 self._has_implicit_actuators = True
                 # the gains and limits are set into the simulation since actuator model is implicit
                 self.write_joint_stiffness_to_sim(actuator.stiffness, joint_ids=actuator.joint_indices)
                 self.write_joint_damping_to_sim(actuator.damping, joint_ids=actuator.joint_indices)
+                # Sets the control mode for the implicit actuators
+                self.write_joint_control_mode_to_sim(actuator.control_mode, joint_ids=actuator.joint_indices)
             else:
                 # the gains and limits are processed by the actuator model
                 # we set gains to zero, and torque limit to a high value in simulation to avoid any interference
                 self.write_joint_stiffness_to_sim(0.0, joint_ids=actuator.joint_indices)
                 self.write_joint_damping_to_sim(0.0, joint_ids=actuator.joint_indices)
+                # Set the control mode to None when using explicit actuators
+                self.write_joint_control_mode_to_sim(None, joint_ids=actuator.joint_indices)
 
             # Set common properties into the simulation
             self.write_joint_effort_limit_to_sim(actuator.effort_limit_sim, joint_ids=actuator.joint_indices)
@@ -1592,54 +1598,8 @@ class Articulation(AssetBase):
         self._fixed_tendon_names = list()
         self._spatial_tendon_names = list()
         # parse fixed tendons properties if they exist
-        if self.num_fixed_tendons > 0 or self.num_spatial_tendons > 0:
-
-            joint_paths = self.root_physx_view.dof_paths[0]
-
-            # iterate over all joints to find tendons attached to them
-            for j in range(self.num_joints):
-                usd_joint_path = joint_paths[j]
-                # check whether joint has tendons - tendon name follows the joint name it is attached to
-                joint = UsdPhysics.Joint.Get(self.stage, usd_joint_path)
-                if joint.GetPrim().HasAPI(PhysxSchema.PhysxTendonAxisRootAPI):
-                    joint_name = usd_joint_path.split("/")[-1]
-                    self._fixed_tendon_names.append(joint_name)
-                elif joint.GetPrim().HasAPI(PhysxSchema.PhysxTendonAttachmentRootAPI) or joint.GetPrim().HasAPI(
-                    PhysxSchema.PhysxTendonAttachmentLeafAPI
-                ):
-                    joint_name = usd_joint_path.split("/")[-1]
-                    self._spatial_tendon_names.append(joint_name)
-
-            # store the fixed tendon names
-            self._data.fixed_tendon_names = self._fixed_tendon_names
-            self._data.spatial_tendon_names = self._spatial_tendon_names
-            # store the current USD fixed tendon properties
-            self._data.default_fixed_tendon_stiffness = self.root_physx_view.get_fixed_tendon_stiffnesses().clone()
-            self._data.default_fixed_tendon_damping = self.root_physx_view.get_fixed_tendon_dampings().clone()
-            self._data.default_fixed_tendon_limit_stiffness = (
-                self.root_physx_view.get_fixed_tendon_limit_stiffnesses().clone()
-            )
-            self._data.default_fixed_tendon_pos_limits = self.root_physx_view.get_fixed_tendon_limits().clone()
-            self._data.default_fixed_tendon_rest_length = self.root_physx_view.get_fixed_tendon_rest_lengths().clone()
-            self._data.default_fixed_tendon_offset = self.root_physx_view.get_fixed_tendon_offsets().clone()
-            self._data.default_spatial_tendon_stiffness = self.root_physx_view.get_spatial_tendon_stiffnesses().clone()
-            self._data.default_spatial_tendon_damping = self.root_physx_view.get_spatial_tendon_dampings().clone()
-            self._data.default_spatial_tendon_limit_stiffness = (
-                self.root_physx_view.get_spatial_tendon_limit_stiffnesses().clone()
-            )
-            self._data.default_spatial_tendon_offset = self.root_physx_view.get_spatial_tendon_offsets().clone()
-
-            # store a copy of the default values for the fixed tendons
-            self._data.fixed_tendon_stiffness = self._data.default_fixed_tendon_stiffness.clone()
-            self._data.fixed_tendon_damping = self._data.default_fixed_tendon_damping.clone()
-            self._data.fixed_tendon_limit_stiffness = self._data.default_fixed_tendon_limit_stiffness.clone()
-            self._data.fixed_tendon_pos_limits = self._data.default_fixed_tendon_pos_limits.clone()
-            self._data.fixed_tendon_rest_length = self._data.default_fixed_tendon_rest_length.clone()
-            self._data.fixed_tendon_offset = self._data.default_fixed_tendon_offset.clone()
-            self._data.spatial_tendon_stiffness = self._data.default_spatial_tendon_stiffness.clone()
-            self._data.spatial_tendon_damping = self._data.default_spatial_tendon_damping.clone()
-            self._data.spatial_tendon_limit_stiffness = self._data.default_spatial_tendon_limit_stiffness.clone()
-            self._data.spatial_tendon_offset = self._data.default_spatial_tendon_offset.clone()
+        if self.num_fixed_tendons > 0:
+            raise NotImplementedError("Tendons are not implemented yet")
 
     def _apply_actuator_model(self):
         """Processes joint commands for the articulation by forwarding them to the actuators.
@@ -1652,8 +1612,7 @@ class Articulation(AssetBase):
             # prepare input for actuator model based on cached data
             # TODO : A tensor dict would be nice to do the indexing of all tensors together
             control_action = ArticulationActions(
-                joint_positions=self._data.joint_pos_target[:, actuator.joint_indices],
-                joint_velocities=self._data.joint_vel_target[:, actuator.joint_indices],
+                joint_targets=self._data.joint_target[:, actuator.joint_indices],
                 joint_efforts=self._data.joint_effort_target[:, actuator.joint_indices],
                 joint_indices=actuator.joint_indices,
             )
@@ -1664,10 +1623,8 @@ class Articulation(AssetBase):
                 joint_vel=self._data.joint_vel[:, actuator.joint_indices],
             )
             # update targets (these are set into the simulation)
-            if control_action.joint_positions is not None:
-                self._joint_pos_target_sim[:, actuator.joint_indices] = control_action.joint_positions
-            if control_action.joint_velocities is not None:
-                self._joint_vel_target_sim[:, actuator.joint_indices] = control_action.joint_velocities
+            if control_action.joint_targets is not None:
+                self._joint_target_sim[:, actuator.joint_indices] = control_action.joint_targets
             if control_action.joint_efforts is not None:
                 self._joint_effort_target_sim[:, actuator.joint_indices] = control_action.joint_efforts
             # update state of the actuator model
@@ -1693,7 +1650,13 @@ class Articulation(AssetBase):
             For instance, the actuator models may change the joint max velocity limits.
         """
         # check that the default values are within the limits
-        joint_pos_limits = self.root_physx_view.get_dof_limits()[0].to(self.device)
+        joint_pos_limits = torch.stack(
+            (
+                wp.to_torch(self._root_newton_view.get_attribute("joint_limit_lower", NewtonManager.get_model())),
+                wp.to_torch(self._root_newton_view.get_attribute("joint_limit_upper", NewtonManager.get_model())),
+            ),
+            dim=2,
+        )[0].to(self.device)
         out_of_range = self._data.default_joint_pos[0] < joint_pos_limits[:, 0]
         out_of_range |= self._data.default_joint_pos[0] > joint_pos_limits[:, 1]
         violated_indices = torch.nonzero(out_of_range, as_tuple=False).squeeze(-1)
@@ -1709,37 +1672,23 @@ class Articulation(AssetBase):
                 msg += f"\t- '{joint_name}': {joint_pos:.3f} not in [{joint_limit[0]:.3f}, {joint_limit[1]:.3f}]\n"
             raise ValueError(msg)
 
-        # check that the default joint velocities are within the limits
-        joint_max_vel = self.root_physx_view.get_dof_max_velocities()[0].to(self.device)
-        out_of_range = torch.abs(self._data.default_joint_vel[0]) > joint_max_vel
-        violated_indices = torch.nonzero(out_of_range, as_tuple=False).squeeze(-1)
-        if len(violated_indices) > 0:
-            # prepare message for violated joints
-            msg = "The following joints have default velocities out of the limits: \n"
-            for idx in violated_indices:
-                joint_name = self.data.joint_names[idx]
-                joint_limit = [-joint_max_vel[idx], joint_max_vel[idx]]
-                joint_vel = self.data.default_joint_vel[0, idx]
-                # add to message
-                msg += f"\t- '{joint_name}': {joint_vel:.3f} not in [{joint_limit[0]:.3f}, {joint_limit[1]:.3f}]\n"
-            raise ValueError(msg)
-
     def _log_articulation_info(self):
         """Log information about the articulation.
 
         Note: We purposefully read the values from the simulator to ensure that the values are configured as expected.
         """
+        # TODO: read out all joint parameters from simulation
         # read out all joint parameters from simulation
         # -- gains
-        stiffnesses = self.root_physx_view.get_dof_stiffnesses()[0].tolist()
-        dampings = self.root_physx_view.get_dof_dampings()[0].tolist()
+        stiffnesses = torch.zeros([self.num_joints], dtype=torch.float32, device=self.device).tolist()
+        dampings = torch.zeros([self.num_joints], dtype=torch.float32, device=self.device).tolist()
         # -- properties
-        armatures = self.root_physx_view.get_dof_armatures()[0].tolist()
-        frictions = self.root_physx_view.get_dof_friction_coefficients()[0].tolist()
+        armatures = torch.zeros([self.num_joints], dtype=torch.float32, device=self.device).tolist()
+        frictions = torch.zeros([self.num_joints], dtype=torch.float32, device=self.device).tolist()
         # -- limits
-        position_limits = self.root_physx_view.get_dof_limits()[0].tolist()
-        velocity_limits = self.root_physx_view.get_dof_max_velocities()[0].tolist()
-        effort_limits = self.root_physx_view.get_dof_max_forces()[0].tolist()
+        position_limits = torch.zeros([self.num_joints, 2], dtype=torch.float32, device=self.device).tolist()
+        velocity_limits = torch.zeros([self.num_joints], dtype=torch.float32, device=self.device).tolist()
+        effort_limits = torch.zeros([self.num_joints], dtype=torch.float32, device=self.device).tolist()
         # create table for term information
         joint_table = PrettyTable()
         joint_table.title = f"Simulation Joint Information (Prim path: {self.cfg.prim_path})"
@@ -1776,75 +1725,10 @@ class Articulation(AssetBase):
 
         # read out all fixed tendon parameters from simulation
         if self.num_fixed_tendons > 0:
-            # -- gains
-            ft_stiffnesses = self.root_physx_view.get_fixed_tendon_stiffnesses()[0].tolist()
-            ft_dampings = self.root_physx_view.get_fixed_tendon_dampings()[0].tolist()
-            # -- limits
-            ft_limit_stiffnesses = self.root_physx_view.get_fixed_tendon_limit_stiffnesses()[0].tolist()
-            ft_limits = self.root_physx_view.get_fixed_tendon_limits()[0].tolist()
-            ft_rest_lengths = self.root_physx_view.get_fixed_tendon_rest_lengths()[0].tolist()
-            ft_offsets = self.root_physx_view.get_fixed_tendon_offsets()[0].tolist()
-            # create table for term information
-            tendon_table = PrettyTable()
-            tendon_table.title = f"Simulation Fixed Tendon Information (Prim path: {self.cfg.prim_path})"
-            tendon_table.field_names = [
-                "Index",
-                "Stiffness",
-                "Damping",
-                "Limit Stiffness",
-                "Limits",
-                "Rest Length",
-                "Offset",
-            ]
-            tendon_table.float_format = ".3"
-            joint_table.custom_format["Limits"] = lambda f, v: f"[{v[0]:.3f}, {v[1]:.3f}]"
-            # add info on each term
-            for index in range(self.num_fixed_tendons):
-                tendon_table.add_row([
-                    index,
-                    ft_stiffnesses[index],
-                    ft_dampings[index],
-                    ft_limit_stiffnesses[index],
-                    ft_limits[index],
-                    ft_rest_lengths[index],
-                    ft_offsets[index],
-                ])
-            # convert table to string
-            omni.log.info(
-                f"Simulation parameters for fixed tendons in {self.cfg.prim_path}:\n" + tendon_table.get_string()
-            )
+            raise NotImplementedError("Tendons are not implemented yet")
 
         if self.num_spatial_tendons > 0:
-            # -- gains
-            st_stiffnesses = self.root_physx_view.get_spatial_tendon_stiffnesses()[0].tolist()
-            st_dampings = self.root_physx_view.get_spatial_tendon_dampings()[0].tolist()
-            # -- limits
-            st_limit_stiffnesses = self.root_physx_view.get_spatial_tendon_limit_stiffnesses()[0].tolist()
-            st_offsets = self.root_physx_view.get_spatial_tendon_offsets()[0].tolist()
-            # create table for term information
-            tendon_table = PrettyTable()
-            tendon_table.title = f"Simulation Spatial Tendon Information (Prim path: {self.cfg.prim_path})"
-            tendon_table.field_names = [
-                "Index",
-                "Stiffness",
-                "Damping",
-                "Limit Stiffness",
-                "Offset",
-            ]
-            tendon_table.float_format = ".3"
-            # add info on each term
-            for index in range(self.num_spatial_tendons):
-                tendon_table.add_row([
-                    index,
-                    st_stiffnesses[index],
-                    st_dampings[index],
-                    st_limit_stiffnesses[index],
-                    st_offsets[index],
-                ])
-            # convert table to string
-            omni.log.info(
-                f"Simulation parameters for spatial tendons in {self.cfg.prim_path}:\n" + tendon_table.get_string()
-            )
+            raise NotImplementedError("Tendons are not implemented yet")
 
     """
     Deprecated methods.
@@ -1898,8 +1782,4 @@ class Articulation(AssetBase):
         .. deprecated:: 2.1.0
             Please use :meth:`set_fixed_tendon_position_limit` instead.
         """
-        omni.log.warn(
-            "The function 'set_fixed_tendon_limit' will be deprecated in a future release. Please"
-            " use 'set_fixed_tendon_position_limit' instead."
-        )
-        self.set_fixed_tendon_position_limit(limit, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids)
+        raise NotImplementedError("This method is not implemented for Newton.")

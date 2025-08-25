@@ -10,27 +10,15 @@ from typing import Any
 import carb
 import omni.log
 import omni.usd
-from isaacsim.core.cloner import GridCloner
 from isaacsim.core.prims import XFormPrim
 from isaacsim.core.utils.stage import get_current_stage
 from isaacsim.core.version import get_version
 from pxr import PhysxSchema
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import (
-    Articulation,
-    ArticulationCfg,
-    AssetBaseCfg,
-    DeformableObject,
-    DeformableObjectCfg,
-    RigidObject,
-    RigidObjectCfg,
-    RigidObjectCollection,
-    RigidObjectCollectionCfg,
-    SurfaceGripper,
-    SurfaceGripperCfg,
-)
-from isaaclab.sensors import ContactSensorCfg, FrameTransformerCfg, SensorBase, SensorBaseCfg
+from isaaclab.assets import Articulation, ArticulationCfg, AssetBaseCfg
+from isaaclab.cloner import GridCloner
+from isaaclab.sensors import ContactSensorCfg, SensorBase, SensorBaseCfg
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils import get_current_stage_id
 from isaaclab.terrains import TerrainImporter, TerrainImporterCfg
@@ -181,27 +169,6 @@ class InteractiveScene:
                 self.clone_environments(copy_from_source=False)
             # replicate physics if we have more than one environment
             # this is done to make scene initialization faster at play time
-            if self.cfg.replicate_physics and self.cfg.num_envs > 1:
-                # check version of Isaac Sim to determine whether clone_in_fabric is valid
-                isaac_sim_version = float(".".join(get_version()[2]))
-                if isaac_sim_version < 5:
-                    self.cloner.replicate_physics(
-                        source_prim_path=self.env_prim_paths[0],
-                        prim_paths=self.env_prim_paths,
-                        base_env_path=self.env_ns,
-                        root_path=self.env_regex_ns.replace(".*", ""),
-                        enable_env_ids=self.cfg.filter_collisions if self.device != "cpu" else False,
-                    )
-                else:
-                    self.cloner.replicate_physics(
-                        source_prim_path=self.env_prim_paths[0],
-                        prim_paths=self.env_prim_paths,
-                        base_env_path=self.env_ns,
-                        root_path=self.env_regex_ns.replace(".*", ""),
-                        enable_env_ids=self.cfg.filter_collisions if self.device != "cpu" else False,
-                        clone_in_fabric=self.cfg.clone_in_fabric,
-                    )
-
             # since env_ids is only applicable when replicating physics, we have to fallback to the previous method
             # to filter collisions if replicate_physics is not enabled
             # additionally, env_ids is only supported in GPU simulation
@@ -382,19 +349,19 @@ class InteractiveScene:
         return self._articulations
 
     @property
-    def deformable_objects(self) -> dict[str, DeformableObject]:
+    def deformable_objects(self) -> dict:
         """A dictionary of deformable objects in the scene."""
-        return self._deformable_objects
+        raise NotImplementedError("Deformable objects are not supported in IsaacLab for Newton.")
 
     @property
-    def rigid_objects(self) -> dict[str, RigidObject]:
+    def rigid_objects(self) -> dict:
         """A dictionary of rigid objects in the scene."""
-        return self._rigid_objects
+        raise NotImplementedError("Rigid objects are not supported in IsaacLab for Newton.")
 
     @property
-    def rigid_object_collections(self) -> dict[str, RigidObjectCollection]:
+    def rigid_object_collections(self) -> dict:
         """A dictionary of rigid object collections in the scene."""
-        return self._rigid_object_collections
+        raise NotImplementedError("Rigid object collections are not supported in IsaacLab for Newton.")
 
     @property
     def sensors(self) -> dict[str, SensorBase]:
@@ -402,9 +369,9 @@ class InteractiveScene:
         return self._sensors
 
     @property
-    def surface_grippers(self) -> dict[str, SurfaceGripper]:
+    def surface_grippers(self) -> dict:
         """A dictionary of the surface grippers in the scene."""
-        return self._surface_grippers
+        raise NotImplementedError("Surface grippers are not supported in IsaacLab for Newton.")
 
     @property
     def extras(self) -> dict[str, XFormPrim]:
@@ -447,14 +414,6 @@ class InteractiveScene:
         # -- assets
         for articulation in self._articulations.values():
             articulation.reset(env_ids)
-        for deformable_object in self._deformable_objects.values():
-            deformable_object.reset(env_ids)
-        for rigid_object in self._rigid_objects.values():
-            rigid_object.reset(env_ids)
-        for surface_gripper in self._surface_grippers.values():
-            surface_gripper.reset(env_ids)
-        for rigid_object_collection in self._rigid_object_collections.values():
-            rigid_object_collection.reset(env_ids)
         # -- sensors
         for sensor in self._sensors.values():
             sensor.reset(env_ids)
@@ -464,14 +423,6 @@ class InteractiveScene:
         # -- assets
         for articulation in self._articulations.values():
             articulation.write_data_to_sim()
-        for deformable_object in self._deformable_objects.values():
-            deformable_object.write_data_to_sim()
-        for rigid_object in self._rigid_objects.values():
-            rigid_object.write_data_to_sim()
-        for surface_gripper in self._surface_grippers.values():
-            surface_gripper.write_data_to_sim()
-        for rigid_object_collection in self._rigid_object_collections.values():
-            rigid_object_collection.write_data_to_sim()
 
     def update(self, dt: float) -> None:
         """Update the scene entities.
@@ -482,14 +433,6 @@ class InteractiveScene:
         # -- assets
         for articulation in self._articulations.values():
             articulation.update(dt)
-        for deformable_object in self._deformable_objects.values():
-            deformable_object.update(dt)
-        for rigid_object in self._rigid_objects.values():
-            rigid_object.update(dt)
-        for rigid_object_collection in self._rigid_object_collections.values():
-            rigid_object_collection.update(dt)
-        for surface_gripper in self._surface_grippers.values():
-            surface_gripper.update(dt)
         # -- sensors
         for sensor in self._sensors.values():
             sensor.update(dt, force_recompute=not self.cfg.lazy_sensor_update)
@@ -534,28 +477,6 @@ class InteractiveScene:
             #   This assumption does not hold for effort controlled joints.
             articulation.set_joint_position_target(joint_position, env_ids=env_ids)
             articulation.set_joint_velocity_target(joint_velocity, env_ids=env_ids)
-        # deformable objects
-        for asset_name, deformable_object in self._deformable_objects.items():
-            asset_state = state["deformable_object"][asset_name]
-            nodal_position = asset_state["nodal_position"].clone()
-            if is_relative:
-                nodal_position[:, :3] += self.env_origins[env_ids]
-            nodal_velocity = asset_state["nodal_velocity"].clone()
-            deformable_object.write_nodal_pos_to_sim(nodal_position, env_ids=env_ids)
-            deformable_object.write_nodal_velocity_to_sim(nodal_velocity, env_ids=env_ids)
-        # rigid objects
-        for asset_name, rigid_object in self._rigid_objects.items():
-            asset_state = state["rigid_object"][asset_name]
-            root_pose = asset_state["root_pose"].clone()
-            if is_relative:
-                root_pose[:, :3] += self.env_origins[env_ids]
-            root_velocity = asset_state["root_velocity"].clone()
-            rigid_object.write_root_pose_to_sim(root_pose, env_ids=env_ids)
-            rigid_object.write_root_velocity_to_sim(root_velocity, env_ids=env_ids)
-        # surface grippers
-        for asset_name, gripper in self._surface_grippers.items():
-            asset_state = state["gripper"][asset_name]
-            gripper.write_gripper_state_to_sim(asset_state, env_ids=env_ids)
 
         # write data to simulation to make sure initial state is set
         # this propagates the joint targets to the simulation
@@ -624,24 +545,6 @@ class InteractiveScene:
             asset_state["joint_position"] = articulation.data.joint_pos.clone()
             asset_state["joint_velocity"] = articulation.data.joint_vel.clone()
             state["articulation"][asset_name] = asset_state
-        # deformable objects
-        state["deformable_object"] = dict()
-        for asset_name, deformable_object in self._deformable_objects.items():
-            asset_state = dict()
-            asset_state["nodal_position"] = deformable_object.data.nodal_pos_w.clone()
-            if is_relative:
-                asset_state["nodal_position"][:, :3] -= self.env_origins
-            asset_state["nodal_velocity"] = deformable_object.data.nodal_vel_w.clone()
-            state["deformable_object"][asset_name] = asset_state
-        # rigid objects
-        state["rigid_object"] = dict()
-        for asset_name, rigid_object in self._rigid_objects.items():
-            asset_state = dict()
-            asset_state["root_pose"] = rigid_object.data.root_pose_w.clone()
-            if is_relative:
-                asset_state["root_pose"][:, :3] -= self.env_origins
-            asset_state["root_velocity"] = rigid_object.data.root_vel_w.clone()
-            state["rigid_object"][asset_name] = asset_state
         return state
 
     """
@@ -657,11 +560,7 @@ class InteractiveScene:
         all_keys = ["terrain"]
         for asset_family in [
             self._articulations,
-            self._deformable_objects,
-            self._rigid_objects,
-            self._rigid_object_collections,
             self._sensors,
-            self._surface_grippers,
             self._extras,
         ]:
             all_keys += list(asset_family.keys())
@@ -684,11 +583,7 @@ class InteractiveScene:
         # check if it is in other dictionaries
         for asset_family in [
             self._articulations,
-            self._deformable_objects,
-            self._rigid_objects,
-            self._rigid_object_collections,
             self._sensors,
-            self._surface_grippers,
             self._extras,
         ]:
             out = asset_family.get(key)
@@ -735,33 +630,27 @@ class InteractiveScene:
                 self._terrain = asset_cfg.class_type(asset_cfg)
             elif isinstance(asset_cfg, ArticulationCfg):
                 self._articulations[asset_name] = asset_cfg.class_type(asset_cfg)
-            elif isinstance(asset_cfg, DeformableObjectCfg):
-                self._deformable_objects[asset_name] = asset_cfg.class_type(asset_cfg)
-            elif isinstance(asset_cfg, RigidObjectCfg):
-                self._rigid_objects[asset_name] = asset_cfg.class_type(asset_cfg)
-            elif isinstance(asset_cfg, RigidObjectCollectionCfg):
-                for rigid_object_cfg in asset_cfg.rigid_objects.values():
-                    rigid_object_cfg.prim_path = rigid_object_cfg.prim_path.format(ENV_REGEX_NS=self.env_regex_ns)
-                self._rigid_object_collections[asset_name] = asset_cfg.class_type(asset_cfg)
-                for rigid_object_cfg in asset_cfg.rigid_objects.values():
-                    if hasattr(rigid_object_cfg, "collision_group") and rigid_object_cfg.collision_group == -1:
-                        asset_paths = sim_utils.find_matching_prim_paths(rigid_object_cfg.prim_path)
-                        self._global_prim_paths += asset_paths
-            elif isinstance(asset_cfg, SurfaceGripperCfg):
-                pass
             elif isinstance(asset_cfg, SensorBaseCfg):
-                # Update target frame path(s)' regex name space for FrameTransformer
-                if isinstance(asset_cfg, FrameTransformerCfg):
-                    updated_target_frames = []
-                    for target_frame in asset_cfg.target_frames:
-                        target_frame.prim_path = target_frame.prim_path.format(ENV_REGEX_NS=self.env_regex_ns)
-                        updated_target_frames.append(target_frame)
-                    asset_cfg.target_frames = updated_target_frames
-                elif isinstance(asset_cfg, ContactSensorCfg):
-                    updated_filter_prim_paths_expr = []
-                    for filter_prim_path in asset_cfg.filter_prim_paths_expr:
-                        updated_filter_prim_paths_expr.append(filter_prim_path.format(ENV_REGEX_NS=self.env_regex_ns))
-                    asset_cfg.filter_prim_paths_expr = updated_filter_prim_paths_expr
+                if isinstance(asset_cfg, ContactSensorCfg):
+                    if asset_cfg.shape_path is not None:
+                        updated_shape_names_expr = []
+                        for filter_prim_path in asset_cfg.shape_path:
+                            updated_shape_names_expr.append(filter_prim_path.format(ENV_REGEX_NS=self.env_regex_ns))
+                        asset_cfg.shape_path = updated_shape_names_expr
+                    if asset_cfg.filter_prim_paths_expr is not None:
+                        updated_contact_partners_body_expr = []
+                        for contact_partners_body_expr in asset_cfg.filter_prim_paths_expr:
+                            updated_contact_partners_body_expr.append(
+                                contact_partners_body_expr.format(ENV_REGEX_NS=self.env_regex_ns)
+                            )
+                        asset_cfg.filter_prim_paths_expr = updated_contact_partners_body_expr
+                    if asset_cfg.filter_shape_paths_expr is not None:
+                        updated_contact_partners_shape_expr = []
+                        for contact_partners_shape_expr in asset_cfg.filter_shape_paths_expr:
+                            updated_contact_partners_shape_expr.append(
+                                contact_partners_shape_expr.format(ENV_REGEX_NS=self.env_regex_ns)
+                            )
+                        asset_cfg.filter_shape_paths_expr = updated_contact_partners_shape_expr
 
                 self._sensors[asset_name] = asset_cfg.class_type(asset_cfg)
             elif isinstance(asset_cfg, AssetBaseCfg):

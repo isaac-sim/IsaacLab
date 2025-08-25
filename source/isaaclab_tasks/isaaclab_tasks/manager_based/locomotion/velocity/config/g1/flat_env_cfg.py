@@ -4,6 +4,9 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from isaaclab.managers import SceneEntityCfg
+from isaaclab.sim import SimulationCfg
+from isaaclab.sim._impl.newton_manager_cfg import NewtonCfg
+from isaaclab.sim._impl.solvers_cfg import MJWarpSolverCfg
 from isaaclab.utils import configclass
 
 from .rough_env_cfg import G1RoughEnvCfg
@@ -11,6 +14,21 @@ from .rough_env_cfg import G1RoughEnvCfg
 
 @configclass
 class G1FlatEnvCfg(G1RoughEnvCfg):
+    sim: SimulationCfg = SimulationCfg(
+        newton_cfg=NewtonCfg(
+            solver_cfg=MJWarpSolverCfg(
+                nefc_per_env=70,
+                ls_iterations=10,
+                ls_parallel=True,
+                cone="pyramidal",
+                impratio=1,
+                integrator="implicit",
+            ),
+            num_substeps=1,
+            debug_mode=False,
+        )
+    )
+
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
@@ -19,8 +37,8 @@ class G1FlatEnvCfg(G1RoughEnvCfg):
         self.scene.terrain.terrain_type = "plane"
         self.scene.terrain.terrain_generator = None
         # no height scan
-        self.scene.height_scanner = None
-        self.observations.policy.height_scan = None
+        # self.scene.height_scanner = None
+        # self.observations.policy.height_scan = None
         # no terrain curriculum
         self.curriculum.terrain_levels = None
 

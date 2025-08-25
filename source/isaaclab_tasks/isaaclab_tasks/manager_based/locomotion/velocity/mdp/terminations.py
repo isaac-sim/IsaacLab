@@ -14,7 +14,7 @@ from __future__ import annotations
 import torch
 from typing import TYPE_CHECKING
 
-from isaaclab.assets import RigidObject
+from isaaclab.assets import Articulation
 from isaaclab.managers import SceneEntityCfg
 
 if TYPE_CHECKING:
@@ -42,7 +42,7 @@ def terrain_out_of_bounds(
         map_height = n_cols * grid_length + 2 * border_width
 
         # extract the used quantities (to enable type-hinting)
-        asset: RigidObject = env.scene[asset_cfg.name]
+        asset: Articulation = env.scene[asset_cfg.name]
 
         # check if the agent is out of bounds
         x_out_of_bounds = torch.abs(asset.data.root_pos_w[:, 0]) > 0.5 * map_width - distance_buffer

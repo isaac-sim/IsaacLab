@@ -297,7 +297,6 @@ class DirectRLEnv(gym.Env):
 
         # update articulation kinematics
         self.scene.write_data_to_sim()
-        self.sim.forward()
 
         # if sensors are added to the scene, make sure we render to reflect changes in reset
         if self.sim.has_rtx_sensors() and self.cfg.rerender_on_reset:
@@ -310,6 +309,7 @@ class DirectRLEnv(gym.Env):
         # return observations
         return self._get_observations(), self.extras
 
+    @Timer(name="env_step", msg="Step took:", enable=True, format="us")
     def step(self, action: torch.Tensor) -> VecEnvStepReturn:
         """Execute one time-step of the environment's dynamics.
 
@@ -354,7 +354,8 @@ class DirectRLEnv(gym.Env):
             # set actions into simulator
             self.scene.write_data_to_sim()
             # simulate
-            self.sim.step(render=False)
+            with Timer(name="simulate", msg="Newton simulation step took:", enable=True, format="us"):
+                self.sim.step(render=False)
             # render between steps only if the GUI or an RTX sensor needs it
             # note: we assume the render interval to be the shortest accepted rendering interval.
             #    If a camera needs rendering at a faster frequency, this will lead to unexpected behavior.
@@ -378,7 +379,6 @@ class DirectRLEnv(gym.Env):
             self._reset_idx(reset_env_ids)
             # update articulation kinematics
             self.scene.write_data_to_sim()
-            self.sim.forward()
             # if sensors are added to the scene, make sure we render to reflect changes in reset
             if self.sim.has_rtx_sensors() and self.cfg.rerender_on_reset:
                 self.sim.render()
@@ -442,7 +442,7 @@ class DirectRLEnv(gym.Env):
             NotImplementedError: If an unsupported rendering mode is specified.
         """
         # run a rendering step of the simulator
-        # if we have rtx sensors, we do not need to render again sin
+        # if we have rtx sensors, we do not need to render again sim
         if not self.sim.has_rtx_sensors() and not recompute:
             self.sim.render()
         # decide the rendering mode
