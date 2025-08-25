@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-# Copyright (c) 2025, The Isaac Lab Project Developers.
+# Copyright (c) 2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -23,7 +23,7 @@ class InstructionDisplay:
     def __init__(self, teleop_device):
         self.teleop_device = teleop_device.lower()
 
-        if self.teleop_device == "handtracking":
+        if "handtracking" in self.teleop_device.lower():
             from isaaclab.ui.xr_widgets import show_instruction
 
             self._display_subtask = lambda text: show_instruction(

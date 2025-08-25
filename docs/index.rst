@@ -33,7 +33,7 @@ Isaac lab is developed with specific robot assets that are now **Batteries-inclu
 - **Humanoids**: Unitree H1, Unitree G1
 - **Quadcopter**: Crazyflie
 
-The platform is also designed so that you can add your own robots! please refer to the
+The platform is also designed so that you can add your own robots! Please refer to the
 :ref:`how-to` section for details.
 
 For more information about the framework, please refer to the `paper <https://arxiv.org/abs/2301.04195>`_
@@ -48,12 +48,13 @@ For more information about the framework, please refer to the `paper <https://ar
 License
 =======
 
-The Isaac Lab framework is open-sourced under the BSD-3-Clause license.
-Please refer to :ref:`license` for more details.
+The Isaac Lab framework is open-sourced under the BSD-3-Clause license,
+with certain parts under Apache-2.0 license. Please refer to :ref:`license` for more details.
 
 Acknowledgement
 ===============
-Isaac Lab development initiated from the `Orbit <https://isaac-orbit.github.io/>`_ framework. We would appreciate if you would cite it in academic publications as well:
+Isaac Lab development initiated from the `Orbit <https://isaac-orbit.github.io/>`_ framework.
+We would appreciate if you would cite it in academic publications as well:
 
 .. code:: bibtex
 
@@ -104,6 +105,7 @@ Table of Contents
    source/overview/environments
    source/overview/reinforcement-learning/index
    source/overview/teleop_imitation
+   source/overview/augmented_imitation
    source/overview/showroom
    source/overview/simple_agents
 

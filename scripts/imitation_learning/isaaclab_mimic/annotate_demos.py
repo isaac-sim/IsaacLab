@@ -62,7 +62,7 @@ if args_cli.enable_pinocchio:
 
 # Only enables inputs if this script is NOT headless mode
 if not args_cli.headless and not os.environ.get("HEADLESS", 0):
-    from isaaclab.devices import Se3Keyboard
+    from isaaclab.devices import Se3Keyboard, Se3KeyboardCfg
 
 from isaaclab.envs import ManagerBasedRLMimicEnv
 from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
@@ -159,7 +159,7 @@ def main():
 
     if episode_count == 0:
         print("No episodes found in the dataset.")
-        exit()
+        return 0
 
     # get output directory path and file name (without extension) from cli arguments
     output_dir = os.path.dirname(args_cli.output_file)
@@ -225,7 +225,7 @@ def main():
 
     # Only enables inputs if this script is NOT headless mode
     if not args_cli.headless and not os.environ.get("HEADLESS", 0):
-        keyboard_interface = Se3Keyboard(pos_sensitivity=0.1, rot_sensitivity=0.1)
+        keyboard_interface = Se3Keyboard(Se3KeyboardCfg(pos_sensitivity=0.1, rot_sensitivity=0.1))
         keyboard_interface.add_callback("N", play_cb)
         keyboard_interface.add_callback("B", pause_cb)
         keyboard_interface.add_callback("Q", skip_episode_cb)
@@ -236,6 +236,7 @@ def main():
     # simulate environment -- run everything in inference mode
     exported_episode_count = 0
     processed_episode_count = 0
+    successful_task_count = 0  # Counter for successful task completions
     with contextlib.suppress(KeyboardInterrupt) and torch.inference_mode():
         while simulation_app.is_running() and not simulation_app.is_exiting():
             # Iterate over the episodes in the loaded dataset file
@@ -259,6 +260,7 @@ def main():
                     )
                     env.recorder_manager.export_episodes()
                     exported_episode_count += 1
+                    successful_task_count += 1  # Increment successful task counter
                     print("\tExported the annotated episode.")
                 else:
                     print("\tSkipped exporting the episode due to incomplete subtask annotations.")
@@ -268,10 +270,15 @@ def main():
         f"\nExported {exported_episode_count} (out of {processed_episode_count}) annotated"
         f" episode{'s' if exported_episode_count > 1 else ''}."
     )
+    print(
+        f"Successful task completions: {successful_task_count}"
+    )  # This line is used by the dataset generation test case to check if the expected number of demos were annotated
     print("Exiting the app.")
 
     # Close environment after annotation is complete
     env.close()
+
+    return successful_task_count
 
 
 def replay_episode(
@@ -440,6 +447,8 @@ def annotate_episode_in_manual_mode(
 
 if __name__ == "__main__":
     # run the main function
-    main()
+    successful_task_count = main()
     # close sim app
     simulation_app.close()
+    # exit with the number of successful task completions as return code
+    exit(successful_task_count)
