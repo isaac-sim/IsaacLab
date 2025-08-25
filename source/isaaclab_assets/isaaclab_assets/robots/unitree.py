@@ -381,3 +381,161 @@ G1_MINIMAL_CFG.spawn.usd_path = f"{ISAACLAB_NUCLEUS_DIR}/Robots/Unitree/G1/g1_mi
 
 This configuration removes most collision meshes to speed up simulation.
 """
+
+
+"""
+Configuration for the Unitree G1 Humanoid robot with Inspire 5fingers hand.
+The Unitree G1 URDF can be found here: https://github.com/unitreerobotics/unitree_ros/tree/master/robots/g1_description/g1_29dof_with_hand_rev_1_0.urdf
+The Inspire hand URDF is available at: https://github.com/unitreerobotics/xr_teleoperate/tree/main/assets/inspire_hand
+The merging code for the hand and robot can be found here: https://github.com/unitreerobotics/unitree_ros/blob/master/robots/g1_description/merge_g1_29dof_and_inspire_hand.ipynb,
+Necessary modifications should be made to ensure the correct parent–child relationship.
+"""
+G1_INSPIRE_FTP_CFG = ArticulationCfg(
+    spawn=sim_utils.UsdFileCfg(
+        usd_path=f"./usecase/humanoid_teleop/g1_29dof_rev_1_0_with_inspire_hand_FTP/g1_29dof_rev_1_0_with_inspire_hand_retarget_inspire_white.usd",
+        activate_contact_sensors=True,
+        rigid_props=sim_utils.RigidBodyPropertiesCfg(
+            disable_gravity=True,
+            retain_accelerations=False,
+            linear_damping=0.0,
+            angular_damping=0.0,
+            max_linear_velocity=1000.0,
+            max_angular_velocity=1000.0,
+            max_depenetration_velocity=1.0,
+        ),
+        # enabled_self_collisions, True or False
+        articulation_props=sim_utils.ArticulationRootPropertiesCfg(
+            enabled_self_collisions=True, solver_position_iteration_count=8, solver_velocity_iteration_count=4
+        ),
+    ),
+    init_state=ArticulationCfg.InitialStateCfg(
+        pos=(0.0, 0.0, 0.95),
+        joint_pos={".*": 0.0},
+        joint_vel={".*": 0.0},
+    ),
+    soft_joint_pos_limit_factor=0.9,
+    actuators={
+        "trunk": ImplicitActuatorCfg(
+            joint_names_expr=[
+                "waist_.*",
+            ],
+            effort_limit_sim=None,
+            velocity_limit=None,
+            stiffness=None,
+            damping=None,
+        ),
+        "legs": ImplicitActuatorCfg(
+            joint_names_expr=[
+                ".*_hip_yaw_joint",
+                ".*_hip_roll_joint",
+                ".*_hip_pitch_joint",
+                ".*_knee_joint",
+            ],
+            effort_limit_sim=None,
+            velocity_limit=None,
+            stiffness=None,
+            damping=None,
+        ),
+        "feet": ImplicitActuatorCfg(
+            joint_names_expr=[".*_ankle_pitch_joint", ".*_ankle_roll_joint"],
+            effort_limit_sim=None,
+            velocity_limit=None,
+            stiffness=None,
+            damping=None,
+        ),
+        "right-arm": ImplicitActuatorCfg(
+            joint_names_expr=[
+                "right_shoulder_.*",
+                "right_elbow_.*",
+                "right_wrist_.*",
+            ],
+            effort_limit_sim=300.0,
+            velocity_limit=100.0,
+            stiffness=4000.0,
+            damping=50.0,
+            armature={
+                ".*_shoulder_.*": 0.01,
+                ".*_elbow_.*": 0.01,
+                ".*_wrist_.*": 0.01,
+            },
+        ),
+        "left-arm": ImplicitActuatorCfg(  # 7 joints, same with GR1T2_CFG
+            joint_names_expr=[
+                "left_shoulder_.*",
+                "left_elbow_.*",
+                "left_wrist_.*",
+            ],
+            effort_limit_sim=300.0,
+            velocity_limit=100.0,
+            stiffness=4000.0,
+            damping=50.0,
+            armature={
+                ".*_shoulder_.*": 0.01,
+                ".*_elbow_.*": 0.01,
+                ".*_wrist_.*": 0.01,
+            },
+        ),
+        "right-hand": ImplicitActuatorCfg(
+            joint_names_expr=[
+                "R_thumb_proximal_yaw_joint",
+                "R_thumb_proximal_pitch_joint",
+                "R_index_proximal_joint",
+                "R_middle_proximal_joint",
+                "R_ring_proximal_joint",
+                "R_pinky_proximal_joint",
+            ],
+            effort_limit_sim=2.0,  # If None, the palm is turned outward.
+            velocity_limit_sim=10.0,
+            stiffness=10.0,
+            damping=0.2,
+            armature=0.001,
+        ),
+        # set PD to zero for mimic joints
+        "right-hand-passive": ImplicitActuatorCfg(
+            joint_names_expr=[
+                "R_thumb_intermediate_joint",
+                "R_thumb_distal_joint",
+                "R_index_intermediate_joint",
+                "R_middle_intermediate_joint",
+                "R_ring_intermediate_joint",
+                "R_pinky_intermediate_joint",
+            ],
+            effort_limit_sim=2.0,  # If None, the palm is turned outward.
+            velocity_limit_sim=10.0,
+            stiffness=10.0,
+            damping=0.2,
+            armature=0.001,
+        ),
+        "left-hand": ImplicitActuatorCfg(
+            joint_names_expr=[
+                "L_thumb_proximal_yaw_joint",
+                "L_thumb_proximal_pitch_joint",
+                "L_index_proximal_joint",
+                "L_middle_proximal_joint",
+                "L_ring_proximal_joint",
+                "L_pinky_proximal_joint",
+            ],
+            effort_limit_sim=2.0,
+            velocity_limit_sim=10.0,
+            stiffness=10.0,
+            damping=0.2,
+            armature=0.001,
+        ),
+        # set PD to zero for mimic joints
+        "left-hand-passive": ImplicitActuatorCfg(
+            joint_names_expr=[
+                "L_thumb_intermediate_joint",
+                "L_thumb_distal_joint",
+                "L_index_intermediate_joint",
+                "L_middle_intermediate_joint",
+                "L_ring_intermediate_joint",
+                "L_pinky_intermediate_joint",
+            ],
+            effort_limit_sim=2.0,
+            velocity_limit_sim=10.0,
+            stiffness=10.0,
+            damping=0.2,
+            armature=0.001,
+        ),
+    },
+)
