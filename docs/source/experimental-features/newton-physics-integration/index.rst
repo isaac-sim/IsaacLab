@@ -8,7 +8,7 @@ simulation, modern Python APIs, and a flexible architecture for both users and d
 Newton is an Open Source community-driven project with contributions from NVIDIA, Google Deep Mind, and Disney Research,  
 managed through the Linux Foundation.
 
-This `experimental feature branch <https://isaac-sim.github.io/IsaacLab/main/source/experimental-features/index.html>`_of Isaac Lab provides an initial integration with the Newton Physics Engine, and is 
+This `experimental feature branch <https://isaac-sim.github.io/IsaacLab/main/source/experimental-features/index.html>`_ of Isaac Lab provides an initial integration with the Newton Physics Engine, and is 
 under active development. Many features are not yet supported, and only a limited set of classic RL and flat terrain locomotion  
 reinforcement learning examples are included at the moment:
 
@@ -20,7 +20,7 @@ We have validated Newton simulation against PhysX by transferring learned polici
 Furthermore, we have also successfully deployed a Newton-trained locomotion policy to a G1 robot. Please see [LINK]here 
 for more information.
 
-Newton can support `multiple solvers <https://newton-physics.github.io/newton/api/newton_solvers.html>`_for handling different types of physics simulation, but for the moment, the Isaac
+Newton can support `multiple solvers <https://newton-physics.github.io/newton/api/newton_solvers.html>`_ for handling different types of physics simulation, but for the moment, the Isaac
 Lab integration focuses primarily on the MuJoCo-Warp solver.
 
 Future updates of this branch and Newton should include both ongoing improvements in performance as well as integration 
