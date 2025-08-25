@@ -99,7 +99,7 @@ class BaseLeeController:
         self.randomize_params(env_ids)
 
     def randomize_params(self, env_ids):
-        if self.cfg.randomize_params == False:
+        if not self.cfg.randomize_params:
             return
         self.K_pos_current[env_ids] = torch_rand_float_tensor(self.K_pos_min[env_ids], self.K_pos_max[env_ids])
         self.K_linvel_current[env_ids] = torch_rand_float_tensor(self.K_linvel_min[env_ids], self.K_linvel_max[env_ids])

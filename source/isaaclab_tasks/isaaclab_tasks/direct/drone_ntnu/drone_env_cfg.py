@@ -76,7 +76,7 @@ class DroneEnvCfg(DirectRLEnvCfg):
 
     events: EventCfg = EventCfg()
 
-    # robot related variables -- need furthur clean
+    # robot related variables -- need further clean
     thrust_to_torque_ratio = 0.01
     application_mask = [5, 6, 7, 8]  # TODO: use SceneEntityCfg
     force_application_level = "motor_link"
