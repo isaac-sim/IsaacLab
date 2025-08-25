@@ -14,9 +14,10 @@ class DigitLocoManipPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     max_iterations = 2000
     save_interval = 50
     experiment_name = "digit_loco_manip"
-    empirical_normalization = False
     policy = RslRlPpoActorCriticCfg(
         init_noise_std=1.0,
+        actor_obs_normalization=False,
+        critic_obs_normalization=False,
         actor_hidden_dims=[256, 128, 128],
         critic_hidden_dims=[256, 128, 128],
         activation="elu",
