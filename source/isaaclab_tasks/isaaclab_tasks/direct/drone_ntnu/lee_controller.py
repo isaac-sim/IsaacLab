@@ -67,9 +67,10 @@ class BaseLeeController:
         # tensors that are needed later in the controller are predefined here
         self.accel = torch.zeros((self.env.num_envs, 3), device=self.env.device)
         self.wrench_command_b = torch.zeros((self.env.num_envs, 6), device=self.env.device)  # [fx, fy, fz, tx, ty, tz]
+
         # tensors that are needed later in the controller are predefined here
         self.desired_body_angvel_w = torch.zeros_like(self.robot.data.root_ang_vel_b)
-        self.euler_angle_rates = torch.zeros_like(self.robot.data.root_ang_vel_b)
+        self.euler_angle_rates_w = torch.zeros_like(self.robot.data.root_ang_vel_b)
 
         # buffer tensor to be used by torch.jit functions for various purposes
         self.buffer_tensor = torch.zeros((self.env.num_envs, 3, 3), device=self.env.device)
@@ -79,9 +80,9 @@ class BaseLeeController:
         robot_euler_w = math_utils.wrap_to_pi(robot_euler_w)
         self.wrench_command_b[:] = 0.0
         self.wrench_command_b[:, 2] = (command[:, 0] + 1.0) * self.mass * torch.norm(self.gravity, dim=1)
-        self.euler_angle_rates[:, :2] = 0.0
-        self.euler_angle_rates[:, 2] = command[:, 3]
-        self.desired_body_angvel_w[:] = euler_to_body_rate(robot_euler_w, self.euler_angle_rates, self.buffer_tensor)
+        self.euler_angle_rates_w[:, :2] = 0.0
+        self.euler_angle_rates_w[:, 2] = command[:, 3]
+        self.desired_body_angvel_w[:] = euler_to_body_rate(robot_euler_w, self.euler_angle_rates_w, self.buffer_tensor)
 
         # quaternion desired
         # desired euler angle is equal to commanded roll, commanded pitch, and current yaw
