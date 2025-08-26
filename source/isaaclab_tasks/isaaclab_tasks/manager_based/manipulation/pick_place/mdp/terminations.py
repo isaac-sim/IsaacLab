@@ -65,7 +65,12 @@ def task_done_pick_place(
 
     # Get right wrist position relative to environment origin
     robot_body_pos_w = env.scene["robot"].data.body_pos_w
-    right_eef_idx = env.scene["robot"].data.body_names.index("right_hand_roll_link")
+    if env.unwrapped.cfg.robot_name == "Unitree_G1":
+        # Unitree G1
+        right_eef_idx = env.scene["robot"].data.body_names.index("right_wrist_yaw_link")
+    else:
+        # Fourier GR1T2
+        right_eef_idx = env.scene["robot"].data.body_names.index("right_hand_roll_link")
     right_wrist_x = robot_body_pos_w[:, right_eef_idx, 0] - env.scene.env_origins[:, 0]
 
     # Check all success conditions and combine with logical AND
