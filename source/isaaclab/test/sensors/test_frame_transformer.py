@@ -384,6 +384,7 @@ def test_frame_transformer_robot_body_to_external_cube(sim):
         torch.testing.assert_close(cube_quat_source_tf[:, 0], cube_quat_b)
 
 
+@pytest.mark.isaacsim_ci
 def test_frame_transformer_offset_frames(sim):
     """Test body transformation w.r.t. base source frame.
 
@@ -479,6 +480,7 @@ def test_frame_transformer_offset_frames(sim):
         torch.testing.assert_close(cube_quat_bottom, cube_quat_w_gt)
 
 
+@pytest.mark.isaacsim_ci
 def test_frame_transformer_all_bodies(sim):
     """Test transformation of all bodies w.r.t. base source frame.
 
@@ -568,6 +570,7 @@ def test_frame_transformer_all_bodies(sim):
             torch.testing.assert_close(bodies_quat_source_tf[:, index], body_quat_b)
 
 
+@pytest.mark.isaacsim_ci
 def test_sensor_print(sim):
     """Test sensor print is working correctly."""
     # Spawn things into stage

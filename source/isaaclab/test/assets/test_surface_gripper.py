@@ -159,6 +159,7 @@ def sim(request):
 @pytest.mark.parametrize("num_articulations", [1])
 @pytest.mark.parametrize("device", ["cpu"])
 @pytest.mark.parametrize("add_ground_plane", [True])
+@pytest.mark.isaacsim_ci
 def test_initialization(sim, num_articulations, device, add_ground_plane) -> None:
     """Test initialization for articulation with a surface gripper.
 
@@ -204,6 +205,7 @@ def test_initialization(sim, num_articulations, device, add_ground_plane) -> Non
 
 @pytest.mark.parametrize("device", ["cuda:0"])
 @pytest.mark.parametrize("add_ground_plane", [True])
+@pytest.mark.isaacsim_ci
 def test_raise_error_if_not_cpu(sim, device, add_ground_plane) -> None:
     """Test that the SurfaceGripper raises an error if the device is not CPU."""
     isaac_sim_version = get_version()

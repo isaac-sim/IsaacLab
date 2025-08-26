@@ -81,6 +81,7 @@ def setup_simulation():
     sim.clear_instance()
 
 
+@pytest.mark.isaacsim_ci
 def test_valid_properties_cfg(setup_simulation):
     """Test that all the config instances have non-None values.
 
@@ -93,6 +94,7 @@ def test_valid_properties_cfg(setup_simulation):
             assert v is not None, f"{cfg.__class__.__name__}:{k} is None. Please make sure schemas are valid."
 
 
+@pytest.mark.isaacsim_ci
 def test_modify_properties_on_invalid_prim(setup_simulation):
     """Test modifying properties on a prim that does not exist."""
     sim, _, rigid_cfg, _, _, _ = setup_simulation
@@ -101,6 +103,7 @@ def test_modify_properties_on_invalid_prim(setup_simulation):
         schemas.modify_rigid_body_properties("/World/asset_xyz", rigid_cfg)
 
 
+@pytest.mark.isaacsim_ci
 def test_modify_properties_on_articulation_instanced_usd(setup_simulation):
     """Test modifying properties on articulation instanced usd.
 
@@ -129,6 +132,7 @@ def test_modify_properties_on_articulation_instanced_usd(setup_simulation):
     schemas.modify_articulation_root_properties("/World/asset_instanced", arti_cfg)
 
 
+@pytest.mark.isaacsim_ci
 def test_modify_properties_on_articulation_usd(setup_simulation):
     """Test setting properties on articulation usd."""
     sim, arti_cfg, rigid_cfg, collision_cfg, mass_cfg, joint_cfg = setup_simulation
@@ -158,6 +162,7 @@ def test_modify_properties_on_articulation_usd(setup_simulation):
     _validate_articulation_properties_on_prim("/World/asset", arti_cfg, True)
 
 
+@pytest.mark.isaacsim_ci
 def test_defining_rigid_body_properties_on_prim(setup_simulation):
     """Test defining rigid body properties on a prim."""
     sim, _, rigid_cfg, collision_cfg, mass_cfg, _ = setup_simulation
@@ -189,6 +194,7 @@ def test_defining_rigid_body_properties_on_prim(setup_simulation):
         sim.step()
 
 
+@pytest.mark.isaacsim_ci
 def test_defining_articulation_properties_on_prim(setup_simulation):
     """Test defining articulation properties on a prim."""
     sim, arti_cfg, rigid_cfg, collision_cfg, mass_cfg, _ = setup_simulation

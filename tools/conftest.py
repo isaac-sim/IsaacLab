@@ -132,7 +132,7 @@ def create_timeout_test_case(test_file, timeout, stdout_data, stderr_data):
     return test_suite
 
 
-def run_individual_tests(test_files, workspace_root):
+def run_individual_tests(test_files, workspace_root, isaacsim_ci):
     """Run each test file separately, ensuring one finishes before starting the next."""
     failed_tests = []
     test_status = {}
@@ -156,11 +156,19 @@ def run_individual_tests(test_files, workspace_root):
             "-m",
             "pytest",
             "--no-header",
+            "-c",
+            f"{workspace_root}/pytest.ini",
             f"--junitxml=tests/test-reports-{str(file_name)}.xml",
-            str(test_file),
-            "-v",
+            "--verbose",
             "--tb=short",
         ]
+
+        if isaacsim_ci:
+            cmd.append("-m")
+            cmd.append("isaacsim_ci")
+
+        # Add the test file path last
+        cmd.append(str(test_file))
 
         # Run test with timeout and capture output
         returncode, stdout_data, stderr_data, timed_out = capture_test_output_with_timeout(cmd, timeout, env)
@@ -269,6 +277,8 @@ def pytest_sessionstart(session):
     filter_pattern = os.environ.get("TEST_FILTER_PATTERN", "")
     exclude_pattern = os.environ.get("TEST_EXCLUDE_PATTERN", "")
 
+    isaacsim_ci = os.environ.get("ISAACSIM_CI_SHORT", "false") == "true"
+
     # Also try to get from pytest config
     if hasattr(session.config, "option") and hasattr(session.config.option, "filter_pattern"):
         filter_pattern = filter_pattern or getattr(session.config.option, "filter_pattern", "")
@@ -286,6 +296,7 @@ def pytest_sessionstart(session):
 
     # Get all test files in the source directories
     test_files = []
+
     for source_dir in source_dirs:
         if not os.path.exists(source_dir):
             print(f"Error: source directory not found at {source_dir}")
@@ -313,6 +324,14 @@ def pytest_sessionstart(session):
 
                     test_files.append(full_path)
 
+    if isaacsim_ci:
+        new_test_files = []
+        for test_file in test_files:
+            with open(test_file) as f:
+                if "@pytest.mark.isaacsim_ci" in f.read():
+                    new_test_files.append(test_file)
+        test_files = new_test_files
+
     if not test_files:
         print("No test files found in source directory")
         pytest.exit("No test files found", returncode=1)
@@ -322,7 +341,7 @@ def pytest_sessionstart(session):
         print(f"  - {test_file}")
 
     # Run all tests individually
-    failed_tests, test_status = run_individual_tests(test_files, workspace_root)
+    failed_tests, test_status = run_individual_tests(test_files, workspace_root, isaacsim_ci)
 
     print("failed tests:", failed_tests)
 
@@ -404,4 +423,4 @@ def pytest_sessionstart(session):
     print(summary_str)
 
     # Exit pytest after custom execution to prevent normal pytest from overwriting our report
-    pytest.exit("Custom test execution completed", returncode=0)
+    pytest.exit("Custom test execution completed", returncode=0 if num_failing == 0 else 1)

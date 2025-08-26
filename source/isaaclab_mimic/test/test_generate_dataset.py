@@ -107,6 +107,7 @@ def setup_test_environment():
         del os.environ["PYTHONUNBUFFERED"]
 
 
+@pytest.mark.isaacsim_ci
 def test_generate_dataset(setup_test_environment):
     """Test the dataset generation script."""
     workflow_root = setup_test_environment

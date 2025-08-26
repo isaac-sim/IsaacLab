@@ -68,6 +68,7 @@ def setup_camera():
     sim.clear_instance()
 
 
+@pytest.mark.isaacsim_ci
 def test_multi_tiled_camera_init(setup_camera):
     """Test initialization of multiple tiled cameras."""
     camera_cfg, sim, dt = setup_camera
@@ -149,6 +150,7 @@ def test_multi_tiled_camera_init(setup_camera):
         del camera
 
 
+@pytest.mark.isaacsim_ci
 def test_all_annotators_multi_tiled_camera(setup_camera):
     """Test initialization of multiple tiled cameras with all supported annotators."""
     camera_cfg, sim, dt = setup_camera
@@ -261,6 +263,7 @@ def test_all_annotators_multi_tiled_camera(setup_camera):
 
 
 @flaky(max_runs=3, min_passes=1)
+@pytest.mark.isaacsim_ci
 def test_different_resolution_multi_tiled_camera(setup_camera):
     """Test multiple tiled cameras with different resolutions."""
     camera_cfg, sim, dt = setup_camera
@@ -332,6 +335,7 @@ def test_different_resolution_multi_tiled_camera(setup_camera):
         del camera
 
 
+@pytest.mark.isaacsim_ci
 def test_frame_offset_multi_tiled_camera(setup_camera):
     """Test frame offset issue with multiple tiled cameras"""
     camera_cfg, sim, dt = setup_camera
@@ -397,6 +401,7 @@ def test_frame_offset_multi_tiled_camera(setup_camera):
 
 
 @flaky(max_runs=3, min_passes=1)
+@pytest.mark.isaacsim_ci
 def test_frame_different_poses_multi_tiled_camera(setup_camera):
     """Test multiple tiled cameras placed at different poses render different images."""
     camera_cfg, sim, dt = setup_camera

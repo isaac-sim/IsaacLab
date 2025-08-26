@@ -164,6 +164,7 @@ def test_initialization(sim, num_cubes, material_path):
     )
 
 
+@pytest.mark.isaacsim_ci
 def test_initialization_on_device_cpu():
     """Test that initialization fails with deformable body API on the CPU."""
     with build_simulation_context(device="cpu", auto_add_lighting=True) as sim:
@@ -179,6 +180,7 @@ def test_initialization_on_device_cpu():
 
 
 @pytest.mark.parametrize("num_cubes", [1, 2])
+@pytest.mark.isaacsim_ci
 def test_initialization_with_kinematic_enabled(sim, num_cubes):
     """Test that initialization for prim with kinematic flag enabled."""
     cube_object = generate_cubes_scene(num_cubes=num_cubes, kinematic_enabled=True)
@@ -205,6 +207,7 @@ def test_initialization_with_kinematic_enabled(sim, num_cubes):
 
 
 @pytest.mark.parametrize("num_cubes", [1, 2])
+@pytest.mark.isaacsim_ci
 def test_initialization_with_no_deformable_body(sim, num_cubes):
     """Test that initialization fails when no deformable body is found at the provided prim path."""
     cube_object = generate_cubes_scene(num_cubes=num_cubes, has_api=False)
@@ -218,6 +221,7 @@ def test_initialization_with_no_deformable_body(sim, num_cubes):
 
 
 @pytest.mark.parametrize("num_cubes", [1, 2])
+@pytest.mark.isaacsim_ci
 def test_set_nodal_state(sim, num_cubes):
     """Test setting the state of the deformable object."""
     cube_object = generate_cubes_scene(num_cubes=num_cubes)
@@ -258,6 +262,7 @@ def test_set_nodal_state(sim, num_cubes):
 @pytest.mark.parametrize("randomize_pos", [True, False])
 @pytest.mark.parametrize("randomize_rot", [True, False])
 @flaky(max_runs=3, min_passes=1)
+@pytest.mark.isaacsim_ci
 def test_set_nodal_state_with_applied_transform(sim, num_cubes, randomize_pos, randomize_rot):
     """Test setting the state of the deformable object with applied transform."""
     carb_settings_iface = carb.settings.get_settings()
@@ -302,6 +307,7 @@ def test_set_nodal_state_with_applied_transform(sim, num_cubes, randomize_pos, r
 
 
 @pytest.mark.parametrize("num_cubes", [2, 4])
+@pytest.mark.isaacsim_ci
 def test_set_kinematic_targets(sim, num_cubes):
     """Test setting kinematic targets for the deformable object."""
     cube_object = generate_cubes_scene(num_cubes=num_cubes, height=1.0)

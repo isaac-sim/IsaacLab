@@ -10,9 +10,12 @@ from __future__ import annotations
 
 import time
 
+import pytest
+
 from isaaclab.app import AppLauncher
 
 
+@pytest.mark.isaacsim_ci
 def test_kit_start_up_time():
     """Test kit start-up time."""
     start_time = time.time()

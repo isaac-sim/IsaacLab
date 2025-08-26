@@ -28,6 +28,7 @@ from isaaclab.sim.simulation_context import SimulationContext
 
 
 @pytest.mark.skip(reason="Timeline not stopped")
+@pytest.mark.isaacsim_ci
 def test_render_cfg():
     """Test that the simulation context is created with the correct render cfg."""
     enable_translucency = True
@@ -92,6 +93,7 @@ def test_render_cfg():
     assert carb_settings_iface.get("/rtx/post/aa/op") == 4  # dlss = 3, dlaa=4
 
 
+@pytest.mark.isaacsim_ci
 def test_render_cfg_presets():
     """Test that the simulation context is created with the correct render cfg preset with overrides."""
 
@@ -146,6 +148,7 @@ def test_render_cfg_presets():
 
 
 @pytest.mark.skip(reason="Timeline not stopped")
+@pytest.mark.isaacsim_ci
 def test_render_cfg_defaults():
     """Test that the simulation context is created with the correct render cfg."""
     enable_translucency = False

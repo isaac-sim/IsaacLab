@@ -109,6 +109,7 @@ Table of Contents
    source/overview/showroom
    source/overview/simple_agents
 
+
 .. toctree::
    :maxdepth: 2
    :caption: Features
@@ -118,6 +119,14 @@ Table of Contents
    Tiled Rendering</source/overview/core-concepts/sensors/camera>
    source/features/ray
    source/features/reproducibility
+
+
+.. toctree::
+   :maxdepth: 3
+   :caption: Experimental Features
+
+   source/experimental-features/bleeding-edge
+   source/experimental-features/newton-physics-integration/index
 
 .. toctree::
    :maxdepth: 1

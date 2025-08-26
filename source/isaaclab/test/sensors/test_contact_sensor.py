@@ -369,6 +369,7 @@ def test_no_contact_reporting(setup_simulation):
         assert contact_sensor_2.data.force_matrix_w.sum().item() == 0.0
 
 
+@pytest.mark.isaacsim_ci
 def test_sensor_print(setup_simulation):
     """Test sensor print is working correctly."""
     sim_dt, durations, terrains, devices, carb_settings_iface = setup_simulation
