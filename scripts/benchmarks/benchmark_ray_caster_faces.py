@@ -43,27 +43,29 @@ parser = argparse.ArgumentParser(description="Benchmark ray caster sensors.")
 parser.add_argument(
     "--num_envs",
     type=int,
-    default=[256, 512, 1024],
+    default=[512],
     nargs="+",
     help="List of environment counts to benchmark (e.g., 256 512 1024).",
 )
 parser.add_argument(
     "--mode",
     type=str,
-    choices=["single", "multi", "both"],
-    default="both",
+    choices=["multi"],
+    default="multi",
     help="Which benchmark to run: single (RayCaster), multi (MultiMeshRayCaster), or both.",
 )
 
 
-parser.add_argument("--num_assets", type=int, default=[1, 2, 3], nargs="+", help="List of asset counts to benchmark.")
+parser.add_argument("--num_assets", type=int, default=[1, 2, 4, 8, 16, 32, 64, 128], nargs="+", help="List of asset counts to benchmark.")
+
 parser.add_argument(
     "--decimation", type=int, default=[2, 3, 4, 5, 6, 7], nargs="+", help="List of decimation levels to benchmark."
 )
+
 parser.add_argument(
     "--resolutions",
     type=float,
-    default=[0.2, 0.1, 0.05],
+    default=[0.05],
     nargs="+",
     help="List of grid resolutions to benchmark (meters).",
 )
@@ -146,7 +148,7 @@ def _make_scene_cfg_single(num_envs: int, resolution: float, debug_vis: bool) ->
         prim_path="{ENV_REGEX_NS}/ray_caster_origin",
         mesh_prim_paths=["/World/ground"],
         pattern_cfg=patterns.GridPatternCfg(resolution=resolution, size=(5.0, 5.0)),
-        ray_alignment="yaw",
+        ray_alignment="world",
         offset=RayCasterCfg.OffsetCfg(pos=(0.0, 0.0, 20.0)),
         debug_vis=debug_vis,
     )
@@ -177,9 +179,10 @@ def _make_scene_cfg_multi(
             MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr=f"/World/envs/env_.*/sphere_{i}")
             for i in range(num_assets)
         ],
-        pattern_cfg=patterns.GridPatternCfg(resolution=resolution, size=(2.0, 2.0)),
+        pattern_cfg=patterns.GridPatternCfg(resolution=resolution, size=(5.0, 5.0)),
         offset=RayCasterCfg.OffsetCfg(pos=(0.0, 0.0, 20.0)),
         debug_vis=debug_vis,
+        ray_alignment="world",
         track_mesh_transforms=track_mesh_transforms,
     )
     return scene_cfg
@@ -286,7 +289,7 @@ def main():
         t1 = time.perf_counter_ns()
         per_step_ms = (t1 - t0) / args_cli.steps / 1e6
         avg_memory = used_memory / args_cli.steps
-        print(res, sensor.num_rays, sensor.num_instances)
+        print(resolution, sensor.num_rays, sensor.num_instances)
         print(
             f"[INFO]: MultiMeshRayCaster (ground + spheres): res={resolution:.4f}, rays/sensor={sensor.num_rays}, "
             f"total rays={sensor.num_rays * sensor.num_instances}, per-step={per_step_ms:.3f} ms"
@@ -317,38 +320,24 @@ def main():
 
     # Run selected benchmarks for each env count
     for num_envs in args_cli.num_envs:
-
-        if args_cli.mode in ("single", "both"):
-            _MESH_CONVERTERS_CALLBACKS["Sphere"] = lambda p: _create_sphere_trimesh(p, subdivisions=2)
-            for res in args_cli.resolutions:
-                res = _run_benchmark_single(num_envs, res)
-                res["num_faces"] = -1
-                results.append(res)
-
-            for decimation in args_cli.decimation:
-                num_faces = 20 * 4**decimation
-                _MESH_CONVERTERS_CALLBACKS["Sphere"] = lambda p: _create_sphere_trimesh(p, subdivisions=decimation)
-                res = _run_benchmark_multi(num_envs, 0.05, num_assets=1, track_mesh_transforms=False)
-                res["num_faces"] = num_faces
-                results.append(res)
-
         if args_cli.mode in ("multi", "both"):
             _MESH_CONVERTERS_CALLBACKS["Sphere"] = lambda p: _create_sphere_trimesh(p, subdivisions=2)
 
-            for res in args_cli.resolutions:
-                res = _run_benchmark_multi(num_envs, res, num_assets=1, track_mesh_transforms=True)
-                res["num_faces"] = -1
-                results.append(res)
+            # for res in args_cli.resolutions:
+            #     res = _run_benchmark_multi(num_envs, res, num_assets=0, track_mesh_transforms=True)
+            #     res["num_faces"] = -1
+            #     results.append(res)
 
-            for decimation in args_cli.decimation:
-                num_faces = 20 * 4**decimation
-                _MESH_CONVERTERS_CALLBACKS["Sphere"] = lambda p: _create_sphere_trimesh(p, subdivisions=decimation)
-                res = _run_benchmark_multi(num_envs, 0.05, num_assets=1, track_mesh_transforms=False)
-                res["num_faces"] = num_faces
-                results.append(res)
+            # for decimation in args_cli.decimation:
+            #     num_faces = 20 * 4**decimation
+            #     _MESH_CONVERTERS_CALLBACKS["Sphere"] = lambda p: _create_sphere_trimesh(p, subdivisions=decimation)
+            #     res = _run_benchmark_multi(num_envs, 0.05, num_assets=1, track_mesh_transforms=False)
+            #     res["num_faces"] = num_faces
+            #     results.append(res)
+
             for n_assets in args_cli.num_assets:
                 res = _run_benchmark_multi(num_envs, 0.05, num_assets=n_assets, track_mesh_transforms=True)
-                res["num_faces"] = num_faces
+                res["num_faces"] = 20 * 4**2
                 results.append(res)
 
     # Save results to CSV and Markdown for documentation
@@ -366,6 +355,7 @@ def main():
         "avg_memory",
         "num_faces",
         "track_mesh_transforms",
+        "num_assets",
     ]
     with open(csv_path, "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
@@ -380,14 +370,14 @@ def main():
     with open(md_path, "w") as f:
         f.write(
             "| mode | num_envs  | resolution | rays_per_sensor | total_rays | per_step_ms | avg_memory | num_faces |"
-            " track_mesh_transforms |\n"
+            " track_mesh_transforms | num_assets |\n"
         )
-        f.write("|---|---:|---:|---:|---:|---:|---:|---:|---:|\n")
+        f.write("|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|\n")
         for r in results:
             f.write(
                 f"| {r['mode']} | {r['num_envs']} | {r['resolution']:.4f} | "
                 f"{r['rays_per_sensor']} | {r['total_rays']} | {r['per_step_ms']:.3f} | "
-                f"{r['avg_memory']:.3f} | {r['num_faces']} | {r['track_mesh_transforms']} |\n"
+                f"{r['avg_memory']:.3f} | {r['num_faces']} | {r['track_mesh_transforms']} | {r['num_assets']} |\n"
             )
     print(f"[INFO]: Saved benchmark results to {csv_path} and {md_path}")
 
