@@ -4,6 +4,7 @@ Training Environments
 To run training, we follow the standard Isaac Lab workflow. If you are new to Isaac Lab, we recommend that you review the `Quickstart Guide here <https://isaac-sim.github.io/IsaacLab/main/source/setup/quickstart.html#>`_ . 
 
 The currently supported tasks are as follows:
+
 * Isaac-Cartpole-Direct-v0
 * Isaac-Ant-Direct-v0
 * Isaac-Humanoid-Direct-v0
