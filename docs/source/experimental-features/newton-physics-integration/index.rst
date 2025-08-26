@@ -10,7 +10,7 @@ managed through the Linux Foundation.
 
 This `experimental feature branch <https://isaac-sim.github.io/IsaacLab/main/source/experimental-features/index.html>`_ of Isaac Lab provides an initial integration with the Newton Physics Engine, and is
 under active development. Many features are not yet supported, and only a limited set of classic RL and flat terrain locomotion
-reinforcement learning examples are included at the moment:
+reinforcement learning examples are included at the moment.
 
 Both this Isaac Lab integration branch and Newton itself are under heavy development. We intend to support additional
 features for other reinforcement learning and imitation learning workflows in the future, but the above tasks should be
