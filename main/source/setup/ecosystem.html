@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.2.0" />
-    <meta name="docbuild:last-update" content="Aug 25, 2025"/>
+    <meta name="docbuild:last-update" content="Aug 26, 2025"/>
   </head>
   
   
@@ -350,6 +350,20 @@
 <li class="toctree-l1"><a class="reference internal" href="../overview/core-concepts/sensors/camera.html">Tiled Rendering</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../features/ray.html">Ray Job Dispatch and Tuning</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../features/reproducibility.html">Reproducibility and Determinism</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Experimental Features</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../experimental-features/bleeding-edge.html">Welcome to the bleeding edge!</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../experimental-features/newton-physics-integration/index.html">Newton Physics Integration</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../experimental-features/newton-physics-integration/installation.html">Installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../experimental-features/newton-physics-integration/training-environments.html">Training Environments</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../experimental-features/newton-physics-integration/newton-visualizer.html">Newton Visualizer</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../experimental-features/newton-physics-integration/limitations-and-known-bugs.html">Limitations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../experimental-features/newton-physics-integration/solver-transitioning.html">Solver Transitioning</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../experimental-features/newton-physics-integration/sim-to-sim.html">Sim-to-Sim Policy Transfer</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../experimental-features/newton-physics-integration/sim-to-real.html">Sim-to-Real Policy Transfer</a></li>
+</ul>
+</details></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
 <ul class="nav bd-sidenav">
@@ -658,13 +672,13 @@ simulation, procedural terrain generation, and support to collect data from huma
 the power of GPUs to accelerate the simulation both in terms of speed and realism. They show great
 promise in the field of simulation technology and are being used by many researchers and companies
 worldwide.</p>
-<p><a class="reference external" href="https://developer.nvidia.com/isaac-gym">Isaac Gym</a> <span id="id2">[<a class="reference internal" href="../refs/bibliography.html#id12" title="Viktor Makoviychuk, Lukasz Wawrzyniak, Yunrong Guo, Michelle Lu, Kier Storey, Miles Macklin, David Hoeller, Nikita Rudin, Arthur Allshire, Ankur Handa, and others. Isaac gym: high performance gpu-based physics simulation for robot learning. arXiv preprint arXiv:2108.10470, 2021.">MWG+21</a>]</span> provides a high performance GPU-based physics simulation
+<p><a class="reference external" href="https://developer.nvidia.com/isaac-gym">Isaac Gym</a> <span id="id2">[<a class="reference internal" href="../refs/bibliography.html#id12" title="Viktor Makoviychuk, Lukasz Wawrzyniak, Yunrong Guo, Michelle Lu, Kier Storey, Miles Macklin, David Hoeller, Nikita Rudin, Arthur Allshire, Ankur Handa, and Gavriel State. Isaac gym: high performance gpu-based physics simulation for robot learning. arXiv preprint arXiv:2108.10470, 2021.">MWG+21</a>]</span> provides a high performance GPU-based physics simulation
 for robot learning. It is built on top of <a class="reference external" href="https://developer.nvidia.com/physx-sdk">PhysX</a> which supports GPU-accelerated simulation of rigid bodies
 and a Python API to directly access physics simulation data. Through an end-to-end GPU pipeline, it is possible
 to achieve high frame rates compared to CPU-based physics engines. The tool has been used successfully in a
 number of research projects, including legged locomotion <span id="id3">[<a class="reference internal" href="../refs/bibliography.html#id2" title="Nikita Rudin, David Hoeller, Philipp Reist, and Marco Hutter. Learning to walk in minutes using massively parallel deep reinforcement learning. In Conference on Robot Learning, 91–100. PMLR, 2022.">RHRH22</a>]</span> <span id="id4">[<a class="reference internal" href="../refs/bibliography.html#id10" title="Nikita Rudin, David Hoeller, Marko Bjelonic, and Marco Hutter. Advanced skills by learning locomotion and local navigation end-to-end. In 2022 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS), volume, 2497-2503. 2022. doi:10.1109/IROS47612.2022.9981198.">RHBH22</a>]</span>,
-in-hand manipulation <span id="id5">[<a class="reference internal" href="../refs/bibliography.html#id13" title="Ankur Handa, Arthur Allshire, Viktor Makoviychuk, Aleksei Petrenko, Ritvik Singh, Jingzhou Liu, Denys Makoviichuk, Karl Van Wyk, Alexander Zhurkevich, Balakumar Sundaralingam, and others. Dextreme: transfer of agile in-hand manipulation from simulation to reality. arXiv preprint arXiv:2210.13702, 2022.">HAM+22</a>]</span> <span id="id6">[<a class="reference internal" href="../refs/bibliography.html#id15" title="Arthur Allshire, Mayank MittaI, Varun Lodaya, Viktor Makoviychuk, Denys Makoviichuk, Felix Widmaier, Manuel Wüthrich, Stefan Bauer, Ankur Handa, and Animesh Garg. Transferring dexterous manipulation from gpu simulation to a remote real-world trifinger. In 2022 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS), 11802–11809. IEEE, 2022.">AML+22</a>]</span>, and industrial assembly
-<span id="id7">[<a class="reference internal" href="../refs/bibliography.html#id14" title="Yashraj Narang, Kier Storey, Iretiayo Akinola, Miles Macklin, Philipp Reist, Lukasz Wawrzyniak, Yunrong Guo, Adam Moravanszky, Gavriel State, Michelle Lu, and others. Factory: fast contact for robotic assembly. arXiv preprint arXiv:2205.03532, 2022.">NSA+22</a>]</span>.</p>
+in-hand manipulation <span id="id5">[<a class="reference internal" href="../refs/bibliography.html#id13" title="Ankur Handa, Arthur Allshire, Viktor Makoviychuk, Aleksei Petrenko, Ritvik Singh, Jingzhou Liu, Denys Makoviichuk, Karl Van Wyk, Alexander Zhurkevich, Balakumar Sundaralingam, Yashraj Narang, Jean-Francois Lafleche, Dieter Fox, and Gavriel State. Dextreme: transfer of agile in-hand manipulation from simulation to reality. arXiv preprint arXiv:2210.13702, 2022.">HAM+22</a>]</span> <span id="id6">[<a class="reference internal" href="../refs/bibliography.html#id15" title="Arthur Allshire, Mayank Mittal, Varun Lodaya, Viktor Makoviychuk, Denys Makoviichuk, Felix Widmaier, Manuel Wüthrich, Stefan Bauer, Ankur Handa, and Animesh Garg. Transferring dexterous manipulation from gpu simulation to a remote real-world trifinger. In 2022 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS), 11802–11809. IEEE, 2022.">AML+22</a>]</span>, and industrial assembly
+<span id="id7">[<a class="reference internal" href="../refs/bibliography.html#id14" title="Yashraj Narang, Kier Storey, Iretiayo Akinola, Miles Macklin, Philipp Reist, Lukasz Wawrzyniak, Yunrong Guo, Adam Moravanszky, Gavriel State, Michelle Lu, Ankur Handa, and Dieter Fox. Factory: fast contact for robotic assembly. arXiv preprint arXiv:2205.03532, 2022.">NSA+22</a>]</span>.</p>
 <p>Despite the success of Isaac Gym, it is not designed to be a general purpose simulator for
 robotics. For example, it does not include interaction between deformable and rigid objects, high-fidelity
 rendering, and support for ROS. The tool has been primarily designed as a preview release to showcase the
@@ -827,7 +841,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Aug 25, 2025.
+  Last updated on Aug 26, 2025.
   <br/>
 </p>
   </div>

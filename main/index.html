@@ -60,7 +60,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.2.0" />
-    <meta name="docbuild:last-update" content="Aug 25, 2025"/>
+    <meta name="docbuild:last-update" content="Aug 26, 2025"/>
   </head>
   
   
@@ -351,6 +351,20 @@
 <li class="toctree-l1"><a class="reference internal" href="source/overview/core-concepts/sensors/camera.html">Tiled Rendering</a></li>
 <li class="toctree-l1"><a class="reference internal" href="source/features/ray.html">Ray Job Dispatch and Tuning</a></li>
 <li class="toctree-l1"><a class="reference internal" href="source/features/reproducibility.html">Reproducibility and Determinism</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Experimental Features</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="source/experimental-features/bleeding-edge.html">Welcome to the bleeding edge!</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="source/experimental-features/newton-physics-integration/index.html">Newton Physics Integration</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="source/experimental-features/newton-physics-integration/installation.html">Installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/experimental-features/newton-physics-integration/training-environments.html">Training Environments</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/experimental-features/newton-physics-integration/newton-visualizer.html">Newton Visualizer</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/experimental-features/newton-physics-integration/limitations-and-known-bugs.html">Limitations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/experimental-features/newton-physics-integration/solver-transitioning.html">Solver Transitioning</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/experimental-features/newton-physics-integration/sim-to-sim.html">Sim-to-Sim Policy Transfer</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/experimental-features/newton-physics-integration/sim-to-real.html">Sim-to-Real Policy Transfer</a></li>
+</ul>
+</details></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
 <ul class="nav bd-sidenav">
@@ -869,6 +883,36 @@ We would appreciate if you would cite it in academic publications as well:</p>
 </ul>
 </div>
 <div class="toctree-wrapper compound">
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Experimental Features</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="source/experimental-features/bleeding-edge.html">Welcome to the bleeding edge!</a></li>
+<li class="toctree-l1"><a class="reference internal" href="source/experimental-features/newton-physics-integration/index.html">Newton Physics Integration</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="source/experimental-features/newton-physics-integration/installation.html">Installation</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="source/experimental-features/newton-physics-integration/installation.html#pip-installation">Pip Installation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="source/experimental-features/newton-physics-integration/installation.html#binary-installation">Binary Installation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="source/experimental-features/newton-physics-integration/installation.html#testing-the-installation">Testing the Installation</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="source/experimental-features/newton-physics-integration/training-environments.html">Training Environments</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/experimental-features/newton-physics-integration/newton-visualizer.html">Newton Visualizer</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/experimental-features/newton-physics-integration/limitations-and-known-bugs.html">Limitations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/experimental-features/newton-physics-integration/solver-transitioning.html">Solver Transitioning</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/experimental-features/newton-physics-integration/sim-to-sim.html">Sim-to-Sim Policy Transfer</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="source/experimental-features/newton-physics-integration/sim-to-sim.html#overview">Overview</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="source/experimental-features/newton-physics-integration/sim-to-real.html">Sim-to-Real Policy Transfer</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="source/experimental-features/newton-physics-integration/sim-to-real.html#requirements">Requirements</a></li>
+<li class="toctree-l3"><a class="reference internal" href="source/experimental-features/newton-physics-integration/sim-to-real.html#train-the-teacher-policy">1. Train the teacher policy</a></li>
+<li class="toctree-l3"><a class="reference internal" href="source/experimental-features/newton-physics-integration/sim-to-real.html#distill-the-student-policy-remove-privileged-terms">2. Distill the student policy (remove privileged terms)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="source/experimental-features/newton-physics-integration/sim-to-real.html#fine-tune-the-student-policy-with-rl">3. Fine-tune the student policy with RL</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</div>
+<div class="toctree-wrapper compound">
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="source/setup/installation/cloud_installation.html">Running Isaac Lab in the Cloud</a></li>
@@ -993,7 +1037,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Aug 25, 2025.
+  Last updated on Aug 26, 2025.
   <br/>
 </p>
   </div>
