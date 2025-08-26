@@ -6,7 +6,7 @@ This section provides examples of sim-to-sim as well as sim-to-real policy trans
 
 
 Newton Sim-to-Sim Policy Transfer (PhysX to Newton)
-===================================================
+====================================================
 
 This guide explains how to replay a policy trained in Isaac Lab with the PhysX backend on the Newton backend. The method is applicable to any robot and physics engine, but has been validated only on Unitree G1, Unitree H1, and ANYmal-D, and only for policies trained with PhysX.
 
@@ -175,8 +175,8 @@ The student policy uses only terms available from real sensors. See ``StudentPol
 - **Actions**: joint torques applied by the controller.
 
 
-1) Fine-tune the student policy with RL
-----------------------------------------
+3) Fine-tune the student policy with RL
+---------------------------------------
 
 Fine-tune the distilled student policy using RL with the ``Velocity-G1-Student-Finetune-v1`` task. Initialize from a checkpoint using ``--load_run``/``--checkpoint``.
 
