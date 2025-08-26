@@ -131,7 +131,6 @@ Guidelines for modifications:
 * Wei Yang
 * Xavier Nal
 * Xinpeng Liu
-* Yan Chang
 * Yang Jin
 * Yanzi Zhu
 * Yijie Guo
@@ -150,4 +149,5 @@ Guidelines for modifications:
 * Gavriel State
 * Hammad Mazhar
 * Marco Hutter
+* Yan Chang
 * Yashraj Narang

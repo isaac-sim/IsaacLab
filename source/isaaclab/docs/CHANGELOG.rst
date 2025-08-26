@@ -7,7 +7,7 @@ Changelog
 Added
 ^^^^^
 
-* Added :attr:`~isaaclab.controllers.pink_ik.PinkIKControllerCfg.target_eef_link_names` to :class:`~isaaclab.controllers.pink_ik.PinkIKControllerCfg`
+* Created :attr:`~isaaclab.controllers.pink_ik.PinkIKControllerCfg.target_eef_link_names` to :class:`~isaaclab.controllers.pink_ik.PinkIKControllerCfg`
   to specify the target end-effector link names for the pink inverse kinematics controller.
 
 Changed
@@ -18,7 +18,7 @@ Changed
 * Improved the test_pink_ik script to more comprehensive test on controller accuracy. Also, migrated to use pytest. With the current IK controller
   improvements, our unit tests pass position and orientation accuracy test within **(1 mm, 1 degree)**. Previously, the position accuracy tolerances
   were set to **(30 mm, 10 degrees)**.
-* Including a new config parameter :attr:`fail_on_ik_error` to :class:`~isaaclab.controllers.pink_ik.PinkIKControllerCfg`
+* Included a new config parameter :attr:`fail_on_ik_error` to :class:`~isaaclab.controllers.pink_ik.PinkIKControllerCfg`
   to control whether the IK controller raise an exception if robot joint limits are exceeded. In the case of an exception, the controller will hold the
   last joint position. This adds to stability of the controller and avoids operator experiencing what is perceived as sudden large delays in robot control.
 
