@@ -5,7 +5,7 @@ Installing the Newton physics integration branch requires three things:
 
 1) Isaac sim 5.0
 2) The ``feature/newton`` branch of Isaac Lab
-3) Ubuntu 22.04 or 24.04
+3) Ubuntu 22.04 or 24.04 (Windows will be supported soon)
 
 To begin, verify the version of Isaac Sim by checking the title of the window created when launching the simulation app.  Alternatively, you can
 find more explicit version information under the ``Help -> About`` menu within the app.
