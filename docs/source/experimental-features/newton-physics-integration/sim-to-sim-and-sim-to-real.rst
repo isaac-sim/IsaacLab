@@ -2,7 +2,7 @@
 
 Sim-to-Sim and Sim-to-Real
 ==========================
-This section provides examples of sim-to-sim as well as sim-to-real policy transfer using the Newton backend. 
+This section provides examples of sim-to-sim as well as sim-to-real policy transfer using the Newton backend.
 
 
 Sim-to-Sim Policy Transfer (PhysX to Newton) Overview
@@ -62,7 +62,7 @@ Use the following command template to play a PhysX-trained policy with the Newto
        --checkpoint <PATH_TO_PHYSX_CHECKPOINT> \
        --policy_transfer_file <PATH_TO_MAPPING_YAML>
 
-The following examples show how to run this transfer for various robots. 
+The following examples show how to run this transfer for various robots.
 
 1. Unitree G1
 
