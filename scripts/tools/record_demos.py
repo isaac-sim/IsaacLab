@@ -19,6 +19,8 @@ optional arguments:
     --step_hz                 Environment stepping rate in Hz. (default: 30)
     --num_demos               Number of demonstrations to record. (default: 0)
     --num_success_steps       Number of continuous steps with task success for concluding a demo as successful. (default: 10)
+    --pos_sensitivity         Position sensitivity for teleoperation devices. (default: 0.2)
+    --rot_sensitivity         Rotation sensitivity for teleoperation devices. (default: 0.5)
 """
 
 """Launch Isaac Sim Simulator first."""
@@ -52,6 +54,18 @@ parser.add_argument(
     action="store_true",
     default=False,
     help="Enable Pinocchio.",
+)
+parser.add_argument(
+    "--pos_sensitivity",
+    type=float,
+    default=0.2,
+    help="Position sensitivity for teleoperation devices. Default is 0.2.",
+)
+parser.add_argument(
+    "--rot_sensitivity",
+    type=float,
+    default=0.5,
+    help="Rotation sensitivity for teleoperation devices. Default is 0.5.",
 )
 
 # append AppLauncher cli args
@@ -269,9 +283,13 @@ def setup_teleop_device(callbacks: dict[str, Callable]) -> object:
             omni.log.warn(f"No teleop device '{args_cli.teleop_device}' found in environment config. Creating default.")
             # Create fallback teleop device
             if args_cli.teleop_device.lower() == "keyboard":
-                teleop_interface = Se3Keyboard(Se3KeyboardCfg(pos_sensitivity=0.2, rot_sensitivity=0.5))
+                teleop_interface = Se3Keyboard(
+                    Se3KeyboardCfg(pos_sensitivity=args_cli.pos_sensitivity, rot_sensitivity=args_cli.rot_sensitivity)
+                )
             elif args_cli.teleop_device.lower() == "spacemouse":
-                teleop_interface = Se3SpaceMouse(Se3SpaceMouseCfg(pos_sensitivity=0.2, rot_sensitivity=0.5))
+                teleop_interface = Se3SpaceMouse(
+                    Se3SpaceMouseCfg(pos_sensitivity=args_cli.pos_sensitivity, rot_sensitivity=args_cli.rot_sensitivity)
+                )
             else:
                 omni.log.error(f"Unsupported teleop device: {args_cli.teleop_device}")
                 omni.log.error("Supported devices: keyboard, spacemouse, handtracking")
