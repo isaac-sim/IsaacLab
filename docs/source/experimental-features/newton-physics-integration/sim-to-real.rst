@@ -3,7 +3,7 @@
 Sim-to-Real Policy Transfer
 ===========================
 Deploying policies from simulation to real robots involves important nuances that must be addressed. This section provides a high-level guide for training policies that can be deployed on a real Unitree G1 robot.
-The key challenge is that not all observations available in simulation can be directly measured by real robot sensors. This means RL-trained policies cannot be directly deployed unless they use only sensor-available observations. For example, while real robot IMU sensors provide angular acceleration (which can be integrated to get angular velocity), they cannot directly measure linear velocity. Therefore, if a policy relies on base linear velocity during training, this information must be removed before real robot deployment.   
+The key challenge is that not all observations available in simulation can be directly measured by real robot sensors. This means RL-trained policies cannot be directly deployed unless they use only sensor-available observations. For example, while real robot IMU sensors provide angular acceleration (which can be integrated to get angular velocity), they cannot directly measure linear velocity. Therefore, if a policy relies on base linear velocity during training, this information must be removed before real robot deployment.
 
 
 Requirements

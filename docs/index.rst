@@ -108,7 +108,6 @@ Table of Contents
    source/overview/augmented_imitation
    source/overview/showroom
    source/overview/simple_agents
-   source/overview/experimental-features.rst
 
 
 .. toctree::

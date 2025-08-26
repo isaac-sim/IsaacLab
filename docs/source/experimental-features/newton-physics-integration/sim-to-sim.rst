@@ -10,9 +10,9 @@ Overview
 
 This guide shows how to run a PhysX-trained policy on the Newton backend. While the method works for any robot and physics engine, it has only been tested with Unitree G1, Unitree H1, and ANYmal-D robots using PhysX-trained policies.
 
-PhysX-trained policies expect joints and links in a specific order determined by how PhysX parses the robot model. However, Newton may parse the same robot with different joint and link ordering. 
+PhysX-trained policies expect joints and links in a specific order determined by how PhysX parses the robot model. However, Newton may parse the same robot with different joint and link ordering.
 
-In the future, we plan to solve this using **robot schema** that standardizes joint and link ordering across different backends. 
+In the future, we plan to solve this using **robot schema** that standardizes joint and link ordering across different backends.
 
 Currently, we solve this by remapping observations and actions using joint mappings defined in YAML files. These files specify joint names in both PhysX order (source) and Newton order (target). During policy execution, we use this mapping to reorder observations and actions so they work correctly with Newton.
 
@@ -54,7 +54,7 @@ Use this command template to run a PhysX-trained policy with Newton:
        --checkpoint <PATH_TO_PHYSX_CHECKPOINT> \
        --policy_transfer_file <PATH_TO_MAPPING_YAML>
 
-Here are examples for different robots: 
+Here are examples for different robots:
 
 1. Unitree G1
 
@@ -97,4 +97,3 @@ Notes and limitations
 - This transfer method has only been tested with Unitree G1, Unitree H1, and ANYmal-D using PhysX-trained policies.
 - The observation remapping assumes a locomotion layout with base observations followed by joint observations. For different observation layouts, you'll need to modify ``scripts/newton_sim2sim/policy_mapping.py``.
 - When adding new robots or backends, make sure both source and target have identical joint names, and that the YAML lists reflect how each backend orders these joints.
-
