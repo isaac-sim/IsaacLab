@@ -49,10 +49,21 @@ from isaaclab_assets.robots.anymal import ANYMAL_D_CFG
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation, AssetBaseCfg, RigidObjectCfg
+from isaaclab.markers.config import VisualizationMarkersCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors.ray_caster import MultiMeshRayCasterCfg, patterns
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+
+RAY_CASTER_MARKER_CFG = VisualizationMarkersCfg(
+    markers={
+        "hit": sim_utils.SphereCfg(
+            radius=0.02,
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0)),
+        ),
+    },
+)
+
 
 if args_cli.asset_type == "allegro_hand":
     asset_cfg = ALLEGRO_HAND_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
@@ -75,7 +86,9 @@ if args_cli.asset_type == "allegro_hand":
         pattern_cfg=patterns.GridPatternCfg(resolution=0.005, size=(0.4, 0.4), direction=(0, 0, -1)),
         track_mesh_transforms=True,
         debug_vis=not args_cli.headless,
+        visualizer_cfg=RAY_CASTER_MARKER_CFG.replace(prim_path="/Visuals/RayCaster"),
     )
+
 elif args_cli.asset_type == "anymal_d":
     asset_cfg = ANYMAL_D_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
     ray_caster_cfg = MultiMeshRayCasterCfg(
@@ -94,6 +107,7 @@ elif args_cli.asset_type == "anymal_d":
         pattern_cfg=patterns.GridPatternCfg(resolution=0.02, size=(2.5, 2.5), direction=(0, 0, -1)),
         track_mesh_transforms=True,
         debug_vis=not args_cli.headless,
+        visualizer_cfg=RAY_CASTER_MARKER_CFG.replace(prim_path="/Visuals/RayCaster"),
     )
 
 elif args_cli.asset_type == "multi":
@@ -131,6 +145,7 @@ elif args_cli.asset_type == "multi":
         pattern_cfg=patterns.GridPatternCfg(resolution=0.01, size=(0.6, 0.6), direction=(0, 0, -1)),
         track_mesh_transforms=True,
         debug_vis=not args_cli.headless,
+        visualizer_cfg=RAY_CASTER_MARKER_CFG.replace(prim_path="/Visuals/RayCaster"),
     )
 else:
     raise ValueError(f"Unknown asset type: {args_cli.asset_type}")
@@ -184,7 +199,6 @@ def randomize_shape_color(prim_path_expr: str):
             # randomize scale
             scale_spec = prim_spec.GetAttributeAtPath(prim_path + ".xformOp:scale")
             scale_spec.default = Gf.Vec3f(random.uniform(0.5, 1.5), random.uniform(0.5, 1.5), random.uniform(0.5, 1.5))
-
 
 
 def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
@@ -260,10 +274,10 @@ def main():
     # design scene
     scene_cfg = RaycasterSensorSceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0, replicate_physics=False)
     scene = InteractiveScene(scene_cfg)
-    
+
     if args_cli.asset_type == "multi":
         randomize_shape_color(scene_cfg.asset.prim_path.format(ENV_REGEX_NS="/World/envs/env_.*"))
-    
+
     # Play the simulator
     sim.reset()
     # Now we are ready!
