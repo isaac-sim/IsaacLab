@@ -25,15 +25,15 @@ class Thruster:
 
     Supports two models:
       • Force domain (integrate thrust directly), or
-      • Speed domain (integrate rotor speed w, then F = k_f * w²) when ``cfg.use_rps=True``.
+      • Speed domain (integrate rotor speed ω, then F = k_f * ω²) when ``cfg.use_rps=True``.
 
-    Integration scheme is Euler or RK4. All internal buffers are shaped (num_envs, num_motors)
+    Integration scheme is Euler or RK4. All internal buffers are shaped (num_envs, num_motors).
     Units: thrust [N], rates [N/s], time [s].
     """
 
     cfg: ThrusterCfg
 
-    def __init__(self, num_envs, cfg: ThrusterCfg, device="cpu"):
+    def __init__(self, num_envs: int, cfg: ThrusterCfg, device: str = "cpu"):
         """Construct buffers and sample per-motor parameters.
 
         Args:
@@ -44,26 +44,22 @@ class Thruster:
         self.cfg = cfg
         self.device = device
 
-        self.max_thrust = self._f32(cfg.max_thrust).expand(num_envs, self.cfg.num_motors)
-        self.min_thrust = self._f32(cfg.min_thrust).expand(num_envs, self.cfg.num_motors)
+        # Range tensors, shaped (num_envs, 2, num_motors); [:,0,:]=min, [:,1,:]=max
+        target_size = (num_envs, 2, cfg.num_motors)
+        self.thrust_range = torch.tensor(cfg.thrust_range).view(1, 2, 1).expand(target_size).to(device)
+        self.tau_inc_range = torch.tensor(cfg.tau_inc_range).view(1, 2, 1).expand(target_size).to(device)
+        self.tau_dec_range = torch.tensor(cfg.tau_dec_range).view(1, 2, 1).expand(target_size).to(device)
 
-        self.tau_inc_min_s = self._f32(cfg.tau_inc_min).expand(num_envs, self.cfg.num_motors)
-        self.tau_inc_max_s = self._f32(cfg.tau_inc_max).expand(num_envs, self.cfg.num_motors)
-        self.tau_dec_min_s = self._f32(cfg.tau_dec_min).expand(num_envs, self.cfg.num_motors)
-        self.tau_dec_max_s = self._f32(cfg.tau_dec_max).expand(num_envs, self.cfg.num_motors)
-
-        self.max_rate = self._f32(cfg.max_thrust_rate).expand(num_envs, self.cfg.num_motors)
+        self.max_rate = torch.tensor(cfg.max_thrust_rate).expand(num_envs, cfg.num_motors).to(device)
 
         # State & randomized per-motor parameters
-        self.curr_thrust = torch.zeros(num_envs, self.cfg.num_motors, device=self.device, dtype=torch.float32)
-        self.tau_inc_s = rand_range(self.tau_inc_min_s, self.tau_inc_max_s)
-        self.tau_dec_s = rand_range(self.tau_dec_min_s, self.tau_dec_max_s)
+        self.curr_thrust = torch.zeros(num_envs, cfg.num_motors, device=self.device, dtype=torch.float32)
+        self.tau_inc_s = rand_range(self.tau_inc_range[:, 0], self.tau_inc_range[:, 1])
+        self.tau_dec_s = rand_range(self.tau_dec_range[:, 0], self.tau_dec_range[:, 1])
 
-        if self.cfg.use_rps:
-            ones = torch.ones(num_envs, self.cfg.num_motors, device=self.device, dtype=torch.float32)
-            self.thrust_const_min = ones * float(self.cfg.thrust_const_min)
-            self.thrust_const_max = ones * float(self.cfg.thrust_const_max)
-            self.thrust_const = rand_range(self.thrust_const_min, self.thrust_const_max)
+        if cfg.use_rps:
+            self.thrust_const_range = torch.tensor(cfg.thrust_const_range).view(1, 2, 1).expand(target_size).to(device)
+            self.thrust_const = rand_range(self.thrust_const_range[:, 0], self.thrust_const_range[:, 1])
 
         # Mixing factor (discrete vs continuous form)
         if self.cfg.use_discrete_approximation:
@@ -98,9 +94,10 @@ class Thruster:
         Returns:
             (num_envs, num_motors) updated thrust state [N].
         """
-        ref_thrust = torch.clamp(self._f32(ref_thrust), self.min_thrust, self.max_thrust)
-        thrust_error_sign = torch.sign(ref_thrust - self.curr_thrust)
-        motor_tau = torch.where(torch.sign(self.curr_thrust) * thrust_error_sign < 0, self.tau_dec_s, self.tau_inc_s)
+        ref_thrust = torch.clamp(ref_thrust, self.thrust_range[:, 0], self.thrust_range[:, 1])
+
+        thrust_decrease_mask = torch.sign(self.curr_thrust) * torch.sign(ref_thrust - self.curr_thrust)
+        motor_tau = torch.where(thrust_decrease_mask < 0, self.tau_dec_s, self.tau_inc_s)
         mixing = self.mixing_factor_function(self.cfg.dt, motor_tau)
 
         if self.cfg.use_rps:
@@ -111,7 +108,7 @@ class Thruster:
         self.curr_thrust[:] = self._step_thrust(*thrust_args)
         return self.curr_thrust
 
-    def reset_idx(self, env_ids=None):
+    def reset_idx(self, env_ids=None) -> None:
         """Re-sample parameters and reinitialize state.
 
         Args:
@@ -119,19 +116,17 @@ class Thruster:
         """
         if env_ids is None:
             env_ids = slice(None)
-        self.tau_inc_s[env_ids] = rand_range(self.tau_inc_min_s, self.tau_inc_max_s)[env_ids]
-        self.tau_dec_s[env_ids] = rand_range(self.tau_dec_min_s, self.tau_dec_max_s)[env_ids]
-        self.curr_thrust[env_ids] = rand_range(self.min_thrust, self.max_thrust)[env_ids]
-        if self.cfg.use_rps:
-            self.thrust_const[env_ids] = rand_range(self.thrust_const_min, self.thrust_const_max)[env_ids]
 
-    def reset(self):
+        self.tau_inc_s[env_ids] = rand_range(self.tau_inc_range[env_ids, 0], self.tau_inc_range[env_ids, 1])
+        self.tau_dec_s[env_ids] = rand_range(self.tau_dec_range[env_ids, 0], self.tau_dec_range[env_ids, 1])
+        self.curr_thrust[env_ids] = rand_range(self.thrust_range[env_ids, 0], self.thrust_range[env_ids, 1])
+
+        if self.cfg.use_rps:
+            self.thrust_const[env_ids] = rand_range(self.thrust_const_range[:, 0], self.thrust_const_range[:, 1])[env_ids]
+
+    def reset(self) -> None:
         """Reset all envs."""
         self.reset_idx()
-
-    def _f32(self, x):
-        """Utility: create float32 tensor on the configured device."""
-        return torch.as_tensor(x, device=self.device, dtype=torch.float32)
 
 
 @torch.jit.script

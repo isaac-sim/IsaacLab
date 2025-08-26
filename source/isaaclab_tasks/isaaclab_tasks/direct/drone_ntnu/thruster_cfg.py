@@ -28,32 +28,20 @@ class ThrusterCfg:
     num_motors: int = 4
     """Number of motors/propulsors on the vehicle."""
 
-    max_thrust: int = 2
-    """Per-motor maximum thrust saturation [N]. Values above this are clipped."""
+    thrust_range: tuple[float, float] = (0.0, 2.0)
+    """Per-motor thrust clamp range [N]: values are clipped to this interval."""
 
     max_thrust_rate: float = 100000.0
     """Per-motor thrust slew-rate limit applied inside the first-order model [N/s]."""
 
-    min_thrust: int = 0
-    """Per-motor minimum thrust [N]. Values below this are clipped."""
+    thrust_const_range: tuple[float, float] = (9.26312e-06, 1.826312e-05)
+    """Range for thrust coefficient :math:`k_f` when ``use_rps=True`` [N/(rps²)]."""
 
-    thrust_const_max: float = 1.826312e-05
-    """Upper bound for the thrust coefficient :math:`k_f` when ``use_rps=True`` [N/(rps²)]."""
+    tau_inc_range: tuple[float, float] = (0.04, 0.04)
+    """Range of time constants when commanded output is **increasing** (rise dynamics) [s]."""
 
-    thrust_const_min: float = 9.26312e-06
-    """Lower bound for the thrust coefficient :math:`k_f` when ``use_rps=True`` [N/(rps²)]."""
-
-    tau_dec_max: float = 0.04
-    """Maximum time constant used when the commanded output is **decreasing** (fall dynamics) [s]."""
-
-    tau_dec_min: float = 0.04
-    """Minimum time constant used when the commanded output is **decreasing** (fall dynamics) [s]."""
-
-    tau_inc_max: float = 0.04
-    """Maximum time constant used when the commanded output is **increasing** (rise dynamics) [s]."""
-
-    tau_inc_min: float = 0.04
-    """Minimum time constant used when the commanded output is **increasing** (rise dynamics) [s]."""
+    tau_dec_range: tuple[float, float] = (0.04, 0.04)
+    """Range of time constants when commanded output is **decreasing** (fall dynamics) [s]."""
 
     thrust_to_torque_ratio: float = 0.01
     """Yaw-moment coefficient converting thrust to motor torque about +Z [N·m per N].
