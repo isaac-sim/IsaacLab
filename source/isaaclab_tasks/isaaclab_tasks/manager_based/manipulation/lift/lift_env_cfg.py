@@ -126,11 +126,10 @@ class ObservationsCfg:
     # ---------- Student (camera only) ----------
     @configclass
     class StudentCam(ObsGroup):
-        # RGB tensor from the camera sensor declared in the scene
-        rgb = ObsTerm(
-            func=mdp.camera_rgb,
-            params={"camera_name": "camera_ext2", "normalize": True},  # normalize to [0,1] float32
-        )
+        image = ObsTerm(func=mdp.image, params={"sensor_cfg": SceneEntityCfg("camera"), "data_type": "rgb"})
+        image1 = ObsTerm(func=mdp.image, params={"sensor_cfg": SceneEntityCfg("camera_ext1"), "data_type": "rgb"})
+        image2 = ObsTerm(func=mdp.image, params={"sensor_cfg": SceneEntityCfg("camera_ext2"), "data_type": "rgb"})
+        image3 = ObsTerm(func=mdp.image, params={"sensor_cfg": SceneEntityCfg("camera_bird"), "data_type": "rgb"})
 
         def __post_init__(self):
             self.enable_corruption = False
