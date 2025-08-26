@@ -6,7 +6,7 @@ This section provides examples of sim-to-sim as well as sim-to-real policy trans
 
 
 Newton Sim-to-Sim Policy Transfer (PhysX to Newton)
-==================================================
+===================================================
 
 This guide explains how to replay a policy trained in Isaac Lab with the PhysX backend on the Newton backend. The method is applicable to any robot and physics engine, but has been validated only on Unitree G1, Unitree H1, and ANYmal-D, and only for policies trained with PhysX.
 
@@ -137,7 +137,7 @@ The teacher and student observation groups are implemented in the velocity task 
 
 
 1) Train the teacher policy
----------------------------
+----------------------------
 
 Train the teacher policy for the G1 velocity task using the Newton backend. The task ID is ``Isaac-Velocity-Flat-G1-v1``
 
@@ -149,9 +149,9 @@ The teacher policy includes privileged observations (e.g., root linear velocity)
 
 
 2) Distill the student policy (remove privileged terms)
-------------------------------------------------------
+-------------------------------------------------------
 
-The distillation stage performs behavior cloning from teacher to student by minimizing mean squared error between actions: \(a_\text{student} = \Pi(O_\text{student})\) and \(a_\text{teacher} = \Pi(O_\text{teacher})\).
+The distillation stage performs behavior cloning from teacher to student by minimizing mean squared error between actions: :math:`min(\pi(O_{teacher} - \pi(O_{student})))`
 
 Run the student distillation task ``Velocity-G1-Distillation-v1`` and point ``--load_run``/``--checkpoint`` to the teacher run/checkpoint you want to distill from.
 
@@ -165,7 +165,7 @@ Run the student distillation task ``Velocity-G1-Distillation-v1`` and point ``--
 
 
 Student observation terms (real sensors)
-----------------------------------------
+-----------------------------------------
 
 The student policy uses only terms available from real sensors. See ``StudentPolicyCfg(ObsGroup)`` in `velocity_env_cfg.py <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/velocity_env_cfg.py>`__.
 
@@ -175,8 +175,8 @@ The student policy uses only terms available from real sensors. See ``StudentPol
 - **Actions**: joint torques applied by the controller.
 
 
-3) Fine-tune the student policy with RL
---------------------------------------
+1) Fine-tune the student policy with RL
+----------------------------------------
 
 Fine-tune the distilled student policy using RL with the ``Velocity-G1-Student-Finetune-v1`` task. Initialize from a checkpoint using ``--load_run``/``--checkpoint``.
 
