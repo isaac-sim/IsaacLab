@@ -10,7 +10,7 @@
 
 from isaaclab.utils import configclass
 
-from .lee_controller import BaseLeeController
+from .lee_controller import LeeController
 
 
 @configclass
@@ -22,7 +22,7 @@ class LeeControllerCfg:
     their corresponding ``*_min`` and ``*_max`` bounds at reset.
     """
 
-    class_type: type[BaseLeeController] = BaseLeeController
+    class_type: type[LeeController] = LeeController
     """Concrete controller class to instantiate."""
 
     gravity: list[float] = [0.0, 0.0, -9.81]
