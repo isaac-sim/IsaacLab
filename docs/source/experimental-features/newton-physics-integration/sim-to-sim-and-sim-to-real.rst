@@ -5,14 +5,10 @@ Sim-to-Sim and Sim-to-Real
 This section provides examples of sim-to-sim as well as sim-to-real policy transfer using the Newton backend. 
 
 
-Newton Sim-to-Sim Policy Transfer (PhysX to Newton)
-====================================================
+Newton Sim-to-Sim Policy Transfer (PhysX to Newton) Overview
+-------------------------------------------------------------
 
 This guide explains how to replay a policy trained in Isaac Lab with the PhysX backend on the Newton backend. The method is applicable to any robot and physics engine, but has been validated only on Unitree G1, Unitree H1, and ANYmal-D, and only for policies trained with PhysX.
-
-
-Overview
---------
 
 Policies trained with PhysX assume a specific joint/link ordering defined by the PhysX-parsed robot model. The Newton backend may parse the same robot with a different joint and link ordering. To execute a PhysX-trained policy under Newton, we remap observations and actions between the two orderings.
 
@@ -66,13 +62,9 @@ Use the following command template to play a PhysX-trained policy with the Newto
        --checkpoint <PATH_TO_PHYSX_CHECKPOINT> \
        --policy_transfer_file <PATH_TO_MAPPING_YAML>
 
+The following examples show how to run this transfer for various robots. 
 
-
-Examples
---------
-
-Unitree G1
-~~~~~~~~~~
+1. Unitree G1
 
 .. code-block:: bash
 
@@ -83,8 +75,8 @@ Unitree G1
        --policy_transfer_file scripts/newton_sim2sim/mappings/sim2sim_g1.yaml
 
 
-Unitree H1
-~~~~~~~~~~
+2. Unitree H1
+
 
 .. code-block:: bash
 
@@ -95,8 +87,8 @@ Unitree H1
        --policy_transfer_file scripts/newton_sim2sim/mappings/sim2sim_h1.yaml
 
 
-ANYmal-D
-~~~~~~~~
+3. ANYmal-D
+
 
 .. code-block:: bash
 
@@ -115,14 +107,10 @@ Notes and limitations
 - For new robots/backends, ensure the joint name sets are identical between source and target and that their orders in the YAML reflect each backend’s parsing.
 
 
-Training & Deploying Unitree G1 Velocity Policy (Newton Backend)
-================================================================
+Sim-to-Real Policy Transfer Overview
+----------------------------------------------------------------
 
-This tutorial demonstrates a sim-to-real workflow through the teacher–student distillation approach for the Unitree G1 velocity-tracking task with the Newton backend.
-
-
-Overview
---------
+This section demonstrates a sim-to-real workflow through the teacher–student distillation approach for the Unitree G1 velocity-tracking task with the Newton backend.
 
 The teacher–student distillation workflow consists of three stages:
 
@@ -136,7 +124,7 @@ The teacher and student observation groups are implemented in the velocity task 
 - Student observations: ``StudentPolicyCfg(ObsGroup)`` in `velocity_env_cfg.py <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/velocity_env_cfg.py>`__
 
 
-1) Train the teacher policy
+1. Train the teacher policy
 ----------------------------
 
 Train the teacher policy for the G1 velocity task using the Newton backend. The task ID is ``Isaac-Velocity-Flat-G1-v1``
@@ -148,10 +136,12 @@ Train the teacher policy for the G1 velocity task using the Newton backend. The 
 The teacher policy includes privileged observations (e.g., root linear velocity) defined in ``PolicyCfg(ObsGroup)``.
 
 
-2) Distill the student policy (remove privileged terms)
+2. Distill the student policy (remove privileged terms)
 -------------------------------------------------------
 
-The distillation stage performs behavior cloning from teacher to student by minimizing mean squared error between actions, i.e. :math:`loss = MSE(\pi(O_{teacher}), \pi(O_{student}))`
+The distillation stage performs behavior cloning from teacher to student by minimizing mean squared error between actions, i.e. :math:`loss = MSE(\pi(O_{teacher}), \pi(O_{student}))`.
+
+The student policy uses only terms available from real sensors. See ``StudentPolicyCfg(ObsGroup)`` in `velocity_env_cfg.py <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/velocity_env_cfg.py>`__. Specifically, **Root angular velocity** and **Projected gravity** are obtained from the IMU sensor, **Joint positions and velocities** are obtained from joint encoders and **Actions** are joint torques applied by the controller.
 
 Run the student distillation task ``Velocity-G1-Distillation-v1`` and point ``--load_run``/``--checkpoint`` to the teacher run/checkpoint you want to distill from.
 
@@ -164,18 +154,7 @@ Run the student distillation task ``Velocity-G1-Distillation-v1`` and point ``--
    Use the correct ``--load_run`` and ``--checkpoint`` to ensure you distill from the intended teacher policy.
 
 
-Student observation terms (real sensors)
------------------------------------------
-
-The student policy uses only terms available from real sensors. See ``StudentPolicyCfg(ObsGroup)`` in `velocity_env_cfg.py <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/velocity_env_cfg.py>`__.
-
-- **Root angular velocity**: from the IMU sensor.
-- **Projected gravity**: from the IMU sensor.
-- **Joint positions and velocities**: from joint encoders.
-- **Actions**: joint torques applied by the controller.
-
-
-3) Fine-tune the student policy with RL
+3. Fine-tune the student policy with RL
 ---------------------------------------
 
 Fine-tune the distilled student policy using RL with the ``Velocity-G1-Student-Finetune-v1`` task. Initialize from a checkpoint using ``--load_run``/``--checkpoint``.
