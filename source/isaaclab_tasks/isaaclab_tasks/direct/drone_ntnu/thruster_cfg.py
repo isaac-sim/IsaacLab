@@ -32,17 +32,17 @@ class ThrusterCfg:
 
     min_thrust: int = 0
 
-    motor_thrust_constant_max: float = 1.826312e-05
+    thrust_const_max: float = 1.826312e-05
 
-    motor_thrust_constant_min: float = 9.26312e-06
+    thrust_const_min: float = 9.26312e-06
 
-    motor_time_constant_decreasing_max: float = 0.04
+    tau_dec_max: float = 0.04
 
-    motor_time_constant_decreasing_min: float = 0.04
+    tau_dec_min: float = 0.04
 
-    motor_time_constant_increasing_max: float = 0.04
+    tau_inc_max: float = 0.04
 
-    motor_time_constant_increasing_min: float = 0.04
+    tau_inc_min: float = 0.04
 
     thrust_to_torque_ratio: float = 0.01
 
