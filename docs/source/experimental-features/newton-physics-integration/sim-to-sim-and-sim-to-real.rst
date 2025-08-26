@@ -151,7 +151,7 @@ The teacher policy includes privileged observations (e.g., root linear velocity)
 2) Distill the student policy (remove privileged terms)
 -------------------------------------------------------
 
-The distillation stage performs behavior cloning from teacher to student by minimizing mean squared error between actions: :math:`min(\pi(O_{teacher} - \pi(O_{student})))`
+The distillation stage performs behavior cloning from teacher to student by minimizing mean squared error between actions, i.e. :math:`loss = MSE(\pi(O_{teacher}), \pi(O_{student}))`
 
 Run the student distillation task ``Velocity-G1-Distillation-v1`` and point ``--load_run``/``--checkpoint`` to the teacher run/checkpoint you want to distill from.
 
