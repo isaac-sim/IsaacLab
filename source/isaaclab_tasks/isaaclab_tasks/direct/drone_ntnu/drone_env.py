@@ -72,15 +72,15 @@ class DroneEnv(DirectRLEnv):
         controller_output = self.controller(self._processed_actions)
 
         # call actuator model to get forces and torque
-        ref_motor_thrusts = torch.bmm(self.inv_wrench_allocation_matrix, controller_output.unsqueeze(-1)).squeeze(-1)
-        motor_thrusts = self.thruster.update_motor_thrusts(ref_motor_thrusts)
-        zero_thrust = torch.zeros_like(motor_thrusts)
-        motor_forces_b = torch.stack((zero_thrust, zero_thrust, motor_thrusts), dim=2)
-        motor_torques_b = self.thrust_to_torque_ratio * motor_forces_b * (-self.motor_directions[None, :, None])
+        des_thrust = torch.bmm(self.inv_wrench_matrix, controller_output.unsqueeze(-1)).squeeze(-1)
+        output_thrust = self.thruster.update_motor_thrusts(des_thrust)
+        zero_thrust = torch.zeros_like(output_thrust)
+        thruster_force_b = torch.stack((zero_thrust, zero_thrust, output_thrust), dim=2)
+        thruster_torque_b = self.thrust_to_torque_ratio * thruster_force_b * (-self.thruster_directions[None, :, None])
 
-        self.external_wrench_b = torch.zeros((self.num_envs, self._robot.num_bodies, 6), device=self.device)
-        self.external_wrench_b[:, self.cfg.application_mask, :3] = motor_forces_b
-        self.external_wrench_b[:, self.cfg.application_mask, 3:] = motor_torques_b
+        self.external_wrench_b[:] = 0  # zero out wrench at begining of each step
+        self.external_wrench_b[:, self.cfg.thruster_links.body_ids, :3] = thruster_force_b
+        self.external_wrench_b[:, self.cfg.thruster_links.body_ids, 3:] = thruster_torque_b
 
         drag_wrench = compute_drag_contributions(
             linvel=self._robot.data.root_lin_vel_b,
@@ -144,7 +144,7 @@ class DroneEnv(DirectRLEnv):
             # Setup Controller at first reset
             controller_cfg = LeeControllerCfg()
             self.controller = controller_cfg.class_type(controller_cfg, self)
-            self.motor_directions = torch.tensor(self.cfg.motor_directions, device=self.device)
+            self.thruster_directions = torch.tensor(self.cfg.thruster_directions, device=self.device)
 
             # Setup Thruster at first reset
             thruster_cfg = ThrusterCfg(dt=self.cfg.sim.dt)
@@ -154,8 +154,13 @@ class DroneEnv(DirectRLEnv):
             # randomly initialize first episode length so env episode progress spread out.
             self.episode_length_buf[:] = torch.randint_like(self.episode_length_buf, high=int(self.max_episode_length))
 
-            wrench_alloc_matrix = torch.tensor(self.cfg.allocation_matrix, device=self.device)
-            self.inv_wrench_allocation_matrix = torch.linalg.pinv(wrench_alloc_matrix).expand(self.num_envs, -1, -1)
+            wrench_matrix = torch.tensor(self.cfg.wrench_matrix, device=self.device)
+            self.inv_wrench_matrix = torch.linalg.pinv(wrench_matrix).expand(self.num_envs, -1, -1)
+            
+            # resolve bodies indices that attached with thruster
+            self.cfg.thruster_links.resolve(self.scene)
+            # allocate wrench tensor
+            self.external_wrench_b = torch.zeros((self.num_envs, self._robot.num_bodies, 6), device=self.device)
 
         self.thruster.reset_idx(env_ids)
 

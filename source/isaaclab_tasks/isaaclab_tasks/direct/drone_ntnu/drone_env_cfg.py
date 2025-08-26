@@ -76,12 +76,11 @@ class DroneEnvCfg(DirectRLEnvCfg):
 
     events: EventCfg = EventCfg()
 
-    # robot related variables -- need further clean
+    # thruster related variables
     thrust_to_torque_ratio = 0.01
-    application_mask = [5, 6, 7, 8]  # TODO: use SceneEntityCfg
-    force_application_level = "motor_link"
-    motor_directions = [1, -1, 1, -1]
-    allocation_matrix = [
+    thruster_links = SceneEntityCfg("robot", body_names=["motor_.*"])
+    thruster_directions = [1, -1, 1, -1]
+    wrench_matrix = [
         [0.0, 0.0, 0.0, 0.0],
         [0.0, 0.0, 0.0, 0.0],
         [1.0, 1.0, 1.0, 1.0],
