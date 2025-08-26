@@ -3,8 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Sub-module for a timer class that can be used for performance measurements."""
-
 from __future__ import annotations
 
 import math
@@ -65,21 +63,106 @@ class Timer(ContextDecorator):
     .. code-block:: python
 
         import time
-        import random
+        from isaaclab.utils.timer import Timer, timer, toggle_timer_group, toggle_timer_group_display_output
 
-        from isaaclab.utils.timer import Timer
+        # --- Instrumented functions ------------------------------------------------------------------------------------
+        @timer("math_op", name="add_op", msg="Math add op took:", enable=True, format="us")
+        def math_add_op(a, b):
+            return a + b
 
-        for i in range(1000):
-            with Timer(name="test_timer_mean_and_std", msg="Test timer mean and std took:", enable=True, format="us"):
-                time.sleep(random.normalvariate(0.001, 0.001))
+        @timer("math_op", name="sub_op", msg="Math sub op took:", enable=True, format="us")
+        def math_sub_op(a, b):
+            return a - b
 
-        timer_stats = Timer.get_timer_statistics("test_timer_mean_and_std")
-        print(abs(timer_stats["mean"] - 0.001) < 10 ** (-2))  # Output: True
-        print(abs(timer_stats["std"] - 0.001) < 10 ** (-2))  # Output: True
-        print(timer_stats["n"])  # Output: 1000
-        print(timer_stats["last"])
+        @timer("string_op", name="concat_op", msg="String concat op took:", enable=True, format="us")
+        def string_concat_op(a, b):
+            return a + b
 
-    Reference: https://gist.github.com/sumeet/1123871
+        @timer("string_op", name="join_op", msg="String join op took:", enable=True, format="us")
+        def string_join_op(a, b):
+            return a.join(b)
+
+        # --- Non-instrumented functions ---------------------------------------------------------------------------------
+        def math_add_op_non_instrumented(a, b):
+            return a + b
+
+        def math_sub_op_non_instrumented(a, b):
+            return a - b
+
+        def string_concat_op_non_instrumented(a, b):
+            return a + b
+
+        def string_join_op_non_instrumented(a, b):
+            return a.join(b)
+
+        # --- Demo --------------------------------------------------------------------------------------------------------
+        toggle_timer_group("math_op", True)
+        toggle_timer_group("string_op", False)
+        toggle_timer_group_display_output("math_op", True)
+        toggle_timer_group_display_output("string_op", True)
+        print("-"*20, "Timer outputs, "-"*20)
+        start_timing_ops = time.perf_counter()
+        for i in range(100000):
+            math_add_op(i, i)
+            math_sub_op(i, i)
+            string_concat_op(str(i), str(i))
+            string_join_op(str(i), str(i))
+            if i == 0:
+                toggle_timer_group_display_output("math_op", False)
+            if i == 1:
+                toggle_timer_group_display_output("math_op", True)
+            if i == 2:
+                toggle_timer_group_display_output("math_op", False)
+            if i == 25000:
+                toggle_timer_group("math_op", False)
+                toggle_timer_group("string_op", True)
+            if i == 25001:
+                toggle_timer_group_display_output("string_op", False)
+            if i == 50000:
+                toggle_timer_group("math_op", True)
+                toggle_timer_group("string_op", False)
+            if i == 74999:
+                toggle_timer_group("math_op", False)
+                toggle_timer_group("string_op", True)
+        end_timing_ops = time.perf_counter()
+        print("-"*20, "Timer Statistics", "-"*20)
+        print("We toggle on and off the timers, we should see that N (the number of samples) is 50000 for both groups.")
+        print(f"math add op mean: {Timer.get_timer_statistics('add_op')['mean']}s, N: {Timer.get_timer_statistics('add_op')['n']}")
+        print(f"math sub op mean: {Timer.get_timer_statistics('sub_op')['mean']}s, N: {Timer.get_timer_statistics('sub_op')['n']}")
+        print(f"string concat op mean: {Timer.get_timer_statistics('concat_op')['mean']}s, N: {Timer.get_timer_statistics('concat_op')['n']}")
+        print(f"string join op mean: {Timer.get_timer_statistics('join_op')['mean']}s, N: {Timer.get_timer_statistics('join_op')['n']}")
+
+        toggle_timer_group("string_op", False)
+        start_timing_ops_instrumented_disabled = time.perf_counter()
+        for i in range(100000):
+            math_add_op(i, i)
+            math_sub_op(i, i)
+            string_concat_op(str(i), str(i))
+            string_join_op(str(i), str(i))
+        end_timing_ops_instrumented_disabled = time.perf_counter()
+        print("Statistics should be the same as the ones computed in the first loop, we are no longer timing.")
+        print(f"math add op mean: {Timer.get_timer_statistics('add_op')['mean']}s, N: {Timer.get_timer_statistics('add_op')['n']}")
+        print(f"math sub op mean: {Timer.get_timer_statistics('sub_op')['mean']}s, N: {Timer.get_timer_statistics('sub_op')['n']}")
+        print(f"string concat op mean: {Timer.get_timer_statistics('concat_op')['mean']}s, N: {Timer.get_timer_statistics('concat_op')['n']}")
+        print(f"string join op mean: {Timer.get_timer_statistics('join_op')['mean']}s, N: {Timer.get_timer_statistics('join_op')['n']}")
+
+        start_timing_ops_non_instrumented = time.perf_counter()
+        for i in range(100000):
+            math_add_op_non_instrumented(i, i)
+            math_sub_op_non_instrumented(i, i)
+            string_concat_op_non_instrumented(str(i), str(i))
+            string_join_op_non_instrumented(str(i), str(i))
+        end_timing_ops_non_instrumented = time.perf_counter()
+
+        print("-"*20, "Loop comparisons", "-"*20)
+        print("This is the slowest loop, since the functions were instrumented:")
+        print(f"Enabled instrumented ops took (1e6 samples): {end_timing_ops - start_timing_ops}")
+        print("Measured time should be the same in the disabled instrumented loop and the non-instrumented loop.")
+        print(f"Disabled instrumented ops took (1e6 samples): {end_timing_ops_instrumented_disabled - start_timing_ops_instrumented_disabled}")
+        print(f"Non-instrumented ops took (1e6 samples): {end_timing_ops_non_instrumented - start_timing_ops_non_instrumented}")
+
+
+    Initial reference: https://gist.github.com/sumeet/1123871
     """
 
     timing_info: ClassVar[dict[str, dict[str, float]]] = dict()
@@ -97,18 +180,18 @@ class Timer(ContextDecorator):
     - n: The number of samples
     """
 
-    global_enable: ClassVar[bool] = True
-    """Whether to enable the timer.
+    group_enable: ClassVar[dict[str, bool]] = dict()
+    """Whether to enable the timer for a given group.
 
-    This variable allows to override the timers from a single global setting.
-    If set to False, no timers will be used.
+    This dictionary allows to enable/disable the timer for a given group.
+    If the group is not in the dictionary, the timer is enabled by default.
     """
 
-    enable_display_output: ClassVar[bool] = True
-    """Whether to enable the display output.
+    group_display_output: ClassVar[dict[str, bool]] = dict()
+    """Whether to display the output for a given group.
 
-    This variable allows to override the timers from a single global setting.
-    If set to False, no display output will be printed. However, the timers will still be updated and logged.
+    This dictionary allows to enable/disable the display output for a given group.
+    If the group is not in the dictionary, the display output is enabled by default.
     """
 
     def __init__(
@@ -117,6 +200,7 @@ class Timer(ContextDecorator):
         name: str | None = None,
         enable: bool = True,
         format: Literal["s", "ms", "us", "ns"] = "s",
+        group: str | None = None,
     ):
         """Initializes the timer.
 
@@ -131,14 +215,16 @@ class Timer(ContextDecorator):
                 dictionary. Defaults to None.
             enable: Whether to enable the timer. Defaults to True.
             format: The format to use for the elapsed time. Defaults to "s".
+            group: The group to use for the timer. Defaults to None.
         """
         self._msg = msg
         self._name = name
         self._start_time = None
         self._stop_time = None
         self._elapsed_time = None
-        self._enable = enable if Timer.global_enable else False
+        self._enable = enable
         self._format = format
+        self._group = group
 
         # Check if the format is valid
         # Check if the format is valid
@@ -190,7 +276,7 @@ class Timer(ContextDecorator):
 
     def start(self):
         """Start timing."""
-        if not self._enable:
+        if (not self._enable) or (self._group is not None and not Timer.group_enable.get(self._group, True)):
             return
 
         if self._start_time is not None:
@@ -200,14 +286,17 @@ class Timer(ContextDecorator):
 
     def stop(self):
         """Stop timing."""
-        if not self._enable:
+        if not self._enable or (self._group is not None and not Timer.group_enable.get(self._group, True)):
             return
 
         if self._start_time is None:
             raise TimerError("Timer is not running. Use .start() to start it")
 
         # Synchronize the device to make sure we time the whole operation
-        wp.synchronize_device()
+        try:
+            wp.synchronize_device()
+        except:
+            pass
 
         # Get the elapsed time
         self._stop_time = time.perf_counter()
@@ -270,8 +359,12 @@ class Timer(ContextDecorator):
         """Stop timing."""
         self.stop()
         # print message
-        if self._enable:
-            if (self._msg is not None) and (Timer.enable_display_output):
+        if (
+            self._enable
+            and (Timer.group_display_output.get(self._group, True))
+            and (Timer.group_enable.get(self._group, True))
+        ):
+            if self._msg is not None:
                 print(
                     self._msg,
                     f"Last: {(self._elapsed_time * self._unit_multiplier):0.6f} {self._format}, "
@@ -329,3 +422,57 @@ class Timer(ContextDecorator):
         keys = ["mean", "std", "n", "last"]
 
         return {k: Timer.timing_info[name][k] for k in keys}
+
+    """
+    Class methods
+    """
+
+    @classmethod
+    def set_group(cls, group: str, enabled: bool) -> None:
+        """Set the enable flag for a given group.
+
+        Args:
+            group: The group to set the enable flag for.
+            enabled: The enable flag to set.
+        """
+        cls.group_enable[group] = bool(enabled)
+
+    @classmethod
+    def set_group_display_output(cls, group: str, enabled: bool) -> None:
+        """Set the display output flag for a given group.
+
+        Args:
+            group: The group to set the display output flag for.
+            enabled: The display output flag to set.
+        """
+        cls.group_display_output[group] = bool(enabled)
+
+    @classmethod
+    def clear_all_timers(cls) -> None:
+        """Clear all timers.
+
+        Resets the global dictionary to its initial state.
+        """
+        cls.timing_info.clear()
+        cls.group_enable.clear()
+        cls.group_display_output.clear()
+
+    @classmethod
+    def clear_timer(cls, name: str) -> None:
+        """Clear a timer.
+
+        Note: This does not affect the enable flag for the group.
+
+        Args:
+            name: The name of the timer to clear.
+        """
+        cls.timing_info.pop(name, None)
+
+    @classmethod
+    def get_group_names(cls) -> list[str]:
+        """Get the names of all groups.
+
+        Returns:
+            A list of all group names.
+        """
+        return list(cls.group_enable.keys())
