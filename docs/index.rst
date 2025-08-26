@@ -120,10 +120,12 @@ Table of Contents
    source/features/ray
    source/features/reproducibility
 
+
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 3
    :caption: Experimental Features
 
+   source/experimental-features/bleeding-edge
    source/experimental-features/newton-physics-integration/index
 
 .. toctree::
