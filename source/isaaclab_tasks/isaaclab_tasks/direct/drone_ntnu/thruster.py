@@ -14,7 +14,7 @@ from __future__ import annotations
 import torch
 from typing import TYPE_CHECKING
 
-from .utils import torch_rand_float_tensor
+from .utils import torch_rand_float
 
 if TYPE_CHECKING:
     from .thruster_cfg import ThrusterCfg
@@ -56,7 +56,7 @@ class Thruster:
         self.init_tensors()
 
     def init_tensors(self):
-        self.current_motor_thrust = torch_rand_float_tensor(
+        self.current_motor_thrust = torch_rand_float(
             torch.tensor(self.min_thrust, device=self.device, dtype=torch.float32).expand(
                 self.num_envs, self.num_motors_per_robot
             ),
@@ -64,10 +64,10 @@ class Thruster:
                 self.num_envs, self.num_motors_per_robot
             ),
         )
-        self.motor_time_constants_increasing = torch_rand_float_tensor(
+        self.motor_time_constants_increasing = torch_rand_float(
             self.motor_time_constant_increasing_min, self.motor_time_constant_increasing_max
         )
-        self.motor_time_constants_decreasing = torch_rand_float_tensor(
+        self.motor_time_constants_decreasing = torch_rand_float(
             self.motor_time_constant_decreasing_min, self.motor_time_constant_decreasing_max
         )
         self.motor_rate = torch.zeros((self.num_envs, self.num_motors_per_robot), device=self.device)
@@ -80,7 +80,7 @@ class Thruster:
                 torch.ones(self.num_envs, self.num_motors_per_robot, device=self.device, requires_grad=False)
                 * self.cfg.motor_thrust_constant_max
             )
-            self.motor_thrust_constant = torch_rand_float_tensor(
+            self.motor_thrust_constant = torch_rand_float(
                 self.motor_thrust_constant_min, self.motor_thrust_constant_max
             )
 
@@ -134,15 +134,15 @@ class Thruster:
         return self.current_motor_thrust
 
     def reset_idx(self, env_ids):
-        self.motor_time_constants_increasing[env_ids] = torch_rand_float_tensor(
+        self.motor_time_constants_increasing[env_ids] = torch_rand_float(
             self.motor_time_constant_increasing_min, self.motor_time_constant_increasing_max
         )[env_ids]
-        self.motor_time_constants_decreasing[env_ids] = torch_rand_float_tensor(
+        self.motor_time_constants_decreasing[env_ids] = torch_rand_float(
             self.motor_time_constant_decreasing_min, self.motor_time_constant_decreasing_max
         )[env_ids]
-        self.current_motor_thrust[env_ids] = torch_rand_float_tensor(self.min_thrust, self.max_thrust)[env_ids]
+        self.current_motor_thrust[env_ids] = torch_rand_float(self.min_thrust, self.max_thrust)[env_ids]
         if self.cfg.use_rps:
-            self.motor_thrust_constant[env_ids] = torch_rand_float_tensor(
+            self.motor_thrust_constant[env_ids] = torch_rand_float(
                 self.motor_thrust_constant_min, self.motor_thrust_constant_max
             )[env_ids]
 

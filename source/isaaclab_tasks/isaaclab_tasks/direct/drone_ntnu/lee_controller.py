@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING
 
 import isaaclab.utils.math as math_utils
 
-from .utils import aggregate_inertia_about_robot_com, torch_rand_float_tensor
+from .utils import aggregate_inertia_about_robot_com, torch_rand_float
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation
@@ -101,10 +101,10 @@ class BaseLeeController:
     def randomize_params(self, env_ids):
         if not self.cfg.randomize_params:
             return
-        self.K_pos_current[env_ids] = torch_rand_float_tensor(self.K_pos_min[env_ids], self.K_pos_max[env_ids])
-        self.K_linvel_current[env_ids] = torch_rand_float_tensor(self.K_linvel_min[env_ids], self.K_linvel_max[env_ids])
-        self.K_rot_current[env_ids] = torch_rand_float_tensor(self.K_rot_min[env_ids], self.K_rot_max[env_ids])
-        self.K_angvel_current[env_ids] = torch_rand_float_tensor(self.K_angvel_min[env_ids], self.K_angvel_max[env_ids])
+        self.K_pos_current[env_ids] = torch_rand_float(self.K_pos_min[env_ids], self.K_pos_max[env_ids])
+        self.K_linvel_current[env_ids] = torch_rand_float(self.K_linvel_min[env_ids], self.K_linvel_max[env_ids])
+        self.K_rot_current[env_ids] = torch_rand_float(self.K_rot_min[env_ids], self.K_rot_max[env_ids])
+        self.K_angvel_current[env_ids] = torch_rand_float(self.K_angvel_min[env_ids], self.K_angvel_max[env_ids])
 
     def compute_acceleration(self, setpoint_position, setpoint_velocity):
         position_error_world_frame = setpoint_position - self.robot.data.root_pos_w

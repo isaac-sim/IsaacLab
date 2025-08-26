@@ -91,12 +91,12 @@ class DroneEnvCfg(DirectRLEnvCfg):
     ]
 
     # drag_variables
-    body_vel_linear_damping_coefficient = [0.0, 0.0, 0.0]
-    body_vel_quadratic_damping_coefficient = [0.0, 0.0, 0.0]
-    angvel_linear_damping_coefficient = [0.0, 0.0, 0.0]
-    angvel_quadratic_damping_coefficient = [0.0, 0.0, 0.0]
+    body_vel_linear_damping_coef = [0.0, 0.0, 0.0]
+    body_vel_quadratic_damping_coef = [0.0, 0.0, 0.0]
+    angvel_linear_damping_coef = [0.0, 0.0, 0.0]
+    angvel_quadratic_damping_coef = [0.0, 0.0, 0.0]
 
     # disturbance
     enable_disturbance = False
-    max_force_and_torque_disturbance = [0.75, 0.75, 0.75, 0.004, 0.004, 0.004]
-    disturbance_probability = 0.02
+    max_wrench_disturbance = [0.75, 0.75, 0.75, 0.004, 0.004, 0.004]
+    disturb_prob = 0.02
