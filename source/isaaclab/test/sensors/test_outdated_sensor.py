@@ -42,6 +42,7 @@ def temp_dir():
 @pytest.mark.parametrize("task_name", ["Isaac-Stack-Cube-Franka-IK-Rel-v0"])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("num_envs", [1, 2])
+@pytest.mark.isaacsim_ci
 def test_action_state_recorder_terms(temp_dir, task_name, device, num_envs):
     """Check FrameTransformer values after reset."""
     omni.usd.get_context().new_stage()

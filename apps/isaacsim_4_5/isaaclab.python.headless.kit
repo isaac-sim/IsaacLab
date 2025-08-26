@@ -78,6 +78,9 @@ app.audio.enabled = false
 # Enable Vulkan - avoids torch+cu12 error on windows
 app.vulkan = true
 
+# Set profiler backend to NVTX by default
+app.profilerBackend = "nvtx"
+
 # hide NonToggleable Exts
 exts."omni.kit.window.extensions".hideNonToggleableExts = true
 exts."omni.kit.window.extensions".showFeatureOnly = false
