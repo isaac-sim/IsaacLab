@@ -38,7 +38,6 @@ class Thruster:
 
         self.max_rate = self._f32(cfg.max_thrust_rate).expand(num_envs, self.cfg.num_motors)
 
-
         self.curr_thrust = torch.zeros(num_envs, self.cfg.num_motors, device=self.device, dtype=torch.float32)
         self.tau_inc_s = torch_rand_float(self.tau_inc_min_s, self.tau_inc_max_s)
         self.tau_dec_s = torch_rand_float(self.tau_dec_min_s, self.tau_dec_max_s)
@@ -53,22 +52,21 @@ class Thruster:
             self.mixing_factor_function = discrete_mixing_factor
         else:
             self.mixing_factor_function = continuous_mixing_factor
-        
-        
-        if self.cfg.integration_scheme not in ['euler', 'rk4']:
+
+        if self.cfg.integration_scheme not in ["euler", "rk4"]:
             raise ValueError("integration scheme unknown")
-    
+
         if cfg.use_rps:
-            if self.cfg.integration_scheme == 'euler':
+            if self.cfg.integration_scheme == "euler":
                 self._step_thrust = compute_thrust_with_rpm_time_constant
-            elif self.cfg.integration_scheme == 'rk4':
+            elif self.cfg.integration_scheme == "rk4":
                 self._step_thrust = compute_thrust_with_rpm_time_constant_rk4
         else:
-            if self.cfg.integration_scheme == 'euler':
+            if self.cfg.integration_scheme == "euler":
                 self._step_thrust = compute_thrust_with_force_time_constant
-            elif self.cfg.integration_scheme == 'rk4':
+            elif self.cfg.integration_scheme == "rk4":
                 self._step_thrust = compute_thrust_with_force_time_constant_rk4
-            
+
     def update_motor_thrusts(self, ref_thrust):
         ref_thrust = torch.clamp(self._f32(ref_thrust), self.min_thrust, self.max_thrust)
         thrust_error_sign = torch.sign(ref_thrust - self.curr_thrust)
@@ -79,11 +77,11 @@ class Thruster:
             thrust_args = (ref_thrust, self.curr_thrust, mixing, self.thrust_const, self.max_rate, self.cfg.dt)
         else:
             thrust_args = (ref_thrust, self.curr_thrust, mixing, self.max_rate, self.cfg.dt)
-        
+
         self.curr_thrust[:] = self._step_thrust(*thrust_args)
         return self.curr_thrust
 
-    def reset_idx(self, env_ids = None):
+    def reset_idx(self, env_ids=None):
         if env_ids is None:
             env_ids = slice(None)
         self.tau_inc_s[env_ids] = torch_rand_float(self.tau_inc_min_s, self.tau_inc_max_s)[env_ids]
@@ -138,6 +136,7 @@ def compute_thrust_with_rpm_time_constant(
     current_rpm += motor_model_rate(rpm_error, mixing_factor, max_rate) * dt
     return thrust_const * current_rpm**2
 
+
 @torch.jit.script
 def compute_thrust_with_rpm_time_constant_rk4(
     ref_thrust: torch.Tensor,
@@ -153,6 +152,7 @@ def compute_thrust_with_rpm_time_constant_rk4(
     current_rpm += rk4_integration(rpm_error, mixing_factor, max_rate, dt)
     return thrust_const * current_rpm**2
 
+
 @torch.jit.script
 def compute_thrust_with_force_time_constant(
     ref_thrust: torch.Tensor, curr_thrust: torch.Tensor, mixing_factor: torch.Tensor, max_rate: torch.Tensor, dt: float
@@ -160,6 +160,7 @@ def compute_thrust_with_force_time_constant(
     thrust_error = ref_thrust - curr_thrust
     curr_thrust[:] += motor_model_rate(thrust_error, mixing_factor, max_rate) * dt
     return curr_thrust
+
 
 @torch.jit.script
 def compute_thrust_with_force_time_constant_rk4(

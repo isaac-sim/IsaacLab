@@ -106,13 +106,10 @@ class DroneEnv(DirectRLEnv):
         pos_error_w = self._commands_w - self._robot.data.root_pos_w
         obs = torch.cat(
             [
-                tensor
-                for tensor in (
-                    math_utils.quat_apply_inverse(self._robot.data.root_quat_w, (pos_error_w)),
-                    self._robot.data.root_quat_w,
-                    self._robot.data.root_lin_vel_b,
-                    self._robot.data.root_ang_vel_b,
-                )
+                math_utils.quat_apply_inverse(self._robot.data.root_quat_w, (pos_error_w)),
+                self._robot.data.root_quat_w,
+                self._robot.data.root_lin_vel_b,
+                self._robot.data.root_ang_vel_b,
             ],
             dim=-1,
         )
