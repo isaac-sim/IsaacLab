@@ -332,6 +332,9 @@ if "%arg%"=="-i" (
     rem install the python packages in isaaclab/source directory
     echo [INFO] Installing extensions inside the Isaac Lab repository...
     call :extract_python_exe
+    rem bootstrap pip (minimal)
+    call !python_exe! -m ensurepip --upgrade >nul 2>nul
+    call !python_exe! -m pip install -U "pip>=25.2"
     rem check if pytorch is installed and its version
     rem install pytorch with cuda 12.8 for blackwell support
     call !python_exe! -m pip list | findstr /C:"torch" >nul
@@ -377,7 +380,9 @@ if "%arg%"=="-i" (
     rem install the python packages in source directory
     echo [INFO] Installing extensions inside the Isaac Lab repository...
     call :extract_python_exe
-
+    rem bootstrap pip (minimal)
+    call !python_exe! -m ensurepip --upgrade >nul 2>nul
+    call !python_exe! -m pip install -U "pip>=25.2"
     rem check if pytorch is installed and its version
     rem install pytorch with cuda 12.8 for blackwell support
     call !python_exe! -m pip list | findstr /C:"torch" >nul
