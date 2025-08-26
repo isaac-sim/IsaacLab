@@ -14,7 +14,7 @@ from __future__ import annotations
 import torch
 from typing import TYPE_CHECKING
 
-from .utils import torch_rand_float
+from .utils import rand_range
 
 if TYPE_CHECKING:
     from .thruster_cfg import ThrusterCfg
@@ -56,14 +56,14 @@ class Thruster:
 
         # State & randomized per-motor parameters
         self.curr_thrust = torch.zeros(num_envs, self.cfg.num_motors, device=self.device, dtype=torch.float32)
-        self.tau_inc_s = torch_rand_float(self.tau_inc_min_s, self.tau_inc_max_s)
-        self.tau_dec_s = torch_rand_float(self.tau_dec_min_s, self.tau_dec_max_s)
+        self.tau_inc_s = rand_range(self.tau_inc_min_s, self.tau_inc_max_s)
+        self.tau_dec_s = rand_range(self.tau_dec_min_s, self.tau_dec_max_s)
 
         if self.cfg.use_rps:
             ones = torch.ones(num_envs, self.cfg.num_motors, device=self.device, dtype=torch.float32)
             self.thrust_const_min = ones * float(self.cfg.thrust_const_min)
             self.thrust_const_max = ones * float(self.cfg.thrust_const_max)
-            self.thrust_const = torch_rand_float(self.thrust_const_min, self.thrust_const_max)
+            self.thrust_const = rand_range(self.thrust_const_min, self.thrust_const_max)
 
         # Mixing factor (discrete vs continuous form)
         if self.cfg.use_discrete_approximation:
@@ -119,11 +119,11 @@ class Thruster:
         """
         if env_ids is None:
             env_ids = slice(None)
-        self.tau_inc_s[env_ids] = torch_rand_float(self.tau_inc_min_s, self.tau_inc_max_s)[env_ids]
-        self.tau_dec_s[env_ids] = torch_rand_float(self.tau_dec_min_s, self.tau_dec_max_s)[env_ids]
-        self.curr_thrust[env_ids] = torch_rand_float(self.min_thrust, self.max_thrust)[env_ids]
+        self.tau_inc_s[env_ids] = rand_range(self.tau_inc_min_s, self.tau_inc_max_s)[env_ids]
+        self.tau_dec_s[env_ids] = rand_range(self.tau_dec_min_s, self.tau_dec_max_s)[env_ids]
+        self.curr_thrust[env_ids] = rand_range(self.min_thrust, self.max_thrust)[env_ids]
         if self.cfg.use_rps:
-            self.thrust_const[env_ids] = torch_rand_float(self.thrust_const_min, self.thrust_const_max)[env_ids]
+            self.thrust_const[env_ids] = rand_range(self.thrust_const_min, self.thrust_const_max)[env_ids]
 
     def reset(self):
         """Reset all envs."""

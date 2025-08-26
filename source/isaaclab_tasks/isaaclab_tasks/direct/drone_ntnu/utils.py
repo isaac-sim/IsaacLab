@@ -15,7 +15,7 @@ import isaaclab.utils.math as math_utils
 
 
 @torch.jit.script
-def torch_rand_float(lower, upper):
+def rand_range(lower, upper):
     # type: (torch.Tensor, torch.Tensor) -> torch.Tensor
     return (upper - lower) * torch.rand_like(upper) + lower
 

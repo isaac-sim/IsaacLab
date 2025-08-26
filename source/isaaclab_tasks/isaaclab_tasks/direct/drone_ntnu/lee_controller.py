@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING
 
 import isaaclab.utils.math as math_utils
 
-from .utils import aggregate_inertia_about_robot_com, torch_rand_float
+from .utils import aggregate_inertia_about_robot_com, rand_range
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation
@@ -56,30 +56,26 @@ class LeeController:
             math_utils.quat_apply_inverse(root_quat_exp, body_link_pos_delta),
             math_utils.quat_mul(math_utils.quat_inv(root_quat_exp), self.robot.data.body_link_quat_w),
         )
-        self.gravity = torch.tensor(self.cfg.gravity, device=self.env.device).expand(self.env.num_envs, -1)
+        self.gravity = torch.tensor(self.cfg.gravity, device=env.device).expand(env.num_envs, -1)
 
-        # Gain bounds (expanded per environment)
-        self.K_pos_max = torch.tensor(self.cfg.K_pos_max, device=self.env.device).expand(self.env.num_envs, -1)
-        self.K_pos_min = torch.tensor(self.cfg.K_pos_min, device=self.env.device).expand(self.env.num_envs, -1)
-        self.K_linvel_max = torch.tensor(self.cfg.K_vel_max, device=self.env.device).expand(self.env.num_envs, -1)
-        self.K_linvel_min = torch.tensor(self.cfg.K_vel_min, device=self.env.device).expand(self.env.num_envs, -1)
-        self.K_rot_max = torch.tensor(self.cfg.K_rot_max, device=self.env.device).expand(self.env.num_envs, -1)
-        self.K_rot_min = torch.tensor(self.cfg.K_rot_min, device=self.env.device).expand(self.env.num_envs, -1)
-        self.K_angvel_max = torch.tensor(self.cfg.K_angvel_max, device=self.env.device).expand(self.env.num_envs, -1)
-        self.K_angvel_min = torch.tensor(self.cfg.K_angvel_min, device=self.env.device).expand(self.env.num_envs, -1)
+        # Gain ranges (single tensor each): shape (num_envs, 2, 3); [:,0]=min, [:,1]=max
+        self.K_pos_range = torch.tensor(self.cfg.K_pos_range, device=env.device).repeat(env.num_envs, 1, 1)
+        self.K_linvel_range = torch.tensor(self.cfg.K_vel_range, device=env.device).repeat(env.num_envs, 1, 1)
+        self.K_rot_range = torch.tensor(self.cfg.K_rot_range, device=env.device).repeat(env.num_envs, 1, 1)
+        self.K_angvel_range = torch.tensor(self.cfg.K_angvel_range, device=env.device).repeat(env.num_envs, 1, 1)
 
         # Current (possibly randomized) gains
-        self.K_pos_current = (self.K_pos_max + self.K_pos_min) / 2.0
-        self.K_linvel_current = (self.K_linvel_max + self.K_linvel_min) / 2.0
-        self.K_rot_current = (self.K_rot_max + self.K_rot_min) / 2.0
-        self.K_angvel_current = (self.K_angvel_max + self.K_angvel_min) / 2.0
+        self.K_pos_current = self.K_pos_range.mean(dim=1)
+        self.K_linvel_current = self.K_linvel_range.mean(dim=1)
+        self.K_rot_current = self.K_rot_range.mean(dim=1)
+        self.K_angvel_current = self.K_angvel_range.mean(dim=1)
 
         # Buffers (all shapes use num_envs in the first dimension)
-        self.accel = torch.zeros((self.env.num_envs, 3), device=self.env.device)
-        self.wrench_command_b = torch.zeros((self.env.num_envs, 6), device=self.env.device)  # [fx, fy, fz, tx, ty, tz]
+        self.accel = torch.zeros((env.num_envs, 3), device=env.device)
+        self.wrench_command_b = torch.zeros((env.num_envs, 6), device=env.device)  # [fx, fy, fz, tx, ty, tz]
         self.desired_body_angvel_w = torch.zeros_like(self.robot.data.root_ang_vel_b)
         self.euler_angle_rates_w = torch.zeros_like(self.robot.data.root_ang_vel_b)
-        self.buffer_tensor = torch.zeros((self.env.num_envs, 3, 3), device=self.env.device)
+        self.buffer_tensor = torch.zeros((env.num_envs, 3, 3), device=env.device)
 
     def __call__(self, command):
         """Compute body-frame wrench from an action.
@@ -127,10 +123,10 @@ class LeeController:
         """Randomize controller gains for the given environments if enabled."""
         if not self.cfg.randomize_params:
             return
-        self.K_pos_current[env_ids] = torch_rand_float(self.K_pos_min[env_ids], self.K_pos_max[env_ids])
-        self.K_linvel_current[env_ids] = torch_rand_float(self.K_linvel_min[env_ids], self.K_linvel_max[env_ids])
-        self.K_rot_current[env_ids] = torch_rand_float(self.K_rot_min[env_ids], self.K_rot_max[env_ids])
-        self.K_angvel_current[env_ids] = torch_rand_float(self.K_angvel_min[env_ids], self.K_angvel_max[env_ids])
+        self.K_pos_current[env_ids] = rand_range(self.K_pos_range[env_ids, 0], self.K_pos_range[env_ids, 1])
+        self.K_linvel_current[env_ids] = rand_range(self.K_linvel_range[env_ids, 0], self.K_linvel_range[env_ids, 1])
+        self.K_rot_current[env_ids] = rand_range(self.K_rot_range[env_ids, 0], self.K_rot_range[env_ids, 1])
+        self.K_angvel_current[env_ids] = rand_range(self.K_angvel_range[env_ids, 0], self.K_angvel_range[env_ids, 1])
 
     def compute_acceleration(self, setpoint_position, setpoint_velocity):
         """PD position control in world frame.

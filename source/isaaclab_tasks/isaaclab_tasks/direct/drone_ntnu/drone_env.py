@@ -22,7 +22,7 @@ from isaaclab.markers import VisualizationMarkers
 from .controller_cfg import LeeControllerCfg
 from .drone_env_cfg import DroneEnvCfg
 from .thruster_cfg import ThrusterCfg
-from .utils import torch_rand_float
+from .utils import rand_range
 
 from isaaclab.markers import CUBOID_MARKER_CFG  # isort: skip
 
@@ -95,7 +95,7 @@ class DroneEnv(DirectRLEnv):
         if self.cfg.enable_disturbance:
             max_disturb = torch.tensor(self.cfg.max_wrench_disturbance, device=self.device).repeat(self.num_envs, 1)
             disturb_occur = torch.bernoulli(self.cfg.disturb_prob * torch.ones((self.num_envs), device=self.device))
-            self.external_wrench_b[:, 0] += torch_rand_float(-max_disturb, max_disturb) * disturb_occur.unsqueeze(1)
+            self.external_wrench_b[:, 0] += rand_range(-max_disturb, max_disturb) * disturb_occur.unsqueeze(1)
 
     def _apply_action(self):
         self._robot.set_external_force_and_torque(
