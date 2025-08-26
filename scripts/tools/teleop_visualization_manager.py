@@ -265,7 +265,7 @@ class TeleopVisualizationManager(VisualizationManager):
         hand_torque_mapping : Final = data_collector.get_data("hand_torque_mapping")
 
         # enable_torque_color needs to be manually set by calling XRVisualization.set_attrs({"enable_torque_color": True})
-        if getattr(mgr, "enable_torque_color") and joints_torque is not None and joints_torque_limit is not None and joints_name is not None and hand_torque_mapping is not None and len(hand_torque_mapping) == len(colors_lines) - 10:
+        if getattr(mgr, "enable_torque_color", None) and joints_torque is not None and joints_torque_limit is not None and joints_name is not None and hand_torque_mapping is not None and len(hand_torque_mapping) == len(colors_lines) - 10:
             # Insert empty strings at positions that are not fingers
             hand_torque_mapping_copy = hand_torque_mapping.copy()
             hand_torque_mapping_copy.append("")
