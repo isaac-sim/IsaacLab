@@ -21,10 +21,26 @@ if TYPE_CHECKING:
 
 
 class Thruster:
+    """Low-level motor/thruster dynamics with separate rise/fall time constants.
+
+    Supports two models:
+      • Force domain (integrate thrust directly), or
+      • Speed domain (integrate rotor speed w, then F = k_f * w²) when ``cfg.use_rps=True``.
+
+    Integration scheme is Euler or RK4. All internal buffers are shaped (num_envs, num_motors)
+    Units: thrust [N], rates [N/s], time [s].
+    """
 
     cfg: ThrusterCfg
 
     def __init__(self, num_envs, cfg: ThrusterCfg, device="cpu"):
+        """Construct buffers and sample per-motor parameters.
+
+        Args:
+            num_envs: Number of vectorized envs.
+            cfg: Thruster configuration.
+            device: PyTorch device string.
+        """
         self.cfg = cfg
         self.device = device
 
@@ -38,6 +54,7 @@ class Thruster:
 
         self.max_rate = self._f32(cfg.max_thrust_rate).expand(num_envs, self.cfg.num_motors)
 
+        # State & randomized per-motor parameters
         self.curr_thrust = torch.zeros(num_envs, self.cfg.num_motors, device=self.device, dtype=torch.float32)
         self.tau_inc_s = torch_rand_float(self.tau_inc_min_s, self.tau_inc_max_s)
         self.tau_dec_s = torch_rand_float(self.tau_dec_min_s, self.tau_dec_max_s)
@@ -48,11 +65,13 @@ class Thruster:
             self.thrust_const_max = ones * float(self.cfg.thrust_const_max)
             self.thrust_const = torch_rand_float(self.thrust_const_min, self.thrust_const_max)
 
+        # Mixing factor (discrete vs continuous form)
         if self.cfg.use_discrete_approximation:
             self.mixing_factor_function = discrete_mixing_factor
         else:
             self.mixing_factor_function = continuous_mixing_factor
 
+        # Choose stepping kernel once (avoids per-step branching)
         if self.cfg.integration_scheme not in ["euler", "rk4"]:
             raise ValueError("integration scheme unknown")
 
@@ -68,6 +87,17 @@ class Thruster:
                 self._step_thrust = compute_thrust_with_force_time_constant_rk4
 
     def update_motor_thrusts(self, ref_thrust):
+        """Advance the thruster state one step.
+
+        Applies saturation, chooses rise/fall tau per motor, computes mixing factor,
+        and integrates with the selected kernel.
+
+        Args:
+            ref_thrust: (num_envs, num_motors) commanded per-motor thrust [N].
+
+        Returns:
+            (num_envs, num_motors) updated thrust state [N].
+        """
         ref_thrust = torch.clamp(self._f32(ref_thrust), self.min_thrust, self.max_thrust)
         thrust_error_sign = torch.sign(ref_thrust - self.curr_thrust)
         motor_tau = torch.where(torch.sign(self.curr_thrust) * thrust_error_sign < 0, self.tau_dec_s, self.tau_inc_s)
@@ -82,6 +112,11 @@ class Thruster:
         return self.curr_thrust
 
     def reset_idx(self, env_ids=None):
+        """Re-sample parameters and reinitialize state.
+
+        Args:
+            env_ids: Env indices to reset. If ``None``, resets all envs.
+        """
         if env_ids is None:
             env_ids = slice(None)
         self.tau_inc_s[env_ids] = torch_rand_float(self.tau_inc_min_s, self.tau_inc_max_s)[env_ids]
@@ -91,9 +126,11 @@ class Thruster:
             self.thrust_const[env_ids] = torch_rand_float(self.thrust_const_min, self.thrust_const_max)[env_ids]
 
     def reset(self):
+        """Reset all envs."""
         self.reset_idx()
 
     def _f32(self, x):
+        """Utility: create float32 tensor on the configured device."""
         return torch.as_tensor(x, device=self.device, dtype=torch.float32)
 
 
