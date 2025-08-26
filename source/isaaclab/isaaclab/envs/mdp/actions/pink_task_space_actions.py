@@ -230,7 +230,7 @@ class PinkInverseKinematicsAction(ActionTerm):
         all_envs_joint_pos_des = torch.cat((all_envs_joint_pos_des, self._target_hand_joint_positions), dim=1)
         self._processed_actions = all_envs_joint_pos_des
 
-        self._asset.set_joint_position_target(all_envs_joint_pos_des, self._joint_ids)
+        self._asset.set_joint_position_target(self._processed_actions, self._joint_ids)
 
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
         """Reset the action term for specified environments.

@@ -50,7 +50,7 @@ class PickPlaceGR1T2MimicEnv(ManagerBasedRLMimicEnv):
             target_eef_pose_dict: Dictionary of 4x4 target eef pose for each end-effector.
             gripper_action_dict: Dictionary of gripper actions for each end-effector.
             action_noise_dict: Noise to add to the action. If None, no noise is added.
-            env_id: Environment index to get the action for. (Unused in this implementation, present for interface compatibility.)
+            env_id: Environment index to get the action for.
 
         Returns:
             An action torch.Tensor that's compatible with env.step().
