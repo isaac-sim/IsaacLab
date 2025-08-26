@@ -19,16 +19,37 @@ import time
 
 import pytest
 
-from isaaclab.utils.timer import Timer, TimerError
+from isaaclab.utils.timer import (
+    Instrumented,
+    Timer,
+    timer,
+    timer_dynamic,
+    toggle_timer_group,
+    toggle_timer_group_display_output,
+)
 
 # number of decimal places to check
 PRECISION_PLACES = 2
-PRECISION_PLACES_MS = 4
+PRECISION_PLACES_MS = 3
+
+
+@pytest.fixture(autouse=True)
+def reset_timers():
+    Timer.clear_all_timers()
+    for group in Timer.get_group_names():
+        toggle_timer_group(group, True)
+        toggle_timer_group_display_output(group, True)
+    yield
 
 
 def test_timer_as_object():
     """Test using a `Timer` as a regular object."""
-    timer = Timer()
+
+    # Make sure that the timer is enabled by default
+    timer = Timer(group="test", name="test_timer_as_object", msg="Test timer as object took:", enable=True, format="us")
+
+    toggle_timer_group_display_output("test", False)
+
     timer.start()
     assert abs(0 - timer.time_elapsed) < 10 ** (-PRECISION_PLACES)
     time.sleep(1)
@@ -36,13 +57,36 @@ def test_timer_as_object():
     timer.stop()
     assert abs(1 - timer.total_run_time) < 10 ** (-PRECISION_PLACES)
 
+    # Make sure that if the timer is not running, the total run time is None
+    timer = Timer(group="test", name="test_timer_as_object", msg="Test timer as object took:", enable=True, format="us")
+    toggle_timer_group("test", False)
+    timer.start()
+    time.sleep(1)
+    timer.stop()
+    assert timer.total_run_time is None
+
 
 def test_timer_as_context_manager():
     """Test using a `Timer` as a context manager."""
+
     with Timer() as timer:
         assert abs(0 - timer.time_elapsed) < 10 ** (-PRECISION_PLACES)
         time.sleep(1)
         assert abs(1 - timer.time_elapsed) < 10 ** (-PRECISION_PLACES)
+
+
+def test_timer_as_decorator():
+    """Test using a `Timer` as a decorator."""
+
+    @timer(name="add_op", msg="Math add op took:", enable=True, format="us")
+    def math_add_op(a, b):
+        return a + b
+
+    for i in range(1000):
+        math_add_op(i, i)
+
+    timer_stats = Timer.get_timer_statistics("add_op")
+    assert timer_stats["n"] == 1000
 
 
 def test_timer_mean_and_std():
@@ -58,43 +102,149 @@ def test_timer_mean_and_std():
     assert timer_stats["n"] == 1000
 
 
-def test_timer_global_enable():
-    """Test the global enable flag."""
-    Timer.global_enable = False
-    timer = Timer(name="test_timer_global_enable", msg="Test timer global enable took:", enable=True, format="us")
-    timer.start()
-    time.sleep(1)
-    timer.stop()
+def test_timer_global_enable_decorator_free_functions():
+    """Test the global enable flag with a decorator."""
 
-    with pytest.raises(TimerError):
-        timer.time_elapsed
+    @timer_dynamic(group="math_op", name="add_op", msg="Math add op took:", enable=True, format="us")
+    def math_add_op(a, b):
+        return a + b
+
+    toggle_timer_group("math_op", True)
+    toggle_timer_group_display_output("math_op", False)
+
+    start_time = time.perf_counter()
+    for i in range(100000):
+        math_add_op(i, i)
+    end_time = time.perf_counter()
+    instrumented_time = end_time - start_time
+
+    toggle_timer_group("math_op", False)
+    start_time = time.perf_counter()
+    for i in range(100000):
+        math_add_op(i, i)
+    end_time = time.perf_counter()
+    instrumented_disabled_time = end_time - start_time
+
+    # We cannot compare to the non instrumented time because we can't rebind local functions
+    assert instrumented_disabled_time < instrumented_time
 
 
-def test_timer_global_enable_display_output(capsys):
+def test_timer_global_enable_decorator_class_methods():
+    """Test the global enable flag with a decorator."""
+
+    class TestClass(Instrumented):
+        @timer(group="math_op", name="add_op", msg="Math add op took:", enable=True, format="us")
+        def math_add_op(self, a: float, b: float):
+            return a + b
+
+        def math_add_op_non_instrumented(self, a: float, b: float):
+            return a + b
+
+    test_class = TestClass()
+
+    toggle_timer_group("math_op", True)
+    toggle_timer_group_display_output("math_op", False)
+
+    start_time = time.perf_counter()
+    for i in range(100000):
+        test_class.math_add_op(i, i)
+    end_time = time.perf_counter()
+    instrumented_time = end_time - start_time
+
+    toggle_timer_group("math_op", False)
+    start_time = time.perf_counter()
+    for i in range(100000):
+        test_class.math_add_op(i, i)
+    end_time = time.perf_counter()
+    instrumented_disabled_time = end_time - start_time
+
+    start_time = time.perf_counter()
+    for i in range(100000):
+        test_class.math_add_op_non_instrumented(i, i)
+    end_time = time.perf_counter()
+    non_instrumented_time = end_time - start_time
+
+    assert instrumented_disabled_time < instrumented_time
+    assert abs(non_instrumented_time - instrumented_disabled_time) < 10 ** (-PRECISION_PLACES)
+
+
+def test_timer_global_enable_context_manager():
+    """Test the global enable flag with a context manager."""
+
+    # Enable the timer group, should record samples
+    toggle_timer_group("math_op", True)
+    for i in range(1000):
+        with Timer(group="sleep_op", name="add_op", msg="Math add op took:", enable=True, format="us"):
+            time.sleep(0.0001)
+
+    timer_stats = Timer.get_timer_statistics("add_op")
+    assert timer_stats["n"] == 1000
+
+    # Disable the timer group, should not record any new samples
+    toggle_timer_group("sleep_op", False)
+    for i in range(1000):
+        with Timer(group="sleep_op", name="add_op", msg="Math add op took:", enable=True, format="us"):
+            time.sleep(0.0001)
+
+    timer_stats = Timer.get_timer_statistics("add_op")
+    assert timer_stats["n"] == 1000
+
+
+def test_timer_global_enable_display_output_decorator(capsys):
     """Test the global enable display output flag."""
-    Timer.global_enable = True
-    with Timer(
-        name="test_timer_global_enable_display_output",
-        msg="Test timer global enable display output took:",
-        enable=True,
-        format="us",
-    ):
-        time.sleep(1)
+
+    @timer(group="math_op", name="add_op", msg="Math add op took:", enable=True, format="us")
+    def math_add_op(a, b):
+        return a + b
+
+    toggle_timer_group("math_op", True)
+    toggle_timer_group_display_output("math_op", True)
+
+    math_add_op(1, 2)
 
     captured = capsys.readouterr()
-    assert "Test timer global enable display output took:" in captured.out
+    assert "Math add op took:" in captured.out
 
-    Timer.enable_display_output = False
-    with Timer(
-        name="test_timer_global_enable_display_output",
-        msg="Test timer global enable display output took:",
-        enable=True,
-        format="us",
-    ):
-        time.sleep(1)
+    toggle_timer_group_display_output("math_op", False)
+
+    math_add_op(1, 2)
 
     captured = capsys.readouterr()
-    assert "Test timer global enable display output took:" not in captured.out
+    assert "Math add op took:" not in captured.out
+
+    toggle_timer_group_display_output("math_op", True)
+
+    math_add_op(1, 2)
+
+    captured = capsys.readouterr()
+    assert "Math add op took:" in captured.out
+
+    toggle_timer_group("math_op", False)
+
+    math_add_op(1, 2)
+    captured = capsys.readouterr()
+    assert "Math add op took:" not in captured.out
+
+
+def test_timer_global_enable_display_output_context_manager(capsys):
+    """Test the global enable display output flag with a context manager."""
+
+    toggle_timer_group("sleep_op", True)
+    toggle_timer_group_display_output("sleep_op", True)
+
+    with Timer(group="sleep_op", name="sleep_op", msg="Sleep op took:", enable=True, format="us"):
+        time.sleep(0.0001)
+
+    captured = capsys.readouterr()
+    assert "Sleep op took:" in captured.out
+
+    toggle_timer_group_display_output("sleep_op", False)
+
+    with Timer(group="sleep_op", name="sleep_op", msg="Sleep op took:", enable=True, format="us"):
+        time.sleep(0.0001)
+
+    captured = capsys.readouterr()
+    assert "Sleep op took:" not in captured.out
 
 
 def test_timer_format():
