@@ -141,17 +141,17 @@ class DroneEnv(DirectRLEnv):
 
         self._commands_w[env_ids] = torch.zeros((len(env_ids), 3), device=self.device) + self.scene.env_origins[env_ids]
         if self._sim_step_counter == 0:
-            # Controller
+            # Setup Controller at first reset
             controller_cfg = LeeControllerCfg()
             self.controller = controller_cfg.class_type(controller_cfg, self)
-
-            # Thruster
             self.motor_directions = torch.tensor(self.cfg.motor_directions, device=self.device)
 
+            # Setup Thruster at first reset
             thruster_cfg = ThrusterCfg(dt=self.cfg.sim.dt)
             self.thruster = thruster_cfg.class_type(self.num_envs, cfg=thruster_cfg, device=self.device)
             self.thrust_to_torque_ratio = self.cfg.thrust_to_torque_ratio
 
+            # randomly initialize first episode length so env episode progress spread out.
             self.episode_length_buf[:] = torch.randint_like(self.episode_length_buf, high=int(self.max_episode_length))
 
             wrench_alloc_matrix = torch.tensor(self.cfg.allocation_matrix, device=self.device)

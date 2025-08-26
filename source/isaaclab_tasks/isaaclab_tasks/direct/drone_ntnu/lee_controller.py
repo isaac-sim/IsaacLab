@@ -24,18 +24,28 @@ if TYPE_CHECKING:
     from .controller_cfg import LeeControllerCfg
 
 
-class BaseLeeController:
-    """
-    This class will operate as the base class for all controllers.
-    It will be inherited by the specific controller classes.
+class LeeController:
+    """Implementation of a Lee-style geometric controller (SE(3)).
+
+    Computes a body-frame wrench command ``[Fx, Fy, Fz, Tx, Ty, Tz]`` from a compact action:
+    collective thrust scale, roll command, pitch command, and yaw-rate command.
+    Gains may be randomized per environment if enabled in the configuration.
     """
 
     cfg: LeeControllerCfg
 
     def __init__(self, cfg: LeeControllerCfg, env):
+        """Initialize controller buffers and pre-compute aggregate inertias.
+
+        Args:
+            cfg: Controller configuration.
+            env: Owning environment (must provide ``scene['robot']``, ``num_envs``, and ``device``).
+        """
         self.cfg = cfg
         self.env = env
         self.robot: Articulation = env.scene["robot"]
+
+        # Aggregate mass and inertia about the robot COM for all bodies
         root_quat_exp = self.robot.data.root_link_quat_w.unsqueeze(1).expand(env.num_envs, self.robot.num_bodies, 4)
         body_link_pos_delta = self.robot.data.body_link_pos_w - self.robot.data.root_pos_w.unsqueeze(1)
         self.mass, self.robot_inertia, _ = aggregate_inertia_about_robot_com(
@@ -48,7 +58,7 @@ class BaseLeeController:
         )
         self.gravity = torch.tensor(self.cfg.gravity, device=self.env.device).expand(self.env.num_envs, -1)
 
-        # Read from config and set the values for controller parameters
+        # Gain bounds (expanded per environment)
         self.K_pos_max = torch.tensor(self.cfg.K_pos_max, device=self.env.device).expand(self.env.num_envs, -1)
         self.K_pos_min = torch.tensor(self.cfg.K_pos_min, device=self.env.device).expand(self.env.num_envs, -1)
         self.K_linvel_max = torch.tensor(self.cfg.K_vel_max, device=self.env.device).expand(self.env.num_envs, -1)
@@ -58,48 +68,63 @@ class BaseLeeController:
         self.K_angvel_max = torch.tensor(self.cfg.K_angvel_max, device=self.env.device).expand(self.env.num_envs, -1)
         self.K_angvel_min = torch.tensor(self.cfg.K_angvel_min, device=self.env.device).expand(self.env.num_envs, -1)
 
-        # Set the current values of the controller parameters
+        # Current (possibly randomized) gains
         self.K_pos_current = (self.K_pos_max + self.K_pos_min) / 2.0
         self.K_linvel_current = (self.K_linvel_max + self.K_linvel_min) / 2.0
         self.K_rot_current = (self.K_rot_max + self.K_rot_min) / 2.0
         self.K_angvel_current = (self.K_angvel_max + self.K_angvel_min) / 2.0
 
-        # tensors that are needed later in the controller are predefined here
+        # Buffers (all shapes use num_envs in the first dimension)
         self.accel = torch.zeros((self.env.num_envs, 3), device=self.env.device)
         self.wrench_command_b = torch.zeros((self.env.num_envs, 6), device=self.env.device)  # [fx, fy, fz, tx, ty, tz]
-
-        # tensors that are needed later in the controller are predefined here
         self.desired_body_angvel_w = torch.zeros_like(self.robot.data.root_ang_vel_b)
         self.euler_angle_rates_w = torch.zeros_like(self.robot.data.root_ang_vel_b)
-
-        # buffer tensor to be used by torch.jit functions for various purposes
         self.buffer_tensor = torch.zeros((self.env.num_envs, 3, 3), device=self.env.device)
 
     def __call__(self, command):
+        """Compute body-frame wrench from an action.
+
+        Args:
+            command: (num_envs, 4) tensor with
+                ``[thrust_scale, roll_cmd, pitch_cmd, yaw_rate_cmd]``.
+                ``thrust_scale`` is mapped to collective thrust; angles in radians, rate in rad/s.
+
+        Returns:
+            (num_envs, 6) body-frame wrench ``[Fx, Fy, Fz, Tx, Ty, Tz]``.
+        """
         robot_euler_w = torch.stack(math_utils.euler_xyz_from_quat(self.robot.data.root_quat_w), dim=-1)
         robot_euler_w = math_utils.wrap_to_pi(robot_euler_w)
         self.wrench_command_b[:] = 0.0
+        # Collective thrust along +z body axis
         self.wrench_command_b[:, 2] = (command[:, 0] + 1.0) * self.mass * torch.norm(self.gravity, dim=1)
+
+        # Desired yaw rate; roll/pitch rates are commanded via orientation setpoint below
         self.euler_angle_rates_w[:, :2] = 0.0
         self.euler_angle_rates_w[:, 2] = command[:, 3]
         self.desired_body_angvel_w[:] = euler_to_body_rate(robot_euler_w, self.euler_angle_rates_w, self.buffer_tensor)
 
-        # quaternion desired
-        # desired euler angle is equal to commanded roll, commanded pitch, and current yaw
+        # Desired orientation: (roll_cmd, pitch_cmd, current_yaw)
         quat_w_desired = math_utils.quat_from_euler_xyz(command[:, 1], command[:, 2], robot_euler_w[:, 2])
         self.wrench_command_b[:, 3:6] = self.compute_body_torque(quat_w_desired, self.desired_body_angvel_w)
 
         return self.wrench_command_b
 
     def reset(self):
+        """Reset controller state for all environments."""
         self.reset_idx(env_ids=None)
 
-    def reset_idx(self, env_ids):
+    def reset_idx(self, env_ids: torch.Tensor | None):
+        """Reset controller state (and optionally randomize gains) for selected environments.
+
+        Args:
+            env_ids: Tensor of environment indices, or ``None`` for all.
+        """
         if env_ids is None:
-            env_ids = torch.arange(self.env.num_envs)
+            env_ids = slice(None)
         self.randomize_params(env_ids)
 
-    def randomize_params(self, env_ids):
+    def randomize_params(self, env_ids: slice | torch.Tensor):
+        """Randomize controller gains for the given environments if enabled."""
         if not self.cfg.randomize_params:
             return
         self.K_pos_current[env_ids] = torch_rand_float(self.K_pos_min[env_ids], self.K_pos_max[env_ids])
@@ -108,6 +133,15 @@ class BaseLeeController:
         self.K_angvel_current[env_ids] = torch_rand_float(self.K_angvel_min[env_ids], self.K_angvel_max[env_ids])
 
     def compute_acceleration(self, setpoint_position, setpoint_velocity):
+        """PD position control in world frame.
+
+        Args:
+            setpoint_position: (num_envs, 3) desired position in world frame.
+            setpoint_velocity: (num_envs, 3) desired velocity expressed in the vehicle yaw-aligned frame.
+
+        Returns:
+            (num_envs, 3) linear acceleration command in world frame.
+        """
         position_error_world_frame = setpoint_position - self.robot.data.root_pos_w
         setpoint_velocity_world_frame = math_utils.quat_apply(
             math_utils.yaw_quat(self.robot.data.root_quat_w), setpoint_velocity
@@ -117,6 +151,15 @@ class BaseLeeController:
         return accel_command
 
     def compute_body_torque(self, setpoint_orientation, setpoint_angvel):
+        """PD attitude control in body frame with feedforward Coriolis term.
+
+        Args:
+            setpoint_orientation: (num_envs, 4) desired orientation quaternion (wxyz) in world frame.
+            setpoint_angvel: (num_envs, 3) desired angular velocity in world frame [rad/s].
+
+        Returns:
+            (num_envs, 3) body torque command [N·m].
+        """
         setpoint_angvel[:, 2] = torch.clamp(setpoint_angvel[:, 2], -self.cfg.max_yaw_rate, self.cfg.max_yaw_rate)
         RT_Rd_quat = math_utils.quat_mul(
             math_utils.quat_inv(self.robot.data.root_quat_w), setpoint_orientation
