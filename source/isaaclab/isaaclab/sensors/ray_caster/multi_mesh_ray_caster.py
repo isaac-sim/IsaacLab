@@ -161,6 +161,8 @@ class MultiMeshRayCaster(RayCaster):
                         mesh = trimesh.Trimesh(points, faces)
                     else:
                         mesh = create_mesh_from_geom_shape(mesh_prim)
+                    scale = sim_utils.resolve_world_scale(mesh_prim)
+                    mesh.apply_scale(scale)
 
                     mesh_prim_pos, mesh_prim_quat = sim_utils.resolve_world_pose(mesh_prim)
                     target_prim_pos, target_prim_quat = sim_utils.resolve_world_pose(target_prim)
@@ -176,26 +178,8 @@ class MultiMeshRayCaster(RayCaster):
                     transform[:3, 3] = relative_pos.numpy()
                     mesh.apply_transform(transform)
 
-                    # # account for local offsets and world scale of the prim
-                    # transform = np.asarray(omni.usd.get_local_transform_matrix(mesh_prim)).T
-                    # world_scale = sim_utils.resolve_world_scale(mesh_prim)
-                    # # remove local scale from transform and apply world scale
-                    # rotation = transform[:3, :3]
-                    # for i in range(3):
-                    #     rotation[:, i] /= np.linalg.norm(rotation[:, i])
-                    # # apply world scale
-                    # transform_scaled = transform.copy()
-                    # transform_scaled[:3, :3] = rotation * world_scale
-                    # # apply transformation to the mesh (includes affine transform)
-                    # print("Transforming mesh with matrix:", transform_scaled)
-                    # mesh.apply_transform(transform_scaled)
-
                     # add to list of parsed meshes
                     trimesh_meshes.append(mesh)
-
-                # resolve instancer prims
-                trimesh_meshes.extend(resolve_instancer_meshes(target_prim.GetPath()))
-
                 if len(trimesh_meshes) == 1:
                     trimesh_mesh = trimesh_meshes[0]
                 elif self.cfg.merge_prim_meshes:
@@ -420,83 +404,3 @@ def _registered_points_idx(points: np.ndarray, registered_points: list[np.ndarra
         if reg_points.shape == points.shape and (reg_points == points).all():
             return idx
     return -1
-
-
-def extract_instancer_data(instancer_prim):
-    instancer_data = {}
-
-    # Iterate over all PointInstancers in the scene
-    instancer = UsdGeom.PointInstancer(instancer_prim)
-    proto_indices = instancer.GetProtoIndicesAttr().Get()
-    positions = np.asarray(instancer.GetPositionsAttr().Get() or [])
-    orientations = np.asarray(instancer.GetOrientationsAttr().Get() or [])  # order: x, y, z, w
-    scales = np.asarray(instancer.GetScalesAttr().Get() or [])
-    prototype_paths = [target.pathString for target in instancer.GetPrototypesRel().GetTargets()]
-
-    # check the status of the prototype prims
-    stage = instancer_prim.GetStage()
-    prototype_prims_active = [stage.GetPrimAtPath(proto_path).IsActive() for proto_path in prototype_paths]
-
-    # check number of positions, orientations, scales and prototype paths is equal to the number of instances
-    assert len(positions) == len(orientations) == len(scales), (
-        "Number of positions, orientations, and scales must be equal to the number of instances. Positions:"
-        f" {len(positions)}, Orientations: {len(orientations)}, Scales: {len(scales)}"
-    )
-    assert len(positions) == np.asarray(proto_indices).shape[0], (
-        f"Number of positions must be equal to the number of instances. Positions: {len(positions)}, Proto indices:"
-        f" {len(proto_indices)}"
-    )
-
-    # construct the transformation matrices
-    transform_matrix = np.eye(4)[None, :, :].repeat(len(positions), axis=0)
-    transform_matrix[:, :3, 3] = positions
-    transform_matrix[:, :3, :3] = Rotation.from_quat(orientations).as_matrix() * scales[:, np.newaxis, :]
-
-    # get the transform of the instancer
-    instancer_transform = np.asarray(omni.usd.get_world_transform_matrix(instancer_prim)).T
-
-    # apply the instancer transform
-    transform_matrix = instancer_transform @ transform_matrix
-
-    # Group instances by prototype index
-    for i, proto_index in enumerate(proto_indices):
-        proto_path = prototype_paths[proto_index]
-
-        # check if proto_prim is active
-        if not prototype_prims_active[proto_index]:
-            continue
-
-        if proto_path not in instancer_data:
-            instancer_data[proto_path] = []
-
-        instancer_data[proto_path].append(transform_matrix[i])
-
-    return instancer_data
-
-
-def resolve_instancer_meshes(path):
-    trimesh_meshes = []
-    # Resolve instancer prims
-    instancer_prims = sim_utils.get_all_matching_child_prims(path, lambda prim: prim.GetTypeName() == "PointInstancer")
-    for instancer_prim in instancer_prims:
-        instancer_data = extract_instancer_data(instancer_prim)
-        proto_meshes = {}
-
-        for proto_path, transforms in instancer_data.items():
-            # Cache meshes for each prototype path
-            if proto_path not in proto_meshes:
-                proto_meshes[proto_path] = []
-                meshes = sim_utils.get_all_matching_child_prims(proto_path, lambda prim: prim.GetTypeName() == "Mesh")
-
-                for mesh_prim in meshes:
-                    points, faces = create_trimesh_from_geom_mesh(mesh_prim)
-                    proto_meshes[proto_path].append(trimesh.Trimesh(points, faces))
-
-            # Apply transformations efficiently
-            for mesh in proto_meshes[proto_path]:
-                for transform in transforms:
-                    instanced_mesh = mesh.copy()
-                    instanced_mesh.apply_transform(transform)
-                    trimesh_meshes.append(instanced_mesh)
-
-    return trimesh_meshes

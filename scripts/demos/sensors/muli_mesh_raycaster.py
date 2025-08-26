@@ -3,16 +3,26 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+
+"""Example on using the MultiMesh Raycaster sensor.
+
+Usage:
+    `python scripts/demos/sensors/multi_mesh_raycaster.py --num_envs 16 --asset_type <allegro_hand|anymal_d|multi>`
+"""
+
 import argparse
-import numpy as np
 
 from isaaclab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Example on using the raycaster sensor.")
-parser.add_argument("--num_envs", type=int, default=2, help="Number of environments to spawn.")
+parser.add_argument("--num_envs", type=int, default=16, help="Number of environments to spawn.")
 parser.add_argument(
-    "--robot", type=str, default="allegro_hand", help="Robot type to use.", choices=["allegro_hand", "anymal_d"]
+    "--asset_type",
+    type=str,
+    default="allegro_hand",
+    help="Asset type to use.",
+    choices=["allegro_hand", "anymal_d", "multi"],
 )
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
@@ -25,7 +35,11 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
+import random
 import torch
+
+import omni.usd
+from pxr import Gf, Sdf
 
 ##
 # Pre-defined configs
@@ -34,14 +48,14 @@ from isaaclab_assets.robots.allegro import ALLEGRO_HAND_CFG
 from isaaclab_assets.robots.anymal import ANYMAL_D_CFG
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import AssetBaseCfg
+from isaaclab.assets import Articulation, AssetBaseCfg, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors.ray_caster import MultiMeshRayCasterCfg, patterns
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
-if args_cli.robot == "allegro_hand":
-    robot_cfg = ALLEGRO_HAND_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+if args_cli.asset_type == "allegro_hand":
+    asset_cfg = ALLEGRO_HAND_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
     ray_caster_cfg = MultiMeshRayCasterCfg(
         prim_path="{ENV_REGEX_NS}/Robot",
         update_period=1 / 60,
@@ -62,9 +76,8 @@ if args_cli.robot == "allegro_hand":
         track_mesh_transforms=True,
         debug_vis=not args_cli.headless,
     )
-
-elif args_cli.robot == "anymal_d":
-    robot_cfg = ANYMAL_D_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+elif args_cli.asset_type == "anymal_d":
+    asset_cfg = ANYMAL_D_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
     ray_caster_cfg = MultiMeshRayCasterCfg(
         prim_path="{ENV_REGEX_NS}/Robot",
         update_period=1 / 60,
@@ -82,13 +95,50 @@ elif args_cli.robot == "anymal_d":
         track_mesh_transforms=True,
         debug_vis=not args_cli.headless,
     )
+
+elif args_cli.asset_type == "multi":
+    asset_cfg = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/Object",
+        spawn=sim_utils.MultiAssetSpawnerCfg(
+            assets_cfg=[
+                sim_utils.CuboidCfg(
+                    size=(0.3, 0.3, 0.3),
+                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0), metallic=0.2),
+                ),
+                sim_utils.SphereCfg(
+                    radius=0.3,
+                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0), metallic=0.2),
+                ),
+            ],
+            random_choice=True,
+            rigid_props=sim_utils.RigidBodyPropertiesCfg(
+                solver_position_iteration_count=4, solver_velocity_iteration_count=0
+            ),
+            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+            collision_props=sim_utils.CollisionPropertiesCfg(),
+        ),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 2.0)),
+    )
+    ray_caster_cfg = MultiMeshRayCasterCfg(
+        prim_path="{ENV_REGEX_NS}/Object",
+        update_period=1 / 60,
+        offset=MultiMeshRayCasterCfg.OffsetCfg(pos=(0, 0.0, 0.6)),
+        mesh_prim_paths=[
+            "/World/Ground",
+            MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Object"),
+        ],
+        ray_alignment="world",
+        pattern_cfg=patterns.GridPatternCfg(resolution=0.01, size=(0.6, 0.6), direction=(0, 0, -1)),
+        track_mesh_transforms=True,
+        debug_vis=not args_cli.headless,
+    )
 else:
-    raise ValueError(f"Unknown robot type: {args_cli.robot}")
+    raise ValueError(f"Unknown asset type: {args_cli.asset_type}")
 
 
 @configclass
 class RaycasterSensorSceneCfg(InteractiveSceneCfg):
-    """Design the scene with sensors on the robot."""
+    """Design the scene with sensors on the asset."""
 
     # ground plane
     ground = AssetBaseCfg(
@@ -104,10 +154,37 @@ class RaycasterSensorSceneCfg(InteractiveSceneCfg):
         prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
     )
 
-    # robot
-    robot = robot_cfg
+    # asset
+    asset = asset_cfg
     # ray caster
     ray_caster = ray_caster_cfg
+
+
+def randomize_shape_color(prim_path_expr: str):
+    """Randomize the color of the geometry."""
+
+    # acquire stage
+    stage = omni.usd.get_context().get_stage()
+    # resolve prim paths for spawning and cloning
+    prim_paths = sim_utils.find_matching_prim_paths(prim_path_expr)
+    # manually clone prims if the source prim path is a regex expression
+
+    with Sdf.ChangeBlock():
+        for prim_path in prim_paths:
+            print("Applying prim scale to:", prim_path)
+            # spawn single instance
+            prim_spec = Sdf.CreatePrimInLayer(stage.GetRootLayer(), prim_path)
+
+            # DO YOUR OWN OTHER KIND OF RANDOMIZATION HERE!
+            # Note: Just need to acquire the right attribute about the property you want to set
+            # Here is an example on setting color randomly
+            color_spec = prim_spec.GetAttributeAtPath(prim_path + "/geometry/material/Shader.inputs:diffuseColor")
+            color_spec.default = Gf.Vec3f(random.random(), random.random(), random.random())
+
+            # randomize scale
+            scale_spec = prim_spec.GetAttributeAtPath(prim_path + ".xformOp:scale")
+            scale_spec.default = Gf.Vec3f(random.uniform(0.5, 1.5), random.uniform(0.5, 1.5), random.uniform(0.5, 1.5))
+
 
 
 def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
@@ -128,29 +205,30 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
             count = 0
             # reset the scene entities
             # root state
-            # we offset the root state by the origin since the states are written in simulation world frame
-            # if this is not done, then the robots will be spawned at the (0, 0, 0) of the simulation world
-            root_state = scene["robot"].data.default_root_state.clone()
+            root_state = scene["asset"].data.default_root_state.clone()
             root_state[:, :3] += scene.env_origins
-            scene["robot"].write_root_pose_to_sim(root_state[:, :7])
-            scene["robot"].write_root_velocity_to_sim(root_state[:, 7:])
-            # set joint positions with some noise
-            joint_pos, joint_vel = (
-                scene["robot"].data.default_joint_pos.clone(),
-                scene["robot"].data.default_joint_vel.clone(),
-            )
-            joint_pos += torch.rand_like(joint_pos) * 0.1
-            scene["robot"].write_joint_state_to_sim(joint_pos, joint_vel)
+            scene["asset"].write_root_pose_to_sim(root_state[:, :7])
+            scene["asset"].write_root_velocity_to_sim(root_state[:, 7:])
+
+            if isinstance(scene["asset"], Articulation):
+                # set joint positions with some noise
+                joint_pos, joint_vel = (
+                    scene["asset"].data.default_joint_pos.clone(),
+                    scene["asset"].data.default_joint_vel.clone(),
+                )
+                joint_pos += torch.rand_like(joint_pos) * 0.1
+                scene["asset"].write_joint_state_to_sim(joint_pos, joint_vel)
             # clear internal buffers
             scene.reset()
-            print("[INFO]: Resetting robot state...")
-        # Apply default actions to the robot
-        # -- generate actions/commands
-        targets = scene["robot"].data.default_joint_pos + 5 * (
-            torch.rand_like(scene["robot"].data.default_joint_pos) - 0.5
-        )
-        # -- apply action to the robot
-        scene["robot"].set_joint_position_target(targets)
+            print("[INFO]: Resetting Asset state...")
+
+        if isinstance(scene["asset"], Articulation):
+            # -- generate actions/commands
+            targets = scene["asset"].data.default_joint_pos + 5 * (
+                torch.rand_like(scene["asset"].data.default_joint_pos) - 0.5
+            )
+            # -- apply action to the asset
+            scene["asset"].set_joint_position_target(targets)
         # -- write data to sim
         scene.write_data_to_sim()
         # perform step
@@ -161,17 +239,11 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
         # update buffers
         scene.update(sim_dt)
 
-        # print information from the sensors
-        # print("-------------------------------")
-        # print(scene["ray_caster"])
-        # print("Ray cast hit results: ", scene["ray_caster"].data.ray_hits_w)
-
         if not triggered:
             if countdown > 0:
                 countdown -= 1
                 continue
-            data = scene["ray_caster"].data.ray_hits_w.cpu().numpy()
-            np.save("cast_data.npy", data)
+            data = scene["ray_caster"].data.ray_hits_w.cpu().numpy()  # noqa: F841
             triggered = True
         else:
             continue
@@ -186,8 +258,12 @@ def main():
     # Set main camera
     sim.set_camera_view(eye=[3.5, 3.5, 3.5], target=[0.0, 0.0, 0.0])
     # design scene
-    scene_cfg = RaycasterSensorSceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0)
+    scene_cfg = RaycasterSensorSceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0, replicate_physics=False)
     scene = InteractiveScene(scene_cfg)
+    
+    if args_cli.asset_type == "multi":
+        randomize_shape_color(scene_cfg.asset.prim_path.format(ENV_REGEX_NS="/World/envs/env_.*"))
+    
     # Play the simulator
     sim.reset()
     # Now we are ready!
