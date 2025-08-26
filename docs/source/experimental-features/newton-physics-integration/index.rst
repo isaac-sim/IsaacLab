@@ -41,8 +41,6 @@ until the framework has reached an official release. We appreciate your understa
   installation
   training-environments
   newton-visualizer
-  faq
   limitations-and-known-bugs
-  physx-to-newton-transition-howto
-  tuning-solver-and-asset-parameters
+  solver-transitioning
   sim-to-sim-and-sim-to-real
