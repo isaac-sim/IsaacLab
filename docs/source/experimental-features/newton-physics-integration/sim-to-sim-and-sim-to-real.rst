@@ -5,7 +5,7 @@ Sim-to-Sim and Sim-to-Real
 This section provides examples of sim-to-sim as well as sim-to-real policy transfer using the Newton backend. 
 
 
-Newton Sim-to-Sim Policy Transfer (PhysX to Newton) Overview
+Sim-to-Sim Policy Transfer (PhysX to Newton) Overview
 -------------------------------------------------------------
 
 This guide explains how to replay a policy trained in Isaac Lab with the PhysX backend on the Newton backend. The method is applicable to any robot and physics engine, but has been validated only on Unitree G1, Unitree H1, and ANYmal-D, and only for policies trained with PhysX.
@@ -16,7 +16,7 @@ This remapping is configured via YAML files that list the joint names in PhysX o
 
 
 What you need
--------------
+~~~~~~~~~~~~~
 
 - A policy checkpoint trained with PhysX (RSL-RL).
 - A joint mapping YAML for your robot under ``scripts/newton_sim2sim/mappings/``.
@@ -24,7 +24,7 @@ What you need
 
 
 Available mappings
-------------------
+~~~~~~~~~~~~~~~~~~
 
 The repository includes the following ready-to-use mappings:
 
@@ -50,7 +50,7 @@ The player will compute bidirectional mappings and an observation remap suitable
 
 
 How to run
-----------
+~~~~~~~~~~
 
 Use the following command template to play a PhysX-trained policy with the Newton backend of IsaacLab:
 
@@ -100,7 +100,7 @@ The following examples show how to run this transfer for various robots.
 
 
 Notes and limitations
----------------------
+~~~~~~~~~~~~~~~~~~~~~
 
 - The transfer has been tested only for Unitree G1, Unitree H1, and ANYmal-D with PhysX-trained policies.
 - The observation remapping implemented in ``scripts/newton_sim2sim/policy_mapping.py`` assumes a locomotion observation layout (a fixed base segment followed by joint-wise segments). If your observation layout differs, adjust the mapping accordingly.
@@ -125,7 +125,7 @@ The teacher and student observation groups are implemented in the velocity task 
 
 
 1. Train the teacher policy
-----------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Train the teacher policy for the G1 velocity task using the Newton backend. The task ID is ``Isaac-Velocity-Flat-G1-v1``
 
@@ -137,7 +137,7 @@ The teacher policy includes privileged observations (e.g., root linear velocity)
 
 
 2. Distill the student policy (remove privileged terms)
--------------------------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The distillation stage performs behavior cloning from teacher to student by minimizing mean squared error between actions, i.e. :math:`loss = MSE(\pi(O_{teacher}), \pi(O_{student}))`.
 
@@ -155,7 +155,7 @@ Run the student distillation task ``Velocity-G1-Distillation-v1`` and point ``--
 
 
 3. Fine-tune the student policy with RL
----------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Fine-tune the distilled student policy using RL with the ``Velocity-G1-Student-Finetune-v1`` task. Initialize from a checkpoint using ``--load_run``/``--checkpoint``.
 
