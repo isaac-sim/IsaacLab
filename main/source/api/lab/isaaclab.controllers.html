@@ -63,7 +63,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.2.0" />
-    <meta name="docbuild:last-update" content="Aug 26, 2025"/>
+    <meta name="docbuild:last-update" content="Aug 27, 2025"/>
   </head>
   
   
@@ -388,7 +388,9 @@
 <li class="toctree-l2"><a class="reference internal" href="isaaclab.app.html">isaaclab.app</a></li>
 <li class="toctree-l2"><a class="reference internal" href="isaaclab.actuators.html">isaaclab.actuators</a></li>
 <li class="toctree-l2"><a class="reference internal" href="isaaclab.assets.html">isaaclab.assets</a></li>
-<li class="toctree-l2 current active"><a class="current reference internal" href="#">isaaclab.controllers</a></li>
+<li class="toctree-l2 current active has-children"><a class="current reference internal" href="#">isaaclab.controllers</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="simple">
+</ul>
+</details></li>
 <li class="toctree-l2"><a class="reference internal" href="isaaclab.devices.html">isaaclab.devices</a></li>
 <li class="toctree-l2"><a class="reference internal" href="isaaclab.envs.html">isaaclab.envs</a></li>
 <li class="toctree-l2"><a class="reference internal" href="isaaclab.managers.html">isaaclab.managers</a></li>
@@ -684,6 +686,7 @@
 </li>
 </ul>
 </li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#differential-inverse-kinematics-controllers-based-on-pink">Differential Inverse Kinematics Controllers (Based on Pink)</a></li>
 </ul>
             </nav>
         </div>
@@ -716,6 +719,15 @@ commands to be sent to the robot.</p>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.controllers.OperationalSpaceControllerCfg" title="isaaclab.controllers.OperationalSpaceControllerCfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">OperationalSpaceControllerCfg</span></code></a></p></td>
 <td><p>Configuration for operational-space controller.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">PinkIKController</span></code></p></td>
+<td><p>Integration of Pink IK controller with Isaac Lab.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">PinkIKControllerCfg</span></code></p></td>
+<td><p>Configuration settings for the Pink IK Controller.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">pink_ik.NullSpacePostureTask</span></code></p></td>
+<td><p>Pink-based task that adds a posture objective that is in the null space projection of other tasks.</p></td>
 </tr>
 </tbody>
 </table>
@@ -1297,6 +1309,12 @@ only the first three elements are used for the feedback loop.</p>
 </dd></dl>
 
 </section>
+<section id="differential-inverse-kinematics-controllers-based-on-pink">
+<h2>Differential Inverse Kinematics Controllers (Based on Pink)<a class="headerlink" href="#differential-inverse-kinematics-controllers-based-on-pink" title="Permalink to this heading">#</a></h2>
+<p>For detailed documentation of Pink IK controllers and tasks, see:</p>
+<div class="toctree-wrapper compound">
+</div>
+</section>
 </section>
 
 
@@ -1392,6 +1410,7 @@ only the first three elements are used for the feedback loop.</p>
 </li>
 </ul>
 </li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#differential-inverse-kinematics-controllers-based-on-pink">Differential Inverse Kinematics Controllers (Based on Pink)</a></li>
 </ul>
   </nav></div>
 
@@ -1425,7 +1444,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Aug 26, 2025.
+  Last updated on Aug 27, 2025.
   <br/>
 </p>
   </div>

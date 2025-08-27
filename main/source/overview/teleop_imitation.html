@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.2.0" />
-    <meta name="docbuild:last-update" content="Aug 26, 2025"/>
+    <meta name="docbuild:last-update" content="Aug 27, 2025"/>
   </head>
   
   
@@ -386,7 +386,9 @@
 <li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.app.html">isaaclab.app</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.actuators.html">isaaclab.actuators</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.assets.html">isaaclab.assets</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.controllers.html">isaaclab.controllers</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../api/lab/isaaclab.controllers.html">isaaclab.controllers</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="simple">
+</ul>
+</details></li>
 <li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.devices.html">isaaclab.devices</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.envs.html">isaaclab.envs</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.managers.html">isaaclab.managers</a></li>
@@ -965,7 +967,7 @@ to train a Fourier GR-1 humanoid robot to perform a pick and place task.</p>
 <p class="admonition-title">Note</p>
 <p>Data collection for the GR-1 humanoid robot environment requires use of an Apple Vision Pro headset. If you do not have access to
 an Apple Vision Pro, you may skip this step and continue on to the next step: <a class="reference internal" href="#generate-the-dataset">Generate the dataset</a>.
-A pre-recorded annotated dataset is provided in the next step .</p>
+A pre-recorded annotated dataset is provided in the next step.</p>
 </div>
 <div class="admonition tip">
 <p class="admonition-title">Tip</p>
@@ -995,6 +997,10 @@ Therefore, avoid moving the right hand while the left hand picks up the object a
 --dataset_file<span class="w"> </span>./datasets/dataset_gr1.hdf5<span class="w"> </span><span class="se">\</span>
 --num_demos<span class="w"> </span><span class="m">5</span><span class="w"> </span>--enable_pinocchio
 </pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>We also provide a GR-1 pick and place task with waist degrees-of-freedom enabled <code class="docutils literal notranslate"><span class="pre">Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0</span></code> (see <a class="reference internal" href="environments.html#environments"><span class="std std-ref">Available Environments</span></a> for details on the available environments, including the GR1 Waist Enabled variant). The same command above applies but with the task name changed to <code class="docutils literal notranslate"><span class="pre">Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0</span></code>.</p>
 </div>
 <div class="admonition tip">
 <p class="admonition-title">Tip</p>
@@ -1441,7 +1447,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Aug 26, 2025.
+  Last updated on Aug 27, 2025.
   <br/>
 </p>
   </div>
