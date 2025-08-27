@@ -58,7 +58,7 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 RAY_CASTER_MARKER_CFG = VisualizationMarkersCfg(
     markers={
         "hit": sim_utils.SphereCfg(
-            radius=0.02,
+            radius=0.01,
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0)),
         ),
     },
