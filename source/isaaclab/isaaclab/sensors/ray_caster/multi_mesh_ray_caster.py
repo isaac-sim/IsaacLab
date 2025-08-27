@@ -14,15 +14,14 @@ import numpy as np
 import torch
 import trimesh
 from collections.abc import Sequence
-from scipy.spatial.transform import Rotation
 from typing import TYPE_CHECKING
 
 import carb
 import omni.log
-import omni.usd
 import warp as wp
 from isaacsim.core.prims import XFormPrim
-from pxr import UsdGeom, UsdPhysics
+from pxr import UsdPhysics
+import re
 
 import isaaclab.sim as sim_utils
 from isaaclab.utils.math import matrix_from_quat, quat_mul, subtract_frame_transforms
@@ -129,12 +128,24 @@ class MultiMeshRayCaster(RayCaster):
 
             loaded_vertices: list[np.ndarray | None] = []
             wp_mesh_ids = []
+            
             for target_prim in target_prims:
-                if target_prim in MultiMeshRayCaster.meshes:
-                    wp_mesh_ids.append(MultiMeshRayCaster.meshes[target_prim.GetPath()].id)
+                
+                # check if the prim is shared across all environments and we parsed it before
+                if target_cfg.is_shared and len(wp_mesh_ids) > 0:
+                    # Verify if this mesh has already been registered in an earlier environment.
+                    # Note, this check may fail, if the prim path is not following the env_.* pattern
+                    # Which (worst case) leads to parsing the mesh and skipping registering it at a later stage
+                    curr_prim_base_path = re.sub(r"env_\d+", "env_0", str(target_prim.GetPath()))  #
+                    if curr_prim_base_path in MultiMeshRayCaster.meshes:
+                        MultiMeshRayCaster.meshes[str(target_prim.GetPath())] = MultiMeshRayCaster.meshes[curr_prim_base_path]
+
+                # This prim was already registered by another raycast sensor. Reuse its mesh ID.
+                if str(target_prim.GetPath()) in MultiMeshRayCaster.meshes:
+                    wp_mesh_ids.append(MultiMeshRayCaster.meshes[str(target_prim.GetPath())].id)
+                    loaded_vertices.append(None)
                     continue
 
-                # check if the prim is a primitive object - handle these as special types
                 mesh_prims = sim_utils.get_all_matching_child_prims(
                     target_prim.GetPath(), lambda prim: prim.GetTypeName() in PRIMITIVE_MESH_TYPES + ["Mesh"]
                 )
@@ -180,6 +191,7 @@ class MultiMeshRayCaster(RayCaster):
 
                     # add to list of parsed meshes
                     trimesh_meshes.append(mesh)
+                    
                 if len(trimesh_meshes) == 1:
                     trimesh_mesh = trimesh_meshes[0]
                 elif self.cfg.merge_prim_meshes:
@@ -201,7 +213,7 @@ class MultiMeshRayCaster(RayCaster):
                 else:
                     loaded_vertices.append(trimesh_mesh.vertices)
                     wp_mesh = convert_to_warp_mesh(trimesh_mesh.vertices, trimesh_mesh.faces, device=self.device)
-                    MultiMeshRayCaster.meshes[target_prim.GetPath()] = wp_mesh
+                    MultiMeshRayCaster.meshes[str(target_prim.GetPath())] = wp_mesh
                     wp_mesh_ids.append(wp_mesh.id)
 
                 # print info
