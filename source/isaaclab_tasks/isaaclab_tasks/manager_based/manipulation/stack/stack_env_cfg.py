@@ -36,8 +36,6 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
     robot: ArticulationCfg = MISSING
     # end-effector sensor: will be populated by agent env cfg
     ee_frame: FrameTransformerCfg = MISSING
-    # surface gripper: will be populated by agent env cfg if available
-    surface_gripper: SurfaceGripperCfg | None = None
 
     # Table
     table = AssetBaseCfg(
