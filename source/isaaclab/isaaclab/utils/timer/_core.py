@@ -29,6 +29,10 @@ class Timer(ContextDecorator):
     returns the number of seconds since the epoch as a float. It has the
     highest resolution available on the system.
 
+    .. caution::
+        The Timer class is not optimized for performance. For decorators, use the :func:`timer` decorator instead.
+        The :func:`timer` decorator turns into a no-op when the timer is disabled, adding no overhead.
+
     As a regular object:
 
     .. code-block:: python
@@ -63,103 +67,28 @@ class Timer(ContextDecorator):
     .. code-block:: python
 
         import time
-        from isaaclab.utils.timer import Timer, timer, toggle_timer_group, toggle_timer_group_display_output
 
-        # --- Instrumented functions ------------------------------------------------------------------------------------
         @timer("math_op", name="add_op", msg="Math add op took:", enable=True, format="us")
         def math_add_op(a, b):
             return a + b
 
-        @timer("math_op", name="sub_op", msg="Math sub op took:", enable=True, format="us")
-        def math_sub_op(a, b):
-            return a - b
-
-        @timer("string_op", name="concat_op", msg="String concat op took:", enable=True, format="us")
-        def string_concat_op(a, b):
-            return a + b
-
-        @timer("string_op", name="join_op", msg="String join op took:", enable=True, format="us")
-        def string_join_op(a, b):
-            return a.join(b)
-
-        # --- Non-instrumented functions ---------------------------------------------------------------------------------
-        def math_add_op_non_instrumented(a, b):
-            return a + b
-
-        def math_sub_op_non_instrumented(a, b):
-            return a - b
-
-        def string_concat_op_non_instrumented(a, b):
-            return a + b
-
-        def string_join_op_non_instrumented(a, b):
-            return a.join(b)
-
-        # --- Demo --------------------------------------------------------------------------------------------------------
+        # Enable the timer (enabled by default)
         toggle_timer_group("math_op", True)
-        toggle_timer_group("string_op", False)
+        # Enable the display output (enabled by default)
         toggle_timer_group_display_output("math_op", True)
-        toggle_timer_group_display_output("string_op", True)
-        print("-"*20, "Timer outputs, "-"*20)
-        start_timing_ops = time.perf_counter()
-        for i in range(100000):
-            math_add_op(i, i)
-            math_sub_op(i, i)
-            string_concat_op(str(i), str(i))
-            string_join_op(str(i), str(i))
-            if i == 0:
-                toggle_timer_group_display_output("math_op", False)
-            if i == 1:
-                toggle_timer_group_display_output("math_op", True)
-            if i == 2:
-                toggle_timer_group_display_output("math_op", False)
-            if i == 25000:
-                toggle_timer_group("math_op", False)
-                toggle_timer_group("string_op", True)
-            if i == 25001:
-                toggle_timer_group_display_output("string_op", False)
-            if i == 50000:
-                toggle_timer_group("math_op", True)
-                toggle_timer_group("string_op", False)
-            if i == 74999:
-                toggle_timer_group("math_op", False)
-                toggle_timer_group("string_op", True)
-        end_timing_ops = time.perf_counter()
-        print("-"*20, "Timer Statistics", "-"*20)
-        print("We toggle on and off the timers, we should see that N (the number of samples) is 50000 for both groups.")
-        print(f"math add op mean: {Timer.get_timer_statistics('add_op')['mean']}s, N: {Timer.get_timer_statistics('add_op')['n']}")
-        print(f"math sub op mean: {Timer.get_timer_statistics('sub_op')['mean']}s, N: {Timer.get_timer_statistics('sub_op')['n']}")
-        print(f"string concat op mean: {Timer.get_timer_statistics('concat_op')['mean']}s, N: {Timer.get_timer_statistics('concat_op')['n']}")
-        print(f"string join op mean: {Timer.get_timer_statistics('join_op')['mean']}s, N: {Timer.get_timer_statistics('join_op')['n']}")
 
-        toggle_timer_group("string_op", False)
-        start_timing_ops_instrumented_disabled = time.perf_counter()
-        for i in range(100000):
-            math_add_op(i, i)
-            math_sub_op(i, i)
-            string_concat_op(str(i), str(i))
-            string_join_op(str(i), str(i))
-        end_timing_ops_instrumented_disabled = time.perf_counter()
-        print("Statistics should be the same as the ones computed in the first loop, we are no longer timing.")
-        print(f"math add op mean: {Timer.get_timer_statistics('add_op')['mean']}s, N: {Timer.get_timer_statistics('add_op')['n']}")
-        print(f"math sub op mean: {Timer.get_timer_statistics('sub_op')['mean']}s, N: {Timer.get_timer_statistics('sub_op')['n']}")
-        print(f"string concat op mean: {Timer.get_timer_statistics('concat_op')['mean']}s, N: {Timer.get_timer_statistics('concat_op')['n']}")
-        print(f"string join op mean: {Timer.get_timer_statistics('join_op')['mean']}s, N: {Timer.get_timer_statistics('join_op')['n']}")
+        math_add_op(1, 2)
+        # Disable the display output
+        toggle_timer_group_display_output("math_op", False)
+        math_add_op(1, 2)
+        # Get the statistics
+        Timer.get_timer_statistics("add_op")
 
-        start_timing_ops_non_instrumented = time.perf_counter()
-        for i in range(100000):
-            math_add_op_non_instrumented(i, i)
-            math_sub_op_non_instrumented(i, i)
-            string_concat_op_non_instrumented(str(i), str(i))
-            string_join_op_non_instrumented(str(i), str(i))
-        end_timing_ops_non_instrumented = time.perf_counter()
+        # Disable the timer
+        toggle_timer_group("math_op", False)
 
-        print("-"*20, "Loop comparisons", "-"*20)
-        print("This is the slowest loop, since the functions were instrumented:")
-        print(f"Enabled instrumented ops took (1e6 samples): {end_timing_ops - start_timing_ops}")
-        print("Measured time should be the same in the disabled instrumented loop and the non-instrumented loop.")
-        print(f"Disabled instrumented ops took (1e6 samples): {end_timing_ops_instrumented_disabled - start_timing_ops_instrumented_disabled}")
-        print(f"Non-instrumented ops took (1e6 samples): {end_timing_ops_non_instrumented - start_timing_ops_non_instrumented}")
+        math_add_op(1, 2)
+        Timer.get_timer_statistics("add_op")
 
 
     Initial reference: https://gist.github.com/sumeet/1123871

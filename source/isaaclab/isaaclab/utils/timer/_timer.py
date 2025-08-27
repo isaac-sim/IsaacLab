@@ -16,7 +16,9 @@ from typing import Dict, ParamSpec, Tuple, Type, TypeVar, cast
 
 from isaaclab.utils.timer._core import Timer
 
-# -- Global registries ------------------------------------------------------------------------------------------------
+"""
+Global registries.
+"""
 
 # Free-functions per group: {group: {(module, name): (raw, deco)}}
 _func_toggle_registry: dict[str, dict[tuple[str, str], tuple[Callable, Callable]]] = {}
@@ -27,7 +29,9 @@ _dynamic_func_registry = {}  # {group: [ {"target": target_list, "raw": raw, "de
 # Classes per group: {group: WeakSet({Class, ...})}
 _class_group_registry: dict[str, weakref.WeakSet[type]] = {}
 
-# -- metaclass: registers classes that have timed methods -------------------------------------------------------------
+"""
+Metaclass.
+"""
 
 
 class TimerToggleMeta(type):
@@ -52,7 +56,10 @@ class Instrumented(metaclass=TimerToggleMeta):
     pass
 
 
-# -- decorators ------------------------------------------------------------------------------------------------------
+"""
+Decorators.
+"""
+
 
 # Mock up a parameter specification and return type
 P = ParamSpec("P")
@@ -112,8 +119,81 @@ def timer(group: str = "default", **timer_kwargs):
      - Free functions: registers raw/decorated pair; we rebind the module global on toggle (zero steady-state overhead
       when called via module).
 
+    .. caution::
+        The timer decorator does not work on local functions (e.g., inside tests).
+        Use :func:`timer_dynamic` instead. Note that this still has some overhead, as we cannot rebind the function.
+        This is why we recommend using the timer decorator on free functions or class methods.
+        If you need to instrument a local function, consider making it a free function or use :func:`timer_dynamic`.
+
+
     Usage:
 
+    .. code-block:: python
+
+        import time
+        from isaaclab.utils.timer import Timer, timer, toggle_timer_group, toggle_timer_group_display_output
+
+        # --- Instrumented functions ------------------------------------------------------------------------------------
+        @timer("math_op", name="add_op", msg="Math add op took:", enable=True, format="us")
+        def math_add_op(a, b):
+            return a + b
+
+        @timer("string_op", name="concat_op", msg="String concat op took:", enable=True, format="us")
+        def string_concat_op(a, b):
+            return a + b
+
+        # --- Non-instrumented functions ---------------------------------------------------------------------------------
+        def math_add_op_non_instrumented(a, b):
+            return a + b
+
+        def string_concat_op_non_instrumented(a, b):
+            return a + b
+
+        # --- Demo --------------------------------------------------------------------------------------------------------
+        toggle_timer_group("math_op", True)
+        toggle_timer_group("string_op", False)
+        start_timing_ops = time.perf_counter()
+        for i in range(100000):
+            math_add_op(i, i)
+            string_concat_op(str(i), str(i))
+            if i == 25000:
+                toggle_timer_group("math_op", False)
+                toggle_timer_group("string_op", True)
+            if i == 50000:
+                toggle_timer_group("math_op", True)
+                toggle_timer_group("string_op", False)
+            if i == 74999:
+                toggle_timer_group("math_op", False)
+                toggle_timer_group("string_op", True)
+        end_timing_ops = time.perf_counter()
+        print("We toggle on and off the timers, we should see that N (the number of samples) is 50000 for both groups.")
+        print(f"math add op mean: {Timer.get_timer_statistics('add_op')['mean']}s, N: {Timer.get_timer_statistics('add_op')['n']}")
+        print(f"string concat op mean: {Timer.get_timer_statistics('concat_op')['mean']}s, N: {Timer.get_timer_statistics('concat_op')['n']}")
+
+        toggle_timer_group("string_op", False)
+        toggle_timer_group("math_op", False)
+        start_timing_ops_instrumented_disabled = time.perf_counter()
+        for i in range(100000):
+            math_add_op(i, i)
+            string_concat_op(str(i), str(i))
+        end_timing_ops_instrumented_disabled = time.perf_counter()
+        print("Statistics should be the same as the ones computed in the first loop, we are no longer timing.")
+        print(f"math add op mean: {Timer.get_timer_statistics('add_op')['mean']}s, N: {Timer.get_timer_statistics('add_op')['n']}")
+        print(f"string concat op mean: {Timer.get_timer_statistics('concat_op')['mean']}s, N: {Timer.get_timer_statistics('concat_op')['n']}")
+
+        start_timing_ops_non_instrumented = time.perf_counter()
+        for i in range(100000):
+            math_add_op_non_instrumented(i, i)
+            math_sub_op_non_instrumented(i, i)
+            string_concat_op_non_instrumented(str(i), str(i))
+            string_join_op_non_instrumented(str(i), str(i))
+        end_timing_ops_non_instrumented = time.perf_counter()
+
+        print("This is the slowest loop, since the functions were instrumented:")
+        print(f"Enabled instrumented ops took (1e6 samples): {end_timing_ops - start_timing_ops}")
+        print("Measured time should be the same in the disabled instrumented loop and the non-instrumented loop.")
+        print(f"Disabled instrumented ops took (1e6 samples): {end_timing_ops_instrumented_disabled - start_timing_ops_instrumented_disabled}")
+        print(f"Non-instrumented ops took (1e6 samples): {end_timing_ops_non_instrumented - start_timing_ops_non_instrumented}")
 
     Notes:
         - Put @timer(...) **closest to def** when stacking with @staticmethod/@classmethod.
@@ -212,7 +292,11 @@ def timer_dynamic(group: str, **timer_kwargs) -> Callable:
     return apply
 
 
-# --- togglers --------------------------------------------------------------------------------------------------------
+"""
+Toggling utilities.
+"""
+
+
 def _set_timer_group_enabled_methods(cls: type, group: str, enabled: bool) -> None:
     """Swap all registered CLASS METHODS in 'group' on the given class."""
     try:
