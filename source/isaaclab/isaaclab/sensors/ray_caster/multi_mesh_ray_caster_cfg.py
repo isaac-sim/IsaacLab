@@ -33,7 +33,7 @@ class MultiMeshRayCasterCfg(RayCasterCfg):
         is_global: bool = False
         """Whether the target prim is a global object or exists for each environment instance. Defaults to False."""
 
-        is_shared: bool = True
+        is_shared: bool = False
         """Whether the target prim is shared across all environments. Defaults to False.
         If True, the target prim is assumed to be the same mesh in all environments. In this case, the target prim is only read once
         and the same warp mesh is used for all environments. This provides a performance boost when the target prim
