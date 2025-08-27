@@ -208,8 +208,6 @@ class CuroboPlanner(MotionPlanner):
         # Only recompute when objects are added/removed, not when poses change
         self._cached_object_mappings: dict[str, str] | None = None
 
-        self.counter = 0
-
     # =====================================================================================
     # DEVICE CONVERSION UTILITIES
     # =====================================================================================
@@ -468,6 +466,9 @@ class CuroboPlanner(MotionPlanner):
 
         if self.visualize_spheres:
             self._update_sphere_visualization(force_update=True)
+
+        if torch.cuda.is_available():
+            torch.cuda.synchronize()
 
     def _get_world_object_names(self) -> list[str]:
         """Extract all object names from cuRobo's collision world model.
@@ -1045,27 +1046,12 @@ class CuroboPlanner(MotionPlanner):
 
             # Compute end-effector positions for visualization
             ee_positions_list = []
-            finger_positions_list = []
             try:
                 for i in range(len(self._current_plan.position)):
                     js: JointState = self._current_plan[i]
                     kin = self.motion_gen.compute_kinematics(js)
                     ee_pos = kin.ee_position if hasattr(kin, "ee_position") else kin.ee_pose.position
                     ee_positions_list.append(ee_pos.cpu().numpy().squeeze())
-
-                    # Path of one finger link for collision-checking visual
-                    q = js.position
-                    if isinstance(q, torch.Tensor):
-                        if q.dim() == 1:
-                            q = q.unsqueeze(0)
-                        link_state = self.motion_gen.kinematics.get_state(q)
-                        names = link_state.link_names
-                        # Use first hand link name from config for finger visualization
-                        finger_link_name = self.config.hand_link_names[0] if self.config.hand_link_names else None
-                        if finger_link_name and finger_link_name in names:
-                            idx = names.index(finger_link_name)
-                            lf = link_state.links_position[0, idx, :].cpu().numpy()
-                            finger_positions_list.append(lf)
 
                 if self.debug and len(ee_positions_list) > 0:
                     print("Link names from kinematics:", kin.link_names)
@@ -1074,15 +1060,9 @@ class CuroboPlanner(MotionPlanner):
                 if self.debug:
                     print(f"Failed to compute EE positions for visualization: {e}")
                 ee_positions_list = None
-                finger_positions_list = None
 
             try:
-                if self.counter == 0:
-                    import time
-
-                    time.sleep(5)
                 world_scene = WorldConfig.get_scene_graph(self.motion_gen.world_coll_checker.world_model)
-                self.counter += 1
             except Exception:
                 world_scene = None
 
@@ -1093,7 +1073,6 @@ class CuroboPlanner(MotionPlanner):
                 robot_spheres=robot_spheres,
                 attached_spheres=attached_spheres,
                 ee_positions=np.array(ee_positions_list) if ee_positions_list else None,
-                finger_positions=np.array(finger_positions_list) if finger_positions_list else None,
                 frame_duration=0.1,
                 world_scene=world_scene,
             )
@@ -1119,8 +1098,6 @@ class CuroboPlanner(MotionPlanner):
         start_state: JointState,
         goal_pose: Pose,
         contact: bool = True,
-        retime_plan: bool = False,
-        step_size: float | None = None,
     ) -> bool:
         """Plan motion with configurable collision checking for contact scenarios.
 
@@ -1197,12 +1174,6 @@ class CuroboPlanner(MotionPlanner):
                 ]
                 self._current_plan = self._current_plan.get_ordered_joint_state(common_js_names)
                 self._plan_index = 0
-
-                if retime_plan and step_size is not None:
-                    original_length: int = len(self._current_plan.position)
-                    self._current_plan = self._linearly_retime_plan(step_size=step_size, plan=self._current_plan)
-                    if self.debug:
-                        print(f"Retimed plan from {original_length} to {len(self._current_plan.position)} waypoints")
 
                 planning_success = True
                 if self.debug:
@@ -1310,8 +1281,6 @@ class CuroboPlanner(MotionPlanner):
                 start_state=current_state,
                 goal_pose=target_pose,
                 contact=contact_flag,
-                retime_plan=False,
-                step_size=None,
             )
 
             if not success:
@@ -1351,7 +1320,6 @@ class CuroboPlanner(MotionPlanner):
         self,
         step_size: float = 0.01,
         plan: JointState | None = None,
-        n_repeat: int | None = None,
     ) -> JointState | None:
         """Apply linear retiming to trajectory for consistent execution speed.
 
@@ -1407,7 +1375,7 @@ class CuroboPlanner(MotionPlanner):
 
         # Linear interpolation
         indices = torch.searchsorted(cum_distances, sampled_distances)
-        indices = torch.clamp(indices, 0, len(cum_distances) - 1)
+        indices = torch.clamp(indices, 1, len(cum_distances) - 1)
 
         # Get interpolation weights
         weights = (sampled_distances - cum_distances[indices - 1]) / (
@@ -1476,6 +1444,9 @@ class CuroboPlanner(MotionPlanner):
         """
         self._plan_index = 0
         self._current_plan = None
+        if self.visualize_plan and hasattr(self, "plan_visualizer"):
+            self.plan_visualizer._clear_visualization()
+            self.plan_visualizer.mark_idle()
 
     def get_planned_poses(self) -> list[torch.Tensor]:
         """Extract all end-effector poses from current trajectory.
@@ -1672,12 +1643,11 @@ class CuroboPlanner(MotionPlanner):
         from isaaclab.sim.spawners.meshes import MeshSphereCfg
 
         is_attached = sphere_idx >= robot_link_count
-        color = (0.8, 0.2, 0.0) if is_attached else (0.0, 0.8, 0.2)
+        color = (1.0, 0.5, 0.0) if is_attached else (0.0, 1.0, 0.0)
         opacity = 0.9 if is_attached else 0.5
 
-        # Calculate position
-        env_origin = self.env.scene.env_origins[self.env_id, :3]
-        root_translation = (self.robot.data.root_pos_w[self.env_id, :3] - env_origin).detach().cpu().numpy()
+        # Calculate position in world frame (do not use env_origin)
+        root_translation = (self.robot.data.root_pos_w[self.env_id, :3]).detach().cpu().numpy()
         position = sphere.position.cpu().numpy() if hasattr(sphere.position, "cpu") else sphere.position
         if not is_attached:
             position = position + root_translation
@@ -1685,7 +1655,8 @@ class CuroboPlanner(MotionPlanner):
         return {
             "position": position,
             "cfg": MeshSphereCfg(
-                radius=float(sphere.radius), visual_material=PreviewSurfaceCfg(diffuse_color=color, opacity=opacity)
+                radius=float(sphere.radius),
+                visual_material=PreviewSurfaceCfg(diffuse_color=color, opacity=opacity, emissive_color=color),
             ),
         }
 
@@ -1762,6 +1733,7 @@ class CuroboPlanner(MotionPlanner):
         gripper_closed = expected_attached_object is not None
         self._set_gripper_state(gripper_closed)
         current_attached = self.get_attached_objects()
+        gripper_pos = self.robot.data.joint_pos[env_id, -2:]
 
         if self.debug:
             print(f"Current attached objects: {current_attached}")
@@ -1801,8 +1773,6 @@ class CuroboPlanner(MotionPlanner):
                         print(f"Distance EE to object: {distance:.4f}")
 
                         # Debug gripper state
-                        robot = self.env.scene["robot"]
-                        gripper_pos = robot.data.joint_pos[env_id, -2:]
                         gripper_open_val = self.config.grasp_gripper_open_val
                         print(f"Gripper positions: {gripper_pos}")
                         print(f"Gripper open val: {gripper_open_val}")
@@ -1813,14 +1783,14 @@ class CuroboPlanner(MotionPlanner):
                     print(f"Is grasped check result: {is_grasped}")
 
                 if is_grasped:
-                    if self.debug:
-                        print(f"Attaching {expected_attached_object}")
                     self._attach_object(expected_attached_object, expected_path, env_id)
-                    print(f"Attached {expected_attached_object}")
+                    if self.debug:
+                        print(f"Attached {expected_attached_object}")
                 else:
                     if self.debug:
-                        print("Object not detected as grasped - attachment skipped")
-                        print("This will cause collision with ghost object!")
+                        print(
+                            "Object not detected as grasped - attachment skipped"
+                        )  # This will cause collision with ghost object!
             else:
                 if self.debug:
                     print(f"Object {expected_attached_object} not found in world mappings")
