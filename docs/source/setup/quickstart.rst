@@ -125,7 +125,7 @@ List Available Environments
 
 Above, ``Isaac-Ant-v0`` is the task name and ``skrl`` is the RL framework being used.  The ``Isaac-Ant-v0`` environment
 has been registered with the `Gymnasium API <https://gymnasium.farama.org/>`_, and you can see how the entry point is defined
-by calling the ``list_envs.py`` script, which can be found in ``isaaclab/scripts/environments/lsit_envs.py``. You should see entries like the following
+by calling the ``list_envs.py`` script, which can be found in ``isaaclab/scripts/environments/list_envs.py``. You should see entries like the following
 
 .. code-block:: bash
 
