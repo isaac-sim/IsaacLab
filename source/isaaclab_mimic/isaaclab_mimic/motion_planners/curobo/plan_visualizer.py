@@ -370,7 +370,6 @@ class PlanVisualizer:
         robot_spheres: list[Any] | None = None,
         attached_spheres: list[Any] | None = None,
         ee_positions: np.ndarray | None = None,
-        frame_duration: float = 0.1,
         world_scene: Optional["trimesh.Scene"] = None,
     ) -> None:
         """Visualize a complete motion plan with all components.
@@ -381,7 +380,6 @@ class PlanVisualizer:
             robot_spheres: Optional list of robot collision spheres
             attached_spheres: Optional list of attached object spheres
             ee_positions: Optional end-effector positions
-            frame_duration: Duration between frames in seconds
             world_scene: Optional world scene to visualize
         """
         if self.debug:
@@ -410,7 +408,7 @@ class PlanVisualizer:
         self._visualize_target_pose(target_pose)
 
         # Visualize trajectory (end-effector positions if provided)
-        self._visualize_trajectory(plan, frame_duration, ee_positions)
+        self._visualize_trajectory(plan, ee_positions)
 
         # Visualize spheres if provided
         if robot_spheres:
@@ -438,6 +436,10 @@ class PlanVisualizer:
                 rr.log(f"world/{entity_type}/{entity}", rr.Clear(recursive=True))
             self._sphere_entities[entity_type] = []
         self._current_frame = 0
+
+    def clear_visualization(self) -> None:
+        """Public method to clear the visualization."""
+        self._clear_visualization()
 
     def _visualize_target_pose(self, target_pose: torch.Tensor) -> None:
         """Visualize the target end-effector pose.
@@ -473,24 +475,19 @@ class PlanVisualizer:
             "world/target/frame",
             rr.Transform3D(
                 translation=pos_np,
-                rotation=rr.RotationAxisAngle(
-                    axis=[0, 0, 1],
-                    angle=np.arccos(rot_np[0, 0]) * 2,
-                ),
+                mat3x3=rot_np,
             ),
         )
 
     def _visualize_trajectory(
         self,
         plan: JointState,
-        frame_duration: float,
         ee_positions: np.ndarray | None = None,
     ) -> None:
         """Visualize the robot trajectory.
 
         Args:
             plan: Joint state trajectory
-            frame_duration: Duration between frames in seconds
             ee_positions: Optional end-effector positions
         """
         if ee_positions is None:
@@ -715,7 +712,6 @@ class PlanVisualizer:
         robot_spheres_at_start: list[Any] | None = None,
         attached_spheres_at_start: list[Any] | None = None,
         timeline: str = "sphere_animation",
-        frame_duration: float = 0.1,
         interpolation_steps: int = 10,
     ) -> None:
         """Animate robot and attached object spheres along the planned trajectory with smooth interpolation.
@@ -728,7 +724,6 @@ class PlanVisualizer:
             robot_spheres_at_start: Initial robot collision spheres (for reference)
             attached_spheres_at_start: Initial attached object spheres (for reference)
             timeline: Name of the Rerun timeline for the animation
-            frame_duration: Duration between frames in seconds
             interpolation_steps: Number of interpolated steps between each waypoint pair
         """
         if plan is None or len(plan.position) == 0:
@@ -922,6 +917,12 @@ class PlanVisualizer:
         self._motion_gen_ref = motion_gen
 
     def mark_idle(self) -> None:
+        """Signal that the planner is idle, clearing animations.
+
+        This method advances the animation timelines and logs empty data to ensure that
+        no leftover visualizations from the previous plan are shown. It's useful for
+        creating a clean state between planning episodes.
+        """
         # Advance plan timeline and emit empty anim so latest frame is blank
         rr.set_time("plan", sequence=self._current_frame)
         self._current_frame += 1

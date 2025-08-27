@@ -1073,7 +1073,6 @@ class CuroboPlanner(MotionPlanner):
                 robot_spheres=robot_spheres,
                 attached_spheres=attached_spheres,
                 ee_positions=np.array(ee_positions_list) if ee_positions_list else None,
-                frame_duration=0.1,
                 world_scene=world_scene,
             )
 
@@ -1087,7 +1086,6 @@ class CuroboPlanner(MotionPlanner):
                 robot_spheres_at_start=robot_spheres,
                 attached_spheres_at_start=attached_spheres,
                 timeline="sphere_animation",
-                frame_duration=0.1,
                 interpolation_steps=15,  # More steps for smoother animation
             )
 
@@ -1445,7 +1443,7 @@ class CuroboPlanner(MotionPlanner):
         self._plan_index = 0
         self._current_plan = None
         if self.visualize_plan and hasattr(self, "plan_visualizer"):
-            self.plan_visualizer._clear_visualization()
+            self.plan_visualizer.clear_visualization()
             self.plan_visualizer.mark_idle()
 
     def get_planned_poses(self) -> list[torch.Tensor]:
