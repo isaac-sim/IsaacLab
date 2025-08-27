@@ -392,7 +392,7 @@ class CuroboPlannerConfig:
         config.surface_sphere_radius = 0.01
         config.debug_planner = False
         config.collision_activation_distance = 0.02
-        config.visualize_plan = False
+        config.visualize_plan = True
         config.enable_finetune_trajopt = True
         config.motion_noise_scale = 0.02
         config.get_world_config = lambda: config._get_world_config_with_table_adjustment()
@@ -402,8 +402,7 @@ class CuroboPlannerConfig:
     def franka_stack_cube_config(cls) -> "CuroboPlannerConfig":
         """Create configuration for Franka stacking a normal cube."""
         config = cls.franka_config()
-        config.visualize_spheres = False
-        config.visualize_plan = True
+        config.visualize_plan = False
         config.debug_planner = False
         config.motion_noise_scale = 0.02
         config.collision_activation_distance = 0.01
