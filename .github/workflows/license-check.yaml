@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 name: Check Python Dependency Licenses
 
 on:
@@ -50,6 +55,9 @@ jobs:
 
         # Load the exceptions list from the exceptions.json file
         EXCEPTIONS_FILE=".github/workflows/license-exceptions.json"
+
+        # Initialize counter for failed packages
+        FAILED_PACKAGES=0
 
         # Get the list of installed packages and their licenses
         pip-licenses --from=mixed --format=json > licenses.json

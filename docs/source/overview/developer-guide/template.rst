@@ -22,6 +22,12 @@ The template generator enables you to create an:
 * **Internal task**: A task that is part of the Isaac Lab repository. This approach should only be used to create
   new tasks within the Isaac Lab repository in order to contribute to it.
 
+  .. warning::
+
+    Pip installations of Isaac Lab do not support *Internal* templates.
+    If ``isaaclab`` is loaded from ``site-packages`` or ``dist-packages``, the *Internal* option is disabled
+    and the *External* template will be used instead.
+
 Running the template generator
 ------------------------------
 

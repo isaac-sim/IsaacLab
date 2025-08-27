@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import re
 import torch
-import weakref
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
@@ -15,7 +14,7 @@ import omni.kit.app
 import omni.log
 import omni.physics.tensors.impl.api as physx
 import omni.timeline
-from isaacsim.core.simulation_manager import IsaacEvents, SimulationManager
+from isaacsim.core.simulation_manager import SimulationManager
 from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
@@ -92,23 +91,8 @@ class RigidObjectCollection(AssetBase):
         # stores object names
         self._object_names_list = []
 
-        # note: Use weakref on all callbacks to ensure that this object can be deleted when its destructor is called.
-        # add callbacks for stage play/stop
-        # The order is set to 10 which is arbitrary but should be lower priority than the default order of 0
-        timeline_event_stream = omni.timeline.get_timeline_interface().get_timeline_event_stream()
-        self._initialize_handle = timeline_event_stream.create_subscription_to_pop_by_type(
-            int(omni.timeline.TimelineEventType.PLAY),
-            lambda event, obj=weakref.proxy(self): obj._initialize_callback(event),
-            order=10,
-        )
-        self._invalidate_initialize_handle = timeline_event_stream.create_subscription_to_pop_by_type(
-            int(omni.timeline.TimelineEventType.STOP),
-            lambda event, obj=weakref.proxy(self): obj._invalidate_initialize_callback(event),
-            order=10,
-        )
-        self._prim_deletion_callback_id = SimulationManager.register_callback(
-            self._on_prim_deletion, event=IsaacEvents.PRIM_DELETION
-        )
+        # register various callback functions
+        self._register_callbacks()
         self._debug_vis_handle = None
 
     """
@@ -499,6 +483,7 @@ class RigidObjectCollection(AssetBase):
         positions: torch.Tensor | None = None,
         object_ids: slice | torch.Tensor | None = None,
         env_ids: torch.Tensor | None = None,
+        is_global: bool = False,
     ):
         """Set external force and torque to apply on the objects' bodies in their local frame.
 
@@ -515,6 +500,17 @@ class RigidObjectCollection(AssetBase):
                 # example of disabling external wrench
                 asset.set_external_force_and_torque(forces=torch.zeros(0, 0, 3), torques=torch.zeros(0, 0, 3))
 
+        .. caution::
+            If the function is called consecutively with and with different values for ``is_global``, then the
+            all the external wrenches will be applied in the frame specified by the last call.
+
+            .. code-block:: python
+                # example of setting external wrench in the global frame
+                asset.set_external_force_and_torque(forces=torch.ones(1, 1, 3), env_ids=[0], is_global=True)
+                # example of setting external wrench in the link frame
+                asset.set_external_force_and_torque(forces=torch.ones(1, 1, 3), env_ids=[1], is_global=False)
+                # Both environments will have the external wrenches applied in the link frame
+
         .. note::
             This function does not apply the external wrench to the simulation. It only fills the buffers with
             the desired values. To apply the external wrench, call the :meth:`write_data_to_sim` function
@@ -526,6 +522,8 @@ class RigidObjectCollection(AssetBase):
             positions: External wrench positions in bodies' local frame. Shape is (len(env_ids), len(object_ids), 3).
             object_ids: Object indices to apply external wrench to. Defaults to None (all objects).
             env_ids: Environment indices to apply external wrench to. Defaults to None (all instances).
+            is_global: Whether to apply the external wrench in the global frame. Defaults to False. If set to False,
+                the external wrench is applied in the link frame of the bodies.
         """
         if forces.any() or torques.any():
             self.has_external_wrench = True
@@ -544,6 +542,14 @@ class RigidObjectCollection(AssetBase):
         # set into internal buffers
         self._external_force_b[env_ids[:, None], object_ids] = forces
         self._external_torque_b[env_ids[:, None], object_ids] = torques
+
+        if is_global != self._use_global_wrench_frame:
+            omni.log.warn(
+                f"The external wrench frame has been changed from {self._use_global_wrench_frame} to {is_global}. This"
+                " may lead to unexpected behavior."
+            )
+            self._use_global_wrench_frame = is_global
+
         if positions is not None:
             self.uses_external_wrench_positions = True
             self._external_wrench_positions_b[env_ids[:, None], object_ids] = positions
@@ -663,6 +669,7 @@ class RigidObjectCollection(AssetBase):
         self._external_torque_b = torch.zeros_like(self._external_force_b)
         self._external_wrench_positions_b = torch.zeros_like(self._external_force_b)
         self.uses_external_wrench_positions = False
+        self._use_global_wrench_frame = False
 
         # set information about rigid body into data
         self._data.object_names = self.object_names
@@ -690,15 +697,6 @@ class RigidObjectCollection(AssetBase):
         # concatenate the default state for each object
         default_object_states = torch.cat(default_object_states, dim=1)
         self._data.default_object_state = default_object_states
-
-        # -- external wrench
-        external_wrench_frame = self.cfg.objects_external_wrench_frame
-        if external_wrench_frame == "local":
-            self._use_global_wrench_frame = False
-        elif external_wrench_frame == "world":
-            self._use_global_wrench_frame = True
-        else:
-            raise ValueError(f"Invalid external wrench frame: {external_wrench_frame}. Must be 'local' or 'world'.")
 
     def _env_obj_ids_to_view_ids(
         self, env_ids: torch.Tensor, object_ids: Sequence[int] | slice | torch.Tensor

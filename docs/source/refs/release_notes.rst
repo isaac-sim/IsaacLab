@@ -4,6 +4,296 @@ Release Notes
 The release notes are now available in the `Isaac Lab GitHub repository <https://github.com/isaac-sim/IsaacLab/releases>`_.
 We summarize the release notes here for convenience.
 
+v2.2.0
+======
+
+Overview
+--------
+
+**Isaac Lab 2.2** brings major upgrades across simulation capabilities, tooling, and developer experience. It expands support for advanced physics features, new environments, and improved testing and documentation workflows. This release includes full compatibility with **Isaac Sim 5.0** as well as backwards compatibility with **Isaac Sim 4.5**.
+
+Key highlights of this release include:
+
+- **Enhanced Physics Support**: Updated `joint friction modeling using the latest PhysX APIs <https://nvidia-omniverse.github.io/PhysX/physx/5.6.1/docs/Articulations.html#articulation-joint-friction>`_, added support for `spatial tendons <https://nvidia-omniverse.github.io/PhysX/physx/5.6.1/docs/Articulations.html#spatial-tendons>`_, and improved surface gripper interactions.
+- **New Environments for Imitation Learning**: Introduction of two new GR1 mimic environments, with domain randomization and visual robustness evaluation, and improved pick-and-place tasks.
+- **New Contact-Rich Manipulation Tasks**: Integration of `FORGE <https://noseworm.github.io/forge/>`_ and `AutoMate <https://bingjietang718.github.io/automate/>`_ tasks for learning fine-grained contact interactions in simulation.
+- **Teleoperation Improvements**: Teleoperation tools have been enhanced with configurable parameters and CloudXR runtime updates, including head tracking and hand tracking.
+- **Performance & Usability Improvements**: Includes support for Stage in Memory and Cloning in Fabric for faster scene creation, new OVD recorder for large-scene GPU-based animation recording, and FSD (Fabric Scene Delegate) for improved rendering speed.
+- **Improved Documentation**: The documentation has been extended and updated to cover new features, resolve common issues, and streamline setup, including updates to teleop system requirements, VS Code integration, and Python environment management.
+
+**Full Changelog**: https://github.com/isaac-sim/IsaacLab/compare/v2.1.1...v2.2.0
+
+
+Isaac Sim 5.0 Updates
+---------------------
+
+* Fixes rendering issues on Blackwell GPUs that previously resulted in overly noisy renders
+* Updates Python version from 3.10 to 3.11
+* Updates PyTorch version to torch 2.7.0+cu128, which will include Blackwell support
+* Drops official support for Ubuntu 20.04, we now officially support Ubuntu 22.04 and 24.04 Linux platforms
+* Isaac Sim 5.0 no longer sets ``/app/player/useFixedTimeStepping=False`` by default. We now do this in Isaac Lab.
+* :attr:`~isaaclab.sim.spawners.PhysicsMaterialCfg.improve_patch_friction` is now removed. The simulation will always behave as if this attribute is set to true.
+* Native Livestreaming support has been removed. ``LIVESTREAM=1`` can now be used for WebRTC streaming over public networks and
+  ``LIVESTREAM=2`` for private and local networks with WebRTC streaming.
+* Some assets in Isaac Sim have been reworked and restructured. Notably, the following asset paths were updated:
+
+  * ``Robots/Ant/ant_instanceable.usd`` --> ``Robots/IsaacSim/Ant/ant_instanceable.usd``
+  * ``Robots/Humanoid/humanoid_instanceable.usd`` --> ``Robots/IsaacSim/Humanoid/humanoid_instanceable.usd``
+  * ``Robots/ANYbotics/anymal_instanceable.usd`` --> ``Robots/ANYbotics/anymal_c/anymal_c.usd``
+  * ``Robots/ANYbotics/anymal_c.usd`` --> ``Robots/ANYbotics/anymal_c/anymal_c.usd``
+  * ``Robots/Franka/franka.usd`` --> ``Robots/FrankaRobotics/FrankaPanda/franka.usd``
+  * ``Robots/AllegroHand/allegro_hand_instanceable.usd`` --> ``Robots/WonikRobotics/AllegroHand/allegro_hand_instanceable.usd``
+  * ``Robots/Crazyflie/cf2x.usd`` --> ``Robots/Bitcraze/Crazyflie/cf2x.usd``
+  * ``Robots/RethinkRobotics/sawyer_instanceable.usd`` --> ``Robots/RethinkRobotics/Sawyer/sawyer_instanceable.usd``
+  * ``Robots/ShadowHand/shadow_hand_instanceable.usd`` --> ``Robots/ShadowRobot/ShadowHand/shadow_hand_instanceable.usd``
+
+
+New Features
+------------
+
+* Adds FORGE tasks for contact-rich manipulation with force sensing to IsaacLab by @noseworm in #2968
+* Adds two new GR1 environments for IsaacLab Mimic by @peterd-NV
+* Adds stack environment, scripts for Cosmos, and visual robustness evaluation by @shauryadNv
+* Updates Joint Friction Parameters to Isaac Sim 5.0 PhysX APIs by @ossamaAhmed in 87130f23a11b84851133685b234dfa4e0991cfcd
+* Adds support for spatial tendons by @ossamaAhmed in 7a176fa984dfac022d7f99544037565e78354067
+* Adds support and example for SurfaceGrippers by @AntoineRichard in 14a3a7afc835754da7a275209a95ea21b40c0d7a
+* Adds support for stage in memory by @matthewtrepte in 33bcf6605bcd908c10dfb485a4432fa1110d2e73
+* Adds OVD animation recording feature by @matthewtrepte
+
+Improvements
+------------
+
+* Enables FSD for faster rendering by @nv-mm
+* Sets rtx.indirectDiffuse.enabled to True for performance & balanced rendering presets by @matthewtrepte
+* Changes runner for post-merge pipeline on self-hosted runners by @nv-apoddubny
+* Fixes and improvements for CI pipeline by @nv-apoddubny
+* Adds flaky annotation for tests by @kellyguo11
+* Updates Mimic test cases to pytest format by @peterd-NV
+* Updates cosmos test files to use pytest by @shauryadNv
+* Updates onnx and protobuf version due to vulnerabilities by @kellyguo11
+* Updates minimum skrl version to 1.4.3 by @Toni-SM in https://github.com/isaac-sim/IsaacLab/pull/3053
+* Updates to Isaac Sim 5.0 by @kellyguo11
+* Updates docker CloudXR runtime version by @lotusl-code
+* Removes xr rendering mode by @rwiltz
+* Migrates OpenXRDevice from isaacsim.xr.openxr to omni.xr.kitxr by @rwiltz
+* Implements teleop config parameters and device factory by @rwiltz
+* Updates pick place env to use steering wheel asset by @peterd-NV
+* Adds a CLI argument to set epochs for Robomimic training script by @peterd-NV
+
+Bug Fixes
+---------
+
+* Fixes operational space unit test to avoid pi rotation error by @ooctipus
+* Fixes GLIBC errors with importing torch before AppLauncher by @kellyguo11 in c80e2afb596372923dbab1090d4d0707423882f0
+* Fixes rendering preset by @matthewtrepte in cc0dab6cd50778507efc3c9c2d74a28919ab2092
+* Fixes callbacks with stage in memory and organize environment tests by @matthewtrepte in 4dd6a1e804395561965ed242b3d3d80b8a8f72b9
+* Fixes XR and external camera bug with async rendering by @rwiltz in c80e2afb596372923dbab1090d4d0707423882f0
+* Disables selection for rl_games when marl is selected for template generator by @ooctipus
+* Adds check for .gitignore when generating template by @kellyguo11
+* Fixes camera obs errors in stack instance randomize envs by @peterd-NV
+* Fixes parsing for play envs by @matthewtrepte
+* Fixes issues with consecutive python exe calls in isaaclab.bat by @kellyguo11
+* Fixes spacemouse add callback function by @peterd-NV in 72f05a29ad12d02ec9585dad0fbb2299d70a929c
+* Fixes humanoid training with new velocity_limit_sim by @AntoineRichard
+
+Documentation
+-------------
+
+* Adds note to mimic cosmos pipeline doc for eval by @shauryadNv
+* Updates teleop docs for 2.2 release by @rwiltz
+* Fixes outdated dofbot path in tutorial scripts by @mpgussert
+* Updates docs for VS Code IntelliSense setup and JAX installation by @Toni-SM
+* Updates Jax doc to overwrite version < 0.6.0 for torch by @kellyguo11
+* Adds docs for fabric cloning & stage in memory by @matthewtrepte
+* Updates driver requirements to point to our official technical docs by @mpgussert
+* Adds warning for ovd recording warning logs spam by @matthewtrepte
+* Adds documentation to specify HOVER version and known GLIBCXX error by @kellyguo11
+* Updates teleop system requirements doc by @lotusl-code
+* Add network requirements to cloudxr teleop doc by @lotusl-code
+
+
+v2.1.1
+======
+
+Overview
+--------
+
+This release has been in development over the past few months and includes a significant number of updates,
+enhancements, and new features across the entire codebase. Given the volume of changes, we've grouped them
+into relevant categories to improve readability. This version is compatible with
+`NVIDIA Isaac Sim 4.5 <https://docs.isaacsim.omniverse.nvidia.com/4.5.0/installation/download.html>`__.
+
+We appreciate the community's patience and contributions in ensuring quality and stability throughout.
+We're aiming for more frequent patch releases moving forward to improve the developer experience.
+
+**Note:** This minor release does not include a Docker image or pip package.
+
+**Full Changelog:** https://github.com/isaac-sim/IsaacLab/compare/v2.1.0...v2.1.1
+
+New Features
+------------
+
+* **Asset Interfaces**
+  * Adds ``position`` argument to set external forces and torques at different locations on the rigid body by @AntoineRichard
+  * Adds ``body_incoming_joint_wrench_b`` to ArticulationData field by @jtigue-bdai
+  * Allows selecting articulation root prim explicitly by @lgulich
+* **Sensor Interfaces**
+  * Draws connection lines for FrameTransformer visualization by @Mayankm96
+  * Uses visualization marker for connecting lines inside FrameTransformer by @bikcrum
+* **MDP Terms**
+  * Adds ``body_pose_w`` and ``body_projected_gravity_b`` observations by @jtigue-bdai
+  * Adds joint effort observation by @jtigue-bdai
+  * Adds CoM randomization term to manager-based events by @shendredm
+  * Adds time-based mdp (observation) functions by @TheIndoorDad
+  * Adds curriculum mdp term to modify any environment parameters by @ooctipus
+* **New Example Tasks**
+  * Adds assembly tasks from the Automate project by @yijieg
+  * Adds digit locomotion examples by @lgulich
+
+Improvements
+------------
+
+Core API
+~~~~~~~~
+
+* **Actuator Interfaces**
+  * Fixes implicit actuator limits configs for assets by @ooctipus
+  * Updates actuator configs for Franka arm by @reeceomahoney
+* **Asset Interfaces**
+  * Optimizes getters of data inside asset classes by @Mayankm96
+  * Adds method to set the visibility of the Asset's prims by @Mayankm96
+* **Sensor Interfaces**
+  * Updates to ray caster ray alignment and customizable drift sampling by @jsmith-bdai
+  * Extends ``ContactSensorData`` by ``force_matrix_w_history`` attribute by @bikcrum
+  * Adds IMU ``projected_gravity_b`` and optimizations by @jtigue-bdai
+* **Manager Interfaces**
+  * Adds serialization to observation and action managers by @jsmith-bdai
+  * Adds concatenation dimension to ``ObservationManager`` by @pascal-roth
+  * Supports composite observation space with min/max by @ooctipus
+  * Changes counter update in ``CommandManager`` by @pascal-roth
+  * Integrates ``NoiseModel`` to manager-based workflows by @ozhanozen
+  * Updates ``NoiseModelWithAdditiveBias`` to apply per-feature bias by @ozhanozen
+  * Fixes :meth:`isaaclab.scene.reset_to` to accept ``None`` by @ooctipus
+  * Resets step reward buffer properly by @bikcrum
+* **Terrain Generation**
+  * Custom ``TerrainGenerator`` support by @pascal-roth
+  * Adds terrain border options by @pascal-roth
+  * Platform height independent of object height by @jtigue-bdai
+  * Adds noise to ``MeshRepeatedObjectsTerrain`` by @jtigue-bdai
+* **Simulation**
+  * Raises exceptions from SimContext init callbacks
+  * Applies ``semantic_tags`` to ground by @KumoLiu
+  * Sets ``enable_stabilization`` to false by default by @AntoineRichard
+  * Fixes deprecation for ``pxr.Semantics`` by @kellyguo11
+* **Math Utilities**
+  * Improves ``euler_xyz_from_quat`` by @ShaoshuSu
+  * Optimizes ``yaw_quat`` by @hapatel-bdai
+  * Changes ``quat_apply`` and ``quat_apply_inverse`` by @jtigue-bdai
+  * Changes ``quat_box_minus`` by @jtigue-bdai
+  * Adds ``quat_box_plus`` and ``rigid_body_twist_transform`` by @jtigue-bdai
+  * Adds math tests for transforms by @jtigue-bdai
+* **General Utilities**
+  * Simplifies buffer validation for ``CircularBuffer`` by @Mayankm96
+  * Modifies ``update_class_from_dict()`` by @ozhanozen
+  * Allows slicing from list values in dicts by @LinghengMeng @kellyguo11
+
+Tasks API
+~~~~~~~~~
+
+* Adds support for ``module:task`` and gymnasium >=1.0 by @kellyguo11
+* Adds RL library error hints by @Toni-SM
+* Enables hydra for ``play.py`` scripts by @ooctipus
+* Fixes ray metric reporting and hangs by @ozhanozen
+* Adds gradient clipping for distillation (RSL-RL) by @alessandroassirelli98
+* GRU-based RNNs ONNX export in RSL RL by @WT-MM
+* Adds wandb support in rl_games by @ooctipus
+* Optimizes SB3 wrapper by @araffin
+* Enables SB3 checkpoint loading by @ooctipus
+* Pre-processes SB3 env image obs-space for CNN pipeline by @ooctipus
+
+Infrastructure
+~~~~~~~~~~~~~~
+
+* **Dependencies**
+  * Updates torch to 2.7.0 with CUDA 12.8 by @kellyguo11
+  * Updates gymnasium to 1.2.0 by @kellyguo11
+  * Fixes numpy version to <2 by @ooctipus
+  * Adds license file for OSS by @kellyguo11
+  * Sets robomimic to v0.4.0 by @masoudmoghani
+  * Upgrades pillow for Kit 107.3.1 by @ooctipus
+  * Removes protobuf upper pin by @kwlzn
+* **Docker**
+  * Uses ``--gpus`` instead of Nvidia runtime by @yanziz-nvidia
+  * Adds docker name suffix parameter by @zoemcc
+  * Adds bash history support in docker by @AntoineRichard
+* **Testing & Benchmarking**
+  * Switches unittest to pytest by @kellyguo11 @pascal-roth
+  * Adds training benchmark unit tests by @matthewtrepte
+  * Fixes env and IK test failures by @kellyguo11
+* **Repository Utilities**
+  * Adds URDF to USD batch conversion script by @hapatel-bdai
+  * Adds repository citation link by @kellyguo11
+  * Adds pip install warning for internal templates by @ooctipus
+
+Bug Fixes
+---------
+
+Core API
+~~~~~~~~
+
+* **Actuator Interfaces**
+  * Fixes DCMotor clipping for negative power by @jtigue-bdai
+* **Asset Interfaces**
+  * Fixes inconsistent data reads for body/link/com by @ooctipus
+* **Sensor Interfaces**
+  * Fixes pose update in ``Camera`` and ``TiledCamera`` by @pascal-roth
+  * Fixes CPU fallback in camera.py by @renaudponcelet
+  * Fixes camera intrinsics logic by @jtigue-bdai
+* **Manager Interfaces**
+  * Fixes ``ObservationManager`` buffer overwrite by @patrickhaoy
+  * Fixes term check in event manager by @miguelalonsojr
+  * Fixes ``Modifiers`` and history buffer bug by @ZiwenZhuang
+  * Fixes re-init check in ``ManagerBase`` by @Mayankm96
+  * Fixes CPU collision filtering by @kellyguo11
+  * Fixes imports in InteractiveScene/LiveVisualizer by @Mayankm96
+  * Fixes image plot import in Live Visualizer by @pascal-roth
+* **MDP Terms**
+  * Fixes CoM randomization shape mismatch by @shendredm
+  * Fixes visual prim handling in texture randomization by @KumoLiu
+  * Resets joint targets in ``reset_scene_to_default`` by @wghou
+  * Fixes joint limit terminations by @GiulioRomualdi
+  * Fixes joint reset scope in ``SceneEntityCfg`` by @ooctipus
+* **Math Utilities**
+  * Fixes ``quat_inv()`` implementation by @ozhanozen
+
+Tasks API
+~~~~~~~~~
+
+* Fixes LSTM to ONNX export by @jtigue-bdai
+
+Example Tasks
+~~~~~~~~~~~~~
+
+* Removes contact termination redundancy by @louislelay
+* Fixes memory leak in SDF by @leondavi
+* Changes ``randomization`` to ``events`` in Digit envs by @fan-ziqi
+
+Documentation
+-------------
+
+* Adds Isaac Sim version section to README by @kellyguo11
+* Adds physics performance guide by @kellyguo11
+* Adds jetbot tutorial to walkthrough docs by @mpgussert
+* Changes quickstart install to conda by @mpgussert
+* Fixes typo in library docs by @norbertcygiert
+* Updates docs for conda, fabric, inference by @kellyguo11
+* Adds license/contributing updates with DCO by @kellyguo11
+* Updates pytest docs and help by @louislelay
+* Adds actuator reference docs by @AntoineRichard
+* Updates multi-GPU PyTorch setup docs by @Alex-Omar-Nvidia
+* Removes deprecated env var in docs by @Kyu3224
+
+
 v2.1.0
 ======
 
@@ -34,16 +324,16 @@ H1 robot, which we have also added a tutorial guide for the deployment process i
 New Features
 ------------
 
-* Adds new external project / internal task template generator by @Toni-SM in https://github.com/isaac-sim/IsaacLab/pull/2039
-* Adds dummy agents to the external task template generator by @louislelay in https://github.com/isaac-sim/IsaacLab/pull/2221
-* Adds USD-level randomization mode to event manager by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/2040
-* Adds texture and scale randomization event terms by @hapatel-bdai in https://github.com/isaac-sim/IsaacLab/pull/2121
-* Adds replicator event for randomizing colors by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/2153
-* Adds interactive demo script for H1 locomotion by @kellyguo11 in https://github.com/isaac-sim/IsaacLab/pull/2041
-* Adds blueprint environment for Franka stacking mimic by @chengronglai in https://github.com/isaac-sim/IsaacLab/pull/1944
-* Adds action clipping to rsl-rl wrapper by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/2019
-* Adds Gymnasium spaces showcase tasks by @Toni-SM in https://github.com/isaac-sim/IsaacLab/pull/2109
-* Add configs and adapt exporter for RSL-RL distillation by @ClemensSchwarke in https://github.com/isaac-sim/IsaacLab/pull/2182
+* Adds new external project / internal task template generator by @Toni-SM
+* Adds dummy agents to the external task template generator by @louislelay
+* Adds USD-level randomization mode to event manager by @Mayankm96
+* Adds texture and scale randomization event terms by @hapatel-bdai
+* Adds replicator event for randomizing colors by @Mayankm96
+* Adds interactive demo script for H1 locomotion by @kellyguo11
+* Adds blueprint environment for Franka stacking mimic by @chengronglai
+* Adds action clipping to rsl-rl wrapper by @Mayankm96
+* Adds Gymnasium spaces showcase tasks by @Toni-SM
+* Add configs and adapt exporter for RSL-RL distillation by @ClemensSchwarke
 * Adds support for head pose for Open XR device by @rwiltz
 * Adds handtracking joints and retargetting pipeline by @rwiltz
 * Adds documentation for openxr device and retargeters by @rwiltz
@@ -57,15 +347,15 @@ New Features
 Improvements
 ------------
 
-* Clarifies the default parameters in ArticulationData by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/1875
-* Removes storage of meshes inside the TerrainImporter class by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/1987
-* Adds more details about state in InteractiveScene by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/2119
-* Mounts scripts to docker container by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/2152
-* Initializes manager term classes only when sim starts by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/2117
-* Updates to latest RSL-RL v2.3.0 release by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/2154
-* Skips dependency installation for directories with no extension.toml by @jsmith-bdai in https://github.com/isaac-sim/IsaacLab/pull/2216
-* Clarifies layer instructions in animation docs by @tylerlum in https://github.com/isaac-sim/IsaacLab/pull/2240
-* Lowers the default number of environments for camera envs by @kellyguo11 in https://github.com/isaac-sim/IsaacLab/pull/2287
+* Clarifies the default parameters in ArticulationData by @Mayankm96
+* Removes storage of meshes inside the TerrainImporter class by @Mayankm96
+* Adds more details about state in InteractiveScene by @Mayankm96
+* Mounts scripts to docker container by @Mayankm96
+* Initializes manager term classes only when sim starts by @Mayankm96
+* Updates to latest RSL-RL v2.3.0 release by @Mayankm96
+* Skips dependency installation for directories with no extension.toml by @jsmith-bdai
+* Clarifies layer instructions in animation docs by @tylerlum
+* Lowers the default number of environments for camera envs by @kellyguo11
 * Updates Rendering Mode guide in documentation by @matthewtrepte
 * Adds task instruction UI support for mimic by @chengronglai
 * Adds ExplicitAction class to track argument usage in AppLauncher by @nv-mhaselton
@@ -75,26 +365,26 @@ Improvements
 Bug Fixes
 ---------
 
-* Fixes default effort limit behavior for implicit actuators by @jtigue-bdai in https://github.com/isaac-sim/IsaacLab/pull/2098
-* Fixes docstrings inconsistencies the code by @Bardreamaster in https://github.com/isaac-sim/IsaacLab/pull/2112
-* Fixes missing stage recorder extension for animation recorder by @kellyguo11 in https://github.com/isaac-sim/IsaacLab/pull/2125
-* Fixes ground height in factory environment by @louislelay in https://github.com/isaac-sim/IsaacLab/pull/2071
-* Removes double definition of render settings by @pascal-roth in https://github.com/isaac-sim/IsaacLab/pull/2083
-* Fixes device settings in env tutorials by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/2151
-* Changes default ground color back to dark grey by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/2164
-* Initializes extras dict before loading managers by @kousheekc in https://github.com/isaac-sim/IsaacLab/pull/2178
-* Fixes typos in development.rst by @vi3itor in https://github.com/isaac-sim/IsaacLab/pull/2181
-* Fixes SE gamepad omniverse subscription API by @PinkPanther-ny in https://github.com/isaac-sim/IsaacLab/pull/2173
-* Fixes modify_action_space in RslRlVecEnvWrapper by @felipemohr in https://github.com/isaac-sim/IsaacLab/pull/2185
-* Fixes distributed setup in benchmarking scripts by @kellyguo11 in https://github.com/isaac-sim/IsaacLab/pull/2194
-* Fixes typo ``RF_FOOT`` to ``RH_FOOT`` in tutorials by @likecanyon in https://github.com/isaac-sim/IsaacLab/pull/2200
-* Checks if success term exists before recording in RecorderManager by @peterd-NV in https://github.com/isaac-sim/IsaacLab/pull/2218
-* Unsubscribes from debug vis handle when timeline is stopped by @jsmith-bdai in https://github.com/isaac-sim/IsaacLab/pull/2214
-* Fixes wait time in ``play.py`` by using ``env.step_dt`` by @tylerlum in https://github.com/isaac-sim/IsaacLab/pull/2239
-* Fixes 50 series installation instruction to include torchvision by @kellyguo11 in https://github.com/isaac-sim/IsaacLab/pull/2258
-* Fixes importing MotionViewer from external scripts by @T-K-233 in https://github.com/isaac-sim/IsaacLab/pull/2195
-* Resets cuda device after each app.update call by @kellyguo11 in https://github.com/isaac-sim/IsaacLab/pull/2283
-* Fixes resume flag in rsl-rl cli args by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/2299
+* Fixes default effort limit behavior for implicit actuators by @jtigue-bdai
+* Fixes docstrings inconsistencies the code by @Bardreamaster
+* Fixes missing stage recorder extension for animation recorder by @kellyguo11
+* Fixes ground height in factory environment by @louislelay
+* Removes double definition of render settings by @pascal-roth
+* Fixes device settings in env tutorials by @Mayankm96
+* Changes default ground color back to dark grey by @Mayankm96
+* Initializes extras dict before loading managers by @kousheekc
+* Fixes typos in development.rst by @vi3itor
+* Fixes SE gamepad omniverse subscription API by @PinkPanther-ny
+* Fixes modify_action_space in RslRlVecEnvWrapper by @felipemohr
+* Fixes distributed setup in benchmarking scripts by @kellyguo11
+* Fixes typo ``RF_FOOT`` to ``RH_FOOT`` in tutorials by @likecanyon
+* Checks if success term exists before recording in RecorderManager by @peterd-NV
+* Unsubscribes from debug vis handle when timeline is stopped by @jsmith-bdai
+* Fixes wait time in ``play.py`` by using ``env.step_dt`` by @tylerlum
+* Fixes 50 series installation instruction to include torchvision by @kellyguo11
+* Fixes importing MotionViewer from external scripts by @T-K-233
+* Resets cuda device after each app.update call by @kellyguo11
+* Fixes resume flag in rsl-rl cli args by @Mayankm96
 
 
 v2.0.2
@@ -246,7 +536,7 @@ tiled-rendering performance, but at the cost of reduced rendering quality. This 
 particularly affected dome lighting in the scene, which is the default in many of our examples.
 
 As reported by several users, this change negatively impacted render quality, even in
-cases where it wasn’t necessary (such as when recording videos of the simulation). In
+cases where it wasn't necessary (such as when recording videos of the simulation). In
 response to this feedback, we have reverted to the previous render settings by default
 to restore the quality users expected.
 
@@ -261,31 +551,27 @@ Overview
 
 This release contains a small set of fixes and improvements.
 
-The main change was to maintain combability with the updated library name for RSL RL, which breaks the previous installation methods for Isaac Lab. This release provides the necessary fixes and updates in Isaac Lab to accommodate for the name change and maintain combability with installation for RSL RL.
+The main change was to maintain combability with the updated library name for RSL RL, which breaks the previous
+installation methods for Isaac Lab. This release provides the necessary fixes and updates in Isaac Lab to accommodate
+for the name change and maintain compatibility with installation for RSL RL.
 
 **Full Changelog**: https://github.com/isaac-sim/IsaacLab/compare/v2.0.0...v2.0.1
 
 Improvements
 ------------
 
-* Switches to RSL-RL install from PyPI by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/1811
-* Updates the script path in the document by @fan-ziqi in https://github.com/isaac-sim/IsaacLab/pull/1766
-* Disables extension auto-reload when saving files by @kellyguo11 in https://github.com/isaac-sim/IsaacLab/pull/1788
-* Updates documentation for v2.0.1 installation by @kellyguo11 in https://github.com/isaac-sim/IsaacLab/pull/1818
+* Switches to RSL-RL install from PyPI by @Mayankm96
+* Updates the script path in the document by @fan-ziqi
+* Disables extension auto-reload when saving files by @kellyguo11
+* Updates documentation for v2.0.1 installation by @kellyguo11
 
 Bug Fixes
 ---------
 
-* Fixes timestamp of com and link buffers when writing articulation pose to sim by @Jackkert in https://github.com/isaac-sim/IsaacLab/pull/1765
-* Fixes incorrect local documentation preview path in xdg-open command by @louislelay in https://github.com/isaac-sim/IsaacLab/pull/1776
-* Fixes no matching distribution found for rsl-rl (unavailable) by @samibouziri in https://github.com/isaac-sim/IsaacLab/pull/1808
-* Fixes reset of sensor drift inside the RayCaster sensor by @zoctipus in https://github.com/isaac-sim/IsaacLab/pull/1821
-
-New Contributors
-----------------
-
-* @Jackkert made their first contribution in https://github.com/isaac-sim/IsaacLab/pull/1765
-
+* Fixes timestamp of com and link buffers when writing articulation pose to sim by @Jackkert
+* Fixes incorrect local documentation preview path in xdg-open command by @louislelay
+* Fixes no matching distribution found for rsl-rl (unavailable) by @samibouziri
+* Fixes reset of sensor drift inside the RayCaster sensor by @zoctipus
 
 v2.0.0
 ======
@@ -507,46 +793,34 @@ which introduces breaking changes that will make Isaac Lab incompatible with ear
 New Features
 ------------
 
-* Adds documentation and demo script for IMU sensor by @mpgussert in https://github.com/isaac-sim/IsaacLab/pull/1694
+* Adds documentation and demo script for IMU sensor by @mpgussert
 
 Improvements
 ------------
 
-* Removes deprecation for root_state_w properties and setters by @jtigue-bdai in https://github.com/isaac-sim/IsaacLab/pull/1695
-* Fixes MARL workflows for recording videos during training/inferencing by @Rishi-V in https://github.com/isaac-sim/IsaacLab/pull/1596
-* Adds body tracking option to ViewerCfg by @KyleM73 in https://github.com/isaac-sim/IsaacLab/pull/1620
-* Fixes the ``joint_parameter_lookup`` type in ``RemotizedPDActuatorCfg`` to support list format by @fan-ziqi in https://github.com/isaac-sim/IsaacLab/pull/1626
-* Updates pip installation documentation to clarify options by @steple in https://github.com/isaac-sim/IsaacLab/pull/1621
-* Fixes docstrings in Articulation Data that report wrong return dimension by @zoctipus in https://github.com/isaac-sim/IsaacLab/pull/1652
-* Fixes documentation error for PD Actuator by @kellyguo11 in https://github.com/isaac-sim/IsaacLab/pull/1668
-* Clarifies ray documentation and fixes minor issues by @garylvov in https://github.com/isaac-sim/IsaacLab/pull/1717
-* Updates code snippets in documentation to reference scripts by @mpgussert in https://github.com/isaac-sim/IsaacLab/pull/1693
-* Adds dict conversion test for ActuatorBase configs by @mschweig in https://github.com/isaac-sim/IsaacLab/pull/1608
+* Removes deprecation for root_state_w properties and setters by @jtigue-bdai
+* Fixes MARL workflows for recording videos during training/inferencing by @Rishi-V
+* Adds body tracking option to ViewerCfg by @KyleM73
+* Fixes the ``joint_parameter_lookup`` type in ``RemotizedPDActuatorCfg`` to support list format by @fan-ziqi
+* Updates pip installation documentation to clarify options by @steple
+* Fixes docstrings in Articulation Data that report wrong return dimension by @zoctipus
+* Fixes documentation error for PD Actuator by @kellyguo11
+* Clarifies ray documentation and fixes minor issues by @garylvov
+* Updates code snippets in documentation to reference scripts by @mpgussert
+* Adds dict conversion test for ActuatorBase configs by @mschweig
 
 Bug Fixes
 ---------
 
-* Fixes JointAction not preserving order when using all joints by @T-K-233 in https://github.com/isaac-sim/IsaacLab/pull/1587
-* Fixes event term for pushing root by setting velocity by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/1584
-* Fixes error in Articulation where ``default_joint_stiffness`` and ``default_joint_damping`` are not correctly set for implicit actuator by @zoctipus in https://github.com/isaac-sim/IsaacLab/pull/1580
-* Fixes action reset of ``pre_trained_policy_action`` in navigation environment by @nicolaloi in https://github.com/isaac-sim/IsaacLab/pull/1623
-* Fixes rigid object's root com velocities timestamp check by @ori-gadot in https://github.com/isaac-sim/IsaacLab/pull/1674
-* Adds interval resampling on event manager's reset call by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/1750
-* Corrects calculation of target height adjustment based on sensor data by @fan-ziqi in https://github.com/isaac-sim/IsaacLab/pull/1710
-* Fixes infinite loop in ``repeated_objects_terrain`` method  by @nicolaloi in https://github.com/isaac-sim/IsaacLab/pull/1612
-* Fixes issue where the indices were not created correctly for articulation setters by @AntoineRichard in https://github.com/isaac-sim/IsaacLab/pull/1660
-
-New Contributors
-~~~~~~~~~~~~~~~~
-
-* @T-K-233 made their first contribution in https://github.com/isaac-sim/IsaacLab/pull/1587
-* @steple made their first contribution in https://github.com/isaac-sim/IsaacLab/pull/1616
-* @Rishi-V made their first contribution in https://github.com/isaac-sim/IsaacLab/pull/1596
-* @nicolaloi made their first contribution in https://github.com/isaac-sim/IsaacLab/pull/1623
-* @mschweig made their first contribution in https://github.com/isaac-sim/IsaacLab/pull/1608
-* @AntoineRichard made their first contribution in https://github.com/isaac-sim/IsaacLab/pull/1660
-* @ori-gadot made their first contribution in https://github.com/isaac-sim/IsaacLab/pull/1674
-* @garylvov made their first contribution in https://github.com/isaac-sim/IsaacLab/pull/1717
+* Fixes JointAction not preserving order when using all joints by @T-K-233
+* Fixes event term for pushing root by setting velocity by @Mayankm96
+* Fixes error in Articulation where ``default_joint_stiffness`` and ``default_joint_damping`` are not correctly set for implicit actuator by @zoctipus
+* Fixes action reset of ``pre_trained_policy_action`` in navigation environment by @nicolaloi
+* Fixes rigid object's root com velocities timestamp check by @ori-gadot
+* Adds interval resampling on event manager's reset call by @Mayankm96
+* Corrects calculation of target height adjustment based on sensor data by @fan-ziqi
+* Fixes infinite loop in ``repeated_objects_terrain`` method  by @nicolaloi
+* Fixes issue where the indices were not created correctly for articulation setters by @AntoineRichard
 
 
 v1.4.0
@@ -568,55 +842,46 @@ compatibility, but will come with many great fixes and improvements.
 New Features
 ------------
 
-* Adds Factory contact-rich manipulation tasks to IsaacLab by @noseworm in https://github.com/isaac-sim/IsaacLab/pull/1520
-* Adds a Franka stacking ManagerBasedRLEnv by @peterd-NV in https://github.com/isaac-sim/IsaacLab/pull/1494
-* Adds recorder manager in manager-based environments by @nvcyc in https://github.com/isaac-sim/IsaacLab/pull/1336
-* Adds Ray Workflow: Multiple Run Support, Distributed Hyperparameter Tuning, and Consistent Setup Across Local/Cloud by @glvov-bdai in https://github.com/isaac-sim/IsaacLab/pull/1301
-* Adds ``OperationSpaceController`` to docs and tests and implement corresponding action/action_cfg classes by @ozhanozen in https://github.com/isaac-sim/IsaacLab/pull/913
-* Adds null-space control option within ``OperationSpaceController`` by @ozhanozen in https://github.com/isaac-sim/IsaacLab/pull/1557
-* Adds observation term history support to Observation Manager by @jtigue-bdai in https://github.com/isaac-sim/IsaacLab/pull/1439
-* Adds live plots to managers by @pascal-roth in https://github.com/isaac-sim/IsaacLab/pull/893
+* Adds Factory contact-rich manipulation tasks to IsaacLab by @noseworm
+* Adds a Franka stacking ManagerBasedRLEnv by @peterd-NV
+* Adds recorder manager in manager-based environments by @nvcyc
+* Adds Ray Workflow: Multiple Run Support, Distributed Hyperparameter Tuning, and Consistent Setup Across Local/Cloud by @glvov-bdai
+* Adds ``OperationSpaceController`` to docs and tests and implement corresponding action/action_cfg classes by @ozhanozen
+* Adds null-space control option within ``OperationSpaceController`` by @ozhanozen
+* Adds observation term history support to Observation Manager by @jtigue-bdai
+* Adds live plots to managers by @pascal-roth
 
 Improvements
 ------------
 
-* Adds documentation and example scripts for sensors by @mpgussert in https://github.com/isaac-sim/IsaacLab/pull/1443
-* Removes duplicated ``TerminationsCfg`` code in G1 and H1 RoughEnvCfg by @fan-ziqi in https://github.com/isaac-sim/IsaacLab/pull/1484
-* Adds option to change the clipping behavior for all Cameras and unifies the default by @pascal-roth in https://github.com/isaac-sim/IsaacLab/pull/891
-* Adds check that no articulation root API is applied on rigid bodies by @lgulich in https://github.com/isaac-sim/IsaacLab/pull/1358
-* Adds RayCaster rough terrain base height to reward by @Andy-xiong6 in https://github.com/isaac-sim/IsaacLab/pull/1525
-* Adds position threshold check for state transitions by @DorsaRoh in https://github.com/isaac-sim/IsaacLab/pull/1544
-* Adds clip range for JointAction by @fan-ziqi in https://github.com/isaac-sim/IsaacLab/pull/1476
+* Adds documentation and example scripts for sensors by @mpgussert
+* Removes duplicated ``TerminationsCfg`` code in G1 and H1 RoughEnvCfg by @fan-ziqi
+* Adds option to change the clipping behavior for all Cameras and unifies the default by @pascal-roth
+* Adds check that no articulation root API is applied on rigid bodies by @lgulich
+* Adds RayCaster rough terrain base height to reward by @Andy-xiong6
+* Adds position threshold check for state transitions by @DorsaRoh
+* Adds clip range for JointAction by @fan-ziqi
 
 Bug Fixes
 ---------
 
-* Fixes noise_model initialized in direct_marl_env by @NoneJou072 in https://github.com/isaac-sim/IsaacLab/pull/1480
-* Fixes entry_point and kwargs in isaaclab_tasks README by @fan-ziqi in https://github.com/isaac-sim/IsaacLab/pull/1485
-* Fixes syntax for checking if pre-commit is installed in isaaclab.sh by @louislelay in https://github.com/isaac-sim/IsaacLab/pull/1422
-* Corrects fisheye camera projection types in spawner configuration by @command-z-z in https://github.com/isaac-sim/IsaacLab/pull/1361
-* Fixes actuator velocity limits propagation down the articulation root_physx_view by @jtigue-bdai in https://github.com/isaac-sim/IsaacLab/pull/1509
-* Computes Jacobian in the root frame inside the ``DifferentialInverseKinematicsAction`` class by @zoctipus in https://github.com/isaac-sim/IsaacLab/pull/967
-* Adds transform for mesh_prim of ray caster sensor by @clearsky-mio in https://github.com/isaac-sim/IsaacLab/pull/1448
-* Fixes configclass dict conversion for torch tensors by @lgulich in https://github.com/isaac-sim/IsaacLab/pull/1530
-* Fixes error in apply_actions method in ``NonHolonomicAction`` action term. by @KyleM73 in https://github.com/isaac-sim/IsaacLab/pull/1513
-* Fixes outdated sensor data after reset by @kellyguo11 in https://github.com/isaac-sim/IsaacLab/pull/1276
-* Fixes order of logging metrics and sampling commands in command manager by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/1352
+* Fixes noise_model initialized in direct_marl_env by @NoneJou072
+* Fixes entry_point and kwargs in isaaclab_tasks README by @fan-ziqi
+* Fixes syntax for checking if pre-commit is installed in isaaclab.sh by @louislelay
+* Corrects fisheye camera projection types in spawner configuration by @command-z-z
+* Fixes actuator velocity limits propagation down the articulation root_physx_view by @jtigue-bdai
+* Computes Jacobian in the root frame inside the ``DifferentialInverseKinematicsAction`` class by @zoctipus
+* Adds transform for mesh_prim of ray caster sensor by @clearsky-mio
+* Fixes configclass dict conversion for torch tensors by @lgulich
+* Fixes error in apply_actions method in ``NonHolonomicAction`` action term. by @KyleM73
+* Fixes outdated sensor data after reset by @kellyguo11
+* Fixes order of logging metrics and sampling commands in command manager by @Mayankm96
 
 Breaking Changes
 ----------------
 
-* Refactors pose and velocities to link frame and COM frame APIs by @jtigue-bdai in https://github.com/isaac-sim/IsaacLab/pull/966
+* Refactors pose and velocities to link frame and COM frame APIs by @jtigue-bdai
 
-New Contributors
-----------------
-
-* @nvcyc made their first contribution in https://github.com/isaac-sim/IsaacLab/pull/1336
-* @peterd-NV made their first contribution in https://github.com/isaac-sim/IsaacLab/pull/1494
-* @NoneJou072 made their first contribution in https://github.com/isaac-sim/IsaacLab/pull/1480
-* @clearsky-mio made their first contribution in https://github.com/isaac-sim/IsaacLab/pull/1448
-* @Andy-xiong6 made their first contribution in https://github.com/isaac-sim/IsaacLab/pull/1525
-* @noseworm made their first contribution in https://github.com/isaac-sim/IsaacLab/pull/1520
 
 v1.3.0
 ======
@@ -634,85 +899,66 @@ gymnasium spaces, manager-based perception environments, and more.
 New Features
 ------------
 
-* Adds ``IMU`` sensor  by @pascal-roth in https://github.com/isaac-sim/IsaacLab/pull/619
-* Add Camera Benchmark Tool and Allow Correct Unprojection of distance_to_camera depth image by @glvov-bdai in https://github.com/isaac-sim/IsaacLab/pull/976
-* Creates Manager Based Cartpole Vision Example Environments by @glvov-bdai in https://github.com/isaac-sim/IsaacLab/pull/995
-* Adds image extracted features observation term and cartpole examples for it by @glvov-bdai in https://github.com/isaac-sim/IsaacLab/pull/1191
-* Supports other gymnasium spaces in Direct workflow by @Toni-SM in https://github.com/isaac-sim/IsaacLab/pull/1117
-* Adds configuration classes for spawning different assets at prim paths by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/1164
-* Adds a rigid body collection class by @Dhoeller19 in https://github.com/isaac-sim/IsaacLab/pull/1288
-* Adds option to scale/translate/rotate meshes in the ``mesh_converter`` by @pascal-roth in https://github.com/isaac-sim/IsaacLab/pull/1228
-* Adds event term to randomize gains of explicit actuators by @MoreTore in https://github.com/isaac-sim/IsaacLab/pull/1005
-* Adds Isaac Lab Reference Architecture documentation by @OOmotuyi in https://github.com/isaac-sim/IsaacLab/pull/1371
+* Adds ``IMU`` sensor  by @pascal-roth
+* Add Camera Benchmark Tool and Allow Correct Unprojection of distance_to_camera depth image by @glvov-bdai
+* Creates Manager Based Cartpole Vision Example Environments by @glvov-bdai
+* Adds image extracted features observation term and cartpole examples for it by @glvov-bdai
+* Supports other gymnasium spaces in Direct workflow by @Toni-SM
+* Adds configuration classes for spawning different assets at prim paths by @Mayankm96
+* Adds a rigid body collection class by @Dhoeller19
+* Adds option to scale/translate/rotate meshes in the ``mesh_converter`` by @pascal-roth
+* Adds event term to randomize gains of explicit actuators by @MoreTore
+* Adds Isaac Lab Reference Architecture documentation by @OOmotuyi
 
 Improvements
 ------------
 
-* Expands functionality of FrameTransformer to allow multi-body transforms by @jsmith-bdai in https://github.com/isaac-sim/IsaacLab/pull/858
-* Inverts SE-2 keyboard device actions (Z, X)  for yaw command by @riccardorancan in https://github.com/isaac-sim/IsaacLab/pull/1030
-* Disables backward pass compilation of warp kernels by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/1222
-* Replaces TensorDict with native dictionary by @Toni-SM in https://github.com/isaac-sim/IsaacLab/pull/1348
-* Improves omni.isaac.lab_tasks loading time by @Toni-SM in https://github.com/isaac-sim/IsaacLab/pull/1353
-* Caches PhysX view's joint paths when processing fixed articulation tendons by @Toni-SM in https://github.com/isaac-sim/IsaacLab/pull/1347
-* Replaces hardcoded module paths with ``__name__`` dunder by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/1357
-* Expands observation term scaling to support list of floats by @pascal-roth in https://github.com/isaac-sim/IsaacLab/pull/1269
-* Removes extension startup messages from the Simulation App by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/1217
-* Adds a render config to the simulation and tiledCamera limitations to the docs by @kellyguo11 in https://github.com/isaac-sim/IsaacLab/pull/1246
-* Adds Kit command line argument support by @kellyguo11 in https://github.com/isaac-sim/IsaacLab/pull/1293
-* Modifies workflow scripts to generate random seed when seed=-1 by @kellyguo11 in https://github.com/isaac-sim/IsaacLab/pull/1048
-* Adds benchmark script to measure robot loading by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/1195
-* Switches from ``carb`` to ``omni.log`` for logging by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/1215
-* Excludes cache files from vscode explorer by @Divelix in https://github.com/isaac-sim/IsaacLab/pull/1131
-* Adds versioning to the docs by @sheikh-nv in https://github.com/isaac-sim/IsaacLab/pull/1247
-* Adds better error message for invalid actuator parameters by @lgulich in https://github.com/isaac-sim/IsaacLab/pull/1235
-* Updates tested docker and apptainer versions for cluster deployment by @pascal-roth in https://github.com/isaac-sim/IsaacLab/pull/1230
-* Removes ``ml_archive`` as a dependency of ``omni.isaac.lab`` extension by @fan-ziqi in https://github.com/isaac-sim/IsaacLab/pull/1266
-* Adds a validity check for configclasses by @Dhoeller19 in https://github.com/isaac-sim/IsaacLab/pull/1214
-* Ensures mesh name is compatible with USD convention in mesh converter by @fan-ziqi in https://github.com/isaac-sim/IsaacLab/pull/1302
-* Adds sanity check for the term type inside the command manager by @command-z-z in https://github.com/isaac-sim/IsaacLab/pull/1315
-* Allows configclass ``to_dict`` operation to handle a list of configclasses by @jtigue-bdai in https://github.com/isaac-sim/IsaacLab/pull/1227
+* Expands functionality of FrameTransformer to allow multi-body transforms by @jsmith-bdai
+* Inverts SE-2 keyboard device actions (Z, X)  for yaw command by @riccardorancan
+* Disables backward pass compilation of warp kernels by @Mayankm96
+* Replaces TensorDict with native dictionary by @Toni-SM
+* Improves omni.isaac.lab_tasks loading time by @Toni-SM
+* Caches PhysX view's joint paths when processing fixed articulation tendons by @Toni-SM
+* Replaces hardcoded module paths with ``__name__`` dunder by @Mayankm96
+* Expands observation term scaling to support list of floats by @pascal-roth
+* Removes extension startup messages from the Simulation App by @Mayankm96
+* Adds a render config to the simulation and tiledCamera limitations to the docs by @kellyguo11
+* Adds Kit command line argument support by @kellyguo11
+* Modifies workflow scripts to generate random seed when seed=-1 by @kellyguo11
+* Adds benchmark script to measure robot loading by @Mayankm96
+* Switches from ``carb`` to ``omni.log`` for logging by @Mayankm96
+* Excludes cache files from vscode explorer by @Divelix
+* Adds versioning to the docs by @sheikh-nv
+* Adds better error message for invalid actuator parameters by @lgulich
+* Updates tested docker and apptainer versions for cluster deployment by @pascal-roth
+* Removes ``ml_archive`` as a dependency of ``omni.isaac.lab`` extension by @fan-ziqi
+* Adds a validity check for configclasses by @Dhoeller19
+* Ensures mesh name is compatible with USD convention in mesh converter by @fan-ziqi
+* Adds sanity check for the term type inside the command manager by @command-z-z
+* Allows configclass ``to_dict`` operation to handle a list of configclasses by @jtigue-bdai
 
 Bug Fixes
 ---------
 
-* Disables replicate physics for deformable teddy lift environment by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/1026
-* Fixes Jacobian joint indices for floating base articulations by @lorenwel in https://github.com/isaac-sim/IsaacLab/pull/1033
-* Fixes setting the seed from CLI for RSL-RL by @kaixi287 in https://github.com/isaac-sim/IsaacLab/pull/1084
-* Fixes camera MDP term name and reprojection docstrings by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/1130
-* Fixes deprecation notice for using ``pxr.Semantics`` by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/1129
-* Fixes scaling of default ground plane by @kellyguo11 in https://github.com/isaac-sim/IsaacLab/pull/1133
-* Fixes Isaac Sim executable on pip installation by @Toni-SM in https://github.com/isaac-sim/IsaacLab/pull/1172
-* Passes device from CLI args to simulation config in standalone scripts by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/1114
-* Fixes the event for randomizing rigid body material by @pascal-roth in https://github.com/isaac-sim/IsaacLab/pull/1140
-* Fixes the ray_caster_camera tutorial script when saving the data by @mpgussert in https://github.com/isaac-sim/IsaacLab/pull/1198
-* Fixes running the docker container when the DISPLAY env variable is not defined by @GiulioRomualdi in https://github.com/isaac-sim/IsaacLab/pull/1163
-* Fixes default joint pos when setting joint limits by @kellyguo11 in https://github.com/isaac-sim/IsaacLab/pull/1040
-* Fixes device propagation for noise and adds noise tests by @jtigue-bdai in https://github.com/isaac-sim/IsaacLab/pull/1175
-* Removes additional sbatch and fixes default profile in cluster deployment by @pascal-roth in https://github.com/isaac-sim/IsaacLab/pull/1229
-* Fixes the checkpoint loading error in RSL-RL training script by @bearpaw in https://github.com/isaac-sim/IsaacLab/pull/1210
-* Fixes pytorch broadcasting issue in ``EMAJointPositionToLimitsAction`` by @bearpaw in https://github.com/isaac-sim/IsaacLab/pull/1207
-* Fixes body IDs selection when computing ``feet_slide`` reward for locomotion-velocity task by @dtc103 in https://github.com/isaac-sim/IsaacLab/pull/1277
-* Fixes broken URLs in markdown files by @DorsaRoh in https://github.com/isaac-sim/IsaacLab/pull/1272
-* Fixes ``net_arch`` in ``sb3_ppo_cfg.yaml`` for Isaac-Lift-Cube-Franka-v0 task by @LinghengMeng in https://github.com/isaac-sim/IsaacLab/pull/1249
-
-New Contributors
-----------------
-
-* @riccardorancan made their first contribution in https://github.com/isaac-sim/IsaacLab/pull/1030
-* @glvov-bdai made their first contribution in https://github.com/isaac-sim/IsaacLab/pull/976
-* @kaixi287 made their first contribution in https://github.com/isaac-sim/IsaacLab/pull/1084
-* @lgulich made their first contribution in https://github.com/isaac-sim/IsaacLab/pull/1119
-* @nv-apoddubny made their first contribution in https://github.com/isaac-sim/IsaacLab/pull/1118
-* @GiulioRomualdi made their first contribution in https://github.com/isaac-sim/IsaacLab/pull/1163
-* @Divelix made their first contribution in https://github.com/isaac-sim/IsaacLab/pull/1131
-* @sheikh-nv made their first contribution in https://github.com/isaac-sim/IsaacLab/pull/1247
-* @dtc103 made their first contribution in https://github.com/isaac-sim/IsaacLab/pull/1277
-* @DorsaRoh made their first contribution in https://github.com/isaac-sim/IsaacLab/pull/1272
-* @louislelay made their first contribution in https://github.com/isaac-sim/IsaacLab/pull/1271
-* @LinghengMeng made their first contribution in https://github.com/isaac-sim/IsaacLab/pull/1249
-* @OOmotuyi made their first contribution in https://github.com/isaac-sim/IsaacLab/pull/1337
-* @command-z-z made their first contribution in https://github.com/isaac-sim/IsaacLab/pull/1315
-* @MoreTore made their first contribution in https://github.com/isaac-sim/IsaacLab/pull/1005
+* Disables replicate physics for deformable teddy lift environment by @Mayankm96
+* Fixes Jacobian joint indices for floating base articulations by @lorenwel
+* Fixes setting the seed from CLI for RSL-RL by @kaixi287
+* Fixes camera MDP term name and reprojection docstrings by @Mayankm96
+* Fixes deprecation notice for using ``pxr.Semantics`` by @Mayankm96
+* Fixes scaling of default ground plane by @kellyguo11
+* Fixes Isaac Sim executable on pip installation by @Toni-SM
+* Passes device from CLI args to simulation config in standalone scripts by @Mayankm96
+* Fixes the event for randomizing rigid body material by @pascal-roth
+* Fixes the ray_caster_camera tutorial script when saving the data by @mpgussert
+* Fixes running the docker container when the DISPLAY env variable is not defined by @GiulioRomualdi
+* Fixes default joint pos when setting joint limits by @kellyguo11
+* Fixes device propagation for noise and adds noise tests by @jtigue-bdai
+* Removes additional sbatch and fixes default profile in cluster deployment by @pascal-roth
+* Fixes the checkpoint loading error in RSL-RL training script by @bearpaw
+* Fixes pytorch broadcasting issue in ``EMAJointPositionToLimitsAction`` by @bearpaw
+* Fixes body IDs selection when computing ``feet_slide`` reward for locomotion-velocity task by @dtc103
+* Fixes broken URLs in markdown files by @DorsaRoh
+* Fixes ``net_arch`` in ``sb3_ppo_cfg.yaml`` for Isaac-Lift-Cube-Franka-v0 task by @LinghengMeng
 
 
 v1.2.0
@@ -736,67 +982,69 @@ New Features
 * Adds the direct workflow perceptive Shadowhand Cube Repose environment ``Isaac-Repose-Cube-Shadow-Vision-Direct-v0`` by @kellyguo11.
 * Adds support for multi-agent environments with the Direct workflow, with support for MAPPO and IPPO in SKRL by @Toni-SM
 * Adds the direct workflow multi-agent environments ``Isaac-Cart-Double-Pendulum-Direct-v0`` and ``Isaac-Shadow-Hand-Over-Direct-v0`` by @Toni-SM
-* Adds throughput benchmarking scripts for the different learning workflows by @kellyguo11 in https://github.com/isaac-sim/IsaacLab/pull/759
+* Adds throughput benchmarking scripts for the different learning workflows by @kellyguo11
 * Adds results for the benchmarks in the documentation
   `here <https://isaac-sim.github.io/IsaacLab/main/source/overview/reinforcement-learning/performance_benchmarks.html>`__
   for different types of hardware by @kellyguo11
-* Adds the direct workflow Allegro hand environment by @kellyguo11 in https://github.com/isaac-sim/IsaacLab/pull/709
-* Adds video recording to the play scripts in RL workflows by @j3soon in https://github.com/isaac-sim/IsaacLab/pull/763
+* Adds the direct workflow Allegro hand environment by @kellyguo11
+* Adds video recording to the play scripts in RL workflows by @j3soon
 * Adds comparison tables for the supported RL libraries
   `here <https://isaac-sim.github.io/IsaacLab/main/source/overview/reinforcement-learning/rl_frameworks.html>`__ by @kellyguo11
-* Add APIs for deformable asset by @masoudmoghani in https://github.com/isaac-sim/IsaacLab/pull/630
-* Adds support for MJCF converter by @qqqwan in https://github.com/isaac-sim/IsaacLab/pull/957
-* Adds a function to define camera configs through intrinsic matrix by @pascal-roth in https://github.com/isaac-sim/IsaacLab/pull/617
-* Adds configurable modifiers to observation manager by @jtigue-bdai in https://github.com/isaac-sim/IsaacLab/pull/830
-* Adds the Hydra configuration system for RL training by @Dhoeller19 in https://github.com/isaac-sim/IsaacLab/pull/700
+* Add APIs for deformable asset by @masoudmoghani
+* Adds support for MJCF converter by @qqqwan
+* Adds a function to define camera configs through intrinsic matrix by @pascal-roth
+* Adds configurable modifiers to observation manager by @jtigue-bdai
+* Adds the Hydra configuration system for RL training by @Dhoeller19
 
 Improvements
 ------------
 
-* Uses PhysX accelerations for rigid body acceleration data by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/760
-* Adds documentation on the frames for asset data by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/742
-* Renames Unitree configs in locomotion tasks to match properly by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/714
-* Adds option to set the height of the border in the ``TerrainGenerator`` by @pascal-roth in https://github.com/isaac-sim/IsaacLab/pull/744
-* Adds a cli arg to ``run_all_tests.py`` for testing a selected extension by @jsmith-bdai in https://github.com/isaac-sim/IsaacLab/pull/753
-* Decouples rigid object and articulation asset classes by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/644
-* Adds performance optimizations for domain randomization by @kellyguo11 in https://github.com/isaac-sim/IsaacLab/pull/494
-* Allows having hybrid dimensional terms inside an observation group by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/772
-* Adds a flag to preserve joint order inside ``JointActionCfg`` action term by @xav-nal in https://github.com/isaac-sim/IsaacLab/pull/787
-* Adds the ability to resume training from a checkpoint with rl_games by @sizsJEon in https://github.com/isaac-sim/IsaacLab/pull/797
-* Adds windows configuration to VS code tasks by @johnBuffer in https://github.com/isaac-sim/IsaacLab/pull/963
-* Adapts A and D button bindings in the keyboard device by @zoctipus in https://github.com/isaac-sim/IsaacLab/pull/910
-* Uses ``torch.einsum`` for  quat_rotate and quat_rotate_inverse operations by @dxyy1 in https://github.com/isaac-sim/IsaacLab/pull/900
-* Expands on articulation test for multiple instances and devices by @jsmith-bdai in https://github.com/isaac-sim/IsaacLab/pull/872
-* Adds setting of environment seed at initialization by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/940
-* Disables default viewport when headless but cameras are enabled by @kellyguo11 in https://github.com/isaac-sim/IsaacLab/pull/851
-* Simplifies the return type for ``parse_env_cfg`` method by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/965
-* Simplifies the if-elses inside the event manager apply method by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/948
+* Uses PhysX accelerations for rigid body acceleration data by @Mayankm96
+* Adds documentation on the frames for asset data by @Mayankm96
+* Renames Unitree configs in locomotion tasks to match properly by @Mayankm96
+* Adds option to set the height of the border in the ``TerrainGenerator`` by @pascal-roth
+* Adds a cli arg to ``run_all_tests.py`` for testing a selected extension by @jsmith-bdai
+* Decouples rigid object and articulation asset classes by @Mayankm96
+* Adds performance optimizations for domain randomization by @kellyguo11
+* Allows having hybrid dimensional terms inside an observation group by @Mayankm96
+* Adds a flag to preserve joint order inside ``JointActionCfg`` action term by @xav-nal
+* Adds the ability to resume training from a checkpoint with rl_games by @sizsJEon
+* Adds windows configuration to VS code tasks by @johnBuffer
+* Adapts A and D button bindings in the keyboard device by @zoctipus
+* Uses ``torch.einsum`` for  quat_rotate and quat_rotate_inverse operations by @dxyy1
+* Expands on articulation test for multiple instances and devices by @jsmith-bdai
+* Adds setting of environment seed at initialization by @Mayankm96
+* Disables default viewport when headless but cameras are enabled by @kellyguo11
+* Simplifies the return type for ``parse_env_cfg`` method by @Mayankm96
+* Simplifies the if-elses inside the event manager apply method by @Mayankm96
 
 Bug Fixes
 ---------
 
-* Fixes rendering frame delays. Rendered images now faithfully represent the latest state of the physics scene. We added the flag
-  ``rerender_on_reset`` in the environment configs to toggle an additional render step when a reset happens. When activated, the images/observation always represent the latest state of the environment, but this also reduces performance.
-* Fixes ``wrap_to_pi`` function in math utilities by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/771
-* Fixes setting of pose when spawning a mesh by @masoudmoghani in https://github.com/isaac-sim/IsaacLab/pull/692
-* Fixes caching of the terrain using the terrain generator by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/757
-* Fixes running train scripts when rsl_rl is not installed by @Dhoeller19 in https://github.com/isaac-sim/IsaacLab/pull/784, https://github.com/isaac-sim/IsaacLab/pull/789
-* Adds flag to recompute inertia when randomizing the mass of a rigid body by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/989
-* Fixes support for ``classmethod`` when defining a configclass by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/901
-* Fixes ``Sb3VecEnvWrapper`` to clear buffer on reset by @EricJin2002 in https://github.com/isaac-sim/IsaacLab/pull/974
-* Fixes venv and conda pip installation on windows by @kellyguo11 in https://github.com/isaac-sim/IsaacLab/pull/970
-* Sets native livestream extensions to Isaac Sim 4.1-4.0 defaults by @jtigue-bdai in https://github.com/isaac-sim/IsaacLab/pull/954
-* Defaults the gym video recorder fps to match episode decimation by @ozhanozen in https://github.com/isaac-sim/IsaacLab/pull/894
-* Fixes the event manager's apply method by @kellyguo11 in https://github.com/isaac-sim/IsaacLab/pull/936
-* Updates camera docs with world units and introduces new test for intrinsics by @pascal-roth in https://github.com/isaac-sim/IsaacLab/pull/886
-* Adds the ability to resume training from a checkpoint with rl_games by @sizsJEon in https://github.com/isaac-sim/IsaacLab/pull/797
+* Fixes rendering frame delays. Rendered images now faithfully represent the latest state of the physics scene.
+  We added the flag ``rerender_on_reset`` in the environment configs to toggle an additional render step when a
+  reset happens. When activated, the images/observation always represent the latest state of the environment, but
+  this also reduces performance.
+* Fixes ``wrap_to_pi`` function in math utilities by @Mayankm96
+* Fixes setting of pose when spawning a mesh by @masoudmoghani
+* Fixes caching of the terrain using the terrain generator by @Mayankm96
+* Fixes running train scripts when rsl_rl is not installed by @Dhoeller19
+* Adds flag to recompute inertia when randomizing the mass of a rigid body by @Mayankm96
+* Fixes support for ``classmethod`` when defining a configclass by @Mayankm96
+* Fixes ``Sb3VecEnvWrapper`` to clear buffer on reset by @EricJin2002
+* Fixes venv and conda pip installation on windows by @kellyguo11
+* Sets native livestream extensions to Isaac Sim 4.1-4.0 defaults by @jtigue-bdai
+* Defaults the gym video recorder fps to match episode decimation by @ozhanozen
+* Fixes the event manager's apply method by @kellyguo11
+* Updates camera docs with world units and introduces new test for intrinsics by @pascal-roth
+* Adds the ability to resume training from a checkpoint with rl_games by @sizsJEon
 
 Breaking Changes
 ----------------
 
-* Simplifies device setting in SimulationCfg and AppLauncher by @Dhoeller19 in https://github.com/isaac-sim/IsaacLab/pull/696
-* Fixes conflict in teleop-device command line argument in scripts by @Dhoeller19 in https://github.com/isaac-sim/IsaacLab/pull/791
-* Converts container.sh into Python utilities by @hhansen-bdai  in https://github.com/isaac-sim/IsaacLab/commit/f565c33d7716db1be813b30ddbcf9321712fc497
+* Simplifies device setting in SimulationCfg and AppLauncher by @Dhoeller19
+* Fixes conflict in teleop-device command line argument in scripts by @Dhoeller19
+* Converts container.sh into Python utilities by @hhansen-bdai
 * Drops support for ``TiledCamera`` for Isaac Sim 4.1
 
 Migration Guide
@@ -805,7 +1053,10 @@ Migration Guide
 Setting the simulation device into the simulation context
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Previously, changing the simulation device to CPU required users to set other simulation parameters (such as disabling GPU physics and GPU pipelines). This made setting up the device appear complex. We now simplify the checks for device directly inside the simulation context, so users only need to specify the device through the configuration object.
+Previously, changing the simulation device to CPU required users to set other simulation parameters
+(such as disabling GPU physics and GPU pipelines). This made setting up the device appear complex.
+We now simplify the checks for device directly inside the simulation context, so users only need to
+specify the device through the configuration object.
 
 Before:
 
@@ -822,7 +1073,10 @@ Now:
 Setting the simulation device from CLI
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Previously, users could specify the device through the command line argument ``--device_id``. However, this made it ambiguous when users wanted to set the device to CPU. Thus, instead of the device ID, users need to specify the device explicitly through the argument ``--device``. The valid options for the device name are:
+Previously, users could specify the device through the command line argument ``--device_id``. However,
+this made it ambiguous when users wanted to set the device to CPU. Thus, instead of the device ID,
+users need to specify the device explicitly through the argument ``--device``.
+The valid options for the device name are:
 
 * "cpu": runs simulation on CPU
 * "cuda": runs simulation on GPU with device ID at default index
@@ -845,7 +1099,9 @@ Now:
 Renaming of teleoperation device CLI in standalone scripts
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Since ``--device`` is now an argument provided by the AppLauncher, it conflicted with the command-line argument used for specifying the teleoperation-device in some of the standalone scripts. Thus, to fix this conflict, the teleoperation-device now needs to be specified through ``--teleop_device`` argument.
+Since ``--device`` is now an argument provided by the AppLauncher, it conflicted with the command-line
+argument used for specifying the teleoperation-device in some of the standalone scripts. Thus, to fix
+this conflict, the teleoperation-device now needs to be specified through ``--teleop_device`` argument.
 
 Before:
 
@@ -863,9 +1119,14 @@ Now:
 Using Python-version of container utility script
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The prior `container.sh <https://github.com/isaac-sim/IsaacLab/blob/v1.1.0/docker/container.sh>`_ became quite complex as it had many different use cases in one script. For instance, building a docker image for "base" or "ros2", as well as cluster deployment. As more users wanted to have the flexibility to overlay their own docker settings, maintaining this bash script became cumbersome. Hence, we migrated its features into a Python script in this release. Additionally, we split the cluster-related utilities into their own script inside the ``docker/cluster`` directory.
+The prior `container.sh <https://github.com/isaac-sim/IsaacLab/blob/v1.1.0/docker/container.sh>`_ became quite
+complex as it had many different use cases in one script. For instance, building a docker image for "base" or "ros2",
+as well as cluster deployment. As more users wanted to have the flexibility to overlay their own docker settings,
+maintaining this bash script became cumbersome. Hence, we migrated its features into a Python script in this release.
+Additionally, we split the cluster-related utilities into their own script inside the ``docker/cluster`` directory.
 
-We still maintain backward compatibility for ``container.sh``. Internally, it calls the Python script ``container.py``. We request users to use the Python script directly.
+We still maintain backward compatibility for ``container.sh``. Internally, it calls the Python script ``container.py``.
+We request users to use the Python script directly.
 
 Before:
 
@@ -884,31 +1145,22 @@ Now:
 Using separate directories for logging videos in RL workflows
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Previously, users could record videos during the RL training by specifying the ``--video`` flag to the ``train.py`` script. The videos would be saved inside the ``videos`` directory in the corresponding log directory of the run.
+Previously, users could record videos during the RL training by specifying the ``--video`` flag to the
+``train.py`` script. The videos would be saved inside the ``videos`` directory in the corresponding log
+directory of the run.
 
-Since many users requested to also be able to record videos while inferencing the policy, recording videos have also been added to the ``play.py`` script. Since changing the prefix of the video file names is not possible, the videos from the train and play scripts are saved inside the ``videos/train`` and ``videos/play`` directories, respectively.
+Since many users requested to also be able to record videos while inferencing the policy, recording
+videos have also been added to the ``play.py`` script. Since changing the prefix of the video file
+names is not possible, the videos from the train and play scripts are saved inside the ``videos/train``
+and ``videos/play`` directories, respectively.
 
 Drops support for the tiled camera with Isaac Sim 4.1
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Various fixes have been made to the tiled camera rendering pipeline in Isaac Sim 4.2. This made supporting the tiled camera with Isaac Sim 4.1 difficult. Hence, for the best experience, we advice switching to Isaac Sim 4.2 with this release of Isaac Lab.
+Various fixes have been made to the tiled camera rendering pipeline in Isaac Sim 4.2. This made
+supporting the tiled camera with Isaac Sim 4.1 difficult. Hence, for the best experience, we advice
+switching to Isaac Sim 4.2 with this release of Isaac Lab.
 
-New Contributors
-----------------
-
-* @xav-nal made their first contribution in https://github.com/isaac-sim/IsaacLab/pull/787
-* @sizsJEon made their first contribution in https://github.com/isaac-sim/IsaacLab/pull/797
-* @jtigue-bdai made their first contribution in https://github.com/isaac-sim/IsaacLab/pull/830
-* @StrainFlow made their first contribution in https://github.com/isaac-sim/IsaacLab/pull/835
-* @mpgussert made their first contribution in https://github.com/isaac-sim/IsaacLab/pull/827
-* @Symars made their first contribution in https://github.com/isaac-sim/IsaacLab/pull/898
-* @martinmatak made their first contribution in https://github.com/isaac-sim/IsaacLab/pull/876
-* @bearpaw made their first contribution in https://github.com/isaac-sim/IsaacLab/pull/945
-* @dxyy1 made their first contribution in https://github.com/isaac-sim/IsaacLab/pull/900
-* @qqqwan made their first contribution in https://github.com/isaac-sim/IsaacLab/pull/957
-* @johnBuffer made their first contribution in https://github.com/isaac-sim/IsaacLab/pull/963
-* @EricJin2002 made their first contribution in https://github.com/isaac-sim/IsaacLab/pull/974
-* @iamnambiar made their first contribution in https://github.com/isaac-sim/IsaacLab/pull/986
 
 v1.1.0
 ======
@@ -929,41 +1181,41 @@ all our contributors for their continued support.
 New Features
 ------------
 
-* Adds distributed multi-GPU learning support for skrl by @Toni-SM in https://github.com/isaac-sim/IsaacLab/pull/574
-* Updates skrl integration to support training/evaluation using JAX by @Toni-SM in https://github.com/isaac-sim/IsaacLab/pull/592
-* Adds lidar pattern for raycaster sensor by @pascal-roth in https://github.com/isaac-sim/IsaacLab/pull/616
-* Adds support for PBS job scheduler-based clusters by @shafeef901 in https://github.com/isaac-sim/IsaacLab/pull/605
-* Adds APIs for spawning deformable meshes by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/613
+* Adds distributed multi-GPU learning support for skrl by @Toni-SM
+* Updates skrl integration to support training/evaluation using JAX by @Toni-SM
+* Adds lidar pattern for raycaster sensor by @pascal-roth
+* Adds support for PBS job scheduler-based clusters by @shafeef901
+* Adds APIs for spawning deformable meshes by @Mayankm96
 
 Improvements
 ------------
 
-* Changes documentation color to the green theme by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/585
-* Fixes sphinx tabs to make them work in dark theme by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/584
-* Fixes VSCode settings to work with pip installation of Isaac Sim by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/628
-* Fixes ``isaaclab`` scripts to deal with Isaac Sim pip installation by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/631
-* Optimizes interactive scene for homogeneous cloning by @kellyguo11 in https://github.com/isaac-sim/IsaacLab/pull/636
-* Improves docker X11 forwarding documentation by @j3soon in https://github.com/isaac-sim/IsaacLab/pull/685
+* Changes documentation color to the green theme by @Mayankm96
+* Fixes sphinx tabs to make them work in dark theme by @Mayankm96
+* Fixes VSCode settings to work with pip installation of Isaac Sim by @Mayankm96
+* Fixes ``isaaclab`` scripts to deal with Isaac Sim pip installation by @Mayankm96
+* Optimizes interactive scene for homogeneous cloning by @kellyguo11
+* Improves docker X11 forwarding documentation by @j3soon
 
 Bug Fixes
 ---------
 
-* Reads gravity direction from simulation inside ``RigidObjectData`` by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/582
-* Fixes reference count in asset instances due to circular references by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/580
-* Fixes issue with asset deinitialization due to torch > 2.1 by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/640
-* Fixes the rendering logic regression in environments by @Dhoeller19 in https://github.com/isaac-sim/IsaacLab/pull/614
-* Fixes the check for action-space inside Stable-Baselines3 wrapper by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/610
-* Fixes warning message in Articulation config processing by @locoxsoco in https://github.com/isaac-sim/IsaacLab/pull/699
-* Fixes action term in the reach environment by @masoudmoghani in https://github.com/isaac-sim/IsaacLab/pull/710
-* Fixes training UR10 reach with RL_GAMES and SKRL by @sudhirpratapyadav in https://github.com/isaac-sim/IsaacLab/pull/678
-* Adds event manager call to simple manage-based env by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/666
+* Reads gravity direction from simulation inside ``RigidObjectData`` by @Mayankm96
+* Fixes reference count in asset instances due to circular references by @Mayankm96
+* Fixes issue with asset deinitialization due to torch > 2.1 by @Mayankm96
+* Fixes the rendering logic regression in environments by @Dhoeller19
+* Fixes the check for action-space inside Stable-Baselines3 wrapper by @Mayankm96
+* Fixes warning message in Articulation config processing by @locoxsoco
+* Fixes action term in the reach environment by @masoudmoghani
+* Fixes training UR10 reach with RL_GAMES and SKRL by @sudhirpratapyadav
+* Adds event manager call to simple manage-based env by @Mayankm96
 
 Breaking Changes
 ----------------
 
 * Drops official support for Isaac Sim 2023.1.1
-* Removes the use of body view inside the asset classes by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/643
-* Renames ``SimulationCfg.substeps`` to ``SimulationCfg.render_interval`` by @Dhoeller19 in https://github.com/isaac-sim/IsaacLab/pull/515
+* Removes the use of body view inside the asset classes by @Mayankm96
+* Renames ``SimulationCfg.substeps`` to ``SimulationCfg.render_interval`` by @Dhoeller19
 
 Migration Guide
 ---------------
@@ -971,7 +1223,10 @@ Migration Guide
 Renaming of ``SimulationCfg.substeps``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Previously, the users set both ``omni.isaac.lab.sim.SimulationCfg.dt`` and ``omni.isaac.lab.sim.SimulationCfg.substeps``, which marked the physics insulation time-step and sub-steps, respectively. It was unclear whether sub-steps meant the number of integration steps inside the physics time-step ``dt`` or the number of physics steps inside a rendering step.
+Previously, the users set both ``omni.isaac.lab.sim.SimulationCfg.dt`` and
+``omni.isaac.lab.sim.SimulationCfg.substeps``, which marked the physics insulation time-step and sub-steps,
+respectively. It was unclear whether sub-steps meant the number of integration steps inside the physics time-step
+``dt`` or the number of physics steps inside a rendering step.
 
 Since in the code base, the attribute was used as the latter, it has been renamed to ``render_interval`` for clarity.
 
@@ -1015,7 +1270,8 @@ New Features
 
 * Integrated CI/CD pipeline, which is triggered on pull requests and publishes the results publicly
 * Extended support for Windows OS platforms
-* Added `tiled rendered <https://isaac-sim.github.io/IsaacLab/source/features/tiled_rendering.html>`_ based Camera sensor implementation. This provides optimized RGB-D rendering throughputs of up to 10k frames per second.
+* Added `tiled rendered <https://isaac-sim.github.io/IsaacLab/source/features/tiled_rendering.html>`_ based Camera
+  sensor implementation. This provides optimized RGB-D rendering throughputs of up to 10k frames per second.
 * Added support for multi-GPU and multi-node training for the RL-Games library
 * Integrated APIs for environment designing (direct workflow) without relying on managers
 * Added implementation of delayed PD actuator model
@@ -1031,7 +1287,8 @@ Improvements
 ------------
 
 * Reduced start-up time for scripts (inherited from Isaac Sim 4.0 improvements)
-* Added lazy buffer implementation for rigid object and articulation data. Instead of updating all the quantities at every step call, the lazy buffers are updated only when the user queries them
+* Added lazy buffer implementation for rigid object and articulation data. Instead of updating all the quantities
+  at every step call, the lazy buffers are updated only when the user queries them
 * Added SKRL support to more environments
 
 Breaking Changes
@@ -1046,13 +1303,5 @@ Please find detailed migration guides as follows:
 
 * `From Orbit to IsaacLab <https://isaac-sim.github.io/IsaacLab/main/source/migration/migrating_from_orbit.html>`_
 * `From OmniIsaacGymEnvs to IsaacLab <https://isaac-sim.github.io/IsaacLab/main/source/migration/migrating_from_omniisaacgymenvs.html>`_
-
-New Contributors
-----------------
-
-* @abizovnuralem made their first contribution in https://github.com/isaac-sim/IsaacLab/pull/452
-* @eltociear made their first contribution in https://github.com/isaac-sim/IsaacLab/pull/460
-* @zoctipus made their first contribution in https://github.com/isaac-sim/IsaacLab/pull/486
-* @JunghwanRo made their first contribution in https://github.com/isaac-sim/IsaacLab/pull/497
 
 .. _simple script: https://gist.github.com/kellyguo11/3e8f73f739b1c013b1069ad372277a85

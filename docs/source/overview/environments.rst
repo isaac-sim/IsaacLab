@@ -132,6 +132,9 @@ for the lift-cube environment:
     +--------------------+-------------------------+-----------------------------------------------------------------------------+
     | |gr1_pick_place|   | |gr1_pick_place-link|   | Pick up and place an object in a basket with a GR-1 humanoid robot          |
     +--------------------+-------------------------+-----------------------------------------------------------------------------+
+    | |gr1_pp_waist|     | |gr1_pp_waist-link|     | Pick up and place an object in a basket with a GR-1 humanoid robot          |
+    |                    |                         | with waist degrees-of-freedom enables that provides a wider reach space.    |
+    +--------------------+-------------------------+-----------------------------------------------------------------------------+
 
 .. |reach-franka| image:: ../_static/tasks/manipulation/franka_reach.jpg
 .. |reach-ur10| image:: ../_static/tasks/manipulation/ur10_reach.jpg
@@ -141,6 +144,7 @@ for the lift-cube environment:
 .. |cube-shadow| image:: ../_static/tasks/manipulation/shadow_cube.jpg
 .. |stack-cube| image:: ../_static/tasks/manipulation/franka_stack.jpg
 .. |gr1_pick_place| image:: ../_static/tasks/manipulation/gr-1_pick_place.jpg
+.. |gr1_pp_waist| image:: ../_static/tasks/manipulation/gr-1_pick_place_waist.jpg
 
 .. |reach-franka-link| replace:: `Isaac-Reach-Franka-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/reach/config/franka/joint_pos_env_cfg.py>`__
 .. |reach-ur10-link| replace:: `Isaac-Reach-UR10-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/reach/config/ur_10/joint_pos_env_cfg.py>`__
@@ -152,8 +156,9 @@ for the lift-cube environment:
 .. |cube-allegro-link| replace:: `Isaac-Repose-Cube-Allegro-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/inhand/config/allegro_hand/allegro_env_cfg.py>`__
 .. |allegro-direct-link| replace:: `Isaac-Repose-Cube-Allegro-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/allegro_hand/allegro_hand_env_cfg.py>`__
 .. |stack-cube-link| replace:: `Isaac-Stack-Cube-Franka-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/stack/config/franka/stack_joint_pos_env_cfg.py>`__
-.. |stack-cube-bp-link| replace:: `Isaac-Stack-Cube-Franka-Blueprint-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/stack/config/franka/stack_ik_rel_blueprint_env_cfg.py>`__
+.. |stack-cube-bp-link| replace:: `Isaac-Stack-Cube-Franka-IK-Rel-Blueprint-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/stack/config/franka/stack_ik_rel_blueprint_env_cfg.py>`__
 .. |gr1_pick_place-link| replace:: `Isaac-PickPlace-GR1T2-Abs-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/pick_place/pickplace_gr1t2_env_cfg.py>`__
+.. |gr1_pp_waist-link| replace:: `Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/pick_place/pickplace_gr1t2_waist_enabled_env_cfg.py>`__
 
 .. |cube-shadow-link| replace:: `Isaac-Repose-Cube-Shadow-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/shadow_hand/shadow_hand_env_cfg.py>`__
 .. |cube-shadow-ff-link| replace:: `Isaac-Repose-Cube-Shadow-OpenAI-FF-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/shadow_hand/shadow_hand_env_cfg.py>`__
@@ -244,6 +249,44 @@ We provide environments for both disassembly and assembly.
 
 .. |assembly-link| replace:: `Isaac-AutoMate-Assembly-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/automate/assembly_env_cfg.py>`__
 .. |disassembly-link| replace:: `Isaac-AutoMate-Disassembly-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/automate/disassembly_env_cfg.py>`__
+
+FORGE
+~~~~~~~~
+
+FORGE environments extend Factory environments with:
+
+* Force sensing: Add observations for force experienced by the end-effector.
+* Excessive force penalty: Add an option to penalize the agent for excessive contact forces.
+* Dynamics randomization: Randomize controller gains, asset properties (friction, mass), and dead-zone.
+* Success prediction: Add an extra action that predicts task success.
+
+These tasks share the same task configurations and control options. You can switch between them by specifying the task name.
+
+* |forge-peg-link|: Peg insertion with the Franka arm
+* |forge-gear-link|: Gear meshing with the Franka arm
+* |forge-nut-link|: Nut-Bolt fastening with the Franka arm
+
+.. table::
+    :widths: 33 37 30
+
+    +--------------------+-------------------------+-----------------------------------------------------------------------------+
+    | World              | Environment ID          | Description                                                                 |
+    +====================+=========================+=============================================================================+
+    | |forge-peg|        | |forge-peg-link|        | Insert peg into the socket with the Franka robot                            |
+    +--------------------+-------------------------+-----------------------------------------------------------------------------+
+    | |forge-gear|       | |forge-gear-link|       | Insert and mesh gear into the base with other gears, using the Franka robot |
+    +--------------------+-------------------------+-----------------------------------------------------------------------------+
+    | |forge-nut|        | |forge-nut-link|        | Thread the nut onto the first 2 threads of the bolt, using the Franka robot |
+    +--------------------+-------------------------+-----------------------------------------------------------------------------+
+
+.. |forge-peg| image:: ../_static/tasks/factory/peg_insert.jpg
+.. |forge-gear| image:: ../_static/tasks/factory/gear_mesh.jpg
+.. |forge-nut| image:: ../_static/tasks/factory/nut_thread.jpg
+
+.. |forge-peg-link| replace:: `Isaac-Forge-PegInsert-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/forge/forge_env_cfg.py>`__
+.. |forge-gear-link| replace:: `Isaac-Forge-GearMesh-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/forge/forge_env_cfg.py>`__
+.. |forge-nut-link| replace:: `Isaac-Forge-NutThread-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/forge/forge_env_cfg.py>`__
+
 
 Locomotion
 ~~~~~~~~~~
@@ -743,6 +786,18 @@ inferencing, including reading from an already trained checkpoint and disabling 
       -
       - Direct
       -
+    * - Isaac-Forge-GearMesh-Direct-v0
+      -
+      - Direct
+      - **rl_games** (PPO)
+    * - Isaac-Forge-NutThread-Direct-v0
+      -
+      - Direct
+      - **rl_games** (PPO)
+    * - Isaac-Forge-PegInsert-Direct-v0
+      -
+      - Direct
+      - **rl_games** (PPO)
     * - Isaac-Franka-Cabinet-Direct-v0
       -
       - Direct
@@ -867,11 +922,11 @@ inferencing, including reading from an already trained checkpoint and disabling 
       -
       - Manager Based
       -
-    * - Isaac-Stack-Cube-Instance-Randomize-Franka-IK-Rel-v0 (Requires running with ``--enable_cameras``)
+    * - Isaac-Stack-Cube-Instance-Randomize-Franka-IK-Rel-v0
       -
       - Manager Based
       -
-    * - Isaac-Stack-Cube-Instance-Randomize-Franka-v0 (Requires running with ``--enable_cameras``)
+    * - Isaac-Stack-Cube-Instance-Randomize-Franka-v0
       -
       - Manager Based
       -

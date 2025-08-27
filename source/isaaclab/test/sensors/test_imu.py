@@ -34,7 +34,7 @@ from isaaclab.utils import configclass
 # Pre-defined configs
 ##
 from isaaclab_assets.robots.anymal import ANYMAL_C_CFG  # isort: skip
-from isaaclab.utils.assets import NUCLEUS_ASSET_ROOT_DIR  # isort: skip
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR  # isort: skip
 
 # offset of imu_link from base_link on anymal_c
 POS_OFFSET = (0.2488, 0.00835, 0.04628)
@@ -148,7 +148,7 @@ class MySceneCfg(InteractiveSceneCfg):
         self.pendulum.init_state.pos = (-1.0, 1.0, 0.5)
 
         # change asset
-        self.robot.spawn.usd_path = f"{NUCLEUS_ASSET_ROOT_DIR}/Isaac/Robots/ANYbotics/anymal_c.usd"
+        self.robot.spawn.usd_path = f"{ISAAC_NUCLEUS_DIR}/Robots/ANYbotics/anymal_c/anymal_c.usd"
         # change iterations
         self.robot.spawn.articulation_props.solver_position_iteration_count = 32
         self.robot.spawn.articulation_props.solver_velocity_iteration_count = 32
@@ -174,6 +174,7 @@ def setup_sim():
     sim.clear_instance()
 
 
+@pytest.mark.isaacsim_ci
 def test_constant_velocity(setup_sim):
     """Test the Imu sensor with a constant velocity.
 
@@ -262,6 +263,7 @@ def test_constant_velocity(setup_sim):
         prev_ang_acc_cube = scene.sensors["imu_cube"].data.ang_acc_b.clone()
 
 
+@pytest.mark.isaacsim_ci
 def test_constant_acceleration(setup_sim):
     """Test the Imu sensor with a constant acceleration."""
     sim, scene = setup_sim
@@ -305,6 +307,7 @@ def test_constant_acceleration(setup_sim):
         )
 
 
+@pytest.mark.isaacsim_ci
 def test_single_dof_pendulum(setup_sim):
     """Test imu against analytical pendulum problem."""
     sim, scene = setup_sim
@@ -438,6 +441,7 @@ def test_single_dof_pendulum(setup_sim):
         )
 
 
+@pytest.mark.isaacsim_ci
 def test_offset_calculation(setup_sim):
     """Test offset configuration argument."""
     sim, scene = setup_sim
@@ -512,6 +516,7 @@ def test_offset_calculation(setup_sim):
         )
 
 
+@pytest.mark.isaacsim_ci
 def test_env_ids_propagation(setup_sim):
     """Test that env_ids argument propagates through update and reset methods"""
     sim, scene = setup_sim
@@ -542,6 +547,7 @@ def test_env_ids_propagation(setup_sim):
     scene.update(sim.get_physics_dt())
 
 
+@pytest.mark.isaacsim_ci
 def test_sensor_print(setup_sim):
     """Test sensor print is working correctly."""
     sim, scene = setup_sim

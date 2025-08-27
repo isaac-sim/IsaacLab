@@ -1,7 +1,85 @@
 Changelog
 ---------
 
-0.10.36 (2025-06-26)
+0.10.47 (2025-07-25)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* New ``Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0`` environment that enables the waist degrees-of-freedom for the GR1T2 robot.
+
+
+Changed
+^^^^^^^
+
+* Updated pink inverse kinematics controller configuration for the following tasks (``Isaac-PickPlace-GR1T2``, ``Isaac-NutPour-GR1T2``, ``Isaac-ExhaustPipe-GR1T2``)
+  to increase end-effector tracking accuracy and speed. Also added a null-space regularizer that enables turning on of waist degrees-of-freedom without
+  the robot control drifting to a bending posture.
+* Tuned the pink inverse kinematics controller and joint PD controllers for the following tasks (``Isaac-PickPlace-GR1T2``, ``Isaac-NutPour-GR1T2``, ``Isaac-ExhaustPipe-GR1T2``)
+  to improve the end-effector tracking accuracy and speed. Achieving position and orientation accuracy test within **(2 mm, 1 degree)**.
+
+
+0.10.46 (2025-08-16)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added symmetry data augmentation example with RSL-RL for cartpole and anymal locomotion environments.
+* Added :attr:`--agent` to RL workflow scripts to allow switching between different configurations.
+
+
+0.10.45 (2025-07-16)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``from __future__ import annotations`` to isaaclab_tasks files to fix Sphinx
+  doc warnings for IsaacLab Mimic docs.
+
+
+0.10.44 (2025-07-16)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``Isaac-Forge-PegInsert-Direct-v0``, ``Isaac-Forge-GearMesh-Direct-v0``,
+  and ``Isaac-Forge-NutThread-Direct-v0`` environments as direct RL envs. These
+  environments extend ``Isaac-Factory-*-v0`` with force sensing, an excessive force
+  penalty, dynamics randomization, and success prediction.
+
+
+0.10.43 (2025-07-24)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed un-set camera observations in the ``Isaac-Stack-Cube-Instance-Randomize-Franka-v0`` environment.
+
+
+0.10.42 (2025-07-11)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Organized environment unit tests
+
+
+0.10.41 (2025-07-01)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the rendering settings used for the Mimic-Cosmos pipeline.
+
+
+0.10.40 (2025-06-26)
 ~~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -10,7 +88,7 @@ Fixed
 * Relaxed upper range pin for protobuf python dependency for more permissive installation.
 
 
-0.10.35 (2025-05-22)
+0.10.39 (2025-05-22)
 ~~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -19,7 +97,7 @@ Fixed
 * Fixed redundant body_names assignment in rough_env_cfg.py for H1 robot.
 
 
-0.10.34 (2025-06-16)
+0.10.38 (2025-06-16)
 ~~~~~~~~~~~~~~~~~~~~
 
 Changed
@@ -28,7 +106,7 @@ Changed
 * Show available RL library configs on error message when an entry point key is not available for a given task.
 
 
-0.10.33 (2025-05-15)
+0.10.37 (2025-05-15)
 ~~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -38,7 +116,7 @@ Added
   implements assembly tasks to insert pegs into their corresponding sockets.
 
 
-0.10.32 (2025-05-21)
+0.10.36 (2025-05-21)
 ~~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -46,6 +124,49 @@ Added
 
 * Added unit tests for benchmarking environments with configurable settings. Output KPI payloads
   can be pushed to a visualization dashboard to track improvements or regressions.
+
+
+0.10.35 (2025-05-21)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos-v0`` stacking environment with multi-modality camera inputs at higher resolution.
+
+Changed
+^^^^^^^
+
+* Updated the ``Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-v0`` stacking environment to support visual domain randomization events during model evaluation.
+* Made the task termination condition for the stacking task more strict.
+
+
+0.10.34 (2025-05-22)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed ``Isaac-PickPlace-GR1T2-Abs-v0`` object asset to a steering wheel.
+
+
+0.10.33 (2025-05-12)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Increase ``Isaac-PickPlace-GR1T2-Abs-v0`` sim dt to 120Hz for improved stability.
+* Fix object initial state in ``Isaac-PickPlace-GR1T2-Abs-v0`` to be above the table.
+
+
+0.10.32 (2025-05-01)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added new GR1 tasks (``Isaac-NutPour-GR1T2-Pink-IK-Abs-v0``, and ``Isaac-ExhaustPipe-GR1T2-Pink-IK-Abs-v0``).
 
 
 0.10.31 (2025-04-02)

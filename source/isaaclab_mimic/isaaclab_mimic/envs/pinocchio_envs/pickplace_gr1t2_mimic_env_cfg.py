@@ -3,11 +3,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-# Copyright (c) 2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: Apache-2.0
-
 from isaaclab.envs.mimic_env_cfg import MimicEnvCfg, SubTaskConfig
 from isaaclab.utils import configclass
 
@@ -22,7 +17,7 @@ class PickPlaceGR1T2MimicEnvCfg(PickPlaceGR1T2EnvCfg, MimicEnvCfg):
         super().__post_init__()
 
         # Override the existing values
-        self.datagen_config.name = "demo_src_gr1t2_demo_task_D0"
+        self.datagen_config.name = "gr1t2_pick_place_D0"
         self.datagen_config.generation_guarantee = True
         self.datagen_config.generation_keep_failed = False
         self.datagen_config.generation_num_trials = 1000
@@ -55,7 +50,7 @@ class PickPlaceGR1T2MimicEnvCfg(PickPlaceGR1T2EnvCfg, MimicEnvCfg):
                 # Optional parameters for the selection strategy function
                 selection_strategy_kwargs={"nn_k": 3},
                 # Amount of action noise to apply during this subtask
-                action_noise=0.005,
+                action_noise=0.003,
                 # Number of interpolation steps to bridge to this subtask segment
                 num_interpolation_steps=0,
                 # Additional fixed steps for the robot to reach the necessary pose
@@ -77,7 +72,7 @@ class PickPlaceGR1T2MimicEnvCfg(PickPlaceGR1T2EnvCfg, MimicEnvCfg):
                 # Optional parameters for the selection strategy function
                 selection_strategy_kwargs={"nn_k": 3},
                 # Amount of action noise to apply during this subtask
-                action_noise=0.005,
+                action_noise=0.003,
                 # Number of interpolation steps to bridge to this subtask segment
                 num_interpolation_steps=3,
                 # Additional fixed steps for the robot to reach the necessary pose
@@ -102,7 +97,7 @@ class PickPlaceGR1T2MimicEnvCfg(PickPlaceGR1T2EnvCfg, MimicEnvCfg):
                 # Optional parameters for the selection strategy function
                 selection_strategy_kwargs={"nn_k": 3},
                 # Amount of action noise to apply during this subtask
-                action_noise=0.005,
+                action_noise=0.003,
                 # Number of interpolation steps to bridge to this subtask segment
                 num_interpolation_steps=0,
                 # Additional fixed steps for the robot to reach the necessary pose
