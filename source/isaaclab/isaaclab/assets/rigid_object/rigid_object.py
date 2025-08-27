@@ -145,8 +145,6 @@ class RigidObject(AssetBase):
             )
             self._wrench_composer.reset()
 
-
-
     def update(self, dt: float):
         self._data.update(dt)
 
@@ -611,7 +609,9 @@ class RigidObject(AssetBase):
         # constants
         self._ALL_INDICES = torch.arange(self.num_instances, dtype=torch.long, device=self.device)
         self._ALL_INDICES_WP = wp.from_torch(self._ALL_INDICES.to(torch.int32), dtype=wp.int32)
-        self._ALL_BODY_INDICES_WP = wp.from_torch(torch.arange(self.num_bodies, dtype=torch.int32, device=self.device), dtype=wp.int32)
+        self._ALL_BODY_INDICES_WP = wp.from_torch(
+            torch.arange(self.num_bodies, dtype=torch.int32, device=self.device), dtype=wp.int32
+        )
 
         # external forces and torques
         self.has_external_wrench = False
