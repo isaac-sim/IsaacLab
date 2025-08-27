@@ -60,6 +60,36 @@ It allows you to develop in an isolated environment, outside of the core Isaac L
             # use 'FULL_PATH_TO_isaaclab.sh|bat -p' instead of 'python' if Isaac Lab is not installed in Python venv or conda
             python scripts/random_agent.py --task=<TASK_NAME>
             ```
+### Include Custom USD Assets (Optional)
+
+
+If your project uses custom robots or environments with their own USD files, the template generator supports setting this up directly.
+
+This setup ensures everything — tasks, code, and assets — lives in a single, isolated directory instead of splitting files between your external project and the core Isaac Lab repository.
+
+To add your own robot:
+
+1. Add your USD asset as:
+
+    ```bash
+    FULL_PATH_TO_PROJECT/<given-project-name>/source/<given-project-name>/data/Robots/<your_robot_name>/<your_robot_name>.usd
+    ```
+
+2. Create a config file describing your robot as:
+
+    ```bash
+    FULL_PATH_TO_PROJECT/<given-project-name>/source/<given-project-name>/<given-project-name>/robots/<your_robot_name>.py
+    ```
+
+    Follow the format described in the [How-To Guide](https://isaac-sim.github.io/IsaacLab/main/source/how-to/write_articulation_cfg.html).
+
+3. Import your asset configuration in the following file:
+
+    ```bash
+    FULL_PATH_TO_PROJECT/<given-project-name>/source/<given-project-name>/<given-project-name>/robots/__init__.py
+    ```
+
+4. Import your config in the task’s environment configuration file (e.g., `*_env_cfg.py`), just like in the Cartpole examples included in this template.
 
 ### Set up IDE (Optional)
 

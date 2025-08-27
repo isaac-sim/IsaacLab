@@ -59,6 +59,32 @@ The generator will guide you in setting up the project/task for your needs by as
 * Isaac Lab workflows (see :ref:`feature-workflows`).
 * Reinforcement learning libraries (see :ref:`rl-frameworks`), and algorithms (if the selected libraries support multiple algorithms).
 
+Optional: Include Custom USD Assets (external project only)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+If your project involves custom robots or environments with their own USD files, the template generator supports this directly.
+
+This is especially useful if you want to keep everything self-contained in a single, isolated directory — without having your tasks in the external project and your custom assets elsewhere (e.g., in the main Isaac Lab repository structure).
+
+To add your own robot:
+
+1. Place your USD file in::
+
+     FULL_PATH_TO_PROJECT/<given-project-name>/source/<given-project-name>/data/Robots/<your_robot_name>/<your_robot_name>.usd
+
+2. Create a corresponding configuration file in::
+
+     FULL_PATH_TO_PROJECT/<given-project-name>/source/<given-project-name>/<given-project-name>/robots/<your_robot_name>.py
+
+   following the format described in the :ref:`how-to-write-articulation-config`.
+
+3. Import your asset configuration in the following file::
+
+     FULL_PATH_TO_PROJECT/<given-project-name>/source/<given-project-name>/<given-project-name>/robots/__init__.py
+
+4. Import your robot config in your environment configuration file (e.g., ``*_env_cfg.py``), just like in the Cartpole examples provided by the generated template.
+
+
 External project usage (once generated)
 ---------------------------------------
 
@@ -134,6 +160,48 @@ Here are some general commands to get started with it:
 
           python scripts\<specific-rl-library>\train.py --task=<Task-Name>
 
+* Run a task with dummy agents.
+
+  These include dummy agents that output zero or random agents. They are useful to ensure that the environments are configured correctly.
+
+  * Zero-action agent
+
+    .. tab-set::
+      :sync-group: os
+
+      .. tab-item:: :icon:`fa-brands fa-linux` Linux
+          :sync: linux
+
+          .. code-block:: bash
+
+            python scripts/zero_agent.py --task=<Task-Name>
+
+      .. tab-item:: :icon:`fa-brands fa-windows` Windows
+          :sync: windows
+
+          .. code-block:: batch
+
+            python scripts\zero_agent.py --task=<Task-Name>
+
+  * Random-action agent
+
+    .. tab-set::
+      :sync-group: os
+
+      .. tab-item:: :icon:`fa-brands fa-linux` Linux
+          :sync: linux
+
+          .. code-block:: bash
+
+            python scripts/random_agent.py --task=<Task-Name>
+
+      .. tab-item:: :icon:`fa-brands fa-windows` Windows
+          :sync: windows
+
+          .. code-block:: batch
+
+            python scripts\random_agent.py --task=<Task-Name>
+
 For more details, please follow the instructions in the generated project's ``README.md`` file.
 
 Internal task usage (once generated)
@@ -185,45 +253,3 @@ Here are some general commands to get started with it:
         .. code-block:: batch
 
           python scripts\reinforcement_learning\<specific-rl-library>\train.py --task=<Task-Name>
-
-* Run a task with dummy agents.
-
-  These include dummy agents that output zero or random agents. They are useful to ensure that the environments are configured correctly.
-
-  * Zero-action agent
-
-    .. tab-set::
-      :sync-group: os
-
-      .. tab-item:: :icon:`fa-brands fa-linux` Linux
-          :sync: linux
-
-          .. code-block:: bash
-
-            python scripts/zero_agent.py --task=<Task-Name>
-
-      .. tab-item:: :icon:`fa-brands fa-windows` Windows
-          :sync: windows
-
-          .. code-block:: batch
-
-            python scripts\zero_agent.py --task=<Task-Name>
-
-  * Random-action agent
-
-    .. tab-set::
-      :sync-group: os
-
-      .. tab-item:: :icon:`fa-brands fa-linux` Linux
-          :sync: linux
-
-          .. code-block:: bash
-
-            python scripts/random_agent.py --task=<Task-Name>
-
-      .. tab-item:: :icon:`fa-brands fa-windows` Windows
-          :sync: windows
-
-          .. code-block:: batch
-
-            python scripts\random_agent.py --task=<Task-Name>
