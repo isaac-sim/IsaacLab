@@ -9,6 +9,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 
+import os
 import isaaclab.envs.mdp as mdp
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg
@@ -66,7 +67,7 @@ class DroneEnvCfg(DirectRLEnvCfg):
     robot: ArticulationCfg = ArticulationCfg(
         prim_path="/World/envs/env_.*/Robot",
         spawn=sim_utils.UsdFileCfg(
-            usd_path="https://isaac-dev.ov.nvidia.com/omni/web3/omniverse://isaac-dev.ov.nvidia.com/Users/zhengyuz@nvidia.com/Robots/NTNU/Quad/quad.usd"
+            usd_path=os.path.join(os.path.dirname(os.path.abspath(__file__)), "Quad/quad.usd")
         ),
         init_state=ArticulationCfg.InitialStateCfg(
             pos=(0.0, 0.0, 0.0), rot=(1.0, 0.0, 0.0, 0.0), joint_pos={}, joint_vel={}
