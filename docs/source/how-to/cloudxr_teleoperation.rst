@@ -273,6 +273,20 @@ On your Mac:
 
       git clone git@github.com:isaac-sim/isaac-xr-teleop-sample-client-apple.git
 
+#. Check out the version tag corresponding to your Isaac Lab version:
+
+   +-------------------+---------------------+
+   | Isaac Lab Version | Client Version Tag  |
+   +-------------------+---------------------+
+   | 2.2.x             | v2.2.0              |
+   +-------------------+---------------------+
+   | 2.1.x             | v1.0.0              |
+   +-------------------+---------------------+
+
+   .. code-block:: bash
+
+      git checkout <version_tag>
+
 #. Follow the README in the repository to build and install the app on your Apple Vision Pro.
 
 
