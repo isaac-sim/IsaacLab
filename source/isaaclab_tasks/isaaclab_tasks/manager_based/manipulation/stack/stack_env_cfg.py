@@ -6,7 +6,7 @@
 from dataclasses import MISSING
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import ArticulationCfg, AssetBaseCfg, SurfaceGripperCfg
+from isaaclab.assets import ArticulationCfg, AssetBaseCfg
 from isaaclab.devices.openxr import XrCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
