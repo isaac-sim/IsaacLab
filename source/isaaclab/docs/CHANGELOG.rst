@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.45.9 (2025-08-27)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed removing import of pink_ik controller from isaaclab.controllers which is causing pinocchio import error.
+
+
 0.45.8 (2025-07-25)
 ~~~~~~~~~~~~~~~~~~~
 
