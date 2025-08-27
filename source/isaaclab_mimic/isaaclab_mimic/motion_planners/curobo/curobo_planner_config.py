@@ -3,43 +3,61 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import os
+import tempfile
+import yaml
 from dataclasses import dataclass, field
 
 from curobo.geom.sdf.world import CollisionCheckerType
 from curobo.geom.types import WorldConfig
-from curobo.util_file import get_world_configs_path, join_path, load_yaml
+from curobo.util_file import get_robot_configs_path, get_world_configs_path, join_path, load_yaml
+
+from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 
 
 @dataclass
 class CuroboPlannerConfig:
-    """Configuration for CuRobo motion planner."""
+    """Configuration for CuRobo motion planner.
+
+    This dataclass provides a flexible configuration system for the CuRobo motion planner.
+    The base configuration is robot-agnostic, with factory methods providing pre-configured
+    settings for specific robots and tasks.
+
+    Example Usage:
+        >>> # Use a pre-configured robot
+        >>> config = CuroboPlannerConfig.franka_config()
+        >>>
+        >>> # Or create from task name
+        >>> config = CuroboPlannerConfig.from_task_name("Isaac-Stack-Cube-Franka-v0")
+        >>>
+        >>> # Initialize planner with config
+        >>> planner = CuroboPlanner(env, robot, config)
+
+    To add support for a new robot, see the factory methods section below for detailed instructions.
+    """
 
     # Robot configuration
-    robot_config_file: str = "franka.yml"
+    robot_config_file: str | None = None
     """cuRobo robot configuration file (path defined by curobo api)."""
 
-    robot_name: str = "franka"
+    robot_name: str = ""
     """Robot name for visualization and identification."""
 
     ee_link_name: str | None = None
     """End-effector link name (auto-detected from robot config if None)."""
 
     # Gripper configuration
-    gripper_joint_names: list[str] = field(default_factory=lambda: ["panda_finger_joint1", "panda_finger_joint2"])
+    gripper_joint_names: list[str] = field(default_factory=list)
     """Names of gripper joints."""
 
-    gripper_open_positions: dict[str, float] = field(
-        default_factory=lambda: {"panda_finger_joint1": 0.04, "panda_finger_joint2": 0.04}
-    )
+    gripper_open_positions: dict[str, float] = field(default_factory=dict)
     """Open gripper positions for cuRobo to update spheres"""
 
-    gripper_closed_positions: dict[str, float] = field(
-        default_factory=lambda: {"panda_finger_joint1": 0.008, "panda_finger_joint2": 0.008}
-    )
+    gripper_closed_positions: dict[str, float] = field(default_factory=dict)
     """Closed gripper positions for cuRobo to update spheres"""
 
     # Hand link configuration (for contact planning)
-    hand_link_names: list[str] = field(default_factory=lambda: ["panda_leftfinger", "panda_rightfinger", "panda_hand"])
+    hand_link_names: list[str] = field(default_factory=list)
     """Names of hand/finger links to disable during contact planning."""
 
     # Attachment configuration
@@ -160,10 +178,9 @@ class CuroboPlannerConfig:
         # Load the base world config
         world_cfg_table = WorldConfig.from_dict(load_yaml(join_path(get_world_configs_path(), self.world_config_file)))
 
-        # Adjust table height if cuboid exists
-        if world_cfg_table.cuboid is not None:
-            if len(world_cfg_table.cuboid) > 0:
-                world_cfg_table.cuboid[0].pose[2] -= 0.02
+        # Adjust table height if cuboid exists and has a pose
+        if world_cfg_table.cuboid and len(world_cfg_table.cuboid) > 0 and world_cfg_table.cuboid[0].pose:
+            world_cfg_table.cuboid[0].pose[2] -= 0.02
 
         # Get mesh world for additional collision objects
         world_cfg_mesh = WorldConfig.from_dict(
@@ -171,20 +188,179 @@ class CuroboPlannerConfig:
         ).get_mesh_world()
 
         # Adjust mesh configuration if it exists
-        if world_cfg_mesh.mesh is not None:
-            if len(world_cfg_mesh.mesh) > 0:
-                world_cfg_mesh.mesh[0].name += "_mesh"
-                world_cfg_mesh.mesh[0].pose[2] = -10.5  # Move mesh below scene
+        if world_cfg_mesh.mesh and len(world_cfg_mesh.mesh) > 0:
+            mesh_obj = world_cfg_mesh.mesh[0]
+            if mesh_obj.name:
+                mesh_obj.name += "_mesh"
+            if mesh_obj.pose:
+                mesh_obj.pose[2] = -10.5  # Move mesh below scene
 
         # Combine cuboid and mesh worlds
         world_cfg = WorldConfig(cuboid=world_cfg_table.cuboid, mesh=world_cfg_mesh.mesh)
         return world_cfg
 
+    @staticmethod
+    def _create_temp_robot_yaml(base_yaml: str, urdf_path: str) -> str:
+        """Create a temporary robot configuration YAML with custom URDF path.
+
+        Args:
+            base_yaml: Base robot configuration file name
+            urdf_path: Absolute path to the URDF file
+
+        Returns:
+            Path to the temporary YAML file
+
+        Raises:
+            FileNotFoundError: If the URDF file doesn't exist
+        """
+        # Validate URDF path
+        if not os.path.isabs(urdf_path) or not os.path.isfile(urdf_path):
+            raise FileNotFoundError(f"URDF must be a local file: {urdf_path}")
+
+        # Load base configuration
+        robot_cfg_path = get_robot_configs_path()
+        base_path = join_path(robot_cfg_path, base_yaml)
+        data = load_yaml(base_path)
+        print(f"urdf_path: {urdf_path}")
+        # Update URDF path
+        data["robot_cfg"]["kinematics"]["urdf_path"] = urdf_path
+
+        # Write to temporary file
+        tmp_dir = tempfile.mkdtemp(prefix="curobo_robot_cfg_")
+        out_path = os.path.join(tmp_dir, base_yaml)
+        with open(out_path, "w") as f:
+            yaml.safe_dump(data, f, sort_keys=False)
+
+        return out_path
+
+    # =====================================================================================
+    # FACTORY METHODS FOR ROBOT CONFIGURATIONS
+    # =====================================================================================
+    """
+    Creating Custom Robot Configurations
+    =====================================
+
+    To create a configuration for your own robot, follow these steps:
+
+    1. Create a Factory Method
+    ---------------------------
+    Define a classmethod that returns a configured instance:
+
+    .. code-block:: python
+
+        @classmethod
+        def my_robot_config(cls) -> "CuroboPlannerConfig":
+            # Option 1: Download from Nucleus (like Franka example)
+            urdf_path = f"{ISAACLAB_NUCLEUS_DIR}/path/to/my_robot.urdf"
+            local_urdf = retrieve_file_path(urdf_path, force_download=True)
+
+            # Option 2: Use local file directly
+            # local_urdf = "/absolute/path/to/my_robot.urdf"
+
+            # Create temporary YAML with custom URDF path
+            robot_cfg_file = cls._create_temp_robot_yaml("my_robot.yml", local_urdf)
+
+            return cls(
+                # Required: Specify robot configuration file
+                robot_config_file=robot_cfg_file,  # Use the generated YAML with custom URDF
+                robot_name="my_robot",
+
+                # Gripper configuration (if robot has grippers)
+                gripper_joint_names=["gripper_left", "gripper_right"],
+                gripper_open_positions={"gripper_left": 0.05, "gripper_right": 0.05},
+                gripper_closed_positions={"gripper_left": 0.01, "gripper_right": 0.01},
+
+                # Hand/finger links to disable during contact planning
+                hand_link_names=["finger_link_1", "finger_link_2", "palm_link"],
+
+                # Optional: Custom collision spheres configuration
+                collision_spheres_file="spheres/my_robot_spheres.yml",  # Path relative to curobo (can override with custom spheres file)
+
+                # Grasp detection threshold
+                grasp_gripper_open_val=0.05,
+
+                # Motion planning parameters (tune for your robot)
+                approach_distance=0.05,  # Distance to approach before grasping
+                retreat_distance=0.05,   # Distance to retreat after grasping
+                time_dilation_factor=0.5,  # Speed factor (0.5 = half speed)
+
+                # Visualization options
+                visualize_spheres=False,
+                visualize_plan=False,
+                debug_planner=False,
+            )
+
+    2. Task-Specific Configurations
+    --------------------------------
+    For task-specific variants, create methods that modify the base config:
+
+    .. code-block:: python
+
+        @classmethod
+        def my_robot_pick_place_config(cls) -> "CuroboPlannerConfig":
+            config = cls.my_robot_config()  # Start from base config
+
+            # Override for pick-and-place tasks
+            config.approach_distance = 0.08
+            config.retreat_distance = 0.10
+            config.enable_finetune_trajopt = True
+            config.collision_activation_distance = 0.02
+
+            # Custom world configuration if needed
+            config.get_world_config = lambda: config._get_world_config_with_table_adjustment()
+
+            return config
+
+    3. Register in from_task_name()
+    --------------------------------
+    Add your robot detection logic to the from_task_name method:
+
+    .. code-block:: python
+
+        @classmethod
+        def from_task_name(cls, task_name: str) -> "CuroboPlannerConfig":
+            task_lower = task_name.lower()
+
+            # Add your robot detection
+            if "my-robot" in task_lower:
+                if "pick-place" in task_lower:
+                    return cls.my_robot_pick_place_config()
+                else:
+                    return cls.my_robot_config()
+
+            # ... existing robot checks ...
+
+    Important Notes
+    ---------------
+    - The _create_temp_robot_yaml() helper creates a temporary YAML with your custom URDF
+    - If using Nucleus assets, retrieve_file_path() downloads them to a local temp directory
+    - The base robot YAML (e.g., "my_robot.yml") should exist in cuRobo's robot configs
+
+    Best Practices
+    --------------
+    1. Start with conservative parameters (slow speed, large distances)
+    2. Test with visualization enabled (visualize_plan=True) for debugging
+    3. Tune collision_activation_distance based on controller precision to follow collision-free motion
+    4. Adjust sphere counts in extra_collision_spheres for attached objects
+    5. Use debug_planner=True when developing new configurations
+    """
+
     @classmethod
     def franka_config(cls) -> "CuroboPlannerConfig":
-        """Create configuration for Franka Panda robot."""
+        """Create configuration for Franka Panda robot.
+
+        This method uses a custom URDF from Nucleus for the Franka robot.
+
+        Returns:
+            CuroboPlannerConfig: Configuration for Franka robot
+        """
+        urdf_path = f"{ISAACLAB_NUCLEUS_DIR}/Controllers/SkillGenAssets/FrankaPanda/franka_panda.urdf"
+        local_urdf = retrieve_file_path(urdf_path, force_download=True)
+
+        robot_cfg_file = cls._create_temp_robot_yaml("franka.yml", local_urdf)
+
         return cls(
-            robot_config_file="franka.yml",
+            robot_config_file=robot_cfg_file,
             robot_name="franka",
             gripper_joint_names=["panda_finger_joint1", "panda_finger_joint2"],
             gripper_open_positions={"panda_finger_joint1": 0.04, "panda_finger_joint2": 0.04},
@@ -196,7 +372,7 @@ class CuroboPlannerConfig:
             retreat_distance=0.0,
             max_planning_attempts=1,
             time_dilation_factor=0.6,
-            enable_finetune_trajopt=False,
+            enable_finetune_trajopt=True,
             n_repeat=None,
             motion_step_size=None,
             visualize_spheres=False,
@@ -211,35 +387,14 @@ class CuroboPlannerConfig:
         """Create configuration for Franka stacking cube in a bin."""
         config = cls.franka_config()
         config.gripper_closed_positions = {"panda_finger_joint1": 0.024, "panda_finger_joint2": 0.024}
-        config.grasp_gripper_open_val = 0.04
         config.approach_distance = 0.05
         config.retreat_distance = 0.07
         config.surface_sphere_radius = 0.01
-        config.debug_planner = True
+        config.debug_planner = False
         config.collision_activation_distance = 0.02
-        config.visualize_plan = True
+        config.visualize_plan = False
         config.enable_finetune_trajopt = True
         config.motion_noise_scale = 0.02
-        config.get_world_config = lambda: config._get_world_config_with_table_adjustment()
-        return config
-
-    @classmethod
-    def franka_stack_square_nut_config(cls) -> "CuroboPlannerConfig":
-        """Create configuration for Franka stacking a square nut."""
-        config = cls.franka_config()
-        config.gripper_closed_positions = {"panda_finger_joint1": 0.021, "panda_finger_joint2": 0.021}
-        config.grasp_gripper_open_val = 0.04
-        config.approach_distance = 0.11
-        config.retreat_distance = 0.11
-        config.extra_collision_spheres = {"attached_object": 200}
-        config.surface_sphere_radius = 0.005
-        config.n_repeat = None
-        config.motion_step_size = None
-        config.visualize_spheres = False
-        config.visualize_plan = True
-        config.debug_planner = True
-        config.motion_noise_scale = 0.0
-        config.time_dilation_factor = 0.4
         config.get_world_config = lambda: config._get_world_config_with_table_adjustment()
         return config
 
@@ -247,17 +402,14 @@ class CuroboPlannerConfig:
     def franka_stack_cube_config(cls) -> "CuroboPlannerConfig":
         """Create configuration for Franka stacking a normal cube."""
         config = cls.franka_config()
-        config.n_repeat = None
-        config.motion_step_size = None
         config.visualize_spheres = False
-        config.visualize_plan = False
-        config.debug_planner = True
-        config.motion_noise_scale = 0.0
-        config.motion_step_size = None
-        config.n_repeat = None
+        config.visualize_plan = True
+        config.debug_planner = False
+        config.motion_noise_scale = 0.02
         config.collision_activation_distance = 0.01
         config.approach_distance = 0.05
         config.retreat_distance = 0.05
+        config.surface_sphere_radius = 0.01
         config.get_world_config = lambda: config._get_world_config_with_table_adjustment()
         return config
 
@@ -275,8 +427,6 @@ class CuroboPlannerConfig:
 
         if "stack-cube-bin" in task_lower:
             return cls.franka_stack_cube_bin_config()
-        elif "stack-square-nut" in task_lower:
-            return cls.franka_stack_square_nut_config()
         elif "stack-cube" in task_lower:
             return cls.franka_stack_cube_config()
         else:
