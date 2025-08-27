@@ -547,7 +547,7 @@ if "%arg%"=="-i" (
             set "skip=1"
         )
     )
-    !isaacsim_exe! --ext-folder %ISAACLAB_PATH%\source !allArgs1
+    !isaacsim_exe! --ext-folder %ISAACLAB_PATH%\source !allArgs!
     goto :end
 ) else if "%arg%"=="--sim" (
     rem run the simulator exe provided by Isaac Sim
@@ -562,7 +562,7 @@ if "%arg%"=="-i" (
             set "skip=1"
         )
     )
-    !isaacsim_exe! --ext-folder %ISAACLAB_PATH%\source !allArgs1
+    !isaacsim_exe! --ext-folder %ISAACLAB_PATH%\source !allArgs!
     goto :end
 ) else if "%arg%"=="-n" (
     rem run the template generator script
