@@ -81,8 +81,6 @@ class RayCasterBenchmarkSceneCfg(InteractiveSceneCfg):
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 4.0)),
     )
-    # # robot
-    # robot: ArticulationCfg = ANYMAL_D_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")  # type: ignore[attr-defined]
 
     # spheres collection (optionally set at runtime)
     spheres: RigidObjectCfg = RigidObjectCfg(
@@ -264,10 +262,9 @@ def main():
     
     ## BENCHMARK 1 - Compare Single VS Multi
     results: list[dict[str, object]] = []
-    
-    
-    NUM_ENVS = [128, 125] #, 256, 512, 1024, 2048]
-    RESOLUTIONS: list[float] = [0.2, 0.1] #, 0.1, 0.05]
+
+    NUM_ENVS = [32, 64, 128, 256, 512, 1024, 2048]
+    RESOLUTIONS: list[float] = [0.2, 0.1, 0.05]
 
     print("=== Benchmarking Multi vs Single Raycaster ===")
     
@@ -311,9 +308,12 @@ def main():
     df_single_vs_multi["device"] = device_name
     os.makedirs("outputs/benchmarks", exist_ok=True)
     df_single_vs_multi.to_csv("outputs/benchmarks/ray_caster_benchmark_single_vs_multi.csv", index=False)
+    
+    print("\n=== Benchmarking Multi Raycaster with different number of assets and faces ===")
 
     # Compare multi mesh performance over different number of assets
-    for num_assets in [0, 1, 2, 4, 8, 16, 32, 64, 128]:
+    for idx, num_assets in enumerate([0, 1, 2, 4, 8, 16, 32, 64, 128]):
+        print(f"\n[INFO]: Benchmarking with {num_assets} assets. {idx} / {len(NUM_ENVS)}")
         multi_scene_cfg = _make_scene_cfg_multi(
             num_envs=num_envs,
             resolution=resolution,
@@ -333,8 +333,10 @@ def main():
     df_num_assets["device"] = device_name
     df_num_assets.to_csv("outputs/benchmarks/ray_caster_benchmark_num_assets.csv", index=False)
 
+    print("\n=== Benchmarking Multi Raycaster with different number of faces ===")
     # Compare multi mesh performance over different number of vertices
-    for subdivision in [0, 1, 2, 3, 4]:
+    for idx, subdivision in enumerate([0, 1, 2, 3, 4]):
+        print(f"\n[INFO]: Benchmarking with {subdivision} subdivisions. {idx} / {len(NUM_ENVS)}")
         _MESH_CONVERTERS_CALLBACKS["Sphere"] = lambda p: _create_sphere_trimesh(p, subdivisions=subdivision)
         multi_scene_cfg = _make_scene_cfg_multi(
             num_envs=num_envs,
