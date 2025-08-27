@@ -78,7 +78,7 @@ class DroneEnv(DirectRLEnv):
         thruster_force_b = torch.stack((zero_thrust, zero_thrust, output_thrust), dim=2)
         thruster_torque_b = self.thrust_to_torque_ratio * thruster_force_b * (-self.thruster_directions[None, :, None])
 
-        self.external_wrench_b[:] = 0  # zero out wrench at begining of each step
+        self.external_wrench_b[:] = 0  # zero out wrench at beginning of each step
         self.external_wrench_b[:, self.cfg.thruster_links.body_ids, :3] = thruster_force_b
         self.external_wrench_b[:, self.cfg.thruster_links.body_ids, 3:] = thruster_torque_b
 
@@ -156,7 +156,7 @@ class DroneEnv(DirectRLEnv):
 
             wrench_matrix = torch.tensor(self.cfg.wrench_matrix, device=self.device)
             self.inv_wrench_matrix = torch.linalg.pinv(wrench_matrix).expand(self.num_envs, -1, -1)
-            
+
             # resolve bodies indices that attached with thruster
             self.cfg.thruster_links.resolve(self.scene)
             # allocate wrench tensor

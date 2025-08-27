@@ -10,6 +10,7 @@
 
 
 import os
+
 import isaaclab.envs.mdp as mdp
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg
@@ -66,9 +67,7 @@ class DroneEnvCfg(DirectRLEnvCfg):
     # robot
     robot: ArticulationCfg = ArticulationCfg(
         prim_path="/World/envs/env_.*/Robot",
-        spawn=sim_utils.UsdFileCfg(
-            usd_path=os.path.join(os.path.dirname(os.path.abspath(__file__)), "Quad/quad.usd")
-        ),
+        spawn=sim_utils.UsdFileCfg(usd_path=os.path.join(os.path.dirname(os.path.abspath(__file__)), "Quad/quad.usd")),
         init_state=ArticulationCfg.InitialStateCfg(
             pos=(0.0, 0.0, 0.0), rot=(1.0, 0.0, 0.0, 0.0), joint_pos={}, joint_vel={}
         ),
