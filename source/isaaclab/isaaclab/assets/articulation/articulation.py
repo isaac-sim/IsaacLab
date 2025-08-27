@@ -16,6 +16,7 @@ import torch
 from prettytable import PrettyTable
 
 import omni.physics.tensors.impl.api as physx
+import warp as wp
 from isaacsim.core.simulation_manager import SimulationManager
 from pxr import PhysxSchema, UsdPhysics
 
@@ -27,6 +28,7 @@ from isaaclab.utils.types import ArticulationActions
 from isaaclab.utils.version import get_isaac_sim_version
 
 from ..asset_base import AssetBase
+from ..utils.wrench_composer import WrenchComposer
 from .articulation_data import ArticulationData
 
 if TYPE_CHECKING:
@@ -198,21 +200,29 @@ class Articulation(AssetBase):
         # write external wrench
         if self.has_external_wrench:
             if self.uses_external_wrench_positions:
-                self.root_physx_view.apply_forces_and_torques_at_position(
-                    force_data=self._external_force_b.view(-1, 3),
-                    torque_data=self._external_torque_b.view(-1, 3),
-                    position_data=self._external_wrench_positions_b.view(-1, 3),
-                    indices=self._ALL_INDICES,
-                    is_global=self._use_global_wrench_frame,
+                self._wrench_composer.add_forces_and_torques(
+                    wp.from_torch(self._ALL_INDICES),
+                    wp.from_torch(self._ALL_INDICES),
+                    forces=wp.from_torch(self._external_force_b.view(-1, 3)),
+                    torques=wp.from_torch(self._external_torque_b.view(-1, 3)),
+                    positions=wp.from_torch(self._external_wrench_positions_b.view(-1, 3)),
                 )
             else:
-                self.root_physx_view.apply_forces_and_torques_at_position(
-                    force_data=self._external_force_b.view(-1, 3),
-                    torque_data=self._external_torque_b.view(-1, 3),
-                    position_data=None,
-                    indices=self._ALL_INDICES,
-                    is_global=self._use_global_wrench_frame,
+                self._wrench_composer.add_forces_and_torques(
+                    wp.from_torch(self._ALL_INDICES),
+                    wp.from_torch(self._ALL_INDICES),
+                    forces=wp.from_torch(self._external_force_b.view(-1, 3)),
+                    torques=wp.from_torch(self._external_torque_b.view(-1, 3)),
+                    positions=None,
                 )
+            self.root_physx_view.apply_forces_and_torques_at_position(
+                force_data=self._wrench_composer.composed_force_as_torch.view(-1, 3),
+                torque_data=self._wrench_composer.composed_torque_as_torch.view(-1, 3),
+                position_data=None,
+                indices=self._ALL_INDICES,
+                is_global=self._use_global_wrench_frame,
+            )
+            self._wrench_composer.reset()
 
         # apply actuator models
         self._apply_actuator_model()
@@ -1058,6 +1068,75 @@ class Articulation(AssetBase):
             if self.uses_external_wrench_positions:
                 self._external_wrench_positions_b.flatten(0, 1)[indices] = 0.0
 
+    def add_composable_force_and_torque(
+        self,
+        forces: torch.Tensor | None = None,
+        torques: torch.Tensor | None = None,
+        positions: torch.Tensor | None = None,
+        env_ids: Sequence[int] | None = None,
+        body_ids: Sequence[int] | slice | None = None,
+    ):
+        """Add composable forces and torques to the articulation.
+
+        Unlike the :meth:`set_external_force_and_torque` function, this function does not apply constant forces and torques to the articulation.
+        It will be instantenous, and only valid for the next simulation step. Also, unlike the :meth:`set_external_force_and_torque` function,
+        this function can apply and compose multiple forces and torques applied to the same bodies. This means that if it is called multiple times,
+        the forces and torques will be added together.
+
+        .. note::
+            This function can be called with or without positions, torques or forces. Any combination of the three is allowed.
+            Only if none of the three are provided, then the function will raise an error.
+
+            .. code-block:: python
+
+                # example of adding two forces in a single step on the same body
+                asset.add_composable_force_and_torque(forces=torch.ones(1, 1, 3), env_ids=[0], body_ids=[0])
+                asset.add_composable_force_and_torque(forces=torch.ones(1, 1, 3), env_ids=[0], body_ids=[1])
+                # We can also add torques to the same body
+                asset.add_composable_force_and_torque(torques=torch.ones(1, 1, 3), env_ids=[0], body_ids=[0])
+                # We can also add forces and torques to the same body
+                asset.add_composable_force_and_torque(forces=torch.ones(1, 1, 3), torques=torch.ones(1, 1, 3), env_ids=[0], body_ids=[0])
+                # We can also add forces and torques to the same body with different positions
+                asset.add_composable_force_and_torque(forces=torch.ones(1, 1, 3), torques=torch.ones(1, 1, 3), env_ids=[0], body_ids=[0], positions=torch.ones(1, 1, 3))
+
+                # The resulting composed forces and torques can be queried by calling:
+                composed_force = asset._wrench_composer.composed_force_as_torch
+                composed_torque = asset._wrench_composer.composed_torque_as_torch
+
+        .. note::
+            This function does not apply the composable forces and torques to the simulation. It only fills the buffers with
+            the desired values. To apply the composable forces and torques, call the :meth:`write_data_to_sim` function.
+
+        Args:
+            forces: Composable forces. Shape is (len(env_ids), len(body_ids), 3).
+            torques: Composable torques. Shape is (len(env_ids), len(body_ids), 3).
+            positions: Positions to apply composable wrench. Shape is (len(env_ids), len(body_ids), 3). Defaults to None.
+            env_ids: Environment indices to apply composable wrench to. Defaults to None (all environments).
+            body_ids: Body indices to apply composable wrench to. Defaults to None (all bodies).
+        """
+
+        # -- env_ids
+        if env_ids is None:
+            env_ids = self._ALL_INDICES
+        elif not isinstance(env_ids, torch.Tensor):
+            env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
+        # -- body_ids
+        if body_ids is None:
+            body_ids = torch.arange(self.num_bodies, dtype=torch.long, device=self.device)
+        elif isinstance(body_ids, slice):
+            body_ids = torch.arange(self.num_bodies, dtype=torch.long, device=self.device)[body_ids]
+        elif not isinstance(body_ids, torch.Tensor):
+            body_ids = torch.tensor(body_ids, dtype=torch.long, device=self.device)
+
+        # Write to composer
+        self._wrench_composer.add_forces_and_torques(
+            wp.from_torch(env_ids),
+            wp.from_torch(body_ids),
+            forces=wp.from_torch(forces) if forces is not None else None,
+            torques=wp.from_torch(torques) if torques is not None else None,
+            positions=wp.from_torch(positions) if positions is not None else None,
+        )
+
     def set_joint_position_target(
         self, target: torch.Tensor, joint_ids: Sequence[int] | slice | None = None, env_ids: Sequence[int] | None = None
     ):
@@ -1572,6 +1651,9 @@ class Articulation(AssetBase):
         self._external_torque_b = torch.zeros_like(self._external_force_b)
         self._external_wrench_positions_b = torch.zeros_like(self._external_force_b)
         self._use_global_wrench_frame = False
+
+        # external wrench composer
+        self._wrench_composer = WrenchComposer(self.num_instances, self.num_bodies, self.device)
 
         # asset named data
         self._data.joint_names = self.joint_names
