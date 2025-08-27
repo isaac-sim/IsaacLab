@@ -370,7 +370,6 @@ class PlanVisualizer:
         robot_spheres: list[Any] | None = None,
         attached_spheres: list[Any] | None = None,
         ee_positions: np.ndarray | None = None,
-        finger_positions: np.ndarray | None = None,
         frame_duration: float = 0.1,
         world_scene: Optional["trimesh.Scene"] = None,
     ) -> None:
@@ -382,7 +381,6 @@ class PlanVisualizer:
             robot_spheres: Optional list of robot collision spheres
             attached_spheres: Optional list of attached object spheres
             ee_positions: Optional end-effector positions
-            finger_positions: Optional finger positions
             frame_duration: Duration between frames in seconds
             world_scene: Optional world scene to visualize
         """
@@ -412,7 +410,7 @@ class PlanVisualizer:
         self._visualize_target_pose(target_pose)
 
         # Visualize trajectory (end-effector positions if provided)
-        self._visualize_trajectory(plan, frame_duration, ee_positions, finger_positions)
+        self._visualize_trajectory(plan, frame_duration, ee_positions)
 
         # Visualize spheres if provided
         if robot_spheres:
@@ -428,10 +426,8 @@ class PlanVisualizer:
         # Clear dynamic trajectory, target, and finger logs to avoid artifacts between visualizations
         dynamic_paths = [
             "trajectory",
-            "finger_trajectory",
-            "trajectory",  # keyframe children cleared recursively
-            "finger",  # keyframe children cleared recursively
             "target",
+            "anim",
         ]
 
         for path in dynamic_paths:
@@ -489,7 +485,6 @@ class PlanVisualizer:
         plan: JointState,
         frame_duration: float,
         ee_positions: np.ndarray | None = None,
-        finger_positions: np.ndarray | None = None,
     ) -> None:
         """Visualize the robot trajectory.
 
@@ -497,7 +492,6 @@ class PlanVisualizer:
             plan: Joint state trajectory
             frame_duration: Duration between frames in seconds
             ee_positions: Optional end-effector positions
-            finger_positions: Optional finger positions
         """
         if ee_positions is None:
             raw = plan.position.detach().cpu().numpy() if torch.is_tensor(plan.position) else np.array(plan.position)
@@ -519,6 +513,7 @@ class PlanVisualizer:
                 colors=[[0, 100, 255]],  # Blue
                 radii=[0.005],
             ),
+            static=True,
         )
 
         # Log keyframes
@@ -530,30 +525,8 @@ class PlanVisualizer:
                     colors=[[0, 100, 255]],  # Blue
                     radii=[0.01],
                 ),
+                static=True,
             )
-
-        # Log finger path if provided
-        if finger_positions is not None:
-            if len(finger_positions) == 0:
-                return
-            try:
-                rr.log(
-                    "world/finger_trajectory",
-                    rr.LineStrips3D(
-                        [finger_positions],
-                        colors=[[0, 0, 255]],  # Blue
-                        radii=[0.005],
-                    ),
-                )
-                for i, pos in enumerate(finger_positions):
-                    rr.log(
-                        f"world/finger/keyframe_{i}",
-                        rr.Points3D(
-                            positions=np.array([pos + self._base_translation]), colors=[[0, 0, 255]], radii=[0.01]
-                        ),
-                    )
-            except Exception as e:
-                print(f"Error visualizing finger trajectory: {e}")
 
     def _visualize_robot_spheres(self, spheres: list[Any]) -> None:
         """Visualize robot collision spheres.
@@ -948,23 +921,16 @@ class PlanVisualizer:
         """
         self._motion_gen_ref = motion_gen
 
-    def restore_static_spheres(self) -> None:
-        """Restore static sphere visualization after animation."""
-        # Note: This would require re-calling visualize_plan to recreate the static spheres
-        if self.debug:
-            print("To restore static spheres, call visualize_plan() again")
+    def mark_idle(self) -> None:
+        # Advance plan timeline and emit empty anim so latest frame is blank
+        rr.set_time("plan", sequence=self._current_frame)
+        self._current_frame += 1
+        empty = np.empty((0, 3), dtype=float)
+        rr.log("world/anim/ee", rr.Points3D(positions=empty))
+        rr.log("world/robot_animation", rr.Points3D(positions=empty))
+        rr.log("world/attached_animation", rr.Points3D(positions=empty))
 
-    def clear_animation_spheres(self) -> None:
-        """Clear animated sphere visualization."""
-        rr.log("world/robot_animation", rr.Clear(recursive=True))
-        rr.log("world/attached_animation", rr.Clear(recursive=True))
-
-        if self.debug:
-            print("Cleared animation spheres")
-
-    def clear_attached_animation_spheres(self) -> None:
-        """Clear only attached object animation spheres."""
-        rr.log("world/attached_animation", rr.Clear(recursive=True))
-
-        if self.debug:
-            print("Cleared attached object animation spheres")
+        # Also advance sphere animation timeline
+        rr.set_time("sphere_animation", sequence=self._current_frame)
+        rr.log("world/robot_animation", rr.Points3D(positions=empty))
+        rr.log("world/attached_animation", rr.Points3D(positions=empty))
