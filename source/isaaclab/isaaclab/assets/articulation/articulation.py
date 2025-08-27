@@ -201,18 +201,18 @@ class Articulation(AssetBase):
         if self.has_external_wrench:
             if self.uses_external_wrench_positions:
                 self._wrench_composer.add_forces_and_torques(
-                    wp.from_torch(self._ALL_INDICES),
-                    wp.from_torch(self._ALL_INDICES),
-                    forces=wp.from_torch(self._external_force_b.view(-1, 3)),
-                    torques=wp.from_torch(self._external_torque_b.view(-1, 3)),
-                    positions=wp.from_torch(self._external_wrench_positions_b.view(-1, 3)),
+                    self._ALL_INDICES_WP,
+                    self._ALL_BODY_INDICES_WP,
+                    forces=wp.from_torch(self._external_force_b, dtype=wp.vec3f),
+                    torques=wp.from_torch(self._external_torque_b, dtype=wp.vec3f),
+                    positions=wp.from_torch(self._external_wrench_positions_b, dtype=wp.vec3f),
                 )
             else:
                 self._wrench_composer.add_forces_and_torques(
-                    wp.from_torch(self._ALL_INDICES),
-                    wp.from_torch(self._ALL_INDICES),
-                    forces=wp.from_torch(self._external_force_b.view(-1, 3)),
-                    torques=wp.from_torch(self._external_torque_b.view(-1, 3)),
+                    self._ALL_INDICES_WP,
+                    self._ALL_BODY_INDICES_WP,
+                    forces=wp.from_torch(self._external_force_b, dtype=wp.vec3f),
+                    torques=wp.from_torch(self._external_torque_b, dtype=wp.vec3f),
                     positions=None,
                 )
             self.root_physx_view.apply_forces_and_torques_at_position(
@@ -1073,9 +1073,9 @@ class Articulation(AssetBase):
         forces: torch.Tensor | None = None,
         torques: torch.Tensor | None = None,
         positions: torch.Tensor | None = None,
-        env_ids: Sequence[int] | None = None,
         body_ids: Sequence[int] | slice | None = None,
-    ):
+        env_ids: Sequence[int] | None = None,
+    ) -> None:
         """Add composable forces and torques to the articulation.
 
         Unlike the :meth:`set_external_force_and_torque` function, this function does not apply constant forces and torques to the articulation.
@@ -1111,31 +1111,40 @@ class Articulation(AssetBase):
             forces: Composable forces. Shape is (len(env_ids), len(body_ids), 3).
             torques: Composable torques. Shape is (len(env_ids), len(body_ids), 3).
             positions: Positions to apply composable wrench. Shape is (len(env_ids), len(body_ids), 3). Defaults to None.
-            env_ids: Environment indices to apply composable wrench to. Defaults to None (all environments).
             body_ids: Body indices to apply composable wrench to. Defaults to None (all bodies).
+            env_ids: Environment indices to apply composable wrench to. Defaults to None (all environments).
         """
 
         # -- env_ids
         if env_ids is None:
-            env_ids = self._ALL_INDICES
+            env_ids = self._ALL_INDICES_WP
         elif not isinstance(env_ids, torch.Tensor):
-            env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
+            env_ids = wp.array(env_ids, dtype=wp.int32, device=self.device)
+        else:
+            env_ids = wp.from_torch(env_ids, dtype=wp.int32)
         # -- body_ids
         if body_ids is None:
-            body_ids = torch.arange(self.num_bodies, dtype=torch.long, device=self.device)
+            body_ids = self._ALL_BODY_INDICES_WP
         elif isinstance(body_ids, slice):
-            body_ids = torch.arange(self.num_bodies, dtype=torch.long, device=self.device)[body_ids]
+            body_ids = torch.arange(self.num_bodies, dtype=torch.int32, device=self.device)[body_ids]
+            body_ids = wp.array(body_ids, dtype=wp.int32, device=self.device)
         elif not isinstance(body_ids, torch.Tensor):
-            body_ids = torch.tensor(body_ids, dtype=torch.long, device=self.device)
+            body_ids = wp.array(body_ids, dtype=wp.int32, device=self.device)
+        else:
+            body_ids = wp.from_torch(body_ids, dtype=wp.int32)
 
         # Write to composer
         self._wrench_composer.add_forces_and_torques(
-            wp.from_torch(env_ids),
-            wp.from_torch(body_ids),
-            forces=wp.from_torch(forces) if forces is not None else None,
-            torques=wp.from_torch(torques) if torques is not None else None,
-            positions=wp.from_torch(positions) if positions is not None else None,
+            env_ids,
+            body_ids,
+            forces=wp.from_torch(forces, dtype=wp.vec3f) if forces is not None else None,
+            torques=wp.from_torch(torques, dtype=wp.vec3f) if torques is not None else None,
+            positions=wp.from_torch(positions, dtype=wp.vec3f) if positions is not None else None,
         )
+
+    def reset_composable_force_and_torque(self) -> None:
+        """Reset the composable force and torque buffers."""
+        self._wrench_composer.reset()
 
     def set_joint_position_target(
         self, target: torch.Tensor, joint_ids: Sequence[int] | slice | None = None, env_ids: Sequence[int] | None = None
@@ -1643,6 +1652,9 @@ class Articulation(AssetBase):
     def _create_buffers(self):
         # constants
         self._ALL_INDICES = torch.arange(self.num_instances, dtype=torch.long, device=self.device)
+        self._ALL_BODY_INDICES = torch.arange(self.num_bodies, dtype=torch.long, device=self.device)
+        self._ALL_INDICES_WP = wp.from_torch(self._ALL_INDICES.to(torch.int32), dtype=wp.int32)
+        self._ALL_BODY_INDICES_WP = wp.from_torch(self._ALL_BODY_INDICES.to(torch.int32), dtype=wp.int32)
 
         # external forces and torques
         self.has_external_wrench = False
