@@ -97,6 +97,7 @@ def generate_cubes_scene(
 
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.isaacsim_ci
 def test_initialization(num_cubes, device):
     """Test initialization for prim with rigid body API at the provided prim path."""
     with build_simulation_context(device=device, auto_add_lighting=True) as sim:
@@ -130,6 +131,7 @@ def test_initialization(num_cubes, device):
 
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.isaacsim_ci
 def test_initialization_with_kinematic_enabled(num_cubes, device):
     """Test that initialization for prim with kinematic flag enabled."""
     with build_simulation_context(device=device, auto_add_lighting=True) as sim:
@@ -165,6 +167,7 @@ def test_initialization_with_kinematic_enabled(num_cubes, device):
 
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.isaacsim_ci
 def test_initialization_with_no_rigid_body(num_cubes, device):
     """Test that initialization fails when no rigid body is found at the provided prim path."""
     with build_simulation_context(device=device, auto_add_lighting=True) as sim:
@@ -182,6 +185,7 @@ def test_initialization_with_no_rigid_body(num_cubes, device):
 
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.isaacsim_ci
 def test_initialization_with_articulation_root(num_cubes, device):
     """Test that initialization fails when an articulation root is found at the provided prim path."""
     with build_simulation_context(device=device, auto_add_lighting=True) as sim:
@@ -198,6 +202,7 @@ def test_initialization_with_articulation_root(num_cubes, device):
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.isaacsim_ci
 def test_external_force_buffer(device):
     """Test if external force buffer correctly updates in the force value is zero case.
 
@@ -277,6 +282,7 @@ def test_external_force_buffer(device):
 
 @pytest.mark.parametrize("num_cubes", [2, 4])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.isaacsim_ci
 def test_external_force_on_single_body(num_cubes, device):
     """Test application of external force on the base of the object.
 
@@ -402,6 +408,7 @@ def test_external_force_on_single_body_at_position(num_cubes, device):
 
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.isaacsim_ci
 def test_set_rigid_object_state(num_cubes, device):
     """Test setting the state of the rigid object.
 
@@ -468,6 +475,7 @@ def test_set_rigid_object_state(num_cubes, device):
 
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.isaacsim_ci
 def test_reset_rigid_object(num_cubes, device):
     """Test resetting the state of the rigid object."""
     with build_simulation_context(device=device, gravity_enabled=True, auto_add_lighting=True) as sim:
@@ -506,6 +514,7 @@ def test_reset_rigid_object(num_cubes, device):
 
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.isaacsim_ci
 def test_rigid_body_set_material_properties(num_cubes, device):
     """Test getting and setting material properties of rigid object."""
     with build_simulation_context(
@@ -544,6 +553,7 @@ def test_rigid_body_set_material_properties(num_cubes, device):
 
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.isaacsim_ci
 def test_rigid_body_no_friction(num_cubes, device):
     """Test that a rigid object with no friction will maintain it's velocity when sliding across a plane."""
     with build_simulation_context(device=device, auto_add_lighting=True) as sim:
@@ -601,6 +611,7 @@ def test_rigid_body_no_friction(num_cubes, device):
 
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("device", ["cuda", "cpu"])
+@pytest.mark.isaacsim_ci
 def test_rigid_body_with_static_friction(num_cubes, device):
     """Test that static friction applied to rigid object works as expected.
 
@@ -682,6 +693,7 @@ def test_rigid_body_with_static_friction(num_cubes, device):
 
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.isaacsim_ci
 def test_rigid_body_with_restitution(num_cubes, device):
     """Test that restitution when applied to rigid object works as expected.
 
@@ -761,6 +773,7 @@ def test_rigid_body_with_restitution(num_cubes, device):
 
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.isaacsim_ci
 def test_rigid_body_set_mass(num_cubes, device):
     """Test getting and setting mass of rigid object."""
     with build_simulation_context(
@@ -803,6 +816,7 @@ def test_rigid_body_set_mass(num_cubes, device):
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("gravity_enabled", [True, False])
+@pytest.mark.isaacsim_ci
 def test_gravity_vec_w(num_cubes, device, gravity_enabled):
     """Test that gravity vector direction is set correctly for the rigid object."""
     with build_simulation_context(device=device, gravity_enabled=gravity_enabled) as sim:
@@ -842,6 +856,7 @@ def test_gravity_vec_w(num_cubes, device, gravity_enabled):
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("with_offset", [True, False])
+@pytest.mark.isaacsim_ci
 def test_body_root_state_properties(num_cubes, device, with_offset):
     """Test the root_com_state_w, root_link_state_w, body_com_state_w, and body_link_state_w properties."""
     with build_simulation_context(device=device, gravity_enabled=False, auto_add_lighting=True) as sim:
@@ -946,6 +961,7 @@ def test_body_root_state_properties(num_cubes, device, with_offset):
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("with_offset", [True, False])
 @pytest.mark.parametrize("state_location", ["com", "link"])
+@pytest.mark.isaacsim_ci
 def test_write_root_state(num_cubes, device, with_offset, state_location):
     """Test the setters for root_state using both the link frame and center of mass as reference frame."""
     with build_simulation_context(device=device, gravity_enabled=False, auto_add_lighting=True) as sim:
@@ -1008,6 +1024,7 @@ def test_write_root_state(num_cubes, device, with_offset, state_location):
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("with_offset", [True])
 @pytest.mark.parametrize("state_location", ["com", "link", "root"])
+@pytest.mark.isaacsim_ci
 def test_write_state_functions_data_consistency(num_cubes, device, with_offset, state_location):
     """Test the setters for root_state using both the link frame and center of mass as reference frame."""
     with build_simulation_context(device=device, gravity_enabled=False, auto_add_lighting=True) as sim:

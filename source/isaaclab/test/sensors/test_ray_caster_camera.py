@@ -100,6 +100,7 @@ def setup_sim():
     teardown(sim)
 
 
+@pytest.mark.isaacsim_ci
 def test_camera_init(setup_sim):
     """Test camera initialization."""
     sim, camera_cfg, dt = setup_sim
@@ -136,6 +137,7 @@ def test_camera_init(setup_sim):
     assert camera.frame[0] == 0
 
 
+@pytest.mark.isaacsim_ci
 def test_camera_resolution(setup_sim):
     """Test camera resolution is correctly set."""
     sim, camera_cfg, dt = setup_sim
@@ -149,6 +151,7 @@ def test_camera_resolution(setup_sim):
         assert im_data.shape == (1, camera_cfg.pattern_cfg.height, camera_cfg.pattern_cfg.width, 1)
 
 
+@pytest.mark.isaacsim_ci
 def test_depth_clipping(setup_sim):
     """Test depth clipping.
 
@@ -237,6 +240,7 @@ def test_depth_clipping(setup_sim):
     assert camera_max.data.output["distance_to_image_plane"].max() <= camera_cfg_zero.max_distance
 
 
+@pytest.mark.isaacsim_ci
 def test_camera_init_offset(setup_sim):
     """Test camera initialization with offset using different conventions."""
     sim, camera_cfg, dt = setup_sim
@@ -292,6 +296,7 @@ def test_camera_init_offset(setup_sim):
     np.testing.assert_allclose(camera_ros.data.quat_w_world[0].cpu().numpy(), QUAT_WORLD, rtol=1e-5)
 
 
+@pytest.mark.isaacsim_ci
 def test_camera_init_intrinsic_matrix(setup_sim):
     """Test camera initialization from intrinsic matrix."""
     sim, camera_cfg, dt = setup_sim
@@ -343,6 +348,7 @@ def test_camera_init_intrinsic_matrix(setup_sim):
     )
 
 
+@pytest.mark.isaacsim_ci
 def test_multi_camera_init(setup_sim):
     """Test multi-camera initialization."""
     sim, camera_cfg, dt = setup_sim
@@ -381,6 +387,7 @@ def test_multi_camera_init(setup_sim):
                 assert im_data.shape == (1, camera_cfg.pattern_cfg.height, camera_cfg.pattern_cfg.width, 1)
 
 
+@pytest.mark.isaacsim_ci
 def test_camera_set_world_poses(setup_sim):
     """Test camera function to set specific world pose."""
     sim, camera_cfg, dt = setup_sim
@@ -399,6 +406,7 @@ def test_camera_set_world_poses(setup_sim):
     torch.testing.assert_close(camera.data.quat_w_world, orientation)
 
 
+@pytest.mark.isaacsim_ci
 def test_camera_set_world_poses_from_view(setup_sim):
     """Test camera function to set specific world pose from view."""
     sim, camera_cfg, dt = setup_sim
@@ -418,6 +426,7 @@ def test_camera_set_world_poses_from_view(setup_sim):
     torch.testing.assert_close(camera.data.quat_w_ros, quat_ros_gt)
 
 
+@pytest.mark.isaacsim_ci
 def test_intrinsic_matrix(setup_sim):
     """Checks that the camera's set and retrieve methods work for intrinsic matrix."""
     sim, camera_cfg, dt = setup_sim
@@ -442,6 +451,7 @@ def test_intrinsic_matrix(setup_sim):
         torch.testing.assert_close(rs_intrinsic_matrix, camera.data.intrinsic_matrices)
 
 
+@pytest.mark.isaacsim_ci
 def test_throughput(setup_sim):
     """Checks that the single camera gets created properly with a rig."""
     sim, camera_cfg, dt = setup_sim
@@ -493,6 +503,7 @@ def test_throughput(setup_sim):
             assert im_data.shape == (1, camera_cfg.pattern_cfg.height, camera_cfg.pattern_cfg.width, 1)
 
 
+@pytest.mark.isaacsim_ci
 def test_output_equal_to_usdcamera(setup_sim):
     sim, camera_cfg, dt = setup_sim
     camera_pattern_cfg = patterns.PinholeCameraPatternCfg(
@@ -589,6 +600,7 @@ def test_output_equal_to_usdcamera(setup_sim):
     )
 
 
+@pytest.mark.isaacsim_ci
 def test_output_equal_to_usdcamera_offset(setup_sim):
     sim, camera_cfg, dt = setup_sim
     offset_rot = [-0.1251, 0.3617, 0.8731, -0.3020]
@@ -664,6 +676,7 @@ def test_output_equal_to_usdcamera_offset(setup_sim):
     )
 
 
+@pytest.mark.isaacsim_ci
 def test_output_equal_to_usdcamera_prim_offset(setup_sim):
     """Test that the output of the ray caster camera is equal to the output of the usd camera when both are placed
     under an XForm prim that is translated and rotated from the world origin
@@ -758,6 +771,7 @@ def test_output_equal_to_usdcamera_prim_offset(setup_sim):
 
 
 @pytest.mark.parametrize("focal_length", [0.193, 1.93, 19.3])
+@pytest.mark.isaacsim_ci
 def test_output_equal_to_usd_camera_intrinsics(setup_sim, focal_length):
     """
     Test that the output of the ray caster camera and usd camera are the same when both are
@@ -879,6 +893,7 @@ def test_output_equal_to_usd_camera_intrinsics(setup_sim, focal_length):
 
 
 @pytest.mark.parametrize("focal_length_aperture", [(0.193, 0.20955), (1.93, 2.0955), (19.3, 20.955), (0.193, 20.955)])
+@pytest.mark.isaacsim_ci
 def test_output_equal_to_usd_camera_when_intrinsics_set(setup_sim, focal_length_aperture):
     """
     Test that the output of the ray caster camera is equal to the output of the usd camera when both are placed
@@ -988,6 +1003,7 @@ def test_output_equal_to_usd_camera_when_intrinsics_set(setup_sim, focal_length_
     del camera_warp, camera_usd
 
 
+@pytest.mark.isaacsim_ci
 def test_sensor_print(setup_sim):
     """Test sensor print is working correctly."""
     sim, camera_cfg, dt = setup_sim

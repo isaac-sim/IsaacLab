@@ -69,7 +69,7 @@ used as the default output directories for tasks run by this project.
 
 
 Project Structure
-------------------------------
+-----------------
 
 There are four nested structures you need to be aware of when working in the direct workflow with an Isaac Lab template
 project: the **Project**, the **Extension**, the **Modules**, and the **Task**.
