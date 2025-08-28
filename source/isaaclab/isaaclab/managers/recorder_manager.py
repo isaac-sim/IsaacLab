@@ -429,7 +429,7 @@ class RecorderManager(ManagerBase):
         """Get the episode metadata."""
         if not hasattr(self._env.cfg, "get_ep_meta"):
             # Add basic episode metadata
-            ep_meta = {}
+            ep_meta = dict()
             ep_meta["sim_args"] = {
                 "dt": self._env.cfg.sim.dt,
                 "decimation": self._env.cfg.decimation,
@@ -437,7 +437,7 @@ class RecorderManager(ManagerBase):
                 "num_envs": self._env.cfg.scene.num_envs,
             }
             return ep_meta
-        
+
         # Add custom episode metadata if available
         ep_meta = self._env.cfg.get_ep_meta()
 
@@ -474,18 +474,18 @@ class RecorderManager(ManagerBase):
 
         # Export episode data through dataset exporter
         need_to_flush = False
-        
+
         if any(env_id in self._episodes and not self._episodes[env_id].is_empty() for env_id in env_ids):
             ep_meta = self.get_ep_meta()
             if self._dataset_file_handler is not None:
                 self._dataset_file_handler.add_env_args(ep_meta)
             if self._failed_episode_dataset_file_handler is not None:
                 self._failed_episode_dataset_file_handler.add_env_args(ep_meta)
-        
+
         for env_id in env_ids:
             if env_id in self._episodes and not self._episodes[env_id].is_empty():
                 self._episodes[env_id].pre_export()
-                
+
                 episode_succeeded = self._episodes[env_id].success
                 target_dataset_file_handler = None
                 if (self.cfg.dataset_export_mode == DatasetExportMode.EXPORT_ALL) or (

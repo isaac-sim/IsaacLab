@@ -206,13 +206,15 @@ class EpisodeData:
         if joint_target is not None:
             self._next_joint_target_index += 1
         return joint_target
-    
+
     def pre_export(self):
         """Prepare data for export by converting lists to tensors."""
+
         def pre_export_helper(data):
             for key, value in data.items():
                 if isinstance(value, list):
                     data[key] = torch.stack(value)
                 elif isinstance(value, dict):
                     pre_export_helper(value)
+
         pre_export_helper(self._data)
