@@ -171,6 +171,7 @@ class RigidObjectCollection(AssetBase):
                     forces=wp.from_torch(self._external_force_b, dtype=wp.vec3f),
                     torques=wp.from_torch(self._external_torque_b, dtype=wp.vec3f),
                     positions=wp.from_torch(self._external_wrench_positions_b, dtype=wp.vec3f),
+                    is_global=self._use_global_wrench_frame,
                 )
             else:
                 self._wrench_composer.add_forces_and_torques(
@@ -179,13 +180,14 @@ class RigidObjectCollection(AssetBase):
                     forces=wp.from_torch(self._external_force_b, dtype=wp.vec3f),
                     torques=wp.from_torch(self._external_torque_b, dtype=wp.vec3f),
                     positions=None,
+                    is_global=self._use_global_wrench_frame,
                 )
             self.root_physx_view.apply_forces_and_torques_at_position(
                 force_data=self.reshape_data_to_view(self._wrench_composer.composed_force_as_torch),
                 torque_data=self.reshape_data_to_view(self._wrench_composer.composed_torque_as_torch),
                 position_data=None,
                 indices=self._env_obj_ids_to_view_ids(self._ALL_ENV_INDICES, self._ALL_OBJ_INDICES),
-                is_global=self._use_global_wrench_frame,
+                is_global=False,
             )
             self._wrench_composer.reset()
 
@@ -577,6 +579,7 @@ class RigidObjectCollection(AssetBase):
         positions: torch.Tensor | None = None,
         object_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | None = None,
+        is_global: bool = False,
     ) -> None:
         """Add composable forces and torques to a collection of rigid objects.
 
@@ -609,12 +612,17 @@ class RigidObjectCollection(AssetBase):
             This function does not apply the composable forces and torques to the simulation. It only fills the buffers with
             the desired values. To apply the composable forces and torques, call the :meth:`write_data_to_sim` function.
 
+        .. note::
+            The resulting composed force and torque are always in the center of mass frame of the bodies.
+
         Args:
             forces: Composable forces. Shape is (len(env_ids), len(object_ids), 3).
             torques: Composable torques. Shape is (len(env_ids), len(object_ids), 3).
             positions: Positions to apply composable wrench. Shape is (len(env_ids), len(object_ids), 3). Defaults to None.
             object_ids: Object indices to apply composable wrench to. Defaults to None (all objects).
             env_ids: Environment indices to apply composable wrench to. Defaults to None (all environments).
+            is_global: Whether to apply the composable wrench in the global frame. Defaults to False. If set to False,
+                the composable wrench is applied in the CoM frame of the bodies.
         """
 
         # -- env_ids
@@ -638,6 +646,7 @@ class RigidObjectCollection(AssetBase):
             forces=wp.from_torch(forces, dtype=wp.vec3f) if forces is not None else None,
             torques=wp.from_torch(torques, dtype=wp.vec3f) if torques is not None else None,
             positions=wp.from_torch(positions, dtype=wp.vec3f) if positions is not None else None,
+            is_global=is_global,
         )
 
     def reset_composable_force_and_torque(self) -> None:
@@ -767,7 +776,7 @@ class RigidObjectCollection(AssetBase):
         self._use_global_wrench_frame = False
 
         # external wrench composer
-        self._wrench_composer = WrenchComposer(self.num_instances, self.num_objects, self.device)
+        self._wrench_composer = WrenchComposer(self.num_instances, self.num_objects, self.device, self)
 
         # set information about rigid body into data
         self._data.object_names = self.object_names
