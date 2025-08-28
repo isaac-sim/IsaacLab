@@ -17,6 +17,8 @@ from isaaclab.devices.keyboard import Se2Keyboard, Se2KeyboardCfg, Se3Keyboard, 
 from isaaclab.devices.openxr.retargeters import (
     GR1T2Retargeter,
     GR1T2RetargeterCfg,
+    H1_2Retargeter,
+    H1_2RetargeterCfg,
     GripperRetargeter,
     GripperRetargeterCfg,
     Se3AbsRetargeter,
@@ -49,6 +51,7 @@ RETARGETER_MAP: dict[type[RetargeterCfg], type[RetargeterBase]] = {
     Se3RelRetargeterCfg: Se3RelRetargeter,
     GripperRetargeterCfg: GripperRetargeter,
     GR1T2RetargeterCfg: GR1T2Retargeter,
+    H1_2RetargeterCfg: H1_2Retargeter,
 }
 
 
