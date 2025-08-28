@@ -37,7 +37,7 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR, retri
 from isaaclab.utils.datasets import HDF5DatasetFileHandler
 
 from isaaclab_tasks.manager_based.manipulation.pick_place import mdp as manip_mdp
-
+from isaaclab_tasks.manager_based.locomanipulation.pick_place.locomanipulation_g1_env_cfg import ObservationsCfg
 from dataclasses import asdict
 from common import DisjointNavReplayState
 
@@ -419,117 +419,6 @@ class ActionsCfg:
         obs_group_name="lower_body_policy",  # need to be the same name as the on in ObservationCfg
         policy_path=Path(__file__).parent / "policy/g1/agile_locomotion.pt",
     )
-
-
-@configclass
-class LowerBodyPolicyObsCfg(ObsGroup):
-    """Observations for policy group with state values."""
-
-    """Observation specifications for the MDP."""
-
-    base_lin_vel = ObsTerm(
-        func=base_mdp.base_lin_vel,
-        params={"asset_cfg": SceneEntityCfg("robot")},
-    )
-
-    base_ang_vel = ObsTerm(
-        func=base_mdp.base_ang_vel,
-        params={"asset_cfg": SceneEntityCfg("robot")},
-    )
-
-    projected_gravity = ObsTerm(
-        func=base_mdp.projected_gravity,
-        scale=1.0,
-    )
-
-    joint_pos = ObsTerm(
-        func=base_mdp.joint_pos_rel,
-        params={
-            "asset_cfg": SceneEntityCfg(
-                "robot",
-                joint_names=[
-                    ".*_shoulder_.*_joint",
-                    ".*_elbow_joint",
-                    ".*_wrist_.*_joint",
-                    ".*_hip_.*_joint",
-                    ".*_knee_joint",
-                    ".*_ankle_.*_joint",
-                    "waist_.*_joint",
-                ],
-            ),
-        },
-    )
-
-    joint_vel = ObsTerm(
-        func=base_mdp.joint_vel_rel,
-        scale=0.1,
-        params={
-            "asset_cfg": SceneEntityCfg(
-                "robot",
-                joint_names=[
-                    ".*_shoulder_.*_joint",
-                    ".*_elbow_joint",
-                    ".*_wrist_.*_joint",
-                    ".*_hip_.*_joint",
-                    ".*_knee_joint",
-                    ".*_ankle_.*_joint",
-                    "waist_.*_joint",
-                ],
-            ),
-        },
-    )
-
-    actions = ObsTerm(
-        func=base_mdp.last_action,
-        scale=1.0,
-        params={
-            "action_name": "lower_body_joint_pos",
-        },
-    )
-
-    def __post_init__(self):
-        self.enable_corruption = False
-        self.concatenate_terms = True
-
-
-@configclass
-class ObservationsCfg:
-    """Observation specifications for the MDP."""
-
-    @configclass
-    class PolicyCfg(ObsGroup):
-        """Observations for policy group with state values."""
-
-        actions = ObsTerm(func=manip_mdp.last_action)
-        robot_joint_pos = ObsTerm(
-            func=base_mdp.joint_pos,
-            params={"asset_cfg": SceneEntityCfg("robot")},
-        )
-        robot_root_pos = ObsTerm(func=base_mdp.root_pos_w, params={"asset_cfg": SceneEntityCfg("robot")})
-        robot_root_rot = ObsTerm(func=base_mdp.root_quat_w, params={"asset_cfg": SceneEntityCfg("robot")})
-        object_pos = ObsTerm(func=base_mdp.root_pos_w, params={"asset_cfg": SceneEntityCfg("object")})
-        object_rot = ObsTerm(func=base_mdp.root_quat_w, params={"asset_cfg": SceneEntityCfg("object")})
-        robot_links_state = ObsTerm(func=manip_mdp.get_all_robot_link_state)
-
-        left_eef_pos = ObsTerm(func=manip_mdp.get_left_eef_pos, params={"link_name": "left_wrist_yaw_link"})
-        left_eef_quat = ObsTerm(func=manip_mdp.get_left_eef_quat, params={"link_name": "left_wrist_yaw_link"})
-        right_eef_pos = ObsTerm(func=manip_mdp.get_right_eef_pos, params={"link_name": "right_wrist_yaw_link"})
-        right_eef_quat = ObsTerm(func=manip_mdp.get_right_eef_quat, params={"link_name": "right_wrist_yaw_link"})
-
-        hand_joint_state = ObsTerm(func=manip_mdp.get_hand_state, params={"hand_joint_names": [".*_hand.*"]})
-
-        object = ObsTerm(
-            func=manip_mdp.object_obs,
-            params={"left_eef_link_name": "left_wrist_yaw_link", "right_eef_link_name": "right_wrist_yaw_link"},
-        )
-
-        def __post_init__(self):
-            self.enable_corruption = False
-            self.concatenate_terms = False
-
-    policy: PolicyCfg = PolicyCfg()
-
-    lower_body_policy: LowerBodyPolicyObsCfg = LowerBodyPolicyObsCfg()
 
 
 @configclass
