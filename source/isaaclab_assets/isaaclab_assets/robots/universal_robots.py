@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+
 """Configuration for the Universal Robots.
 
 The following configuration parameters are available:
@@ -15,12 +16,11 @@ Reference: https://github.com/ros-industrial/universal_robot
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
-from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 
 ##
 # Configuration
 ##
-
 
 UR10_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
@@ -51,3 +51,23 @@ UR10_CFG = ArticulationCfg(
     },
 )
 """Configuration of UR-10 arm using implicit actuator models."""
+
+UR10_LONG_SUCTION_CFG = UR10_CFG.copy()
+UR10_LONG_SUCTION_CFG.spawn.usd_path = f"{ISAAC_NUCLEUS_DIR}/Robots/UniversalRobots/ur10/ur10.usd"
+UR10_LONG_SUCTION_CFG.spawn.variants = {"Gripper": "Long_Suction"}
+UR10_LONG_SUCTION_CFG.spawn.rigid_props.disable_gravity = True
+UR10_LONG_SUCTION_CFG.init_state.joint_pos = {
+    "shoulder_pan_joint": 0.0,
+    "shoulder_lift_joint": -1.5707,
+    "elbow_joint": 1.5707,
+    "wrist_1_joint": -1.5707,
+    "wrist_2_joint": 1.5707,
+    "wrist_3_joint": 0.0,
+}
+
+"""Configuration of UR10 arm with long suction gripper."""
+
+UR10_SHORT_SUCTION_CFG = UR10_LONG_SUCTION_CFG.copy()
+UR10_SHORT_SUCTION_CFG.spawn.variants = {"Gripper": "Short_Suction"}
+
+"""Configuration of UR10 arm with short suction gripper."""
