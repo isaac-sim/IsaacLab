@@ -57,3 +57,6 @@ class MultiMeshRayCasterCfg(RayCasterCfg):
 
     update_mesh_ids: bool = False
     """Whether to update the mesh ids of the ray hits in the :attr:`data` container."""
+
+    reference_meshes: bool = True
+    """Whether to reference duplicated meshes instead of loading all of them to into memory. If set to false, each mesh in each environment will be loaded into memory separately."""

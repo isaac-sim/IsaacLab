@@ -10,6 +10,11 @@
 
 from __future__ import annotations
 
+"""Multi-mesh ray casting sensor implementation.
+
+This file adds support for ray casting against multiple (possibly regex-selected) mesh targets.
+"""
+
 import numpy as np
 import torch
 import trimesh
@@ -112,6 +117,15 @@ class MultiMeshRayCaster(RayCaster):
     """
 
     def _initialize_warp_meshes(self):
+        """Parse mesh prim expressions, build (or reuse) Warp meshes, and cache per-env mesh IDs.
+
+        High-level steps (per target expression):
+            1. Resolve matching prims by regex/path expression.
+            2. Collect supported mesh child prims; merge into a single mesh if configured.
+            3. Deduplicate identical vertex buffers (exact match) to avoid uploading duplicates to Warp.
+            4. Partition mesh IDs per environment or mark as globally shared.
+            5. Optionally create physics views (articulation / rigid body / fallback XForm) and cache local offsets.
+        """
         multi_mesh_ids: dict[str, list[list[int]]] = {}
         for target_cfg in self._raycast_targets_cfg:
             # target prim path to ray cast against
@@ -130,8 +144,7 @@ class MultiMeshRayCaster(RayCaster):
             wp_mesh_ids = []
             
             for target_prim in target_prims:
-                
-                # check if the prim is shared across all environments and we parsed it before
+                # Reuse previously parsed shared mesh instance if possible.
                 if target_cfg.is_shared and len(wp_mesh_ids) > 0:
                     # Verify if this mesh has already been registered in an earlier environment.
                     # Note, this check may fail, if the prim path is not following the env_.* pattern
@@ -139,8 +152,7 @@ class MultiMeshRayCaster(RayCaster):
                     curr_prim_base_path = re.sub(r"env_\d+", "env_0", str(target_prim.GetPath()))  #
                     if curr_prim_base_path in MultiMeshRayCaster.meshes:
                         MultiMeshRayCaster.meshes[str(target_prim.GetPath())] = MultiMeshRayCaster.meshes[curr_prim_base_path]
-
-                # This prim was already registered by another raycast sensor. Reuse its mesh ID.
+                # Reuse mesh imported by another ray-cast sensor (global cache).
                 if str(target_prim.GetPath()) in MultiMeshRayCaster.meshes:
                     wp_mesh_ids.append(MultiMeshRayCaster.meshes[str(target_prim.GetPath())].id)
                     loaded_vertices.append(None)
@@ -205,7 +217,7 @@ class MultiMeshRayCaster(RayCaster):
 
                 # check if the mesh is already registered, if so only reference the mesh
                 registered_idx = _registered_points_idx(trimesh_mesh.vertices, loaded_vertices)
-                if registered_idx != -1:
+                if registered_idx != -1 and self.cfg.reference_meshes:
                     omni.log.info("Found a duplicate mesh, only reference the mesh.")
                     # Found a duplicate mesh, only reference the mesh.
                     loaded_vertices.append(None)

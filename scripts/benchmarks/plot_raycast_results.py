@@ -1,187 +1,206 @@
 # %% Imports
-import io
 import pandas as pd
-import numpy as np
-import plotly.express as px
+import numpy as numpy
+import matplotlib.pyplot as plt
 
 
 
-#       mode  num_envs  resolution  rays_per_sensor  total_rays  per_step_ms   avg_memory  num_faces track_mesh_transforms  num_assets
-# 0   single       256        0.20              676      173056    18.660888  4917.913125         -1                    -1          -1
-# 3    multi       256        0.20              676      173056    14.664904  5217.812500         -1                  True           0
+def compare_single_vs_multi():
+    df = pd.read_csv("/workspace/isaaclab/outputs/benchmarks/ray_caster_benchmark_single_vs_multi.csv")
+    # %% Types & cleaning
+    df["resolution"] = df["resolution"].astype(float)
+    df["num_envs"] = df["num_envs"].astype(int)
+    df["avg_memory"] = df["avg_memory"].astype(float) 
+    df["time_per_ray_us"] = df["per_step_ms"] * 1000.0 / df["total_rays"]  # µs / ray
+    df["rays_per_env"] = df["total_rays"] / df["num_envs"]
+    df["fps"] = 1.0 / (df["per_step_ms"]*1e-3)
+    df["rays_per_us"] = 1.0 / df["time_per_ray_us"]
 
-# 6   single       512        0.20              676      346112    38.912707  5198.900312         -1                    -1          -1
-# 9    multi       512        0.20              676      346112    29.210159  5701.625000         -1                  True           0
+    unique_res = sorted(df["resolution"].unique())
+    color_palette = plt.cm.tab10.colors
+    color_map = {res: color_palette[i % len(color_palette)] for i, res in enumerate(unique_res)}
+    dash_map = {
+        "single": "-",
+        "multi": "--"
+    }
 
-# 1   single       256        0.10             2601      665856    41.373501  4977.825000         -1                    -1          -1
-# 4    multi       256        0.10             2601      665856    32.879590  5176.748750         -1                  True           0
+    fig, axes = plt.subplots(3, 1, figsize=(10, 20))
 
-# 15   multi      1024        0.20              676      692224    60.821424  6690.753125         -1                  True           0
-# 12  single      1024        0.20              676      692224    77.989069  5659.967813         -1                    -1          -1
+    # 1. Steps per ms vs Num Envs
+    for res in unique_res:
+        for mode in df["mode"].unique():
+            sub_df = df[(df["resolution"] == res) & (df["mode"] == mode)]
+            axes[0].plot(
+                sub_df["num_envs"],
+                sub_df["fps"],
+                dash_map.get(mode, "-"),
+                color=color_map[res],
+                marker="o",
+                label=f"{mode} - Resolution={res}, Rays/Env={sub_df['rays_per_env'].values[0]}"
+            )
+    axes[0].set_xlabel("Number of Environments")
+    axes[0].set_ylabel("Steps per ms")
+    axes[0].set_title("Steps per ms vs Num Envs")
+    axes[0].legend()
+    axes[0].grid(True)
 
-# 7   single       512        0.10             2601     1331712    90.059855  5268.675000         -1                    -1          -1
-# 10   multi       512        0.10             2601     1331712    64.682159  5669.915000         -1                  True           0
+    # 2. Rays per µs vs Num Envs
+    for res in unique_res:
+        for mode in df["mode"].unique():
+            sub_df = df[(df["resolution"] == res) & (df["mode"] == mode)]
+            axes[1].plot(
+                sub_df["num_envs"],
+                sub_df["rays_per_us"],
+                dash_map.get(mode, "-"),
+                color=color_map[res],
+                marker="o",
+                label=f"{mode} - Resolution={res}, Rays/Env={sub_df['rays_per_env'].values[0]}"
+            )
+    axes[1].set_xlabel("Number of Environments")
+    axes[1].set_ylabel("Rays per µs")
+    axes[1].set_title("Rays per µs vs Num Envs")
+    axes[1].legend()
+    axes[1].grid(True)
 
-# 2   single       256        0.05            10201     2611456    74.297123  5217.812500         -1                    -1          -1
-# 5    multi       256        0.05            10201     2611456    70.873075  5263.118438         -1                  True           0
+    # 3. VRAM usage vs Number of Envs
+    for res in [0.05]:
+        for mode in df["mode"].unique():
+            sub_df = df[(df["resolution"] == res) & (df["mode"] == mode)]
+            axes[2].plot(
+                sub_df["num_envs"],
+                sub_df["avg_memory"],
+                dash_map.get(mode, "-"),
+                color=color_map[res],
+                marker="o",
+                label=f"{mode} - Resolution={res}, Rays/Env={sub_df['rays_per_env'].values[0]}"
+            )
+    axes[2].set_xlabel("Number of Environments")
+    axes[2].set_ylabel("Average VRAM Usage (MB)")
+    axes[2].set_title("Average VRAM Usage (MB) vs Num Envs")
+    axes[2].legend()
+    axes[2].grid(True)
+    fig.suptitle("Raycast Benchmark Comparison", fontsize=16)
+    fig.tight_layout(rect=[0, 0.03, 1, 0.97])
 
-# 16   multi      1024        0.10             2601     2663424   135.986122  6798.684063         -1                  True           0
-# 13  single      1024        0.10             2601     2663424   165.702515  5642.069688         -1                    -1          -1
+    # Save as PNG
+    plt.savefig("outputs/benchmarks/raycast_benchmark_comparison.png")
+    print("Saved plot to outputs/benchmarks/raycast_benchmark_comparison.png")
 
-# 8   single       512        0.05            10201     5222912   151.106479  5720.017500         -1                    -1          -1
-# 11   multi       512        0.05            10201     5222912   139.969725  5642.006562         -1                  True           0
-
-# 14  single      1024        0.05            10201    10445824   315.265636  6626.664687         -1                    -1          -1
-# 17   multi      1024        0.05            10201    10445824   282.527562  6876.511875         -1                  True           0
-
-
-# %% Raw CSV (paste your data here) – OR replace with: df = pd.read_csv("your_file.csv")
-df = pd.read_csv("/workspace/isaaclab/outputs/benchmarks/ray_caster_benchmark_single_vs_multi.csv")
-
-
-# %% Types & cleaning
-df["resolution"] = df["resolution"].astype(float)
-df["num_envs"] = df["num_envs"].astype(int)
-df["rays_per_sensor"] = df["rays_per_sensor"].astype(int)
-df["total_rays"] = df["total_rays"].astype(int)
-df["per_step_ms"] = df["per_step_ms"].astype(float)
-df["avg_memory"] = df["avg_memory"].astype(float)
-df["num_faces"] = df["num_faces"].replace(-1, np.nan)
-df["num_assets"] = df["num_assets"].replace(-1, np.nan)
-df["track_mesh_transforms"] = df["track_mesh_transforms"].replace(-1, np.nan)
-
-# %% Derived metrics
-df["rays_per_env"]  = df["total_rays"] / df["num_envs"]
-df["time_per_ray_us"] = df["per_step_ms"] * 1000.0 / df["total_rays"]  # µs / ray
-df["time_per_env_ms"] = df["per_step_ms"] / df["num_envs"]
-df["mem_per_env"]   = df["avg_memory"] / df["num_envs"]
-
-
-
-# Plot Comparison. x-axis: num_envs, y axis 1/per_step_ms for all unique resolution levels.
-df["fps"] = 1.0 / (df["per_step_ms"]*1e-3)
-
-# ...existing code...
-# ...existing code...
-
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
-import plotly.colors
-
-# Calculate derived metrics
-df["fps"] = 1.0 / (df["per_step_ms"]*1e-3)
-df["rays_per_us"] = 1.0 / df["time_per_ray_us"]
-
-# Define a consistent color map for resolution values
-unique_res = sorted(df["resolution"].unique())
-color_palette = plotly.colors.qualitative.Plotly
-color_map = {res: color_palette[i % len(color_palette)] for i, res in enumerate(unique_res)}
-
-
-
-# ...existing code...
-
-# Define dash styles for modes
-dash_map = {
-    "single": "solid",
-    "multi": "dash"
-}
-# ...existing code...
-
-# Create subplots: 4 rows, 1 column
-fig = make_subplots(
-    rows=4, cols=1,
-    subplot_titles=[
-        "Steps per ms vs Num Envs",
-        "Rays per µs vs Num Envs",
-        "Rays per µs vs Number of Rays",
-        "Total Step Time (ms) vs Number of Rays"
-    ],
-    shared_xaxes=False
-)
-
-# ...existing code...
-
-# 1. Steps per ms vs Num Envs
-for res in unique_res:
-    for mode in df["mode"].unique():
-        sub_df = df[(df["resolution"] == res) & (df["mode"] == mode)]
-        fig.add_trace(
-            go.Scatter(
-                x=sub_df["num_envs"],
-                y=sub_df["fps"],
-                mode="lines+markers",
-                name=f"Res={res}, Mode={mode}",
-                legendgroup=f"{res}-{mode}",
-                showlegend=True,
-                line=dict(color=color_map[res], dash=dash_map.get(mode, "solid"))
-            ),
-            row=1, col=1
+def compare_num_assets_vram_cache():
+    """Plots Average steps per ms vs Num assets and Avg memory vs num assets"""
+    df = pd.read_csv("/workspace/isaaclab/outputs/benchmarks/ray_caster_benchmark_num_assets.csv")
+    df["num_assets"] = df["num_assets"].astype(int)
+    df["avg_memory"] = df["avg_memory"].astype(float)
+    df["fps"] = 1.0 / (df["per_step_ms"]*1e-3)
+    df["reference_meshes"] = df["reference_meshes"].astype(bool)
+    
+    fig, axes = plt.subplots(1, 1, figsize=(10, 10))
+    # 2. VRAM usage vs Number of Assets
+    for ref in [True, False]:
+        sub_df = df[df["reference_meshes"] == ref]
+        axes.plot(
+            sub_df["num_assets"],
+            sub_df["avg_memory"],
+            marker="o",
+            label=f"Reference Meshes: {ref}"
         )
+    axes.set_xlabel("Number of Assets")
+    axes.set_ylabel("Average VRAM Usage (MB)")
+    axes.set_title("Average VRAM Usage (MB) vs Num Assets")
+    axes.legend()
+    axes.grid(True)
 
-# 2. Rays per µs vs Num Envs
-for res in unique_res:
-    for mode in df["mode"].unique():
-        sub_df = df[(df["resolution"] == res) & (df["mode"] == mode)]
-        fig.add_trace(
-            go.Scatter(
-                x=sub_df["num_envs"],
-                y=sub_df["rays_per_us"],
-                mode="lines+markers",
-                name=f"Res={res}, Mode={mode}",
-                legendgroup=f"{res}-{mode}",
-                showlegend=False,
-                line=dict(color=color_map[res], dash=dash_map.get(mode, "solid"))
-            ),
-            row=2, col=1
+    fig.suptitle("Raycast Benchmark Comparison (Num Assets)", fontsize=16)
+    fig.tight_layout(rect=[0, 0.03, 1, 0.97])
+
+    # Save as PNG
+    plt.savefig("outputs/benchmarks/raycast_benchmark_comparison_num_assets_vram.png")
+    print("Saved plot to outputs/benchmarks/raycast_benchmark_comparison_num_assets_vram.png")
+    
+def compare_num_assets():
+    """Plots Average steps per ms vs Num assets and Avg memory vs num assets"""
+    df = pd.read_csv("/workspace/isaaclab/outputs/benchmarks/ray_caster_benchmark_num_assets.csv")
+    df = df[df["reference_meshes"] == True]
+    df["num_assets"] = df["num_assets"].astype(int)
+    df["avg_memory"] = df["avg_memory"].astype(float)
+    df["fps"] = 1.0 / (df["per_step_ms"]*1e-3)
+
+    fig, axes = plt.subplots(2, 1, figsize=(10, 10))
+    # Plot FPS vs Num assets
+    axes[0].plot(
+        df["num_assets"],
+        df["fps"],
+        marker="o")
+    axes[0].set_xlabel("Number of Assets")
+    axes[0].set_ylabel("FPS")
+    axes[0].set_title("FPS vs Num Assets")
+    axes[0].grid(True)
+
+    # 2. VRAM usage vs Number of Assets
+    axes[1].plot(
+        df["num_assets"],
+        df["avg_memory"],
+        marker="o"
         )
+    axes[1].set_xlabel("Number of Assets")
+    axes[1].set_ylabel("Average VRAM Usage (MB)")
+    axes[1].set_title("Average VRAM Usage (MB) vs Num Assets")
+    axes[1].grid(True)
 
-# 3. Rays per µs vs Number of Rays
-for res in unique_res:
-    for mode in df["mode"].unique():
-        sub_df = df[(df["resolution"] == res) & (df["mode"] == mode)]
-        fig.add_trace(
-            go.Scatter(
-                x=sub_df["total_rays"],
-                y=sub_df["rays_per_us"],
-                mode="lines+markers",
-                name=f"Res={res}, Mode={mode}",
-                legendgroup=f"{res}-{mode}",
-                showlegend=False,
-                line=dict(color=color_map[res], dash=dash_map.get(mode, "solid"))
-            ),
-            row=3, col=1
-        )
+    fig.suptitle("Raycast Benchmark Comparison (Num Assets)", fontsize=16)
+    fig.tight_layout(rect=[0, 0.03, 1, 0.97])
 
-# 4. Total Step Time (ms) vs Number of Rays
-for res in unique_res:
-    for mode in df["mode"].unique():
-        sub_df = df[(df["resolution"] == res) & (df["mode"] == mode)]
-        fig.add_trace(
-            go.Scatter(
-                x=sub_df["total_rays"],
-                y=sub_df["per_step_ms"],
-                mode="lines+markers",
-                name=f"Res={res}, Mode={mode}",
-                legendgroup=f"{res}-{mode}",
-                showlegend=False,
-                line=dict(color=color_map[res], dash=dash_map.get(mode, "solid"))
-            ),
-            row=4, col=1
-        )
+    # Save as PNG
+    plt.savefig("outputs/benchmarks/raycast_benchmark_comparison_num_assets.png")
+    print("Saved plot to outputs/benchmarks/raycast_benchmark_comparison_num_assets.png")
 
-fig.update_xaxes(title_text="Number of Environments", row=1, col=1)
-fig.update_yaxes(title_text="Steps per ms", row=1, col=1)
-fig.update_xaxes(title_text="Number of Environments", row=2, col=1)
-fig.update_yaxes(title_text="Rays per µs", row=2, col=1)
-fig.update_xaxes(title_text="Total Rays", row=3, col=1)
-fig.update_yaxes(title_text="Rays per µs", row=3, col=1)
-fig.update_xaxes(title_text="Total Rays", row=4, col=1)
-fig.update_yaxes(title_text="Total Step Time (ms)", row=4, col=1)
-fig.update_layout(
-    height=1600,
-    title_text="Raycast Benchmark Comparison",
-    legend_title_text="Resolution & Mode"
-)
+def compare_num_faces():
+    """Plots Average steps per ms vs Num faces and Avg memory vs num faces"""
+    df = pd.read_csv("/workspace/isaaclab/outputs/benchmarks/ray_caster_benchmark_num_faces.csv")
+    # %% Types & cleaning
+    df["num_faces"] = df["num_faces"].astype(int)
+    df["avg_memory"] = df["avg_memory"].astype(float)
+    df["fps"] = 1.0 / (df["per_step_ms"]*1e-3)
 
-fig.show()
+    fig, axes = plt.subplots(2, 1, figsize=(10, 10))
+
+    # 1. Steps per ms vs Num Faces
+    axes[0].plot(
+        df["num_faces"],
+        df["fps"],
+        color="blue",
+        marker="o",
+        label="FPS"
+    )
+    axes[0].set_xlabel("Number of Faces")
+    axes[0].set_ylabel("Steps per ms")
+    axes[0].set_title("Steps per ms vs Num Faces")
+    axes[0].legend()
+    axes[0].grid(True)
+
+    # 2. VRAM usage vs Number of Faces
+    axes[1].plot(
+        df["num_faces"],
+        df["avg_memory"],
+        color="red",
+        marker="o",
+        label="Average VRAM Usage"
+    )
+    axes[1].set_xlabel("Number of Faces")
+    axes[1].set_ylabel("Average VRAM Usage (MB)")
+    axes[1].set_title("Average VRAM Usage (MB) vs Num Faces")
+    axes[1].legend()
+    axes[1].grid(True)
+
+    fig.suptitle("Raycast Benchmark Comparison (Num Faces)", fontsize=16)
+    fig.tight_layout(rect=[0, 0.03, 1, 0.97])
+
+    # Save as PNG
+    plt.savefig("outputs/benchmarks/raycast_benchmark_comparison_num_faces.png")
+    print("Saved plot to outputs/benchmarks/raycast_benchmark_comparison_num_faces.png")
+
+if __name__ == "__main__":
+    compare_single_vs_multi()
+    compare_num_assets_vram_cache()
+    compare_num_assets()
+    compare_num_faces()
