@@ -5,8 +5,9 @@
 
 from __future__ import annotations
 
-import warp as wp
 from typing import TYPE_CHECKING
+
+import warp as wp
 
 from ..asset_base import AssetBase
 from .kernels import add_forces_and_torques_at_position
@@ -14,6 +15,7 @@ from .kernels import add_forces_and_torques_at_position
 if TYPE_CHECKING:
     import numpy as np
     import torch
+
 
 class WrenchComposer:
     def __init__(self, num_envs: int, num_bodies: int, device: str, asset: AssetBase | None = None) -> None:
@@ -34,9 +36,9 @@ class WrenchComposer:
         self._asset = asset
 
         if (self._asset.__class__.__name__ == "Articulation") or (self._asset.__class__.__name__ == "RigidObject"):
-            self._get_com_fn = (lambda a=self._asset: a.data.body_com_pose_w[..., :3])
+            self._get_com_fn = lambda a=self._asset: a.data.body_com_pose_w[..., :3]
         elif self._asset.__class__.__name__ == "RigidObjectCollection":
-            self._get_com_fn = (lambda a=self._asset: a.data.object_com_pose_w[..., :3])
+            self._get_com_fn = lambda a=self._asset: a.data.object_com_pose_w[..., :3]
         else:
             raise ValueError(f"Unsupported asset type: {self._asset.__class__.__name__}")
 
@@ -52,7 +54,7 @@ class WrenchComposer:
 
         .. note:: If some of the forces are applied in the global frame, the composed force will be in the center
         mass frame of the body.
-        
+
         Returns:
             wp.array: Composed force at the body's center of mass frame. (num_envs, num_bodies, 3)
         """
@@ -64,7 +66,7 @@ class WrenchComposer:
 
         .. note:: If some of the torques are applied in the global frame, the composed torque will be in the center
         mass frame of the body.
-        
+
         Returns:
             wp.array: Composed torque at the body's center of mass frame. (num_envs, num_bodies, 3)
         """
@@ -76,7 +78,7 @@ class WrenchComposer:
 
         .. note:: If some of the forces are applied in the global frame, the composed force will be in the center
         mass frame of the body.
-        
+
         Returns:
             np.ndarray: Composed force at the body's center of mass frame. (num_envs, num_bodies, 3)
         """
@@ -88,7 +90,7 @@ class WrenchComposer:
 
         .. note:: If some of the torques are applied in the global frame, the composed torque will be in the center
         mass frame of the body.
-        
+
         Returns:
             np.ndarray: Composed torque at the body's center of mass frame. (num_envs, num_bodies, 3)
         """
@@ -100,7 +102,7 @@ class WrenchComposer:
 
         .. note:: If some of the forces are applied in the global frame, the composed force will be in the center
         mass frame of the body.
-        
+
         Returns:
             torch.Tensor: Composed force at the body's center of mass frame. (num_envs, num_bodies, 3)
         """
@@ -112,7 +114,7 @@ class WrenchComposer:
 
         .. note:: If some of the torques are applied in the global frame, the composed torque will be in the center
         mass frame of the body.
-        
+
         Returns:
             torch.Tensor: Composed torque at the body's center of mass frame. (num_envs, num_bodies, 3)
         """
@@ -158,7 +160,9 @@ class WrenchComposer:
                 if self._asset is not None:
                     self._com_positions = self._get_com_fn().clone()
                 else:
-                    raise ValueError("Center of mass positions are not available. Please provide an asset to the wrench composer.")
+                    raise ValueError(
+                        "Center of mass positions are not available. Please provide an asset to the wrench composer."
+                    )
                 self._com_positions_updated = True
 
         wp.launch(
