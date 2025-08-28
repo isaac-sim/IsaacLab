@@ -6,7 +6,6 @@
 """Installation script for the 'isaaclab' python package."""
 
 import os
-import platform
 import toml
 
 from setuptools import setup
@@ -47,14 +46,12 @@ INSTALL_REQUIRES = [
     "flaky",
 ]
 
-# Additional dependencies that are only available on Linux platforms
-if platform.system() == "Linux":
-    INSTALL_REQUIRES += [
-        # required by isaaclab.isaaclab.controllers.pink_ik
-        "pin-pink==3.1.0; platform_system=='Linux' and (platform_machine=='x86_64' or platform_machine=='AMD64')",
-        # required by isaaclab.devices.openxr.retargeters.humanoid.fourier.gr1_t2_dex_retargeting_utils
-        "dex-retargeting==0.4.6; platform_system=='Linux' and (platform_machine=='x86_64' or platform_machine=='AMD64')"
-    ]
+# Append Linux x86_64–only deps via PEP 508 markers
+X64 = "platform_machine in 'x86_64,AMD64'"
+INSTALL_REQUIRES += [
+    f"pin-pink==3.1.0 ; platform_system == 'Linux' and ({X64})",
+    f"dex-retargeting==0.4.6 ; platform_system == 'Linux' and ({X64})",
+]
 
 PYTORCH_INDEX_URL = ["https://download.pytorch.org/whl/cu128"]
 
