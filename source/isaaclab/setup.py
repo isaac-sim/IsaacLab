@@ -50,7 +50,7 @@ INSTALL_REQUIRES = [
 X64 = "platform_machine in 'x86_64,AMD64'"
 INSTALL_REQUIRES += [
     # required by isaaclab.isaaclab.controllers.pink_ik
-    f"pin-pink==3.1.0 ",
+    "pin-pink==3.1.0",
     # required by isaaclab.devices.openxr.retargeters.humanoid.fourier.gr1_t2_dex_retargeting_utils
     f"dex-retargeting==0.4.6 ; platform_system == 'Linux' and ({X64})",
 ]
