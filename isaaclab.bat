@@ -567,11 +567,15 @@ if "%arg%"=="-i" (
 ) else if "%arg%"=="-n" (
     rem run the template generator script
     call :extract_python_exe
+    rem detect non-interactive flag while reconstructing arguments
+    set "isNonInteractive=0"
     set "allArgs="
+    set "skip="
     for %%a in (%*) do (
         REM Append each argument to the variable, skip the first one
         if defined skip (
-            set "allArgs=!allArgs! %%a"
+            if /I "%%~a"=="--non-interactive" set "isNonInteractive=1"
+            set "allArgs=!allArgs! ^"%%~a^""
         ) else (
             set "skip=1"
         )
@@ -581,16 +585,24 @@ if "%arg%"=="-i" (
     echo.
     echo [INFO] Running template generator...
     echo.
-    call !python_exe! tools\template\cli.py !allArgs!
+    if "!isNonInteractive!"=="1" (
+        call !python_exe! tools\template\non_interactive.py !allArgs!
+    ) else (
+        call !python_exe! tools\template\cli.py !allArgs!
+    )
     goto :end
 ) else if "%arg%"=="--new" (
     rem run the template generator script
     call :extract_python_exe
+    rem detect non-interactive flag while reconstructing arguments
+    set "isNonInteractive=0"
     set "allArgs="
+    set "skip="
     for %%a in (%*) do (
         REM Append each argument to the variable, skip the first one
         if defined skip (
-            set "allArgs=!allArgs! %%a"
+            if /I "%%~a"=="--non-interactive" set "isNonInteractive=1"
+            set "allArgs=!allArgs! ^"%%~a^""
         ) else (
             set "skip=1"
         )
@@ -600,7 +612,11 @@ if "%arg%"=="-i" (
     echo.
     echo [INFO] Running template generator...
     echo.
-    call !python_exe! tools\template\cli.py !allArgs!
+    if "!isNonInteractive!"=="1" (
+        call !python_exe! tools\template\non_interactive.py !allArgs!
+    ) else (
+        call !python_exe! tools\template\cli.py !allArgs!
+    )
     goto :end
 ) else if "%arg%"=="-t" (
     rem run the python provided by Isaac Sim
