@@ -414,7 +414,7 @@ while [[ $# -gt 0 ]]; do
             ${python_exe} -m pip install -e ${ISAACLAB_PATH}/source/isaaclab_rl["${framework_name}"]
             ${python_exe} -m pip install -e ${ISAACLAB_PATH}/source/isaaclab_mimic["${framework_name}"]
 
-            # in extremly rare cases, torch might not be installed properly by setup.py, add one more check here
+            # in some rare cases, torch might not be installed properly by setup.py, add one more check here
             # can prevent that from happening
             ensure_cuda_torch ${python_exe}
             # check if we are inside a docker container or are building a docker image
