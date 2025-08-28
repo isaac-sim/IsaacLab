@@ -41,6 +41,9 @@ from isaaclab_tasks.manager_based.locomanipulation.pick_place.locomanipulation_g
 from dataclasses import asdict
 from common import DisjointNavReplayState
 
+NUM_FORKLIFTS = 6
+NUM_BOXES = 12
+
 G1_LOCOMANIPULATION_ROBOT_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path="omniverse://isaac-dev.ov.nvidia.com/Projects/agile/Robots/Collected_g1/g1_collision_geom_simplified_bigger_offset_with_hand_collision.usd",
@@ -221,150 +224,6 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
         ),
     )
 
-    forklift_0 = AssetBaseCfg(
-        prim_path="/World/envs/env_.*/Forklift0",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[1.0, 0.0, 0.0, 0.0]),
-        spawn=UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Forklift/forklift.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
-        ),
-    )
-    forklift_1 = AssetBaseCfg(
-        prim_path="/World/envs/env_.*/Forklift1",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[1.0, 0.0, 0.0, 0.0]),
-        spawn=UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Forklift/forklift.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
-        ),
-    )
-
-    forklift_2 = AssetBaseCfg(
-        prim_path="/World/envs/env_.*/Forklift2",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[1.0, 0.0, 0.0, 0.0]),
-        spawn=UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Forklift/forklift.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
-        ),
-    )
-
-    forklift_3 = AssetBaseCfg(
-        prim_path="/World/envs/env_.*/Forklift3",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[1.0, 0.0, 0.0, 0.0]),
-        spawn=UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Forklift/forklift.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
-        ),
-    )
-
-    forklift_4 = AssetBaseCfg(
-        prim_path="/World/envs/env_.*/Forklift4",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[1.0, 0.0, 0.0, 0.0]),
-        spawn=UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Forklift/forklift.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
-        ),
-    )
-
-    forklift_5 = AssetBaseCfg(
-        prim_path="/World/envs/env_.*/Forklift5",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[1.0, 0.0, 0.0, 0.0]),
-        spawn=UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Forklift/forklift.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
-        ),
-    )
-
-    box_0 = AssetBaseCfg(
-        prim_path="/World/envs/env_.*/Box0",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[1.0, 0.0, 0.0, 0.0]),
-        spawn=UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Simple_Warehouse/Props/SM_CardBoxB_01_681.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
-        ),
-    )
-
-    box_1 = AssetBaseCfg(
-        prim_path="/World/envs/env_.*/Box1",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[1.0, 0.0, 0.0, 0.0]),
-        spawn=UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Simple_Warehouse/Props/SM_CardBoxB_01_681.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
-        ),
-    )
-
-    box_2 = AssetBaseCfg(
-        prim_path="/World/envs/env_.*/Box2",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[1.0, 0.0, 0.0, 0.0]),
-        spawn=UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Simple_Warehouse/Props/SM_CardBoxB_01_681.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
-        ),
-    )
-
-    box_3 = AssetBaseCfg(
-        prim_path="/World/envs/env_.*/Box3",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[1.0, 0.0, 0.0, 0.0]),
-        spawn=UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Simple_Warehouse/Props/SM_CardBoxB_01_681.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
-        ),
-    )
-    box_4 = AssetBaseCfg(
-        prim_path="/World/envs/env_.*/Box4",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[1.0, 0.0, 0.0, 0.0]),
-        spawn=UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Simple_Warehouse/Props/SM_CardBoxB_01_681.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
-        ),
-    )
-    box_5 = AssetBaseCfg(
-        prim_path="/World/envs/env_.*/Box5",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[1.0, 0.0, 0.0, 0.0]),
-        spawn=UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Simple_Warehouse/Props/SM_CardBoxB_01_681.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
-        ),
-    )
-    box_6 = AssetBaseCfg(
-        prim_path="/World/envs/env_.*/Box6",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[1.0, 0.0, 0.0, 0.0]),
-        spawn=UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Simple_Warehouse/Props/SM_CardBoxB_01_681.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
-        ),
-    )
-    box_7 = AssetBaseCfg(
-        prim_path="/World/envs/env_.*/Box7",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[1.0, 0.0, 0.0, 0.0]),
-        spawn=UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Simple_Warehouse/Props/SM_CardBoxB_01_681.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
-        ),
-    )
-    box_8 = AssetBaseCfg(
-        prim_path="/World/envs/env_.*/Box8",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[1.0, 0.0, 0.0, 0.0]),
-        spawn=UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Simple_Warehouse/Props/SM_CardBoxB_01_681.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
-        ),
-    )
-    box_9 = AssetBaseCfg(
-        prim_path="/World/envs/env_.*/Box9",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[1.0, 0.0, 0.0, 0.0]),
-        spawn=UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Simple_Warehouse/Props/SM_CardBoxB_01_681.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
-        ),
-    )
-    box_10 = AssetBaseCfg(
-        prim_path="/World/envs/env_.*/Box10",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[1.0, 0.0, 0.0, 0.0]),
-        spawn=UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Simple_Warehouse/Props/SM_CardBoxB_01_681.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
-        ),
-    )
     # Object
     object = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/Object",
@@ -388,6 +247,38 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
     light = AssetBaseCfg(
         prim_path="/World/light",
         spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), intensity=3000.0),
+    )
+
+
+# Add forklifts
+for i in range(NUM_FORKLIFTS):
+    setattr(
+        ObjectTableSceneCfg, 
+        f"forklift_{i}", 
+        AssetBaseCfg(
+            prim_path=f"/World/envs/env_.*/Forklift{i}",
+            init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[1.0, 0.0, 0.0, 0.0]),
+            spawn=UsdFileCfg(
+                usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Forklift/forklift.usd",
+                rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
+            ),
+        )        
+    )
+
+# Add boxes
+for i in range(NUM_BOXES):
+    setattr(
+        ObjectTableSceneCfg, 
+        f"box_{i}", 
+        AssetBaseCfg(
+            prim_path=f"/World/envs/env_.*/Box{i}",
+            init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[1.0, 0.0, 0.0, 0.0]),
+                
+            spawn=UsdFileCfg(
+                usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Simple_Warehouse/Props/SM_CardBoxB_01_681.usd",
+                rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
+            ),
+        )        
     )
 
 
@@ -695,8 +586,8 @@ class G1DisjointNavScenario(DisjointNavScenario):
         return PackingTable(self._env.scene, "packing_table_2")
 
     def get_obstacle_fixtures(self):
-        obstacles = [Forklift(self._env.scene, f"forklift_{i}") for i in range(6)]
-        obstacles += [CardboardBox(self._env.scene, f"box_{i}") for i in range(11)]
+        obstacles = [Forklift(self._env.scene, f"forklift_{i}") for i in range(NUM_FORKLIFTS)]
+        obstacles += [CardboardBox(self._env.scene, f"box_{i}") for i in range(NUM_BOXES)]
         return obstacles
 
     def reset(self, initial_state=None):
