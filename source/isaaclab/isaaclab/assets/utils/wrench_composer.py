@@ -34,9 +34,9 @@ class WrenchComposer:
         self._asset = asset
 
         if (self._asset.__class__.__name__ == "Articulation") or (self._asset.__class__.__name__ == "RigidObject"):
-            self._get_com_fn = self._asset.data.body_com_pose_w[..., :3]
+            self._get_com_fn = (lambda a=self._asset: a.data.body_com_pose_w[..., :3])
         elif self._asset.__class__.__name__ == "RigidObjectCollection":
-            self._get_com_fn = self._asset.data.object_com_pose_w[..., :3]
+            self._get_com_fn = (lambda a=self._asset: a.data.object_com_pose_w[..., :3])
         else:
             raise ValueError(f"Unsupported asset type: {self._asset.__class__.__name__}")
 
@@ -156,7 +156,7 @@ class WrenchComposer:
         if is_global:
             if not self._com_positions_updated:
                 if self._asset is not None:
-                    self._com_positions = self._get_com_fn
+                    self._com_positions = self._get_com_fn().clone()
                 else:
                     raise ValueError("Center of mass positions are not available. Please provide an asset to the wrench composer.")
                 self._com_positions_updated = True
