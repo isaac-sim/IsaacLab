@@ -397,7 +397,7 @@ def rails_terrain(
         A tuple containing the tri-mesh of the terrain and the origin of the terrain (in m).
     """
     # resolve the terrain configuration
-    rail_height = cfg.rail_height_range[1] - difficulty * (cfg.rail_height_range[1] - cfg.rail_height_range[0])
+    rail_height = cfg.rail_height_range[0] + difficulty * (cfg.rail_height_range[1] - cfg.rail_height_range[0])
 
     # initialize list of meshes
     meshes_list = list()
