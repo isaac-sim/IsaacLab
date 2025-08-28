@@ -121,7 +121,7 @@ from common import (
     DisjointNavReplayState,
     DisjointNavReplayTask
 )
-from g1_29dof import G1DisjointNavRecording, G1DisjointNavScenario
+from scripts.imitation_learning.disjoint_navigation.g1_disjoint_nav_env import G1DisjointNavRecording, G1DisjointNavScenario
 from occupancy_map import OccupancyMap, merge_occupancy_maps
 from path_utils import PathHelper
 from visualization import occupancy_map_add_to_stage
