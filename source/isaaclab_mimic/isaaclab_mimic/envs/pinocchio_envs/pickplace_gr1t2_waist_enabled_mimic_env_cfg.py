@@ -6,18 +6,20 @@
 from isaaclab.envs.mimic_env_cfg import MimicEnvCfg, SubTaskConfig
 from isaaclab.utils import configclass
 
-from isaaclab_tasks.manager_based.manipulation.pick_place.pickplace_gr1t2_env_cfg import PickPlaceGR1T2EnvCfg
+from isaaclab_tasks.manager_based.manipulation.pick_place.pickplace_gr1t2_waist_enabled_env_cfg import (
+    PickPlaceGR1T2WaistEnabledEnvCfg,
+)
 
 
 @configclass
-class PickPlaceGR1T2MimicEnvCfg(PickPlaceGR1T2EnvCfg, MimicEnvCfg):
+class PickPlaceGR1T2WaistEnabledMimicEnvCfg(PickPlaceGR1T2WaistEnabledEnvCfg, MimicEnvCfg):
 
     def __post_init__(self):
         # Calling post init of parents
         super().__post_init__()
 
         # Override the existing values
-        self.datagen_config.name = "gr1t2_pick_place_D0"
+        self.datagen_config.name = "gr1t2_pick_place_waist_enabled_D0"
         self.datagen_config.generation_guarantee = True
         self.datagen_config.generation_keep_failed = False
         self.datagen_config.generation_num_trials = 1000
