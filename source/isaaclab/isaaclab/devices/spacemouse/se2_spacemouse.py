@@ -5,48 +5,33 @@
 
 """Spacemouse controller for SE(2) control."""
 
-import hid
 import numpy as np
-import threading
-import time
 import torch
 from collections.abc import Callable
 from dataclasses import dataclass
 
 from isaaclab.utils.array import convert_to_torch
 
-from ..device_base import DeviceBase, DeviceCfg
-from .utils import convert_buffer
+from ..spacemouse.base_spacemouse import SpaceMouseBase, SpaceMouseBaseCfg
 
 
 @dataclass
-class Se2SpaceMouseCfg(DeviceCfg):
+class Se2SpaceMouseCfg(SpaceMouseBaseCfg):
     """Configuration for SE2 space mouse devices."""
 
     v_x_sensitivity: float = 0.8
     v_y_sensitivity: float = 0.4
     omega_z_sensitivity: float = 1.0
-    sim_device: str = "cpu"
 
 
-class Se2SpaceMouse(DeviceBase):
-    r"""A space-mouse controller for sending SE(2) commands as delta poses.
+class Se2SpaceMouse(SpaceMouseBase):
+    r"""A SpaceMouse controller for sending SE(2) commands as delta poses.
 
-    This class implements a space-mouse controller to provide commands to mobile base.
-    It uses the `HID-API`_ which interfaces with USD and Bluetooth HID-class devices across multiple platforms.
-
-    The command comprises of the base linear and angular velocity: :math:`(v_x, v_y, \omega_z)`.
-
-    Note:
-        The interface finds and uses the first supported device connected to the computer.
-
-    Currently tested for following devices:
-
-    - SpaceMouse Compact: https://3dconnexion.com/de/product/spacemouse-compact/
-
-    .. _HID-API: https://github.com/libusb/hidapi
-
+    This class is useful for controlling a robot in SE(2) space, for instance, a differential drive robot.
+    It provides the output as (x, y, yaw), where yaw is the rotation around the z-axis.
     """
+
+    cfg: Se2SpaceMouseCfg
 
     def __init__(self, cfg: Se2SpaceMouseCfg):
         """Initialize the spacemouse layer.
@@ -54,40 +39,16 @@ class Se2SpaceMouse(DeviceBase):
         Args:
             cfg: Configuration for the spacemouse device.
         """
+        super().__init__(cfg=cfg)
         # store inputs
-        self.v_x_sensitivity = cfg.v_x_sensitivity
-        self.v_y_sensitivity = cfg.v_y_sensitivity
-        self.omega_z_sensitivity = cfg.omega_z_sensitivity
-        self._sim_device = cfg.sim_device
-        # acquire device interface
-        self._device = hid.device()
-        self._find_device()
+        self._v_x_sensitivity = cfg.v_x_sensitivity
+        self._v_y_sensitivity = cfg.v_y_sensitivity
+        self._omega_z_sensitivity = cfg.omega_z_sensitivity
         # command buffers
         self._base_command = np.zeros(3)
-        # dictionary for additional callbacks
-        self._additional_callbacks = dict()
-        # run a thread for listening to device updates
-        self._thread = threading.Thread(target=self._run_device)
-        self._thread.daemon = True
-        self._thread.start()
-
-    def __del__(self):
-        """Destructor for the class."""
-        self._thread.join()
-
-    def __str__(self) -> str:
-        """Returns: A string containing the information of joystick."""
-        msg = f"Spacemouse Controller for SE(2): {self.__class__.__name__}\n"
-        msg += f"\tManufacturer: {self._device.get_manufacturer_string()}\n"
-        msg += f"\tProduct: {self._device.get_product_string()}\n"
-        msg += "\t----------------------------------------------\n"
-        msg += "\tRight button: reset command\n"
-        msg += "\tMove mouse laterally: move base horizontally in x-y plane\n"
-        msg += "\tTwist mouse about z-axis: yaw base about a corresponding axis"
-        return msg
 
     """
-    Operations
+    Public Methods
     """
 
     def reset(self):
@@ -116,55 +77,45 @@ class Se2SpaceMouse(DeviceBase):
     Internal helpers.
     """
 
-    def _find_device(self):
-        """Find the device connected to computer."""
-        found = False
-        # implement a timeout for device search
-        for _ in range(5):
-            for device in hid.enumerate():
-                if device["product_string"] == "SpaceMouse Compact":
-                    # set found flag
-                    found = True
-                    vendor_id = device["vendor_id"]
-                    product_id = device["product_id"]
-                    # connect to the device
-                    self._device.open(vendor_id, product_id)
-            # check if device found
-            if not found:
-                time.sleep(1.0)
-            else:
-                break
-        # no device found: return false
-        if not found:
-            raise OSError("No device found by SpaceMouse. Is the device connected?")
+    def _listen_for_updates(self):
+        """
+        This method implements the abstract method in the base class.
+        It reads the current mouse input state and runs operations for the current user input.
+        """
 
-    def _run_device(self):
-        """Listener thread that keeps pulling new messages."""
-        # keep running
-        while True:
-            # read the device data
-            data = self._device.read(13)
-            if data is not None:
-                # readings from 6-DoF sensor
-                if data[0] == 1:
-                    # along y-axis
-                    self._base_command[1] = self.v_y_sensitivity * convert_buffer(data[1], data[2])
-                    # along x-axis
-                    self._base_command[0] = self.v_x_sensitivity * convert_buffer(data[3], data[4])
-                elif data[0] == 2:
-                    # along z-axis
-                    self._base_command[2] = self.omega_z_sensitivity * convert_buffer(data[3], data[4])
-                # readings from the side buttons
-                elif data[0] == 3:
-                    # press left button
-                    if data[1] == 1:
-                        # additional callbacks
-                        if "L" in self._additional_callbacks:
-                            self._additional_callbacks["L"]
-                    # right button is for reset
-                    if data[1] == 2:
-                        # reset layer
-                        self.reset()
-                        # additional callbacks
-                        if "R" in self._additional_callbacks:
-                            self._additional_callbacks["R"]
+        # Restart the timer to call this function again after the specified interval
+        self._start_timer()
+
+        # read the device state
+        self._read_mouse_state()
+
+        # operations for the current user input
+
+        # callback when left button is pressed
+        if self._state.buttons[0] and not self._state.buttons[1]:
+            # run additional callbacks
+            if "L" in self._additional_callbacks:
+                self._additional_callbacks["L"]
+
+        # callback when right button is pressed
+        elif self._state.buttons[1] and not self._state.buttons[0]:
+            self.reset()  # reset the base command
+
+            # run additional callbacks
+            if "R" in self._additional_callbacks:
+                self._additional_callbacks["R"]
+
+        # transform the SpaceMouse state into base command
+        twist = self._transform_state_to_twist(self._state)
+
+        # call the callback for the twist command
+        self._process_twist_command(twist)
+
+    def _process_twist_command(self, twist) -> None:
+        """Project the Se3 twist into Se2 twist command.
+        Args:
+            twist: The Se3 twist linear and angular velocity in order: [vx, vy, vz, wx, wy, wz].
+        """
+        self._base_command[0] = self._v_x_sensitivity * twist[0]  # x
+        self._base_command[1] = self._v_y_sensitivity * twist[1]  # y
+        self._base_command[2] = self._omega_z_sensitivity * twist[5]  # yaw

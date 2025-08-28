@@ -45,7 +45,7 @@ For smoother operation and off-axis operation, we recommend using a SpaceMouse a
       devices:
          - /dev/hidraw<#>:/dev/hidraw<#>
 
-   where ``<#>`` is the device index of the connected SpaceMouse.
+   where ``<#>`` is the device index of the connected SpaceMouse. It can be found with the previous commands, run outside of the container
 
    If you are using the IsaacLab + CloudXR container deployment (:ref:`cloudxr-teleoperation`), you can add the ``devices`` attribute under the ``services -> isaac-lab-base`` section of the
    ``docker/docker-compose.cloudxr-runtime.patch.yaml`` file.

@@ -30,6 +30,10 @@ parser.add_argument(
     default=False,
     help="Enable Pinocchio.",
 )
+parser.add_argument(
+    "--update_interval_ms", type=int, default=10, help="Update interval for 3D mouse device input in milliseconds (ms)"
+)
+
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
@@ -188,7 +192,12 @@ def main() -> None:
                 )
             elif args_cli.teleop_device.lower() == "spacemouse":
                 teleop_interface = Se3SpaceMouse(
-                    Se3SpaceMouseCfg(pos_sensitivity=0.05 * sensitivity, rot_sensitivity=0.05 * sensitivity)
+                    Se3SpaceMouseCfg(
+                        pos_sensitivity=0.05 * sensitivity,
+                        rot_sensitivity=0.05 * sensitivity,
+                        interval_ms=args_cli.update_interval_ms,
+                        sim_device=args_cli.device,
+                    )
                 )
             elif args_cli.teleop_device.lower() == "gamepad":
                 teleop_interface = Se3Gamepad(
