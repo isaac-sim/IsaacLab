@@ -50,8 +50,10 @@ INSTALL_REQUIRES = [
 # Additional dependencies that are only available on Linux platforms
 if platform.system() == "Linux":
     INSTALL_REQUIRES += [
-        "pin-pink==3.1.0",  # required by isaaclab.isaaclab.controllers.pink_ik
-        "dex-retargeting==0.4.6",  # required by isaaclab.devices.openxr.retargeters.humanoid.fourier.gr1_t2_dex_retargeting_utils
+        # required by isaaclab.isaaclab.controllers.pink_ik
+        "pin-pink==3.1.0; platform_system=='Linux' and (platform_machine=='x86_64' or platform_machine=='AMD64')",
+        # required by isaaclab.devices.openxr.retargeters.humanoid.fourier.gr1_t2_dex_retargeting_utils
+        "dex-retargeting==0.4.6; platform_system=='Linux' and (platform_machine=='x86_64' or platform_machine=='AMD64')"
     ]
 
 PYTORCH_INDEX_URL = ["https://download.pytorch.org/whl/cu128"]
