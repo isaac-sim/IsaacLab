@@ -95,6 +95,10 @@ To learn about how to set up your own project on top of Isaac Lab, see :ref:`tem
 
             python -m pip install --upgrade pip
 
+.. note::
+
+   If you use uv, replace `pip` with `uv pip`.
+
 
 -  Next, install a CUDA-enabled PyTorch 2.7.0 build for CUDA 12.8.
 
