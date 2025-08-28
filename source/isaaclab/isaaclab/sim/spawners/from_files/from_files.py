@@ -24,6 +24,7 @@ from isaaclab.sim import converters, schemas
 from isaaclab.sim.utils import (
     bind_physics_material,
     bind_visual_material,
+    check_usd_path_with_timeout,
     clone,
     is_current_stage_in_memory,
     select_usd_variants,
@@ -256,18 +257,16 @@ def _spawn_from_usd_file(
     Raises:
         FileNotFoundError: If the USD file does not exist at the given path.
     """
-    # get stage handle
-    stage = get_current_stage()
-
-    # check file path exists
-    if not stage.ResolveIdentifierToEditTarget(usd_path):
+    # check if usd path exists with periodic logging until timeout
+    if not check_usd_path_with_timeout(usd_path):
         if "4.5" in usd_path:
             usd_5_0_path = usd_path.replace("http", "https").replace("/4.5", "/5.0")
-            if not stage.ResolveIdentifierToEditTarget(usd_5_0_path):
+            if not check_usd_path_with_timeout(usd_5_0_path):
                 raise FileNotFoundError(f"USD file not found at path at either: '{usd_path}' or '{usd_5_0_path}'.")
             usd_path = usd_5_0_path
         else:
             raise FileNotFoundError(f"USD file not found at path at: '{usd_path}'.")
+
     # spawn asset if it doesn't exist.
     if not prim_utils.is_prim_path_valid(prim_path):
         # add prim as reference to stage

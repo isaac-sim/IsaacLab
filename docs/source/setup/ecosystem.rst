@@ -149,6 +149,7 @@ to Isaac Lab, please reach out to us.
 .. _ManiSkill: https://github.com/haosulab/ManiSkill
 .. _ThreeDWorld: https://www.threedworld.org/
 .. _RoboSuite: https://robosuite.ai/
+.. _MuJoCo: https://mujoco.org/
 .. _MuJoCo Playground: https://playground.mujoco.org/
 .. _MJX: https://mujoco.readthedocs.io/en/stable/mjx.html
 .. _Bullet: https://github.com/bulletphysics/bullet3
