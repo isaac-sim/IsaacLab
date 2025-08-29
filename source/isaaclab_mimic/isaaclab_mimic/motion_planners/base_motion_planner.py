@@ -50,7 +50,7 @@ class MotionPlanner(ABC):
         self.debug = debug
 
     @abstractmethod
-    def update_world_and_plan_motion(self, target_pose: torch.Tensor, **kwargs) -> bool:
+    def update_world_and_plan_motion(self, target_pose: torch.Tensor, **kwargs: Any) -> bool:
         """Update collision world and plan motion to target pose.
 
         This is the main entry point for motion planning. It should:

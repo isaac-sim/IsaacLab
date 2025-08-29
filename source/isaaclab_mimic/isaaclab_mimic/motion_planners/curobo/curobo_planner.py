@@ -8,6 +8,7 @@ import torch
 from dataclasses import dataclass
 from typing import Any
 
+from curobo.cuda_robot_model.cuda_robot_model import CudaRobotModelState
 from curobo.geom.sdf.world import CollisionCheckerType
 from curobo.geom.sphere_fit import SphereFitType
 from curobo.geom.types import WorldConfig
@@ -245,7 +246,7 @@ class CuroboPlanner(MotionPlanner):
     # INITIALIZATION AND CONFIGURATION
     # =====================================================================================
 
-    def _initialize_static_world(self):
+    def _initialize_static_world(self) -> None:
         """Initialize static world geometry from USD stage.
 
         Reads static environment geometry once during planner initialization to establish
@@ -318,7 +319,7 @@ class CuroboPlanner(MotionPlanner):
             return None
 
         # Search for object in world model
-        for obj_list, obj_type in [
+        for obj_list, _ in [
             (world_model.mesh, "mesh"),
             (world_model.cuboid, "cuboid"),
         ]:
@@ -374,18 +375,11 @@ class CuroboPlanner(MotionPlanner):
                 if self.debug:
                     print(f"DEBUG GET_ATTACHED_POSE: Using {ee_link} for {link_name}")
                 return link_poses[ee_link]
-            else:
-                if self.debug:
-                    print(f"WARNING: {ee_link} not found, using EE pose")
-                return self.get_ee_pose(joint_state)
 
         # Return directly for other links
         if link_name in link_poses:
             return link_poses[link_name]
-        else:
-            if self.debug:
-                print(f"WARNING: Link {link_name} not found, using EE pose")
-            return self.get_ee_pose(joint_state)
+        raise KeyError(f"Link {link_name} not found in computed link poses")
 
     def create_attachment(
         self, object_name: str, link_name: str | None = None, joint_state: JointState | None = None
@@ -485,10 +479,9 @@ class CuroboPlanner(MotionPlanner):
 
             # Handle case where world_model might be a list
             if isinstance(world_model, list):
-                if len(world_model) > self.env_id:
-                    world_model = world_model[self.env_id]
-                else:
+                if len(world_model) <= self.env_id:
                     return []
+                world_model = world_model[self.env_id]
 
             object_names = []
 
@@ -518,90 +511,82 @@ class CuroboPlanner(MotionPlanner):
         The method updates both the world model and the collision checker to ensure
         consistency across all cuRobo components.
         """
-        try:
-            # Get cached object mappings and world model
-            object_mappings = self._get_object_mappings()
-            world_model = self.motion_gen.world_coll_checker.world_model
-            rigid_objects = self.env.scene.rigid_objects
+        # Get cached object mappings and world model
+        object_mappings = self._get_object_mappings()
+        world_model = self.motion_gen.world_coll_checker.world_model
+        rigid_objects = self.env.scene.rigid_objects
 
-            updated_count = 0
+        updated_count = 0
 
+        for object_name, object_path in object_mappings.items():
+            if object_name not in rigid_objects:
+                continue
+
+            # Skip static mesh objects - they should not be dynamically updated
+            static_objects = getattr(self.config, "static_objects", [])
+            if any(static_name in object_name.lower() for static_name in static_objects):
+                if self.debug:
+                    print(f"SYNC: Skipping static object {object_name}")
+                continue
+
+            # Get current pose from Lab (may be on CPU or CUDA depending on --device flag)
+            obj = rigid_objects[object_name]
+            env_origin = self.env.scene.env_origins[self.env_id]
+            current_pos_raw = obj.data.root_pos_w[self.env_id] - env_origin
+            current_quat_raw = obj.data.root_quat_w[self.env_id]  # (w, x, y, z)
+
+            # Convert to cuRobo device and extract float values for pose list
+            current_pos = self._to_curobo_device(current_pos_raw)
+            current_quat = self._to_curobo_device(current_quat_raw)
+
+            # Convert to cuRobo pose format [x, y, z, w, x, y, z]
+            pose_list = [
+                float(current_pos[0].item()),
+                float(current_pos[1].item()),
+                float(current_pos[2].item()),
+                float(current_quat[0].item()),
+                float(current_quat[1].item()),
+                float(current_quat[2].item()),
+                float(current_quat[3].item()),
+            ]
+
+            # Update object pose in cuRobo's world model
+            if self._update_object_in_world_model(world_model, object_name, object_path, pose_list):
+                updated_count += 1
+
+        if self.debug:
+            print(f"SYNC: Updated {updated_count} object poses in cuRobo world model")
+
+        # Sync object poses with collision checker
+        if updated_count > 0:
+            # Update individual obstacle poses in collision checker
+            # This preserves static mesh objects unlike load_collision_model which rebuilds everything
             for object_name, object_path in object_mappings.items():
                 if object_name not in rigid_objects:
                     continue
 
                 # Skip static mesh objects - they should not be dynamically updated
-                if any(static_name in object_name.lower() for static_name in ["bin", "table", "wall", "floor"]):
-                    if self.debug:
-                        print(f"SYNC: Skipping static object {object_name}")
+                static_objects = getattr(self.config, "static_objects", [])
+                if any(static_name in object_name.lower() for static_name in static_objects):
                     continue
 
-                # Get current pose from Lab (may be on CPU or CUDA depending on --device flag)
+                # Get current pose and update in collision checker
                 obj = rigid_objects[object_name]
                 env_origin = self.env.scene.env_origins[self.env_id]
                 current_pos_raw = obj.data.root_pos_w[self.env_id] - env_origin
-                current_quat_raw = obj.data.root_quat_w[self.env_id]  # (w, x, y, z)
+                current_quat_raw = obj.data.root_quat_w[self.env_id]
 
-                # Convert to cuRobo device and extract float values for pose list
                 current_pos = self._to_curobo_device(current_pos_raw)
                 current_quat = self._to_curobo_device(current_quat_raw)
 
-                # Convert to cuRobo pose format [x, y, z, w, x, y, z]
-                pose_list = [
-                    float(current_pos[0].item()),
-                    float(current_pos[1].item()),
-                    float(current_pos[2].item()),
-                    float(current_quat[0].item()),
-                    float(current_quat[1].item()),
-                    float(current_quat[2].item()),
-                    float(current_quat[3].item()),
-                ]
-
-                # Update object pose in cuRobo's world model
-                if self._update_object_in_world_model(world_model, object_name, object_path, pose_list):
-                    updated_count += 1
+                # Create cuRobo pose and update collision checker directly
+                curobo_pose = Pose(position=current_pos, quaternion=current_quat)
+                self.motion_gen.world_coll_checker.update_obstacle_pose(  # type: ignore
+                    object_path, curobo_pose, env_idx=self.env_id, update_cpu_reference=True
+                )
 
             if self.debug:
-                print(f"SYNC: Updated {updated_count} object poses in cuRobo world model")
-
-            # Sync object poses with collision checker
-            if updated_count > 0:
-                try:
-                    # Update individual obstacle poses in collision checker
-                    # This preserves static mesh objects unlike load_collision_model which rebuilds everything
-                    for object_name, object_path in object_mappings.items():
-                        if object_name not in rigid_objects:
-                            continue
-
-                        # Skip static mesh objects - they should not be dynamically updated
-                        if any(static_name in object_name.lower() for static_name in ["bin", "table", "wall", "floor"]):
-                            continue
-
-                        # Get current pose and update in collision checker
-                        obj = rigid_objects[object_name]
-                        env_origin = self.env.scene.env_origins[self.env_id]
-                        current_pos_raw = obj.data.root_pos_w[self.env_id] - env_origin
-                        current_quat_raw = obj.data.root_quat_w[self.env_id]
-
-                        current_pos = self._to_curobo_device(current_pos_raw)
-                        current_quat = self._to_curobo_device(current_quat_raw)
-
-                        # Create cuRobo pose and update collision checker directly
-                        curobo_pose = Pose(position=current_pos, quaternion=current_quat)
-                        self.motion_gen.world_coll_checker.update_obstacle_pose(  # type: ignore
-                            object_path, curobo_pose, env_idx=self.env_id, update_cpu_reference=True
-                        )
-
-                    if self.debug:
-                        print(f"Updated {updated_count} object poses in collision checker")
-
-                except Exception as e:
-                    if self.debug:
-                        print(f"ERROR updating collision checker poses: {e}")
-
-        except Exception as e:
-            if self.debug:
-                print(f"ERROR in pose synchronization: {e}")
+                print(f"Updated {updated_count} object poses in collision checker")
 
     def _get_object_mappings(self) -> dict[str, str]:
         """Get object mappings with caching for performance optimization.
@@ -863,7 +848,7 @@ class CuroboPlanner(MotionPlanner):
             True if one or more objects are attached, False if no attachments exist
         """
         # With cumotion.py pattern, check if attached_objects dict is non-empty
-        return len(self.attached_objects) > 0
+        return len(self.attached_objects) != 0
 
     # =====================================================================================
     # JOINT STATE AND KINEMATICS
@@ -1032,10 +1017,9 @@ class CuroboPlanner(MotionPlanner):
                 if link != self.config.attached_object_link_name
             ]
             for link_name in robot_links:
-                if hasattr(self.motion_gen.kinematics.kinematics_config, "get_link_spheres"):
-                    link_spheres = self.motion_gen.kinematics.kinematics_config.get_link_spheres(link_name)
-                    if link_spheres is not None:
-                        robot_link_count += int(torch.sum(link_spheres[:, 3] > 0).item())
+                link_spheres = self.motion_gen.kinematics.kinematics_config.get_link_spheres(link_name)
+                if link_spheres is not None:
+                    robot_link_count += int(torch.sum(link_spheres[:, 3] > 0).item())
 
             # Split spheres
             for i, sphere in enumerate(sphere_list):
@@ -1157,7 +1141,7 @@ class CuroboPlanner(MotionPlanner):
             result: Any = self.motion_gen.plan_single(start_state, goal_pose, self.plan_config)
 
             if result.success.item():
-                if result.optimized_plan is not None and len(result.optimized_plan.position) > 0:
+                if result.optimized_plan is not None and len(result.optimized_plan.position) != 0:
                     self._current_plan = result.optimized_plan
                     if self.debug:
                         print(f"Using optimized plan with {len(self._current_plan.position)} waypoints")
@@ -1184,7 +1168,6 @@ class CuroboPlanner(MotionPlanner):
         except Exception as e:
             if self.debug:
                 print(f"Error during planning: {e}")
-            planning_success = False
 
         # Always restore sphere state after planning, regardless of success
         if contact:
@@ -1346,7 +1329,7 @@ class CuroboPlanner(MotionPlanner):
         distances = torch.norm(deltas, dim=-1)
 
         waypoints = [path[0]]
-        for i, (distance, waypoint) in enumerate(zip(distances, path[1:])):
+        for distance, waypoint in zip(distances, path[1:]):
             if distance > 1e-6:
                 waypoints.append(waypoint)
 
@@ -1359,8 +1342,6 @@ class CuroboPlanner(MotionPlanner):
             deltas = waypoints[1:] - waypoints[:-1]
             distances = torch.norm(deltas, dim=-1)
             cum_distances = torch.cat([torch.zeros(1, device=distances.device), torch.cumsum(distances, dim=0)])
-        else:
-            cum_distances = torch.zeros(1, device=path.device)
 
         if len(waypoints) < 2 or cum_distances[-1] < 1e-6:
             return plan
@@ -1431,7 +1412,7 @@ class CuroboPlanner(MotionPlanner):
             raise IndexError("No more waypoints in the plan.")
         next_joint_state: JointState = self._current_plan[self._plan_index]
         self._plan_index += 1
-        eef_state: Any = self.motion_gen.compute_kinematics(next_joint_state)
+        eef_state: CudaRobotModelState = self.motion_gen.compute_kinematics(next_joint_state)
         return eef_state.ee_pose
 
     def reset_plan(self) -> None:
@@ -1829,13 +1810,15 @@ class CuroboPlanner(MotionPlanner):
             True if object is detected as grasped
         """
         gripper_open_val = self.config.grasp_gripper_open_val
+        object_grasped = gripper_pos[0].item() < gripper_open_val
 
-        if gripper_pos[0].item() < gripper_open_val:
-            print(f"Object {object_name} is grasped")
-            return True
-        else:
-            print(f"Object {object_name} is not grasped")
-            return False
+        print(
+            f"Object {object_name} is grasped: {object_grasped}"
+            if object_grasped
+            else f"Object {object_name} is not grasped"
+        )
+
+        return object_grasped
 
     def _set_gripper_state(self, has_attached_objects: bool) -> None:
         """Configure gripper joint positions based on object attachment status.

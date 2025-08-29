@@ -191,17 +191,10 @@ class DataGenInfoPool:
                         eef_subtask_boundaries[i - 1][1] + prev_max_offset_range
                         < eef_subtask_boundaries[i][1] + self.subtask_term_offset_ranges[eef_name][i][0]
                     ), (
-                        "subtask sanity check violation in demo with subtask {} end ind {}, subtask {} max offset {},"
-                        " subtask {} end ind {}, and subtask {} min offset {}".format(
-                            i - 1,
-                            eef_subtask_boundaries[i - 1][1],
-                            i - 1,
-                            prev_max_offset_range,
-                            i,
-                            eef_subtask_boundaries[i][1],
-                            i,
-                            self.subtask_term_offset_ranges[eef_name][i][0],
-                        )
+                        f"subtask sanity check violation in demo with subtask {i - 1} end ind"
+                        f" {eef_subtask_boundaries[i - 1][1]}, subtask {i - 1} max offset {prev_max_offset_range},"
+                        f" subtask {i} end ind {eef_subtask_boundaries[i][1]}, and subtask {i} min offset"
+                        f" {self.subtask_term_offset_ranges[eef_name][i][0]}"
                     )
 
             self._subtask_boundaries[eef_name].append(eef_subtask_boundaries)

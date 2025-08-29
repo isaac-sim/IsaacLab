@@ -192,7 +192,7 @@ def main():
         # Cleanup of motion planners and their visualizers
         if motion_planners is not None:
             for env_id, planner in motion_planners.items():
-                if hasattr(planner, "plan_visualizer") and planner.plan_visualizer is not None:
+                if getattr(planner, "plan_visualizer", None) is not None:
                     print(f"Closing plan visualizer for environment {env_id}")
                     planner.plan_visualizer.close()
                     planner.plan_visualizer = None
