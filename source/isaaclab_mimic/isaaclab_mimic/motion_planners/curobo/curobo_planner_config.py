@@ -68,6 +68,10 @@ class CuroboPlannerConfig:
     world_config_file: str = "collision_table.yml"
     """CuRobo world configuration file (without path)."""
 
+    # Static objects to not update in the world model
+    static_objects: list[str] = field(default_factory=list)
+    """Names of static objects to not update in the world model."""
+
     # Motion planning parameters
     collision_checker_type: CollisionCheckerType = CollisionCheckerType.MESH
     """Type of collision checker to use."""
@@ -386,13 +390,14 @@ class CuroboPlannerConfig:
     def franka_stack_cube_bin_config(cls) -> "CuroboPlannerConfig":
         """Create configuration for Franka stacking cube in a bin."""
         config = cls.franka_config()
+        config.static_objects = ["bin", "table"]
         config.gripper_closed_positions = {"panda_finger_joint1": 0.024, "panda_finger_joint2": 0.024}
         config.approach_distance = 0.05
         config.retreat_distance = 0.07
         config.surface_sphere_radius = 0.01
         config.debug_planner = False
         config.collision_activation_distance = 0.02
-        config.visualize_plan = True
+        config.visualize_plan = False
         config.enable_finetune_trajopt = True
         config.motion_noise_scale = 0.02
         config.get_world_config = lambda: config._get_world_config_with_table_adjustment()
@@ -402,6 +407,7 @@ class CuroboPlannerConfig:
     def franka_stack_cube_config(cls) -> "CuroboPlannerConfig":
         """Create configuration for Franka stacking a normal cube."""
         config = cls.franka_config()
+        config.static_objects = ["table"]
         config.visualize_plan = False
         config.debug_planner = False
         config.motion_noise_scale = 0.02

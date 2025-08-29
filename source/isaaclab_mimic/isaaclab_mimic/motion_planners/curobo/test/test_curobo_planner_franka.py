@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import random
+from collections.abc import Generator
 from typing import Any
 
 import pytest
@@ -47,7 +48,7 @@ predefined_ee_goals_and_ids = [
 
 
 @pytest.fixture(scope="class")
-def curobo_test_env():
+def curobo_test_env() -> Generator[dict[str, Any], None, None]:
     """Set up the environment for the Curobo test and yield test-critical data."""
     random.seed(SEED)
     torch.manual_seed(SEED)
@@ -107,7 +108,7 @@ class TestCuroboPlanner:
     """Test suite for the Curobo motion planner, focusing on obstacle avoidance."""
 
     @pytest.fixture(autouse=True)
-    def setup(self, curobo_test_env):
+    def setup(self, curobo_test_env) -> None:
         """Inject the test environment into the test class instance."""
         self.env: ManagerBasedEnv = curobo_test_env["env"]
         self.robot: Articulation = curobo_test_env["robot"]
@@ -115,7 +116,7 @@ class TestCuroboPlanner:
         self.goal_pose_visualizer: VisualizationMarkers | None = curobo_test_env["goal_pose_visualizer"]
         self.home_j: torch.Tensor = curobo_test_env["home_j"]
 
-    def _visualize_goal_pose(self, pos: torch.Tensor, quat: torch.Tensor):
+    def _visualize_goal_pose(self, pos: torch.Tensor, quat: torch.Tensor) -> None:
         """Visualize the goal pose using frame markers if not in headless mode."""
         if headless or self.goal_pose_visualizer is None:
             return
@@ -123,7 +124,7 @@ class TestCuroboPlanner:
         quat_vis = quat.unsqueeze(0)
         self.goal_pose_visualizer.visualize(translations=pos_vis, orientations=quat_vis)
 
-    def _execute_current_plan(self):
+    def _execute_current_plan(self) -> None:
         """Replay the waypoints of the current plan in the simulator for visualization."""
         if headless or self.planner.current_plan is None:
             return
@@ -132,7 +133,7 @@ class TestCuroboPlanner:
             self._set_arm_positions(q_tensor)
             self.env.sim.step(render=True)
 
-    def _set_arm_positions(self, q: torch.Tensor):
+    def _set_arm_positions(self, q: torch.Tensor) -> None:
         """Set the joint positions of the robot's arm, appending default gripper values if necessary."""
         if q.dim() == 1:
             q = q.unsqueeze(0)
@@ -144,7 +145,7 @@ class TestCuroboPlanner:
         self.robot.write_joint_position_to_sim(q_full)
 
     @pytest.mark.parametrize("goal_spec, goal_id", predefined_ee_goals_and_ids)
-    def test_plan_to_predefined_goal(self, goal_spec, goal_id):
+    def test_plan_to_predefined_goal(self, goal_spec, goal_id) -> None:
         """Test planning to a predefined goal, ensuring the planner can find a path around an obstacle."""
         print(f"Planning for goal: {goal_id}")
 

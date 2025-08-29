@@ -25,6 +25,7 @@ simulation_app: Any = app_launcher.app
 
 import gymnasium as gym
 import torch
+from collections.abc import Generator
 
 import isaaclab.utils.math as math_utils
 from isaaclab.assets import Articulation, RigidObject
@@ -86,7 +87,7 @@ DOWN_FACING_QUAT = torch.tensor([0.0, 1.0, 0.0, 0.0], dtype=torch.float32)
 
 
 @pytest.fixture(scope="class")
-def cube_stack_test_env():
+def cube_stack_test_env() -> Generator[dict[str, Any], None, None]:
     """Create the environment and motion planner once for the test suite and yield them."""
     random.seed(SEED)
     torch.manual_seed(SEED)
@@ -140,7 +141,7 @@ def cube_stack_test_env():
 
 class TestCubeStackPlanner:
     @pytest.fixture(autouse=True)
-    def setup(self, cube_stack_test_env):
+    def setup(self, cube_stack_test_env) -> None:
         self.env: ManagerBasedEnv = cube_stack_test_env["env"]
         self.robot: Articulation = cube_stack_test_env["robot"]
         self.planner: CuroboPlanner = cube_stack_test_env["planner"]
