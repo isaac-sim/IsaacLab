@@ -37,9 +37,12 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR, retri
 from isaaclab.utils.datasets import HDF5DatasetFileHandler
 
 from isaaclab_tasks.manager_based.manipulation.pick_place import mdp as manip_mdp
-
+from isaaclab_tasks.manager_based.locomanipulation.pick_place.locomanipulation_g1_env_cfg import ObservationsCfg
 from dataclasses import asdict
 from common import DisjointNavReplayState
+
+NUM_FORKLIFTS = 6
+NUM_BOXES = 12
 
 G1_LOCOMANIPULATION_ROBOT_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
@@ -221,150 +224,6 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
         ),
     )
 
-    forklift_0 = AssetBaseCfg(
-        prim_path="/World/envs/env_.*/Forklift0",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[1.0, 0.0, 0.0, 0.0]),
-        spawn=UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Forklift/forklift.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
-        ),
-    )
-    forklift_1 = AssetBaseCfg(
-        prim_path="/World/envs/env_.*/Forklift1",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[1.0, 0.0, 0.0, 0.0]),
-        spawn=UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Forklift/forklift.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
-        ),
-    )
-
-    forklift_2 = AssetBaseCfg(
-        prim_path="/World/envs/env_.*/Forklift2",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[1.0, 0.0, 0.0, 0.0]),
-        spawn=UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Forklift/forklift.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
-        ),
-    )
-
-    forklift_3 = AssetBaseCfg(
-        prim_path="/World/envs/env_.*/Forklift3",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[1.0, 0.0, 0.0, 0.0]),
-        spawn=UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Forklift/forklift.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
-        ),
-    )
-
-    forklift_4 = AssetBaseCfg(
-        prim_path="/World/envs/env_.*/Forklift4",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[1.0, 0.0, 0.0, 0.0]),
-        spawn=UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Forklift/forklift.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
-        ),
-    )
-
-    forklift_5 = AssetBaseCfg(
-        prim_path="/World/envs/env_.*/Forklift5",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[1.0, 0.0, 0.0, 0.0]),
-        spawn=UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Forklift/forklift.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
-        ),
-    )
-
-    box_0 = AssetBaseCfg(
-        prim_path="/World/envs/env_.*/Box0",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[1.0, 0.0, 0.0, 0.0]),
-        spawn=UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Simple_Warehouse/Props/SM_CardBoxB_01_681.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
-        ),
-    )
-
-    box_1 = AssetBaseCfg(
-        prim_path="/World/envs/env_.*/Box1",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[1.0, 0.0, 0.0, 0.0]),
-        spawn=UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Simple_Warehouse/Props/SM_CardBoxB_01_681.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
-        ),
-    )
-
-    box_2 = AssetBaseCfg(
-        prim_path="/World/envs/env_.*/Box2",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[1.0, 0.0, 0.0, 0.0]),
-        spawn=UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Simple_Warehouse/Props/SM_CardBoxB_01_681.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
-        ),
-    )
-
-    box_3 = AssetBaseCfg(
-        prim_path="/World/envs/env_.*/Box3",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[1.0, 0.0, 0.0, 0.0]),
-        spawn=UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Simple_Warehouse/Props/SM_CardBoxB_01_681.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
-        ),
-    )
-    box_4 = AssetBaseCfg(
-        prim_path="/World/envs/env_.*/Box4",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[1.0, 0.0, 0.0, 0.0]),
-        spawn=UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Simple_Warehouse/Props/SM_CardBoxB_01_681.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
-        ),
-    )
-    box_5 = AssetBaseCfg(
-        prim_path="/World/envs/env_.*/Box5",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[1.0, 0.0, 0.0, 0.0]),
-        spawn=UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Simple_Warehouse/Props/SM_CardBoxB_01_681.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
-        ),
-    )
-    box_6 = AssetBaseCfg(
-        prim_path="/World/envs/env_.*/Box6",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[1.0, 0.0, 0.0, 0.0]),
-        spawn=UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Simple_Warehouse/Props/SM_CardBoxB_01_681.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
-        ),
-    )
-    box_7 = AssetBaseCfg(
-        prim_path="/World/envs/env_.*/Box7",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[1.0, 0.0, 0.0, 0.0]),
-        spawn=UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Simple_Warehouse/Props/SM_CardBoxB_01_681.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
-        ),
-    )
-    box_8 = AssetBaseCfg(
-        prim_path="/World/envs/env_.*/Box8",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[1.0, 0.0, 0.0, 0.0]),
-        spawn=UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Simple_Warehouse/Props/SM_CardBoxB_01_681.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
-        ),
-    )
-    box_9 = AssetBaseCfg(
-        prim_path="/World/envs/env_.*/Box9",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[1.0, 0.0, 0.0, 0.0]),
-        spawn=UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Simple_Warehouse/Props/SM_CardBoxB_01_681.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
-        ),
-    )
-    box_10 = AssetBaseCfg(
-        prim_path="/World/envs/env_.*/Box10",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[1.0, 0.0, 0.0, 0.0]),
-        spawn=UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Simple_Warehouse/Props/SM_CardBoxB_01_681.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
-        ),
-    )
     # Object
     object = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/Object",
@@ -388,6 +247,38 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
     light = AssetBaseCfg(
         prim_path="/World/light",
         spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), intensity=3000.0),
+    )
+
+
+# Add forklifts
+for i in range(NUM_FORKLIFTS):
+    setattr(
+        ObjectTableSceneCfg, 
+        f"forklift_{i}", 
+        AssetBaseCfg(
+            prim_path=f"/World/envs/env_.*/Forklift{i}",
+            init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[1.0, 0.0, 0.0, 0.0]),
+            spawn=UsdFileCfg(
+                usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Forklift/forklift.usd",
+                rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
+            ),
+        )        
+    )
+
+# Add boxes
+for i in range(NUM_BOXES):
+    setattr(
+        ObjectTableSceneCfg, 
+        f"box_{i}", 
+        AssetBaseCfg(
+            prim_path=f"/World/envs/env_.*/Box{i}",
+            init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[1.0, 0.0, 0.0, 0.0]),
+                
+            spawn=UsdFileCfg(
+                usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Simple_Warehouse/Props/SM_CardBoxB_01_681.usd",
+                rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
+            ),
+        )        
     )
 
 
@@ -419,117 +310,6 @@ class ActionsCfg:
         obs_group_name="lower_body_policy",  # need to be the same name as the on in ObservationCfg
         policy_path=Path(__file__).parent / "policy/g1/agile_locomotion.pt",
     )
-
-
-@configclass
-class LowerBodyPolicyObsCfg(ObsGroup):
-    """Observations for policy group with state values."""
-
-    """Observation specifications for the MDP."""
-
-    base_lin_vel = ObsTerm(
-        func=base_mdp.base_lin_vel,
-        params={"asset_cfg": SceneEntityCfg("robot")},
-    )
-
-    base_ang_vel = ObsTerm(
-        func=base_mdp.base_ang_vel,
-        params={"asset_cfg": SceneEntityCfg("robot")},
-    )
-
-    projected_gravity = ObsTerm(
-        func=base_mdp.projected_gravity,
-        scale=1.0,
-    )
-
-    joint_pos = ObsTerm(
-        func=base_mdp.joint_pos_rel,
-        params={
-            "asset_cfg": SceneEntityCfg(
-                "robot",
-                joint_names=[
-                    ".*_shoulder_.*_joint",
-                    ".*_elbow_joint",
-                    ".*_wrist_.*_joint",
-                    ".*_hip_.*_joint",
-                    ".*_knee_joint",
-                    ".*_ankle_.*_joint",
-                    "waist_.*_joint",
-                ],
-            ),
-        },
-    )
-
-    joint_vel = ObsTerm(
-        func=base_mdp.joint_vel_rel,
-        scale=0.1,
-        params={
-            "asset_cfg": SceneEntityCfg(
-                "robot",
-                joint_names=[
-                    ".*_shoulder_.*_joint",
-                    ".*_elbow_joint",
-                    ".*_wrist_.*_joint",
-                    ".*_hip_.*_joint",
-                    ".*_knee_joint",
-                    ".*_ankle_.*_joint",
-                    "waist_.*_joint",
-                ],
-            ),
-        },
-    )
-
-    actions = ObsTerm(
-        func=base_mdp.last_action,
-        scale=1.0,
-        params={
-            "action_name": "lower_body_joint_pos",
-        },
-    )
-
-    def __post_init__(self):
-        self.enable_corruption = False
-        self.concatenate_terms = True
-
-
-@configclass
-class ObservationsCfg:
-    """Observation specifications for the MDP."""
-
-    @configclass
-    class PolicyCfg(ObsGroup):
-        """Observations for policy group with state values."""
-
-        actions = ObsTerm(func=manip_mdp.last_action)
-        robot_joint_pos = ObsTerm(
-            func=base_mdp.joint_pos,
-            params={"asset_cfg": SceneEntityCfg("robot")},
-        )
-        robot_root_pos = ObsTerm(func=base_mdp.root_pos_w, params={"asset_cfg": SceneEntityCfg("robot")})
-        robot_root_rot = ObsTerm(func=base_mdp.root_quat_w, params={"asset_cfg": SceneEntityCfg("robot")})
-        object_pos = ObsTerm(func=base_mdp.root_pos_w, params={"asset_cfg": SceneEntityCfg("object")})
-        object_rot = ObsTerm(func=base_mdp.root_quat_w, params={"asset_cfg": SceneEntityCfg("object")})
-        robot_links_state = ObsTerm(func=manip_mdp.get_all_robot_link_state)
-
-        left_eef_pos = ObsTerm(func=manip_mdp.get_left_eef_pos, params={"link_name": "left_wrist_yaw_link"})
-        left_eef_quat = ObsTerm(func=manip_mdp.get_left_eef_quat, params={"link_name": "left_wrist_yaw_link"})
-        right_eef_pos = ObsTerm(func=manip_mdp.get_right_eef_pos, params={"link_name": "right_wrist_yaw_link"})
-        right_eef_quat = ObsTerm(func=manip_mdp.get_right_eef_quat, params={"link_name": "right_wrist_yaw_link"})
-
-        hand_joint_state = ObsTerm(func=manip_mdp.get_hand_state, params={"hand_joint_names": [".*_hand.*"]})
-
-        object = ObsTerm(
-            func=manip_mdp.object_obs,
-            params={"left_eef_link_name": "left_wrist_yaw_link", "right_eef_link_name": "right_wrist_yaw_link"},
-        )
-
-        def __post_init__(self):
-            self.enable_corruption = False
-            self.concatenate_terms = False
-
-    policy: PolicyCfg = PolicyCfg()
-
-    lower_body_policy: LowerBodyPolicyObsCfg = LowerBodyPolicyObsCfg()
 
 
 @configclass
@@ -807,8 +587,8 @@ class G1DisjointNavScenario(DisjointNavScenario):
         return PackingTable(self._env.scene, "packing_table_2")
 
     def get_obstacle_fixtures(self):
-        obstacles = [Forklift(self._env.scene, f"forklift_{i}") for i in range(6)]
-        obstacles += [CardboardBox(self._env.scene, f"box_{i}") for i in range(11)]
+        obstacles = [Forklift(self._env.scene, f"forklift_{i}") for i in range(NUM_FORKLIFTS)]
+        obstacles += [CardboardBox(self._env.scene, f"box_{i}") for i in range(NUM_BOXES)]
         return obstacles
 
     def reset(self, initial_state=None):

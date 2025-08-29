@@ -1,12 +1,20 @@
 import h5py
+import argparse
 import matplotlib.pyplot as plt
 
-input_file = "datasets/dataset_generated_disjoint_nav.hdf5"
 
-dataset = h5py.File(input_file, 'r')
+parser = argparse.ArgumentParser()
+parser.add_argument("dataset", type=str)
+parser.add_argument("output_dir", type=str)
+
+args = parser.parse_args()
+
+dataset = h5py.File(args.dataset, 'r')
+
 demos = dataset['data'].keys()
 
 plt.figure(figsize=(20, 20))
+
 for i, demo in enumerate(demos):
     replay_data = dataset['data'][demo]['replay_state']
     path = replay_data['base_path']
