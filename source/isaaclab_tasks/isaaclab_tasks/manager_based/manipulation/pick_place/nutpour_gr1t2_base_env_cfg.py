@@ -205,13 +205,16 @@ class ObservationsCfg:
             params={"asset_cfg": SceneEntityCfg("robot")},
         )
 
-        left_eef_pos = ObsTerm(func=mdp.get_left_eef_pos)
-        left_eef_quat = ObsTerm(func=mdp.get_left_eef_quat)
-        right_eef_pos = ObsTerm(func=mdp.get_right_eef_pos)
-        right_eef_quat = ObsTerm(func=mdp.get_right_eef_quat)
+        left_eef_pos = ObsTerm(func=mdp.get_left_eef_pos, params={"link_name": "left_hand_roll_link"})
+        left_eef_quat = ObsTerm(func=mdp.get_left_eef_quat, params={"link_name": "left_hand_roll_link"})
+        right_eef_pos = ObsTerm(func=mdp.get_right_eef_pos, params={"link_name": "right_hand_roll_link"})
+        right_eef_quat = ObsTerm(func=mdp.get_right_eef_quat, params={"link_name": "right_hand_roll_link"})
 
-        hand_joint_state = ObsTerm(func=mdp.get_hand_state)
-        head_joint_state = ObsTerm(func=mdp.get_head_state)
+        hand_joint_state = ObsTerm(func=mdp.get_hand_state, params={"hand_joint_names": ["R_.*", "L_.*"]})
+        head_joint_state = ObsTerm(
+            func=mdp.get_head_state,
+            params={"head_joint_names": ["head_pitch_joint", "head_roll_joint", "head_yaw_joint"]},
+        )
 
         robot_pov_cam = ObsTerm(
             func=mdp.image,
@@ -243,7 +246,7 @@ class TerminationsCfg:
         func=mdp.root_height_below_minimum, params={"minimum_height": 0.5, "asset_cfg": SceneEntityCfg("factory_nut")}
     )
 
-    success = DoneTerm(func=mdp.task_done_nut_pour)
+    success = DoneTerm(func=mdp.task_done_nut_pour, params={"relevant_link_name": "right_hand_roll_link"})
 
 
 @configclass

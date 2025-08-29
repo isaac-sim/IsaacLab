@@ -15,6 +15,12 @@ from isaaclab.devices import DeviceBase, DeviceCfg
 from isaaclab.devices.gamepad import Se2Gamepad, Se2GamepadCfg, Se3Gamepad, Se3GamepadCfg
 from isaaclab.devices.keyboard import Se2Keyboard, Se2KeyboardCfg, Se3Keyboard, Se3KeyboardCfg
 from isaaclab.devices.openxr.retargeters import (
+    G1LowerBodyRetargeter,
+    G1LowerBodyRetargeterCfg,
+    G1LowerBodyStandingRetargeter,
+    G1LowerBodyStandingRetargeterCfg,
+    G1UpperBodyRetargeter,
+    G1UpperBodyRetargeterCfg,
     GR1T2Retargeter,
     GR1T2RetargeterCfg,
     GripperRetargeter,
@@ -49,6 +55,9 @@ RETARGETER_MAP: dict[type[RetargeterCfg], type[RetargeterBase]] = {
     Se3RelRetargeterCfg: Se3RelRetargeter,
     GripperRetargeterCfg: GripperRetargeter,
     GR1T2RetargeterCfg: GR1T2Retargeter,
+    G1UpperBodyRetargeterCfg: G1UpperBodyRetargeter,
+    G1LowerBodyRetargeterCfg: G1LowerBodyRetargeter,
+    G1LowerBodyStandingRetargeterCfg: G1LowerBodyStandingRetargeter,
 }
 
 

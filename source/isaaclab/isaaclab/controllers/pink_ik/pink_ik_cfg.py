@@ -45,8 +45,16 @@ class PinkIKControllerCfg:
     For more details, visit: https://github.com/stephane-caron/pink
     """
 
-    joint_names: list[str] | None = None
+    controlled_joint_names: list[str] | None = None
+    """A list of joint names in the USD asset controlled by the Pink IK controller. This is required because the joint naming conventions differ between USD and URDF files.
+    This value is currently designed to be automatically populated by the action term in a manager based environment."""
+
+    all_joint_names: list[str] | None = None
     """A list of joint names in the USD asset. This is required because the joint naming conventions differ between USD and URDF files.
+    This value is currently designed to be automatically populated by the action term in a manager based environment."""
+
+    controlled_joint_indices: list[int] | None = None
+    """A list of joint indices in the USD asset controlled by the Pink IK controller. This is required because the joint naming conventions differ between USD and URDF files.
     This value is currently designed to be automatically populated by the action term in a manager based environment."""
 
     articulation_name: str = "robot"
@@ -62,3 +70,11 @@ class PinkIKControllerCfg:
     """If True, the Pink IK solver will fail and raise an error if any joint limit is violated during optimization. PinkIKController
     will handle the error by setting the last joint positions. If False, the solver will ignore joint limit violations and return the
     closest solution found."""
+
+    hand_rotational_offset: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0)
+    """Rotational offset quaternion (w, x, y, z) between USD hand orientation and nominal orientation.
+
+    The nominal orientation is defined as thumbs pointing up and fingers pointing forward.
+    This offset is applied to align the USD hand orientation with the expected nominal pose.
+    Default is identity quaternion (1, 0, 0, 0) representing no rotation.
+    """

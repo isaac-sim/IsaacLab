@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.45.10 (2025-08-27)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added teleoperation environments for Unitree G1. This includes an environment with lower body fixed and upper body
+  controller by IK, and an environment with the lower body controlled by a policy and the upper body controlled by IK.
+
+
 0.45.9 (2025-08-27)
 ~~~~~~~~~~~~~~~~~~~
 
