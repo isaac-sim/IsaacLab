@@ -80,7 +80,7 @@ class FrankaCubeStackIKRelMimicEnv(ManagerBasedRLMimicEnv):
         # add noise to action
         pose_action = torch.cat([delta_position, delta_rotation], dim=0)
         if action_noise_dict is not None:
-            noise = action_noise_dict["franka"] * torch.randn_like(pose_action)
+            noise = action_noise_dict[eef_name] * torch.randn_like(pose_action)
             pose_action += noise
             pose_action = torch.clamp(pose_action, -1.0, 1.0)
 

@@ -164,3 +164,47 @@ class BinaryJointVelocityAction(BinaryJointAction):
 
     def apply_actions(self):
         self._asset.set_joint_velocity_target(self._processed_actions, joint_ids=self._joint_ids)
+
+
+class AbsBinaryJointPositionAction(BinaryJointAction):
+    """Absolute Binary joint action that sets the binary action into joint position targets.
+
+    This class extends BinaryJointAction to accept absolute position control
+    for gripper joints. It converts continuous input actions into binary open/close commands
+    using a configurable threshold mechanism.
+
+    The key difference from the base BinaryJointAction is that this class:
+    - Receives absolute joint position actions for gripper control
+    - Implements a threshold-based decision system to determine open/close state
+
+    The action processing works by:
+    1. Taking a continuous input action value
+    2. Comparing it against the configured threshold value
+    3. Based on the threshold comparison and positive_threshold flag, determining
+       whether to open or close the gripper
+    4. Setting the target joint positions to either the open or close configuration
+
+    """
+
+    cfg: actions_cfg.AbsBinaryJointPositionActionCfg
+    """The configuration of the action term."""
+
+    def process_actions(self, actions: torch.Tensor):
+        # store the raw actions
+        self._raw_actions[:] = actions
+        # compute the binary mask
+        if self.cfg.positive_threshold:
+            # true: open 0.785, false: close 0.0
+            binary_mask = actions > self.cfg.threshold
+        else:
+            # true: close 0.0, false: open 0.785
+            binary_mask = actions < self.cfg.threshold
+        # compute the command
+        self._processed_actions = torch.where(binary_mask, self._open_command, self._close_command)
+        if self.cfg.clip is not None:
+            self._processed_actions = torch.clamp(
+                self._processed_actions, min=self._clip[:, :, 0], max=self._clip[:, :, 1]
+            )
+
+    def apply_actions(self):
+        self._asset.set_joint_position_target(self._processed_actions, joint_ids=self._joint_ids)

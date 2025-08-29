@@ -35,3 +35,39 @@ UR10_RMPFLOW_CFG = RmpFlowControllerCfg(
     evaluations_per_frame=5,
 )
 """Configuration of RMPFlow for UR10 arm (default from `isaacsim.robot_motion.motion_generation`)."""
+
+GALBOT_LEFT_ARM_RMPFLOW_CFG = RmpFlowControllerCfg(
+    config_file=os.path.join(
+        _CUR_DIR,
+        "motion_policy_configs",
+        "galbot_one_charlie",
+        "rmpflow",
+        "galbot_one_charlie_left_arm_rmpflow_config.yaml",
+    ),
+    urdf_file=os.path.join(_CUR_DIR, "motion_policy_configs", "galbot_one_charlie", "galbot_one_charlie.urdf"),
+    collision_file=os.path.join(
+        _CUR_DIR, "motion_policy_configs", "galbot_one_charlie", "rmpflow", "galbot_one_charlie_left_arm_gripper.yaml"
+    ),
+    frame_name="left_gripper_tcp_link",
+    evaluations_per_frame=5,
+    ignore_robot_state_updates=True,
+)
+
+GALBOT_RIGHT_ARM_RMPFLOW_CFG = RmpFlowControllerCfg(
+    config_file=os.path.join(
+        _CUR_DIR,
+        "motion_policy_configs",
+        "galbot_one_charlie",
+        "rmpflow",
+        "galbot_one_charlie_right_arm_rmpflow_config.yaml",
+    ),
+    urdf_file=os.path.join(_CUR_DIR, "motion_policy_configs", "galbot_one_charlie", "galbot_one_charlie.urdf"),
+    collision_file=os.path.join(
+        _CUR_DIR, "motion_policy_configs", "galbot_one_charlie", "rmpflow", "galbot_one_charlie_right_arm_suction.yaml"
+    ),
+    frame_name="right_suction_cup_tcp_link",
+    evaluations_per_frame=5,
+    ignore_robot_state_updates=True,
+)
+
+"""Configuration of RMPFlow for Galbot humanoid."""
