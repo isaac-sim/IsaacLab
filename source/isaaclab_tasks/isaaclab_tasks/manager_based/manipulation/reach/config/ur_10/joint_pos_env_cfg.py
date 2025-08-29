@@ -29,7 +29,7 @@ class UR10ReachEnvCfg(ReachEnvCfg):
     sim: SimulationCfg = SimulationCfg(
         newton_cfg=NewtonCfg(
             solver_cfg=MJWarpSolverCfg(
-                nefc_per_env=20,
+                njmax=20,
                 ncon_per_env=20,
                 ls_iterations=10,
                 cone="pyramidal",
@@ -42,6 +42,7 @@ class UR10ReachEnvCfg(ReachEnvCfg):
             debug_mode=True,
         )
     )
+
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
