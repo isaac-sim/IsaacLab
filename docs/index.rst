@@ -89,6 +89,7 @@ Table of Contents
    :titlesonly:
 
    source/setup/quickstart
+   source/overview/own-project/index
    source/setup/walkthrough/index
    source/tutorials/index
    source/how-to/index
@@ -104,8 +105,7 @@ Table of Contents
    source/overview/core-concepts/index
    source/overview/environments
    source/overview/reinforcement-learning/index
-   source/overview/teleop_imitation
-   source/overview/augmented_imitation
+   source/overview/imitation-learning/index
    source/overview/showroom
    source/overview/simple_agents
 
