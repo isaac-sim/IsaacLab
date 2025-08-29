@@ -8,18 +8,19 @@ from isaaclab.sim._impl.newton_manager_cfg import NewtonCfg
 from isaaclab.sim._impl.solvers_cfg import MJWarpSolverCfg
 from isaaclab.utils import configclass
 
-from .rough_env_cfg import H1RoughEnvCfg
+from .rough_env_cfg import AnymalBRoughEnvCfg
 
 
 @configclass
-class H1FlatEnvCfg(H1RoughEnvCfg):
+class AnymalBFlatEnvCfg(AnymalBRoughEnvCfg):
     sim: SimulationCfg = SimulationCfg(
         newton_cfg=NewtonCfg(
             solver_cfg=MJWarpSolverCfg(
-                njmax=50,
-                ls_iterations=10,
-                cone="pyramidal",
-                impratio=1,
+                njmax=60,
+                ncon_per_env=30,
+                ls_iterations=15,
+                cone="elliptic",
+                impratio=100,
                 ls_parallel=True,
                 integrator="implicit",
             ),
@@ -27,24 +28,25 @@ class H1FlatEnvCfg(H1RoughEnvCfg):
             debug_mode=False,
         )
     )
-
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
 
+        # override rewards
+        self.rewards.flat_orientation_l2.weight = -5.0
+        self.rewards.dof_torques_l2.weight = -2.5e-5
+        self.rewards.feet_air_time.weight = 0.5
         # change terrain to flat
         self.scene.terrain.terrain_type = "plane"
         self.scene.terrain.terrain_generator = None
         # no height scan
-        # self.scene.height_scanner = None
-        # self.observations.policy.height_scan = None
+        #self.scene.height_scanner = None
+        #self.observations.policy.height_scan = None
         # no terrain curriculum
         self.curriculum.terrain_levels = None
-        self.rewards.feet_air_time.weight = 1.0
-        self.rewards.feet_air_time.params["threshold"] = 0.6
 
 
-class H1FlatEnvCfg_PLAY(H1FlatEnvCfg):
+class AnymalBFlatEnvCfg_PLAY(AnymalBFlatEnvCfg):
     def __post_init__(self) -> None:
         # post init of parent
         super().__post_init__()
@@ -54,6 +56,6 @@ class H1FlatEnvCfg_PLAY(H1FlatEnvCfg):
         self.scene.env_spacing = 2.5
         # disable randomization for play
         self.observations.policy.enable_corruption = False
-        # remove random pushing
+        # remove random pushing event
         self.events.base_external_force_torque = None
         self.events.push_robot = None

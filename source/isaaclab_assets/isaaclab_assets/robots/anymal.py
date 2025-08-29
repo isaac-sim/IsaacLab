@@ -57,12 +57,57 @@ ANYDRIVE_3_LSTM_ACTUATOR_CFG = ActuatorNetLSTMCfg(
 # Configuration - Articulation.
 ##
 
+ANYMAL_B_CFG = ArticulationCfg(
+    spawn=sim_utils.UsdFileCfg(
+        usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/ANYbotics/ANYmal-B/anymal_b.usd",
+        articulation_props=sim_utils.ArticulationRootPropertiesCfg(
+            enabled_self_collisions=True
+        ),
+    ),
+    init_state=ArticulationCfg.InitialStateCfg(
+        pos=(0.0, 0.0, 0.6),
+        joint_pos={
+            ".*HAA": 0.0,  # all HAA
+            ".*F_HFE": 0.4,  # both front HFE
+            ".*H_HFE": -0.4,  # both hind HFE
+            ".*F_KFE": -0.8,  # both front KFE
+            ".*H_KFE": 0.8,  # both hind KFE
+        },
+    ),
+    actuators={"legs": ANYDRIVE_3_LSTM_ACTUATOR_CFG},
+    soft_joint_pos_limit_factor=0.95,
+)
+"""Configuration of ANYmal-B robot using actuator-net."""
+
+
+ANYMAL_C_CFG = ArticulationCfg(
+    spawn=sim_utils.UsdFileCfg(
+        usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/ANYbotics/ANYmal-C/anymal_c.usd",
+        # usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/ANYbotics/anymal_instanceable.usd",
+        articulation_props=sim_utils.ArticulationRootPropertiesCfg(
+            enabled_self_collisions=True
+        ),
+    ),
+    init_state=ArticulationCfg.InitialStateCfg(
+        pos=(0.0, 0.0, 0.6),
+        joint_pos={
+            ".*HAA": 0.0,  # all HAA
+            ".*F_HFE": 0.4,  # both front HFE
+            ".*H_HFE": -0.4,  # both hind HFE
+            ".*F_KFE": -0.8,  # both front KFE
+            ".*H_KFE": 0.8,  # both hind KFE
+        },
+    ),
+    actuators={"legs": ANYDRIVE_3_LSTM_ACTUATOR_CFG},
+    soft_joint_pos_limit_factor=0.95,
+)
+"""Configuration of ANYmal-C robot using actuator-net."""
+
 ANYMAL_D_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/ANYbotics/ANYmal-D/anymal_d.usd",
-        activate_contact_sensors=True,
         articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-            enabled_self_collisions=True,
+            enabled_self_collisions=True
         ),
     ),
     init_state=ArticulationCfg.InitialStateCfg(

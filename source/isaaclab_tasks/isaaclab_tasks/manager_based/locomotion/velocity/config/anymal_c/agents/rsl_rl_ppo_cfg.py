@@ -11,11 +11,11 @@ from isaaclab_tasks.manager_based.locomotion.velocity.mdp.symmetry import anymal
 
 
 @configclass
-class AnymalDRoughPPORunnerCfg(RslRlOnPolicyRunnerCfg):
+class AnymalCRoughPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     num_steps_per_env = 24
     max_iterations = 1500
     save_interval = 50
-    experiment_name = "anymal_d_rough"
+    experiment_name = "anymal_c_rough"
     empirical_normalization = False
     policy = RslRlPpoActorCriticCfg(
         init_noise_std=1.0,
@@ -40,20 +40,21 @@ class AnymalDRoughPPORunnerCfg(RslRlOnPolicyRunnerCfg):
 
 
 @configclass
-class AnymalDFlatPPORunnerCfg(AnymalDRoughPPORunnerCfg):
+class AnymalCFlatPPORunnerCfg(AnymalCRoughPPORunnerCfg):
     def __post_init__(self):
         super().__post_init__()
 
         self.max_iterations = 300
-        self.experiment_name = "anymal_d_flat"
+        self.experiment_name = "anymal_c_flat"
         self.policy.actor_hidden_dims = [128, 128, 128]
         self.policy.critic_hidden_dims = [128, 128, 128]
 
 
 @configclass
-class AnymalDFlatPPORunnerWithSymmetryCfg(AnymalDFlatPPORunnerCfg):
+class AnymalCFlatPPORunnerWithSymmetryCfg(AnymalCFlatPPORunnerCfg):
     """Configuration for the PPO agent with symmetry augmentation."""
 
+    # all the other settings are inherited from the parent class
     algorithm = RslRlPpoAlgorithmCfg(
         value_loss_coef=1.0,
         use_clipped_value_loss=True,
@@ -74,7 +75,7 @@ class AnymalDFlatPPORunnerWithSymmetryCfg(AnymalDFlatPPORunnerCfg):
 
 
 @configclass
-class AnymalDRoughPPORunnerWithSymmetryCfg(AnymalDRoughPPORunnerCfg):
+class AnymalCRoughPPORunnerWithSymmetryCfg(AnymalCRoughPPORunnerCfg):
     """Configuration for the PPO agent with symmetry augmentation."""
 
     # all the other settings are inherited from the parent class
