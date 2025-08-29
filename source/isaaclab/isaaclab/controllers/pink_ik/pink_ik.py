@@ -19,14 +19,12 @@ import torch
 from typing import TYPE_CHECKING
 
 from pink import solve_ik
-from pink.configuration import Configuration
-from pink.tasks import FrameTask
-from pinocchio.robot_wrapper import RobotWrapper
 
 from isaaclab.assets import ArticulationCfg
 from isaaclab.utils.string import resolve_matching_names_values
 
 from .null_space_posture_task import NullSpacePostureTask
+from .pink_kinematics_configuration import PinkKinematicsConfiguration
 
 if TYPE_CHECKING:
     from .pink_ik_cfg import PinkIKControllerCfg
@@ -47,7 +45,9 @@ class PinkIKController:
         Pink IK Solver: https://github.com/stephane-caron/pink
     """
 
-    def __init__(self, cfg: PinkIKControllerCfg, robot_cfg: ArticulationCfg, device: str):
+    def __init__(
+        self, cfg: PinkIKControllerCfg, robot_cfg: ArticulationCfg, device: str, controlled_joint_indices: list[int]
+    ):
         """Initialize the Pink IK Controller.
 
         Args:
@@ -56,14 +56,28 @@ class PinkIKController:
             robot_cfg: The robot articulation configuration containing initial joint positions and robot
                 specifications.
             device: The device to use for computations (e.g., 'cuda:0', 'cpu').
+            controlled_joint_indices: A list of joint indices in the USD asset controlled by the Pink IK controller.
 
         Raises:
-            KeyError: When Pink joint names cannot be matched to robot configuration joint positions.
+            ValueError: When joint_names or all_joint_names are not provided in the configuration.
         """
-        # Initialize the robot model from URDF and mesh files
-        self.robot_wrapper = RobotWrapper.BuildFromURDF(cfg.urdf_path, cfg.mesh_path, root_joint=None)
-        self.pink_configuration = Configuration(
-            self.robot_wrapper.model, self.robot_wrapper.data, self.robot_wrapper.q0
+        if cfg.joint_names is None:
+            raise ValueError("joint_names must be provided in the configuration")
+        if cfg.all_joint_names is None:
+            raise ValueError("all_joint_names must be provided in the configuration")
+
+        self.cfg = cfg
+        self.device = device
+        self.controlled_joint_indices = controlled_joint_indices
+
+        # Validate consistency between controlled_joint_indices and configuration
+        self._validate_consistency(cfg, controlled_joint_indices)
+
+        # Initialize the Kinematics model used by pink IK to control robot
+        self.pink_configuration = PinkKinematicsConfiguration(
+            urdf_path=cfg.urdf_path,
+            mesh_path=cfg.mesh_path,
+            controlled_joint_names=cfg.joint_names,
         )
 
         # Find the initial joint positions by matching Pink's joint names to robot_cfg.init_state.joint_pos,
@@ -73,16 +87,11 @@ class PinkIKController:
         joint_pos_dict = robot_cfg.init_state.joint_pos
 
         # Use resolve_matching_names_values to match Pink joint names to joint_pos values
-        indices, names, values = resolve_matching_names_values(
+        indices, _, values = resolve_matching_names_values(
             joint_pos_dict, pink_joint_names, preserve_order=False, strict=False
         )
-        if len(indices) != len(pink_joint_names):
-            unmatched = [name for name in pink_joint_names if name not in names]
-            raise KeyError(
-                "Could not find a match for all Pink joint names in robot_cfg.init_state.joint_pos. "
-                f"Unmatched: {unmatched}, Expected: {pink_joint_names}"
-            )
-        self.init_joint_positions = np.array(values)
+        self.init_joint_positions = np.zeros(len(pink_joint_names))
+        self.init_joint_positions[indices] = np.array(values)
 
         # Set the default targets for each task from the configuration
         for task in cfg.variable_input_tasks:
@@ -94,27 +103,75 @@ class PinkIKController:
         for task in cfg.fixed_input_tasks:
             task.set_target_from_configuration(self.pink_configuration)
 
-        # Map joint names from Isaac Lab to Pink's joint conventions
-        self.pink_joint_names = self.robot_wrapper.model.names.tolist()[1:]  # Skip the root and universal joints
-        self.isaac_lab_joint_names = cfg.joint_names
-        assert cfg.joint_names is not None, "cfg.joint_names cannot be None"
+        # Create joint ordering mappings
+        self._setup_joint_ordering_mappings()
 
-        # Frame task link names
-        self.frame_task_link_names = []
-        for task in cfg.variable_input_tasks:
-            if isinstance(task, FrameTask):
-                self.frame_task_link_names.append(task.frame)
+    def _validate_consistency(self, cfg: PinkIKControllerCfg, controlled_joint_indices: list[int]) -> None:
+        """Validate consistency between controlled_joint_indices and controller configuration.
 
-        # Create reordering arrays for joint indices
+        Args:
+            cfg: The Pink IK controller configuration.
+            controlled_joint_indices: List of joint indices in Isaac Lab joint space.
+
+        Raises:
+            ValueError: If any consistency checks fail.
+        """
+        # Check: Length consistency
+        if cfg.joint_names is None:
+            raise ValueError("cfg.joint_names cannot be None")
+        if len(controlled_joint_indices) != len(cfg.joint_names):
+            raise ValueError(
+                f"Length mismatch: controlled_joint_indices has {len(controlled_joint_indices)} elements "
+                f"but cfg.joint_names has {len(cfg.joint_names)} elements"
+            )
+
+        # Check: Joint name consistency - verify that the indices point to the expected joint names
+        actual_joint_names = [cfg.all_joint_names[idx] for idx in controlled_joint_indices]
+        if actual_joint_names != cfg.joint_names:
+            mismatches = []
+            for i, (actual, expected) in enumerate(zip(actual_joint_names, cfg.joint_names)):
+                if actual != expected:
+                    mismatches.append(
+                        f"Index {i}: index {controlled_joint_indices[i]} points to '{actual}' but expected '{expected}'"
+                    )
+            if mismatches:
+                raise ValueError(
+                    "Joint name mismatch between controlled_joint_indices and cfg.joint_names:\n"
+                    + "\n".join(mismatches)
+                )
+
+    def _setup_joint_ordering_mappings(self):
+        """Setup joint ordering mappings between Isaac Lab and Pink conventions."""
+        pink_joint_names = self.pink_configuration.all_joint_names_pinocchio_order
+        isaac_lab_joint_names = self.cfg.all_joint_names
+
+        if pink_joint_names is None:
+            raise ValueError("pink_joint_names should not be None")
+        if isaac_lab_joint_names is None:
+            raise ValueError("isaac_lab_joint_names should not be None")
+
+        # Create reordering arrays for all joints
         self.isaac_lab_to_pink_ordering = np.array(
-            [self.isaac_lab_joint_names.index(pink_joint) for pink_joint in self.pink_joint_names]
+            [isaac_lab_joint_names.index(pink_joint) for pink_joint in pink_joint_names]
         )
         self.pink_to_isaac_lab_ordering = np.array(
-            [self.pink_joint_names.index(isaac_lab_joint) for isaac_lab_joint in self.isaac_lab_joint_names]
+            [pink_joint_names.index(isaac_lab_joint) for isaac_lab_joint in isaac_lab_joint_names]
         )
+        # Create reordering arrays for controlled joints only
+        pink_controlled_joint_names = self.pink_configuration.controlled_joint_names_pinocchio_order
+        isaac_lab_controlled_joint_names = self.cfg.joint_names
 
-        self.cfg = cfg
-        self.device = device
+        if pink_controlled_joint_names is None:
+            raise ValueError("pink_controlled_joint_names should not be None")
+        if isaac_lab_controlled_joint_names is None:
+            raise ValueError("isaac_lab_controlled_joint_names should not be None")
+
+        self.isaac_lab_to_pink_controlled_ordering = np.array(
+            [isaac_lab_controlled_joint_names.index(pink_joint) for pink_joint in pink_controlled_joint_names]
+        )
+        self.pink_to_isaac_lab_controlled_ordering = np.array(
+            [pink_controlled_joint_names.index(isaac_lab_joint) for isaac_lab_joint in isaac_lab_controlled_joint_names]
+        )
 
     def update_null_space_joint_targets(self, curr_joint_pos: np.ndarray):
         """Update the null space joint targets.
@@ -149,13 +206,16 @@ class PinkIKController:
             The target joint positions as a tensor of shape (num_joints,) on the specified device.
             If the IK solver fails, returns the current joint positions unchanged to maintain stability.
         """
+        # Get the current controlled joint positions
+        curr_controlled_joint_pos = [curr_joint_pos[i] for i in self.controlled_joint_indices]
+
         # Initialize joint positions for Pink, change from isaac_lab to pink/pinocchio joint ordering.
         joint_positions_pink = curr_joint_pos[self.isaac_lab_to_pink_ordering]
 
         # Update Pink's robot configuration with the current joint positions
         self.pink_configuration.update(joint_positions_pink)
 
-        # pink.solve_ik can raise an exception if the solver fails
+        # Solve IK using Pink's solver
         try:
             velocity = solve_ik(
                 self.pink_configuration,
@@ -164,7 +224,7 @@ class PinkIKController:
                 solver="osqp",
                 safety_break=self.cfg.fail_on_joint_limit_violation,
             )
-            Delta_q = velocity * dt
+            joint_angle_changes = velocity * dt
         except (AssertionError, Exception) as e:
             # Print warning and return the current joint positions as the target
             # Not using omni.log since its not available in CI during docs build
@@ -178,21 +238,18 @@ class PinkIKController:
                 from isaaclab.ui.xr_widgets import XRVisualization
 
                 XRVisualization.push_event("ik_error", {"error": e})
-            return torch.tensor(curr_joint_pos, device=self.device, dtype=torch.float32)
-
-        # Discard the first 6 values (for root and universal joints)
-        pink_joint_angle_changes = Delta_q
+            return torch.tensor(curr_controlled_joint_pos, device=self.device, dtype=torch.float32)
 
         # Reorder the joint angle changes back to Isaac Lab conventions
         joint_vel_isaac_lab = torch.tensor(
-            pink_joint_angle_changes[self.pink_to_isaac_lab_ordering],
+            joint_angle_changes[self.pink_to_isaac_lab_controlled_ordering],
             device=self.device,
-            dtype=torch.float,
+            dtype=torch.float32,
         )
 
         # Add the velocity changes to the current joint positions to get the target joint positions
         target_joint_pos = torch.add(
-            joint_vel_isaac_lab, torch.tensor(curr_joint_pos, device=self.device, dtype=torch.float32)
+            joint_vel_isaac_lab, torch.tensor(curr_controlled_joint_pos, device=self.device, dtype=torch.float32)
         )
 
         return target_joint_pos
