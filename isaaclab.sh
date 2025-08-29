@@ -96,6 +96,30 @@ is_docker() {
     [[ "$(hostname)" == *"."* ]]
 }
 
+ensure_cuda_torch() {
+  local py="$1"
+  local -r TORCH_VER="2.7.0"
+  local -r TV_VER="0.22.0"
+  local -r CUDA_TAG="cu128"
+  local -r PYTORCH_INDEX="https://download.pytorch.org/whl/${CUDA_TAG}"
+  local torch_ver
+
+  if "$py" -m pip show torch >/dev/null 2>&1; then
+    torch_ver="$("$py" -m pip show torch 2>/dev/null | awk -F': ' '/^Version/{print $2}')"
+    echo "[INFO] Found PyTorch version ${torch_ver}."
+    if [[ "$torch_ver" != "${TORCH_VER}+${CUDA_TAG}" ]]; then
+      echo "[INFO] Replacing PyTorch ${torch_ver} → ${TORCH_VER}+${CUDA_TAG}..."
+      "$py" -m pip uninstall -y torch torchvision torchaudio >/dev/null 2>&1 || true
+      "$py" -m pip install "torch==${TORCH_VER}" "torchvision==${TV_VER}" --index-url "${PYTORCH_INDEX}"
+    else
+      echo "[INFO] PyTorch ${TORCH_VER}+${CUDA_TAG} already installed."
+    fi
+  else
+    echo "[INFO] Installing PyTorch ${TORCH_VER}+${CUDA_TAG}..."
+    "$py" -m pip install "torch==${TORCH_VER}" "torchvision==${TV_VER}" --index-url "${PYTORCH_INDEX}"
+  fi
+}
+
 # extract isaac sim path
 extract_isaacsim_path() {
     # Use the sym-link path to Isaac Sim directory
@@ -364,21 +388,7 @@ while [[ $# -gt 0 ]]; do
             python_exe=$(extract_python_exe)
             # check if pytorch is installed and its version
             # install pytorch with cuda 12.8 for blackwell support
-            if ${python_exe} -m pip list 2>/dev/null | grep -q "torch"; then
-                torch_version=$(${python_exe} -m pip show torch 2>/dev/null | grep "Version:" | awk '{print $2}')
-                echo "[INFO] Found PyTorch version ${torch_version} installed."
-                if [[ "${torch_version}" != "2.7.0+cu128" ]]; then
-                    echo "[INFO] Uninstalling PyTorch version ${torch_version}..."
-                    ${python_exe} -m pip uninstall -y torch torchvision torchaudio
-                    echo "[INFO] Installing PyTorch 2.7.0 with CUDA 12.8 support..."
-                    ${python_exe} -m pip install torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
-                else
-                    echo "[INFO] PyTorch 2.7.0 is already installed."
-                fi
-            else
-                echo "[INFO] Installing PyTorch 2.7.0 with CUDA 12.8 support..."
-                ${python_exe} -m pip install torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
-            fi
+            ensure_cuda_torch ${python_exe}
             # recursively look into directories and install them
             # this does not check dependencies between extensions
             export -f extract_python_exe
@@ -404,6 +414,9 @@ while [[ $# -gt 0 ]]; do
             ${python_exe} -m pip install -e ${ISAACLAB_PATH}/source/isaaclab_rl["${framework_name}"]
             ${python_exe} -m pip install -e ${ISAACLAB_PATH}/source/isaaclab_mimic["${framework_name}"]
 
+            # in some rare cases, torch might not be installed properly by setup.py, add one more check here
+            # can prevent that from happening
+            ensure_cuda_torch ${python_exe}
             # check if we are inside a docker container or are building a docker image
             # in that case don't setup VSCode since it asks for EULA agreement which triggers user interaction
             if is_docker; then
