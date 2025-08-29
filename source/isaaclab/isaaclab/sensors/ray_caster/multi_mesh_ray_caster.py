@@ -16,6 +16,7 @@ This file adds support for ray casting against multiple (possibly regex-selected
 """
 
 import numpy as np
+import re
 import torch
 import trimesh
 from collections.abc import Sequence
@@ -26,7 +27,6 @@ import omni.log
 import warp as wp
 from isaacsim.core.prims import XFormPrim
 from pxr import UsdPhysics
-import re
 
 import isaaclab.sim as sim_utils
 from isaaclab.utils.math import matrix_from_quat, quat_mul, subtract_frame_transforms
@@ -116,6 +116,65 @@ class MultiMeshRayCaster(RayCaster):
     Implementation.
     """
 
+    def _get_trackable_prim_view(
+        self, target_prim_path: str
+    ) -> tuple[XFormPrim | any, tuple[torch.Tensor, torch.Tensor]]:
+        """Get a prim view that can be used to track the pose of the mesh prims. Additionally, it resolves the
+        relative pose between the mesh and its corresponding physics prim. This is especially useful if the
+        mesh is not directly parented to the physics prim.
+        """
+
+        mesh_prim = sim_utils.find_first_matching_prim(target_prim_path)
+        current_prim = mesh_prim
+        current_path_expr = target_prim_path
+
+        prim_view = None
+
+        while prim_view is None:
+            # create view based on the type of prim
+            pos, orientation = sim_utils.resolve_relative_pose(mesh_prim, current_prim)
+
+            if current_prim.HasAPI(UsdPhysics.ArticulationRootAPI):
+                prim_view = self._physics_sim_view.create_articulation_view(current_path_expr.replace(".*", "*"))
+                omni.log.info(f"Created articulation view for mesh prim at path: {target_prim_path}")
+                break
+
+            if current_prim.HasAPI(UsdPhysics.RigidBodyAPI):
+                prim_view = self._physics_sim_view.create_rigid_body_view(current_path_expr.replace(".*", "*"))
+                omni.log.info(f"Created rigid body view for mesh prim at path: {target_prim_path}")
+                break
+
+            new_root_prim = current_prim.GetParent()
+            current_path_expr = current_path_expr.rsplit("/", 1)[0]
+            if not new_root_prim.IsValid():
+                prim_view = XFormPrim(target_prim_path, reset_xform_properties=False)
+                omni.log.warn(
+                    f"The prim at path {target_prim_path} is not a physics prim, but track_mesh_transforms is"
+                    " enabled! Defaulting to XFormPrim. \n The pose of the mesh will most likely not"
+                    " be updated correctly when running in headless mode."
+                )
+                break
+            current_prim = new_root_prim
+
+        mesh_prims = sim_utils.find_matching_prims(target_prim_path)
+        target_prims = sim_utils.find_matching_prims(target_prim_path)
+        if len(mesh_prims) != len(target_prims):
+            raise RuntimeError(
+                f"The number of mesh prims ({len(mesh_prims)}) does not match the number of physics prims"
+                f" ({len(target_prims)})Please specify the correct mesh and physics prim paths more"
+                " specifically in your target expressions."
+            )
+        positions = []
+        quaternions = []
+        for mesh, target in zip(mesh_prims, target_prims):
+            pos, orientation = sim_utils.resolve_relative_pose(mesh, target)
+            positions.append(pos)
+            quaternions.append(orientation)
+
+        positions = torch.stack(positions).to(device=self.device, dtype=torch.float32)
+        quaternions = torch.stack(quaternions).to(device=self.device, dtype=torch.float32)
+        return prim_view, (positions, quaternions)
+
     def _initialize_warp_meshes(self):
         """Parse mesh prim expressions, build (or reuse) Warp meshes, and cache per-env mesh IDs.
 
@@ -142,7 +201,7 @@ class MultiMeshRayCaster(RayCaster):
 
             loaded_vertices: list[np.ndarray | None] = []
             wp_mesh_ids = []
-            
+
             for target_prim in target_prims:
                 # Reuse previously parsed shared mesh instance if possible.
                 if target_cfg.is_shared and len(wp_mesh_ids) > 0:
@@ -151,7 +210,9 @@ class MultiMeshRayCaster(RayCaster):
                     # Which (worst case) leads to parsing the mesh and skipping registering it at a later stage
                     curr_prim_base_path = re.sub(r"env_\d+", "env_0", str(target_prim.GetPath()))  #
                     if curr_prim_base_path in MultiMeshRayCaster.meshes:
-                        MultiMeshRayCaster.meshes[str(target_prim.GetPath())] = MultiMeshRayCaster.meshes[curr_prim_base_path]
+                        MultiMeshRayCaster.meshes[str(target_prim.GetPath())] = MultiMeshRayCaster.meshes[
+                            curr_prim_base_path
+                        ]
                 # Reuse mesh imported by another ray-cast sensor (global cache).
                 if str(target_prim.GetPath()) in MultiMeshRayCaster.meshes:
                     wp_mesh_ids.append(MultiMeshRayCaster.meshes[str(target_prim.GetPath())].id)
@@ -203,7 +264,7 @@ class MultiMeshRayCaster(RayCaster):
 
                     # add to list of parsed meshes
                     trimesh_meshes.append(mesh)
-                    
+
                 if len(trimesh_meshes) == 1:
                     trimesh_mesh = trimesh_meshes[0]
                 elif self.cfg.merge_prim_meshes:
@@ -254,59 +315,9 @@ class MultiMeshRayCaster(RayCaster):
 
             if self.cfg.track_mesh_transforms:
                 mesh_prim = sim_utils.find_first_matching_prim(target_prim_path)
-                current_prim = mesh_prim
-                current_path_expr = target_prim_path
-
-                while True:
-                    # create view based on the type of prim
-                    pos, orientation = sim_utils.resolve_relative_pose(mesh_prim, current_prim)
-
-                    if current_prim.HasAPI(UsdPhysics.ArticulationRootAPI):
-                        self.mesh_views[target_prim_path] = self._physics_sim_view.create_articulation_view(
-                            current_path_expr.replace(".*", "*")
-                        )
-                        omni.log.info(f"Created articulation view for mesh prim at path: {target_prim_path}")
-                        break
-
-                    if current_prim.HasAPI(UsdPhysics.RigidBodyAPI):
-                        self.mesh_views[target_prim_path] = self._physics_sim_view.create_rigid_body_view(
-                            current_path_expr.replace(".*", "*")
-                        )
-                        omni.log.info(f"Created rigid body view for mesh prim at path: {target_prim_path}")
-                        break
-
-                    new_root_prim = current_prim.GetParent()
-                    current_path_expr = current_path_expr.rsplit("/", 1)[0]
-                    if not new_root_prim.IsValid():
-                        self.mesh_views[target_prim_path] = XFormPrim(target_prim_path, reset_xform_properties=False)
-                        omni.log.warn(
-                            f"The prim at path {target_prim_path} is not a physics prim, but track_mesh_transforms is"
-                            " enabled! Defaulting to XFormPrim. \n The pose of the mesh will most likely not"
-                            " be updated correctly when running in headless mode."
-                        )
-                        break
-                    current_prim = new_root_prim
-
-                mesh_prims = sim_utils.find_matching_prims(target_prim_path)
-                target_prims = sim_utils.find_matching_prims(target_prim_path)
-                if len(mesh_prims) != len(target_prims):
-                    raise RuntimeError(
-                        f"The number of mesh prims ({len(mesh_prims)}) does not match the number of physics prims"
-                        f" ({len(target_prims)})Please specify the correct mesh and physics prim paths more"
-                        " specifically in your target expressions."
-                    )
-                positions = []
-                quaternions = []
-                for mesh, target in zip(mesh_prims, target_prims):
-                    pos, orientation = sim_utils.resolve_relative_pose(mesh, target)
-                    positions.append(pos)
-                    quaternions.append(orientation)
-
-                positions = torch.stack(positions).to(device=self.device, dtype=torch.float32)
-                quaternions = torch.stack(quaternions).to(device=self.device, dtype=torch.float32)
-
-                # Cache offset to rigid body
-                MultiMeshRayCaster.mesh_offsets[target_prim_path] = (positions, quaternions)
+                self.mesh_views[target_prim_path], MultiMeshRayCaster.mesh_offsets[target_prim_path] = (
+                    self._get_trackable_prim_view(target_prim_path)
+                )
 
         # throw an error if no meshes are found
         if all([target_cfg.target_prim_expr not in multi_mesh_ids for target_cfg in self._raycast_targets_cfg]):
