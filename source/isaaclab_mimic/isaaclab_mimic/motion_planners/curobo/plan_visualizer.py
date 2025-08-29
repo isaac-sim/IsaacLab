@@ -186,7 +186,7 @@ class PlanVisualizer:
             if PSUTIL_AVAILABLE:
                 print("Enhanced process monitoring enabled")
 
-    def _start_parent_process_monitoring(self):
+    def _start_parent_process_monitoring(self) -> None:
         """Start monitoring the parent process and cleanup when it dies."""
         if not PSUTIL_AVAILABLE:
             if self.debug:
@@ -195,7 +195,7 @@ class PlanVisualizer:
 
         self._monitor_active = True
 
-        def monitor_parent_process():
+        def monitor_parent_process() -> None:
             """Monitor thread function that watches the parent process."""
             if self.debug:
                 print(f"Starting parent process monitor for PID {self._parent_pid}")
@@ -229,7 +229,7 @@ class PlanVisualizer:
         self._monitor_thread = threading.Thread(target=monitor_parent_process, daemon=True)
         self._monitor_thread.start()
 
-    def _kill_rerun_processes(self):
+    def _kill_rerun_processes(self) -> None:
         """Enhanced method to kill Rerun viewer processes using psutil."""
         try:
             if PSUTIL_AVAILABLE:
