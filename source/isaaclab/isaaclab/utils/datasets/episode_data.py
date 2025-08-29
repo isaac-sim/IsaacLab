@@ -21,6 +21,7 @@ class EpisodeData:
         self._data = dict()
         self._next_action_index = 0
         self._next_state_index = 0
+        self._next_joint_target_index = 0
         self._seed = None
         self._env_id = None
         self._success = None
@@ -110,12 +111,11 @@ class EpisodeData:
         for sub_key_index in range(len(sub_keys)):
             if sub_key_index == len(sub_keys) - 1:
                 # Add value to the final dict layer
+                # Use lists to prevent slow tensor copy during concatenation
                 if sub_keys[sub_key_index] not in current_dataset_pointer:
-                    current_dataset_pointer[sub_keys[sub_key_index]] = value.unsqueeze(0).clone()
+                    current_dataset_pointer[sub_keys[sub_key_index]] = [value.clone()]
                 else:
-                    current_dataset_pointer[sub_keys[sub_key_index]] = torch.cat(
-                        (current_dataset_pointer[sub_keys[sub_key_index]], value.unsqueeze(0))
-                    )
+                    current_dataset_pointer[sub_keys[sub_key_index]].append(value.clone())
                 break
             # key index
             if sub_keys[sub_key_index] not in current_dataset_pointer:
@@ -160,7 +160,7 @@ class EpisodeData:
             elif isinstance(states, torch.Tensor):
                 if state_index >= len(states):
                     return None
-                output_state = states[state_index]
+                output_state = states[state_index, None]
             else:
                 raise ValueError(f"Invalid state type: {type(states)}")
             return output_state
@@ -174,3 +174,47 @@ class EpisodeData:
         if state is not None:
             self._next_state_index += 1
         return state
+
+    def get_joint_target(self, joint_target_index) -> dict | torch.Tensor | None:
+        """Get the joint target of the specified index from the dataset."""
+        if "joint_targets" not in self._data:
+            return None
+
+        joint_targets = self._data["joint_targets"]
+
+        def get_joint_target_helper(joint_targets, joint_target_index) -> dict | torch.Tensor | None:
+            if isinstance(joint_targets, dict):
+                output_joint_targets = dict()
+                for key, value in joint_targets.items():
+                    output_joint_targets[key] = get_joint_target_helper(value, joint_target_index)
+                    if output_joint_targets[key] is None:
+                        return None
+            elif isinstance(joint_targets, torch.Tensor):
+                if joint_target_index >= len(joint_targets):
+                    return None
+                output_joint_targets = joint_targets[joint_target_index]
+            else:
+                raise ValueError(f"Invalid joint target type: {type(joint_targets)}")
+            return output_joint_targets
+
+        output_joint_targets = get_joint_target_helper(joint_targets, joint_target_index)
+        return output_joint_targets
+
+    def get_next_joint_target(self) -> dict | torch.Tensor | None:
+        """Get the next joint target from the dataset."""
+        joint_target = self.get_joint_target(self._next_joint_target_index)
+        if joint_target is not None:
+            self._next_joint_target_index += 1
+        return joint_target
+
+    def pre_export(self):
+        """Prepare data for export by converting lists to tensors."""
+
+        def pre_export_helper(data):
+            for key, value in data.items():
+                if isinstance(value, list):
+                    data[key] = torch.stack(value)
+                elif isinstance(value, dict):
+                    pre_export_helper(value)
+
+        pre_export_helper(self._data)
