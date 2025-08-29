@@ -12,7 +12,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import Articulation#, RigidObject
+from isaaclab.assets import Articulation  # , RigidObject
 from isaaclab.envs import DirectRLEnv
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
@@ -20,13 +20,14 @@ from isaaclab.utils.math import quat_conjugate, quat_from_angle_axis, quat_mul, 
 
 if TYPE_CHECKING:
     from isaaclab_tasks.direct.allegro_hand.allegro_hand_env_cfg import AllegroHandEnvCfg
-    #from isaaclab_tasks.direct.shadow_hand.shadow_hand_env_cfg import ShadowHandEnvCfg
+
+    # from isaaclab_tasks.direct.shadow_hand.shadow_hand_env_cfg import ShadowHandEnvCfg
 
 
 class InHandManipulationEnv(DirectRLEnv):
-    cfg: AllegroHandEnvCfg #| ShadowHandEnvCfg
+    cfg: AllegroHandEnvCfg  # | ShadowHandEnvCfg
 
-    #def __init__(self, cfg: AllegroHandEnvCfg | ShadowHandEnvCfg, render_mode: str | None = None, **kwargs):
+    # def __init__(self, cfg: AllegroHandEnvCfg | ShadowHandEnvCfg, render_mode: str | None = None, **kwargs):
     def __init__(self, cfg: AllegroHandEnvCfg, render_mode: str | None = None, **kwargs):
         super().__init__(cfg, render_mode, **kwargs)
 
@@ -118,7 +119,7 @@ class InHandManipulationEnv(DirectRLEnv):
         )
 
     def _get_observations(self) -> dict:
-        #if self.cfg.asymmetric_obs:
+        # if self.cfg.asymmetric_obs:
         #    self.fingertip_force_sensors = self.hand.root_physx_view.get_link_incoming_joint_force()[
         #        :, self.finger_bodies
         #    ]
@@ -129,11 +130,11 @@ class InHandManipulationEnv(DirectRLEnv):
         else:
             print("Unknown observations type!")
 
-        #if self.cfg.asymmetric_obs:
+        # if self.cfg.asymmetric_obs:
         #    states = self.compute_full_state()
 
         observations = {"policy": obs}
-        #if self.cfg.asymmetric_obs:
+        # if self.cfg.asymmetric_obs:
         #    observations = {"policy": obs, "critic": states}
         return observations
 
@@ -321,7 +322,7 @@ class InHandManipulationEnv(DirectRLEnv):
         )
         return obs
 
-    #def compute_full_state(self):
+    # def compute_full_state(self):
     #    states = torch.cat(
     #        (
     #            # hand

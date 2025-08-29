@@ -16,8 +16,6 @@ Reference:
 """
 
 
-import math
-
 import isaaclab.sim as sim_utils
 from isaaclab.actuators.actuator_cfg import ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
