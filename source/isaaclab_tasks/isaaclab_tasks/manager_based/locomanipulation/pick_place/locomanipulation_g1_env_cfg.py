@@ -26,7 +26,7 @@ from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 
 from isaaclab_tasks.manager_based.locomanipulation.pick_place import mdp as locomanip_mdp
-from isaaclab_tasks.manager_based.locomanipulation.pick_place.configs.action_cfg import LowerBodyActionCfg
+from isaaclab_tasks.manager_based.locomanipulation.pick_place.configs.action_cfg import AgileBasedLowerBodyActionCfg
 from isaaclab_tasks.manager_based.locomanipulation.pick_place.configs.agile_locomotion_observation_cfg import (
     AgileTeacherPolicyObservationsCfg,
 )
@@ -91,7 +91,7 @@ class ActionsCfg:
 
     upper_body_ik = G1_UPPER_BODY_IK_ACTION_CFG
 
-    lower_body_joint_pos = LowerBodyActionCfg(
+    lower_body_joint_pos = AgileBasedLowerBodyActionCfg(
         asset_name="robot",
         joint_names=[
             # "waist_.*_joint",
@@ -101,9 +101,7 @@ class ActionsCfg:
         ],
         scale=0.25,
         obs_group_name="lower_body_policy",  # need to be the same name as the on in ObservationCfg
-        # policy_path=Path(__file__).parent.parent / "policy/standing_g1" / "policy_with_waist.pt",
-        # policy_path=Path(__file__).parent.parent / "policy/standing_g1" / "policy_no_waist.pt",
-        policy_path=Path(__file__).parent.parent / "policy/locomotion" / "agile_locomotion.pt",
+        policy_path="omniverse://isaac-dev.ov.nvidia.com/Projects/agile/policy_checkpoints/agile_locomotion.pt",
     )
 
 
@@ -147,7 +145,6 @@ class ObservationsCfg:
 
     # observation groups
     policy: PolicyCfg = PolicyCfg()
-    # lower_body_policy: AgileObservationsWithHistoryCfg = AgileObservationsWithHistoryCfg()
     lower_body_policy: AgileTeacherPolicyObservationsCfg = AgileTeacherPolicyObservationsCfg()
 
 
@@ -207,12 +204,12 @@ class LocomanipulationG1EnvCfg(ManagerBasedRLEnvCfg):
         self.sim.render_interval = 2
 
         # Set the URDF and mesh paths for the IK controller
-        urdf_omniverse_path = "omniverse://isaac-dev.ov.nvidia.com/Projects/agile/Robots/urdf/g1/g1_minimal_with_leg_hand_collision_corrected.urdf"
-        mesh_omniverse_path = "omniverse://isaac-dev.ov.nvidia.com/Projects/agile/Robots/urdf/g1/meshes"
+        urdf_omniverse_path = (
+            "omniverse://isaac-dev.ov.nvidia.com/Projects/agile/Robots/urdf/g1/g1_29dof_with_hand_exported.urdf"
+        )
 
         # Retrieve local paths for the URDF and mesh files. Will be cached for call after the first time.
         self.actions.upper_body_ik.controller.urdf_path = retrieve_file_path(urdf_omniverse_path)
-        self.actions.upper_body_ik.controller.mesh_path = retrieve_file_path(mesh_omniverse_path)
 
         self.teleop_devices = DevicesCfg(
             devices={

@@ -51,7 +51,10 @@ class PinkKinematicsConfiguration(Configuration):
         self._controlled_joint_names = controlled_joint_names
 
         # Build robot model with all joints
-        self.robot_wrapper = RobotWrapper.BuildFromURDF(urdf_path, mesh_path, root_joint=None)
+        if mesh_path is not None:
+            self.robot_wrapper = RobotWrapper.BuildFromURDF(urdf_path, mesh_path)
+        else:
+            self.robot_wrapper = RobotWrapper.BuildFromURDF(urdf_path)
         self.full_model = self.robot_wrapper.model
         self.full_data = self.robot_wrapper.data
         self.full_q = self.robot_wrapper.q0

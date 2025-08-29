@@ -189,8 +189,9 @@ class FixedBaseUpperBodyIKG1EnvCfg(ManagerBasedRLEnvCfg):
         self.sim.render_interval = 2
 
         # Set the URDF and mesh paths for the IK controller
-        urdf_omniverse_path = "omniverse://isaac-dev.ov.nvidia.com/Projects/agile/Robots/urdf/g1/g1_minimal_with_leg_hand_collision_corrected.urdf"
-        mesh_omniverse_path = "omniverse://isaac-dev.ov.nvidia.com/Projects/agile/Robots/urdf/g1/meshes"
+        urdf_omniverse_path = (
+            "omniverse://isaac-dev.ov.nvidia.com/Projects/agile/Robots/urdf/g1/g1_29dof_with_hand_exported.urdf"
+        )
 
         # Retrieve local paths for the URDF and mesh files. Will be cached for call after the first time.
         self.actions.upper_body_ik.controller.urdf_path = retrieve_file_path(urdf_omniverse_path)

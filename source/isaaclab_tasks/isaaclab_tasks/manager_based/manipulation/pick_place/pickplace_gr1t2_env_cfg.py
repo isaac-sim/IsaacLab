@@ -216,11 +216,6 @@ class ActionsCfg:
         ),
     )
 
-    def __post_init__(self):
-        """Post initialization."""
-        # Rotation by -90 degrees around Y-axis: (cos(90/2), 0, sin(90/2), 0) = (0.7071, 0, -0.7071, 0)
-        self.upper_body_ik.controller.hand_rotational_offset = (0.7071, 0.0, -0.7071, 0.0)
-
 
 @configclass
 class ObservationsCfg:

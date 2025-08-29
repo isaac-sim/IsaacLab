@@ -5,18 +5,17 @@
 
 from dataclasses import MISSING
 
-from isaaclab.envs.mdp.actions import actions_cfg as mdp
 from isaaclab.managers.action_manager import ActionTerm, ActionTermCfg
 from isaaclab.utils import configclass
 
-from ..mdp.actions import JointPositionPolicyAction, LowerBodyAction
+from ..mdp.actions import AgileBasedLowerBodyAction
 
 
 @configclass
-class LowerBodyActionCfg(ActionTermCfg):
-    """Configuration for the lower body action term."""
+class AgileBasedLowerBodyActionCfg(ActionTermCfg):
+    """Configuration for the lower body action term that is based on Agile lower body RL policy."""
 
-    class_type: type[ActionTerm] = LowerBodyAction
+    class_type: type[ActionTerm] = AgileBasedLowerBodyAction
     """The class type for the lower body action term."""
 
     policy_path: str = MISSING
@@ -33,13 +32,3 @@ class LowerBodyActionCfg(ActionTermCfg):
 
     offset: float = 0.0
     """The offset of the action."""
-
-
-@configclass
-class JointPositionPolicyActionCfg(mdp.JointPositionActionCfg):
-    """Configuration for the locomotion policy action term."""
-
-    class_type: type[ActionTerm] = JointPositionPolicyAction
-    """The class type for the joint position policy action term."""
-
-    policy_path: str = MISSING

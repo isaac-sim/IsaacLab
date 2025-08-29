@@ -10,23 +10,24 @@ from typing import TYPE_CHECKING
 
 from isaaclab.assets.articulation import Articulation
 from isaaclab.controllers.utils import load_torchscript_model
-from isaaclab.envs.mdp.actions.joint_actions import JointPositionAction
 from isaaclab.managers.action_manager import ActionTerm
+from isaaclab.utils.assets import retrieve_file_path
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
 
-    from .configs.action_cfg import JointPositionPolicyActionCfg, LowerBodyActionCfg
+    from .configs.action_cfg import AgileBasedLowerBodyActionCfg
 
 
-class LowerBodyAction(ActionTerm):
-    cfg: LowerBodyActionCfg
+class AgileBasedLowerBodyAction(ActionTerm):
+    """Action term that is based on Agile lower body RL policy."""
+    cfg: AgileBasedLowerBodyActionCfg
     """The configuration of the action term."""
 
     _asset: Articulation
     """The articulation asset to which the action term is applied."""
 
-    def __init__(self, cfg: LowerBodyActionCfg, env: ManagerBasedEnv):
+    def __init__(self, cfg: AgileBasedLowerBodyActionCfg, env: ManagerBasedEnv):
         super().__init__(cfg, env)
 
         # Save the observation config from cfg
@@ -34,7 +35,8 @@ class LowerBodyAction(ActionTerm):
         self._obs_group_name = cfg.obs_group_name
 
         # Load policy here if needed
-        self._policy = load_torchscript_model(cfg.policy_path, device=env.device)
+        _temp_policy_path = retrieve_file_path(cfg.policy_path)
+        self._policy = load_torchscript_model(_temp_policy_path, device=env.device)
         self._env = env
 
         # Find joint ids for the lower body joints
@@ -99,45 +101,7 @@ class LowerBodyAction(ActionTerm):
                 self._processed_actions, min=self._clip[:, :, 0], max=self._clip[:, :, 1]
             )
 
-        # # Store the raw actions or joint targets (used for last_action and history of actions)
-        # self._raw_actions[:] = self._processed_actions
-
     def apply_actions(self):
         """Apply the actions to the environment."""
         # Store the raw actions
         self._asset.set_joint_position_target(self._processed_actions, joint_ids=self._joint_ids)
-
-
-class JointPositionPolicyAction(JointPositionAction):
-    """Joint action term that applies the processed actions from a locomotion policy to the articulation's joints as position commands."""
-
-    cfg: JointPositionPolicyActionCfg
-    """The configuration of the action term."""
-
-    def __init__(self, cfg: JointPositionPolicyActionCfg, env: ManagerBasedEnv):
-        # initialize the action term
-        super().__init__(cfg, env)
-        # Load policy here if needed
-        self._policy = load_torchscript_model(cfg.policy_path, device=env.device)
-        self._env = env
-
-    def process_actions(self, actions: torch.Tensor):
-        """Process the input actions using the locomotion policy.
-
-        Args:
-            actions: The input actions tensor.
-        """
-        # Get the cached observation from the environment
-        obs_dict = self._env.obs_buf
-        # Generate new actions from policy
-        actions = self._policy(obs_dict["policy"])
-        self._raw_actions[:] = actions
-
-        # Apply scaling and offset to the raw actions from the policy
-        self._processed_actions = self._raw_actions * self._scale + self._offset
-
-        # Clip actions if configured
-        if self.cfg.clip is not None:
-            self._processed_actions = torch.clamp(
-                self._processed_actions, min=self._clip[:, :, 0], max=self._clip[:, :, 1]
-            )
