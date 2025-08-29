@@ -8,7 +8,7 @@ from isaaclab_assets.robots.allegro import ALLEGRO_HAND_CFG
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators.actuator_cfg import ImplicitActuatorCfg
-from isaaclab.assets import ArticulationCfg#, RigidObjectCfg
+from isaaclab.assets import ArticulationCfg  # , RigidObjectCfg
 from isaaclab.envs import DirectRLEnvCfg
 from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.scene import InteractiveSceneCfg
@@ -96,12 +96,12 @@ class AllegroHandEnvCfg(DirectRLEnvCfg):
         init_state=ArticulationCfg.InitialStateCfg(pos=(0.0, -0.17, 0.56), rot=(1.0, 0.0, 0.0, 0.0)),
         actuators={
             "dummy": ImplicitActuatorCfg(
-            control_mode="position",
-            joint_names_expr=[".*"],
-            stiffness=1000.0,
-            damping=1000.0,
-            friction=0.01,
-        ),
+                control_mode="position",
+                joint_names_expr=[".*"],
+                stiffness=1000.0,
+                damping=1000.0,
+                friction=0.01,
+            ),
         },
     )
     # goal object
