@@ -579,7 +579,8 @@ class DisjointNavReplayStateRecorder(RecorderTerm):
             "base_goal_pose": replay_state.base_goal_pose,
             "base_goal_approach_pose": replay_state.base_goal_approach_pose,
             "base_path": replay_state.base_path[None, :],
-            "recording_step": torch.tensor([[replay_state.recording_step]])
+            "recording_step": torch.tensor([[replay_state.recording_step]]),
+            "obstacle_fixture_poses": replay_state.obstacle_fixture_poses
         }
         
         return "replay_state", replay_state_dict

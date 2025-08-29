@@ -340,3 +340,4 @@ class DisjointNavReplayState:
     base_goal_approach_pose: torch.Tensor | None = None
     base_path: torch.Tensor | None = None
     recording_step: int | None = None
+    obstacle_fixture_poses: torch.Tensor | None = None

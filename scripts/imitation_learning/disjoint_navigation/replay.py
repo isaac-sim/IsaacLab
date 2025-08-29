@@ -386,6 +386,14 @@ def replay(
         state.base_goal_pose = base_goal.get_pose()
         state.base_goal_approach_pose = base_goal_approach.get_pose()
         state.base_path = base_path
+
+        obstacle_poses = []
+        for obstacle in scenario.get_obstacle_fixtures():
+            obstacle_poses.append(obstacle.get_pose())
+
+        obstacle_poses = torch.cat(obstacle_poses, dim=0)[None, :]
+        state.obstacle_fixture_poses = obstacle_poses
+
         env = scenario.get_env()
         env._replay_state = state
 
