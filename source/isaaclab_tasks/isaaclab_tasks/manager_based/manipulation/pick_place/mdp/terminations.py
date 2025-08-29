@@ -23,6 +23,7 @@ if TYPE_CHECKING:
 
 def task_done_pick_place(
     env: ManagerBasedRLEnv,
+    task_link_name: str = "",
     object_cfg: SceneEntityCfg = SceneEntityCfg("object"),
     right_wrist_max_x: float = 0.26,
     min_x: float = 0.40,
@@ -54,6 +55,9 @@ def task_done_pick_place(
     Returns:
         Boolean tensor indicating which environments have completed the task.
     """
+    if task_link_name == "":
+        raise ValueError("task_link_name must be provided to task_done_pick_place")
+
     # Get object entity from the scene
     object: RigidObject = env.scene[object_cfg.name]
 
@@ -65,7 +69,7 @@ def task_done_pick_place(
 
     # Get right wrist position relative to environment origin
     robot_body_pos_w = env.scene["robot"].data.body_pos_w
-    right_eef_idx = env.scene["robot"].data.body_names.index("right_hand_roll_link")
+    right_eef_idx = env.scene["robot"].data.body_names.index(task_link_name)
     right_wrist_x = robot_body_pos_w[:, right_eef_idx, 0] - env.scene.env_origins[:, 0]
 
     # Check all success conditions and combine with logical AND

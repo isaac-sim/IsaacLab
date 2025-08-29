@@ -117,6 +117,7 @@ Guidelines for modifications:
 * Ritvik Singh
 * Rosario Scalise
 * Ryley McCarroll
+* Sergey Grizan
 * Shafeef Omar
 * Shaoshu Su
 * Shaurya Dewan
