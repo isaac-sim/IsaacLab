@@ -17,6 +17,9 @@ Installation
 
    This tutorial is for linux only.
 
+   HOVER supports Isaac Lab 2.0 and Isaac Sim 4.5. Please ensure you have the correct version of Isaac Lab and Isaac Sim installed to run the HOVER workflow.
+
+
 1. Install Isaac Lab following the instructions in the `Isaac Lab Installation Guide`_.
 
 2. Define the following environment variable to specify the path to your Isaac Lab installation:

@@ -20,7 +20,7 @@ To use Isaac Automator, first clone the repo:
 
 Isaac Automator requires having ``docker`` pre-installed on the system.
 
-* To install Docker, please follow the instructions for your operating system on the `Docker website`_.
+* To install Docker, please follow the instructions for your operating system on the `Docker website`_. A minimum version of 26.0.0 for Docker Engine and 2.25.0 for Docker compose are required to work with Isaac Automator.
 * Follow the post-installation steps for Docker on the `post-installation steps`_ page. These steps allow you to run
   Docker without using ``sudo``.
 

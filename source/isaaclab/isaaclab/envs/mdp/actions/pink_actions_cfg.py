@@ -3,14 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 from dataclasses import MISSING
 
-from isaaclab.controllers.pink_ik_cfg import PinkIKControllerCfg
+from isaaclab.controllers.pink_ik import PinkIKControllerCfg
 from isaaclab.managers.action_manager import ActionTerm, ActionTermCfg
 from isaaclab.utils import configclass
 
@@ -39,3 +34,10 @@ class PinkInverseKinematicsActionCfg(ActionTermCfg):
 
     controller: PinkIKControllerCfg = MISSING
     """Configuration for the Pink IK controller that will be used to solve the inverse kinematics."""
+
+    target_eef_link_names: dict[str, str] = MISSING
+    """Dictionary mapping task names to controlled link names for the Pink IK controller.
+
+    This dictionary should map the task names (e.g., 'left_wrist', 'right_wrist') to the
+    corresponding link names in the URDF that will be controlled by the IK solver.
+    """
