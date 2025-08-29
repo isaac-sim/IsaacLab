@@ -385,5 +385,10 @@
     "package": "typing-inspection",
     "license" : "UNKNOWN",
     "comment": "MIT"
+  },
+  {
+    "package": "ml_dtypes",
+    "license" : "UNKNOWN",
+    "comment": "Apache 2.0"
   }
 ]
