@@ -217,6 +217,10 @@ def spawn_ground_plane(
             # create semantic type and data attributes
             sem.CreateSemanticTypeAttr().Set(semantic_type)
             sem.CreateSemanticDataAttr().Set(semantic_value)
+
+    # Apply visibility
+    prim_utils.set_prim_property(prim_path, "visibility", "invisible" if not cfg.visible else "inherited")
+
     # return the prim
     return prim
 
