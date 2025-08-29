@@ -1,6 +1,14 @@
 Changelog
 ---------
 
+1.0.13 (2025-08-14)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`PickPlaceGR1T2WaistEnabledEnvCfg` and :class:`PickPlaceGR1T2WaistEnabledMimicEnvCfg` for GR1T2 robot manipulation tasks with waist joint control enabled.
+
 1.0.12 (2025-07-31)
 ~~~~~~~~~~~~~~~~~~~
 

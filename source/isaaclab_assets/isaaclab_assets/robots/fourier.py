@@ -8,6 +8,7 @@
 The following configuration parameters are available:
 
 * :obj:`GR1T2_CFG`: The GR1T2 humanoid.
+* :obj:`GR1T2_HIGH_PD_CFG`: The GR1T2 humanoid configured with high PD gains on upper body joints for pick-place manipulation tasks.
 
 Reference: https://www.fftai.com/products-gr1
 """
@@ -123,3 +124,40 @@ GR1T2_CFG = ArticulationCfg(
     },
 )
 """Configuration for the GR1T2 Humanoid robot."""
+
+
+GR1T2_HIGH_PD_CFG = GR1T2_CFG.replace(
+    actuators={
+        "trunk": ImplicitActuatorCfg(
+            joint_names_expr=["waist_.*"],
+            effort_limit=None,
+            velocity_limit=None,
+            stiffness=4400,
+            damping=40.0,
+            armature=0.01,
+        ),
+        "right-arm": ImplicitActuatorCfg(
+            joint_names_expr=["right_shoulder_.*", "right_elbow_.*", "right_wrist_.*"],
+            stiffness=4400.0,
+            damping=40.0,
+            armature=0.01,
+        ),
+        "left-arm": ImplicitActuatorCfg(
+            joint_names_expr=["left_shoulder_.*", "left_elbow_.*", "left_wrist_.*"],
+            stiffness=4400.0,
+            damping=40.0,
+            armature=0.01,
+        ),
+        "right-hand": ImplicitActuatorCfg(
+            joint_names_expr=["R_.*"],
+            stiffness=None,
+            damping=None,
+        ),
+        "left-hand": ImplicitActuatorCfg(
+            joint_names_expr=["L_.*"],
+            stiffness=None,
+            damping=None,
+        ),
+    },
+)
+"""Configuration for the GR1T2 Humanoid robot configured for with high PD gains for pick-place manipulation tasks."""
