@@ -2,14 +2,3 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
-
-##
-# Configuration for different assets.
-##
-
-from .ant import *
-from .anymal import *
-from .cartpole import *
-from .humanoid import *
-from .unitree import *
-from .allegro import *
