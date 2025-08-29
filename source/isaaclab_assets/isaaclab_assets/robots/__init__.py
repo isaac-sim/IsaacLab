@@ -12,3 +12,5 @@ from .anymal import *
 from .cartpole import *
 from .humanoid import *
 from .unitree import *
+from .franka import *
+from .universal_robots import *
