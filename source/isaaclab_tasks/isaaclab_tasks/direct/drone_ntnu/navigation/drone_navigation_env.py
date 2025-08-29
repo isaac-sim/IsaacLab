@@ -19,18 +19,18 @@ from isaaclab.assets import Articulation
 from isaaclab.envs import DirectRLEnv
 from isaaclab.markers import VisualizationMarkers
 
-from .controller_cfg import LeeControllerCfg
-from .drone_env_cfg import DroneEnvCfg
-from .thruster_cfg import ThrusterCfg
-from .utils import rand_range
+from .lee_acc_controller_cfg import LeeAccControllerCfg
+from .drone_navigation_env_cfg import DroneNavigationEnvCfg
+from ..navigation.thruster_lmf2_cfg import ThrusterLMF2Cfg
+from ..utils import rand_range
 
 from isaaclab.markers import CUBOID_MARKER_CFG  # isort: skip
 
 
-class DroneEnv(DirectRLEnv):
-    cfg: DroneEnvCfg
+class DroneNavigationEnv(DirectRLEnv):
+    cfg: DroneNavigationEnvCfg
 
-    def __init__(self, cfg: DroneEnvCfg, render_mode: str | None = None, **kwargs):
+    def __init__(self, cfg: DroneNavigationEnvCfg, render_mode: str | None = None, **kwargs):
         super().__init__(cfg, render_mode, **kwargs)
 
         action_dim = gym.spaces.flatdim(self.single_action_space)
@@ -45,6 +45,10 @@ class DroneEnv(DirectRLEnv):
         self._reward_buf = torch.zeros((self.num_envs,), device=self.device)
         self._terminated = torch.zeros((self.num_envs,), device=self.device, dtype=torch.bool)
         self._truncated = torch.zeros((self.num_envs,), device=self.device, dtype=torch.bool)
+        
+        # controller
+        self._controller_name = cfg.controller_name
+        self.compute_reward = reward_motor_control if self._controller_name == "motor_control" else reward_lee_control
 
         # drag
         self.body_vel_linear_damping_coef = torch.tensor(self.cfg.body_vel_linear_damping_coef).to(self.device)
@@ -69,10 +73,13 @@ class DroneEnv(DirectRLEnv):
     def _pre_physics_step(self, actions: torch.Tensor):
         self._actions = actions.clone()
         self._processed_actions = actions.clamp(-10, 10)
-        controller_output = self.controller(self._processed_actions)
+        if self._controller_name == "lee_acc_control":
+            controller_output = self.controller(self._processed_actions)
+            des_thrust = torch.bmm(self.inv_wrench_matrix, controller_output.unsqueeze(-1)).squeeze(-1)
+        else:
+            des_thrust = self._processed_actions
 
         # call actuator model to get forces and torque
-        des_thrust = torch.bmm(self.inv_wrench_matrix, controller_output.unsqueeze(-1)).squeeze(-1)
         output_thrust = self.thruster.update_motor_thrusts(des_thrust)
         zero_thrust = torch.zeros_like(output_thrust)
         thruster_force_b = torch.stack((zero_thrust, zero_thrust, output_thrust), dim=2)
@@ -119,7 +126,7 @@ class DroneEnv(DirectRLEnv):
     def _get_rewards(self) -> torch.Tensor:
         robot_vehicle_orientation = math_utils.yaw_quat(self._robot.data.root_quat_w)
         pos_error = self._commands_w - self._robot.data.root_pos_w
-        self._reward_term_buf[:, :3] = compute_reward_components(
+        self._reward_term_buf[:, :3] = self.compute_reward(
             pos_error=math_utils.quat_apply_inverse(robot_vehicle_orientation, pos_error),
             robot_quats=self._robot.data.root_quat_w,
             robot_angvels=self._robot.data.root_ang_vel_w,
@@ -142,20 +149,21 @@ class DroneEnv(DirectRLEnv):
         self._commands_w[env_ids] = torch.zeros((len(env_ids), 3), device=self.device) + self.scene.env_origins[env_ids]
         if self._sim_step_counter == 0:
             # Setup Controller at first reset
-            controller_cfg = LeeControllerCfg()
-            self.controller = controller_cfg.class_type(controller_cfg, self)
+            if self._controller_name == "lee_acc_control":
+                controller_cfg = LeeAccControllerCfg()
+                self.controller = controller_cfg.class_type(controller_cfg, self)
+                wrench_matrix = torch.tensor(self.cfg.wrench_matrix, device=self.device)
+                self.inv_wrench_matrix = torch.linalg.pinv(wrench_matrix).expand(self.num_envs, -1, -1)
+            
             self.thruster_directions = torch.tensor(self.cfg.thruster_directions, device=self.device)
 
             # Setup Thruster at first reset
-            thruster_cfg = ThrusterCfg(dt=self.cfg.sim.dt)
+            thruster_cfg = ThrusterLMF2Cfg(dt=self.cfg.sim.dt)
             self.thruster = thruster_cfg.class_type(self.num_envs, cfg=thruster_cfg, device=self.device)
             self.thrust_to_torque_ratio = self.cfg.thrust_to_torque_ratio
 
             # randomly initialize first episode length so env episode progress spread out.
             self.episode_length_buf[:] = torch.randint_like(self.episode_length_buf, high=int(self.max_episode_length))
-
-            wrench_matrix = torch.tensor(self.cfg.wrench_matrix, device=self.device)
-            self.inv_wrench_matrix = torch.linalg.pinv(wrench_matrix).expand(self.num_envs, -1, -1)
 
             # resolve bodies indices that attached with thruster
             self.cfg.thruster_links.resolve(self.scene)
@@ -207,7 +215,7 @@ def exp_penalty_func(x: torch.Tensor, gain: float, exp: float) -> torch.Tensor:
 
 
 @torch.jit.script
-def compute_reward_components(
+def reward_lee_control(
     pos_error: torch.Tensor,
     robot_quats: torch.Tensor,
     robot_angvels: torch.Tensor,
@@ -230,7 +238,37 @@ def compute_reward_components(
     up_reward = 0.2 / (0.1 + tiltage * tiltage)
 
     spinnage = torch.norm(robot_angvels, dim=1)
-    ang_vel_reward = (1.0 / (1.0 + spinnage * spinnage)) * 3.0
+    ang_vel_reward = (3.0 / (1.0 + spinnage * spinnage))
+
+    posture_term = pos_reward * (up_reward + ang_vel_reward)
+
+    return torch.stack((pos_reward, dist_reward, posture_term), dim=1)
+
+@torch.jit.script
+def reward_motor_control(
+    pos_error: torch.Tensor,
+    robot_quats: torch.Tensor,
+    robot_angvels: torch.Tensor,
+) -> torch.Tensor:
+    """
+    Returns an (N, 3) tensor with:
+      [:, 0] -> pos_reward
+      [:, 1] -> dist_reward
+      [:, 2] -> pos_reward * (up_reward + ang_vel_reward)
+    """
+    # distances
+    dist = torch.norm(pos_error, dim=1)
+
+    # the original terms
+    pos_reward = exp_func(dist, 3.0, 8.0) + exp_func(dist, 2.0, 4.0)
+    dist_reward = (20.0 - dist) / 40.0
+
+    ups = quat_axis(robot_quats, 2)
+    tiltage = torch.abs(1.0 - ups[..., 2])
+    up_reward = 0.2 / (0.1 + tiltage * tiltage)
+
+    spinnage = torch.norm(robot_angvels, dim=1)
+    ang_vel_reward = (6.0 / (1.0 + spinnage * spinnage))
 
     posture_term = pos_reward * (up_reward + ang_vel_reward)
 

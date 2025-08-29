@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Pre-defined terrain configurations for the terrain generator."""
-
-from .rough import *  # noqa: F401
-from .floating_obstacles import * 
+# Copyright (c) 2023, Autonomous Robots Lab, Norwegian University of Science and Technology.
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause

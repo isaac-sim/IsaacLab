@@ -10,11 +10,11 @@
 
 from isaaclab.utils import configclass
 
-from .lee_controller import LeeController
+from .lee_acc_controller import LeeController
 
 
 @configclass
-class LeeControllerCfg:
+class LeeAccControllerCfg:
     """Configuration for a Lee-style geometric quadrotor controller.
 
     Unless otherwise noted, vectors are ordered as (x, y, z) in the simulation world/body frames.
@@ -27,12 +27,6 @@ class LeeControllerCfg:
 
     gravity: tuple[float, float, float] = (0.0, 0.0, -9.81)
     """World gravity vector used by the controller [m/s^2]."""
-
-    K_pos_range: tuple[tuple[float, float, float], tuple[float, float, float]] = ((2.0, 2.0, 1.0), (3.0, 3.0, 2.0))
-    """Position-error proportional gain range in world frame [1/s^2]."""
-
-    K_vel_range: tuple[tuple[float, float, float], tuple[float, float, float]] = ((2.0, 2.0, 2.0), (3.0, 3.0, 3.0))
-    """Linear-velocity error proportional gain range in world frame [1/s]."""
 
     K_rot_range: tuple[tuple[float, float, float], tuple[float, float, float]] = ((0.8, 0.8, 0.4), (1.2, 1.2, 0.6))
     """Orientation (rotation) error proportional gain range about body axes [unitless]."""

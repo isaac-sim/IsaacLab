@@ -50,7 +50,7 @@ class EventCfg:
 
 
 @configclass
-class DroneEnvCfg(DirectRLEnvCfg):
+class DroneNavigationEnvCfg(DirectRLEnvCfg):
     # env
     episode_length_s = 5.0
     decimation = 1
@@ -67,7 +67,7 @@ class DroneEnvCfg(DirectRLEnvCfg):
     # robot
     robot: ArticulationCfg = ArticulationCfg(
         prim_path="/World/envs/env_.*/Robot",
-        spawn=sim_utils.UsdFileCfg(usd_path=os.path.join(os.path.dirname(os.path.abspath(__file__)), "Quad/quad.usd")),
+        spawn=sim_utils.UsdFileCfg(usd_path=os.path.join(os.path.dirname(os.path.abspath(__file__)), "./LMF2/lmf2/lmf2.usd")),
         init_state=ArticulationCfg.InitialStateCfg(
             pos=(0.0, 0.0, 0.0), rot=(1.0, 0.0, 0.0, 0.0), joint_pos={}, joint_vel={}
         ),
@@ -76,18 +76,25 @@ class DroneEnvCfg(DirectRLEnvCfg):
 
     events: EventCfg = EventCfg()
 
+    # controller cfg
+    controller_name = "lee_vel_control"
+    
+    # sensors
+    enable_camera = True
+    camera_config = BaseDepthCameraConfig
+
     # thruster related variables
     thrust_to_torque_ratio = 0.01
     thruster_links = SceneEntityCfg("robot", body_names=["motor_.*"])
     thruster_directions = [1, -1, 1, -1]
     wrench_matrix = [
-        [0.0, 0.0, 0.0, 0.0],
-        [0.0, 0.0, 0.0, 0.0],
-        [1.0, 1.0, 1.0, 1.0],
-        [-0.13, -0.13, 0.13, 0.13],
-        [-0.13, 0.13, 0.13, -0.13],
-        [-0.01, 0.01, -0.01, 0.01],
-    ]
+            [0.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0],
+            [1.0, 1.0, 1.0, 1.0],
+            [-0.13, -0.13, 0.13, 0.13],
+            [-0.13, 0.13, 0.13, -0.13],
+            [-0.07, 0.07, -0.07, 0.07],
+        ]
 
     # drag_variables
     body_vel_linear_damping_coef = [0.0, 0.0, 0.0]
@@ -96,6 +103,6 @@ class DroneEnvCfg(DirectRLEnvCfg):
     angvel_quadratic_damping_coef = [0.0, 0.0, 0.0]
 
     # disturbance
-    enable_disturbance = False
-    max_wrench_disturbance = [0.75, 0.75, 0.75, 0.004, 0.004, 0.004]
-    disturb_prob = 0.02
+    enable_disturbance = True
+    max_wrench_disturbance = [4.75, 4.75, 4.75, 0.03, 0.03, 0.03]
+    disturb_prob = 0.05

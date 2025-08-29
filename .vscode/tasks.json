@@ -8,7 +8,12 @@
             "label": "setup_python_env",
             "type": "shell",
             "linux": {
-                "command": "${workspaceFolder}/isaaclab.sh -p ${workspaceFolder}/.vscode/tools/setup_vscode.py"
+                "command": "bash",
+                "args": [
+                    "-i",
+                    "-c",
+                    "source ~/anaconda3/bin/activate env_isaaclab && ${workspaceFolder}/isaaclab.sh -p ${workspaceFolder}/.vscode/tools/setup_vscode.py"
+                ]
             },
             "windows": {
                 "command": "${workspaceFolder}/isaaclab.bat -p ${workspaceFolder}/.vscode/tools/setup_vscode.py"
@@ -19,7 +24,12 @@
             "label": "run_formatter",
             "type": "shell",
             "linux": {
-                "command": "${workspaceFolder}/isaaclab.sh --format"
+                "command": "bash",
+                "args": [
+                    "-i",
+                    "-c",
+                    "source ~/anaconda3/bin/activate env_isaaclab && ${workspaceFolder}/isaaclab.sh --format"
+                ]
             },
             "windows": {
                 "command": "${workspaceFolder}/isaaclab.bat --format"

@@ -17,7 +17,7 @@ from .thruster import Thruster
 
 
 @configclass
-class ThrusterCfg:
+class ThrusterQuadCfg:
 
     class_type: type[Thruster] = Thruster
     """Concrete Python class that consumes this config."""

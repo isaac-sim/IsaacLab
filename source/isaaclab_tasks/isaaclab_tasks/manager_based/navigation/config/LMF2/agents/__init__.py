@@ -2,8 +2,3 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
-
-"""Pre-defined terrain configurations for the terrain generator."""
-
-from .rough import *  # noqa: F401
-from .floating_obstacles import * 

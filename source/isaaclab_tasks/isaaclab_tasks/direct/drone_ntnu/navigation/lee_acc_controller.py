@@ -16,12 +16,12 @@ from typing import TYPE_CHECKING
 
 import isaaclab.utils.math as math_utils
 
-from .utils import aggregate_inertia_about_robot_com, rand_range
+from ..utils import aggregate_inertia_about_robot_com, rand_range
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation
 
-    from .controller_cfg import LeeControllerCfg
+    from .lee_acc_controller_cfg import LeeAccControllerCfg
 
 
 class LeeController:
@@ -32,9 +32,9 @@ class LeeController:
     Gains may be randomized per environment if enabled in the configuration.
     """
 
-    cfg: LeeControllerCfg
+    cfg: LeeAccControllerCfg
 
-    def __init__(self, cfg: LeeControllerCfg, env):
+    def __init__(self, cfg: LeeAccControllerCfg, env):
         """Initialize controller buffers and pre-compute aggregate inertias.
 
         Args:
@@ -59,14 +59,10 @@ class LeeController:
         self.gravity = torch.tensor(self.cfg.gravity, device=env.device).expand(env.num_envs, -1)
 
         # Gain ranges (single tensor each): shape (num_envs, 2, 3); [:,0]=min, [:,1]=max
-        self.K_pos_range = torch.tensor(self.cfg.K_pos_range, device=env.device).repeat(env.num_envs, 1, 1)
-        self.K_linvel_range = torch.tensor(self.cfg.K_vel_range, device=env.device).repeat(env.num_envs, 1, 1)
         self.K_rot_range = torch.tensor(self.cfg.K_rot_range, device=env.device).repeat(env.num_envs, 1, 1)
         self.K_angvel_range = torch.tensor(self.cfg.K_angvel_range, device=env.device).repeat(env.num_envs, 1, 1)
 
         # Current (possibly randomized) gains
-        self.K_pos_current = self.K_pos_range.mean(dim=1)
-        self.K_linvel_current = self.K_linvel_range.mean(dim=1)
         self.K_rot_current = self.K_rot_range.mean(dim=1)
         self.K_angvel_current = self.K_angvel_range.mean(dim=1)
 
@@ -88,6 +84,7 @@ class LeeController:
         Returns:
             (num_envs, 6) body-frame wrench ``[Fx, Fy, Fz, Tx, Ty, Tz]``.
         """
+        
         robot_euler_w = torch.stack(math_utils.euler_xyz_from_quat(self.robot.data.root_quat_w), dim=-1)
         robot_euler_w = math_utils.wrap_to_pi(robot_euler_w)
         self.wrench_command_b[:] = 0.0
@@ -123,28 +120,9 @@ class LeeController:
         """Randomize controller gains for the given environments if enabled."""
         if not self.cfg.randomize_params:
             return
-        self.K_pos_current[env_ids] = rand_range(self.K_pos_range[env_ids, 0], self.K_pos_range[env_ids, 1])
-        self.K_linvel_current[env_ids] = rand_range(self.K_linvel_range[env_ids, 0], self.K_linvel_range[env_ids, 1])
         self.K_rot_current[env_ids] = rand_range(self.K_rot_range[env_ids, 0], self.K_rot_range[env_ids, 1])
         self.K_angvel_current[env_ids] = rand_range(self.K_angvel_range[env_ids, 0], self.K_angvel_range[env_ids, 1])
 
-    def compute_acceleration(self, setpoint_position, setpoint_velocity):
-        """PD position control in world frame.
-
-        Args:
-            setpoint_position: (num_envs, 3) desired position in world frame.
-            setpoint_velocity: (num_envs, 3) desired velocity expressed in the vehicle yaw-aligned frame.
-
-        Returns:
-            (num_envs, 3) linear acceleration command in world frame.
-        """
-        position_error_world_frame = setpoint_position - self.robot.data.root_pos_w
-        setpoint_velocity_world_frame = math_utils.quat_apply(
-            math_utils.yaw_quat(self.robot.data.root_quat_w), setpoint_velocity
-        )
-        velocity_error = setpoint_velocity_world_frame - self.robot.data.root_lin_vel_w
-        accel_command = self.K_pos_current * position_error_world_frame + self.K_linvel_current * velocity_error
-        return accel_command
 
     def compute_body_torque(self, setpoint_orientation, setpoint_angvel):
         """PD attitude control in body frame with feedforward Coriolis term.

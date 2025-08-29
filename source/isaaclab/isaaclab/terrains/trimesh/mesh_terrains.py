@@ -858,3 +858,50 @@ def repeated_objects_terrain(
     meshes_list.append(platform)
 
     return meshes_list, origin
+
+def floating_obstacles_terrain(
+    difficulty: float, cfg: mesh_terrains_cfg.MeshFloatingObstaclesTerrainCfg
+) -> tuple[list[trimesh.Trimesh], np.ndarray]:
+    
+    """ difficulty: float [0,1] - defines obstacle density
+    """
+
+    # max_num_obstacles = cfg.max_num_obstacles
+    origin = np.asarray((0.5, 0.5, 0.5))
+    meshes_list = list()
+    
+    for wall in cfg.wall_cfgs:
+        length = wall.size[0]
+        width = wall.size[1]
+        height = wall.size[2]
+        center = np.random.uniform(wall.center_ratio_min, wall.center_ratio_max)
+        center *= cfg.env_size
+        wall_mesh = cfg.object_func(length,
+                                 width,
+                                 height,
+                                 center,
+                                 0.0,
+                                 degrees= True)
+        meshes_list.append(wall_mesh)
+    
+    num_obstacles = int(difficulty * cfg.max_num_obstacles)
+    
+    for _ in range(num_obstacles):
+        obs = np.random.choice(cfg.obstacle_cfgs)
+        length = obs.size[0]
+        width = obs.size[1]
+        height = obs.size[2]
+        center = np.random.uniform(obs.center_ratio_min, obs.center_ratio_max)
+        center *= cfg.env_size
+        obs_mesh = cfg.object_func(length,
+                                 width,
+                                 height,
+                                 center,
+                                 np.pi,
+                                 degrees= False)
+        color = np.random.randint(0, 256, size=3, dtype=np.uint8)
+        color = np.append(color, 255) 
+        obs_mesh.visual.vertex_colors = np.tile(color, (len(obs_mesh.vertices), 1))
+        meshes_list.append(obs_mesh)
+
+    return meshes_list, origin
