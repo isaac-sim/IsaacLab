@@ -365,5 +365,30 @@
     "package": "regex",
     "license": "UNKNOWN",
     "comment": "Apache 2.0"
+  },
+  {
+    "package": "anyio",
+    "license": "UNKNOWN",
+    "comment": "MIT"
+  },
+  {
+    "package" : "hf-xet",
+    "license" : "UNKNOWN",
+    "comment": "Apache 2.0"
+  },
+  {
+    "package": "rpds-py",
+    "license" : "UNKNOWN",
+    "comment": "MIT"
+  },
+  {
+    "package": "typing-inspection",
+    "license" : "UNKNOWN",
+    "comment": "MIT"
+  },
+  {
+    "package": "ml_dtypes",
+    "license" : "UNKNOWN",
+    "comment": "Apache 2.0"
   }
 ]

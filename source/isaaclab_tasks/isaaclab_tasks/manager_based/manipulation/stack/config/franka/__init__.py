@@ -11,6 +11,7 @@ from . import (
     stack_ik_rel_blueprint_env_cfg,
     stack_ik_rel_env_cfg,
     stack_ik_rel_instance_randomize_env_cfg,
+    stack_ik_rel_visuomotor_cosmos_env_cfg,
     stack_ik_rel_visuomotor_env_cfg,
     stack_joint_pos_env_cfg,
     stack_joint_pos_instance_randomize_env_cfg,
@@ -63,6 +64,16 @@ gym.register(
     kwargs={
         "env_cfg_entry_point": stack_ik_rel_visuomotor_env_cfg.FrankaCubeStackVisuomotorEnvCfg,
         "robomimic_bc_cfg_entry_point": os.path.join(agents.__path__[0], "robomimic/bc_rnn_image_84.json"),
+    },
+    disable_env_checker=True,
+)
+
+gym.register(
+    id="Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos-v0",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    kwargs={
+        "env_cfg_entry_point": stack_ik_rel_visuomotor_cosmos_env_cfg.FrankaCubeStackVisuomotorCosmosEnvCfg,
+        "robomimic_bc_cfg_entry_point": os.path.join(agents.__path__[0], "robomimic/bc_rnn_image_cosmos.json"),
     },
     disable_env_checker=True,
 )

@@ -53,14 +53,15 @@ def process_sb3_cfg(cfg: dict, num_envs: int) -> dict:
         https://github.com/DLR-RM/rl-baselines3-zoo/blob/0e5eb145faefa33e7d79c7f8c179788574b20da5/utils/exp_manager.py#L358
     """
 
-    def update_dict(hyperparams: dict[str, Any]) -> dict[str, Any]:
+    def update_dict(hyperparams: dict[str, Any], depth: int) -> dict[str, Any]:
         for key, value in hyperparams.items():
             if isinstance(value, dict):
-                update_dict(value)
-            else:
-                if key in ["policy_kwargs", "replay_buffer_class", "replay_buffer_kwargs"]:
-                    hyperparams[key] = eval(value)
-                elif key in ["learning_rate", "clip_range", "clip_range_vf"]:
+                update_dict(value, depth + 1)
+            if isinstance(value, str):
+                if value.startswith("nn."):
+                    hyperparams[key] = getattr(nn, value[3:])
+            if depth == 0:
+                if key in ["learning_rate", "clip_range", "clip_range_vf"]:
                     if isinstance(value, str):
                         _, initial_value = value.split("_")
                         initial_value = float(initial_value)
@@ -81,7 +82,7 @@ def process_sb3_cfg(cfg: dict, num_envs: int) -> dict:
         return hyperparams
 
     # parse agent configuration and convert to classes
-    return update_dict(cfg)
+    return update_dict(cfg, depth=0)
 
 
 """

@@ -12,6 +12,8 @@ import omni.log
 import omni.usd
 from isaacsim.core.cloner import GridCloner
 from isaacsim.core.prims import XFormPrim
+from isaacsim.core.utils.stage import get_current_stage
+from isaacsim.core.version import get_version
 from pxr import PhysxSchema
 
 import isaaclab.sim as sim_utils
@@ -25,8 +27,12 @@ from isaaclab.assets import (
     RigidObjectCfg,
     RigidObjectCollection,
     RigidObjectCollectionCfg,
+    SurfaceGripper,
+    SurfaceGripperCfg,
 )
 from isaaclab.sensors import ContactSensorCfg, FrameTransformerCfg, SensorBase, SensorBaseCfg
+from isaaclab.sim import SimulationContext
+from isaaclab.sim.utils import get_current_stage_id
 from isaaclab.terrains import TerrainImporter, TerrainImporterCfg
 
 from .interactive_scene_cfg import InteractiveSceneCfg
@@ -118,13 +124,16 @@ class InteractiveScene:
         self._rigid_objects = dict()
         self._rigid_object_collections = dict()
         self._sensors = dict()
+        self._surface_grippers = dict()
         self._extras = dict()
-        # obtain the current stage
-        self.stage = omni.usd.get_context().get_stage()
+        # get stage handle
+        self.sim = SimulationContext.instance()
+        self.stage = get_current_stage()
+        self.stage_id = get_current_stage_id()
         # physics scene path
         self._physics_scene_path = None
         # prepare cloner for environment replication
-        self.cloner = GridCloner(spacing=self.cfg.env_spacing)
+        self.cloner = GridCloner(spacing=self.cfg.env_spacing, stage=self.stage)
         self.cloner.define_base_env(self.env_ns)
         self.env_prim_paths = self.cloner.generate_paths(f"{self.env_ns}/env", self.cfg.num_envs)
         # create source prim
@@ -134,14 +143,31 @@ class InteractiveScene:
         # when replicate_physics=False, we assume heterogeneous environments and clone the xforms first.
         # this triggers per-object level cloning in the spawner.
         if not self.cfg.replicate_physics:
-            # clone the env xform
-            env_origins = self.cloner.clone(
-                source_prim_path=self.env_prim_paths[0],
-                prim_paths=self.env_prim_paths,
-                replicate_physics=False,
-                copy_from_source=True,
-                enable_env_ids=self.cfg.filter_collisions,  # this won't do anything because we are not replicating physics
-            )
+            # check version of Isaac Sim to determine whether clone_in_fabric is valid
+            isaac_sim_version = float(".".join(get_version()[2]))
+            if isaac_sim_version < 5:
+                # clone the env xform
+                env_origins = self.cloner.clone(
+                    source_prim_path=self.env_prim_paths[0],
+                    prim_paths=self.env_prim_paths,
+                    replicate_physics=False,
+                    copy_from_source=True,
+                    enable_env_ids=(
+                        self.cfg.filter_collisions if self.device != "cpu" else False
+                    ),  # this won't do anything because we are not replicating physics
+                )
+            else:
+                # clone the env xform
+                env_origins = self.cloner.clone(
+                    source_prim_path=self.env_prim_paths[0],
+                    prim_paths=self.env_prim_paths,
+                    replicate_physics=False,
+                    copy_from_source=True,
+                    enable_env_ids=(
+                        self.cfg.filter_collisions if self.device != "cpu" else False
+                    ),  # this won't do anything because we are not replicating physics
+                    clone_in_fabric=self.cfg.clone_in_fabric,
+                )
             self._default_env_origins = torch.tensor(env_origins, device=self.device, dtype=torch.float32)
         else:
             # otherwise, environment origins will be initialized during cloning at the end of environment creation
@@ -157,13 +183,25 @@ class InteractiveScene:
             # replicate physics if we have more than one environment
             # this is done to make scene initialization faster at play time
             if self.cfg.replicate_physics and self.cfg.num_envs > 1:
-                self.cloner.replicate_physics(
-                    source_prim_path=self.env_prim_paths[0],
-                    prim_paths=self.env_prim_paths,
-                    base_env_path=self.env_ns,
-                    root_path=self.env_regex_ns.replace(".*", ""),
-                    enable_env_ids=self.cfg.filter_collisions,
-                )
+                # check version of Isaac Sim to determine whether clone_in_fabric is valid
+                isaac_sim_version = float(".".join(get_version()[2]))
+                if isaac_sim_version < 5:
+                    self.cloner.replicate_physics(
+                        source_prim_path=self.env_prim_paths[0],
+                        prim_paths=self.env_prim_paths,
+                        base_env_path=self.env_ns,
+                        root_path=self.env_regex_ns.replace(".*", ""),
+                        enable_env_ids=self.cfg.filter_collisions if self.device != "cpu" else False,
+                    )
+                else:
+                    self.cloner.replicate_physics(
+                        source_prim_path=self.env_prim_paths[0],
+                        prim_paths=self.env_prim_paths,
+                        base_env_path=self.env_ns,
+                        root_path=self.env_regex_ns.replace(".*", ""),
+                        enable_env_ids=self.cfg.filter_collisions if self.device != "cpu" else False,
+                        clone_in_fabric=self.cfg.clone_in_fabric,
+                    )
 
             # since env_ids is only applicable when replicating physics, we have to fallback to the previous method
             # to filter collisions if replicate_physics is not enabled
@@ -190,23 +228,43 @@ class InteractiveScene:
                 " This may adversely affect PhysX parsing. We recommend disabling this property."
             )
 
-        # clone the environment
-        env_origins = self.cloner.clone(
-            source_prim_path=self.env_prim_paths[0],
-            prim_paths=self.env_prim_paths,
-            replicate_physics=self.cfg.replicate_physics,
-            copy_from_source=copy_from_source,
-            enable_env_ids=self.cfg.filter_collisions,  # this automatically filters collisions between environments
-        )
+        # check version of Isaac Sim to determine whether clone_in_fabric is valid
+        isaac_sim_version = float(".".join(get_version()[2]))
+        if isaac_sim_version < 5:
+            # clone the environment
+            env_origins = self.cloner.clone(
+                source_prim_path=self.env_prim_paths[0],
+                prim_paths=self.env_prim_paths,
+                replicate_physics=self.cfg.replicate_physics,
+                copy_from_source=copy_from_source,
+                enable_env_ids=(
+                    self.cfg.filter_collisions if self.device != "cpu" else False
+                ),  # this automatically filters collisions between environments
+            )
+        else:
+            # clone the environment
+            env_origins = self.cloner.clone(
+                source_prim_path=self.env_prim_paths[0],
+                prim_paths=self.env_prim_paths,
+                replicate_physics=self.cfg.replicate_physics,
+                copy_from_source=copy_from_source,
+                enable_env_ids=(
+                    self.cfg.filter_collisions if self.device != "cpu" else False
+                ),  # this automatically filters collisions between environments
+                clone_in_fabric=self.cfg.clone_in_fabric,
+            )
 
         # since env_ids is only applicable when replicating physics, we have to fallback to the previous method
         # to filter collisions if replicate_physics is not enabled
         # additionally, env_ids is only supported in GPU simulation
         if (not self.cfg.replicate_physics and self.cfg.filter_collisions) or self.device == "cpu":
-            omni.log.warn(
-                "Collision filtering can only be automatically enabled when replicate_physics=True and GPU simulation."
-                " Please call scene.filter_collisions(global_prim_paths) to filter collisions across environments."
-            )
+            # if scene is specified through cfg, this is already taken care of
+            if not self._is_scene_setup_from_cfg():
+                omni.log.warn(
+                    "Collision filtering can only be automatically enabled when replicate_physics=True and using GPU"
+                    " simulation. Please call scene.filter_collisions(global_prim_paths) to filter collisions across"
+                    " environments."
+                )
 
         # in case of heterogeneous cloning, the env origins is specified at init
         if self._default_env_origins is None:
@@ -228,6 +286,10 @@ class InteractiveScene:
         else:
             # remove duplicates in paths
             global_prim_paths = list(set(global_prim_paths))
+
+        # if "/World/collisions" already exists in the stage, we don't filter again
+        if self.stage.GetPrimAtPath("/World/collisions"):
+            return
 
         # set global prim paths list if not previously defined
         if len(self._global_prim_paths) < 1:
@@ -341,6 +403,11 @@ class InteractiveScene:
         return self._sensors
 
     @property
+    def surface_grippers(self) -> dict[str, SurfaceGripper]:
+        """A dictionary of the surface grippers in the scene."""
+        return self._surface_grippers
+
+    @property
     def extras(self) -> dict[str, XFormPrim]:
         """A dictionary of miscellaneous simulation objects that neither inherit from assets nor sensors.
 
@@ -385,6 +452,8 @@ class InteractiveScene:
             deformable_object.reset(env_ids)
         for rigid_object in self._rigid_objects.values():
             rigid_object.reset(env_ids)
+        for surface_gripper in self._surface_grippers.values():
+            surface_gripper.reset(env_ids)
         for rigid_object_collection in self._rigid_object_collections.values():
             rigid_object_collection.reset(env_ids)
         # -- sensors
@@ -400,6 +469,8 @@ class InteractiveScene:
             deformable_object.write_data_to_sim()
         for rigid_object in self._rigid_objects.values():
             rigid_object.write_data_to_sim()
+        for surface_gripper in self._surface_grippers.values():
+            surface_gripper.write_data_to_sim()
         for rigid_object_collection in self._rigid_object_collections.values():
             rigid_object_collection.write_data_to_sim()
 
@@ -418,6 +489,8 @@ class InteractiveScene:
             rigid_object.update(dt)
         for rigid_object_collection in self._rigid_object_collections.values():
             rigid_object_collection.update(dt)
+        for surface_gripper in self._surface_grippers.values():
+            surface_gripper.update(dt)
         # -- sensors
         for sensor in self._sensors.values():
             sensor.update(dt, force_recompute=not self.cfg.lazy_sensor_update)
@@ -480,6 +553,10 @@ class InteractiveScene:
             root_velocity = asset_state["root_velocity"].clone()
             rigid_object.write_root_pose_to_sim(root_pose, env_ids=env_ids)
             rigid_object.write_root_velocity_to_sim(root_velocity, env_ids=env_ids)
+        # surface grippers
+        for asset_name, gripper in self._surface_grippers.items():
+            asset_state = state["gripper"][asset_name]
+            gripper.write_gripper_state_to_sim(asset_state, env_ids=env_ids)
 
         # write data to simulation to make sure initial state is set
         # this propagates the joint targets to the simulation
@@ -585,6 +662,7 @@ class InteractiveScene:
             self._rigid_objects,
             self._rigid_object_collections,
             self._sensors,
+            self._surface_grippers,
             self._extras,
         ]:
             all_keys += list(asset_family.keys())
@@ -611,6 +689,7 @@ class InteractiveScene:
             self._rigid_objects,
             self._rigid_object_collections,
             self._sensors,
+            self._surface_grippers,
             self._extras,
         ]:
             out = asset_family.get(key)
@@ -669,6 +748,8 @@ class InteractiveScene:
                     if hasattr(rigid_object_cfg, "collision_group") and rigid_object_cfg.collision_group == -1:
                         asset_paths = sim_utils.find_matching_prim_paths(rigid_object_cfg.prim_path)
                         self._global_prim_paths += asset_paths
+            elif isinstance(asset_cfg, SurfaceGripperCfg):
+                pass
             elif isinstance(asset_cfg, SensorBaseCfg):
                 # Update target frame path(s)' regex name space for FrameTransformer
                 if isinstance(asset_cfg, FrameTransformerCfg):

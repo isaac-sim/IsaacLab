@@ -33,6 +33,11 @@ args_cli = parser.parse_args()
 app_launcher = AppLauncher(headless=args_cli.headless)
 simulation_app = app_launcher.app
 
+# disable metrics assembler due to scene graph instancing
+from isaacsim.core.utils.extensions import disable_extension
+
+disable_extension("omni.usd.metrics.assembler.ui")
+
 """Rest everything else."""
 
 import gymnasium as gym
