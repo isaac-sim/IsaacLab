@@ -117,6 +117,22 @@ class ManagerBasedRLMimicEnv(ManagerBasedRLEnv):
             )
         return object_pose_matrix
 
+    def get_subtask_start_signals(self, env_ids: Sequence[int] | None = None) -> dict[str, torch.Tensor]:
+        """
+        Gets a dictionary of start signal flags for each subtask in a task. The flag is 1
+        when the subtask has started and 0 otherwise. The implementation of this method is
+        required if intending to enable automatic subtask start signal annotation when running the
+        dataset annotation tool. This method can be kept unimplemented if intending to use manual
+        subtask start signal annotation.
+
+        Args:
+            env_ids: Environment indices to get the start signals for. If None, all envs are considered.
+
+        Returns:
+            A dictionary start signal flags (False or True) for each subtask.
+        """
+        raise NotImplementedError
+
     def get_subtask_term_signals(self, env_ids: Sequence[int] | None = None) -> dict[str, torch.Tensor]:
         """
         Gets a dictionary of termination signal flags for each subtask in a task. The flag is 1

@@ -7,11 +7,13 @@
 
 import gymnasium as gym
 
+from .franka_bin_stack_ik_rel_mimic_env_cfg import FrankaBinStackIKRelMimicEnvCfg
 from .franka_stack_ik_abs_mimic_env import FrankaCubeStackIKAbsMimicEnv
 from .franka_stack_ik_abs_mimic_env_cfg import FrankaCubeStackIKAbsMimicEnvCfg
 from .franka_stack_ik_rel_blueprint_mimic_env_cfg import FrankaCubeStackIKRelBlueprintMimicEnvCfg
 from .franka_stack_ik_rel_mimic_env import FrankaCubeStackIKRelMimicEnv
 from .franka_stack_ik_rel_mimic_env_cfg import FrankaCubeStackIKRelMimicEnvCfg
+from .franka_stack_ik_rel_skillgen_env_cfg import FrankaCubeStackIKRelSkillgenEnvCfg
 from .franka_stack_ik_rel_visuomotor_cosmos_mimic_env_cfg import FrankaCubeStackIKRelVisuomotorCosmosMimicEnvCfg
 from .franka_stack_ik_rel_visuomotor_mimic_env_cfg import FrankaCubeStackIKRelVisuomotorMimicEnvCfg
 
@@ -62,6 +64,24 @@ gym.register(
         "env_cfg_entry_point": (
             franka_stack_ik_rel_visuomotor_cosmos_mimic_env_cfg.FrankaCubeStackIKRelVisuomotorCosmosMimicEnvCfg
         ),
+    },
+    disable_env_checker=True,
+)
+
+gym.register(
+    id="Isaac-Stack-Cube-Franka-IK-Rel-Skillgen-v0",
+    entry_point="isaaclab_mimic.envs:FrankaCubeStackIKRelMimicEnv",
+    kwargs={
+        "env_cfg_entry_point": franka_stack_ik_rel_skillgen_env_cfg.FrankaCubeStackIKRelSkillgenEnvCfg,
+    },
+    disable_env_checker=True,
+)
+
+gym.register(
+    id="Isaac-Stack-Cube-Bin-Franka-IK-Rel-Mimic-v0",
+    entry_point="isaaclab_mimic.envs:FrankaCubeStackIKRelMimicEnv",
+    kwargs={
+        "env_cfg_entry_point": franka_bin_stack_ik_rel_mimic_env_cfg.FrankaBinStackIKRelMimicEnvCfg,
     },
     disable_env_checker=True,
 )
