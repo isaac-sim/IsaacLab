@@ -362,9 +362,6 @@ while [[ $# -gt 0 ]]; do
             # install the python packages in IsaacLab/source directory
             echo "[INFO] Installing extensions inside the Isaac Lab repository..."
             python_exe=$(extract_python_exe)
-            # bootstrap_pip
-            ${python_exe} -m ensurepip --upgrade || true
-            ${python_exe} -m pip install -U "pip>=25.2"
             # check if pytorch is installed and its version
             # install pytorch with cuda 12.8 for blackwell support
             if ${python_exe} -m pip list 2>/dev/null | grep -q "torch"; then
