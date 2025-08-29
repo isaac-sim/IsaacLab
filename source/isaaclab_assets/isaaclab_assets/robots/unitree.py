@@ -36,7 +36,7 @@ GO1_ACTUATOR_CFG = ActuatorNetMLPCfg(
     input_order="pos_vel",
     input_idx=[0, 1, 2],
     effort_limit=23.7,  # taken from spec sheet
-    effort_limit_sim=23.7, # same as effort limit
+    effort_limit_sim=23.7,  # same as effort limit
     velocity_limit=30.0,  # taken from spec sheet
     saturation_effort=23.7,  # same as effort limit
 )
@@ -55,9 +55,7 @@ This model is taken from: https://github.com/Improbable-AI/walk-these-ways
 UNITREE_A1_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/Unitree/A1/a1.usd",
-        articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-            enabled_self_collisions=False
-        ),
+        articulation_props=sim_utils.ArticulationRootPropertiesCfg(enabled_self_collisions=False),
     ),
     init_state=ArticulationCfg.InitialStateCfg(
         pos=(0.0, 0.0, 0.42),
@@ -76,12 +74,12 @@ UNITREE_A1_CFG = ArticulationCfg(
             joint_names_expr=[".*_hip_joint", ".*_thigh_joint", ".*_calf_joint"],
             effort_limit=33.5,
             saturation_effort=33.5,
-            effort_limit_sim=33.5,
+            # effort_limit_sim=33.5,
             velocity_limit=21.0,
             stiffness=25.0,
             damping=0.5,
-            friction=1e5,
-            armature=1e-3,
+            friction=1e3,
+            # armature=1e-3,
         ),
     },
 )
@@ -94,9 +92,7 @@ Note: Specifications taken from: https://www.trossenrobotics.com/a1-quadruped#sp
 UNITREE_GO1_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/Unitree/Go1/go1.usd",
-        articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-            enabled_self_collisions=False
-        ),
+        articulation_props=sim_utils.ArticulationRootPropertiesCfg(enabled_self_collisions=False),
     ),
     init_state=ArticulationCfg.InitialStateCfg(
         pos=(0.0, 0.0, 0.4),
@@ -120,9 +116,7 @@ UNITREE_GO1_CFG = ArticulationCfg(
 UNITREE_GO2_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/Unitree/Go2/go2.usd",
-        articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-            enabled_self_collisions=False
-        ),
+        articulation_props=sim_utils.ArticulationRootPropertiesCfg(enabled_self_collisions=False),
     ),
     init_state=ArticulationCfg.InitialStateCfg(
         pos=(0.0, 0.0, 0.4),

@@ -60,9 +60,7 @@ ANYDRIVE_3_LSTM_ACTUATOR_CFG = ActuatorNetLSTMCfg(
 ANYMAL_B_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/ANYbotics/ANYmal-B/anymal_b.usd",
-        articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-            enabled_self_collisions=True
-        ),
+        articulation_props=sim_utils.ArticulationRootPropertiesCfg(enabled_self_collisions=True),
     ),
     init_state=ArticulationCfg.InitialStateCfg(
         pos=(0.0, 0.0, 0.6),
@@ -84,9 +82,7 @@ ANYMAL_C_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/ANYbotics/ANYmal-C/anymal_c.usd",
         # usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/ANYbotics/anymal_instanceable.usd",
-        articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-            enabled_self_collisions=True
-        ),
+        articulation_props=sim_utils.ArticulationRootPropertiesCfg(enabled_self_collisions=True),
     ),
     init_state=ArticulationCfg.InitialStateCfg(
         pos=(0.0, 0.0, 0.6),
@@ -106,9 +102,7 @@ ANYMAL_C_CFG = ArticulationCfg(
 ANYMAL_D_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/ANYbotics/ANYmal-D/anymal_d.usd",
-        articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-            enabled_self_collisions=True
-        ),
+        articulation_props=sim_utils.ArticulationRootPropertiesCfg(enabled_self_collisions=True),
     ),
     init_state=ArticulationCfg.InitialStateCfg(
         pos=(0.0, 0.0, 0.6),
