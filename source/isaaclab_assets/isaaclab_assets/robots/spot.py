@@ -134,9 +134,7 @@ and the output torque (N*m). It is used to interpolate the output torque based o
 SPOT_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/BostonDynamics/spot/spot.usd",
-        articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-            enabled_self_collisions=True
-        ),
+        articulation_props=sim_utils.ArticulationRootPropertiesCfg(enabled_self_collisions=True),
     ),
     init_state=ArticulationCfg.InitialStateCfg(
         pos=(0.0, 0.0, 0.5),
@@ -158,7 +156,7 @@ SPOT_CFG = ArticulationCfg(
             min_delay=0,  # physics time steps (min: 2.0*0=0.0ms)
             max_delay=4,  # physics time steps (max: 2.0*4=8.0ms)
             friction=1e-5,
-            armature=1e-3,
+            # armature=1e-3,
         ),
         "spot_knee": RemotizedPDActuatorCfg(
             joint_names_expr=[".*_kn"],
@@ -169,7 +167,7 @@ SPOT_CFG = ArticulationCfg(
             min_delay=0,  # physics time steps (min: 2.0*0=0.0ms)
             max_delay=4,  # physics time steps (max: 2.0*4=8.0ms)
             friction=1e-5,
-            armature=1e-3,
+            # armature=1e-3,
         ),
     },
 )
