@@ -24,7 +24,7 @@ reference frame is what defines the world.
 
 "Above" the world in structure is the **Sim**\ ulation and the **App**\ lication.  The **Application** is "the thing responsible for
 everything else": It governs all resource management as well as launching and destroying the simulation when we are done with it.
-When we :ref:`launched training with the template<walkthrough_project_setup>`, the window that appears with the viewport of cartpoles
+When we :ref:`launched training with the template<template-generator>`, the window that appears with the viewport of cartpoles
 training is the Application window.  The application is not defined by the GUI however, and even when running in headless mode all
 simulations have an application that governs them.
 

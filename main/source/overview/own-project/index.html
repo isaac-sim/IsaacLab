@@ -9,7 +9,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
 
-    <title>Isaac Lab Project Setup &#8212; Isaac Lab Documentation</title>
+    <title>Build your Own Project or Task &#8212; Isaac Lab Documentation</title>
   
   
   
@@ -52,16 +52,16 @@
     <script src="../../../_static/copybutton.js"></script>
     <script src="../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
     <script src="../../../_static/design-tabs.js"></script>
-    <script>DOCUMENTATION_OPTIONS.pagename = 'source/setup/walkthrough/project_setup';</script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'source/overview/own-project/index';</script>
     <link rel="icon" href="../../../_static/favicon.ico"/>
     <link rel="index" title="Index" href="../../../genindex.html" />
     <link rel="search" title="Search" href="../../../search.html" />
-    <link rel="next" title="Environment Design Background" href="concepts_env_design.html" />
-    <link rel="prev" title="Walkthrough" href="index.html" />
+    <link rel="next" title="Create new project or task" href="template.html" />
+    <link rel="prev" title="Quickstart Guide" href="../../setup/quickstart.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="2.2.0" />
-    <meta name="docbuild:last-update" content="Aug 28, 2025"/>
+  <meta name="docsearch:version" content="2.2.1" />
+    <meta name="docbuild:last-update" content="Aug 29, 2025"/>
   </head>
   
   
@@ -156,9 +156,9 @@
             <label for="version-select" style="font-weight: bold; display: block;">Version</label>
           </div>
           <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
-            <option value="project_setup.html" selected>main</option>
-            <option value="../../../../v2.2.0/source/setup/walkthrough/project_setup.html" >v2.2.0</option>
-            <option value="../../../../v2.1.1/source/setup/walkthrough/project_setup.html" >v2.1.1</option>
+            <option value="index.html" selected>main</option>
+            <option value="../../../../v2.2.0/index.html" >v2.2.0</option>
+            <option value="../../../../v2.1.1/index.html" >v2.1.1</option>
             <option value="../../../../v2.1.0/index.html" >v2.1.0</option>
             <option value="../../../../v2.0.2/index.html" >v2.0.2</option>
             <option value="../../../../v2.0.1/index.html" >v2.0.1</option>
@@ -232,12 +232,12 @@
     <div class="bd-toc-item navbar-nav active">
         <p aria-level="2" class="caption" role="heading"><span class="caption-text">Isaac Lab</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="../ecosystem.html">Isaac Lab Ecosystem</a></li>
-<li class="toctree-l1 has-children"><a class="reference internal" href="../installation/index.html">Local Installation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l2"><a class="reference internal" href="../installation/pip_installation.html">Pip installation (recommended)</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../installation/binaries_installation.html">Binary installation</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../installation/isaaclab_pip_installation.html">Advanced installation (Isaac Lab pip)</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../installation/asset_caching.html">Asset caching</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../setup/ecosystem.html">Isaac Lab Ecosystem</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../setup/installation/index.html">Local Installation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/pip_installation.html">Pip installation (recommended)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/binaries_installation.html">Binary installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/isaaclab_pip_installation.html">Advanced installation (Isaac Lab pip)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/asset_caching.html">Asset caching</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../deployment/index.html">Container Deployment</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
@@ -251,14 +251,18 @@
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul class="current nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="../quickstart.html">Quickstart Guide</a></li>
-<li class="toctree-l1 current active has-children"><a class="reference internal" href="index.html">Walkthrough</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
-<li class="toctree-l2 current active"><a class="current reference internal" href="#">Isaac Lab Project Setup</a></li>
-<li class="toctree-l2"><a class="reference internal" href="concepts_env_design.html">Environment Design Background</a></li>
-<li class="toctree-l2"><a class="reference internal" href="api_env_design.html">Classes and Configs</a></li>
-<li class="toctree-l2"><a class="reference internal" href="technical_env_design.html">Environment Design</a></li>
-<li class="toctree-l2"><a class="reference internal" href="training_jetbot_gt.html">Training the Jetbot: Ground Truth</a></li>
-<li class="toctree-l2"><a class="reference internal" href="training_jetbot_reward_exploration.html">Exploring the RL problem</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../setup/quickstart.html">Quickstart Guide</a></li>
+<li class="toctree-l1 current active has-children"><a class="current reference internal" href="#">Build your Own Project or Task</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="template.html">Create new project or task</a></li>
+<li class="toctree-l2"><a class="reference internal" href="project_structure.html">Project Structure</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../setup/walkthrough/index.html">Walkthrough</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/walkthrough/concepts_env_design.html">Environment Design Background</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/walkthrough/api_env_design.html">Classes and Configs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/walkthrough/technical_env_design.html">Environment Design</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/walkthrough/training_jetbot_gt.html">Training the Jetbot: Ground Truth</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/walkthrough/training_jetbot_reward_exploration.html">Exploring the RL problem</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../tutorials/index.html">Tutorials</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
@@ -304,50 +308,52 @@
 <li class="toctree-l2"><a class="reference internal" href="../../how-to/optimize_stage_creation.html">Optimize Stage Creation</a></li>
 </ul>
 </details></li>
-<li class="toctree-l1 has-children"><a class="reference internal" href="../../overview/developer-guide/index.html">Developer’s Guide</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/vs_code.html">Setting up Visual Studio Code</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../developer-guide/index.html">Developer’s Guide</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../developer-guide/vs_code.html">Setting up Visual Studio Code</a></li>
 
-<li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/repo_structure.html">Repository organization</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/development.html">Extension Development</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/template.html">Build your Own Project or Task</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../developer-guide/repo_structure.html">Repository organization</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../developer-guide/development.html">Extension Development</a></li>
 </ul>
 </details></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Overview</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1 has-children"><a class="reference internal" href="../../overview/core-concepts/index.html">Core Concepts</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l2"><a class="reference internal" href="../../overview/core-concepts/task_workflows.html">Task Design Workflows</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../overview/core-concepts/actuators.html">Actuators</a></li>
-<li class="toctree-l2 has-children"><a class="reference internal" href="../../overview/core-concepts/sensors/index.html">Sensors</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l3"><a class="reference internal" href="../../overview/core-concepts/sensors/camera.html">Camera</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../../overview/core-concepts/sensors/contact_sensor.html">Contact Sensor</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../../overview/core-concepts/sensors/frame_transformer.html">Frame Transformer</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../../overview/core-concepts/sensors/imu.html">Inertial Measurement Unit (IMU)</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../../overview/core-concepts/sensors/ray_caster.html">Ray Caster</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../core-concepts/index.html">Core Concepts</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../core-concepts/task_workflows.html">Task Design Workflows</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../core-concepts/actuators.html">Actuators</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../core-concepts/sensors/index.html">Sensors</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3"><a class="reference internal" href="../core-concepts/sensors/camera.html">Camera</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../core-concepts/sensors/contact_sensor.html">Contact Sensor</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../core-concepts/sensors/frame_transformer.html">Frame Transformer</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../core-concepts/sensors/imu.html">Inertial Measurement Unit (IMU)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../core-concepts/sensors/ray_caster.html">Ray Caster</a></li>
 </ul>
 </details></li>
-<li class="toctree-l2"><a class="reference internal" href="../../overview/core-concepts/motion_generators.html">Motion Generators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../core-concepts/motion_generators.html">Motion Generators</a></li>
 </ul>
 </details></li>
-<li class="toctree-l1"><a class="reference internal" href="../../overview/environments.html">Available Environments</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../environments.html">Available Environments</a></li>
 
-<li class="toctree-l1 has-children"><a class="reference internal" href="../../overview/reinforcement-learning/index.html">Reinforcement Learning</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/rl_existing_scripts.html">Reinforcement Learning Scripts</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/rl_frameworks.html">Reinforcement Learning Library Comparison</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/performance_benchmarks.html">Performance Benchmarks</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/training_guide.html">Debugging and Training Guide</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../reinforcement-learning/index.html">Reinforcement Learning</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../reinforcement-learning/rl_existing_scripts.html">Reinforcement Learning Scripts</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../reinforcement-learning/rl_frameworks.html">Reinforcement Learning Library Comparison</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../reinforcement-learning/performance_benchmarks.html">Performance Benchmarks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../reinforcement-learning/training_guide.html">Debugging and Training Guide</a></li>
 </ul>
 </details></li>
-<li class="toctree-l1"><a class="reference internal" href="../../overview/teleop_imitation.html">Teleoperation and Imitation Learning with Isaac Lab Mimic</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../overview/augmented_imitation.html">Augmented Imitation Learning</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../overview/showroom.html">Showroom Demos</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../overview/simple_agents.html">Simple Agents</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../imitation-learning/index.html">Imitation Learning</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../imitation-learning/augmented_imitation.html">Augmented Imitation Learning</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../imitation-learning/teleop_imitation.html">Teleoperation and Imitation Learning with Isaac Lab Mimic</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../showroom.html">Showroom Demos</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../simple_agents.html">Simple Agents</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Features</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../../features/hydra.html">Hydra Configuration System</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../features/multi_gpu.html">Multi-GPU and Multi-Node Training</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../overview/core-concepts/sensors/camera.html">Tiled Rendering</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../core-concepts/sensors/camera.html">Tiled Rendering</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../features/ray.html">Ray Job Dispatch and Tuning</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../features/reproducibility.html">Reproducibility and Determinism</a></li>
 </ul>
@@ -367,7 +373,7 @@
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="../installation/cloud_installation.html">Running Isaac Lab in the Cloud</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../setup/installation/cloud_installation.html">Running Isaac Lab in the Cloud</a></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../policy_deployment/index.html">Sim2Real Deployment of Policies Trained in Isaac Lab</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../policy_deployment/00_hover/hover_policy.html">Training &amp; Deploying HOVER Policy</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../policy_deployment/01_io_descriptors/io_descriptors_101.html">IO Descriptors 101</a></li>
@@ -504,7 +510,7 @@
       
       
       
-      <li><a href="https://github.com/isaac-sim/IsaacLab/edit/main/docs/source/setup/walkthrough/project_setup.rst" target="_blank"
+      <li><a href="https://github.com/isaac-sim/IsaacLab/edit/main/docs/source/overview/own-project/index.rst" target="_blank"
    class="btn btn-sm btn-source-edit-button dropdown-item"
    title="Suggest edit"
    data-bs-placement="left" data-bs-toggle="tooltip"
@@ -521,7 +527,7 @@
       
       
       
-      <li><a href="https://github.com/isaac-sim/IsaacLab/issues/new?title=Issue%20on%20page%20%2Fsource/setup/walkthrough/project_setup.html&body=Your%20issue%20content%20here." target="_blank"
+      <li><a href="https://github.com/isaac-sim/IsaacLab/issues/new?title=Issue%20on%20page%20%2Fsource/overview/own-project/index.html&body=Your%20issue%20content%20here." target="_blank"
    class="btn btn-sm btn-source-issues-button dropdown-item"
    title="Open an issue"
    data-bs-placement="left" data-bs-toggle="tooltip"
@@ -551,7 +557,7 @@
       
       
       
-      <li><a href="../../../_sources/source/setup/walkthrough/project_setup.rst" target="_blank"
+      <li><a href="../../../_sources/source/overview/own-project/index.rst" target="_blank"
    class="btn btn-sm btn-download-source-button dropdown-item"
    title="Download source file"
    data-bs-placement="left" data-bs-toggle="tooltip"
@@ -614,9 +620,7 @@
 <button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
     <i class="fa-solid fa-magnifying-glass fa-lg"></i>
 </button>
-<label class="sidebar-toggle secondary-toggle btn btn-sm" for="__secondary"title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
-    <span class="fa-solid fa-list"></span>
-</label>
+
 </div></div>
       
     </div>
@@ -627,19 +631,11 @@
               
 
 <div id="jb-print-docs-body" class="onlyprint">
-    <h1>Isaac Lab Project Setup</h1>
+    <h1>Build your Own Project or Task</h1>
     <!-- Table of contents -->
     <div id="print-main-content">
         <div id="jb-print-toc">
             
-            <div>
-                <h2> Contents </h2>
-            </div>
-            <nav aria-label="Page">
-                <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#project-structure">Project Structure</a></li>
-</ul>
-            </nav>
         </div>
     </div>
 </div>
@@ -649,87 +645,16 @@
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <section id="isaac-lab-project-setup">
-<span id="walkthrough-project-setup"></span><h1>Isaac Lab Project Setup<a class="headerlink" href="#isaac-lab-project-setup" title="Permalink to this heading">#</a></h1>
-<p>The best way to create a new project is to use the <a class="reference internal" href="../../overview/developer-guide/template.html#template-generator"><span class="std std-ref">Template Generator</span></a>. Generating the template
-for this tutorial series is done by calling the <code class="docutils literal notranslate"><span class="pre">isaaclab</span></code> script from the root directory of the repository</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>--new
-</pre></div>
+  <section id="build-your-own-project-or-task">
+<span id="own-project"></span><h1>Build your Own Project or Task<a class="headerlink" href="#build-your-own-project-or-task" title="Permalink to this heading">#</a></h1>
+<p>To get started, first create a new project or task with the template generator <a class="reference internal" href="template.html#template-generator"><span class="std std-ref">Create new project or task</span></a>.
+For more detailed information on how your project is structured, see <a class="reference internal" href="project_structure.html#project-structure"><span class="std std-ref">Project Structure</span></a>.</p>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="template.html">Create new project or task</a></li>
+<li class="toctree-l1"><a class="reference internal" href="project_structure.html">Project Structure</a></li>
+</ul>
 </div>
-<p>Be sure to select <code class="docutils literal notranslate"><span class="pre">External</span></code> and <code class="docutils literal notranslate"><span class="pre">Direct</span> <span class="pre">|</span> <span class="pre">single</span> <span class="pre">agent</span></code>.  For the frameworks, select <code class="docutils literal notranslate"><span class="pre">skrl</span></code> and both <code class="docutils literal notranslate"><span class="pre">PPO</span></code> and <code class="docutils literal notranslate"><span class="pre">AMP</span></code> on the following menu.  You can
-select other frameworks if you like, but this tutorial will detail <code class="docutils literal notranslate"><span class="pre">skrl</span></code> specifically. The configuration process for other frameworks is similar. You
-can get a copy of this code directly by checking out the <a class="reference external" href="https://github.com/isaac-sim/IsaacLabTutorial/tree/initial">initial branch of the tutorial repository</a>!</p>
-<p>This will create an extension project with the specified name at the chosen path.  For this tutorial, we chose the name <code class="docutils literal notranslate"><span class="pre">isaac_lab_tutorial</span></code>.</p>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>The template generator expects the project name to respect “snake_case”: all lowercase with underscores separating words. However, we have renamed the
-sample project to “IsaacLabTutorial” to more closely match the naming convention GitHub and our other projects. If you are following along with the example
-repository, note this minor difference as some superficial path names may change.  If you are following along by building the project yourself, then you can ignore this note.</p>
-</div>
-<p>Next, we must install the project as a python module.  Navigate to the directory that was just created
-(it will contain the <code class="docutils literal notranslate"><span class="pre">source</span></code> and <code class="docutils literal notranslate"><span class="pre">scripts</span></code> directories for the project) and then run the following to install the module.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>source/isaac_lab_tutorial
-</pre></div>
-</div>
-<p>To verify that things have been setup properly, run</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>scripts/list_envs.py
-</pre></div>
-</div>
-<p>from the root directory of your new project.  This should generate a table that looks something like the following</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-<span class="p">|</span><span class="w">                                                                                                          </span>Available<span class="w"> </span>Environments<span class="w"> </span><span class="k">in</span><span class="w"> </span>Isaac<span class="w"> </span>Lab<span class="w">                                                                                                          </span><span class="p">|</span>
-+--------+---------------------------------------+-----------------------------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------+
-<span class="p">|</span><span class="w"> </span>S.<span class="w"> </span>No.<span class="w"> </span><span class="p">|</span><span class="w"> </span>Task<span class="w"> </span>Name<span class="w">                             </span><span class="p">|</span><span class="w"> </span>Entry<span class="w"> </span>Point<span class="w">                                                                                   </span><span class="p">|</span><span class="w"> </span>Config<span class="w">                                                                                               </span><span class="p">|</span>
-+--------+---------------------------------------+-----------------------------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------+
-<span class="p">|</span><span class="w">   </span><span class="m">1</span><span class="w">    </span><span class="p">|</span><span class="w"> </span>Template-Isaac-Lab-Tutorial-Direct-v0<span class="w"> </span><span class="p">|</span><span class="w"> </span>isaac_lab_tutorial.tasks.direct.isaac_lab_tutorial.isaac_lab_tutorial_env:IsaacLabTutorialEnv<span class="w"> </span><span class="p">|</span><span class="w"> </span>isaac_lab_tutorial.tasks.direct.isaac_lab_tutorial.isaac_lab_tutorial_env_cfg:IsaacLabTutorialEnvCfg<span class="w"> </span><span class="p">|</span>
-+--------+---------------------------------------+-----------------------------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------+
-</pre></div>
-</div>
-<p>We can now use the task name to run the environment.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>scripts/skrl/train.py<span class="w"> </span>--task<span class="o">=</span>Template-Isaac-Lab-Tutorial-Direct-v0
-</pre></div>
-</div>
-<p>and by default, this should start a cartpole training environment.</p>
-<p>Let the training finish and then run the following command to see the trained policy in action!</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>scripts/skrl/play.py<span class="w"> </span>--task<span class="o">=</span>Template-Isaac-Lab-Tutorial-Direct-v0
-</pre></div>
-</div>
-<p>Notice that you did not need to specify the path for the checkpoint file! This is because Isaac Lab handles much of the minute details
-like checkpoint saving, loading, and logging. In this case, the <code class="docutils literal notranslate"><span class="pre">train.py</span></code> script will create two directories: <strong>logs</strong> and <strong>output</strong>, which are
-used as the default output directories for tasks run by this project.</p>
-<section id="project-structure">
-<h2>Project Structure<a class="headerlink" href="#project-structure" title="Permalink to this heading">#</a></h2>
-<p>There are four nested structures you need to be aware of when working in the direct workflow with an Isaac Lab template
-project: the <strong>Project</strong>, the <strong>Extension</strong>, the <strong>Modules</strong>, and the <strong>Task</strong>.</p>
-<figure class="align-center" style="width: 100%">
-<img alt="The structure of the isaac lab template project." src="../../../_images/walkthrough_project_setup.svg" /></figure>
-<p>The <strong>Project</strong> is the root directory of the generated template.  It contains the source and scripts directories, as well as
-a <code class="docutils literal notranslate"><span class="pre">README.md</span></code> file. When we created the template, we named the project <em>IsaacLabTutorial</em> and this defined the root directory
-of a git repository.   If you examine the project root with hidden files visible you will see a number of files defining
-the behavior of the project with respect to git. The <code class="docutils literal notranslate"><span class="pre">scripts</span></code> directory contains the <code class="docutils literal notranslate"><span class="pre">train.py</span></code> and <code class="docutils literal notranslate"><span class="pre">play.py</span></code> scripts for the
-various RL libraries you chose when generating the template, while the source directory contains the python packages for the project.</p>
-<p>The <strong>Extension</strong> is the name of the python package we installed via pip. By default, the template generates a project
-with a single extension of the same name. A project can have multiple extensions, and so they are kept in a common <code class="docutils literal notranslate"><span class="pre">source</span></code>
-directory. Traditional python packages are defined by the presence of a <code class="docutils literal notranslate"><span class="pre">pyproject.toml</span></code> file that describes the package
-metadata, but packages using Isaac Lab must also be Isaac Sim extensions and so require a <code class="docutils literal notranslate"><span class="pre">config</span></code> directory and an accompanying
-<code class="docutils literal notranslate"><span class="pre">extension.toml</span></code> file that describes the metadata needed by the Isaac Sim extension manager. Finally, because the template
-is intended to be installed via pip, it needs a <code class="docutils literal notranslate"><span class="pre">setup.py</span></code> file to complete the setup procedure using the <code class="docutils literal notranslate"><span class="pre">extension.toml</span></code>
-config. A project can have multiple extensions, as evidenced by the Isaac Lab repository itself!</p>
-<p>The <strong>Modules</strong> are what actually gets loaded by Isaac Lab to run training (the meat of the code). By default, the template
-generates an extension with a single module that is named the same as the project. The structure of the various sub-modules
-in the extension is what determines the <code class="docutils literal notranslate"><span class="pre">entry_point</span></code> for an environment in Isaac Lab. This is why our template project needed
-to be installed before we could call <code class="docutils literal notranslate"><span class="pre">train.py</span></code>: the path to the necessary components to run the task needed to be exposed
-to python for Isaac Lab to find them.</p>
-<p>Finally, the <strong>Task</strong> is the heart of the direct workflow. By default, the template generates a single task with the same name
-as the project. The environment and configuration files are stored here, as well as placeholder, RL library dependent <code class="docutils literal notranslate"><span class="pre">agents</span></code>.
-Critically, note the contents of the <code class="docutils literal notranslate"><span class="pre">__init__.py</span></code>! Specifically, the <code class="docutils literal notranslate"><span class="pre">gym.register</span></code> function needs to be called at least once
-before an environment and task can be used with the Isaac Lab <code class="docutils literal notranslate"><span class="pre">train.py</span></code> and <code class="docutils literal notranslate"><span class="pre">play.py</span></code> scripts.
-This function should be included in one of the module <code class="docutils literal notranslate"><span class="pre">__init__.py</span></code> files so it is called at installation. The path to
-this init file is what defines the entry point for the task!</p>
-<p>For the template, <code class="docutils literal notranslate"><span class="pre">gym.register</span></code> is called within <code class="docutils literal notranslate"><span class="pre">isaac_lab_tutorial/source/isaac_lab_tutorial/isaac_lab_tutorial/tasks/direct/isaac_lab_tutorial/__init__.py</span></code>.
-The repeated name is a consequence of needing default names for the template, but now we can see the structure of the project.
-<strong>Project</strong>/source/<strong>Extension</strong>/<strong>Module</strong>/tasks/direct/<strong>Task</strong>/__init__.py</p>
-</section>
 </section>
 
 
@@ -744,20 +669,20 @@ The repeated name is a consequence of needing default names for the template, bu
                   
 <div class="prev-next-area">
     <a class="left-prev"
-       href="index.html"
+       href="../../setup/quickstart.html"
        title="previous page">
       <i class="fa-solid fa-angle-left"></i>
       <div class="prev-next-info">
         <p class="prev-next-subtitle">previous</p>
-        <p class="prev-next-title">Walkthrough</p>
+        <p class="prev-next-title">Quickstart Guide</p>
       </div>
     </a>
     <a class="right-next"
-       href="concepts_env_design.html"
+       href="template.html"
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">Environment Design Background</p>
+        <p class="prev-next-title">Create new project or task</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>
@@ -767,22 +692,6 @@ The repeated name is a consequence of needing default names for the template, bu
             </div>
             
             
-              
-                <dialog id="pst-secondary-sidebar-modal"></dialog>
-                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
-
-
-  <div class="sidebar-secondary-item">
-  <div class="page-toc tocsection onthispage">
-    <i class="fa-solid fa-list"></i> Contents
-  </div>
-  <nav class="bd-toc-nav page-toc">
-    <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#project-structure">Project Structure</a></li>
-</ul>
-  </nav></div>
-
-</div></div>
               
             
           </div>
@@ -812,7 +721,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Aug 28, 2025.
+  Last updated on Aug 29, 2025.
   <br/>
 </p>
   </div>
