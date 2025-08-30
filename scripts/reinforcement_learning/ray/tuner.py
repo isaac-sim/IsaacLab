@@ -12,6 +12,7 @@ from time import sleep, time
 import ray
 import util
 from ray import air, tune
+from ray.tune.progress_reporter import ProgressReporter
 from ray.tune.search.optuna import OptunaSearch
 from ray.tune.search.repeater import Repeater
 
@@ -203,13 +204,18 @@ class LogExtractionErrorStopper(tune.Stopper):
             return False
 
 
-def invoke_tuning_run(cfg: dict, args: argparse.Namespace) -> None:
+def invoke_tuning_run(
+    cfg: dict,
+    args: argparse.Namespace,
+    progress_reporter: ProgressReporter | None = None,
+) -> None:
     """Invoke an Isaac-Ray tuning run.
 
     Log either to a local directory or to MLFlow.
     Args:
         cfg: Configuration dictionary extracted from job setup
         args: Command-line arguments related to tuning.
+        progress_reporter: Custom progress reporter. Defaults to CLIReporter or JupyterNotebookReporter if not provided.
     """
     # Allow for early exit
     os.environ["TUNE_DISABLE_STRICT_METRIC_CHECKING"] = "1"
@@ -237,6 +243,17 @@ def invoke_tuning_run(cfg: dict, args: argparse.Namespace) -> None:
     )
     repeat_search = Repeater(searcher, repeat=args.repeat_run_count)
 
+    if progress_reporter is not None:
+        os.environ["RAY_AIR_NEW_OUTPUT"] = "0"
+        if (
+            getattr(progress_reporter, "_metric", None) is not None
+            or getattr(progress_reporter, "_mode", None) is not None
+        ):
+            raise ValueError(
+                "Do not set <metric> or <mode> directly in the custom progress reporter class, "
+                "provide them as arguments to tuner.py instead."
+            )
+
     if args.run_mode == "local":  # Standard config, to file
         run_config = air.RunConfig(
             storage_path="/tmp/ray",
@@ -247,6 +264,7 @@ def invoke_tuning_run(cfg: dict, args: argparse.Namespace) -> None:
                 checkpoint_at_end=False,  # Disable final checkpoint
             ),
             stop=LogExtractionErrorStopper(max_errors=MAX_LOG_EXTRACTION_ERRORS),
+            progress_reporter=progress_reporter,
         )
 
     elif args.run_mode == "remote":  # MLFlow, to MLFlow server
@@ -263,6 +281,7 @@ def invoke_tuning_run(cfg: dict, args: argparse.Namespace) -> None:
             callbacks=[mlflow_callback],
             checkpoint_config=ray.train.CheckpointConfig(checkpoint_frequency=0, checkpoint_at_end=False),
             stop=LogExtractionErrorStopper(max_errors=MAX_LOG_EXTRACTION_ERRORS),
+            progress_reporter=progress_reporter,
         )
     else:
         raise ValueError("Unrecognized run mode.")
@@ -399,6 +418,12 @@ if __name__ == "__main__":
         default=MAX_LOG_EXTRACTION_ERRORS,
         help="Max number number of LogExtractionError failures before we abort the whole tuning run.",
     )
+    parser.add_argument(
+        "--progress_reporter",
+        type=str,
+        default=None,
+        help="A progress reporter in cfg_file, must be a ProgressReporter object.",
+    )
 
     args = parser.parse_args()
     PROCESS_RESPONSE_TIMEOUT = args.process_response_timeout
@@ -457,7 +482,16 @@ if __name__ == "__main__":
         print(f"[INFO]: Successfully instantiated class '{class_name}' from {file_path}")
         cfg = instance.cfg
         print(f"[INFO]: Grabbed the following hyperparameter sweep config: \n {cfg}")
-        invoke_tuning_run(cfg, args)
+        # Load optional progress reporter config
+        progress_reporter = None
+        if args.progress_reporter and hasattr(module, args.progress_reporter):
+            progress_reporter = getattr(module, args.progress_reporter)
+            if isinstance(progress_reporter, type) and issubclass(progress_reporter, tune.ProgressReporter):
+                progress_reporter = progress_reporter()
+            else:
+                raise TypeError(f"[ERROR]: {args.progress_reporter} is not a valid ProgressReporter.")
+            print(f"[INFO]: Loaded custom progress reporter from '{args.progress_reporter}'")
+        invoke_tuning_run(cfg, args, progress_reporter=progress_reporter)
 
     else:
         raise AttributeError(f"[ERROR]:Class '{class_name}' not found in {file_path}")
