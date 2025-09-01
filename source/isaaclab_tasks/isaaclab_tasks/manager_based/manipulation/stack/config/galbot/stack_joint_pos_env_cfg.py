@@ -32,49 +32,15 @@ from isaaclab_assets.robots.galbot import GALBOT_ONE_CHARLIE_CFG  # isort: skip
 class EventCfg:
     """Configuration for events."""
 
-    init_galbot_pose = EventTerm(
-        func=franka_stack_events.set_default_joint_pose,
-        mode="reset",  # for input default config
-        params={
-            # 0-6 ['leg_joint1', 'leg_joint2', 'leg_joint3', 'leg_joint4', 'head_joint1', 'left_arm_joint1', 'right_arm_joint1',
-            # 7-12 'head_joint2', 'left_arm_joint2', 'right_arm_joint2', 'left_arm_joint3', 'right_arm_joint3', 'left_arm_joint4',
-            # 13-18 'right_arm_joint4', 'left_arm_joint5', 'right_arm_joint5', 'left_arm_joint6', 'right_arm_joint6', 'left_arm_joint7',
-            # 19-22 'right_arm_joint7', 'left_gripper_left_joint', 'left_gripper_right_joint', 'right_suction_cup_joint1']
-            "default_pose": [
-                0.8,
-                2.3,
-                1.55,
-                0.0,
-                0.0,
-                -0.5480,
-                0.1535,
-                0.36,
-                -0.6551,
-                1.0087,
-                2.407,
-                0.0895,
-                1.3641,
-                1.5743,
-                -0.4416,
-                -0.2422,
-                0.1168,
-                -0.0009,
-                1.2308,
-                -0.9143,
-                0.035,
-                0.035,
-                0.0,
-            ],  # use right hand camera to shot left hand.
-        },
-    )
+    reset_all = EventTerm(func=mdp.reset_scene_to_default, mode="reset", params={"reset_joint_targets": True})
 
     randomize_cube_positions = EventTerm(
         func=franka_stack_events.randomize_object_pose,
-        mode="reset",  # move the cubes closer to galbot, with translation of (-0.6, 0., 0.)
+        mode="reset",
         params={
             "pose_range": {
-                "x": (0.4 - 0.6, 0.6 - 0.6),
-                "y": (-0.10, 0.10),
+                "x": (-0.2, 0.0),
+                "y": (0.20, 0.40),
                 "z": (0.0203, 0.0203),
                 "yaw": (-1.0, 1.0, 0.0),
             },
@@ -197,12 +163,6 @@ class GalbotLeftArmCubeStackEnvCfg(StackEnvCfg):
         self.observations.policy = ObservationGalbotLeftArmGripperCfg().PolicyCfg()
         self.observations.subtask_terms = ObservationGalbotLeftArmGripperCfg().SubtaskCfg()
 
-        l, r = self.events.randomize_cube_positions.params["pose_range"]["y"]
-        self.events.randomize_cube_positions.params["pose_range"]["y"] = (
-            l + 0.3,
-            r + 0.3,
-        )  # move to area below left hand
-
         # Set galbot as robot
         self.scene.robot = GALBOT_ONE_CHARLIE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
 
@@ -290,8 +250,8 @@ class GalbotRightArmCubeStackEnvCfg(GalbotLeftArmCubeStackEnvCfg):
 
         l, r = self.events.randomize_cube_positions.params["pose_range"]["y"]
         self.events.randomize_cube_positions.params["pose_range"]["y"] = (
-            l - 0.3,
-            r - 0.3,
+            -r,
+            -l,
         )  # move to area below right hand
 
         # Set actions for the specific robot type (galbot)
