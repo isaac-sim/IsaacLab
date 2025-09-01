@@ -16,7 +16,7 @@ class AnymalDFlatEnvCfg(AnymalDRoughEnvCfg):
     sim: SimulationCfg = SimulationCfg(
         newton_cfg=NewtonCfg(
             solver_cfg=MJWarpSolverCfg(
-                nefc_per_env=80,
+                njmax=80,
                 ls_iterations=15,
                 cone="elliptic",
                 impratio=100.0,
