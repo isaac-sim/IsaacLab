@@ -29,7 +29,7 @@ ALLEGRO_HAND_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/WonikRobotics/AllegroHand/allegro_hand_instanceable.usd",
         articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-            enabled_self_collisions=True,
+            enabled_self_collisions=False,
         ),
     ),
     init_state=ArticulationCfg.InitialStateCfg(
@@ -45,7 +45,7 @@ ALLEGRO_HAND_CFG = ArticulationCfg(
             stiffness=3.0,
             damping=1.0,
             friction=0.01,
-            armature=1e-3,
+            armature=1e-4,
         ),
     },
     soft_joint_pos_limit_factor=1.0,
