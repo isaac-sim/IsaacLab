@@ -145,8 +145,9 @@ class HfWaveTerrainCfg(HfTerrainBaseCfg):
 
     amplitude_range: tuple[float, float] = MISSING
     """The minimum and maximum amplitude of the wave (in m)."""
-    num_waves: int = 1.0
-    """The number of waves to generate. Defaults to 1.0."""
+
+    num_waves: int = 1
+    """The number of waves to generate. Defaults to 1."""
 
 
 @configclass
