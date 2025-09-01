@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.0.1" />
-    <meta name="docbuild:last-update" content="Aug 29, 2025"/>
+    <meta name="docbuild:last-update" content="Sep 01, 2025"/>
   </head>
   
   
@@ -157,6 +157,7 @@
           </div>
           <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
             <option value="../../../../main/source/tutorials/00_sim/create_empty.html" >main</option>
+            <option value="../../../../v2.2.1/source/tutorials/00_sim/create_empty.html" >v2.2.1</option>
             <option value="../../../../v2.2.0/source/tutorials/00_sim/create_empty.html" >v2.2.0</option>
             <option value="../../../../v2.1.1/source/tutorials/00_sim/create_empty.html" >v2.1.1</option>
             <option value="../../../../v2.1.0/source/tutorials/00_sim/create_empty.html" >v2.1.0</option>
@@ -704,7 +705,7 @@ an initial understanding of working with the simulator.</p>
 This is necessary to do at the start since various dependency modules of Isaac Sim are only available
 after the simulation app is running.</p>
 <p>This can be done by importing the <a class="reference internal" href="../../api/lab/isaaclab.app.html#isaaclab.app.AppLauncher" title="isaaclab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">app.AppLauncher</span></code></a> class. This utility class wraps around
-<a class="reference external" href="https://docs.omniverse.nvidia.com/py/isaacsim/source/extensions/omni.isaac.kit/docs/index.html#isaacsim.SimulationApp" title="(in isaac_sim)"><code class="xref py py-class docutils literal notranslate"><span class="pre">isaacsim.SimulationApp</span></code></a> class to launch the simulator. It provides mechanisms to
+<code class="xref py py-class docutils literal notranslate"><span class="pre">isaacsim.SimulationApp</span></code> class to launch the simulator. It provides mechanisms to
 configure the simulator using command-line arguments and environment variables.</p>
 <p>For this tutorial, we mainly look at adding the command-line options to a user-defined
 <a class="reference external" href="https://docs.python.org/3/library/argparse.html#argparse.ArgumentParser" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">argparse.ArgumentParser</span></code></a>. This is done by passing the parser instance to the
@@ -798,7 +799,7 @@ set to True.</p>
 <section id="exiting-the-simulation">
 <h3>Exiting the simulation<a class="headerlink" href="#exiting-the-simulation" title="Permalink to this heading">#</a></h3>
 <p>Lastly, the simulation application is stopped and its window is closed by calling
-<a class="reference external" href="https://docs.omniverse.nvidia.com/py/isaacsim/source/extensions/omni.isaac.kit/docs/index.html#isaacsim.SimulationApp.close" title="(in isaac_sim)"><code class="xref py py-meth docutils literal notranslate"><span class="pre">isaacsim.SimulationApp.close()</span></code></a> method.</p>
+<code class="xref py py-meth docutils literal notranslate"><span class="pre">isaacsim.SimulationApp.close()</span></code> method.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span>    <span class="c1"># close sim app</span>
     <span class="n">simulation_app</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
 </pre></div>
@@ -916,7 +917,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Aug 29, 2025.
+  Last updated on Sep 01, 2025.
   <br/>
 </p>
   </div>
