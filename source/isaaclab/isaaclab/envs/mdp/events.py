@@ -23,6 +23,7 @@ import carb
 import omni.physics.tensors.impl.api as physx
 from isaacsim.core.utils.extensions import enable_extension
 from isaacsim.core.utils.stage import get_current_stage
+from isaacsim.core.version import get_version
 from pxr import Gf, Sdf, UsdGeom, Vt
 
 import isaaclab.sim as sim_utils
@@ -712,9 +713,50 @@ class randomize_joint_parameters(ManagerTermBase):
                 operation=operation,
                 distribution=distribution,
             )
-            self.asset.write_joint_friction_coefficient_to_sim(
-                friction_coeff[env_ids[:, None], joint_ids], joint_ids=joint_ids, env_ids=env_ids
+
+            # ensure the friction coefficient is non-negative
+            friction_coeff = torch.clamp(friction_coeff, min=0.0)
+
+            # if isaacsim version is lower than 5.0.0 we can set only the static friction coefficient
+            if int(get_version()[2]) < 5:
+                self.asset.write_joint_friction_coefficient_to_sim(
+                    joint_friction_coeff=friction_coeff[env_ids[:, None], joint_ids],
+                    joint_ids=joint_ids, env_ids=env_ids
             )
+            # for isaacsim version 5.0.0 and above we can set static, dynamic, and viscous friction coefficients
+            else:
+                dynamic_friction_coeff = _randomize_prop_by_op(
+                    self.asset.data.default_joint_dynamic_friction_coeff.clone(),
+                    friction_distribution_params,
+                    env_ids,
+                    joint_ids,
+                    operation=operation,
+                    distribution=distribution,
+                )
+
+                viscous_friction_coeff = _randomize_prop_by_op(
+                    self.asset.data.default_joint_viscous_friction_coeff.clone(),
+                    friction_distribution_params,
+                    env_ids,
+                    joint_ids,
+                    operation=operation,
+                    distribution=distribution,
+                )
+
+                # ensure the friction coefficients are non-negative
+                dynamic_friction_coeff = torch.clamp(dynamic_friction_coeff, min=0.0)
+                viscous_friction_coeff = torch.clamp(viscous_friction_coeff, min=0.0)
+
+                # ensure the dynamic friction is less than or equal to static friction
+                dynamic_friction_coeff = torch.min(dynamic_friction_coeff, friction_coeff)  
+
+                # set the friction coefficients into the physics simulation
+                self.asset.write_joint_friction_coefficients_to_sim(
+                    joint_friction_coeff=friction_coeff[env_ids[:, None], joint_ids],
+                    joint_dynamic_friction_coeff=dynamic_friction_coeff[env_ids[:, None], joint_ids],
+                    joint_viscous_friction_coeff=viscous_friction_coeff[env_ids[:, None], joint_ids],
+                    joint_ids=joint_ids, env_ids=env_ids
+                )
 
         # joint armature
         if armature_distribution_params is not None:
