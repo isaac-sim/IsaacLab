@@ -12,9 +12,6 @@ The following configuration parameters are available:
 
 """
 
-
-from isaaclab_assets import ISAACLAB_ASSETS_DATA_DIR
-
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
@@ -26,7 +23,8 @@ from isaaclab.assets.articulation import ArticulationCfg
 
 GALBOT_ONE_CHARLIE_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{ISAACLAB_ASSETS_DATA_DIR}/Robots/Galbot/galbot_one_charlie.usd",
+        usd_path="omniverse://isaac-dev.ov.nvidia.com/Users/rebeccaz@nvidia.com/IsaacLab_PR/galbot_one_charlie/galbot_one_charlie.usd",
+        variants={"Physics": "PhysX"},
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=True,
             max_depenetration_velocity=5.0,
