@@ -9,7 +9,6 @@ import weakref
 import omni.log
 import warp as wp
 
-import isaaclab.utils.math as math_utils
 from isaaclab.sim._impl.newton_manager import NewtonManager
 from isaaclab.utils.buffers import TimestampedWarpBuffer
 
@@ -23,6 +22,14 @@ def deprecate(*args, **kwargs):
             omni.log.warn(f"DeprecationWarning: {func.__name__} is deprecated and will be removed in a future version.")
         return func(*args, **kwargs)
     return wrapper
+
+
+def warn_overhead_cost(*args, **kwargs):
+    def wrapper(func):
+        omni.log.warn(f"OverheadWarning: {func.__name__} is expensive and should be avoided. Instead of getting sliced data, use the whole data in the target kernel.")
+        return func(*args, **kwargs)
+    return wrapper
+
 
 # FIXME: Need to create one for each articulation view.
 class NewtonAutoMapper:
@@ -95,64 +102,33 @@ class ArticulationData:
 
         # obtain global simulation view
         gravity = NewtonManager.get_model().gravity
-        # Convert to direction vector
-        gravity_dir = torch.tensor((gravity[0], gravity[1], gravity[2]), device=self.device)
-        gravity_dir = math_utils.normalize(gravity_dir.unsqueeze(0)).squeeze(0)
-
+        gravity_dir = [float(i) / sum(gravity) for i in gravity]
         # Initialize constants
-        self.GRAVITY_VEC_W = gravity_dir.repeat(self._root_newton_view.count, 1)
-        self.FORWARD_VEC_B = torch.tensor((1.0, 0.0, 0.0), device=self.device).repeat(self._root_newton_view.count, 1)
+        self.GRAVITY_VEC_W = wp.vec3f(gravity_dir[0], gravity_dir[1], gravity_dir[2])
+        self.FORWARD_VEC_B = wp.vec3f((1.0, 0.0, 0.0))
 
         # Initialize history for finite differencing
-        self._previous_body_com_lin_vel = wp.zeros((self._root_newton_view.count, self._root_newton_view.num_bodies), dtype=wp.vec3f)
-        self._previous_body_com_ang_vel = wp.zeros((self._root_newton_view.count, self._root_newton_view.num_bodies), dtype=wp.vec3f)
+        self._previous_body_com_vel = self._root_newton_view.get_link_velocities(NewtonManager.get_state_0()).clone()
+        self._previous_joint_vel = self._root_newton_view.get_dof_velocities(NewtonManager.get_state_0()).clone()
 
-        wp.launch(
-            split_links_vel,
-            dim=(self._root_newton_view.count, self._root_newton_view.num_bodies),
-            inputs=[
-                self._root_newton_view.get_link_velocities(NewtonManager.get_state_0()),
-                self._previous_body_com_lin_vel,
-                self._previous_body_com_ang_vel,
-            ]
-        )
-        self._previous_joint_vel = wp.to_torch(
-            self._root_newton_view.get_dof_velocities(NewtonManager.get_state_0())
-        ).clone()
-
-        # Do we want to switch our quaternion order to match that of Newton? --> No overhead.
-        # Do we want to modify our current workflow to explicitly support Warp types?
-        #  - Example: Pose: [pos, quat] --> {"pos": pos, "quat": quat}
         # Initialize the lazy buffers.
         # -- link frame w.r.t. world frame
-        self._root_link_position_w = TimestampedWarpBuffer(shape=(self._root_newton_view.count), dtype=wp.vec3f)
-        self._root_link_quat_w = TimestampedWarpBuffer(shape=(self._root_newton_view.count), dtype=wp.quatf)
-        self._root_link_lin_vel_w = TimestampedWarpBuffer(shape=(self._root_newton_view.count), dtype=wp.vec3f)
-        self._root_link_ang_vel_w = TimestampedWarpBuffer(shape=(self._root_newton_view.count), dtype=wp.vec3f)
-        self._root_link_lin_vel_b = TimestampedWarpBuffer(shape=(self._root_newton_view.count), dtype=wp.vec3f)
-        self._root_link_ang_vel_b = TimestampedWarpBuffer(shape=(self._root_newton_view.count), dtype=wp.vec3f)
-        self._body_link_position_w = TimestampedWarpBuffer(shape=(self._root_newton_view.count, self._root_newton_view.num_bodies), dtype=wp.vec3f)
-        self._body_link_quat_w = TimestampedWarpBuffer(shape=(self._root_newton_view.count, self._root_newton_view.num_bodies), dtype=wp.quatf)
-        self._body_link_lin_vel_w = TimestampedWarpBuffer(shape=(self._root_newton_view.count, self._root_newton_view.num_bodies), dtype=wp.vec3f)
-        self._body_link_ang_vel_w = TimestampedWarpBuffer(shape=(self._root_newton_view.count, self._root_newton_view.num_bodies), dtype=wp.vec3f)
+        self._root_link_pose_w = TimestampedWarpBuffer(shape=(self._root_newton_view.count), dtype=wp.transformf)
+        self._root_link_vel_w = TimestampedWarpBuffer(shape=(self._root_newton_view.count), dtype=wp.spatial_vectorf)
+        self._root_link_vel_b = TimestampedWarpBuffer(shape=(self._root_newton_view.count), dtype=wp.spatial_vectorf)
+        self._body_link_pose_w = TimestampedWarpBuffer(shape=(self._root_newton_view.count, self._root_newton_view.num_bodies), dtype=wp.transformf)
+        self._body_link_vel_w = TimestampedWarpBuffer(shape=(self._root_newton_view.count, self._root_newton_view.num_bodies), dtype=wp.spatial_vectorf)
+        self._projected_gravity_b = TimestampedWarpBuffer(shape=(self._root_newton_view.count, 3), dtype=wp.vec3f)
+        self._heading_w = TimestampedWarpBuffer(shape=(self._root_newton_view.count), dtype=wp.float32)
         # -- com frame w.r.t. link frame
-        self._root_com_position_b = TimestampedWarpBuffer(shape=(self._root_newton_view.count), dtype=wp.vec3f)
-        self._root_com_quat_b = TimestampedWarpBuffer(shape=(self._root_newton_view.count), dtype=wp.quatf)
         self._body_com_position_b = TimestampedWarpBuffer(shape=(self._root_newton_view.count, self._root_newton_view.num_bodies), dtype=wp.vec3f)
-        self._body_com_quat_b = TimestampedWarpBuffer(shape=(self._root_newton_view.count, self._root_newton_view.num_bodies), dtype=wp.quatf)
         # -- com frame w.r.t. world frame
-        self._root_com_position_w = TimestampedWarpBuffer(shape=(self._root_newton_view.count), dtype=wp.vec3f)
-        self._root_com_quat_w = TimestampedWarpBuffer(shape=(self._root_newton_view.count), dtype=wp.quatf)
-        self._root_com_lin_vel_w = TimestampedWarpBuffer(shape=(self._root_newton_view.count), dtype=wp.vec3f)
-        self._root_com_ang_vel_w = TimestampedWarpBuffer(shape=(self._root_newton_view.count), dtype=wp.vec3f)
-        self._root_com_lin_vel_b = TimestampedWarpBuffer(shape=(self._root_newton_view.count), dtype=wp.vec3f)
-        self._root_com_ang_vel_b = TimestampedWarpBuffer(shape=(self._root_newton_view.count), dtype=wp.vec3f)
-        self._body_com_position_w = TimestampedWarpBuffer(shape=(self._root_newton_view.count, self._root_newton_view.num_bodies), dtype=wp.vec3f)
-        self._body_com_quat_w = TimestampedWarpBuffer(shape=(self._root_newton_view.count, self._root_newton_view.num_bodies), dtype=wp.quatf)
-        self._body_com_lin_vel_w = TimestampedWarpBuffer(shape=(self._root_newton_view.count, self._root_newton_view.num_bodies), dtype=wp.vec3f)
-        self._body_com_ang_vel_w = TimestampedWarpBuffer(shape=(self._root_newton_view.count, self._root_newton_view.num_bodies), dtype=wp.vec3f)
-        self._body_com_lin_acc_w = TimestampedWarpBuffer(shape=(self._root_newton_view.count, self._root_newton_view.num_bodies), dtype=wp.vec3f)
-        self._body_com_ang_acc_w = TimestampedWarpBuffer(shape=(self._root_newton_view.count, self._root_newton_view.num_bodies), dtype=wp.vec3f)
+        self._root_com_pose_w = TimestampedWarpBuffer(shape=(self._root_newton_view.count), dtype=wp.transformf)
+        self._root_com_vel_w = TimestampedWarpBuffer(shape=(self._root_newton_view.count), dtype=wp.spatial_vectorf)
+        self._root_com_vel_b = TimestampedWarpBuffer(shape=(self._root_newton_view.count), dtype=wp.spatial_vectorf)
+        self._body_com_pose_w = TimestampedWarpBuffer(shape=(self._root_newton_view.count, self._root_newton_view.num_bodies), dtype=wp.transformf)
+        self._body_com_vel_w = TimestampedWarpBuffer(shape=(self._root_newton_view.count, self._root_newton_view.num_bodies), dtype=wp.spatial_vectorf)
+        self._body_com_acc_w = TimestampedWarpBuffer(shape=(self._root_newton_view.count, self._root_newton_view.num_bodies), dtype=wp.spatial_vectorf)
         # -- joint state
         self._joint_pos = TimestampedWarpBuffer(shape=(self._root_newton_view.count, self._root_newton_view.num_joints), dtype=wp.float32)
         self._joint_vel = TimestampedWarpBuffer(shape=(self._root_newton_view.count, self._root_newton_view.num_joints), dtype=wp.float32)
@@ -494,317 +470,296 @@ class ArticulationData:
     ##
 
     @property
-    def root_link_pose_w(self) -> tuple[wp.array, wp.array]:
-        """Root link pose ``[pos, quat]`` in simulation world frame.
+    def root_link_pose_w(self) -> wp.array:
+        """Root link pose ``wp.transformf`` in simulation world frame.
 
-        Shapes are (num_instances, 3), (num_instances, 4).
+        Shapes are (num_instances,). The pose is in the form of [pos, quat].
         This quantity is the pose of the articulation root's actor frame relative to the world.
         The orientation is provided in (x, y, z, w) format.
         """
-        if self._root_link_position_w.timestamp < self._sim_timestamp:
-            # read data from simulation
-            wp.launch(
-                split_root_pose,
-                dim=(self._root_newton_view.count),
-                device=self.device,
-                inputs=[
-                    self._root_newton_view.get_root_transforms(NewtonManager.get_state_0()),
-                    self._root_link_position_w.data,
-                    self._root_link_quat_w.data
-                ]
-            )
-            self._root_link_position_w.timestamp = self._sim_timestamp
-            self._root_link_quat_w.timestamp = self._sim_timestamp
-
-        return self._root_link_position_w.data, self._root_link_quat_w.data
+        if self._root_link_pose_w.timestamp < self._sim_timestamp:
+            self._root_link_pose_w.data = self._root_newton_view.get_root_transforms(NewtonManager.get_state_0())
+            # set the buffer data and timestamp
+            self._root_link_pose_w.timestamp = self._sim_timestamp
+        return self._root_link_pose_w.data
 
     @property
-    def root_link_vel_w(self) -> tuple[wp.array, wp.array]:
-        """Root link velocity ``[lin_vel, ang_vel]`` in simulation world frame.
+    def root_link_vel_w(self) -> wp.array:
+        """Root link velocity ``wp.spatial_vectorf`` in simulation world frame.
 
-        Shapes are (num_instances, 3), (num_instances, 3).
+        Shapes are (num_instances,). Velocities are in the form of [wx, wy, wz, vx, vy, vz].
         This quantity contains the linear and angular velocities of the articulation root's actor frame
         relative to the world.
         """
-        if self._root_link_lin_vel_w.timestamp < self._sim_timestamp:
+        if self._root_link_vel_w.timestamp < self._sim_timestamp:
             wp.launch(
                 project_linear_velocity_to_link_frame,
                 dim=(self._root_newton_view.count),
                 device=self.device,
                 inputs=[
-                    self._root_com_lin_vel_w.data,
+                    self.root_com_vel_w,
                     self.body_com_pos_b,
-                    self._root_link_quat_w.data,
-                    self._root_link_position_w.data,
+                    self._root_link_vel_w.data,
                 ]
             )
+            # set the buffer data and timestamp
+            self._root_link_vel_w.timestamp = self._sim_timestamp
 
-        return self._root_link_lin_vel_w.data, self._root_com_ang_vel_w.data
+        return self._root_link_vel_w.data
 
     @property
-    def root_com_pose_w(self) -> tuple[wp.array, wp.array]:
-        """Root center of mass pose ``[pos, quat]`` in simulation world frame.
+    def root_com_pose_w(self) -> wp.array:
+        """Root center of mass pose ``wp.transformf`` in simulation world frame.
 
-        Shapes are (num_instances, 3), (num_instances, 4).
+        Shapes are (num_instances,). The pose is in the form of [pos, quat].
         This quantity is the pose of the articulation root's center of mass frame relative to the world.
         The orientation is provided in (x, y, z, w) format.
         """
-        if self._root_com_position_w.timestamp < self._sim_timestamp:
+        if self._root_com_pose_w.timestamp < self._sim_timestamp:
             # apply local transform to center of mass frame
             wp.launch(
                 combine_frame_transforms,
                 dim=(self._root_newton_view.count),
                 device=self.device,
                 inputs=[
-                    self._root_link_position_w.data,
-                    self._root_link_quat_w.data,
-                    self.body_com_pos_b[:, 0],
-                    self.body_com_quat_b[:, 0],
-                    self._root_com_position_w.data,
-                    self._root_com_quat_w.data
+                    self._root_link_pose_w.data,
+                    self.body_com_pos_b,
+                    self._root_com_pose_w.data,
                 ]
             )
-            self._root_com_position_w.timestamp = self._sim_timestamp
-            self._root_com_quat_w.timestamp = self._sim_timestamp
+            # set the buffer data and timestamp
+            self._root_com_pose_w.timestamp = self._sim_timestamp
 
-        return self._root_com_position_w.data, self._root_com_quat_w.data
+        return self._root_com_pose_w.data
 
     @property
-    def root_com_vel_w(self) -> tuple[wp.array, wp.array]:
-        """Root center of mass velocity ``[lin_vel, ang_vel]`` in simulation world frame.
+    def root_com_vel_w(self) -> wp.array:
+        """Root center of mass velocity ``wp.spatial_vectorf`` in simulation world frame.
 
-        Shapes are (num_instances, 3), (num_instances, 3).
+        Shapes are (num_instances,). Velocities are in the form of [wx, wy, wz, vx, vy, vz].
         This quantity contains the linear and angular velocities of the articulation root's center of mass frame
         relative to the world.
         """
-        if self._root_com_lin_vel_w.timestamp < self._sim_timestamp:
+        if self._root_com_vel_w.timestamp < self._sim_timestamp:
             # Newton reads velocities as [wx, wy, wz, vx, vy, vz] Isaac reads as [vx, vy, vz, wx, wy, wz]
-            wp.launch(
-                split_root_vel,
-                dim=(self._root_newton_view.count),
-                device=self.device,
-                inputs=[
-                    self._root_newton_view.get_root_velocities(NewtonManager.get_state_0()),
-                    self._root_com_lin_vel_w.data,
-                    self._root_com_ang_vel_w.data
-                ]
-            )
+            self._root_com_vel_w.data = self._root_newton_view.get_root_velocities(NewtonManager.get_state_0())
+            # set the buffer data and timestamp
+            self._root_com_vel_w.timestamp = self._sim_timestamp
 
-        return self._root_com_lin_vel_w.data, self._root_com_ang_vel_w.data
+        return self._root_com_vel_w.data
 
     @property
-    def root_state_w(self) -> tuple[wp.array, wp.array, wp.array, wp.array]:
-        """Root state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame.
+    def root_state_w(self) -> tuple[wp.array, wp.array]:
+        """Root state ``[wp.transformf, wp.spatial_vectorf]`` in simulation world frame.
 
-        Shapes are (num_instances, 3), (num_instances, 4), (num_instances, 3), (num_instances, 3).
-        The position and quaternion are of the articulation root's actor frame relative to the world. Meanwhile,
-        the linear and angular velocities are of the articulation root's center of mass frame.
+        Shapes are (num_instances,), (num_instances,). The pose is in the form of [pos, quat].
+        The velocity is in the form of [wx, wy, wz, vx, vy, vz].
+        The pose is of the articulation root's actor frame relative to the world.
+        The velocity is of the articulation root's center of mass frame.
         """
 
-        return self.root_link_pose_w + self.root_com_vel_w
+        return self.root_link_pose_w, self.root_com_vel_w
 
     @property
-    def root_link_state_w(self) -> tuple[wp.array, wp.array, wp.array, wp.array]:
-        """Root state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame.
+    def root_link_state_w(self) -> tuple[wp.array, wp.array]:
+        """Root link state ``[wp.transformf, wp.spatial_vectorf]`` in simulation world frame.
 
-        Shapes are (num_instances, 3), (num_instances, 4), (num_instances, 3), (num_instances, 3).
-        The position, quaternion, and linear/angular velocity are of the articulation root's actor frame relative to the
-        world.
+        Shapes are (num_instances,), (num_instances,). The pose is in the form of [pos, quat].
+        The velocity is in the form of [wx, wy, wz, vx, vy, vz].
+        The pose is of the articulation root's actor frame relative to the world.
+        The velocity is of the articulation root's actor frame.
         """
 
-        return self.root_link_pose_w + self.root_link_vel_w
+        return self.root_link_pose_w, self.root_link_vel_w
 
     @property
-    def root_com_state_w(self) -> tuple[wp.array, wp.array, wp.array, wp.array]:
-        """Root center of mass state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame.
+    def root_com_state_w(self) -> tuple[wp.array, wp.array]:
+        """Root center of mass state ``[wp.transformf, wp.spatial_vectorf]`` in simulation world frame.
 
-        Shapes are (num_instances, 3), (num_instances, 4), (num_instances, 3), (num_instances, 3).
-        The position, quaternion, and linear/angular velocity are of the articulation root link's center of mass frame
-        relative to the world. Center of mass frame is assumed to be the same orientation as the link rather than the
-        orientation of the principle inertia.
+        Shapes are (num_instances,), (num_instances,). The pose is in the form of [pos, quat].
+        The velocity is in the form of [wx, wy, wz, vx, vy, vz].
+        The pose is of the articulation root's center of mass frame relative to the world.
+        The velocity is of the articulation root's center of mass frame.
         """
 
-        return self.root_com_pose_w + self.root_com_vel_w
+        return self.root_com_pose_w, self.root_com_vel_w
 
     ##
     # Body state properties.
     ##
 
     @property
-    def body_link_pose_w(self) -> tuple[wp.array, wp.array]:
-        """Body link pose ``[pos, quat]`` in simulation world frame.
+    def body_link_pose_w(self) -> wp.array:
+        """Body link pose ``wp.transformf`` in simulation world frame.
 
-        Shapes are (num_instances, num_bodies, 3), (num_instances, num_bodies, 4).
+        Shapes are (num_instances, num_bodies,). The pose is in the form of [pos, quat].
         This quantity is the pose of the articulation links' actor frame relative to the world.
         The orientation is provided in (x, y, z, w) format.
         """
-        if self._body_link_position_w.timestamp < self._sim_timestamp:
-            wp.launch(
-                split_links_pose,
-                dim=(self._root_newton_view.count, self._root_newton_view.num_bodies),
-                device=self.device,
-                inputs=[
-                    self._root_newton_view.get_link_transforms(NewtonManager.get_state_0()),
-                    self._body_link_position_w.data,
-                    self._body_link_quat_w.data
-                ]
-            )
-
-        return self._body_link_position_w.data, self._body_link_quat_w.data
+        if self._body_link_pose_w.timestamp < self._sim_timestamp:
+            # read data from simulation
+            self._body_link_pose_w.data = self._root_newton_view.get_link_transforms(NewtonManager.get_state_0())
+            # set the buffer data and timestamp
+            self._body_link_pose_w.timestamp = self._sim_timestamp
+        return self._body_link_pose_w.data
 
     @property
-    def body_link_vel_w(self) -> tuple[wp.array, wp.array]:
-        """Body link velocity ``[lin_vel, ang_vel]`` in simulation world frame.
+    def body_link_vel_w(self) -> wp.array:
+        """Body link velocity ``wp.spatial_vectorf`` in simulation world frame.
 
-        Shapes are (num_instances, num_bodies, 3), (num_instances, num_bodies, 3).
+        Shapes are (num_instances, num_bodies,). Velocities are in the form of [wx, wy, wz, vx, vy, vz].
         This quantity contains the linear and angular velocities of the articulation links' actor frame
         relative to the world.
         """
-        if self._body_link_lin_vel_w.timestamp < self._sim_timestamp:
+        if self._body_link_vel_w.timestamp < self._sim_timestamp:
+            # Project the velocity from the center of mass frame to the link frame
             wp.launch(
                 project_linear_velocity_to_links_frame,
                 dim=(self._root_newton_view.count, self._root_newton_view.num_bodies),
                 device=self.device,
                 inputs=[
-                    self._body_com_lin_vel_w.data,
+                    self.body_com_vel_w,
                     self.body_com_pos_b,
-                    self.body_com_quat_b,
-                    self._body_link_lin_vel_w.data,
+                    self._body_link_vel_w.data,
                 ]
             )
-
-        return self._body_link_lin_vel_w.data, self._body_com_ang_vel_w.data
+            # set the buffer data and timestamp
+            self._body_link_vel_w.timestamp = self._sim_timestamp
+        return self._body_link_vel_w.data
 
     @property
-    def body_com_pose_w(self) -> tuple[wp.array, wp.array]:
-        """Body center of mass pose ``[pos, quat]`` in simulation world frame.
+    def body_com_pose_w(self) -> wp.array:
+        """Body center of mass pose ``wp.transformf`` in simulation world frame.
 
-        Shapes are (num_instances, num_bodies, 3), (num_instances, num_bodies, 4).
+        Shapes are (num_instances, num_bodies,). The pose is in the form of [pos, quat].
         This quantity is the pose of the center of mass frame of the articulation links relative to the world.
         The orientation is provided in (x, y, z, w) format.
         """
-        if self._body_com_position_w.timestamp < self._sim_timestamp:
-
+        if self._body_com_pose_w.timestamp < self._sim_timestamp:
+            # Apply local transform to center of mass frame
             wp.launch(
                 combine_frame_transforms_batch,
                 dim=(self._root_newton_view.count, self._root_newton_view.num_bodies),
                 device=self.device,
                 inputs=[
-                    self._body_link_position_w.data,
-                    self._body_link_quat_w.data,
+                    self.body_link_pose_w,
                     self.body_com_pos_b,
-                    self.body_com_quat_b,
-                    self._body_com_position_w.data,
-                    self._body_com_quat_w.data
+                    self._body_com_pose_w.data,
                 ]
             )
-            self._body_com_position_w.timestamp = self._sim_timestamp
-            self._body_com_quat_w.timestamp = self._sim_timestamp
-
-        return self._body_com_position_w.data, self._body_com_quat_w.data
+            # set the buffer data and timestamp
+            self._body_com_pose_w.timestamp = self._sim_timestamp
+        return self._body_com_pose_w.data
 
     @property
-    def body_com_vel_w(self) -> tuple[wp.array, wp.array]:
-        """Body center of mass velocity ``[lin_vel, ang_vel]`` in simulation world frame.
+    def body_com_vel_w(self) -> wp.array:
+        """Body center of mass velocity ``wp.spatial_vectorf`` in simulation world frame.
 
-        Shapes are (num_instances, num_bodies, 3), (num_instances, num_bodies, 3).
+        Shapes are (num_instances, num_bodies,). Velocities are in the form of [wx, wy, wz, vx, vy, vz].
         This quantity contains the linear and angular velocities of the articulation links' center of mass frame
         relative to the world.
         """
-        if self._body_com_lin_vel_w.timestamp < self._sim_timestamp:
-            # Newton reads velocities as [wx, wy, wz, vx, vy, vz] Isaac reads as [vx, vy, vz, wx, wy, wz]
-            wp.launch(
-                split_links_vel,
-                dim=(self._root_newton_view.count, self._root_newton_view.num_bodies),
-                device=self.device,
-                inputs=[
-                    self._root_newton_view.get_link_velocities(NewtonManager.get_state_0()),
-                    self._body_com_lin_vel_w.data,
-                    self._body_com_ang_vel_w.data
-                ]
-            )
-
-        return self._body_com_lin_vel_w.data, self._body_com_ang_vel_w.data
+        if self._body_com_vel_w.timestamp < self._sim_timestamp:
+            # read data from simulation
+            self._body_com_vel_w.data = self._root_newton_view.get_link_velocities(NewtonManager.get_state_0())
+            # set the buffer data and timestamp
+            self._body_com_vel_w.timestamp = self._sim_timestamp
+        return self._body_com_vel_w.data
 
     @property
-    def body_state_w(self) -> tuple[wp.array, wp.array, wp.array, wp.array]:
-        """State of all bodies `[pos, quat, lin_vel, ang_vel]` in simulation world frame.
+    def body_state_w(self) -> tuple[wp.array, wp.array]:
+        """State of all bodies ``[wp.transformf, wp.spatial_vectorf]`` in simulation world frame.
 
-        Shapes are (num_instances, num_bodies, 3), (num_instances, num_bodies, 4), (num_instances, num_bodies, 3),
-        (num_instances, num_bodies, 3).
-        The position and quaternion are of all the articulation links' actor frame. Meanwhile, the linear and angular
-        velocities are of the articulation links's center of mass frame.
+        Shapes are (num_instances, num_bodies,), (num_instances, num_bodies,). The pose is in the form of [pos, quat].
+        The velocity is in the form of [wx, wy, wz, vx, vy, vz].
+        The pose is of the articulation links' actor frame relative to the world.
+        The velocity is of the articulation links' center of mass frame.
         """
 
-        return self.body_link_pose_w + self.body_com_vel_w
+        return self.body_link_pose_w, self.body_com_vel_w
 
     @property
-    def body_link_state_w(self) -> tuple[wp.array, wp.array, wp.array, wp.array]:
-        """State of all bodies' link frame`[pos, quat, lin_vel, ang_vel]` in simulation world frame.
+    def body_link_state_w(self) -> tuple[wp.array, wp.array]:
+        """State of all bodies' link frame ``[wp.transformf, wp.spatial_vectorf]`` in simulation world frame.
 
-        Shapes are (num_instances, num_bodies, 3), (num_instances, num_bodies, 4), (num_instances, num_bodies, 3),
-        (num_instances, num_bodies, 3).
+        Shapes are (num_instances, num_bodies,), (num_instances, num_bodies,). The pose is in the form of [pos, quat].
+        The velocity is in the form of [wx, wy, wz, vx, vy, vz].
         The position, quaternion, and linear/angular velocity are of the body's link frame relative to the world.
         """
 
-        return self.body_link_pose_w + self.body_link_vel_w
+        return self.body_link_pose_w, self.body_link_vel_w
 
     @property
-    def body_com_state_w(self) -> tuple[wp.array, wp.array, wp.array, wp.array]:
-        """State of all bodies center of mass `[pos, quat, lin_vel, ang_vel]` in simulation world frame.
-        Shapes are (num_instances, num_bodies, 3), (num_instances, num_bodies, 4), (num_instances, num_bodies, 3),
-        (num_instances, num_bodies, 3).
+    def body_com_state_w(self) -> tuple[wp.array, wp.array]:
+        """State of all bodies center of mass ``[wp.transformf, wp.spatial_vectorf]`` in simulation world frame.
+
+        Shapes are (num_instances, num_bodies,), (num_instances, num_bodies,). The pose is in the form of [pos, quat].
+        The velocity is in the form of [wx, wy, wz, vx, vy, vz].
 
         The position, quaternion, and linear/angular velocity are of the body's center of mass frame relative to the
         world. Center of mass frame is assumed to be the same orientation as the link rather than the orientation of the
         principle inertia.
         """
 
-        return self.body_com_pose_w + self.body_com_vel_w
+        return self.body_com_pose_w, self.body_com_vel_w
 
     @property
-    def body_com_acc_w(self) -> tuple[wp.array, wp.array]:
-        """Acceleration of all bodies center of mass ``[lin_acc, ang_acc]``.
+    def body_com_acc_w(self) -> wp.array:
+        """Acceleration of all bodies center of mass ``wp.spatial_vectorf`` in simulation world frame.
 
-        Shapes are (num_instances, num_bodies, 3), (num_instances, num_bodies, 3).
+        Shapes are (num_instances, num_bodies,). The acceleration is in the form of [wx, wy, wz, vx, vy, vz].
         All values are relative to the world.
         """
-        if self._body_com_lin_acc_w.timestamp < self._sim_timestamp:
-            dt = self._sim_timestamp - self._body_com_lin_vel_w.timestamp
+        if self._body_com_acc_w.timestamp < self._sim_timestamp:
+            dt = self._sim_timestamp - self._body_com_vel_w.timestamp
             wp.launch(
                 derive_body_acceleration_from_velocity,
                 dim=(self._root_newton_view.count, self._root_newton_view.num_bodies),
                 inputs=[
-                    self._body_com_lin_vel_w.data,
-                    self._body_com_ang_vel_w.data,
-                    self._previous_body_com_lin_vel,
-                    self._previous_body_com_ang_vel,
+                    self.body_com_vel_w,
+                    self._previous_body_com_vel,
                     dt,
-                    self._body_com_lin_acc_w.data,
-                    self._body_com_ang_acc_w.data,
+                    self._body_com_acc_w.data,
                 ]
             )
-            self._body_com_lin_acc_w.timestamp = self._sim_timestamp
-            self._body_com_ang_acc_w.timestamp = self._sim_timestamp
-        return self._body_com_lin_acc_w.data, self._body_com_ang_acc_w.data
+            # set the buffer data and timestamp
+            self._body_com_acc_w.timestamp = self._sim_timestamp
+        return self._body_com_acc_w.data
+
+    @warn_overhead_cost
+    @property
+    def body_com_pose_b(self) -> wp.array:
+        """Center of mass pose ``wp.transformf`` of all bodies in their respective body's link frames.
+
+        Shapes are (num_instances, num_bodies,). The pose is in the form of [pos, quat].
+        This quantity is the pose of the center of mass frame of the rigid body relative to the body's link frame.
+        The orientation is provided in (x, y, z, w) format.
+        """
+        out = wp.zeros((self._root_newton_view.count, self._root_newton_view.count), dtype=wp.transformf, device=self.device)
+        wp.launch(
+            generate_body_com_pose_b,
+            dim=(self._root_newton_view.count, self._root_newton_view.count),
+            inputs=[
+                self.body_com_pos_b,
+                out,
+            ]
+        )
+        return out
 
     @property
-    def body_com_pose_b(self) -> tuple[wp.array, wp.array]:
-        """Center of mass pose ``[pos, quat]`` of all bodies in their respective body's link frames.
+    def body_com_pos_b(self) -> wp.array:
+        """Center of mass pose ``wp.transformf`` of all bodies in their respective body's link frames.
 
-        Shapes are (num_instances, 1, 3), (num_instances, 1, 4).
+        Shapes are (num_instances, num_bodies,). The pose is in the form of [pos, quat].
         This quantity is the pose of the center of mass frame of the rigid body relative to the body's link frame.
         The orientation is provided in (x, y, z, w) format.
         """
         if self._body_com_position_b.timestamp < self._sim_timestamp:
             # read data from simulation
-
             self._body_com_position_b.data = self._root_newton_view.get_attribute("body_com", NewtonManager.get_model())
             # set the buffer data and timestamp
             self._body_com_position_b.timestamp = self._sim_timestamp
-            self._body_com_quat_b.timestamp = self._sim_timestamp
-
-        return self._body_com_position_b.data, self._body_com_quat_b.data
+        return self._body_com_position_b.data
 
 
     @property
@@ -871,7 +826,19 @@ class ArticulationData:
     @property
     def projected_gravity_b(self):
         """Projection of the gravity direction on base frame. Shape is (num_instances, 3)."""
-        return math_utils.quat_apply_inverse(self.root_link_quat_w, self.GRAVITY_VEC_W)
+        if self._projected_gravity_b.timestamp < self._sim_timestamp:
+            wp.launch(
+                project_vec_from_quat_single,
+                dim=self._root_newton_view.count,
+                inputs=[
+                    self.GRAVITY_VEC_W,
+                    self.root_link_quat_w,
+                    self._projected_gravity_b.data,
+                ]
+            )
+            # set the buffer data and timestamp
+            self._projected_gravity_b.timestamp = self._sim_timestamp
+        return self._projected_gravity_b.data
 
     @property
     def heading_w(self):
@@ -881,297 +848,393 @@ class ArticulationData:
             This quantity is computed by assuming that the forward-direction of the base
             frame is along x-direction, i.e. :math:`(1, 0, 0)`.
         """
-        forward_w = math_utils.quat_apply(self.root_link_quat_w, self.FORWARD_VEC_B)
-        return torch.atan2(forward_w[:, 1], forward_w[:, 0])
-
-    @property
-    def root_link_lin_vel_b(self) -> wp.array:
-        """Root link linear velocity in base frame. Shape is (num_instances, 3).
-
-        This quantity is the linear velocity of the articulation root's actor frame with respect to the
-        its actor frame.
-        """
-        if self._root_link_lin_vel_b.timestamp < self._sim_timestamp:
-            # Trigger the lazy buffer update
-            self.root_link_vel_w
-            self.root_link_pose_w
+        if self._heading_w.timestamp < self._sim_timestamp:
             wp.launch(
-                project_vec_from_quat_inverse,
-                dim=(self._root_newton_view.count),
+                compute_heading,
+                dim=self._root_newton_view.count,
                 inputs=[
-                    self._root_link_lin_vel_w.data,
-                    self._root_link_quat_w.data,
-                    self._root_link_lin_vel_b.data,
+                    self.FORWARD_VEC_B,
+                    self.root_link_quat_w,
+                    self._heading_w.data,
                 ]
             )
-            self._root_link_lin_vel_b.timestamp = self._sim_timestamp
-        return self._root_link_lin_vel_b.data
+            # set the buffer data and timestamp
+            self._heading_w.timestamp = self._sim_timestamp
+        return self._heading_w.data
+
 
     @property
-    def root_link_ang_vel_b(self) -> wp.array:
-        """Root link angular velocity in base world frame. Shape is (num_instances, 3).
+    def root_link_vel_b(self) -> wp.array:
+        """Root link velocity ``wp.spatial_vectorf`` in base frame. Shape is (num_instances).
 
-        This quantity is the angular velocity of the articulation root's actor frame with respect to the
-        its actor frame.
+        Velocity is provided in the form of [wx, wy, wz, vx, vy, vz].
         """
-        if self._root_link_ang_vel_b.timestamp < self._sim_timestamp:
-            # Trigger the lazy buffer update
-            self.root_link_vel_w
-            self.root_link_pose_w
+        if self._root_link_vel_b.timestamp < self._sim_timestamp:
             wp.launch(
-                project_vec_from_quat_inverse,
-                dim=(self._root_newton_view.count),
+                project_velocities_to_frame,
+                dim=self._root_newton_view.count,
                 inputs=[
-                    self._root_link_ang_vel_w.data,
-                    self._root_link_quat_w.data,
-                    self._root_link_ang_vel_b.data,
+                    self.root_link_vel_w,
+                    self.root_link_pose_w,
+                    self._root_link_vel_b.data,
                 ]
             )
-            self._root_link_ang_vel_b.timestamp = self._sim_timestamp
-        return self._root_link_ang_vel_b.data
+            self._root_link_vel_b.timestamp = self._sim_timestamp
+        return self._root_link_vel_b.data
 
     @property
-    def root_com_lin_vel_b(self) -> wp.array:
-        """Root center of mass linear velocity in base frame. Shape is (num_instances, 3).
+    def root_com_vel_b(self) -> wp.array:
+        """Root center of mass velocity ``wp.spatial_vectorf`` in base frame. Shape is (num_instances).
 
-        This quantity is the linear velocity of the articulation root's center of mass frame with respect to the
-        its actor frame.
+        Velocity is provided in the form of [wx, wy, wz, vx, vy, vz].
         """
-        if self._root_com_lin_vel_b.timestamp < self._sim_timestamp:
-            # Trigger the lazy buffer update
-            self.root_com_vel_w
-            self.root_link_pose_w
+        if self._root_com_vel_b.timestamp < self._sim_timestamp:
             wp.launch(
-                project_vec_from_quat_inverse,
-                dim=(self._root_newton_view.count),
+                project_velocities_to_frame,
+                dim=self._root_newton_view.count,
                 inputs=[
-                    self._root_com_lin_vel_w.data,
-                    self._root_link_quat_w.data,
-                    self._root_com_lin_vel_b.data,
+                    self.root_com_vel_w,
+                    self.root_link_pose_w,
+                    self._root_com_vel_b.data,
                 ]
             )
-            self._root_com_lin_vel_b.timestamp = self._sim_timestamp
-        return self._root_com_lin_vel_b.data
+            self._root_com_vel_b.timestamp = self._sim_timestamp
+        return self._root_com_vel_b.data
 
-    @property
-    def root_com_ang_vel_b(self) -> wp.array:
-        """Root center of mass angular velocity in base world frame. Shape is (num_instances, 3).
-
-        This quantity is the angular velocity of the articulation root's center of mass frame with respect to the
-        its actor frame.
-        """
-        if self._root_com_ang_vel_b.timestamp < self._sim_timestamp:
-            # Trigger the lazy buffer update
-            self.root_com_vel_w
-            self.root_link_pose_w
-            wp.launch(
-                project_vec_from_quat_inverse,
-                dim=(self._root_newton_view.count),
-                inputs=[
-                    self._root_com_ang_vel_w.data,
-                    self._root_link_quat_w.data,
-                    self._root_com_ang_vel_b.data,
-                ]
-            )
-            self._root_com_ang_vel_b.timestamp = self._sim_timestamp
-        return self._root_com_ang_vel_b.data
 
     ##
     # Sliced properties.
     ##
 
+    @warn_overhead_cost
     @property
     def root_link_pos_w(self) -> wp.array:
-        """Root link position in simulation world frame. Shape is (num_instances, 3).
+        """Root link position ``wp.vec3f`` in simulation world frame. Shape is (num_instances).
 
         This quantity is the position of the actor frame of the root rigid body relative to the world.
         """
-        # Trigger the lazy buffer update
-        self.root_link_pose_w
-        return self._root_link_position_w.data
+        out = wp.zeros((self._root_newton_view.count), dtype=wp.vec3f, device=self.device)
+        wp.launch(
+            get_position,
+            dim=self._root_newton_view.count,
+            inputs=[
+                self.root_link_pose_w,
+                out,
+            ]
+        )
+        return out
 
+    @warn_overhead_cost
     @property
     def root_link_quat_w(self) -> wp.array:
-        """Root link orientation (x, y, z, w) in simulation world frame. Shape is (num_instances, 4).
+        """Root link orientation ``wp.quatf`` in simulation world frame. Shape is (num_instances,).
 
+        Format is ``(w, x, y, z)``.
         This quantity is the orientation of the actor frame of the root rigid body.
         """
-        # Trigger the lazy buffer update
-        self.root_link_pose_w
-        return self._root_link_quat_w.data
+        out = wp.zeros((self._root_newton_view.count), dtype=wp.quatf, device=self.device)
+        wp.launch(
+            get_quat,
+            dim=self._root_newton_view.count,
+            inputs=[
+                self.root_link_pose_w,
+                out,
+            ]
+        )
+        return out
 
+    @warn_overhead_cost
     @property
     def root_link_lin_vel_w(self) -> wp.array:
-        """Root linear velocity in simulation world frame. Shape is (num_instances, 3).
+        """Root linear velocity ``wp.vec3f`` in simulation world frame. Shape is (num_instances).
 
         This quantity is the linear velocity of the root rigid body's actor frame relative to the world.
         """
-        # Trigger the lazy buffer update
-        self.root_link_vel_w
-        return self._root_link_lin_vel_w.data
+        out = wp.zeros((self._root_newton_view.count), dtype=wp.vec3f, device=self.device)
+        wp.launch(
+            get_linear_velocity,
+            dim=self._root_newton_view.count,
+            inputs=[
+                self.root_link_vel_w,
+                out,
+            ]
+        )
+        return out
 
+    @warn_overhead_cost
     @property
     def root_link_ang_vel_w(self) -> wp.array:
-        """Root link angular velocity in simulation world frame. Shape is (num_instances, 3).
+        """Root link angular velocity ``wp.vec3f`` in simulation world frame. Shape is (num_instances).
 
         This quantity is the angular velocity of the actor frame of the root rigid body relative to the world.
         """
-        # Trigger the lazy buffer update
-        self.root_link_vel_w
-        return self._root_link_ang_vel_w.data
+        out = wp.zeros((self._root_newton_view.count), dtype=wp.vec3f, device=self.device)
+        wp.launch(
+            get_angular_velocity,
+            dim=self._root_newton_view.count,
+            inputs=[
+                self.root_link_vel_w,
+                out,
+            ]
+        )
+        return out
 
+    @warn_overhead_cost
     @property
     def root_com_pos_w(self) -> wp.array:
         """Root center of mass position in simulation world frame. Shape is (num_instances, 3).
 
         This quantity is the position of the actor frame of the root rigid body relative to the world.
         """
-        # Trigger the lazy buffer update
-        self.root_com_pose_w
-        return self._root_com_position_w.data
-
+        out = wp.zeros((self._root_newton_view.count), dtype=wp.vec3f, device=self.device)
+        wp.launch(
+            get_position,
+            dim=self._root_newton_view.count,
+            inputs=[
+                self.root_com_pose_w,
+                out,
+            ]
+        )
+        return out
+    
+    @warn_overhead_cost
     @property
     def root_com_quat_w(self) -> wp.array:
-        """Root center of mass orientation (x, y, z, w) in simulation world frame. Shape is (num_instances, 4).
+        """Root center of mass orientation ``wp.quatf`` in simulation world frame. Shape is (num_instances,).
 
-        This quantity is the orientation of the actor frame of the root rigid body relative to the world.
+        Format is ``(w, x, y, z)``.
+        This quantity is the orientation of the root rigid body's center of mass frame.
         """
-        # Trigger the lazy buffer update
-        self.root_com_pose_w
-        return self._root_com_quat_w.data
+        out = wp.zeros((self._root_newton_view.count), dtype=wp.quatf, device=self.device)
+        wp.launch(
+            get_quat,
+            dim=self._root_newton_view.count,
+            inputs=[
+                self.root_com_pose_w,
+                out,
+            ]
+        )
+        return out
 
+    @warn_overhead_cost
     @property
     def root_com_lin_vel_w(self) -> wp.array:
-        """Root center of mass linear velocity in simulation world frame. Shape is (num_instances, 3).
+        """Root center of mass linear velocity ``wp.vec3f`` in simulation world frame. Shape is (num_instances,).
 
         This quantity is the linear velocity of the root rigid body's center of mass frame relative to the world.
         """
-        # Trigger the lazy buffer update
-        self.root_com_vel_w
-        return self._root_com_lin_vel_w.data
+        out = wp.zeros((self._root_newton_view.count), dtype=wp.vec3f, device=self.device)
+        wp.launch(
+            get_linear_velocity,
+            dim=self._root_newton_view.count,
+            inputs=[
+                self.root_com_vel_w,
+                out,
+            ]
+        )
+        return out
 
+    @warn_overhead_cost
     @property
     def root_com_ang_vel_w(self) -> wp.array:
-        """Root center of mass angular velocity in simulation world frame. Shape is (num_instances, 3).
+        """Root center of mass angular velocity ``wp.vec3f`` in simulation world frame. Shape is (num_instances).
 
         This quantity is the angular velocity of the root rigid body's center of mass frame relative to the world.
         """
-        # Trigger the lazy buffer update
-        self.root_com_vel_w
-        return self._root_com_ang_vel_w.data
+        out = wp.zeros((self._root_newton_view.count), dtype=wp.vec3f, device=self.device)
+        wp.launch(
+            get_angular_velocity,
+            dim=self._root_newton_view.count,
+            inputs=[
+                self.root_com_vel_w,
+                out,
+            ]
+        )
+        return out
 
+    @warn_overhead_cost
     @property
     def body_link_pos_w(self) -> wp.array:
-        """Positions of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).
+        """Positions of all bodies in simulation world frame ``wp.vec3f``. Shape is (num_instances, num_bodies).
 
         This quantity is the position of the articulation bodies' actor frame relative to the world.
         """
-        # Trigger the lazy buffer update
-        self.body_link_pose_w
-        return self._body_link_position_w.data
+        out = wp.zeros((self._root_newton_view.count, self._root_newton_view.count), dtype=wp.vec3f, device=self.device)
+        wp.launch(
+            get_position,
+            dim=(self._root_newton_view.count, self._root_newton_view.count),
+            inputs=[
+                self.body_link_pose_w,
+                out,
+            ]
+        )
+        return out
 
+    @warn_overhead_cost
     @property
     def body_link_quat_w(self) -> wp.array:
-        """Orientation (x, y, z, w) of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 4).
+        """Orientation ``wp.quatf`` of all bodies in simulation world frame. Shape is (num_instances, num_bodies).
 
+        Format is ``(w, x, y, z)``.
         This quantity is the orientation of the articulation bodies' actor frame relative to the world.
         """
-        # Trigger the lazy buffer update
-        self.body_link_pose_w
-        return self._body_link_quat_w.data
+        out = wp.zeros((self._root_newton_view.count, self._root_newton_view.count), dtype=wp.quatf, device=self.device)
+        wp.launch(
+            get_quat,
+            dim=(self._root_newton_view.count, self._root_newton_view.count),
+            inputs=[
+                self.body_link_pose_w,
+                out,
+            ]
+        )
+        return out
 
+    @warn_overhead_cost
     @property
     def body_link_lin_vel_w(self) -> wp.array:
-        """Linear velocity of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).
+        """Linear velocity ``wp.vec3f`` of all bodies in simulation world frame. Shape is (num_instances, num_bodies).
 
         This quantity is the linear velocity of the articulation bodies' center of mass frame relative to the world.
         """
-        # Trigger the lazy buffer update
-        self.body_link_vel_w
-        return self._body_link_lin_vel_w.data
+        out = wp.zeros((self._root_newton_view.count, self._root_newton_view.count), dtype=wp.vec3f, device=self.device)
+        wp.launch(
+            get_linear_velocity,
+            dim=(self._root_newton_view.count, self._root_newton_view.count),
+            inputs=[
+                self.body_link_vel_w,
+                out,
+            ]
+        )
+        return out
 
+    @warn_overhead_cost
     @property
     def body_link_ang_vel_w(self) -> wp.array:
-        """Angular velocity of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).
+        """Angular velocity ``wp.vec3f`` of all bodies in simulation world frame. Shape is (num_instances, num_bodies).
 
         This quantity is the angular velocity of the articulation bodies' center of mass frame relative to the world.
         """
-        # Trigger the lazy buffer update
-        self.body_link_vel_w
-        return self._body_link_ang_vel_w.data
+        out = wp.zeros((self._root_newton_view.count, self._root_newton_view.count), dtype=wp.vec3f, device=self.device)
+        wp.launch(
+            get_angular_velocity,
+            dim=(self._root_newton_view.count, self._root_newton_view.count),
+            inputs=[
+                self.body_link_vel_w,
+                out,
+            ]
+        )
+        return out
 
+    @warn_overhead_cost
     @property
     def body_com_pos_w(self) -> wp.array:
-        """Positions of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).
+        """Positions of all bodies in simulation world frame ``wp.vec3f``. Shape is (num_instances, num_bodies).
 
         This quantity is the position of the articulation bodies' actor frame.
         """
-        # Trigger the lazy buffer update
-        self.body_com_pose_w
-        return self._body_com_position_w.data
+        out = wp.zeros((self._root_newton_view.count, self._root_newton_view.count), dtype=wp.vec3f, device=self.device)
+        wp.launch(
+            get_position,
+            dim=(self._root_newton_view.count, self._root_newton_view.count),
+            inputs=[
+                self.body_com_pose_w,
+                out,
+            ]
+        )
+        return out
 
+    @warn_overhead_cost
     @property
     def body_com_quat_w(self) -> wp.array:
-        """Orientation (x, y, z, w) of the principle axis of inertia of all bodies in simulation world frame.
-        Shape is (num_instances, num_bodies, 4).
+        """Orientation ``wp.quatf`` of all bodies in simulation world frame. Shape is (num_instances, num_bodies).
 
+        Format is ``(w, x, y, z)``.
         This quantity is the orientation of the articulation bodies' actor frame.
         """
-        # Trigger the lazy buffer update
-        self.body_com_pose_w
-        return self._body_com_quat_w.data
+        out = wp.zeros((self._root_newton_view.count, self._root_newton_view.count), dtype=wp.quatf, device=self.device)
+        wp.launch(
+            get_quat,
+            dim=(self._root_newton_view.count, self._root_newton_view.count),
+            inputs=[
+                self.body_com_pose_w,
+                out,
+            ]
+        )
+        return out
 
+    @warn_overhead_cost
     @property
     def body_com_lin_vel_w(self) -> wp.array:
-        """Linear velocity of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).
+        """Linear velocity ``wp.vec3f`` of all bodies in simulation world frame. Shape is (num_instances, num_bodies).
 
         This quantity is the linear velocity of the articulation bodies' center of mass frame.
         """
-        # Trigger the lazy buffer update
-        self.body_com_vel_w
-        return self._body_com_lin_vel_w.data
+        out = wp.zeros((self._root_newton_view.count, self._root_newton_view.count), dtype=wp.vec3f, device=self.device)
+        wp.launch(
+            get_linear_velocity,
+            dim=(self._root_newton_view.count, self._root_newton_view.count),
+            inputs=[
+                self.body_com_vel_w,
+                out,
+            ]
+        )
+        return out
 
+    @warn_overhead_cost
     @property
     def body_com_ang_vel_w(self) -> wp.array:
-        """Angular velocity of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).
+        """Angular velocity ``wp.vec3f`` of all bodies in simulation world frame. Shape is (num_instances, num_bodies).
 
         This quantity is the angular velocity of the articulation bodies' center of mass frame.
         """
-        # Trigger the lazy buffer update
-        self.body_com_vel_w
-        return self._body_com_ang_vel_w.data
+        out = wp.zeros((self._root_newton_view.count, self._root_newton_view.count), dtype=wp.vec3f, device=self.device)
+        wp.launch(
+            get_angular_velocity,
+            dim=(self._root_newton_view.count, self._root_newton_view.count),
+            inputs=[
+                self.body_com_vel_w,
+                out,
+            ]
+        )
+        return out
 
+    @warn_overhead_cost
     @property
     def body_com_lin_acc_w(self) -> wp.array:
-        """Linear acceleration of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).
+        """Linear acceleration ``wp.vec3f`` of all bodies in simulation world frame. Shape is (num_instances, num_bodies).
 
         This quantity is the linear acceleration of the articulation bodies' center of mass frame.
         """
-        # Trigger the lazy buffer update
-        self.body_com_acc_w
-        return self._body_com_lin_acc_w.data
+        out = wp.zeros((self._root_newton_view.count, self._root_newton_view.count), dtype=wp.vec3f, device=self.device)
+        wp.launch(
+            get_linear_velocity,
+            dim=(self._root_newton_view.count, self._root_newton_view.count),
+            inputs=[
+                self.body_com_acc_w,
+                out,
+            ]
+        )
+        return out
 
+    @warn_overhead_cost
     @property
     def body_com_ang_acc_w(self) -> wp.array:
-        """Angular acceleration of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).
+        """Angular acceleration ``wp.vec3f`` of all bodies in simulation world frame. Shape is (num_instances, num_bodies).
 
         This quantity is the angular acceleration of the articulation bodies' center of mass frame.
         """
-        # Trigger the lazy buffer update
-        self.body_com_acc_w
-        return self._body_com_ang_acc_w.data
+        out = wp.zeros((self._root_newton_view.count, self._root_newton_view.count), dtype=wp.vec3f, device=self.device)
+        wp.launch(
+            get_angular_velocity,
+            dim=(self._root_newton_view.count, self._root_newton_view.count),
+            inputs=[
+                self.body_com_acc_w,
+                out,
+            ]
+        )
+        return out
 
-    @property
-    def body_com_pos_b(self) -> wp.array:
-        """Center of mass position of all of the bodies in their respective link frames.
-        Shape is (num_instances, num_bodies, 3).
-
-        This quantity is the center of mass location relative to its body'slink frame.
-        """
-        # Trigger the lazy buffer update
-        self.body_com_pose_b
-        return self._body_com_position_b.data
-
+    @warn_overhead_cost
     @property
     def body_com_quat_b(self) -> wp.array:
         """Orientation (x, y, z, w) of the principle axis of inertia of all of the bodies in their
@@ -1179,9 +1242,92 @@ class ArticulationData:
 
         This quantity is the orientation of the principles axes of inertia relative to its body's link frame.
         """
-        # Trigger the lazy buffer update
-        self.body_com_pose_b
-        return self._body_com_quat_b.data
+        out = wp.zeros((self._root_newton_view.count, self._root_newton_view.count), dtype=wp.quatf, device=self.device)
+        wp.launch(
+            get_quat,
+            dim=(self._root_newton_view.count, self._root_newton_view.count),
+            inputs=[
+                self.body_com_pose_b,
+                out,
+            ]
+        )
+        return out
+
+    @warn_overhead_cost
+    @property
+    def root_link_lin_vel_b(self) -> wp.array:
+        """Root link linear velocity ``wp.vec3f`` in base frame. Shape is (num_instances).
+
+        This quantity is the linear velocity of the articulation root's actor frame with respect to the
+        its actor frame.
+        """
+        out = wp.zeros((self._root_newton_view.count), dtype=wp.vec3f, device=self.device)
+        wp.launch(
+            get_linear_velocity,
+            dim=self._root_newton_view.count,
+            inputs=[
+                self.root_link_vel_b,
+                out,
+            ]
+        )
+        return out
+
+    @warn_overhead_cost
+    @property
+    def root_link_ang_vel_b(self) -> wp.array:
+        """Root link angular velocity ``wp.vec3f`` in base world frame. Shape is (num_instances).
+
+        This quantity is the angular velocity of the articulation root's actor frame with respect to the
+        its actor frame.
+        """
+        out = wp.zeros((self._root_newton_view.count), dtype=wp.vec3f, device=self.device)
+        wp.launch(
+            get_angular_velocity,
+            dim=self._root_newton_view.count,
+            inputs=[
+                self.root_link_vel_b,
+                out,
+            ]
+        )
+        return out
+
+    @warn_overhead_cost
+    @property
+    def root_com_lin_vel_b(self) -> wp.array:
+        """Root center of mass linear velocity ``wp.vec3f`` in base frame. Shape is (num_instances).
+
+        This quantity is the linear velocity of the articulation root's center of mass frame with respect to the
+        its actor frame.
+        """
+        out = wp.zeros((self._root_newton_view.count), dtype=wp.vec3f, device=self.device)
+        wp.launch(
+            get_linear_velocity,
+            dim=self._root_newton_view.count,
+            inputs=[
+                self.root_com_vel_b,
+                out,
+            ]
+        )
+        return out
+
+    @warn_overhead_cost
+    @property
+    def root_com_ang_vel_b(self) -> wp.array:
+        """Root center of mass angular velocity in base world frame. Shape is (num_instances, 3).
+
+        This quantity is the angular velocity of the articulation root's center of mass frame with respect to the
+        its actor frame.
+        """
+        out = wp.zeros((self._root_newton_view.count), dtype=wp.vec3f, device=self.device)
+        wp.launch(
+            get_angular_velocity,
+            dim=self._root_newton_view.count,
+            inputs=[
+                self.root_com_vel_b,
+                out,
+            ]
+        )
+        return out
 
     ##
     # Backward compatibility.
@@ -1189,7 +1335,7 @@ class ArticulationData:
 
     @deprecate(replacement="root_link_pose_w")
     @property
-    def root_pose_w(self) -> tuple[wp.array, wp.array]:
+    def root_pose_w(self) -> wp.array:
         """Same as :attr:`root_link_pose_w`."""
         return self.root_link_pose_w
 
@@ -1207,7 +1353,7 @@ class ArticulationData:
 
     @deprecate(replacement="root_com_vel_w")
     @property
-    def root_vel_w(self) -> tuple[wp.array, wp.array]:
+    def root_vel_w(self) -> wp.array:
         """Same as :attr:`root_com_vel_w`."""
         return self.root_com_vel_w
 
@@ -1237,7 +1383,7 @@ class ArticulationData:
 
     @deprecate(replacement="body_link_pose_w")
     @property
-    def body_pose_w(self) -> tuple[wp.array, wp.array]:
+    def body_pose_w(self) -> wp.array:
         """Same as :attr:`body_link_pose_w`."""
         return self.body_link_pose_w
 
@@ -1255,7 +1401,7 @@ class ArticulationData:
 
     @deprecate(replacement="body_com_vel_w")
     @property
-    def body_vel_w(self) -> tuple[wp.array, wp.array]:
+    def body_vel_w(self) -> wp.array:
         """Same as :attr:`body_com_vel_w`."""
         return self.body_com_vel_w
 

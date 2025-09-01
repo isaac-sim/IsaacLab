@@ -203,7 +203,7 @@ class Articulation(AssetBase):
         # write external wrench
         if self.has_external_wrench:
             wrenches_b = torch.cat([self._external_force_b, self._external_force_b], dim=-1)
-            self._root_newton_view.set_attribute("body_f", NewtonManager.get_state_0(), wp.from_torch(wrenches_b))
+            self._root_newton_view.set_attribute("body_f", NewtonManager.get_state_0(), wrenches_b)
 
         # apply actuator models
         self._apply_actuator_model()
@@ -360,7 +360,7 @@ class Articulation(AssetBase):
         """
         self.write_root_link_pose_to_sim(root_pose, env_ids=env_ids)
 
-    def write_root_link_pose_to_sim(self, root_pose: torch.Tensor, env_ids: Sequence[int] | None = None):
+    def write_root_link_pose_to_sim(self, position: wp.array, quat: wp.array, env_ids: Sequence[int] | None = None):
         """Set the root link pose over selected environment indices into the simulation.
 
         The root pose comprises of the cartesian position and quaternion orientation in (w, x, y, z).
@@ -378,6 +378,8 @@ class Articulation(AssetBase):
         # note: we need to do this here since tensors are not set into simulation until step.
         # set into internal buffers
         self._data.root_link_pose_w[env_ids] = root_pose.clone()
+
+        self._data._root_link_position_w
         # update these buffers only if the user is using them. Otherwise this adds to overhead.
         if self._data._root_link_state_w.data is not None:
             self._data.root_link_state_w[env_ids, :7] = self._data.root_link_pose_w[env_ids]
@@ -385,15 +387,14 @@ class Articulation(AssetBase):
             self._data.root_state_w[env_ids, :7] = self._data.root_link_pose_w[env_ids]
 
         # convert root quaternion from wxyz to xyzw
-        root_poses_xyzw = self._data.root_link_pose_w.clone()
-        root_poses_xyzw[:, 3:] = math_utils.convert_quat(root_poses_xyzw[:, 3:], to="xyzw")
+        #root_poses_xyzw = self._data.root_link_pose_w.clone()
+        #root_poses_xyzw[:, 3:] = math_utils.convert_quat(root_poses_xyzw[:, 3:], to="xyzw")
 
         # Need to invalidate the buffer to trigger the update with the new state.
-        self._data._body_link_pose_w.timestamp = -1.0
-        self._data._body_com_pose_w.timestamp = -1.0
-        self._data._body_state_w.timestamp = -1.0
-        self._data._body_link_state_w.timestamp = -1.0
-        self._data._body_com_state_w.timestamp = -1.0
+        self._data._body_link_position_w.timestamp = -1.0
+        self._data._body_link_quat_w.timestamp = -1.0
+        self._data._body_com_position_w.timestamp = -1.0
+        self._data._body_com_quat_w.timestamp = -1.0
 
         # set into simulation
         self._mask.fill_(False)
