@@ -32,11 +32,11 @@ class RslRlPpoActorCriticCfg:
     noise_std_type: Literal["scalar", "log"] = "scalar"
     """The type of noise standard deviation for the policy. Default is scalar."""
 
-    actor_obs_normalization: bool = False
-    """Whether to normalize the observation for the actor network. Default is False."""
+    actor_obs_normalization: bool = MISSING
+    """Whether to normalize the observation for the actor network."""
 
-    critic_obs_normalization: bool = False
-    """Whether to normalize the observation for the critic network. Default is False."""
+    critic_obs_normalization: bool = MISSING
+    """Whether to normalize the observation for the critic network."""
 
     actor_hidden_dims: list[int] = MISSING
     """The hidden dimensions of the actor network."""

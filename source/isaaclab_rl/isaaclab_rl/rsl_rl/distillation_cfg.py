@@ -28,11 +28,11 @@ class RslRlDistillationStudentTeacherCfg:
     noise_std_type: Literal["scalar", "log"] = "scalar"
     """The type of noise standard deviation for the policy. Default is scalar."""
 
-    student_obs_normalization: bool = False
-    """Whether to normalize the observation for the student network. Default is False."""
+    student_obs_normalization: bool = MISSING
+    """Whether to normalize the observation for the student network."""
 
-    teacher_obs_normalization: bool = False
-    """Whether to normalize the observation for the teacher network. Default is False."""
+    teacher_obs_normalization: bool = MISSING
+    """Whether to normalize the observation for the teacher network."""
 
     student_hidden_dims: list[int] = MISSING
     """The hidden dimensions of the student network."""
