@@ -721,8 +721,9 @@ class randomize_joint_parameters(ManagerTermBase):
             if int(get_version()[2]) < 5:
                 self.asset.write_joint_friction_coefficient_to_sim(
                     joint_friction_coeff=friction_coeff[env_ids[:, None], joint_ids],
-                    joint_ids=joint_ids, env_ids=env_ids
-            )
+                    joint_ids=joint_ids,
+                    env_ids=env_ids,
+                )
             # for isaacsim version 5.0.0 and above we can set static, dynamic, and viscous friction coefficients
             else:
                 dynamic_friction_coeff = _randomize_prop_by_op(
@@ -748,14 +749,15 @@ class randomize_joint_parameters(ManagerTermBase):
                 viscous_friction_coeff = torch.clamp(viscous_friction_coeff, min=0.0)
 
                 # ensure the dynamic friction is less than or equal to static friction
-                dynamic_friction_coeff = torch.min(dynamic_friction_coeff, friction_coeff)  
+                dynamic_friction_coeff = torch.min(dynamic_friction_coeff, friction_coeff)
 
                 # set the friction coefficients into the physics simulation
                 self.asset.write_joint_friction_coefficients_to_sim(
                     joint_friction_coeff=friction_coeff[env_ids[:, None], joint_ids],
                     joint_dynamic_friction_coeff=dynamic_friction_coeff[env_ids[:, None], joint_ids],
                     joint_viscous_friction_coeff=viscous_friction_coeff[env_ids[:, None], joint_ids],
-                    joint_ids=joint_ids, env_ids=env_ids
+                    joint_ids=joint_ids,
+                    env_ids=env_ids,
                 )
 
         # joint armature

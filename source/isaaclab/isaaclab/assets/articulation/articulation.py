@@ -833,7 +833,9 @@ class Articulation(AssetBase):
         env_ids: Sequence[int] | None = None,
     ):
         if int(get_version()[2]) < 5:
-            omni.log.warn("Setting joint dynamic and, viscous friction coefficients are not supported in Isaac Sim < 5.0")
+            omni.log.warn(
+                "Setting joint dynamic and, viscous friction coefficients are not supported in Isaac Sim < 5.0"
+            )
             return
         # resolve indices
         physx_env_ids = env_ids
@@ -857,7 +859,6 @@ class Articulation(AssetBase):
         friction_props[physx_env_ids_cpu, :, 1] = self._data.joint_dynamic_friction_coeff[physx_env_ids, :].cpu()
         friction_props[physx_env_ids_cpu, :, 2] = self._data.joint_viscous_friction_coeff[physx_env_ids, :].cpu()
         self.root_physx_view.set_dof_friction_properties(friction_props, indices=physx_env_ids_cpu)
-
 
     def write_joint_friction_coefficient_to_sim(
         self,
