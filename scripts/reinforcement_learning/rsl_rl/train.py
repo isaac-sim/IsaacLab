@@ -55,8 +55,8 @@ import platform
 
 from packaging import version
 
-# for distributed training, check minimum supported rsl-rl version
-RSL_RL_VERSION = "3.0.0"
+# check minimum supported rsl-rl version
+RSL_RL_VERSION = "3.0.1"
 installed_version = metadata.version("rsl-rl-lib")
 if version.parse(installed_version) < version.parse(RSL_RL_VERSION):
     if platform.system() == "Windows":

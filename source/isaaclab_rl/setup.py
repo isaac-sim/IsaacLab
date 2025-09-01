@@ -46,7 +46,7 @@ EXTRAS_REQUIRE = {
         "rl-games @ git+https://github.com/isaac-sim/rl_games.git@python3.11",
         "gym",
     ],  # rl-games still needs gym :(
-    "rsl-rl": ["rsl-rl-lib==3.0.0"],
+    "rsl-rl": ["rsl-rl-lib==3.0.1"],
 }
 # Add the names with hyphens as aliases for convenience
 EXTRAS_REQUIRE["rl_games"] = EXTRAS_REQUIRE["rl-games"]
