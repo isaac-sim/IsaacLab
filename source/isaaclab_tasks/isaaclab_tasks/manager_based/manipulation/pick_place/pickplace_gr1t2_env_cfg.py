@@ -6,13 +6,13 @@
 import tempfile
 import torch
 
-from pink.tasks import FrameTask
+from pink.tasks import DampingTask, FrameTask
 
 import isaaclab.controllers.utils as ControllerUtils
 import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
-from isaaclab.controllers.pink_ik_cfg import PinkIKControllerCfg
+from isaaclab.controllers.pink_ik import NullSpacePostureTask, PinkIKControllerCfg
 from isaaclab.devices.device_base import DevicesCfg
 from isaaclab.devices.openxr import OpenXRDeviceCfg, XrCfg
 from isaaclab.devices.openxr.retargeters.humanoid.fourier.gr1t2_retargeter import GR1T2RetargeterCfg
@@ -30,7 +30,7 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 
 from . import mdp
 
-from isaaclab_assets.robots.fourier import GR1T2_CFG  # isort: skip
+from isaaclab_assets.robots.fourier import GR1T2_HIGH_PD_CFG  # isort: skip
 
 
 ##
@@ -59,8 +59,8 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
         ),
     )
 
-    # Humanoid robot w/ arms higher
-    robot: ArticulationCfg = GR1T2_CFG.replace(
+    # Humanoid robot configured for pick-place manipulation tasks
+    robot: ArticulationCfg = GR1T2_HIGH_PD_CFG.replace(
         prim_path="/World/envs/env_.*/Robot",
         init_state=ArticulationCfg.InitialStateCfg(
             pos=(0, 0, 0.93),
@@ -199,6 +199,10 @@ class ActionsCfg:
             "L_thumb_distal_joint",
             "R_thumb_distal_joint",
         ],
+        target_eef_link_names={
+            "left_wrist": "left_hand_pitch_link",
+            "right_wrist": "right_hand_pitch_link",
+        },
         # the robot in the sim scene we are controlling
         asset_name="robot",
         # Configuration for the IK controller
@@ -209,30 +213,48 @@ class ActionsCfg:
             base_link_name="base_link",
             num_hand_joints=22,
             show_ik_warnings=False,
+            fail_on_joint_limit_violation=False,  # Determines whether to pink solver will fail due to a joint limit violation
             variable_input_tasks=[
                 FrameTask(
                     "GR1T2_fourier_hand_6dof_left_hand_pitch_link",
-                    position_cost=1.0,  # [cost] / [m]
+                    position_cost=8.0,  # [cost] / [m]
                     orientation_cost=1.0,  # [cost] / [rad]
                     lm_damping=10,  # dampening for solver for step jumps
-                    gain=0.1,
+                    gain=0.5,
                 ),
                 FrameTask(
                     "GR1T2_fourier_hand_6dof_right_hand_pitch_link",
-                    position_cost=1.0,  # [cost] / [m]
+                    position_cost=8.0,  # [cost] / [m]
                     orientation_cost=1.0,  # [cost] / [rad]
                     lm_damping=10,  # dampening for solver for step jumps
-                    gain=0.1,
+                    gain=0.5,
+                ),
+                DampingTask(
+                    cost=0.5,  # [cost] * [s] / [rad]
+                ),
+                NullSpacePostureTask(
+                    cost=0.5,
+                    lm_damping=1,
+                    controlled_frames=[
+                        "GR1T2_fourier_hand_6dof_left_hand_pitch_link",
+                        "GR1T2_fourier_hand_6dof_right_hand_pitch_link",
+                    ],
+                    controlled_joints=[
+                        "left_shoulder_pitch_joint",
+                        "left_shoulder_roll_joint",
+                        "left_shoulder_yaw_joint",
+                        "left_elbow_pitch_joint",
+                        "right_shoulder_pitch_joint",
+                        "right_shoulder_roll_joint",
+                        "right_shoulder_yaw_joint",
+                        "right_elbow_pitch_joint",
+                        "waist_yaw_joint",
+                        "waist_pitch_joint",
+                        "waist_roll_joint",
+                    ],
                 ),
             ],
-            fixed_input_tasks=[
-                # COMMENT OUT IF LOCKING WAIST/HEAD
-                # FrameTask(
-                #     "GR1T2_fourier_hand_6dof_head_yaw_link",
-                #     position_cost=1.0,  # [cost] / [m]
-                #     orientation_cost=0.05,  # [cost] / [rad]
-                # ),
-            ],
+            fixed_input_tasks=[],
         ),
     )
 
@@ -331,6 +353,9 @@ class PickPlaceGR1T2EnvCfg(ManagerBasedRLEnvCfg):
         anchor_rot=(1.0, 0.0, 0.0, 0.0),
     )
 
+    # OpenXR hand tracking has 26 joints per hand
+    NUM_OPENXR_HAND_JOINTS = 26
+
     # Temporary directory for URDF files
     temp_urdf_dir = tempfile.gettempdir()
 
@@ -403,8 +428,8 @@ class PickPlaceGR1T2EnvCfg(ManagerBasedRLEnvCfg):
                     retargeters=[
                         GR1T2RetargeterCfg(
                             enable_visualization=True,
-                            # OpenXR hand tracking has 26 joints per hand
-                            num_open_xr_hand_joints=2 * 26,
+                            # number of joints in both hands
+                            num_open_xr_hand_joints=2 * self.NUM_OPENXR_HAND_JOINTS,
                             sim_device=self.sim.device,
                             hand_joint_names=self.actions.pink_ik_cfg.hand_joint_names,
                         ),

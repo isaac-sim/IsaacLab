@@ -8,7 +8,7 @@ simulation, modern Python APIs, and a flexible architecture for both users and d
 Newton is an Open Source community-driven project with contributions from NVIDIA, Google Deep Mind, and Disney Research,
 managed through the Linux Foundation.
 
-This `experimental feature branch <https://isaac-sim.github.io/IsaacLab/main/source/experimental-features/index.html>`_ of Isaac Lab provides an initial integration with the Newton Physics Engine, and is
+This `experimental feature branch <https://github.com/isaac-sim/IsaacLab/tree/feature/newton>`_ of Isaac Lab provides an initial integration with the Newton Physics Engine, and is
 under active development. Many features are not yet supported, and only a limited set of classic RL and flat terrain locomotion
 reinforcement learning examples are included at the moment.
 
