@@ -12,8 +12,6 @@ The following configurations are available:
 
 """
 
-from isaaclab_assets import ISAACLAB_ASSETS_DATA_DIR
-
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
@@ -24,7 +22,7 @@ from isaaclab.assets.articulation import ArticulationCfg
 
 AGIBOT_A2D_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{ISAACLAB_ASSETS_DATA_DIR}/Robots/Agibot/agibot.usd",
+        usd_path="omniverse://isaac-dev.ov.nvidia.com/Users/rebeccaz@nvidia.com/IsaacLab_PR/Agibot/A2D_physics.usd",
         activate_contact_sensors=True,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=False,
