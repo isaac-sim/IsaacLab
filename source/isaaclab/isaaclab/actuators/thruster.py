@@ -201,7 +201,7 @@ def discrete_mixing_factor(dt: float, time_constant: torch.Tensor):
 
 
 @torch.jit.script
-def continuous_mixing_factor(dt: float, time_constant: torch.Tensor):
+def continuous_mixing_factor(dt: float, time_constant: torch.Tensor):http://thruster.py
     return 1.0 / time_constant
 
 

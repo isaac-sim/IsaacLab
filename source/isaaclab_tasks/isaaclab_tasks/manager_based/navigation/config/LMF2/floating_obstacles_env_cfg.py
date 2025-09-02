@@ -5,7 +5,7 @@
 
 from isaaclab.utils import configclass
 
-from isaaclab_tasks.manager_based.navigation.config.LMF2.velocity_env_cfg import NavigationVelocityFloatingObstacleEnvCfg
+from isaaclab_tasks.manager_based.navigation.config.LMF2.navigation_env_cfg import NavigationVelocityFloatingObstacleEnvCfg
 
 ##
 # Pre-defined configs
