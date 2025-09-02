@@ -14,7 +14,10 @@ The following configurations are available:
 * :obj:`H1_MINIMAL_CFG`: H1 humanoid robot with minimal collision bodies
 * :obj:`G1_CFG`: G1 humanoid robot
 * :obj:`G1_MINIMAL_CFG`: G1 humanoid robot with minimal collision bodies
+<<<<<<< HEAD
 * :obj:`G1_29DOF_CFG`: G1 humanoid robot configured for locomanipulation tasks
+=======
+>>>>>>> 7c6f656160 (Fix bug and add ReadMe for teleop support of Unitree G1 with Inspire 5-finger hand)
 * :obj:`G1_INSPIRE_FTP_CFG`: G1 29DOF humanoid robot with Inspire 5-finger hand
 
 Reference: https://github.com/unitreerobotics/unitree_ros
