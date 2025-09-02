@@ -77,6 +77,7 @@ class DummyRecorderManagerCfg(RecorderManagerBaseCfg):
 
     dataset_export_mode = DatasetExportMode.EXPORT_ALL
 
+
 @configclass
 class DummyEnvCfg:
     """Dummy environment configuration."""
@@ -84,19 +85,21 @@ class DummyEnvCfg:
     @configclass
     class DummySimCfg:
         """Configuration for the dummy sim."""
+
         dt = 0.01
         render_interval = 1
 
     @configclass
     class DummySceneCfg:
         """Configuration for the dummy scene."""
+
         num_envs = 1
 
     decimation = 1
     sim = DummySimCfg()
     scene = DummySceneCfg()
 
-        
+
 def create_dummy_env(device: str = "cpu") -> ManagerBasedEnv:
     """Create a dummy environment."""
 
