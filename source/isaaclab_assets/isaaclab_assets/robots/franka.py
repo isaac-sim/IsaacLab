@@ -14,7 +14,6 @@ The following configurations are available:
 Reference: https://github.com/frankaemika/franka_ros
 """
 
-from isaaclab_assets import ISAACLAB_ASSETS_DATA_DIR
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
@@ -86,38 +85,28 @@ FRANKA_PANDA_HIGH_PD_CFG.actuators["panda_forearm"].damping = 80.0
 This configuration is useful for task-space control using differential IK.
 """
 
-"""
-This is the config for the franka with Robotiq_2f_85 gripper.
-"""
-FRANKA_ROBOTIQ_GRIPPER_CFG = ArticulationCfg(
-    spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{ISAACLAB_ASSETS_DATA_DIR}/Robots/Franka/franka_2f_85.usd",
-        activate_contact_sensors=True,
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
-            disable_gravity=True,
-            max_depenetration_velocity=5.0,
-        ),
-        articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-            enabled_self_collisions=True, solver_position_iteration_count=8, solver_velocity_iteration_count=0
-        ),
-    ),
-    init_state=ArticulationCfg.InitialStateCfg(
-        joint_pos={
-            "panda_joint1": 0.0,
-            "panda_joint2": -0.569,
-            "panda_joint3": 0.0,
-            "panda_joint4": -2.810,
-            "panda_joint5": 0.0,
-            "panda_joint6": 3.037,
-            "panda_joint7": 0.741,
-            "finger_joint": 0.0,
-            ".*_inner_finger_joint": 0.0,
-            ".*_inner_finger_knuckle_joint": 0.0,
-            ".*_outer_.*_joint": 0.0,
-        },
-        pos=(-0.85, 0, 0.76),
-    ),
-    actuators={
+
+FRANKA_ROBOTIQ_GRIPPER_CFG = FRANKA_PANDA_CFG.copy()
+FRANKA_ROBOTIQ_GRIPPER_CFG.spawn.usd_path = "https://isaac-dev.ov.nvidia.com/omni/web3/omniverse://isaac-dev.ov.nvidia.com/Users/rebeccaz@nvidia.com/IsaacLab_PR/Franka/franka_2f_85.usd"
+# FRANKA_ROBOTIQ_GRIPPER_CFG.spawn.usd_path = f"{ISAAC_NUCLEUS_DIR}/Robots/FrankaRobotics/FrankaPanda/franka.usd"
+# FRANKA_ROBOTIQ_GRIPPER_CFG.spawn.variants = {"Gripper": "Robotiq_2f_85"}
+FRANKA_ROBOTIQ_GRIPPER_CFG.spawn.rigid_props.disable_gravity = True
+FRANKA_ROBOTIQ_GRIPPER_CFG.init_state.joint_pos = {
+    "panda_joint1": 0.0,
+    "panda_joint2": -0.569,
+    "panda_joint3": 0.0,
+    "panda_joint4": -2.810,
+    "panda_joint5": 0.0,
+    "panda_joint6": 3.037,
+    "panda_joint7": 0.741,
+    "finger_joint": 0.0,
+    ".*_inner_finger_joint": 0.0,
+    ".*_inner_finger_knuckle_joint": 0.0,
+    ".*_outer_.*_joint": 0.0,
+}
+FRANKA_ROBOTIQ_GRIPPER_CFG.init_state.pos = (-0.85, 0, 0.76)
+FRANKA_ROBOTIQ_GRIPPER_CFG.actuators = (
+    {
         "panda_shoulder": ImplicitActuatorCfg(
             joint_names_expr=["panda_joint[1-4]"],
             effort_limit_sim=5200.0,
@@ -134,18 +123,18 @@ FRANKA_ROBOTIQ_GRIPPER_CFG = ArticulationCfg(
         ),
         "gripper_drive": ImplicitActuatorCfg(
             joint_names_expr=["finger_joint"],  # "right_outer_knuckle_joint" is its mimic joint
-            effort_limit_sim=16.5 * 100,
+            effort_limit_sim=1650,
             velocity_limit_sim=10.0,
-            stiffness=0.17 * 100,
-            damping=0.0002 * 100,
+            stiffness=17,
+            damping=0.02,
         ),
         # enable the gripper to grasp in a parallel manner
         "gripper_finger": ImplicitActuatorCfg(
             joint_names_expr=[".*_inner_finger_joint"],
-            effort_limit_sim=0.5 * 100,
+            effort_limit_sim=50,
             velocity_limit_sim=10.0,
-            stiffness=0.002 * 100,
-            damping=0.00001 * 100,
+            stiffness=0.2,
+            damping=0.001,
         ),
         # set PD to zero for passive joints in close-loop gripper
         "gripper_passive": ImplicitActuatorCfg(
@@ -156,5 +145,6 @@ FRANKA_ROBOTIQ_GRIPPER_CFG = ArticulationCfg(
             damping=0.0,
         ),
     },
-    soft_joint_pos_limit_factor=1.0,
 )
+
+"""Configuration of Franka Emika Panda robot with Robotiq_2f_85 gripper."""
