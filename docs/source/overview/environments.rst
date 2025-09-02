@@ -132,6 +132,10 @@ for the lift-cube environment:
     +--------------------+-------------------------+-----------------------------------------------------------------------------+
     | |gr1_pick_place|   | |gr1_pick_place-link|   | Pick up and place an object in a basket with a GR-1 humanoid robot          |
     +--------------------+-------------------------+-----------------------------------------------------------------------------+
+    | |agibot_place_mug| | |agibot_place_mug-link| | Pick up and place a mug upright with a Agibot A2D humanoid robot            |
+    +--------------------+-------------------------+-----------------------------------------------------------------------------+
+    | |agibot_place_toy| | |agibot_place_toy-link| | Pick up and place an object in a box with a Agibot A2D humanoid robot       |
+    +--------------------+-------------------------+-----------------------------------------------------------------------------+
 
 .. |reach-franka| image:: ../_static/tasks/manipulation/franka_reach.jpg
 .. |reach-ur10| image:: ../_static/tasks/manipulation/ur10_reach.jpg
@@ -141,6 +145,8 @@ for the lift-cube environment:
 .. |cube-shadow| image:: ../_static/tasks/manipulation/shadow_cube.jpg
 .. |stack-cube| image:: ../_static/tasks/manipulation/franka_stack.jpg
 .. |gr1_pick_place| image:: ../_static/tasks/manipulation/gr-1_pick_place.jpg
+.. |agibot_place_mug| image:: ../_static/tasks/manipulation/agibot_place_mug.jpg
+.. |agibot_place_toy| image:: ../_static/tasks/manipulation/agibot_place_toy.jpg
 
 .. |reach-franka-link| replace:: `Isaac-Reach-Franka-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/reach/config/franka/joint_pos_env_cfg.py>`__
 .. |reach-ur10-link| replace:: `Isaac-Reach-UR10-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/reach/config/ur_10/joint_pos_env_cfg.py>`__
@@ -159,6 +165,9 @@ for the lift-cube environment:
 .. |cube-shadow-ff-link| replace:: `Isaac-Repose-Cube-Shadow-OpenAI-FF-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/shadow_hand/shadow_hand_env_cfg.py>`__
 .. |cube-shadow-lstm-link| replace:: `Isaac-Repose-Cube-Shadow-OpenAI-LSTM-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/shadow_hand/shadow_hand_env_cfg.py>`__
 .. |cube-shadow-vis-link| replace:: `Isaac-Repose-Cube-Shadow-Vision-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/shadow_hand/shadow_hand_vision_env.py>`__
+
+.. |agibot_place_mug-link| replace:: `Isaac-Place-Mug-Agibot-Left-Arm-RmpFlow-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/place/config/agibot/place_upright_mug_rmp_rel_env_cfg.py>`__
+.. |agibot_place_toy-link| replace:: `Isaac-Place-Toy2Box-Agibot-Right-Arm-RmpFlow-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/place/config/agibot/place_toy2box_rmp_rel_env_cfg.py>`__
 
 Contact-rich Manipulation
 ~~~~~~~~~~~~~~~~~~~~~~~~~
