@@ -72,6 +72,7 @@ def setup_camera() -> tuple[sim_utils.SimulationContext, TiledCameraCfg, float]:
     sim.clear_instance()
 
 
+@pytest.mark.isaacsim_ci
 def test_single_camera_init(setup_camera):
     """Test single camera initialization."""
     sim, camera_cfg, dt = setup_camera
@@ -118,6 +119,7 @@ def test_single_camera_init(setup_camera):
     del camera
 
 
+@pytest.mark.isaacsim_ci
 def test_depth_clipping_max(setup_camera):
     """Test depth max clipping."""
     sim, _, dt = setup_camera
@@ -156,6 +158,7 @@ def test_depth_clipping_max(setup_camera):
     del camera
 
 
+@pytest.mark.isaacsim_ci
 def test_depth_clipping_none(setup_camera):
     """Test depth none clipping."""
     sim, _, dt = setup_camera
@@ -189,14 +192,16 @@ def test_depth_clipping_none(setup_camera):
 
     assert len(camera.data.output["depth"][torch.isinf(camera.data.output["depth"])]) > 0
     assert camera.data.output["depth"].min() >= camera_cfg.spawn.clipping_range[0]
-    assert (
-        camera.data.output["depth"][~torch.isinf(camera.data.output["depth"])].max()
-        <= camera_cfg.spawn.clipping_range[1]
-    )
+    if len(camera.data.output["depth"][~torch.isinf(camera.data.output["depth"])]) > 0:
+        assert (
+            camera.data.output["depth"][~torch.isinf(camera.data.output["depth"])].max()
+            <= camera_cfg.spawn.clipping_range[1]
+        )
 
     del camera
 
 
+@pytest.mark.isaacsim_ci
 def test_depth_clipping_zero(setup_camera):
     """Test depth zero clipping."""
     sim, _, dt = setup_camera
@@ -235,6 +240,7 @@ def test_depth_clipping_zero(setup_camera):
     del camera
 
 
+@pytest.mark.isaacsim_ci
 def test_multi_camera_init(setup_camera):
     """Test multi-camera initialization."""
     sim, camera_cfg, dt = setup_camera
@@ -290,6 +296,7 @@ def test_multi_camera_init(setup_camera):
     del camera
 
 
+@pytest.mark.isaacsim_ci
 def test_rgb_only_camera(setup_camera):
     """Test initialization with only RGB data type."""
     sim, camera_cfg, dt = setup_camera
@@ -342,6 +349,7 @@ def test_rgb_only_camera(setup_camera):
     del camera
 
 
+@pytest.mark.isaacsim_ci
 def test_data_types(setup_camera):
     """Test different data types for camera initialization."""
     sim, camera_cfg, dt = setup_camera
@@ -388,6 +396,7 @@ def test_data_types(setup_camera):
     del camera_both
 
 
+@pytest.mark.isaacsim_ci
 def test_depth_only_camera(setup_camera):
     """Test initialization with only depth."""
     sim, camera_cfg, dt = setup_camera
@@ -440,6 +449,7 @@ def test_depth_only_camera(setup_camera):
     del camera
 
 
+@pytest.mark.isaacsim_ci
 def test_rgba_only_camera(setup_camera):
     """Test initialization with only RGBA."""
     sim, camera_cfg, dt = setup_camera
@@ -492,6 +502,7 @@ def test_rgba_only_camera(setup_camera):
     del camera
 
 
+@pytest.mark.isaacsim_ci
 def test_distance_to_camera_only_camera(setup_camera):
     """Test initialization with only distance_to_camera."""
     sim, camera_cfg, dt = setup_camera
@@ -544,6 +555,7 @@ def test_distance_to_camera_only_camera(setup_camera):
     del camera
 
 
+@pytest.mark.isaacsim_ci
 def test_distance_to_image_plane_only_camera(setup_camera):
     """Test initialization with only distance_to_image_plane."""
     sim, camera_cfg, dt = setup_camera
@@ -596,6 +608,7 @@ def test_distance_to_image_plane_only_camera(setup_camera):
     del camera
 
 
+@pytest.mark.isaacsim_ci
 def test_normals_only_camera(setup_camera):
     """Test initialization with only normals."""
     sim, camera_cfg, dt = setup_camera
@@ -648,6 +661,7 @@ def test_normals_only_camera(setup_camera):
     del camera
 
 
+@pytest.mark.isaacsim_ci
 def test_motion_vectors_only_camera(setup_camera):
     """Test initialization with only motion_vectors."""
     sim, camera_cfg, dt = setup_camera
@@ -700,6 +714,7 @@ def test_motion_vectors_only_camera(setup_camera):
     del camera
 
 
+@pytest.mark.isaacsim_ci
 def test_semantic_segmentation_colorize_only_camera(setup_camera):
     """Test initialization with only semantic_segmentation."""
     sim, camera_cfg, dt = setup_camera
@@ -753,6 +768,7 @@ def test_semantic_segmentation_colorize_only_camera(setup_camera):
     del camera
 
 
+@pytest.mark.isaacsim_ci
 def test_instance_segmentation_fast_colorize_only_camera(setup_camera):
     """Test initialization with only instance_segmentation_fast."""
     sim, camera_cfg, dt = setup_camera
@@ -806,6 +822,7 @@ def test_instance_segmentation_fast_colorize_only_camera(setup_camera):
     del camera
 
 
+@pytest.mark.isaacsim_ci
 def test_instance_id_segmentation_fast_colorize_only_camera(setup_camera):
     """Test initialization with only instance_id_segmentation_fast."""
     sim, camera_cfg, dt = setup_camera
@@ -859,6 +876,7 @@ def test_instance_id_segmentation_fast_colorize_only_camera(setup_camera):
     del camera
 
 
+@pytest.mark.isaacsim_ci
 def test_semantic_segmentation_non_colorize_only_camera(setup_camera):
     """Test initialization with only semantic_segmentation."""
     sim, camera_cfg, dt = setup_camera
@@ -914,6 +932,7 @@ def test_semantic_segmentation_non_colorize_only_camera(setup_camera):
     del camera
 
 
+@pytest.mark.isaacsim_ci
 def test_instance_segmentation_fast_non_colorize_only_camera(setup_camera):
     """Test initialization with only instance_segmentation_fast."""
     sim, camera_cfg, dt = setup_camera
@@ -1022,6 +1041,7 @@ def test_instance_id_segmentation_fast_non_colorize_only_camera(setup_camera):
     del camera
 
 
+@pytest.mark.isaacsim_ci
 def test_all_annotators_camera(setup_camera):
     """Test initialization with all supported annotators."""
     sim, camera_cfg, dt = setup_camera
@@ -1120,6 +1140,7 @@ def test_all_annotators_camera(setup_camera):
     del camera
 
 
+@pytest.mark.isaacsim_ci
 def test_all_annotators_low_resolution_camera(setup_camera):
     """Test initialization with all supported annotators."""
     sim, camera_cfg, dt = setup_camera
@@ -1220,6 +1241,7 @@ def test_all_annotators_low_resolution_camera(setup_camera):
     del camera
 
 
+@pytest.mark.isaacsim_ci
 def test_all_annotators_non_perfect_square_number_camera(setup_camera):
     """Test initialization with all supported annotators."""
     sim, camera_cfg, dt = setup_camera
@@ -1318,6 +1340,7 @@ def test_all_annotators_non_perfect_square_number_camera(setup_camera):
     del camera
 
 
+@pytest.mark.isaacsim_ci
 def test_all_annotators_instanceable(setup_camera):
     """Test initialization with all supported annotators on instanceable assets."""
     sim, camera_cfg, dt = setup_camera
@@ -1414,7 +1437,7 @@ def test_all_annotators_instanceable(setup_camera):
                 # instance_segmentation_fast has mean 0.42
                 # instance_id_segmentation_fast has mean 0.55-0.62
                 for i in range(num_cameras):
-                    assert (im_data[i] / 255.0).mean() > 0.3
+                    assert (im_data[i] / 255.0).mean() > 0.2
             elif data_type in ["motion_vectors"]:
                 # motion vectors have mean 0.2
                 assert im_data.shape == (num_cameras, camera_cfg.height, camera_cfg.width, 2)
@@ -1447,6 +1470,7 @@ def test_all_annotators_instanceable(setup_camera):
     del camera
 
 
+@pytest.mark.isaacsim_ci
 def test_throughput(setup_camera):
     """Test tiled camera throughput."""
     sim, camera_cfg, dt = setup_camera
@@ -1483,6 +1507,7 @@ def test_throughput(setup_camera):
     del camera
 
 
+@pytest.mark.isaacsim_ci
 def test_output_equal_to_usd_camera_intrinsics(setup_camera):
     """
     Test that the output of the ray caster camera and the usd camera are the same when both are
@@ -1574,6 +1599,7 @@ def test_output_equal_to_usd_camera_intrinsics(setup_camera):
     del camera_usd
 
 
+@pytest.mark.isaacsim_ci
 def test_sensor_print(setup_camera):
     """Test sensor print is working correctly."""
     sim, camera_cfg, _ = setup_camera
@@ -1585,6 +1611,7 @@ def test_sensor_print(setup_camera):
     print(sensor)
 
 
+@pytest.mark.isaacsim_ci
 def test_frame_offset_small_resolution(setup_camera):
     """Test frame offset issue with small resolution camera."""
     sim, camera_cfg, dt = setup_camera
@@ -1592,10 +1619,15 @@ def test_frame_offset_small_resolution(setup_camera):
     camera_cfg = copy.deepcopy(camera_cfg)
     camera_cfg.height = 80
     camera_cfg.width = 80
+    camera_cfg.offset.pos = (0.0, 0.0, 0.5)
     tiled_camera = TiledCamera(camera_cfg)
     # play sim
     sim.reset()
     # simulate some steps first to make sure objects are settled
+    stage = stage_utils.get_current_stage()
+    for i in range(10):
+        prim = stage.GetPrimAtPath(f"/World/Objects/Obj_{i:02d}")
+        UsdGeom.Gprim(prim).GetOrderedXformOps()[2].Set(Gf.Vec3d(1.0, 1.0, 1.0))
     for i in range(100):
         # step simulation
         sim.step()
@@ -1605,7 +1637,6 @@ def test_frame_offset_small_resolution(setup_camera):
     image_before = tiled_camera.data.output["rgb"].clone() / 255.0
 
     # update scene
-    stage = stage_utils.get_current_stage()
     for i in range(10):
         prim = stage.GetPrimAtPath(f"/World/Objects/Obj_{i:02d}")
         color = Gf.Vec3f(0, 0, 0)
@@ -1620,9 +1651,10 @@ def test_frame_offset_small_resolution(setup_camera):
     image_after = tiled_camera.data.output["rgb"].clone() / 255.0
 
     # check difference is above threshold
-    assert torch.abs(image_after - image_before).mean() > 0.04  # images of same color should be below 0.001
+    assert torch.abs(image_after - image_before).mean() > 0.1  # images of same color should be below 0.01
 
 
+@pytest.mark.isaacsim_ci
 def test_frame_offset_large_resolution(setup_camera):
     """Test frame offset issue with large resolution camera."""
     sim, camera_cfg, dt = setup_camera
@@ -1665,7 +1697,7 @@ def test_frame_offset_large_resolution(setup_camera):
     image_after = tiled_camera.data.output["rgb"].clone() / 255.0
 
     # check difference is above threshold
-    assert torch.abs(image_after - image_before).mean() > 0.05  # images of same color should be below 0.001
+    assert torch.abs(image_after - image_before).mean() > 0.01  # images of same color should be below 0.001
 
 
 """
@@ -1685,6 +1717,8 @@ def _populate_scene():
     cfg.func("/World/Light/WhiteSphere", cfg, translation=(-4.5, 3.5, 10.0))
     # Random objects
     random.seed(0)
+    np.random.seed(0)
+    torch.manual_seed(0)
     for i in range(10):
         # sample random position
         position = np.random.rand(3) - np.asarray([0.05, 0.05, -1.0])

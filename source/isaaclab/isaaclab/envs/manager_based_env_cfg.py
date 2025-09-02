@@ -9,9 +9,10 @@ This module defines the general configuration of the environment. It includes pa
 configuring the environment instances, viewer settings, and simulation parameters.
 """
 
-from dataclasses import MISSING
+from dataclasses import MISSING, field
 
 import isaaclab.envs.mdp as mdp
+from isaaclab.devices.device_base import DevicesCfg
 from isaaclab.devices.openxr import XrCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import RecorderManagerBaseCfg as DefaultEmptyRecorderManagerCfg
@@ -121,3 +122,12 @@ class ManagerBasedEnvCfg:
 
     xr: XrCfg | None = None
     """Configuration for viewing and interacting with the environment through an XR device."""
+
+    teleop_devices: DevicesCfg = field(default_factory=DevicesCfg)
+    """Configuration for teleoperation devices."""
+
+    export_io_descriptors: bool = False
+    """Whether to export the IO descriptors for the environment. Defaults to False."""
+
+    io_descriptors_output_dir: str | None = None
+    """The directory to export the IO descriptors to. Defaults to None."""

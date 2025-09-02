@@ -6,14 +6,26 @@
 """Gamepad controller for SE(3) control."""
 
 import numpy as np
+import torch
 import weakref
 from collections.abc import Callable
+from dataclasses import dataclass
 from scipy.spatial.transform import Rotation
 
 import carb
 import omni
 
-from ..device_base import DeviceBase
+from ..device_base import DeviceBase, DeviceCfg
+
+
+@dataclass
+class Se3GamepadCfg(DeviceCfg):
+    """Configuration for SE3 gamepad devices."""
+
+    dead_zone: float = 0.01  # For gamepad devices
+    pos_sensitivity: float = 1.0
+    rot_sensitivity: float = 1.6
+    retargeters: None = None
 
 
 class Se3Gamepad(DeviceBase):
@@ -47,22 +59,23 @@ class Se3Gamepad(DeviceBase):
 
     """
 
-    def __init__(self, pos_sensitivity: float = 1.0, rot_sensitivity: float = 1.6, dead_zone: float = 0.01):
+    def __init__(
+        self,
+        cfg: Se3GamepadCfg,
+    ):
         """Initialize the gamepad layer.
 
         Args:
-            pos_sensitivity: Magnitude of input position command scaling. Defaults to 1.0.
-            rot_sensitivity: Magnitude of scale input rotation commands scaling. Defaults to 1.6.
-            dead_zone: Magnitude of dead zone for gamepad. An event value from the gamepad less than
-                this value will be ignored. Defaults to 0.01.
+            cfg: Configuration object for gamepad settings.
         """
         # turn off simulator gamepad control
         carb_settings_iface = carb.settings.get_settings()
         carb_settings_iface.set_bool("/persistent/app/omniverse/gamepadCameraControl", False)
         # store inputs
-        self.pos_sensitivity = pos_sensitivity
-        self.rot_sensitivity = rot_sensitivity
-        self.dead_zone = dead_zone
+        self.pos_sensitivity = cfg.pos_sensitivity
+        self.rot_sensitivity = cfg.rot_sensitivity
+        self.dead_zone = cfg.dead_zone
+        self._sim_device = cfg.sim_device
         # acquire omniverse interfaces
         self._appwindow = omni.appwindow.get_default_app_window()
         self._input = carb.input.acquire_input_interface()
@@ -127,11 +140,13 @@ class Se3Gamepad(DeviceBase):
         """
         self._additional_callbacks[key] = func
 
-    def advance(self) -> tuple[np.ndarray, bool]:
+    def advance(self) -> torch.Tensor:
         """Provides the result from gamepad event state.
 
         Returns:
-            A tuple containing the delta pose command and gripper commands.
+            torch.Tensor: A 7-element tensor containing:
+                - delta pose: First 6 elements as [x, y, z, rx, ry, rz] in meters and radians.
+                - gripper command: Last element as a binary value (+1.0 for open, -1.0 for close).
         """
         # -- resolve position command
         delta_pos = self._resolve_command_buffer(self._delta_pose_raw[:, :3])
@@ -140,7 +155,10 @@ class Se3Gamepad(DeviceBase):
         # -- convert to rotation vector
         rot_vec = Rotation.from_euler("XYZ", delta_rot).as_rotvec()
         # return the command and gripper state
-        return np.concatenate([delta_pos, rot_vec]), self._close_gripper
+        gripper_value = -1.0 if self._close_gripper else 1.0
+        delta_pose = np.concatenate([delta_pos, rot_vec])
+        command = np.append(delta_pose, gripper_value)
+        return torch.tensor(command, dtype=torch.float32, device=self._sim_device)
 
     """
     Internal helpers.

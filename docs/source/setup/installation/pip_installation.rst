@@ -24,10 +24,9 @@ If you encounter any issues, please report them to the
 
 .. attention::
 
-   On Windows with CUDA 12, the GPU driver version 552.86 is required.
+   For details on driver requirements, please see the `Technical Requirements <https://docs.omniverse.nvidia.com/materials-and-rendering/latest/common/technical-requirements.html>`_ guide!
 
-   Also, on Windows, it may be necessary to `enable long path <https://pip.pypa.io/warnings/enable-long-paths>`_
-   support to avoid installation errors due to OS limitations.
+   On Windows, it may be necessary to `enable long path support <https://learn.microsoft.com/en-us/windows/win32/fileio/maximum-file-path-limitation?tabs=registry#enable-long-paths-in-windows-10-version-1607-and-later>`_ to avoid installation errors due to OS limitations.
 
 .. attention::
 
@@ -39,7 +38,7 @@ If you encounter any issues, please report them to the
    If you use Conda, we recommend using `Miniconda <https://docs.anaconda.com/miniconda/miniconda-other-installer-links/>`_.
 
 -  To use the pip installation approach for Isaac Sim, we recommend first creating a virtual environment.
-   Ensure that the python version of the virtual environment is **Python 3.10**.
+   Ensure that the python version of the virtual environment is **Python 3.11**.
 
    .. tab-set::
 
@@ -47,7 +46,7 @@ If you encounter any issues, please report them to the
 
          .. code-block:: bash
 
-            conda create -n env_isaaclab python=3.10
+            conda create -n env_isaaclab python=3.11
             conda activate env_isaaclab
 
       .. tab-item:: venv environment
@@ -60,8 +59,8 @@ If you encounter any issues, please report them to the
 
                .. code-block:: bash
 
-                  # create a virtual environment named env_isaaclab with python3.10
-                  python3.10 -m venv env_isaaclab
+                  # create a virtual environment named env_isaaclab with python3.11
+                  python3.11 -m venv env_isaaclab
                   # activate the virtual environment
                   source env_isaaclab/bin/activate
 
@@ -70,17 +69,11 @@ If you encounter any issues, please report them to the
 
                .. code-block:: batch
 
-                  # create a virtual environment named env_isaaclab with python3.10
-                  python3.10 -m venv env_isaaclab
+                  # create a virtual environment named env_isaaclab with python3.11
+                  python3.11 -m venv env_isaaclab
                   # activate the virtual environment
                   env_isaaclab\Scripts\activate
 
-
--  Next, install a CUDA-enabled PyTorch 2.7.0 build. This step is optional for Linux, but required for Windows to ensure a CUDA-compatible version of PyTorch is installed.
-
-   .. code-block:: bash
-
-      pip install torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
 
 -  Before installing Isaac Sim, ensure the latest pip version is installed. To update pip, run
 
@@ -101,11 +94,19 @@ If you encounter any issues, please report them to the
 
             python -m pip install --upgrade pip
 
+
+-  Next, install a CUDA-enabled PyTorch 2.7.0 build.
+
+   .. code-block:: bash
+
+      pip install torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
+
+
 -  Then, install the Isaac Sim packages.
 
    .. code-block:: none
 
-      pip install 'isaacsim[all,extscache]==4.5.0' --extra-index-url https://pypi.nvidia.com
+      pip install "isaacsim[all,extscache]==5.0.0" --extra-index-url https://pypi.nvidia.com
 
 
 Verifying the Isaac Sim installation

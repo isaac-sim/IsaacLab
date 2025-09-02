@@ -14,18 +14,21 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 
 """Rest everything follows."""
 
+import os
 import toml
 
 import carb
 import flatdict
 import pytest
 from isaacsim.core.utils.carb import get_carb_setting
+from isaacsim.core.version import get_version
 
 from isaaclab.sim.simulation_cfg import RenderCfg, SimulationCfg
 from isaaclab.sim.simulation_context import SimulationContext
 
 
 @pytest.mark.skip(reason="Timeline not stopped")
+@pytest.mark.isaacsim_ci
 def test_render_cfg():
     """Test that the simulation context is created with the correct render cfg."""
     enable_translucency = True
@@ -90,6 +93,7 @@ def test_render_cfg():
     assert carb_settings_iface.get("/rtx/post/aa/op") == 4  # dlss = 3, dlaa=4
 
 
+@pytest.mark.isaacsim_ci
 def test_render_cfg_presets():
     """Test that the simulation context is created with the correct render cfg preset with overrides."""
 
@@ -98,11 +102,18 @@ def test_render_cfg_presets():
     # user-friendly setting overrides
     dlss_mode = ("/rtx/post/dlss/execMode", 5)
 
-    rendering_modes = ["performance", "balanced", "quality", "xr"]
+    rendering_modes = ["performance", "balanced", "quality"]
 
     for rendering_mode in rendering_modes:
-        # grab groundtruth preset settings
-        preset_filename = f"apps/rendering_modes/{rendering_mode}.kit"
+        # grab isaac lab apps path
+        isaaclab_app_exp_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), *[".."] * 4, "apps")
+        # for Isaac Sim 4.5 compatibility, we use the 4.5 rendering mode app files in a different folder
+        isaac_sim_version = float(".".join(get_version()[2]))
+        if isaac_sim_version < 5:
+            isaaclab_app_exp_path = os.path.join(isaaclab_app_exp_path, "isaacsim_4_5")
+
+        # grab preset settings
+        preset_filename = os.path.join(isaaclab_app_exp_path, f"rendering_modes/{rendering_mode}.kit")
         with open(preset_filename) as file:
             preset_dict = toml.load(file)
         preset_dict = dict(flatdict.FlatDict(preset_dict, delimiter="."))
@@ -137,6 +148,7 @@ def test_render_cfg_presets():
 
 
 @pytest.mark.skip(reason="Timeline not stopped")
+@pytest.mark.isaacsim_ci
 def test_render_cfg_defaults():
     """Test that the simulation context is created with the correct render cfg."""
     enable_translucency = False
