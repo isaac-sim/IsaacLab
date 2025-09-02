@@ -47,69 +47,9 @@ from isaaclab.controllers.config.rmp_flow import AGIBOT_RIGHT_ARM_RMPFLOW_CFG  #
 class EventCfgPlaceToy2Box:
     """Configuration for events."""
 
-    """
-    joint_names:
-        ['joint_lift_body', 'joint_body_pitch', 'joint_head_yaw', 'joint_head_pitch',
-        'left_arm_joint1', 'right_arm_joint1', 'left_arm_joint2', 'right_arm_joint2', 'left_arm_joint3', 'right_arm_joint3',
-        'left_arm_joint4', 'right_arm_joint4', 'left_arm_joint5', 'right_arm_joint5', 'left_arm_joint6', 'right_arm_joint6', 'left_arm_joint7', 'right_arm_joint7',
-        'left_Right_1_Joint', 'left_hand_joint1', 'right_Right_1_Joint', 'right_hand_joint1', 'left_Right_0_Joint', 'left_Left_0_Joint',
-        'right_Right_0_Joint', 'right_Left_0_Joint', 'left_Right_Support_Joint', 'left_Left_Support_Joint', 'right_Right_Support_Joint', 'right_Left_Support_Joint',
-        'left_Right_RevoluteJoint', 'left_Left_RevoluteJoint','right_Right_RevoluteJoint', 'right_Left_RevoluteJoint']
-    """
-    init_galbot_arm_pose = EventTerm(
-        func=franka_stack_events.set_default_joint_pose,
-        mode="reset",
-        params={
-            "default_pose": [
-                0.1995,
-                0.6025,
-                0.0,
-                0.6708,  # body joints
-                -1.0817,
-                -1.04,
-                0.5907,
-                1.40,
-                0.3442,
-                0.35,
-                -1.2819,
-                1.40,
-                0.6928,
-                -1.52,
-                1.4725,
-                -0.30,
-                -0.1599,
-                0.0,  # left & right arm joints
-                0.0,
-                0.994,
-                0.0,
-                0.994,
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                0.994,
-                0.994,
-                0.994,
-                0.994,
-                0.0,
-                0.0,
-                0.0,
-                0.0,  # gripper joints
-            ],
-        },
-    )
+    reset_all = EventTerm(func=mdp.reset_scene_to_default, mode="reset")
 
-    randomize_franka_joint_state = EventTerm(
-        func=franka_stack_events.randomize_joint_by_gaussian_offset,
-        mode="reset",
-        params={
-            "mean": 0.0,
-            "std": 0.0,
-            "asset_cfg": SceneEntityCfg("robot"),
-        },
-    )
-
-    init_toy_positions = EventTerm(
+    init_toy_position = EventTerm(
         func=franka_stack_events.randomize_object_pose,
         mode="reset",
         params={
@@ -120,11 +60,10 @@ class EventCfgPlaceToy2Box:
                 "roll": (1.57, 1.57),
                 "yaw": (-3.14, 3.14),
             },
-            "min_separation": 0.15,
             "asset_cfgs": [SceneEntityCfg("toy_truck")],
         },
     )
-    init_box_positions = EventTerm(
+    init_box_position = EventTerm(
         func=franka_stack_events.randomize_object_pose,
         mode="reset",
         params={
@@ -135,7 +74,6 @@ class EventCfgPlaceToy2Box:
                 "roll": (1.57, 1.57),
                 "yaw": (-3.14, 3.14),
             },
-            "min_separation": 0.15,
             "asset_cfgs": [SceneEntityCfg("box")],
         },
     )
@@ -309,9 +247,9 @@ class RmpFlowAgibotPlaceToy2BoxEnvCfg(PlaceToy2BoxEnvCfg):
         # Enable Parallel Gripper:
         self.actions.gripper_action = mdp.BinaryJointPositionActionCfg(
             asset_name="robot",
-            joint_names=["right_hand_joint1", ".*Support_Joint"],
-            open_command_expr={"right_hand_joint1": 0.994, ".*Support_Joint": 0.994},
-            close_command_expr={"right_hand_joint1": 0.20, ".*Support_Joint": 0.20},
+            joint_names=["right_hand_joint1", "right_.*_Support_Joint"],
+            open_command_expr={"right_hand_joint1": 0.994, "right_.*_Support_Joint": 0.994},
+            close_command_expr={"right_hand_joint1": 0.20, "right_.*_Support_Joint": 0.20},
         )
 
         # find joint ids for grippers
@@ -373,7 +311,7 @@ class RmpFlowAgibotPlaceToy2BoxEnvCfg(PlaceToy2BoxEnvCfg):
 
         self.scene.ee_frame = FrameTransformerCfg(
             prim_path="{ENV_REGEX_NS}/Robot/base_link",
-            debug_vis=True,
+            debug_vis=False,
             visualizer_cfg=self.marker_cfg,
             target_frames=[
                 FrameTransformerCfg.FrameCfg(

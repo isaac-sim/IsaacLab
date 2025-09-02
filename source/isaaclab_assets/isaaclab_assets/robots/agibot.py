@@ -36,22 +36,46 @@ AGIBOT_A2D_CFG = ArticulationCfg(
     ),
     init_state=ArticulationCfg.InitialStateCfg(
         joint_pos={
-            # Lift joint initial position
-            "joint_lift_body": 0.0,
-            # Torso pitch joint initial position
-            "joint_body_pitch": 0.0,
-            # Head joints initial position
+            # Body joints
+            "joint_lift_body": 0.1995,
+            "joint_body_pitch": 0.6025,
+            # Head joints
             "joint_head_yaw": 0.0,
-            "joint_head_pitch": 0.0,
-            # Left arm joints initial position
-            "left_arm_joint[1-7]": 0.0,
-            # Right arm joints initial position
-            "right_arm_joint[1-7]": 0.0,
-            # Left and right gripper initial position
-            ".*_hand_joint1": 0.994,
-            ".*_Support_Joint": 0.994,
-            ".*_(0|1)_Joint": 0.0,
-            ".*_RevoluteJoint": 0.0,
+            "joint_head_pitch": 0.6708,
+            # Left arm joints
+            "left_arm_joint1": -1.0817,
+            "left_arm_joint2": 0.5907,
+            "left_arm_joint3": 0.3442,
+            "left_arm_joint4": -1.2819,
+            "left_arm_joint5": 0.6928,
+            "left_arm_joint6": 1.4725,
+            "left_arm_joint7": -0.1599,
+            # Right arm joints
+            "right_arm_joint1": 1.0817,
+            "right_arm_joint2": -0.5907,
+            "right_arm_joint3": -0.3442,
+            "right_arm_joint4": 1.2819,
+            "right_arm_joint5": -0.6928,
+            "right_arm_joint6": -0.7,
+            "right_arm_joint7": 0.0,
+            # Left gripper joints
+            "left_Right_1_Joint": 0.0,
+            "left_hand_joint1": 0.994,
+            "left_Right_0_Joint": 0.0,
+            "left_Left_0_Joint": 0.0,
+            "left_Right_Support_Joint": 0.994,
+            "left_Left_Support_Joint": 0.994,
+            "left_Right_RevoluteJoint": 0.0,
+            "left_Left_RevoluteJoint": 0.0,
+            # Right gripper joints
+            "right_Right_1_Joint": 0.0,
+            "right_hand_joint1": 0.994,
+            "right_Right_0_Joint": 0.0,
+            "right_Left_0_Joint": 0.0,
+            "right_Right_Support_Joint": 0.994,
+            "right_Left_Support_Joint": 0.994,
+            "right_Right_RevoluteJoint": 0.0,
+            "right_Left_RevoluteJoint": 0.0,
         },
         pos=(-0.6, 0.0, -1.05),  # init pos of the articulation for teleop
     ),
