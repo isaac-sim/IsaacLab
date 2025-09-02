@@ -94,6 +94,7 @@ jobs:
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
 
     - name: Run General Tests
+      id: run-general-tests
       uses: ./.github/actions/run-tests
       with:
         test-path: "tools"
@@ -119,6 +120,12 @@ jobs:
         path: reports/general-tests-report.xml
         retention-days: 1
         compression-level: 9
+
+    - name: Fail on Test Failure for Fork PRs
+      if: github.event.pull_request.head.repo.full_name != github.repository && steps.run-general-tests.outcome == 'failure'
+      run: |
+        echo "Tests failed for PR from fork. The test report is in the logs. Failing the job."
+        exit 1
 
   combine-results:
     needs: [test-isaaclab-tasks, test-general]
@@ -166,6 +173,7 @@ jobs:
 
     - name: Comment on Test Results
       id: test-reporter
+      if: github.event.pull_request.head.repo.full_name == github.repository
       uses: EnricoMi/publish-unit-test-result-action@v2
       with:
         files: "reports/combined-results.xml"
@@ -179,6 +187,7 @@ jobs:
         action_fail_on_inconclusive: true
 
     - name: Report Test Results
+      if: github.event.pull_request.head.repo.full_name == github.repository
       uses: dorny/test-reporter@v1
       with:
         name: IsaacLab Build and Test Results
