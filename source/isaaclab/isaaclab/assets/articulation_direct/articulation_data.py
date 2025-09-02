@@ -113,21 +113,21 @@ class ArticulationData:
 
         # Initialize the lazy buffers.
         # -- link frame w.r.t. world frame
-        self._root_link_pose_w = TimestampedWarpBuffer(shape=(self._root_newton_view.count), dtype=wp.transformf)
+        #self._root_link_pose_w = TimestampedWarpBuffer(shape=(self._root_newton_view.count), dtype=wp.transformf)
         self._root_link_vel_w = TimestampedWarpBuffer(shape=(self._root_newton_view.count), dtype=wp.spatial_vectorf)
         self._root_link_vel_b = TimestampedWarpBuffer(shape=(self._root_newton_view.count), dtype=wp.spatial_vectorf)
-        self._body_link_pose_w = TimestampedWarpBuffer(shape=(self._root_newton_view.count, self._root_newton_view.num_bodies), dtype=wp.transformf)
+        #self._body_link_pose_w = TimestampedWarpBuffer(shape=(self._root_newton_view.count, self._root_newton_view.num_bodies), dtype=wp.transformf)
         self._body_link_vel_w = TimestampedWarpBuffer(shape=(self._root_newton_view.count, self._root_newton_view.num_bodies), dtype=wp.spatial_vectorf)
         self._projected_gravity_b = TimestampedWarpBuffer(shape=(self._root_newton_view.count, 3), dtype=wp.vec3f)
         self._heading_w = TimestampedWarpBuffer(shape=(self._root_newton_view.count), dtype=wp.float32)
         # -- com frame w.r.t. link frame
-        self._body_com_position_b = TimestampedWarpBuffer(shape=(self._root_newton_view.count, self._root_newton_view.num_bodies), dtype=wp.vec3f)
+        #self._body_com_position_b = TimestampedWarpBuffer(shape=(self._root_newton_view.count, self._root_newton_view.num_bodies), dtype=wp.vec3f)
         # -- com frame w.r.t. world frame
         self._root_com_pose_w = TimestampedWarpBuffer(shape=(self._root_newton_view.count), dtype=wp.transformf)
-        self._root_com_vel_w = TimestampedWarpBuffer(shape=(self._root_newton_view.count), dtype=wp.spatial_vectorf)
+        #self._root_com_vel_w = TimestampedWarpBuffer(shape=(self._root_newton_view.count), dtype=wp.spatial_vectorf)
         self._root_com_vel_b = TimestampedWarpBuffer(shape=(self._root_newton_view.count), dtype=wp.spatial_vectorf)
         self._body_com_pose_w = TimestampedWarpBuffer(shape=(self._root_newton_view.count, self._root_newton_view.num_bodies), dtype=wp.transformf)
-        self._body_com_vel_w = TimestampedWarpBuffer(shape=(self._root_newton_view.count, self._root_newton_view.num_bodies), dtype=wp.spatial_vectorf)
+        #self._body_com_vel_w = TimestampedWarpBuffer(shape=(self._root_newton_view.count, self._root_newton_view.num_bodies), dtype=wp.spatial_vectorf)
         self._body_com_acc_w = TimestampedWarpBuffer(shape=(self._root_newton_view.count, self._root_newton_view.num_bodies), dtype=wp.spatial_vectorf)
         # -- joint state
         self._joint_pos = TimestampedWarpBuffer(shape=(self._root_newton_view.count, self._root_newton_view.num_joints), dtype=wp.float32)
@@ -135,12 +135,16 @@ class ArticulationData:
         self._joint_acc = TimestampedWarpBuffer(shape=(self._root_newton_view.count, self._root_newton_view.num_joints), dtype=wp.float32)
         #self._body_incoming_joint_wrench_b = TimestampedWarpBuffer()
 
+    def get_from_newton(self, name: str, container):
+        return self._root_newton_view.get_attribute(name, container)
+
     def update(self, dt: float):
         # update the simulation timestamp
         self._sim_timestamp += dt
         # Trigger an update of the joint acceleration buffer at a higher frequency
         # since we do finite differencing.
         self.joint_acc
+        self.body_com_acc_w
 
     ##
     # Names.
@@ -162,157 +166,117 @@ class ArticulationData:
     # Defaults - Initial state.
     ##
 
-    default_root_state: torch.Tensor = None
-    """Default root state ``[pos, quat, lin_vel, ang_vel]`` in the local environment frame. Shape is (num_instances, 13).
+    default_root_pose: wp.array = None
+    """Default root pose ``[pos, quat]`` in the local environment frame. Shape is (num_instances, 7).
 
-    The position and quaternion are of the articulation root's actor frame. Meanwhile, the linear and angular
-    velocities are of its center of mass frame.
+    The position and quaternion are of the articulation root's actor frame.
 
     This quantity is configured through the :attr:`isaaclab.assets.ArticulationCfg.init_state` parameter.
     """
 
-    default_joint_pos: torch.Tensor = None
+    default_root_vel: wp.array = None
+    """Default root velocity ``[lin_vel, ang_vel]`` in the local environment frame. Shape is (num_instances, 6).
+    
+    The linear and angular velocities are of the articulation root's center of mass frame.
+    
+    This quantity is configured through the :attr:`isaaclab.assets.ArticulationCfg.init_state` parameter.
+    """
+
+    default_joint_pos: wp.array = None
     """Default joint positions of all joints. Shape is (num_instances, num_joints).
 
     This quantity is configured through the :attr:`isaaclab.assets.ArticulationCfg.init_state` parameter.
     """
 
-    default_joint_vel: torch.Tensor = None
+    default_joint_vel: wp.array = None
     """Default joint velocities of all joints. Shape is (num_instances, num_joints).
 
     This quantity is configured through the :attr:`isaaclab.assets.ArticulationCfg.init_state` parameter.
     """
+    ##
+    # Root state properties. (Directly binded to the simulation)
+    ##
+
+    root_link_pose_w: wp.array = None
+    """Root link pose ``wp.transformf`` in the world frame. Shape is (num_instances,).
+    
+    The pose is in the form of [pos, quat]. The orientation is provided in (x, y, z, w) format.
+    """
+
+    root_com_vel_w: wp.array = None
+    """Root center of mass velocity ``wp.spatial_vectorf`` in the world frame. Shape is (num_instances,).
+    
+    The velocity is in the form of [ang_vel, lin_vel].
+    """
 
     ##
-    # Defaults - Physical properties.
+    # Body state properties. (Directly binded to the simulation)
     ##
 
-    default_mass: torch.Tensor = None
-    """Default mass for all the bodies in the articulation. Shape is (num_instances, num_bodies).
-
-    This quantity is parsed from the USD schema at the time of initialization.
+    body_link_pose_w: wp.array = None
+    """Body link pose ``wp.transformf`` in the world frame. Shape is (num_instances, num_bodies).
+    
+    The pose is in the form of [pos, quat]. The orientation is provided in (x, y, z, w) format.
     """
 
-    default_inertia: torch.Tensor = None
-    """Default inertia for all the bodies in the articulation. Shape is (num_instances, num_bodies, 9).
-
-    The inertia is the inertia tensor relative to the center of mass frame. The values are stored in
-    the order :math:`[I_{xx}, I_{xy}, I_{xz}, I_{yx}, I_{yy}, I_{yz}, I_{zx}, I_{zy}, I_{zz}]`.
-
-    This quantity is parsed from the USD schema at the time of initialization.
+    body_com_vel_w: wp.array = None
+    """Body center of mass velocity ``wp.spatial_vectorf`` in the world frame. Shape is (num_instances, num_bodies).
+    
+    The velocity is in the form of [ang_vel, lin_vel].
     """
+    
+    body_com_pos_b: wp.array = None
+    """Center of mass pose ``wp.transformf`` of all bodies in their respective body's link frames.
 
-    default_joint_stiffness: torch.Tensor = None
-    """Default joint stiffness of all joints. Shape is (num_instances, num_joints).
-
-    This quantity is configured through the actuator model's :attr:`isaaclab.actuators.ActuatorBaseCfg.stiffness`
-    parameter. If the parameter's value is None, the value parsed from the USD schema, at the time of initialization,
-    is used.
-
-    .. attention::
-        The default stiffness is the value configured by the user or the value parsed from the USD schema.
-        It should not be confused with :attr:`joint_stiffness`, which is the value set into the simulation.
-    """
-
-    default_joint_damping: torch.Tensor = None
-    """Default joint damping of all joints. Shape is (num_instances, num_joints).
-
-    This quantity is configured through the actuator model's :attr:`isaaclab.actuators.ActuatorBaseCfg.damping`
-    parameter. If the parameter's value is None, the value parsed from the USD schema, at the time of initialization,
-    is used.
-
-    .. attention::
-        The default stiffness is the value configured by the user or the value parsed from the USD schema.
-        It should not be confused with :attr:`joint_damping`, which is the value set into the simulation.
-    """
-
-    default_joint_armature: torch.Tensor = None
-    """Default joint armature of all joints. Shape is (num_instances, num_joints).
-
-    This quantity is configured through the actuator model's :attr:`isaaclab.actuators.ActuatorBaseCfg.armature`
-    parameter. If the parameter's value is None, the value parsed from the USD schema, at the time of initialization,
-    is used.
-    """
-
-    default_joint_friction_coeff: torch.Tensor = None
-    """Default joint friction coefficient of all joints. Shape is (num_instances, num_joints).
-
-    This quantity is configured through the actuator model's :attr:`isaaclab.actuators.ActuatorBaseCfg.friction`
-    parameter. If the parameter's value is None, the value parsed from the USD schema, at the time of initialization,
-    is used.
-    """
-
-    default_joint_pos_limits: torch.Tensor = None
-    """Default joint position limits of all joints. Shape is (num_instances, num_joints, 2).
-
-    The limits are in the order :math:`[lower, upper]`. They are parsed from the USD schema at the time of initialization.
-    """
-    default_fixed_tendon_stiffness: torch.Tensor = None
-    """Default tendon stiffness of all fixed tendons. Shape is (num_instances, num_fixed_tendons).
-
-    This quantity is parsed from the USD schema at the time of initialization.
-    """
-
-    default_fixed_tendon_damping: torch.Tensor = None
-    """Default tendon damping of all fixed tendons. Shape is (num_instances, num_fixed_tendons).
-
-    This quantity is parsed from the USD schema at the time of initialization.
-    """
-
-    default_fixed_tendon_limit_stiffness: torch.Tensor = None
-    """Default tendon limit stiffness of all fixed tendons. Shape is (num_instances, num_fixed_tendons).
-
-    This quantity is parsed from the USD schema at the time of initialization.
-    """
-
-    default_fixed_tendon_rest_length: torch.Tensor = None
-    """Default tendon rest length of all fixed tendons. Shape is (num_instances, num_fixed_tendons).
-
-    This quantity is parsed from the USD schema at the time of initialization.
-    """
-
-    default_fixed_tendon_offset: torch.Tensor = None
-    """Default tendon offset of all fixed tendons. Shape is (num_instances, num_fixed_tendons).
-
-    This quantity is parsed from the USD schema at the time of initialization.
-    """
-
-    default_fixed_tendon_pos_limits: torch.Tensor = None
-    """Default tendon position limits of all fixed tendons. Shape is (num_instances, num_fixed_tendons, 2).
-
-    The position limits are in the order :math:`[lower, upper]`. They are parsed from the USD schema at the time of
-    initialization.
-    """
-
-    default_spatial_tendon_stiffness: torch.Tensor = None
-    """Default tendon stiffness of all spatial tendons. Shape is (num_instances, num_spatial_tendons).
-
-    This quantity is parsed from the USD schema at the time of initialization.
-    """
-
-    default_spatial_tendon_damping: torch.Tensor = None
-    """Default tendon damping of all spatial tendons. Shape is (num_instances, num_spatial_tendons).
-
-    This quantity is parsed from the USD schema at the time of initialization.
-    """
-
-    default_spatial_tendon_limit_stiffness: torch.Tensor = None
-    """Default tendon limit stiffness of all spatial tendons. Shape is (num_instances, num_spatial_tendons).
-
-    This quantity is parsed from the USD schema at the time of initialization.
-    """
-
-    default_spatial_tendon_offset: torch.Tensor = None
-    """Default tendon offset of all spatial tendons. Shape is (num_instances, num_spatial_tendons).
-
-    This quantity is parsed from the USD schema at the time of initialization.
+    Shapes are (num_instances, num_bodies,). The pose is in the form of [pos, quat].
+    This quantity is the pose of the center of mass frame of the rigid body relative to the body's link frame.
+    The orientation is provided in (x, y, z, w) format.
     """
 
     ##
     # Joint commands -- Set into simulation.
     ##
 
-    joint_control_mode: torch.Tensor = None
+    joint_target: wp.array = None
+    """Joint position targets commanded by the user. Shape is (num_instances, num_joints).
+
+    For an implicit actuator model, the targets are directly set into the simulation.
+    For an explicit actuator model, the targets are used to compute the joint torques (see :attr:`applied_torque`),
+    which are then set into the simulation.
+    """
+
+    joint_effort_target: wp.array = None
+    """Joint effort targets commanded by the user. Shape is (num_instances, num_joints).
+
+    For an implicit actuator model, the targets are directly set into the simulation.
+    For an explicit actuator model, the targets are used to compute the joint torques (see :attr:`applied_torque`),
+    which are then set into the simulation.
+    """
+
+    ##
+    # Joint commands -- Explicit actuators.
+    ##
+
+    computed_torque: wp.array = None
+    """Joint torques computed from the actuator model (before clipping). Shape is (num_instances, num_joints).
+
+    This quantity is the raw torque output from the actuator mode, before any clipping is applied.
+    It is exposed for users who want to inspect the computations inside the actuator model.
+    For instance, to penalize the learning agent for a difference between the computed and applied torques.
+    """
+
+    applied_torque: wp.array = None
+    """Joint torques applied from the actuator model (after clipping). Shape is (num_instances, num_joints).
+
+    These torques are set into the simulation, after clipping the :attr:`computed_torque` based on the
+    actuator model.
+    """
+
+    ##
+    # Joint properties. (Directly binded to the simulation)
+    ##
+
+    joint_control_mode: wp.array = None
     """Joint control mode. Shape is (num_instances, num_joints).
 
     When using implicit actuator models Newton needs to know how the joints are controlled.
@@ -325,80 +289,41 @@ class ArticulationData:
     This quantity is set by the :meth:`Articulation.write_joint_control_mode_to_sim` method.
     """
 
-    joint_target: torch.Tensor = None
-    """Joint position targets commanded by the user. Shape is (num_instances, num_joints).
-
-    For an implicit actuator model, the targets are directly set into the simulation.
-    For an explicit actuator model, the targets are used to compute the joint torques (see :attr:`applied_torque`),
-    which are then set into the simulation.
-    """
-
-    joint_effort_target: torch.Tensor = None
-    """Joint effort targets commanded by the user. Shape is (num_instances, num_joints).
-
-    For an implicit actuator model, the targets are directly set into the simulation.
-    For an explicit actuator model, the targets are used to compute the joint torques (see :attr:`applied_torque`),
-    which are then set into the simulation.
-    """
-
-    ##
-    # Joint commands -- Explicit actuators.
-    ##
-
-    computed_torque: torch.Tensor = None
-    """Joint torques computed from the actuator model (before clipping). Shape is (num_instances, num_joints).
-
-    This quantity is the raw torque output from the actuator mode, before any clipping is applied.
-    It is exposed for users who want to inspect the computations inside the actuator model.
-    For instance, to penalize the learning agent for a difference between the computed and applied torques.
-    """
-
-    applied_torque: torch.Tensor = None
-    """Joint torques applied from the actuator model (after clipping). Shape is (num_instances, num_joints).
-
-    These torques are set into the simulation, after clipping the :attr:`computed_torque` based on the
-    actuator model.
-    """
-
-    ##
-    # Joint properties.
-    ##
-
-    joint_stiffness: torch.Tensor = None
+    joint_stiffness: wp.array = None
     """Joint stiffness provided to the simulation. Shape is (num_instances, num_joints).
 
     In the case of explicit actuators, the value for the corresponding joints is zero.
     """
 
-    joint_damping: torch.Tensor = None
+    joint_damping: wp.array = None
     """Joint damping provided to the simulation. Shape is (num_instances, num_joints)
 
     In the case of explicit actuators, the value for the corresponding joints is zero.
     """
 
-    joint_armature: torch.Tensor = None
+    joint_armature: wp.array = None
     """Joint armature provided to the simulation. Shape is (num_instances, num_joints)."""
 
-    joint_friction_coeff: torch.Tensor = None
+    joint_friction_coeff: wp.array = None
     """Joint friction coefficient provided to the simulation. Shape is (num_instances, num_joints)."""
 
-    joint_pos_limits: torch.Tensor = None
-    """Joint position limits provided to the simulation. Shape is (num_instances, num_joints, 2).
+    joint_pos_limits_lower: wp.array = None
+    """Joint position limits lower provided to the simulation. Shape is (num_instances, num_joints)."""
 
-    The limits are in the order :math:`[lower, upper]`.
-    """
+    joint_pos_limits_upper: wp.array = None
+    """Joint position limits upper provided to the simulation. Shape is (num_instances, num_joints)."""
 
-    joint_vel_limits: torch.Tensor = None
+    joint_vel_limits: wp.array = None
     """Joint maximum velocity provided to the simulation. Shape is (num_instances, num_joints)."""
 
-    joint_effort_limits: torch.Tensor = None
+    joint_effort_limits: wp.array = None
     """Joint maximum effort provided to the simulation. Shape is (num_instances, num_joints)."""
 
     ##
     # Joint properties - Custom.
     ##
 
-    soft_joint_pos_limits: torch.Tensor = None
+    soft_joint_pos_limits: wp.array = None
     r"""Soft joint positions limits for all joints. Shape is (num_instances, num_joints, 2).
 
     The limits are in the order :math:`[lower, upper]`.The soft joint position limits are computed as
@@ -417,52 +342,52 @@ class ArticulationData:
     simulation, but is useful for learning agents to prevent the joint positions from violating the limits.
     """
 
-    soft_joint_vel_limits: torch.Tensor = None
+    soft_joint_vel_limits: wp.array = None
     """Soft joint velocity limits for all joints. Shape is (num_instances, num_joints).
 
     These are obtained from the actuator model. It may differ from :attr:`joint_vel_limits` if the actuator model
     has a variable velocity limit model. For instance, in a variable gear ratio actuator model.
     """
 
-    gear_ratio: torch.Tensor = None
+    gear_ratio: wp.array = None
     """Gear ratio for relating motor torques to applied Joint torques. Shape is (num_instances, num_joints)."""
 
     ##
     # Fixed tendon properties.
     ##
 
-    fixed_tendon_stiffness: torch.Tensor = None
+    fixed_tendon_stiffness: wp.array = None
     """Fixed tendon stiffness provided to the simulation. Shape is (num_instances, num_fixed_tendons)."""
 
-    fixed_tendon_damping: torch.Tensor = None
+    fixed_tendon_damping: wp.array = None
     """Fixed tendon damping provided to the simulation. Shape is (num_instances, num_fixed_tendons)."""
 
-    fixed_tendon_limit_stiffness: torch.Tensor = None
+    fixed_tendon_limit_stiffness: wp.array = None
     """Fixed tendon limit stiffness provided to the simulation. Shape is (num_instances, num_fixed_tendons)."""
 
-    fixed_tendon_rest_length: torch.Tensor = None
+    fixed_tendon_rest_length: wp.array = None
     """Fixed tendon rest length provided to the simulation. Shape is (num_instances, num_fixed_tendons)."""
 
-    fixed_tendon_offset: torch.Tensor = None
+    fixed_tendon_offset: wp.array = None
     """Fixed tendon offset provided to the simulation. Shape is (num_instances, num_fixed_tendons)."""
 
-    fixed_tendon_pos_limits: torch.Tensor = None
+    fixed_tendon_pos_limits: wp.array = None
     """Fixed tendon position limits provided to the simulation. Shape is (num_instances, num_fixed_tendons, 2)."""
 
     ##
     # Spatial tendon properties.
     ##
 
-    spatial_tendon_stiffness: torch.Tensor = None
+    spatial_tendon_stiffness: wp.array = None
     """Spatial tendon stiffness provided to the simulation. Shape is (num_instances, num_spatial_tendons)."""
 
-    spatial_tendon_damping: torch.Tensor = None
+    spatial_tendon_damping: wp.array = None
     """Spatial tendon damping provided to the simulation. Shape is (num_instances, num_spatial_tendons)."""
 
-    spatial_tendon_limit_stiffness: torch.Tensor = None
+    spatial_tendon_limit_stiffness: wp.array = None
     """Spatial tendon limit stiffness provided to the simulation. Shape is (num_instances, num_spatial_tendons)."""
 
-    spatial_tendon_offset: torch.Tensor = None
+    spatial_tendon_offset: wp.array = None
     """Spatial tendon offset provided to the simulation. Shape is (num_instances, num_spatial_tendons)."""
 
     ##
@@ -477,11 +402,8 @@ class ArticulationData:
         This quantity is the pose of the articulation root's actor frame relative to the world.
         The orientation is provided in (x, y, z, w) format.
         """
-        if self._root_link_pose_w.timestamp < self._sim_timestamp:
-            self._root_link_pose_w.data = self._root_newton_view.get_root_transforms(NewtonManager.get_state_0())
-            # set the buffer data and timestamp
-            self._root_link_pose_w.timestamp = self._sim_timestamp
-        return self._root_link_pose_w.data
+        
+        return self._root_newton_view.get_root_transforms(NewtonManager.get_state_0())
 
     @property
     def root_link_vel_w(self) -> wp.array:
@@ -493,11 +415,12 @@ class ArticulationData:
         """
         if self._root_link_vel_w.timestamp < self._sim_timestamp:
             wp.launch(
-                project_linear_velocity_to_link_frame,
+                project_com_velocity_to_link_frame_batch,
                 dim=(self._root_newton_view.count),
                 device=self.device,
                 inputs=[
                     self.root_com_vel_w,
+                    self.body_link_pose_w,
                     self.body_com_pos_b,
                     self._root_link_vel_w.data,
                 ]
@@ -518,11 +441,11 @@ class ArticulationData:
         if self._root_com_pose_w.timestamp < self._sim_timestamp:
             # apply local transform to center of mass frame
             wp.launch(
-                combine_frame_transforms,
+                combine_frame_transforms_partial,
                 dim=(self._root_newton_view.count),
                 device=self.device,
                 inputs=[
-                    self._root_link_pose_w.data,
+                    self.root_link_pose_w,
                     self.body_com_pos_b,
                     self._root_com_pose_w.data,
                 ]
@@ -540,13 +463,8 @@ class ArticulationData:
         This quantity contains the linear and angular velocities of the articulation root's center of mass frame
         relative to the world.
         """
-        if self._root_com_vel_w.timestamp < self._sim_timestamp:
-            # Newton reads velocities as [wx, wy, wz, vx, vy, vz] Isaac reads as [vx, vy, vz, wx, wy, wz]
-            self._root_com_vel_w.data = self._root_newton_view.get_root_velocities(NewtonManager.get_state_0())
-            # set the buffer data and timestamp
-            self._root_com_vel_w.timestamp = self._sim_timestamp
 
-        return self._root_com_vel_w.data
+        return self._root_newton_view.get_root_velocities(NewtonManager.get_state_0())
 
     @property
     def root_state_w(self) -> tuple[wp.array, wp.array]:
@@ -589,21 +507,6 @@ class ArticulationData:
     ##
 
     @property
-    def body_link_pose_w(self) -> wp.array:
-        """Body link pose ``wp.transformf`` in simulation world frame.
-
-        Shapes are (num_instances, num_bodies,). The pose is in the form of [pos, quat].
-        This quantity is the pose of the articulation links' actor frame relative to the world.
-        The orientation is provided in (x, y, z, w) format.
-        """
-        if self._body_link_pose_w.timestamp < self._sim_timestamp:
-            # read data from simulation
-            self._body_link_pose_w.data = self._root_newton_view.get_link_transforms(NewtonManager.get_state_0())
-            # set the buffer data and timestamp
-            self._body_link_pose_w.timestamp = self._sim_timestamp
-        return self._body_link_pose_w.data
-
-    @property
     def body_link_vel_w(self) -> wp.array:
         """Body link velocity ``wp.spatial_vectorf`` in simulation world frame.
 
@@ -614,11 +517,12 @@ class ArticulationData:
         if self._body_link_vel_w.timestamp < self._sim_timestamp:
             # Project the velocity from the center of mass frame to the link frame
             wp.launch(
-                project_linear_velocity_to_links_frame,
+                project_com_velocity_to_link_frame_batch,
                 dim=(self._root_newton_view.count, self._root_newton_view.num_bodies),
                 device=self.device,
                 inputs=[
                     self.body_com_vel_w,
+                    self.body_link_pose_w,
                     self.body_com_pos_b,
                     self._body_link_vel_w.data,
                 ]
@@ -638,7 +542,7 @@ class ArticulationData:
         if self._body_com_pose_w.timestamp < self._sim_timestamp:
             # Apply local transform to center of mass frame
             wp.launch(
-                combine_frame_transforms_batch,
+                combine_frame_transforms_partial_batch,
                 dim=(self._root_newton_view.count, self._root_newton_view.num_bodies),
                 device=self.device,
                 inputs=[
@@ -650,21 +554,6 @@ class ArticulationData:
             # set the buffer data and timestamp
             self._body_com_pose_w.timestamp = self._sim_timestamp
         return self._body_com_pose_w.data
-
-    @property
-    def body_com_vel_w(self) -> wp.array:
-        """Body center of mass velocity ``wp.spatial_vectorf`` in simulation world frame.
-
-        Shapes are (num_instances, num_bodies,). Velocities are in the form of [wx, wy, wz, vx, vy, vz].
-        This quantity contains the linear and angular velocities of the articulation links' center of mass frame
-        relative to the world.
-        """
-        if self._body_com_vel_w.timestamp < self._sim_timestamp:
-            # read data from simulation
-            self._body_com_vel_w.data = self._root_newton_view.get_link_velocities(NewtonManager.get_state_0())
-            # set the buffer data and timestamp
-            self._body_com_vel_w.timestamp = self._sim_timestamp
-        return self._body_com_vel_w.data
 
     @property
     def body_state_w(self) -> tuple[wp.array, wp.array]:
@@ -745,22 +634,6 @@ class ArticulationData:
             ]
         )
         return out
-
-    @property
-    def body_com_pos_b(self) -> wp.array:
-        """Center of mass pose ``wp.transformf`` of all bodies in their respective body's link frames.
-
-        Shapes are (num_instances, num_bodies,). The pose is in the form of [pos, quat].
-        This quantity is the pose of the center of mass frame of the rigid body relative to the body's link frame.
-        The orientation is provided in (x, y, z, w) format.
-        """
-        if self._body_com_position_b.timestamp < self._sim_timestamp:
-            # read data from simulation
-            self._body_com_position_b.data = self._root_newton_view.get_attribute("body_com", NewtonManager.get_model())
-            # set the buffer data and timestamp
-            self._body_com_position_b.timestamp = self._sim_timestamp
-        return self._body_com_position_b.data
-
 
     @property
     def body_incoming_joint_wrench_b(self) -> wp.array:
@@ -1329,8 +1202,27 @@ class ArticulationData:
         )
         return out
 
+    @warn_overhead_cost
+    @property
+    def joint_pos_limits(self) -> wp.array:
+        """Joint position limits provided to the simulation. Shape is (num_instances, num_joints, 2).
+
+        The limits are in the order :math:`[lower, upper]`.
+        """
+        out = wp.zeros((self._root_newton_view.count, self._root_newton_view.count), dtype=wp.vec2f, device=self.device)
+        wp.launch(
+            make_joint_pos_limits_from_lower_and_upper_limits,
+            dim=(self._root_newton_view.count, self._root_newton_view.count),
+            inputs=[
+                self.joint_pos_limit_lower,
+                self.joint_pos_limits_upper,
+                out,
+            ]
+        )
+        return out
+
     ##
-    # Backward compatibility.
+    # Backward compatibility. Need to nuke these properties in a future release.
     ##
 
     @deprecate(replacement="root_link_pose_w")
@@ -1447,34 +1339,16 @@ class ArticulationData:
         """Same as :attr:`body_com_quat_b`."""
         return self.body_com_quat_b
 
+    @deprecate(replacement="joint_pos_limits")
     @property
-    def joint_limits(self) -> torch.Tensor:
+    def joint_limits(self) -> wp.array:
         """Deprecated property. Please use :attr:`joint_pos_limits` instead."""
         omni.log.warn(
             "The `joint_limits` property will be deprecated in a future release. Please use `joint_pos_limits` instead."
         )
         return self.joint_pos_limits
 
-    @property
-    def default_joint_limits(self) -> torch.Tensor:
-        """Deprecated property. Please use :attr:`default_joint_pos_limits` instead."""
-        omni.log.warn(
-            "The `default_joint_limits` property will be deprecated in a future release. Please use"
-            " `default_joint_pos_limits` instead."
-        )
-        return self.default_joint_pos_limits
-
-    @property
-    def joint_velocity_limits(self) -> torch.Tensor:
-        """Deprecated property. Please use :attr:`joint_vel_limits` instead."""
-        omni.log.warn(
-            "The `joint_velocity_limits` property will be deprecated in a future release. Please use"
-            " `joint_vel_limits` instead."
-        )
-        return self.joint_vel_limits
-
-    @property
-    def joint_friction(self) -> torch.Tensor:
+    def joint_friction(self) -> wp.array:
         """Deprecated property. Please use :attr:`joint_friction_coeff` instead."""
         omni.log.warn(
             "The `joint_friction` property will be deprecated in a future release. Please use"
@@ -1482,29 +1356,12 @@ class ArticulationData:
         )
         return self.joint_friction_coeff
 
+    @deprecate(replacement="fixed_tendon_pos_limits")
     @property
-    def default_joint_friction(self) -> torch.Tensor:
-        """Deprecated property. Please use :attr:`default_joint_friction_coeff` instead."""
-        omni.log.warn(
-            "The `default_joint_friction` property will be deprecated in a future release. Please use"
-            " `default_joint_friction_coeff` instead."
-        )
-        return self.default_joint_friction_coeff
-
-    @property
-    def fixed_tendon_limit(self) -> torch.Tensor:
+    def fixed_tendon_limit(self) -> wp.array:
         """Deprecated property. Please use :attr:`fixed_tendon_pos_limits` instead."""
         omni.log.warn(
             "The `fixed_tendon_limit` property will be deprecated in a future release. Please use"
             " `fixed_tendon_pos_limits` instead."
         )
         return self.fixed_tendon_pos_limits
-
-    @property
-    def default_fixed_tendon_limit(self) -> torch.Tensor:
-        """Deprecated property. Please use :attr:`default_fixed_tendon_pos_limits` instead."""
-        omni.log.warn(
-            "The `default_fixed_tendon_limit` property will be deprecated in a future release. Please use"
-            " `default_fixed_tendon_pos_limits` instead."
-        )
-        return self.default_fixed_tendon_pos_limits

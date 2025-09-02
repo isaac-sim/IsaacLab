@@ -17,6 +17,7 @@ import omni.log
 import warp as wp
 from isaacsim.core.simulation_manager import SimulationManager
 from newton import JointMode, JointType, Model
+from newton.solvers import SolverNotifyFlags
 from newton.selection import ArticulationView as NewtonArticulationView
 from newton.solvers import SolverMuJoCo
 from pxr import UsdPhysics
@@ -27,6 +28,8 @@ import isaaclab.utils.string as string_utils
 from isaaclab.actuators import ActuatorBase, ActuatorBaseCfg, ImplicitActuator
 from isaaclab.sim._impl.newton_manager import NewtonManager
 from isaaclab.utils.types import ArticulationActions
+from .kernels import *
+from .utils import warn_overhead_cost
 
 from ..asset_base import AssetBase
 from .articulation_data import ArticulationData
@@ -179,16 +182,24 @@ class Articulation(AssetBase):
     Operations.
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None):
+    def reset(self, env_ids: wp.array | Sequence[int] | None = None):
         # use ellipses object to skip initial indices.
         if env_ids is None:
-            env_ids = slice(None)
+            env_ids = self._ALL_ENV_INDICES
         # reset actuators
         for actuator in self.actuators.values():
             actuator.reset(env_ids)
         # reset external wrench
-        self._external_force_b[env_ids] = 0.0
-        self._external_torque_b[env_ids] = 0.0
+        wp.launch(
+            update_wrench_array_with_value,
+            dim=(self.num_instances,),
+            inputs=[
+                wp.spatial_vectorf(0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
+                self._external_wrench,
+                env_ids,
+                self._ALL_BODY_INDICES,
+            ]
+        )
 
     def write_data_to_sim(self):
         """Write external wrenches and joint commands to the simulation.
@@ -200,11 +211,7 @@ class Articulation(AssetBase):
             We write external wrench to the simulation here since this function is called before the simulation step.
             This ensures that the external wrench is applied at every simulation step.
         """
-        # write external wrench
-        if self.has_external_wrench:
-            wrenches_b = torch.cat([self._external_force_b, self._external_force_b], dim=-1)
-            self._root_newton_view.set_attribute("body_f", NewtonManager.get_state_0(), wrenches_b)
-
+        # Wrenches are automatically applied by set_external_force_and_torque.
         # apply actuator models
         self._apply_actuator_model()
         # write actions into simulation
@@ -308,11 +315,12 @@ class Articulation(AssetBase):
     Operations - State Writers.
     """
 
-    def write_root_state_to_sim(self, root_state: torch.Tensor, env_ids: Sequence[int] | None = None):
+    @warn_overhead_cost
+    def write_root_state_to_sim(self, root_state: wp.array, env_ids: wp.array | Sequence[int] | None = None):
         """Set the root state over selected environment indices into the simulation.
 
-        The root state comprises of the cartesian position, quaternion orientation in (w, x, y, z), and linear
-        and angular velocity. All the quantities are in the simulation frame.
+        The root state comprises of the cartesian position, quaternion orientation in (x, y, z, w), and angular
+        and linear velocity. All the quantities are in the simulation frame.
 
         Args:
             root_state: Root state in simulation frame. Shape is (len(env_ids), 13).
@@ -320,39 +328,81 @@ class Articulation(AssetBase):
         """
 
         # set into simulation
-        self.write_root_link_pose_to_sim(root_state[:, :7], env_ids=env_ids)
-        self.write_root_com_velocity_to_sim(root_state[:, 7:], env_ids=env_ids)
+        target_root_pose = wp.zeros((self.num_instances), dtype=wp.transformf, device=self.device)
+        target_root_velocity = wp.zeros((self.num_instances), dtype=wp.spatial_vectorf, device=self.device)
 
-    def write_root_com_state_to_sim(self, root_state: torch.Tensor, env_ids: Sequence[int] | None = None):
+        wp.launch(
+            split_root_state,
+            dim=(self.num_instances,),
+            inputs=[
+                root_state,
+                target_root_pose,
+                target_root_velocity,
+                env_ids,
+            ]
+        )
+        self.write_root_link_pose_to_sim(target_root_pose, env_ids=env_ids)
+        self.write_root_com_velocity_to_sim(target_root_velocity, env_ids=env_ids)
+
+    @warn_overhead_cost
+    def write_root_com_state_to_sim(self, root_state: wp.array, env_ids: wp.array | Sequence[int] | None = None):
         """Set the root center of mass state over selected environment indices into the simulation.
 
-        The root state comprises of the cartesian position, quaternion orientation in (w, x, y, z), and linear
-        and angular velocity. All the quantities are in the simulation frame.
+        The root state comprises of the cartesian position, quaternion orientation in (x, y, z, w), and angular
+        and linear velocity. All the quantities are in the simulation frame.
 
         Args:
             root_state: Root state in simulation frame. Shape is (len(env_ids), 13).
             env_ids: Environment indices. If None, then all indices are used.
         """
-        self.write_root_com_pose_to_sim(root_state[:, :7], env_ids=env_ids)
-        self.write_root_com_velocity_to_sim(root_state[:, 7:], env_ids=env_ids)
 
+        target_root_pose = wp.zeros((self.num_instances), dtype=wp.transformf, device=self.device)
+        target_root_velocity = wp.zeros((self.num_instances), dtype=wp.spatial_vectorf, device=self.device)
+
+        wp.launch(
+            split_root_state,
+            dim=(self.num_instances,),
+            inputs=[
+                root_state,
+                target_root_pose,
+                target_root_velocity,
+                env_ids,
+            ]
+        )
+        self.write_root_com_pose_to_sim(target_root_pose, env_ids=env_ids)
+        self.write_root_com_velocity_to_sim(target_root_velocity, env_ids=env_ids)
+
+    @warn_overhead_cost
     def write_root_link_state_to_sim(self, root_state: torch.Tensor, env_ids: Sequence[int] | None = None):
         """Set the root link state over selected environment indices into the simulation.
 
-        The root state comprises of the cartesian position, quaternion orientation in (w, x, y, z), and linear
-        and angular velocity. All the quantities are in the simulation frame.
+        The root state comprises of the cartesian position, quaternion orientation in (x, y, z, w), and angular
+        and linear velocity. All the quantities are in the simulation frame.
 
         Args:
             root_state: Root state in simulation frame. Shape is (len(env_ids), 13).
             env_ids: Environment indices. If None, then all indices are used.
         """
-        self.write_root_link_pose_to_sim(root_state[:, :7], env_ids=env_ids)
-        self.write_root_link_velocity_to_sim(root_state[:, 7:], env_ids=env_ids)
+        target_root_pose = wp.zeros((self.num_instances), dtype=wp.transformf, device=self.device)
+        target_root_velocity = wp.zeros((self.num_instances), dtype=wp.spatial_vectorf, device=self.device)
 
-    def write_root_pose_to_sim(self, root_pose: torch.Tensor, env_ids: Sequence[int] | None = None):
+        wp.launch(
+            split_root_state,
+            dim=(self.num_instances,),
+            inputs=[
+                root_state,
+                target_root_pose,
+                target_root_velocity,
+                env_ids,
+            ]
+        )
+        self.write_root_link_pose_to_sim(target_root_pose, env_ids=env_ids)
+        self.write_root_link_velocity_to_sim(target_root_velocity, env_ids=env_ids)
+
+    def write_root_pose_to_sim(self, root_pose: wp.array, env_ids: wp.array | Sequence[int] | None = None):
         """Set the root pose over selected environment indices into the simulation.
 
-        The root pose comprises of the cartesian position and quaternion orientation in (w, x, y, z).
+        The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
 
         Args:
             root_pose: Root poses in simulation frame. Shape is (len(env_ids), 7).
@@ -360,48 +410,39 @@ class Articulation(AssetBase):
         """
         self.write_root_link_pose_to_sim(root_pose, env_ids=env_ids)
 
-    def write_root_link_pose_to_sim(self, position: wp.array, quat: wp.array, env_ids: Sequence[int] | None = None):
+    def write_root_link_pose_to_sim(self, pose: wp.array, env_ids: wp.array | Sequence[int] | None = None):
         """Set the root link pose over selected environment indices into the simulation.
 
-        The root pose comprises of the cartesian position and quaternion orientation in (w, x, y, z).
+
+        The root pose ``wp.transformf`` comprises of the cartesian position and quaternion orientation in (x, y, z, w).
 
         Args:
             root_pose: Root poses in simulation frame. Shape is (len(env_ids), 7).
             env_ids: Environment indices. If None, then all indices are used.
         """
         # resolve all indices
-        physx_env_ids = env_ids
         if env_ids is None:
-            env_ids = slice(None)
-            physx_env_ids = self._ALL_INDICES
+            env_ids = self._ALL_ENV_INDICES
+        if not isinstance(env_ids, wp.array):
+            omni.log.warn("Passing env_ids as a list or torch tensor will degrade performance. Use wp.array instead.")
+            env_ids = wp.array(env_ids, dtype=wp.int32, device=self.device)
 
-        # note: we need to do this here since tensors are not set into simulation until step.
         # set into internal buffers
-        self._data.root_link_pose_w[env_ids] = root_pose.clone()
-
-        self._data._root_link_position_w
-        # update these buffers only if the user is using them. Otherwise this adds to overhead.
-        if self._data._root_link_state_w.data is not None:
-            self._data.root_link_state_w[env_ids, :7] = self._data.root_link_pose_w[env_ids]
-        if self._data._root_state_w.data is not None:
-            self._data.root_state_w[env_ids, :7] = self._data.root_link_pose_w[env_ids]
-
-        # convert root quaternion from wxyz to xyzw
-        #root_poses_xyzw = self._data.root_link_pose_w.clone()
-        #root_poses_xyzw[:, 3:] = math_utils.convert_quat(root_poses_xyzw[:, 3:], to="xyzw")
-
+        wp.launch(
+            update_transforms_array,
+            dim=self._root_newton_view.count,
+            inputs=[
+                self._data.root_link_pose_w,
+                env_ids,
+                pose,
+            ]
+        )
         # Need to invalidate the buffer to trigger the update with the new state.
-        self._data._body_link_position_w.timestamp = -1.0
-        self._data._body_link_quat_w.timestamp = -1.0
-        self._data._body_com_position_w.timestamp = -1.0
-        self._data._body_com_quat_w.timestamp = -1.0
+        self._data._root_com_pose_w.timestamp = -1.0
+        self._data._body_com_pose_w.timestamp = -1.0
 
-        # set into simulation
-        self._mask.fill_(False)
-        self._mask[physx_env_ids] = True
-        self._root_newton_view.set_root_transforms(NewtonManager.get_state_0(), root_poses_xyzw, mask=self._mask)
 
-    def write_root_com_pose_to_sim(self, root_pose: torch.Tensor, env_ids: Sequence[int] | None = None):
+    def write_root_com_pose_to_sim(self, root_pose: wp.array, env_ids: wp.array | Sequence[int] | None = None) -> None:
         """Set the root center of mass pose over selected environment indices into the simulation.
 
         The root pose comprises of the cartesian position and quaternion orientation in (w, x, y, z).
@@ -413,35 +454,37 @@ class Articulation(AssetBase):
         """
         # resolve all indices
         if env_ids is None:
-            local_env_ids = slice(env_ids)
-        else:
-            local_env_ids = env_ids
+            env_ids = self._ALL_ENV_INDICES
+        if not isinstance(env_ids, wp.array):
+            omni.log.warn("Passing env_ids as a list or torch tensor will degrade performance. Use wp.array instead.")
+            env_ids = wp.array(env_ids, dtype=wp.int32, device=self.device)
 
         # set into internal buffers
-        self._data.root_com_pose_w[local_env_ids] = root_pose.clone()
-        # update these buffers only if the user is using them. Otherwise this adds to overhead.
-        if self._data._root_com_state_w.data is not None:
-            self._data.root_com_state_w[local_env_ids, :7] = self._data.root_com_pose_w[local_env_ids]
-
-        # get CoM pose in link frame
-        com_pos_b = self.data.body_com_pos_b[local_env_ids, 0, :]
-        com_quat_b = self.data.body_com_quat_b[local_env_ids, 0, :]
-        # transform input CoM pose to link frame
-        root_link_pos, root_link_quat = math_utils.combine_frame_transforms(
-            root_pose[..., :3],
-            root_pose[..., 3:7],
-            math_utils.quat_apply(math_utils.quat_inv(com_quat_b), -com_pos_b),
-            math_utils.quat_inv(com_quat_b),
+        wp.launch(
+            update_transforms_array,
+            dim=self._root_newton_view.count,
+            inputs=[
+                root_pose,
+                env_ids,
+                self._data.root_com_pose_w,
+            ]
         )
-        root_link_pose = torch.cat((root_link_pos, root_link_quat), dim=-1)
+        # set link frame poses
+        wp.launch(
+            transform_CoM_pose_to_link_frame,
+            dim=self._root_newton_view.count,
+            inputs=[
+                self._data.root_com_pose_w,
+                self._data.body_com_pos_b,
+                self._data.body_link_pose_w,
+            ]
+        )
+        self._data._body_com_pose_w.timestamp = -1.0
 
-        # write transformed pose in link frame to sim
-        self.write_root_link_pose_to_sim(root_pose=root_link_pose, env_ids=env_ids)
-
-    def write_root_velocity_to_sim(self, root_velocity: torch.Tensor, env_ids: Sequence[int] | None = None):
+    def write_root_velocity_to_sim(self, root_velocity: wp.array, env_ids: wp.array | Sequence[int] | None = None) -> None:
         """Set the root center of mass velocity over selected environment indices into the simulation.
 
-        The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
+        The velocity comprises angular velocity (x, y, z) and linear velocity (x, y, z) in that order.
         NOTE: This sets the velocity of the root's center of mass rather than the roots frame.
 
         Args:
@@ -450,10 +493,10 @@ class Articulation(AssetBase):
         """
         self.write_root_com_velocity_to_sim(root_velocity=root_velocity, env_ids=env_ids)
 
-    def write_root_com_velocity_to_sim(self, root_velocity: torch.Tensor, env_ids: Sequence[int] | None = None):
+    def write_root_com_velocity_to_sim(self, root_velocity: wp.array, env_ids: wp.array | Sequence[int] | None = None) -> None:
         """Set the root center of mass velocity over selected environment indices into the simulation.
 
-        The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
+        The velocity comprises angular velocity (x, y, z) and linear velocity (x, y, z) in that order.
         NOTE: This sets the velocity of the root's center of mass rather than the roots frame.
 
         Args:
@@ -461,33 +504,28 @@ class Articulation(AssetBase):
             env_ids: Environment indices. If None, then all indices are used.
         """
         # resolve all indices
-        physx_env_ids = env_ids
         if env_ids is None:
-            env_ids = slice(None)
-            physx_env_ids = self._ALL_INDICES
+            env_ids = self._ALL_ENV_INDICES
+        if not isinstance(env_ids, wp.array):
+            omni.log.warn("Passing env_ids as a list or torch tensor will degrade performance. Use wp.array instead.")
+            env_ids = wp.array(env_ids, dtype=wp.int32, device=self.device)
 
-        # note: we need to do this here since tensors are not set into simulation until step.
         # set into internal buffers
-        self._data.root_com_vel_w[env_ids] = root_velocity.clone()
-        # update these buffers only if the user is using them. Otherwise this adds to overhead.
-        if self._data._root_com_state_w.data is not None:
-            self._data.root_com_state_w[env_ids, 7:] = self._data.root_com_vel_w[env_ids]
-        if self._data._root_state_w.data is not None:
-            self._data.root_state_w[env_ids, 7:] = self._data.root_com_vel_w[env_ids]
-        # make the acceleration zero to prevent reporting old values
-        self._data.body_acc_w[env_ids] = 0.0
-
-        # set into simulation
-        self._mask.fill_(False)
-        self._mask[physx_env_ids] = True
-        self._root_newton_view.set_root_velocities(
-            NewtonManager.get_state_0(), self._data.root_state_w[:, 7:].clone(), mask=self._mask
+        wp.launch(
+            update_velocity_array,
+            dim=self._root_newton_view.count,
+            inputs=[
+                root_velocity,
+                env_ids,
+                self._data.root_com_vel_w,
+            ]
         )
+        self._data._root_link_vel_w.timestamp = -1.0
 
-    def write_root_link_velocity_to_sim(self, root_velocity: torch.Tensor, env_ids: Sequence[int] | None = None):
+    def write_root_link_velocity_to_sim(self, root_velocity: wp.array, env_ids: wp.array | Sequence[int] | None = None) -> None:
         """Set the root link velocity over selected environment indices into the simulation.
 
-        The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
+        The velocity comprises angular velocity (x, y, z) and linear velocity (x, y, z) in that order.
         NOTE: This sets the velocity of the root's frame rather than the roots center of mass.
 
         Args:
@@ -496,34 +534,29 @@ class Articulation(AssetBase):
         """
         # resolve all indices
         if env_ids is None:
-            local_env_ids = slice(env_ids)
-        else:
-            local_env_ids = env_ids
-
+            env_ids = self._ALL_ENV_INDICES
+        if not isinstance(env_ids, wp.array):
+            omni.log.warn("Passing env_ids as a list or torch tensor will degrade performance. Use wp.array instead.")
+            env_ids = wp.array(env_ids, dtype=wp.int32, device=self.device)
         # set into internal buffers
-        self._data.root_link_vel_w[local_env_ids] = root_velocity.clone()
-        # update these buffers only if the user is using them. Otherwise this adds to overhead.
-        if self._data._root_link_state_w.data is not None:
-            self._data.root_link_state_w[local_env_ids, 7:] = self._data.root_link_vel_w[local_env_ids]
-
-        # get CoM pose in link frame
-        quat = self.data.root_link_quat_w[local_env_ids]
-        com_pos_b = self.data.body_com_pos_b[local_env_ids, 0, :]
-        # transform input velocity to center of mass frame
-        root_com_velocity = root_velocity.clone()
-        root_com_velocity[:, :3] += torch.linalg.cross(
-            root_com_velocity[:, 3:], math_utils.quat_apply(quat, com_pos_b), dim=-1
+        wp.launch(
+            project_link_velocity_to_com_frame_indexed,
+            dim=self._root_newton_view.count,
+            inputs=[
+                root_velocity,
+                self._data.body_link_pose_w,
+                self._data.body_com_pos_b,
+                self._data.root_com_vel_w,
+                env_ids,
+            ]
         )
-
-        # write transformed velocity in CoM frame to sim
-        self.write_root_com_velocity_to_sim(root_velocity=root_com_velocity, env_ids=env_ids)
 
     def write_joint_state_to_sim(
         self,
-        position: torch.Tensor,
-        velocity: torch.Tensor,
-        joint_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | slice | None = None,
+        position: wp.array,
+        velocity: wp.array,
+        joint_ids: wp.array | Sequence[int] | None = None,
+        env_ids: wp.array | Sequence[int] | None = None,
     ):
         """Write joint positions and velocities to the simulation.
 
@@ -539,9 +572,9 @@ class Articulation(AssetBase):
 
     def write_joint_position_to_sim(
         self,
-        position: torch.Tensor,
-        joint_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | slice | None = None,
+        position: wp.array,
+        joint_ids: wp.array | Sequence[int] | None = None,
+        env_ids: wp.array | Sequence[int] | None = None,
     ):
         """Write joint positions to the simulation.
 
@@ -551,39 +584,35 @@ class Articulation(AssetBase):
             env_ids: The environment indices to set the targets for. Defaults to None (all environments).
         """
         # resolve indices
-        physx_env_ids = env_ids
         if env_ids is None:
-            env_ids = slice(None)
-            physx_env_ids = self._ALL_INDICES
+            env_ids = self._ALL_ENV_INDICES
+        if not isinstance(env_ids, wp.array):
+            omni.log.warn("Passing env_ids as a list or torch tensor will degrade performance. Use wp.array instead.")
+            env_ids = wp.array(env_ids, dtype=wp.int32, device=self.device)
         if joint_ids is None:
-            joint_ids = slice(None)
-        # broadcast env_ids if needed to allow double indexing
-        if env_ids != slice(None) and joint_ids != slice(None):
-            env_ids = env_ids[:, None]
+            joint_ids = self._ALL_JOINT_INDICES
+        if not isinstance(joint_ids, wp.array):
+            omni.log.warn("Passing joint_ids as a list or torch tensor will degrade performance. Use wp.array instead.")
+            joint_ids = wp.array(joint_ids, dtype=wp.int32, device=self.device)
         # set into internal buffers
-        self._data.joint_pos[env_ids, joint_ids] = position
-        # Need to invalidate the buffer to trigger the update with the new root pose.
-        self._data._body_com_vel_w.timestamp = -1.0
-        self._data._body_link_vel_w.timestamp = -1.0
-        self._data._body_com_pose_b.timestamp = -1.0
-        self._data._body_com_pose_w.timestamp = -1.0
-        self._data._body_link_pose_w.timestamp = -1.0
-
-        self._data._body_state_w.timestamp = -1.0
-        self._data._body_link_state_w.timestamp = -1.0
-        self._data._body_com_state_w.timestamp = -1.0
-        # set into simulation
-        self._mask.fill_(False)
-        self._mask[physx_env_ids] = True
-        self._root_newton_view.set_dof_positions(
-            NewtonManager.get_state_0(), self._data.joint_pos.clone(), mask=self._mask
+        wp.launch(
+            update_joint_array,
+            dim=(self.num_instances, self.num_joints),
+            inputs=[
+                position,
+                env_ids,
+                joint_ids,
+                self._data._joint_pos.data,
+            ]
         )
+        # invalidate buffers to trigger the update with the new root pose.
+        self._data._body_com_pose_w.timestamp = -1.0
 
     def write_joint_velocity_to_sim(
         self,
-        velocity: torch.Tensor,
-        joint_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | slice | None = None,
+        velocity: wp.array,
+        joint_ids: wp.array | Sequence[int] | None = None,
+        env_ids: wp.array | Sequence[int] | None = None,
     ):
         """Write joint velocities to the simulation.
 
@@ -593,25 +622,52 @@ class Articulation(AssetBase):
             env_ids: The environment indices to set the targets for. Defaults to None (all environments).
         """
         # resolve indices
-        physx_env_ids = env_ids
         if env_ids is None:
-            env_ids = slice(None)
-            physx_env_ids = self._ALL_INDICES
+            env_ids = self._ALL_ENV_INDICES
+        if not isinstance(env_ids, wp.array):
+            omni.log.warn("Passing env_ids as a list or torch tensor will degrade performance. Use wp.array instead.")
+            env_ids = wp.array(env_ids, dtype=wp.int32, device=self.device)
         if joint_ids is None:
-            joint_ids = slice(None)
-        # broadcast env_ids if needed to allow double indexing
-        if env_ids != slice(None) and joint_ids != slice(None):
-            env_ids = env_ids[:, None]
-        # set into internal buffers
-        self._data.joint_vel[env_ids, joint_ids] = velocity
-        self._data._previous_joint_vel[env_ids, joint_ids] = velocity
-        self._data.joint_acc[env_ids, joint_ids] = 0.0
-        # set into simulation
-        self._mask.fill_(False)
-        self._mask[physx_env_ids] = True
-        self._root_newton_view.set_dof_velocities(
-            NewtonManager.get_state_0(), self._data.joint_vel.clone(), mask=self._mask
+            joint_ids = self._ALL_JOINT_INDICES
+        if not isinstance(joint_ids, wp.array):
+            omni.log.warn("Passing joint_ids as a list or torch tensor will degrade performance. Use wp.array instead.")
+            joint_ids = wp.array(joint_ids, dtype=wp.int32, device=self.device)
+        # update joint velocity
+        wp.launch(
+            update_joint_array,
+            dim=(self.num_instances, self.num_joints),
+            inputs=[
+                velocity,
+                env_ids,
+                joint_ids,
+                self._data._joint_vel.data,
+            ]
         )
+        # update previous joint velocity
+        wp.launch(
+            update_joint_array,
+            dim=(self.num_instances, self.num_joints),
+            inputs=[
+                velocity,
+                env_ids,
+                joint_ids,
+                self._data._previous_joint_vel
+            ]
+        )
+        # Set joint acceleration to 0.0
+        wp.launch(
+            update_joint_array_with_value,
+            dim=(self.num_instances, self.num_joints),
+            inputs=[
+                0.0,
+                env_ids,
+                joint_ids,
+                self._data._joint_acc.data,
+            ]
+        )
+        # Need to invalidate the buffer to trigger the update with the new root pose.
+        self._data._body_link_vel_w.timestamp = -1.0
+        self._data._joint_acc.timestamp = -1.0
 
     """
     Operations - Simulation Parameters Writers.
@@ -620,8 +676,8 @@ class Articulation(AssetBase):
     def write_joint_control_mode_to_sim(
         self,
         control_mode: Literal["position", "velocity", "none"] | None,
-        joint_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
+        joint_ids: wp.array | Sequence[int] | None = None,
+        env_ids: wp.array | Sequence[int] | None = None,
     ):
         """Write joint control mode into the simulation.
 
@@ -634,38 +690,43 @@ class Articulation(AssetBase):
             ValueError: If the control mode is invalid.
         """
         # resolve indices
-        physx_env_ids = env_ids
         if env_ids is None:
-            env_ids = slice(None)
-            physx_env_ids = self._ALL_INDICES
+            env_ids = self._ALL_ENV_INDICES
+        if not isinstance(env_ids, wp.array):
+            omni.log.warn("Passing env_ids as a list or torch tensor will degrade performance. Use wp.array instead.")
+            env_ids = wp.array(env_ids, dtype=wp.int32, device=self.device)
         if joint_ids is None:
-            joint_ids = slice(None)
-        # broadcast env_ids if needed to allow double indexing
-        if env_ids != slice(None) and joint_ids != slice(None):
-            env_ids = env_ids[:, None]
+            joint_ids = self._ALL_JOINT_INDICES
+        if not isinstance(joint_ids, wp.array):
+            omni.log.warn("Passing joint_ids as a list or torch tensor will degrade performance. Use wp.array instead.")
+            joint_ids = wp.array(joint_ids, dtype=wp.int32, device=self.device)
         # set into internal buffers
         if control_mode == "position":
-            self._data.joint_control_mode[env_ids, joint_ids] = JointMode.TARGET_POSITION
+            value = JointMode.TARGET_POSITION
         elif control_mode == "velocity":
-            self._data.joint_control_mode[env_ids, joint_ids] = JointMode.TARGET_VELOCITY
+            value = JointMode.TARGET_VELOCITY
         elif (control_mode is None) or (control_mode == "none"):
             # Set the control mode to None when using explicit actuators
-            self._data.joint_control_mode[env_ids, joint_ids] = JointMode.NONE
+            value = JointMode.NONE
         else:
             raise ValueError(f"Invalid control mode: {control_mode}")
-
-        # set into simulation
-        self._mask.fill_(False)
-        self._mask[physx_env_ids] = True
-        self._root_newton_view.set_attribute(
-            "joint_dof_mode", NewtonManager.get_model(), self._data.joint_control_mode, mask=self._mask
+        wp.launch(
+            update_joint_array_with_value_int,
+            dim=(self.num_instances, self.num_joints),
+            inputs=[
+                value,
+                env_ids,
+                joint_ids,
+                self._root_newton_view.get_attribute("joint_dof_mode", NewtonManager.get_model())
+            ]
         )
+                
 
     def write_joint_stiffness_to_sim(
         self,
-        stiffness: torch.Tensor | float,
-        joint_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
+        stiffness: wp.array | float,
+        joint_ids: wp.array | Sequence[int] | None = None,
+        env_ids: wp.array | Sequence[int] | None = None,
     ):
         """Write joint stiffness into the simulation.
 
@@ -676,29 +737,48 @@ class Articulation(AssetBase):
         """
         # note: This function isn't setting the values for actuator models. (#128)
         # resolve indices
-        physx_env_ids = env_ids
         if env_ids is None:
-            env_ids = slice(None)
-            physx_env_ids = self._ALL_INDICES
+            env_ids = self._ALL_ENV_INDICES
+        if not isinstance(env_ids, wp.array):
+            omni.log.warn("Passing env_ids as a list or torch tensor will degrade performance. Use wp.array instead.")
+            env_ids = wp.array(env_ids, dtype=wp.int32, device=self.device)
         if joint_ids is None:
-            joint_ids = slice(None)
-        # broadcast env_ids if needed to allow double indexing
-        if env_ids != slice(None) and joint_ids != slice(None):
-            env_ids = env_ids[:, None]
+            joint_ids = self._ALL_JOINT_INDICES
+        if not isinstance(joint_ids, wp.array):
+            omni.log.warn("Passing joint_ids as a list or torch tensor will degrade performance. Use wp.array instead.")
+            joint_ids = wp.array(joint_ids, dtype=wp.int32, device=self.device)
         # set into internal buffers
-        self._data.joint_stiffness[env_ids, joint_ids] = stiffness
-        # set into simulation
-        self._mask.fill_(False)
-        self._mask[physx_env_ids] = True
-        self._root_newton_view.set_attribute(
-            "joint_target_ke", NewtonManager.get_model(), self._data.joint_stiffness, mask=self._mask
-        )
+        if isinstance(stiffness, float):
+            wp.launch(
+                update_joint_array_with_value,
+                dim=(self.num_instances, self.num_joints),
+                inputs=[
+                    stiffness,
+                    env_ids,
+                    joint_ids,
+                    self._data.joint_stiffness,
+                ]
+            )
+        else:
+            wp.launch(
+                update_joint_array,
+                dim=(self.num_instances, self.num_joints),
+                inputs=[
+                    stiffness,
+                    env_ids,
+                    joint_ids,
+                    self._data.joint_stiffness,
+                ]
+            )
+        # tell the physics engine to use the new stiffness
+        NewtonManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
+
 
     def write_joint_damping_to_sim(
         self,
-        damping: torch.Tensor | float,
-        joint_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
+        damping: wp.array | float,
+        joint_ids: wp.array | Sequence[int] | None = None,
+        env_ids: wp.array | Sequence[int] | None = None,
     ):
         """Write joint damping into the simulation.
 
@@ -709,29 +789,47 @@ class Articulation(AssetBase):
         """
         # note: This function isn't setting the values for actuator models. (#128)
         # resolve indices
-        physx_env_ids = env_ids
         if env_ids is None:
-            env_ids = slice(None)
-            physx_env_ids = self._ALL_INDICES
+            env_ids = self._ALL_ENV_INDICES
+        if not isinstance(env_ids, wp.array):
+            omni.log.warn("Passing env_ids as a list or torch tensor will degrade performance. Use wp.array instead.")
+            env_ids = wp.array(env_ids, dtype=wp.int32, device=self.device)
         if joint_ids is None:
-            joint_ids = slice(None)
-        # broadcast env_ids if needed to allow double indexing
-        if env_ids != slice(None) and joint_ids != slice(None):
-            env_ids = env_ids[:, None]
+            joint_ids = self._ALL_JOINT_INDICES
+        if not isinstance(joint_ids, wp.array):
+            omni.log.warn("Passing joint_ids as a list or torch tensor will degrade performance. Use wp.array instead.")
+            joint_ids = wp.array(joint_ids, dtype=wp.int32, device=self.device)
         # set into internal buffers
-        self._data.joint_damping[env_ids, joint_ids] = damping
-        # set into simulation
-        self._mask.fill_(False)
-        self._mask[physx_env_ids] = True
-        self._root_newton_view.set_attribute(
-            "joint_target_kd", NewtonManager.get_model(), self._data.joint_damping, mask=self._mask
-        )
+        if isinstance(damping, float):
+            wp.launch(
+                update_joint_array_with_value,
+                dim=(self.num_instances, self.num_joints),
+                inputs=[
+                    damping,
+                    env_ids,
+                    joint_ids,
+                    self._data.joint_damping,
+                ]
+            )
+        else:
+            wp.launch(
+                update_joint_array,
+                dim=(self.num_instances, self.num_joints),
+                inputs=[
+                    damping,
+                    env_ids,
+                    joint_ids,
+                    self._data.joint_damping,
+                ]
+            )
+        # tell the physics engine to use the new damping
+        NewtonManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
 
     def write_joint_position_limit_to_sim(
         self,
-        limits: torch.Tensor | float,
-        joint_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
+        limits: wp.array | tuple[float, float] | float,
+        joint_ids: wp.array | Sequence[int] | None = None,
+        env_ids: wp.array | Sequence[int] | None = None,
         warn_limit_violation: bool = True,
     ):
         """Write joint position limits into the simulation.
@@ -745,60 +843,102 @@ class Articulation(AssetBase):
         """
         # note: This function isn't setting the values for actuator models. (#128)
         # resolve indices
-        physx_env_ids = env_ids
         if env_ids is None:
-            env_ids = slice(None)
-            physx_env_ids = self._ALL_INDICES
+            env_ids = self._ALL_ENV_INDICES
+        if not isinstance(env_ids, wp.array):
+            omni.log.warn("Passing env_ids as a list or torch tensor will degrade performance. Use wp.array instead.")
+            env_ids = wp.array(env_ids, dtype=wp.int32, device=self.device)
         if joint_ids is None:
-            joint_ids = slice(None)
-        # broadcast env_ids if needed to allow double indexing
-        if env_ids != slice(None) and joint_ids != slice(None):
-            env_ids = env_ids[:, None]
-        # set into internal buffers
-        self._data.joint_pos_limits[env_ids, joint_ids] = limits
-        # update default joint pos to stay within the new limits
-        if torch.any(
-            (self._data.default_joint_pos[env_ids, joint_ids] < limits[..., 0])
-            | (self._data.default_joint_pos[env_ids, joint_ids] > limits[..., 1])
-        ):
-            self._data.default_joint_pos[env_ids, joint_ids] = torch.clamp(
-                self._data.default_joint_pos[env_ids, joint_ids], limits[..., 0], limits[..., 1]
+            joint_ids = self._ALL_JOINT_INDICES
+        if not isinstance(joint_ids, wp.array):
+            omni.log.warn("Passing joint_ids as a list or torch tensor will degrade performance. Use wp.array instead.")
+            joint_ids = wp.array(joint_ids, dtype=wp.int32, device=self.device)
+        if isinstance(limits, float):
+            # update default joint pos to stay within the new limits
+            wp.launch(
+                update_joint_pos_with_limits_value,
+                dim=(self.num_instances, self.num_joints),
+                inputs=[
+                    self._data.default_joint_pos,
+                    limits,
+                    env_ids,
+                    joint_ids,
+                ]
             )
-            violation_message = (
-                "Some default joint positions are outside of the range of the new joint limits. Default joint positions"
-                " will be clamped to be within the new joint limits."
+            # set into simulation
+            wp.launch(
+                update_joint_limits_value,
+                dim=(self.num_instances, self.num_joints),
+                inputs=[
+                    limits,
+                    self.cfg.soft_joint_pos_limit_factor,
+                    env_ids,
+                    joint_ids,
+                    self._data.joint_pos_limits_lower,
+                    self._data.joint_pos_limits_upper,
+                    self._data.soft_joint_pos_limits,
+                ]
             )
-            if warn_limit_violation:
-                # warn level will show in console
-                omni.log.warn(violation_message)
-            else:
-                # info level is only written to log file
-                omni.log.info(violation_message)
-        # set into simulation
-        self._mask.fill_(False)
-        self._mask[physx_env_ids] = True
-        self._root_newton_view.set_attribute(
-            "joint_limit_lower", NewtonManager.get_model(), self._data.joint_pos_limits[..., 0], mask=self._mask
-        )
-        self._root_newton_view.set_attribute(
-            "joint_limit_upper", NewtonManager.get_model(), self._data.joint_pos_limits[..., 1], mask=self._mask
-        )
-
-        # compute the soft limits based on the joint limits
-        # TODO: Optimize this computation for only selected joints
-        # soft joint position limits (recommended not to be too close to limits).
-        joint_pos_mean = (self._data.joint_pos_limits[..., 0] + self._data.joint_pos_limits[..., 1]) / 2
-        joint_pos_range = self._data.joint_pos_limits[..., 1] - self._data.joint_pos_limits[..., 0]
-        soft_limit_factor = self.cfg.soft_joint_pos_limit_factor
-        # add to data
-        self._data.soft_joint_pos_limits[..., 0] = joint_pos_mean - 0.5 * joint_pos_range * soft_limit_factor
-        self._data.soft_joint_pos_limits[..., 1] = joint_pos_mean + 0.5 * joint_pos_range * soft_limit_factor
+        elif isinstance(limits, tuple) or isinstance(limits, list):
+            # update default joint pos to stay within the new limits
+            wp.launch(
+                update_joint_pos_with_limits_value_vec2f,
+                dim=(self.num_instances, self.num_joints),
+                inputs=[
+                    self._data.default_joint_pos,
+                    wp.vec2f(limits[0], limits[1]),
+                    env_ids,
+                    joint_ids,
+                ]
+            )
+            # set into simulation
+            wp.launch(
+                update_joint_limits_value_vec2f,
+                dim=(self.num_instances, self.num_joints),
+                inputs=[
+                    wp.vec2f(limits[0], limits[1]),
+                    self.cfg.soft_joint_pos_limit_factor,
+                    env_ids,
+                    joint_ids,
+                    self._data.joint_pos_limits_lower,
+                    self._data.joint_pos_limits_upper,
+                    self._data.soft_joint_pos_limits,
+                ]
+            )
+        else:
+            # update default joint pos to stay within the new limits
+            wp.launch(
+                update_joint_pos_with_limits,
+                dim=(self.num_instances, self.num_joints),
+                inputs=[
+                    self._data.default_joint_pos,
+                    limits,
+                    env_ids,
+                    joint_ids,
+                ]
+            )
+            # set into simulation
+            wp.launch(
+                update_joint_limits,
+                dim=(self.num_instances, self.num_joints),
+                inputs=[
+                    limits,
+                    self.cfg.soft_joint_pos_limit_factor,
+                    env_ids,
+                    joint_ids,
+                    self._data.joint_pos_limits_lower,
+                    self._data.joint_pos_limits_upper,
+                    self._data.soft_joint_pos_limits,
+                ]
+            )
+        # tell the physics engine to use the new limits
+        NewtonManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
 
     def write_joint_velocity_limit_to_sim(
         self,
-        limits: torch.Tensor | float,
-        joint_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
+        limits: wp.array | float,
+        joint_ids: wp.array | Sequence[int] | None = None,
+        env_ids: wp.array | Sequence[int] | None = None,
     ):
         """Write joint max velocity to the simulation.
 
@@ -818,32 +958,47 @@ class Articulation(AssetBase):
             omni.log.warn("write_joint_velocity_limit_to_sim is ignored when using the Mujoco solver.")
 
         # resolve indices
-        physx_env_ids = env_ids
         if env_ids is None:
-            env_ids = slice(None)
-            physx_env_ids = self._ALL_INDICES
+            env_ids = self._ALL_ENV_INDICES
+        if not isinstance(env_ids, wp.array):
+            omni.log.warn("Passing env_ids as a list or torch tensor will degrade performance. Use wp.array instead.")
+            env_ids = wp.array(env_ids, dtype=wp.int32, device=self.device)
         if joint_ids is None:
-            joint_ids = slice(None)
-        # broadcast env_ids if needed to allow double indexing
-        if env_ids != slice(None) and joint_ids != slice(None):
-            env_ids = env_ids[:, None]
-        # move tensor to cpu if needed
-        if isinstance(limits, torch.Tensor):
-            limits = limits.to(self.device)
+            joint_ids = self._ALL_JOINT_INDICES
+        if not isinstance(joint_ids, wp.array):
+            omni.log.warn("Passing joint_ids as a list or torch tensor will degrade performance. Use wp.array instead.")
+            joint_ids = wp.array(joint_ids, dtype=wp.int32, device=self.device)
         # set into internal buffers
-        self._data.joint_vel_limits[env_ids, joint_ids] = limits
-        # set into simulation
-        self._mask.fill_(False)
-        self._mask[physx_env_ids] = True
-        self._root_newton_view.set_attribute(
-            "joint_velocity_limit", NewtonManager.get_model(), self._data.joint_vel_limits, mask=self._mask
-        )
+        if isinstance(limits, float):
+            wp.launch(
+                update_joint_array_with_value,
+                dim=(self.num_instances, self.num_joints),
+                inputs=[
+                    limits,
+                    env_ids,
+                    joint_ids,
+                    self._data.joint_vel_limits,
+                ]
+            )
+        else:
+            wp.launch(
+                update_joint_array,
+                dim=(self.num_instances, self.num_joints),
+                inputs=[
+                    limits,
+                    env_ids,
+                    joint_ids,
+                    self._data.joint_vel_limits,
+                ]
+            )
+        # tell the physics engine to use the new limits
+        NewtonManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
 
     def write_joint_effort_limit_to_sim(
         self,
-        limits: torch.Tensor | float,
-        joint_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
+        limits: wp.array | float,
+        joint_ids: wp.array | Sequence[int] | None = None,
+        env_ids: wp.array | Sequence[int] | None = None,
     ):
         """Write joint effort limits into the simulation.
 
@@ -857,32 +1012,47 @@ class Articulation(AssetBase):
         """
         # note: This function isn't setting the values for actuator models. (#128)
         # resolve indices
-        physx_env_ids = env_ids
         if env_ids is None:
-            env_ids = slice(None)
-            physx_env_ids = self._ALL_INDICES
+            env_ids = self._ALL_ENV_INDICES
+        if not isinstance(env_ids, wp.array):
+            omni.log.warn("Passing env_ids as a list or torch tensor will degrade performance. Use wp.array instead.")
+            env_ids = wp.array(env_ids, dtype=wp.int32, device=self.device)
         if joint_ids is None:
-            joint_ids = slice(None)
-        # broadcast env_ids if needed to allow double indexing
-        if env_ids != slice(None) and joint_ids != slice(None):
-            env_ids = env_ids[:, None]
-        # move tensor to cpu if needed
-        if isinstance(limits, torch.Tensor):
-            limits = limits.to(self.device)
+            joint_ids = self._ALL_JOINT_INDICES
+        if not isinstance(joint_ids, wp.array):
+            omni.log.warn("Passing joint_ids as a list or torch tensor will degrade performance. Use wp.array instead.")
+            joint_ids = wp.array(joint_ids, dtype=wp.int32, device=self.device)
         # set into internal buffers
-        self._data.joint_effort_limits[env_ids, joint_ids] = limits
-        # set into simulation
-        self._mask.fill_(False)
-        self._mask[physx_env_ids] = True
-        self._root_newton_view.set_attribute(
-            "joint_effort_limit", NewtonManager.get_model(), self._data.joint_effort_limits, mask=self._mask
-        )
+        if isinstance(limits, float):
+            wp.launch(
+                update_joint_array_with_value,
+                dim=(self.num_instances, self.num_joints),
+                inputs=[
+                    limits,
+                    env_ids,
+                    joint_ids,
+                    self._data.joint_effort_limits,
+                ]
+            )
+        else:
+            wp.launch(
+                update_joint_array,
+                dim=(self.num_instances, self.num_joints),
+                inputs=[
+                    limits,
+                    env_ids,
+                    joint_ids,
+                    self._data.joint_effort_limits,
+                ]
+            )
+        # tell the physics engine to use the new limits
+        NewtonManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
 
     def write_joint_armature_to_sim(
         self,
-        armature: torch.Tensor | float,
-        joint_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
+        armature: wp.array | float,
+        joint_ids: wp.array | Sequence[int] | None = None,
+        env_ids: wp.array | Sequence[int] | None = None,
     ):
         """Write joint armature into the simulation.
 
@@ -895,29 +1065,47 @@ class Articulation(AssetBase):
             env_ids: The environment indices to set the joint torque limits for. Defaults to None (all environments).
         """
         # resolve indices
-        physx_env_ids = env_ids
         if env_ids is None:
-            env_ids = slice(None)
-            physx_env_ids = self._ALL_INDICES
+            env_ids = self._ALL_ENV_INDICES
+        if not isinstance(env_ids, wp.array):
+            omni.log.warn("Passing env_ids as a list or torch tensor will degrade performance. Use wp.array instead.")
+            env_ids = wp.array(env_ids, dtype=wp.int32, device=self.device)
         if joint_ids is None:
-            joint_ids = slice(None)
-        # broadcast env_ids if needed to allow double indexing
-        if env_ids != slice(None) and joint_ids != slice(None):
-            env_ids = env_ids[:, None]
+            joint_ids = self._ALL_JOINT_INDICES
+        if not isinstance(joint_ids, wp.array):
+            omni.log.warn("Passing joint_ids as a list or torch tensor will degrade performance. Use wp.array instead.")
+            joint_ids = wp.array(joint_ids, dtype=wp.int32, device=self.device)
         # set into internal buffers
-        self._data.joint_armature[env_ids, joint_ids] = armature
-        # set into simulation: Only used by the Featherstone solver
-        self._mask.fill_(False)
-        self._mask[physx_env_ids] = True
-        self._root_newton_view.set_attribute(
-            "joint_armature", NewtonManager.get_model(), self._data.joint_armature, mask=self._mask
-        )
+        if isinstance(armature, float):
+            wp.launch(
+                update_joint_array_with_value,
+                dim=(self.num_instances, self.num_joints),
+                inputs=[
+                    armature,
+                    env_ids,
+                    joint_ids,
+                    self._data.joint_armature,
+                ]
+            )
+        else:
+            wp.launch(
+                update_joint_array,
+                dim=(self.num_instances, self.num_joints),
+                inputs=[
+                    armature,
+                    env_ids,
+                    joint_ids,
+                    self._data.joint_armature,
+                ]
+            )
+        # tell the physics engine to use the new armature
+        NewtonManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
 
     def write_joint_friction_coefficient_to_sim(
         self,
-        joint_friction_coeff: torch.Tensor | float,
-        joint_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
+        joint_friction_coeff: wp.array | float,
+        joint_ids: wp.array | Sequence[int] | None = None,
+        env_ids: wp.array | Sequence[int] | None = None,
     ):
         r"""Write joint friction coefficients into the simulation.
 
@@ -936,23 +1124,41 @@ class Articulation(AssetBase):
             env_ids: The environment indices to set the joint torque limits for. Defaults to None (all environments).
         """
         # resolve indices
-        physx_env_ids = env_ids
         if env_ids is None:
-            env_ids = slice(None)
-            physx_env_ids = self._ALL_INDICES
+            env_ids = self._ALL_ENV_INDICES
+        if not isinstance(env_ids, wp.array):
+            omni.log.warn("Passing env_ids as a list or torch tensor will degrade performance. Use wp.array instead.")
+            env_ids = wp.array(env_ids, dtype=wp.int32, device=self.device)
         if joint_ids is None:
-            joint_ids = slice(None)
-        # broadcast env_ids if needed to allow double indexing
-        if env_ids != slice(None) and joint_ids != slice(None):
-            env_ids = env_ids[:, None]
+            joint_ids = self._ALL_JOINT_INDICES
+        if not isinstance(joint_ids, wp.array):
+            omni.log.warn("Passing joint_ids as a list or torch tensor will degrade performance. Use wp.array instead.")
+            joint_ids = wp.array(joint_ids, dtype=wp.int32, device=self.device)
         # set into internal buffers
-        self._data.joint_friction_coeff[env_ids, joint_ids] = joint_friction_coeff
-        # set into simulation
-        self._mask.fill_(False)
-        self._mask[physx_env_ids] = True
-        self._root_newton_view.set_attribute(
-            "joint_friction", NewtonManager.get_model(), self._data.joint_friction_coeff, mask=self._mask
-        )
+        if isinstance(joint_friction_coeff, float):
+            wp.launch(
+                update_joint_array_with_value,
+                dim=(self.num_instances, self.num_joints),
+                inputs=[
+                    joint_friction_coeff,
+                    env_ids,
+                    joint_ids,
+                    self._data.joint_friction_coeff,
+                ]
+            )
+        else:
+            wp.launch(
+                update_joint_array,
+                dim=(self.num_instances, self.num_joints),
+                inputs=[
+                    joint_friction_coeff,
+                    env_ids,
+                    joint_ids,
+                    self._data.joint_friction_coeff,
+                ]
+            )
+        # tell the physics engine to use the new friction
+        NewtonManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
 
     """
     Operations - Setters.
@@ -960,10 +1166,10 @@ class Articulation(AssetBase):
 
     def set_external_force_and_torque(
         self,
-        forces: torch.Tensor,
-        torques: torch.Tensor,
-        body_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
+        forces: wp.array,
+        torques: wp.array,
+        body_ids: wp.array | Sequence[int] | None = None,
+        env_ids: wp.array | Sequence[int] | None = None,
     ):
         """Set external force and torque to apply on the asset's bodies in their local frame.
 
@@ -991,37 +1197,48 @@ class Articulation(AssetBase):
             body_ids: Body indices to apply external wrench to. Defaults to None (all bodies).
             env_ids: Environment indices to apply external wrench to. Defaults to None (all instances).
         """
-        if forces.any() or torques.any():
-            self.has_external_wrench = True
-        else:
-            self.has_external_wrench = False
-
-        # resolve all indices
-        # -- env_ids
+        # resolve indices
         if env_ids is None:
-            env_ids = self._ALL_INDICES
-        elif not isinstance(env_ids, torch.Tensor):
-            env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
-        # -- body_ids
+            env_ids = self._ALL_ENV_INDICES
+        if not isinstance(env_ids, wp.array):
+            omni.log.warn("Passing env_ids as a list or torch tensor will degrade performance. Use wp.array instead.")
+            env_ids = wp.array(env_ids, dtype=wp.int32, device=self.device)
         if body_ids is None:
-            body_ids = torch.arange(self.num_bodies, dtype=torch.long, device=self.device)
-        elif isinstance(body_ids, slice):
-            body_ids = torch.arange(self.num_bodies, dtype=torch.long, device=self.device)[body_ids]
-        elif not isinstance(body_ids, torch.Tensor):
-            body_ids = torch.tensor(body_ids, dtype=torch.long, device=self.device)
-
-        # note: we need to do this complicated indexing since torch doesn't support multi-indexing
-        # create global body indices from env_ids and env_body_ids
-        # (env_id * total_bodies_per_env) + body_id
-        indices = body_ids.repeat(len(env_ids), 1) + env_ids.unsqueeze(1) * self.num_bodies
-        indices = indices.view(-1)
-        # set into internal buffers
-        # note: these are applied in the write_to_sim function
-        self._external_force_b.flatten(0, 1)[indices] = forces.flatten(0, 1)
-        self._external_torque_b.flatten(0, 1)[indices] = torques.flatten(0, 1)
+            body_ids = self._ALL_BODY_INDICES
+        if not isinstance(body_ids, wp.array):
+            omni.log.warn("Passing body_ids as a list or torch tensor will degrade performance. Use wp.array instead.")
+            body_ids = wp.array(body_ids, dtype=wp.int32, device=self.device)
+        # Check if there are any external forces or torques
+        if (forces is not None) or (torques is not None):
+            self.has_external_wrench = True
+            if forces is not None:
+                wp.launch(
+                    update_wrench_array_with_force,
+                    dim=(self.num_instances, self.num_bodies),
+                    inputs=[
+                        forces,
+                        self._external_wrench,
+                        env_ids,
+                        body_ids,
+                    ]
+                )
+            if torques is not None:
+                wp.launch(
+                    update_wrench_array_with_torque,
+                    dim=(self.num_instances, self.num_bodies),
+                    inputs=[
+                        torques,
+                        self._external_wrench,
+                        env_ids,
+                        body_ids,
+                    ]
+                )
 
     def set_joint_position_target(
-        self, target: torch.Tensor, joint_ids: Sequence[int] | slice | None = None, env_ids: Sequence[int] | None = None
+        self,
+        target: wp.array,
+        joint_ids: wp.array | Sequence[int] | None = None,
+        env_ids: wp.array | Sequence[int] | None = None,
     ):
         """Set joint position targets into internal buffers.
 
@@ -1035,17 +1252,32 @@ class Articulation(AssetBase):
         """
         # resolve indices
         if env_ids is None:
-            env_ids = slice(None)
+            env_ids = self._ALL_ENV_INDICES
+        if not isinstance(env_ids, wp.array):
+            omni.log.warn("Passing env_ids as a list or torch tensor will degrade performance. Use wp.array instead.")
+            env_ids = wp.array(env_ids, dtype=wp.int32, device=self.device)
         if joint_ids is None:
-            joint_ids = slice(None)
-        # broadcast env_ids if needed to allow double indexing
-        if env_ids != slice(None) and joint_ids != slice(None):
-            env_ids = env_ids[:, None]
+            joint_ids = self._ALL_JOINT_INDICES
+        if not isinstance(joint_ids, wp.array):
+            omni.log.warn("Passing joint_ids as a list or torch tensor will degrade performance. Use wp.array instead.")
+            joint_ids = wp.array(joint_ids, dtype=wp.int32, device=self.device)
         # set targets
-        self._data.joint_target[env_ids, joint_ids] = target
+        wp.launch(
+            update_joint_array,
+            dim=(self.num_instances, self.num_joints),
+            inputs=[
+                target,
+                env_ids,
+                joint_ids,
+                self._data.joint_target,
+            ]
+        )
 
     def set_joint_velocity_target(
-        self, target: torch.Tensor, joint_ids: Sequence[int] | slice | None = None, env_ids: Sequence[int] | None = None
+        self,
+        target: wp.array,
+        joint_ids: wp.array | Sequence[int] | None = None,
+        env_ids: wp.array | Sequence[int] | None = None,
     ):
         """Set joint velocity targets into internal buffers.
 
@@ -1059,17 +1291,32 @@ class Articulation(AssetBase):
         """
         # resolve indices
         if env_ids is None:
-            env_ids = slice(None)
+            env_ids = self._ALL_ENV_INDICES
+        if not isinstance(env_ids, wp.array):
+            omni.log.warn("Passing env_ids as a list or torch tensor will degrade performance. Use wp.array instead.")
+            env_ids = wp.array(env_ids, dtype=wp.int32, device=self.device)
         if joint_ids is None:
-            joint_ids = slice(None)
-        # broadcast env_ids if needed to allow double indexing
-        if env_ids != slice(None) and joint_ids != slice(None):
-            env_ids = env_ids[:, None]
+            joint_ids = self._ALL_JOINT_INDICES
+        if not isinstance(joint_ids, wp.array):
+            omni.log.warn("Passing joint_ids as a list or torch tensor will degrade performance. Use wp.array instead.")
+            joint_ids = wp.array(joint_ids, dtype=wp.int32, device=self.device)
         # set targets
-        self._data.joint_target[env_ids, joint_ids] = target
+        wp.launch(
+            update_joint_array,
+            dim=(self.num_instances, self.num_joints),
+            inputs=[
+                target,
+                env_ids,
+                joint_ids,
+                self._data.joint_target,
+            ]
+        )
 
     def set_joint_effort_target(
-        self, target: torch.Tensor, joint_ids: Sequence[int] | slice | None = None, env_ids: Sequence[int] | None = None
+        self,
+        target: wp.array,
+        joint_ids: wp.array | Sequence[int] | None = None,
+        env_ids: wp.array | Sequence[int] | None = None,
     ):
         """Set joint efforts into internal buffers.
 
@@ -1083,14 +1330,26 @@ class Articulation(AssetBase):
         """
         # resolve indices
         if env_ids is None:
-            env_ids = slice(None)
+            env_ids = self._ALL_ENV_INDICES
+        if not isinstance(env_ids, wp.array):
+            omni.log.warn("Passing env_ids as a list or torch tensor will degrade performance. Use wp.array instead.")
+            env_ids = wp.array(env_ids, dtype=wp.int32, device=self.device)
         if joint_ids is None:
-            joint_ids = slice(None)
-        # broadcast env_ids if needed to allow double indexing
-        if env_ids != slice(None) and joint_ids != slice(None):
-            env_ids = env_ids[:, None]
+            joint_ids = self._ALL_JOINT_INDICES
+        if not isinstance(joint_ids, wp.array):
+            omni.log.warn("Passing joint_ids as a list or torch tensor will degrade performance. Use wp.array instead.")
+            joint_ids = wp.array(joint_ids, dtype=wp.int32, device=self.device)
         # set targets
-        self._data.joint_effort_target[env_ids, joint_ids] = target
+        wp.launch(
+            update_joint_array,
+            dim=(self.num_instances, self.num_joints),
+            inputs=[
+                target,
+                env_ids,
+                joint_ids,
+                self._data.joint_effort_target,
+            ]
+        )
 
     """
     Operations - Tendons.
@@ -1098,9 +1357,9 @@ class Articulation(AssetBase):
 
     def set_fixed_tendon_stiffness(
         self,
-        stiffness: torch.Tensor,
-        fixed_tendon_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
+        stiffness: wp.array,
+        fixed_tendon_ids: wp.array | Sequence[int] | None = None,
+        env_ids: wp.array | Sequence[int] | None = None,
     ):
         """Set fixed tendon stiffness into internal buffers.
 
@@ -1116,9 +1375,9 @@ class Articulation(AssetBase):
 
     def set_fixed_tendon_damping(
         self,
-        damping: torch.Tensor,
-        fixed_tendon_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
+        damping: wp.array,
+        fixed_tendon_ids: wp.array | Sequence[int] | None = None,
+        env_ids: wp.array | Sequence[int] | None = None,
     ):
         """Set fixed tendon damping into internal buffers.
 
@@ -1134,9 +1393,9 @@ class Articulation(AssetBase):
 
     def set_fixed_tendon_limit_stiffness(
         self,
-        limit_stiffness: torch.Tensor,
-        fixed_tendon_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
+        limit_stiffness: wp.array,
+        fixed_tendon_ids: wp.array | Sequence[int] | None = None,
+        env_ids: wp.array | Sequence[int] | None = None,
     ):
         """Set fixed tendon limit stiffness efforts into internal buffers.
 
@@ -1152,9 +1411,9 @@ class Articulation(AssetBase):
 
     def set_fixed_tendon_position_limit(
         self,
-        limit: torch.Tensor,
-        fixed_tendon_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
+        limit: wp.array,
+        fixed_tendon_ids: wp.array | Sequence[int] | None = None,
+        env_ids: wp.array | Sequence[int] | None = None,
     ):
         """Set fixed tendon limit efforts into internal buffers.
 
@@ -1170,9 +1429,9 @@ class Articulation(AssetBase):
 
     def set_fixed_tendon_rest_length(
         self,
-        rest_length: torch.Tensor,
-        fixed_tendon_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
+        rest_length: wp.array,
+        fixed_tendon_ids: wp.array | Sequence[int] | None = None,
+        env_ids: wp.array | Sequence[int] | None = None,
     ):
         """Set fixed tendon rest length efforts into internal buffers.
 
@@ -1188,9 +1447,9 @@ class Articulation(AssetBase):
 
     def set_fixed_tendon_offset(
         self,
-        offset: torch.Tensor,
-        fixed_tendon_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
+        offset: wp.array,
+        fixed_tendon_ids: wp.array | Sequence[int] | None = None,
+        env_ids: wp.array | Sequence[int] | None = None,
     ):
         """Set fixed tendon offset efforts into internal buffers.
 
@@ -1206,8 +1465,8 @@ class Articulation(AssetBase):
 
     def write_fixed_tendon_properties_to_sim(
         self,
-        fixed_tendon_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
+        fixed_tendon_ids: wp.array | Sequence[int] | None = None,
+        env_ids: wp.array | Sequence[int] | None = None,
     ):
         """Write fixed tendon properties into the simulation.
 
@@ -1220,8 +1479,8 @@ class Articulation(AssetBase):
     def set_spatial_tendon_stiffness(
         self,
         stiffness: torch.Tensor,
-        spatial_tendon_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
+        spatial_tendon_ids: wp.array | Sequence[int] | None = None,
+        env_ids: wp.array | Sequence[int] | None = None,
     ):
         """Set spatial tendon stiffness into internal buffers.
 
@@ -1237,9 +1496,9 @@ class Articulation(AssetBase):
 
     def set_spatial_tendon_damping(
         self,
-        damping: torch.Tensor,
-        spatial_tendon_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
+        damping: wp.array,
+        spatial_tendon_ids: wp.array | Sequence[int] | None = None,
+        env_ids: wp.array | Sequence[int] | None = None,
     ):
         """Set spatial tendon damping into internal buffers.
 
@@ -1255,9 +1514,9 @@ class Articulation(AssetBase):
 
     def set_spatial_tendon_limit_stiffness(
         self,
-        limit_stiffness: torch.Tensor,
-        spatial_tendon_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
+        limit_stiffness: wp.array,
+        spatial_tendon_ids: wp.array | Sequence[int] | None = None,
+        env_ids: wp.array | Sequence[int] | None = None,
     ):
         """Set spatial tendon limit stiffness into internal buffers.
 
@@ -1273,9 +1532,9 @@ class Articulation(AssetBase):
 
     def set_spatial_tendon_offset(
         self,
-        offset: torch.Tensor,
-        spatial_tendon_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
+        offset: wp.array,
+        spatial_tendon_ids: wp.array | Sequence[int] | None = None,
+        env_ids: wp.array | Sequence[int] | None = None,
     ):
         """Set spatial tendon offset efforts into internal buffers.
 
@@ -1291,8 +1550,8 @@ class Articulation(AssetBase):
 
     def write_spatial_tendon_properties_to_sim(
         self,
-        spatial_tendon_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
+        spatial_tendon_ids: wp.array | Sequence[int] | None = None,
+        env_ids: wp.array | Sequence[int] | None = None,
     ):
         """Write spatial tendon properties into the simulation.
 
@@ -1350,15 +1609,6 @@ class Articulation(AssetBase):
             NewtonManager.get_model(), prim_path, verbose=True, exclude_joint_types=[JointType.FREE, JointType.FIXED]
         )
 
-        # log information about the articulation
-        print(f"[INFO]:Articulation initialized at: {self.cfg.prim_path} with root '{prim_path}'.")
-        print(f"[INFO]:Is fixed root: {self.is_fixed_base}")
-        print(f"[INFO]:Number of bodies: {self.num_bodies}")
-        print(f"[INFO]:Body names: {self.body_names}")
-        print(f"[INFO]:Number of joints: {self.num_joints}")
-        print(f"[INFO]:Joint names: {self.joint_names}")
-        print(f"[INFO]:Number of fixed tendons: {self.num_fixed_tendons}")
-
         # container for data access
         self._data = ArticulationData(self._root_newton_view, self.device)
 
@@ -1377,120 +1627,114 @@ class Articulation(AssetBase):
 
     def _create_buffers(self):
         # constants
-        self._ALL_INDICES = torch.arange(self.num_instances, dtype=torch.long, device=self.device)
-
-        # external forces and torques
-        self.has_external_wrench = False
-        self._external_force_b = torch.zeros((self.num_instances, self.num_bodies, 3), device=self.device)
-        self._external_torque_b = torch.zeros_like(self._external_force_b)
-
-        # mask for writing to simulation
-        self._mask = torch.zeros(self.num_instances, dtype=torch.bool, device=self.device)
-
+        self._ALL_ENV_INDICES = wp.array(list(range(self.num_instances)), dtype=wp.int32, device=self.device)
+        self._ALL_BODY_INDICES = wp.array(list(range(self.num_bodies)), dtype=wp.int32, device=self.device)
+        self._ALL_JOINT_INDICES = wp.array(list(range(self.num_joints)), dtype=wp.int32, device=self.device)
         # asset named data
         self._data.joint_names = self.joint_names
         self._data.body_names = self.body_names
-        # tendon names are set in _process_tendons function
-
-        # -- joint properties
-        self._data.default_joint_pos_limits = torch.stack(
-            (
-                wp.to_torch(self._root_newton_view.get_attribute("joint_limit_lower", NewtonManager.get_model())),
-                wp.to_torch(self._root_newton_view.get_attribute("joint_limit_upper", NewtonManager.get_model())),
-            ),
-            dim=2,
-        ).clone()
-        self._data.default_joint_stiffness = wp.to_torch(
-            self._root_newton_view.get_attribute("joint_target_ke", NewtonManager.get_model())
-        ).clone()
-        self._data.default_joint_damping = wp.to_torch(
-            self._root_newton_view.get_attribute("joint_target_kd", NewtonManager.get_model())
-        ).clone()
-        self._data.default_joint_armature = wp.to_torch(
-            self._root_newton_view.get_attribute("joint_armature", NewtonManager.get_model())
-        ).clone()
-        self._data.default_joint_friction_coeff = wp.to_torch(
-            self._root_newton_view.get_attribute("joint_friction", NewtonManager.get_model())
-        ).clone()
-
-        self._data.joint_pos_limits = self._data.default_joint_pos_limits.clone()
-        self._data.joint_vel_limits = wp.to_torch(
-            self._root_newton_view.get_attribute("joint_velocity_limit", NewtonManager.get_model())
-        ).clone()
-        self._data.joint_effort_limits = wp.to_torch(
-            self._root_newton_view.get_attribute("joint_effort_limit", NewtonManager.get_model())
-        ).clone()
-        self._data.joint_stiffness = self._data.default_joint_stiffness.clone()
-        self._data.joint_damping = self._data.default_joint_damping.clone()
-        self._data.joint_armature = self._data.default_joint_armature.clone()
-        self._data.joint_friction_coeff = self._data.default_joint_friction_coeff.clone()
-
+        #  -- external forces and torques
+        self._external_wrench = self._root_newton_view.get_attribute("body_f", NewtonManager.get_state_0())
+        # -- root properties
+        self._data.root_link_pose_w = self._root_newton_view.get_root_transforms(NewtonManager.get_state_0())
+        self._data.root_com_vel_w = self._root_newton_view.get_root_velocities(NewtonManager.get_state_0())
         # -- body properties
-        self._data.default_mass = wp.to_torch(
-            self._root_newton_view.get_attribute("body_mass", NewtonManager.get_model())
-        ).clone()
-        self._data.default_inertia = (
-            wp.to_torch(self._root_newton_view.get_attribute("body_inertia", NewtonManager.get_model()))
-            .clone()
-            .reshape(self.num_instances, self.num_bodies, 9)
-        )
-
-        # -- joint control mode
-        self._data.joint_control_mode = torch.zeros(
-            self.num_instances, self.num_joints, dtype=torch.int32, device=self.device
-        )
-        # -- joint commands (sent to the actuator from the user)
-        self._data.joint_target = torch.zeros(self.num_instances, self.num_joints, device=self.device)
-        self._data.joint_effort_target = torch.zeros_like(self._data.joint_target)
+        self._data.body_link_pose_w = self._root_newton_view.get_link_transforms(NewtonManager.get_state_0())
+        self._data.body_com_vel_w = self._root_newton_view.get_link_velocities(NewtonManager.get_state_0())
+        self._data.body_com_pos_b = self._root_newton_view.get_attribute("body_com", NewtonManager.get_model())
+        # -- joint properties
+        self._data.joint_pos_limits_lower = self._root_newton_view.get_attribute("joint_limit_lower", NewtonManager.get_model())
+        self._data.joint_pos_limits_upper = self._root_newton_view.get_attribute("joint_limit_upper", NewtonManager.get_model())
+        self._data.joint_stiffness = self._root_newton_view.get_attribute("joint_target_ke", NewtonManager.get_model())
+        self._data.joint_damping = self._root_newton_view.get_attribute("joint_target_kd", NewtonManager.get_model())
+        self._data.joint_armature = self._root_newton_view.get_attribute("joint_armature", NewtonManager.get_model())
+        self._data.joint_friction_coeff = self._root_newton_view.get_attribute("joint_friction", NewtonManager.get_model())
+        self._data.joint_vel_limits = self._root_newton_view.get_attribute("joint_velocity_limit", NewtonManager.get_model())
+        self._data.joint_effort_limits = self._root_newton_view.get_attribute("joint_effort_limit", NewtonManager.get_model())
+        self._data.joint_control_mode = self._root_newton_view.get_attribute("joint_control_mode", NewtonManager.get_model())
         # -- joint commands (sent to the simulation after actuator processing)
-        self._joint_target_sim = torch.zeros_like(self._data.joint_target)
-        self._joint_effort_target_sim = torch.zeros_like(self._data.joint_target)
-
+        self._joint_target_sim = self._root_newton_view.get_attribute("joint_f", NewtonManager.get_control())
+        self._joint_effort_target_sim = self._root_newton_view.get_attribute("joint_target", NewtonManager.get_control())
+        # -- joint commands (sent to the actuator from the user)
+        self._data.joint_target = wp.zeros((self.num_instances, self.num_joints), dtype=wp.float32, device=self.device)
+        self._data.joint_effort_target = wp.zeros((self.num_instances, self.num_joints), dtype=wp.float32, device=self.device)
         # -- computed joint efforts from the actuator models
-        self._data.computed_torque = torch.zeros_like(self._data.joint_target)
-        self._data.applied_torque = torch.zeros_like(self._data.joint_target)
-
+        self._data.computed_torque = wp.zeros((self.num_instances, self.num_joints), dtype=wp.float32, device=self.device)
+        self._data.applied_torque = wp.zeros((self.num_instances, self.num_joints), dtype=wp.float32, device=self.device)
         # -- other data that are filled based on explicit actuator models
-        self._data.soft_joint_vel_limits = torch.zeros(self.num_instances, self.num_joints, device=self.device)
-        self._data.gear_ratio = torch.ones(self.num_instances, self.num_joints, device=self.device)
+        self._data.soft_joint_vel_limits = wp.zeros((self.num_instances, self.num_joints), dtype=wp.float32, device=self.device)
+        self._data.gear_ratio = wp.ones((self.num_instances, self.num_joints), dtype=wp.float32, device=self.device)
+        # -- update the soft joint position limits
+        wp.launch(
+            update_soft_joint_pos_limits,
+            dim=(self.num_instances, self.num_joints),
+            inputs=[
+                self._data.soft_joint_pos_limits,
+                self._data.joint_pos_limits_lower,
+                self._data.joint_pos_limits_upper,
+                self.cfg.soft_joint_pos_limit_factor,
+            ]
+        )
 
-        # soft joint position limits (recommended not to be too close to limits).
-        joint_pos_mean = (self._data.joint_pos_limits[..., 0] + self._data.joint_pos_limits[..., 1]) / 2
-        joint_pos_range = self._data.joint_pos_limits[..., 1] - self._data.joint_pos_limits[..., 0]
-        soft_limit_factor = self.cfg.soft_joint_pos_limit_factor
-        # add to data
-        self._data.soft_joint_pos_limits = torch.zeros(self.num_instances, self.num_joints, 2, device=self.device)
-        self._data.soft_joint_pos_limits[..., 0] = joint_pos_mean - 0.5 * joint_pos_range * soft_limit_factor
-        self._data.soft_joint_pos_limits[..., 1] = joint_pos_mean + 0.5 * joint_pos_range * soft_limit_factor
 
     def _process_cfg(self):
         """Post processing of configuration parameters."""
-        # default state
         # -- root state
-        # note: we cast to tuple to avoid torch/numpy type mismatch.
-        default_root_state = (
-            tuple(self.cfg.init_state.pos)
-            + tuple(self.cfg.init_state.rot)
-            + tuple(self.cfg.init_state.lin_vel)
-            + tuple(self.cfg.init_state.ang_vel)
+        self._data.default_root_pose = wp.zeros((self.num_instances), dtype=wp.transformf, device=self.device)
+        self._data.default_root_vel = wp.zeros((self.num_instances), dtype=wp.spatial_vectorf, device=self.device)
+        # default pose
+        default_root_pose = tuple(self.cfg.init_state.pos) + tuple(self.cfg.init_state.rot)
+        wp.launch(
+            update_transforms_array_with_value,
+            dim=(self.num_instances,),
+            inputs=[
+                self._data.default_root_pose,
+                self._ALL_ENV_INDICES,
+                wp.transformf(default_root_pose),
+            ]
+        )        
+        # default velocity
+        default_root_velocity = tuple(self.cfg.init_state.lin_vel) + tuple(self.cfg.init_state.ang_vel)
+        wp.launch(
+            update_spatial_vector_array_with_value,
+            dim=(self.num_instances,),
+            inputs=[
+                self._data.default_root_vel,
+                self._ALL_ENV_INDICES,
+                wp.spatial_vectorf(default_root_velocity),
+            ]
         )
-        default_root_state = torch.tensor(default_root_state, dtype=torch.float, device=self.device)
-        self._data.default_root_state = default_root_state.repeat(self.num_instances, 1)
-
         # -- joint state
-        self._data.default_joint_pos = torch.zeros(self.num_instances, self.num_joints, device=self.device)
-        self._data.default_joint_vel = torch.zeros_like(self._data.default_joint_pos)
+        self._data.default_joint_pos = wp.zeros((self.num_instances, self.num_joints), dtype=wp.float32, device=self.device)
+        self._data.default_joint_vel = wp.zeros((self.num_instances, self.num_joints), dtype=wp.float32, device=self.device)
         # joint pos
         indices_list, _, values_list = string_utils.resolve_matching_names_values(
             self.cfg.init_state.joint_pos, self.joint_names
         )
-        self._data.default_joint_pos[:, indices_list] = torch.tensor(values_list, device=self.device)
-
+        wp.launch(
+            update_joint_array_with_value_array,
+            dim=(self.num_instances, self.num_joints),
+            inputs=[
+                self._data.default_joint_pos,
+                self._ALL_ENV_INDICES,
+                wp.array(indices_list, dtype=wp.int32, device=self.device),
+                wp.array(values_list, dtype=wp.float32, device=self.device),
+            ]
+        )
         # joint vel
         indices_list, _, values_list = string_utils.resolve_matching_names_values(
             self.cfg.init_state.joint_vel, self.joint_names
         )
-        self._data.default_joint_vel[:, indices_list] = torch.tensor(values_list, device=self.device)
+        wp.launch(
+            update_joint_array_with_value_array,
+            dim=(self.num_instances, self.num_joints),
+            inputs=[
+                self._data.default_joint_vel,
+                self._ALL_ENV_INDICES,
+                wp.array(indices_list, dtype=wp.int32, device=self.device),
+                wp.array(values_list, dtype=wp.float32, device=self.device),
+            ]
+        )
 
     """
     Internal simulation callbacks.
@@ -1500,7 +1744,6 @@ class Articulation(AssetBase):
         """Invalidates the scene elements."""
         # call parent
         super()._invalidate_initialize_callback(event)
-        self._root_physx_view = None
 
     """
     Internal helpers -- Actuators.
@@ -1540,12 +1783,12 @@ class Articulation(AssetBase):
                 joint_ids=joint_ids,
                 num_envs=self.num_instances,
                 device=self.device,
-                stiffness=self._data.default_joint_stiffness[:, joint_ids],
-                damping=self._data.default_joint_damping[:, joint_ids],
-                armature=self._data.default_joint_armature[:, joint_ids],
-                friction=self._data.default_joint_friction_coeff[:, joint_ids],
-                effort_limit=self._data.joint_effort_limits[:, joint_ids],
-                velocity_limit=self._data.joint_vel_limits[:, joint_ids],
+                stiffness=self._data.joint_stiffness,
+                damping=self._data.joint_damping,
+                armature=self._data.joint_armature,
+                friction=self._data.joint_friction_coeff,
+                effort_limit=self._data.joint_effort_limits,
+                velocity_limit=self._data.joint_vel_limits,
             )
             # log information on actuator groups
             model_type = "implicit" if actuator.is_implicit_model else "explicit"
@@ -1580,10 +1823,10 @@ class Articulation(AssetBase):
 
             # Store the configured values from the actuator model
             # note: this is the value configured in the actuator model (for implicit and explicit actuators)
-            self._data.default_joint_stiffness[:, actuator.joint_indices] = actuator.stiffness
-            self._data.default_joint_damping[:, actuator.joint_indices] = actuator.damping
-            self._data.default_joint_armature[:, actuator.joint_indices] = actuator.armature
-            self._data.default_joint_friction_coeff[:, actuator.joint_indices] = actuator.friction
+            #self._data.default_joint_stiffness[:, actuator.joint_indices] = actuator.stiffness
+            #self._data.default_joint_damping[:, actuator.joint_indices] = actuator.damping
+            #self._data.default_joint_armature[:, actuator.joint_indices] = actuator.armature
+            #self._data.default_joint_friction_coeff[:, actuator.joint_indices] = actuator.friction
 
         # perform some sanity checks to ensure actuators are prepared correctly
         total_act_joints = sum(actuator.num_joints for actuator in self.actuators.values())
@@ -1730,57 +1973,3 @@ class Articulation(AssetBase):
 
         if self.num_spatial_tendons > 0:
             raise NotImplementedError("Tendons are not implemented yet")
-
-    """
-    Deprecated methods.
-    """
-
-    def write_joint_friction_to_sim(
-        self,
-        joint_friction: torch.Tensor | float,
-        joint_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
-    ):
-        """Write joint friction coefficients into the simulation.
-
-        .. deprecated:: 2.1.0
-            Please use :meth:`write_joint_friction_coefficient_to_sim` instead.
-        """
-        omni.log.warn(
-            "The function 'write_joint_friction_to_sim' will be deprecated in a future release. Please"
-            " use 'write_joint_friction_coefficient_to_sim' instead."
-        )
-        self.write_joint_friction_coefficient_to_sim(joint_friction, joint_ids=joint_ids, env_ids=env_ids)
-
-    def write_joint_limits_to_sim(
-        self,
-        limits: torch.Tensor | float,
-        joint_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
-        warn_limit_violation: bool = True,
-    ):
-        """Write joint limits into the simulation.
-
-        .. deprecated:: 2.1.0
-            Please use :meth:`write_joint_position_limit_to_sim` instead.
-        """
-        omni.log.warn(
-            "The function 'write_joint_limits_to_sim' will be deprecated in a future release. Please"
-            " use 'write_joint_position_limit_to_sim' instead."
-        )
-        self.write_joint_position_limit_to_sim(
-            limits, joint_ids=joint_ids, env_ids=env_ids, warn_limit_violation=warn_limit_violation
-        )
-
-    def set_fixed_tendon_limit(
-        self,
-        limit: torch.Tensor,
-        fixed_tendon_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
-    ):
-        """Set fixed tendon position limits into internal buffers.
-
-        .. deprecated:: 2.1.0
-            Please use :meth:`set_fixed_tendon_position_limit` instead.
-        """
-        raise NotImplementedError("This method is not implemented for Newton.")
