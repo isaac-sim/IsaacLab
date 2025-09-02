@@ -14,6 +14,7 @@ The following configurations are available:
 * :obj:`H1_MINIMAL_CFG`: H1 humanoid robot with minimal collision bodies
 * :obj:`G1_CFG`: G1 humanoid robot
 * :obj:`G1_MINIMAL_CFG`: G1 humanoid robot with minimal collision bodies
+* :obj:`G1_INSPIRE_FTP_CFG`: G1 29DOF humanoid robot with Inspire 5-finger hand
 
 Reference: https://github.com/unitreerobotics/unitree_ros
 """
@@ -392,7 +393,7 @@ Necessary modifications should be made to ensure the correct parent–child rela
 """
 G1_INSPIRE_FTP_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"./usecase/humanoid_teleop/g1_29dof_rev_1_0_with_inspire_hand_FTP/g1_29dof_rev_1_0_with_inspire_hand_retarget_inspire_white.usd",
+        usd_path="omniverse://isaac-dev.ov.nvidia.com/Projects/agile/Robots/Collected_g1_29dof/g1_29dof_rev_1_0_with_inspire_hand.usd",
         activate_contact_sensors=True,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=True,
@@ -405,11 +406,13 @@ G1_INSPIRE_FTP_CFG = ArticulationCfg(
         ),
         # enabled_self_collisions, True or False
         articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-            enabled_self_collisions=True, solver_position_iteration_count=8, solver_velocity_iteration_count=4
+            enabled_self_collisions=True,
+            solver_position_iteration_count=8,
+            solver_velocity_iteration_count=4
         ),
     ),
     init_state=ArticulationCfg.InitialStateCfg(
-        pos=(0.0, 0.0, 0.95),
+        pos=(0.0, 0.0, 1.0),
         joint_pos={".*": 0.0},
         joint_vel={".*": 0.0},
     ),

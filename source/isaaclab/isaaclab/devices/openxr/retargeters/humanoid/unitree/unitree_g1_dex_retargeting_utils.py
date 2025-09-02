@@ -3,21 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
-# Copyright (c) 2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 import numpy as np
 import os
 import torch
@@ -89,8 +74,8 @@ class UnitreeG1DexRetargeting:
         hand_joint_names: list[str],
         right_hand_config_filename: str = "unitree_hand_right_dexpilot.yml",
         left_hand_config_filename: str = "unitree_hand_left_dexpilot.yml",
-        left_hand_urdf_path: str = f"./usecase/humanoid_teleop/g1_29dof_rev_1_0_with_inspire_hand_FTP/retarget_inspire_white_left_hand.urdf",
-        right_hand_urdf_path: str = f"./usecase/humanoid_teleop/g1_29dof_rev_1_0_with_inspire_hand_FTP/retarget_inspire_white_right_hand.urdf",
+        left_hand_urdf_path: str = "omniverse://isaac-dev.ov.nvidia.com/Projects/agile/Robots/Collected_g1_29dof/g1_29dof_rev_1_0_retarget_left_hand.urdf",
+        right_hand_urdf_path: str = "omniverse://isaac-dev.ov.nvidia.com/Projects/agile/Robots/Collected_g1_29dof/g1_29dof_rev_1_0_retarget_right_hand.urdf",
     ):
         """Initialize the hand retargeting.
 

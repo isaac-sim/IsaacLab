@@ -3,21 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
-# Copyright (c) 2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 import tempfile
 import torch
 
@@ -42,6 +27,7 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
+from isaaclab.sim.schemas.schemas_cfg import MassPropertiesCfg
 
 from . import mdp
 
@@ -66,11 +52,14 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
 
     object = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/Object",
-        init_state=RigidObjectCfg.InitialStateCfg(pos=[-0.25, 0.40, 0.9996], rot=[1, 0, 0, 0]),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=[-0.35, 0.45, 0.9996], rot=[1, 0, 0, 0]),
         spawn=UsdFileCfg(
             usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Mimic/pick_place_task/pick_place_assets/steering_wheel.usd",
             scale=(0.75, 0.75, 0.75),
             rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+            mass_props=MassPropertiesCfg(
+                mass=0.05,
+            ),
         ),
     )
 
@@ -78,7 +67,7 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
     robot: ArticulationCfg = G1_INSPIRE_FTP_CFG.replace(
         prim_path="/World/envs/env_.*/Robot",
         init_state=ArticulationCfg.InitialStateCfg(
-            pos=(0.05, 0.08, 1.0),
+            pos=(0, 0, 1.0),
             rot=(0.7071, 0, 0, 0.7071),
             joint_pos={
                 # right-arm
@@ -188,30 +177,30 @@ class ActionsCfg:
         ],
         hand_joint_names=[
             # All the drive and mimic joints, total 24 joints
-            "L_thumb_proximal_yaw_joint",
-            "L_thumb_proximal_pitch_joint",
-            "L_thumb_intermediate_joint",
-            "L_thumb_distal_joint",
-            "L_index_proximal_joint",
-            "L_index_intermediate_joint",
-            "L_middle_proximal_joint",
-            "L_middle_intermediate_joint",
+            "L_index_proximal_joint", 
+            "L_middle_proximal_joint", 
+            "L_pinky_proximal_joint", 
             "L_ring_proximal_joint",
-            "L_ring_intermediate_joint",
-            "L_pinky_proximal_joint",
-            "L_pinky_intermediate_joint",
-            "R_thumb_proximal_yaw_joint",
-            "R_thumb_proximal_pitch_joint",
-            "R_thumb_intermediate_joint",
-            "R_thumb_distal_joint",
-            "R_index_proximal_joint",
-            "R_index_intermediate_joint",
-            "R_middle_proximal_joint",
-            "R_middle_intermediate_joint",
-            "R_ring_proximal_joint",
-            "R_ring_intermediate_joint",
+            "L_thumb_proximal_yaw_joint", 
+            "R_index_proximal_joint", 
+            "R_middle_proximal_joint", 
             "R_pinky_proximal_joint",
-            "R_pinky_intermediate_joint",
+            "R_ring_proximal_joint", 
+            "R_thumb_proximal_yaw_joint", 
+            "L_index_intermediate_joint",
+            "L_middle_intermediate_joint", 
+            "L_pinky_intermediate_joint", 
+            "L_ring_intermediate_joint",
+            "L_thumb_proximal_pitch_joint", 
+            "R_index_intermediate_joint", 
+            "R_middle_intermediate_joint",
+            "R_pinky_intermediate_joint", 
+            "R_ring_intermediate_joint", 
+            "R_thumb_proximal_pitch_joint",
+            "L_thumb_intermediate_joint", 
+            "R_thumb_intermediate_joint", 
+            "L_thumb_distal_joint", 
+            "R_thumb_distal_joint"
         ],
         # the robot in the sim scene we are controlling
         asset_name="robot",
@@ -222,7 +211,7 @@ class ActionsCfg:
             articulation_name="robot",
             base_link_name="pelvis",
             num_hand_joints=24,
-            show_ik_warnings=True,
+            show_ik_warnings=False,
             variable_input_tasks=[
                 FrameTask(
                     "g1_29dof_rev_1_0_left_wrist_yaw_link",
@@ -425,6 +414,8 @@ class PickPlaceG1InspireFTPEnvCfg(ManagerBasedRLEnvCfg):
                             # OpenXR hand tracking has 26 joints per hand
                             num_open_xr_hand_joints=2 * 26,
                             sim_device=self.sim.device,
+                            # Please confirm that self.actions.pink_ik_cfg.hand_joint_names is consistent with robot.joint_names[-24:]
+                            # The order of the joints does matter as it will be used for converting pink_ik actions to final control actions in IsaacLab.
                             hand_joint_names=self.actions.pink_ik_cfg.hand_joint_names,
                         ),
                     ],
