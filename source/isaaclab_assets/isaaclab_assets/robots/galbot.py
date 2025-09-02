@@ -15,6 +15,7 @@ The following configuration parameters are available:
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 ##
 # Configuration
@@ -23,7 +24,9 @@ from isaaclab.assets.articulation import ArticulationCfg
 
 GALBOT_ONE_CHARLIE_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        usd_path="omniverse://isaac-dev.ov.nvidia.com/Users/rebeccaz@nvidia.com/IsaacLab_PR/galbot_one_charlie/galbot_one_charlie.usd",
+        # FIXME: temp uploaded to nucleus folder path, remove this line in public release and use ISAAC_NUCLEUS_DIR
+        # usd_path="omniverse://isaac-dev.ov.nvidia.com/Users/rebeccaz@nvidia.com/IsaacLab_PR/galbot_one_charlie/galbot_one_charlie.usd",
+        usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/Galbot/Galbot_one_charlie/galbot_one_charlie.usd",
         variants={"Physics": "PhysX"},
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=True,
@@ -33,20 +36,13 @@ GALBOT_ONE_CHARLIE_CFG = ArticulationCfg(
     ),
     init_state=ArticulationCfg.InitialStateCfg(
         joint_pos={
-            "right_arm_joint1": 0.1535,
-            "right_arm_joint2": 1.0087,
-            "right_arm_joint3": 0.0895,
-            "right_arm_joint4": 1.5743,
-            "right_arm_joint5": -0.2422,
-            "right_arm_joint6": -0.0009,
-            "right_arm_joint7": -0.9143,
             "leg_joint1": 0.8,
             "leg_joint2": 2.3,
             "leg_joint3": 1.55,
             "leg_joint4": 0.0,
             "head_joint1": 0.0,
-            "left_arm_joint1": -0.5480,
             "head_joint2": 0.36,
+            "left_arm_joint1": -0.5480,
             "left_arm_joint2": -0.6551,
             "left_arm_joint3": 2.407,
             "left_arm_joint4": 1.3641,
@@ -55,6 +51,13 @@ GALBOT_ONE_CHARLIE_CFG = ArticulationCfg(
             "left_arm_joint7": 1.2308,
             "left_gripper_left_joint": 0.035,
             "left_gripper_right_joint": 0.035,
+            "right_arm_joint1": 0.1535,
+            "right_arm_joint2": 1.0087,
+            "right_arm_joint3": 0.0895,
+            "right_arm_joint4": 1.5743,
+            "right_arm_joint5": -0.2422,
+            "right_arm_joint6": -0.0009,
+            "right_arm_joint7": -0.9143,
             "right_suction_cup_joint1": 0.0,
         },
         pos=(-0.6, 0.0, -0.8),
