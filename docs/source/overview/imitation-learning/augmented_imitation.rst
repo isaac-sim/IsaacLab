@@ -83,7 +83,7 @@ Example usage for the cube stacking task:
 Running Cosmos for Visual Augmentation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-After converting the demonstrations to MP4 format, you can use a `Cosmos <https://github.com/NVIDIA/Cosmos?tab=readme-ov-file>`_ model to visually augment the videos. Follow the Cosmos documentation for details on the augmentation process. Visual augmentation can include changes to lighting, textures, backgrounds, and other visual elements while preserving the essential task-relevant features.
+After converting the demonstrations to MP4 format, you can use a `Cosmos`_ model to visually augment the videos. Follow the Cosmos documentation for details on the augmentation process. Visual augmentation can include changes to lighting, textures, backgrounds, and other visual elements while preserving the essential task-relevant features.
 
 We use the RGB, depth and shaded segmentation videos from the previous step as input to the Cosmos model as seen below:
 
@@ -99,7 +99,7 @@ We provide an example augmentation output from `Cosmos Transfer1 <https://github
    :align: center
    :alt: Cosmos Transfer1 augmentation output
 
-We recommend using the `Cosmos Transfer1 <https://github.com/nvidia-cosmos/cosmos-transfer1/tree/e4055e39ee9c53165e85275bdab84ed20909714a>`_ model for visual augmentation as we found it to produce the best results in the form of a highly diverse dataset with a wide range of visual variations. You can refer to the installation instructions `here <https://github.com/nvidia-cosmos/cosmos-transfer1/blob/e4055e39ee9c53165e85275bdab84ed20909714a/INSTALL.md#environment-setup>`_, the checkpoint download instructions `here <https://github.com/nvidia-cosmos/cosmos-transfer1/blob/e4055e39ee9c53165e85275bdab84ed20909714a/examples/inference_cosmos_transfer1_7b.md#download-checkpoints>`_ and `this example <https://github.com/nvidia-cosmos/cosmos-transfer1/blob/e4055e39ee9c53165e85275bdab84ed20909714a/examples/inference_cosmos_transfer1_7b.md#example-2-multimodal-control>`_ for reference on how to use Transfer1 for this usecase. We further recommend the following settings to be used with the Transfer1 model for this task:
+We recommend using the `Cosmos Transfer1 <https://github.com/nvidia-cosmos/cosmos-transfer1/tree/e4055e39ee9c53165e85275bdab84ed20909714a>`_ model for visual augmentation as we found it to produce the best results in the form of a highly diverse dataset with a wide range of visual variations. You can refer to the `installation instructions <https://github.com/nvidia-cosmos/cosmos-transfer1/blob/e4055e39ee9c53165e85275bdab84ed20909714a/INSTALL.md#environment-setup>`_, the `checkpoint download instructions <https://github.com/nvidia-cosmos/cosmos-transfer1/blob/e4055e39ee9c53165e85275bdab84ed20909714a/examples/inference_cosmos_transfer1_7b.md#download-checkpoints>`_ and `this example <https://github.com/nvidia-cosmos/cosmos-transfer1/blob/e4055e39ee9c53165e85275bdab84ed20909714a/examples/inference_cosmos_transfer1_7b.md#example-2-multimodal-control>`_ for reference on how to use Transfer1 for this usecase. We further recommend the following settings to be used with the Transfer1 model for this task:
 
 .. rubric:: Hyperparameters
 

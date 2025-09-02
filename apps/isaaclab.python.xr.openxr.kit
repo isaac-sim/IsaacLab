@@ -5,7 +5,7 @@
 [package]
 title = "Isaac Lab Python OpenXR"
 description = "An app for running Isaac Lab with OpenXR"
-version = "2.2.0"
+version = "2.2.1"
 
 # That makes it browsable in UI with "experience" filter
 keywords = ["experience", "app", "usd"]
@@ -49,6 +49,8 @@ cameras_enabled = true
 
 [settings]
 app.xr.enabled = true
+# Set profiler backend to NVTX by default
+app.profilerBackend = "nvtx"
 
 # xr settings
 xr.ui.enabled = false
