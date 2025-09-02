@@ -1,6 +1,25 @@
 Changelog
 ---------
 
+0.10.47 (2025-07-25)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* New ``Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0`` environment that enables the waist degrees-of-freedom for the GR1T2 robot.
+
+
+Changed
+^^^^^^^
+
+* Updated pink inverse kinematics controller configuration for the following tasks (``Isaac-PickPlace-GR1T2``, ``Isaac-NutPour-GR1T2``, ``Isaac-ExhaustPipe-GR1T2``)
+  to increase end-effector tracking accuracy and speed. Also added a null-space regularizer that enables turning on of waist degrees-of-freedom without
+  the robot control drifting to a bending posture.
+* Tuned the pink inverse kinematics controller and joint PD controllers for the following tasks (``Isaac-PickPlace-GR1T2``, ``Isaac-NutPour-GR1T2``, ``Isaac-ExhaustPipe-GR1T2``)
+  to improve the end-effector tracking accuracy and speed. Achieving position and orientation accuracy test within **(2 mm, 1 degree)**.
+
+
 0.10.46 (2025-08-16)
 ~~~~~~~~~~~~~~~~~~~~
 

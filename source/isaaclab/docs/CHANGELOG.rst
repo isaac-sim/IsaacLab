@@ -1,6 +1,37 @@
 Changelog
 ---------
 
+0.45.9 (2025-08-27)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed removing import of pink_ik controller from isaaclab.controllers which is causing pinocchio import error.
+
+
+0.45.8 (2025-07-25)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Created :attr:`~isaaclab.controllers.pink_ik.PinkIKControllerCfg.target_eef_link_names` to :class:`~isaaclab.controllers.pink_ik.PinkIKControllerCfg`
+  to specify the target end-effector link names for the pink inverse kinematics controller.
+
+Changed
+^^^^^^^
+
+* Updated pink inverse kinematics controller configuration for the following tasks (Isaac-PickPlace-GR1T2, Isaac-NutPour-GR1T2, Isaac-ExhaustPipe-GR1T2)
+  to increase end-effector tracking accuracy and speed. Also added a null-space regularizer that enables turning on of waist degrees-of-freedom.
+* Improved the test_pink_ik script to more comprehensive test on controller accuracy. Also, migrated to use pytest. With the current IK controller
+  improvements, our unit tests pass position and orientation accuracy test within **(1 mm, 1 degree)**. Previously, the position accuracy tolerances
+  were set to **(30 mm, 10 degrees)**.
+* Included a new config parameter :attr:`fail_on_ik_error` to :class:`~isaaclab.controllers.pink_ik.PinkIKControllerCfg`
+  to control whether the IK controller raise an exception if robot joint limits are exceeded. In the case of an exception, the controller will hold the
+  last joint position. This adds to stability of the controller and avoids operator experiencing what is perceived as sudden large delays in robot control.
+
+
 0.45.7 (2025-08-21)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -94,7 +125,7 @@ Added
 
 
 0.44.12 (2025-08-12)
-~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~
 
 Fixed
 ^^^^^
@@ -104,7 +135,7 @@ Fixed
 
 
 0.44.11 (2025-08-11)
-~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~
 
 Fixed
 ^^^^^
@@ -113,7 +144,7 @@ Fixed
 
 
 0.44.10 (2025-08-06)
-~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~
 
 Fixed
 ^^^^^

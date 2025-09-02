@@ -13,4 +13,3 @@ using VSCode.
   VS Code <vs_code>
   repo_structure
   development
-  template
