@@ -12,10 +12,11 @@ The following configuration parameters are available:
 
 from isaaclab_assets.sensors.velodyne import VELODYNE_VLP_16_RAYCASTER_CFG
 
+import torch
+
 import isaaclab.sim as sim_utils
-from isaaclab.actuators import ThrusterLMF2Cfg
-from isaaclab.actuators import DCMotorCfg
-from isaaclab.assets.articulation import ArticulationCfg
+from isaaclab.actuators import ThrusterCfg
+from isaaclab.assets.articulation import ArticulationWithThrustersCfg
 # from isaaclab.sensors import RayCasterCfg
 
 from isaaclab import ISAACLAB_EXT_DIR
@@ -24,13 +25,13 @@ from isaaclab import ISAACLAB_EXT_DIR
 # Configuration - Actuators.
 ##
 
-LMF2_THRUSTER = ThrusterLMF2Cfg()
+LMF2_THRUSTER = ThrusterCfg()
 
 ##
 # Configuration - Articulation.
 ##
 
-LMF2_CFG = ArticulationCfg(
+LMF2_CFG = ArticulationWithThrustersCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAACLAB_EXT_DIR}/../isaaclab_tasks/isaaclab_tasks/manager_based/navigation/config/LMF2/LMF2_model/lmf2/lmf2.usd",
         activate_contact_sensors=True,
@@ -47,21 +48,29 @@ LMF2_CFG = ArticulationCfg(
             enabled_self_collisions=True, solver_position_iteration_count=4, solver_velocity_iteration_count=0
         ),
     ),
-    
-    init_state=ArticulationCfg.InitialStateCfg(
+    init_state=ArticulationWithThrustersCfg.InitialThrusterStateCfg(
         pos=(0.0, 0.0, 0.0),
-        joint_pos={
-            "base_link": 0.0,  # all HAA
-            "back_left_prop": 0.0,  # both front HFE
-            "back_right_prop": 0.0,  # both hind HFE
-            "front_left_prop": 0.0,  # both front KFE
-            "front_right_prop": 0.0,  # both hind KFE
+        lin_vel=(0.0, 0.0, 0.0),
+        ang_vel=(0.0, 0.0, 0.0),
+        rot=(1.0, 0.0, 0.0,0.0),
+        rps={
+            "base_link_to_back_left_prop": 200.0,  
+            "base_link_to_back_right_prop": 200.0, 
+            "base_link_to_front_left_prop": 200.0, 
+            "base_link_to_front_right_prop": 200.0,  
         },
     ),
     actuators={"thrusters": LMF2_THRUSTER},
     soft_joint_pos_limit_factor=0.95,
+    allocation_matrix=[
+            [0.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0],
+            [1.0, 1.0, 1.0, 1.0],
+            [-0.13, -0.13, 0.13, 0.13],
+            [-0.13, 0.13, 0.13, -0.13],
+            [-0.07, 0.07, -0.07, 0.07],
+        ]
 )
-"""Configuration of ANYmal-C robot using actuator-net."""
 
 ##
 # Configuration - Sensors.

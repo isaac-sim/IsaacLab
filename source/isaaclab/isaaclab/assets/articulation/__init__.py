@@ -6,5 +6,6 @@
 """Sub-module for rigid articulated assets."""
 
 from .articulation import Articulation
-from .articulation_cfg import ArticulationCfg
+from .articulation_cfg import ArticulationCfg, ArticulationWithThrustersCfg
 from .articulation_data import ArticulationData
+from .articulation_data_thrusters import ArticulationDataWithThrusters

@@ -286,13 +286,13 @@ class RemotizedPDActuatorCfg(DelayedPDActuatorCfg):
     """
 
 @configclass
-class ThrusterLMF2Cfg(ActuatorBaseCfg):
+class ThrusterCfg():
 
     class_type: type[Thruster] = Thruster
     """Concrete Python class that consumes this config."""
     
-    stiffness = 0.1 # only necessary to make this conform with Isaac
-    damping = 0.1 # only necessary to make this conform with Isaac
+    # stiffness = 0.1 # only necessary to make this conform with Isaac
+    # damping = 0.1 # only necessary to make this conform with Isaac
 
     dt: float = 0.01
     """Simulation/integration timestep used by the thruster update [s]."""
@@ -331,10 +331,9 @@ class ThrusterLMF2Cfg(ActuatorBaseCfg):
     integration_scheme: Literal["rk4", "euler"] = "rk4"
     """Numerical integrator for the first-order model. Choose ``"euler"`` or ``"rk4"``."""
 
-    joint_names_expr: list[str] = ["base_link", 
-                                   "back_left_prop", 
-                                   "back_right_prop", 
-                                   "front_left_prop", 
-                                   "front_right_prop"]
+    thruster_names_expr: list[str] = ["base_link_to_back_left_prop", 
+                                   "base_link_to_back_right_prop", 
+                                   "base_link_to_front_left_prop", 
+                                   "base_link_to_front_right_prop"]
     
     """Articulation's joint names that are part of the group."""

@@ -21,7 +21,7 @@ from isaaclab.markers import VisualizationMarkers
 
 from .lee_acc_controller_cfg import LeeAccControllerCfg
 from .drone_navigation_env_cfg import DroneNavigationEnvCfg
-from ..navigation.thruster_lmf2_cfg import ThrusterLMF2Cfg
+from ..navigation.thruster_lmf2_cfg import ThrusterCfg
 from ..utils import rand_range
 
 from isaaclab.markers import CUBOID_MARKER_CFG  # isort: skip

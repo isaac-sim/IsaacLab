@@ -219,6 +219,7 @@ class SceneEntityCfg:
 
     def _resolve_body_names(self, scene: InteractiveScene):
         # convert body names to indices based on regex
+        entity: RigidObject = scene[self.name]
         if self.body_names is not None or self.body_ids != slice(None):
             entity: RigidObject = scene[self.name]
             # -- if both are not their default values, check if they are valid

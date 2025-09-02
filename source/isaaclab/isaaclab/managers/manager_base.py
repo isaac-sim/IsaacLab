@@ -393,10 +393,10 @@ class ManagerBase(ABC):
         for key, value in term_cfg.params.items():
             if isinstance(value, SceneEntityCfg):
                 # load the entity
-                try:
-                    value.resolve(self._env.scene)
-                except ValueError as e:
-                    raise ValueError(f"Error while parsing '{term_name}:{key}'. {e}")
+                #try:
+                value.resolve(self._env.scene)
+                #except ValueError as e:
+                #    raise ValueError(f"Error while parsing '{term_name}:{key}'. {e}")
                 # log the entity for checking later
                 msg = f"[{term_cfg.__class__.__name__}:{term_name}] Found entity '{value.name}'."
                 if value.joint_ids is not None:

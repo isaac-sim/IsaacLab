@@ -32,7 +32,7 @@ from .actuator_cfg import (
     IdealPDActuatorCfg,
     ImplicitActuatorCfg,
     RemotizedPDActuatorCfg,
-    ThrusterLMF2Cfg,
+    ThrusterCfg,
 )
 from .actuator_net import ActuatorNetLSTM, ActuatorNetMLP
 from .actuator_pd import DCMotor, DelayedPDActuator, IdealPDActuator, ImplicitActuator, RemotizedPDActuator

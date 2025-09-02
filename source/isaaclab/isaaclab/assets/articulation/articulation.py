@@ -258,10 +258,8 @@ class Articulation(AssetBase):
         Returns:
             A tuple of lists containing the joint indices and names.
         """
-
         if joint_subset is None:
             joint_subset = self.joint_names
-
         # find joints
         return string_utils.resolve_matching_names(name_keys, joint_subset, preserve_order)
 
@@ -1481,7 +1479,7 @@ class Articulation(AssetBase):
 
         # -- articulation
         self._root_physx_view = self._physics_sim_view.create_articulation_view(root_prim_path_expr.replace(".*", "*"))
-        
+
         # check if the articulation was created
         if self._root_physx_view._backend is None:
             raise RuntimeError(f"Failed to create articulation at: {root_prim_path_expr}. Please check PhysX logs.")
@@ -1613,6 +1611,7 @@ class Articulation(AssetBase):
         )
         default_root_state = torch.tensor(default_root_state, dtype=torch.float, device=self.device)
         self._data.default_root_state = default_root_state.repeat(self.num_instances, 1)
+
         # -- joint state
         self._data.default_joint_pos = torch.zeros(self.num_instances, self.num_joints, device=self.device)
         self._data.default_joint_vel = torch.zeros_like(self._data.default_joint_pos)

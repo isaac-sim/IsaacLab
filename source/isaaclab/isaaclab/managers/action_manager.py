@@ -159,7 +159,7 @@ class ActionTerm(ManagerTermBase):
     def apply_actions(self):
         """Applies the actions to the asset managed by the term.
 
-        Note:
+        Note:Controller
             This is called at every simulation step by the manager.
         """
         raise NotImplementedError

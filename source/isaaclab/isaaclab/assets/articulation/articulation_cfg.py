@@ -5,11 +5,14 @@
 
 from dataclasses import MISSING
 
-from isaaclab.actuators import ActuatorBaseCfg
+import torch
+
+from isaaclab.actuators import ActuatorBaseCfg, ThrusterCfg
 from isaaclab.utils import configclass
 
 from ..asset_base_cfg import AssetBaseCfg
 from .articulation import Articulation
+from .articulation_with_thrusters import ArticulationWithThrusters
 
 
 @configclass
@@ -69,3 +72,54 @@ class ArticulationCfg(AssetBaseCfg):
     actuator_value_resolution_debug_print = False
     """Print the resolution of actuator final value when input cfg is different from USD value, Defaults to False
     """
+
+
+
+@configclass
+class ArticulationWithThrustersCfg(ArticulationCfg):
+    """Configuration parameters for an articulation."""
+
+    @configclass
+    class InitialThrusterStateCfg(ArticulationCfg.InitialStateCfg):
+        """Initial state of the articulation."""
+        
+        # # root velocity
+        # lin_vel: tuple[float, float, float] = (0.0, 0.0, 0.0)
+        # """Linear velocity of the root in simulation world frame. Defaults to (0.0, 0.0, 0.0)."""
+        # ang_vel: tuple[float, float, float] = (0.0, 0.0, 0.0)
+        # """Angular velocity of the root in simulation world frame. Defaults to (0.0, 0.0, 0.0)."""
+
+        # thruster rps
+        rps: dict[str, float] = {".*": 100.0}
+        """RPS of the thrusters. Defaults to 100.0."""
+    ##
+    # Initialize configurations.
+    ##
+
+    class_type: type = ArticulationWithThrusters
+
+    articulation_root_prim_path: str | None = None
+    """Path to the articulation root prim under the :attr:`prim_path`. Defaults to None, in which case the class
+    will search for a prim with the USD ArticulationRootAPI on it.
+
+    This path should be relative to the :attr:`prim_path` of the asset. If the asset is loaded from a USD file,
+    this path should be relative to the root of the USD stage. For instance, if the loaded USD file at :attr:`prim_path`
+    contains two articulations, one at `/robot1` and another at `/robot2`, and you want to use `robot2`,
+    then you should set this to `/robot2`.
+
+    The path must start with a slash (`/`).
+    """
+
+    init_state: InitialThrusterStateCfg = InitialThrusterStateCfg()
+    """Initial state of the articulated object. Defaults to identity pose with zero velocity and zero joint state."""
+
+    # actuators: dict[str, ActuatorBaseCfg] = MISSING
+    actuators: dict[str, ThrusterCfg] = MISSING
+    """Actuators for the robot with corresponding joint names."""
+
+    actuator_value_resolution_debug_print = False
+    """Print the resolution of actuator final value when input cfg is different from USD value, Defaults to False
+    """
+
+    allocation_matrix: list[list[float]] | None = None
+    """Matrix for calculating wrench from individual motor thrusts. Defaults to None."""

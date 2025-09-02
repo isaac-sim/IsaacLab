@@ -14,14 +14,13 @@ from __future__ import annotations
 import torch
 from typing import TYPE_CHECKING
 from isaaclab.utils.math  import rand_range
-from isaaclab.utils.types import ArticulationActions
-from isaaclab.actuators import ActuatorBase
+from isaaclab.utils.types import ArticulationThrustActions
 
 if TYPE_CHECKING:
-    from .actuator_cfg import ThrusterLMF2Cfg
+    from .actuator_cfg import ThrusterCfg
 
 
-class Thruster(ActuatorBase):
+class Thruster():
     """Low-level motor/thruster dynamics with separate rise/fall time constants.
 
     Supports two models:
@@ -32,9 +31,25 @@ class Thruster(ActuatorBase):
     Units: thrust [N], rates [N/s], time [s].
     """
 
-    cfg: ThrusterLMF2Cfg
+    computed_thrust: torch.Tensor
+    """The computed thrust for the actuator group. Shape is (num_envs, num_thrusters)."""
 
-    def __init__(self, cfg: ThrusterLMF2Cfg, *args, **kwargs):
+    applied_thrust: torch.Tensor
+    """The applied thrust for the actuator group. Shape is (num_envs, num_thrusters).
+
+    This is the thrust obtained after clipping the :attr:`computed_thrust` based on the
+    actuator characteristics.
+    """
+    
+    cfg: ThrusterCfg
+
+    def __init__(self, 
+                 cfg: ThrusterCfg, 
+                 thruster_names: list[str],
+                 thruster_ids: slice | torch.Tensor,
+                 num_envs: int, 
+                 device: str,
+                 init_thruster_rps: torch.Tensor):
         """Construct buffers and sample per-motor parameters.
 
         Args:
@@ -43,8 +58,12 @@ class Thruster(ActuatorBase):
             device: PyTorch device string.
         """
         self.cfg = cfg
-        super().__init__(cfg, *args, **kwargs)
-        
+        self._num_envs = num_envs
+        self._device = device
+        self._thruster_names = thruster_names
+        self._thruster_indices = thruster_ids
+        self._init_thruster_rps = init_thruster_rps
+
         # Range tensors, shaped (num_envs, 2, num_motors); [:,0,:]=min, [:,1,:]=max
         target_size = (self._num_envs, 2, cfg.num_motors)
         self.thrust_r = torch.tensor(cfg.thrust_range).view(1, 2, 1).expand(target_size).to(self._device)
@@ -52,16 +71,20 @@ class Thruster(ActuatorBase):
         self.tau_dec_r = torch.tensor(cfg.tau_dec_range).view(1, 2, 1).expand(target_size).to(self._device)
 
         self.max_rate = torch.tensor(cfg.max_thrust_rate).expand(self._num_envs, cfg.num_motors).to(self._device)
+        
+        self.max_thrust = self.cfg.thrust_range[1]
+        self.min_thrust = self.cfg.thrust_range[0]
 
         # State & randomized per-motor parameters
-        self.curr_thrust = torch.zeros(self._num_envs, cfg.num_motors, device=self._device, dtype=torch.float32)
         self.tau_inc_s = rand_range(self.tau_inc_r[:, 0], self.tau_inc_r[:, 1])
         self.tau_dec_s = rand_range(self.tau_dec_r[:, 0], self.tau_dec_r[:, 1])
 
         if cfg.use_rps:
-            self.thrust_const_r = torch.tensor(cfg.thrust_const_range).view(1, 2, 1).expand(target_size).to(self._device)
+            self.thrust_const_r = torch.tensor(cfg.thrust_const_range).view(1, 2, 1).expand(target_size).to(device)
             self.thrust_const = rand_range(self.thrust_const_r[:, 0], self.thrust_const_r[:, 1])
-
+        
+        self.curr_thrust = torch.ones(self._num_envs, cfg.num_motors, device=self._device, dtype=torch.float32)*self.thrust_const*self._init_thruster_rps**2 
+        
         # Mixing factor (discrete vs continuous form)
         if self.cfg.use_discrete_approximation:
             self.mixing_factor_function = discrete_mixing_factor
@@ -82,9 +105,28 @@ class Thruster(ActuatorBase):
                 self._step_thrust = compute_thrust_with_force_time_constant
             elif self.cfg.integration_scheme == "rk4":
                 self._step_thrust = compute_thrust_with_force_time_constant_rk4
+                
+    @property
+    def num_thrusters(self) -> int:
+        """Number of actuators in the group."""
+        return len(self._thruster_names)
 
-    def compute(self, control_action: ArticulationActions, joint_pos: torch.Tensor, joint_vel: torch.Tensor
-    ) -> ArticulationActions:
+    @property
+    def thruster_names(self) -> list[str]:
+        """Articulation's thruster names that are part of the group."""
+        return self._thruster_names
+
+    @property
+    def thruster_indices(self) -> slice | torch.Tensor:
+        """Articulation's thruster indices that are part of the group.
+
+        Note:
+            If :obj:`slice(None)` is returned, then the group contains all the thrusters in the articulation.
+            We do this to avoid unnecessary indexing of the thrusters for performance reasons.
+        """
+        return self._thruster_indices
+
+    def compute(self, control_action: ArticulationThrustActions) -> ArticulationThrustActions:
         """Advance the thruster state one step.
 
         Applies saturation, chooses rise/fall tau per motor, computes mixing factor,
@@ -97,7 +139,7 @@ class Thruster(ActuatorBase):
             (num_envs, num_motors) updated thrust state [N].
         
         """
-        des_thrust = control_action.joint_efforts
+        des_thrust = control_action.joint_thrusts
         des_thrust = torch.clamp(des_thrust, self.thrust_r[:, 0], self.thrust_r[:, 1])
 
         thrust_decrease_mask = torch.sign(self.curr_thrust) * torch.sign(des_thrust - self.curr_thrust)
@@ -110,11 +152,14 @@ class Thruster(ActuatorBase):
             thrust_args = (des_thrust, self.curr_thrust, mixing, self.max_rate, self.cfg.dt)
 
         self.curr_thrust[:] = self._step_thrust(*thrust_args)
-        
-        control_action.joint_efforts = self.curr_thrust
+
+        self.computed_thrust = self.curr_thrust
+        self.applied_thrust = torch.clamp(self.computed_thrust, self.min_thrust, self.max_thrust)
+
+        control_action.joint_thrusts = self.applied_thrust
         
         return control_action
-
+    
     def reset_idx(self, env_ids=None) -> None:
         """Re-sample parameters and reinitialize state.
 
