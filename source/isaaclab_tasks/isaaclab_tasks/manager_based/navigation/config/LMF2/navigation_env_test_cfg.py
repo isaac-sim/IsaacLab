@@ -30,12 +30,15 @@ import isaaclab_tasks.manager_based.locomotion.velocity.mdp as mdp
 ##
 from isaaclab.terrains.config.floating_obstacles import FLOATING_OBSTACLES_CFG 
 
+
 ##
 # Scene definition
 ##
+
+
 @configclass
 class MySceneCfg(InteractiveSceneCfg):
-    """Configuration for the terrain scene with a flying robot."""
+    """Configuration for the terrain scene with a legged robot."""
 
     # ground terrain
     terrain = TerrainImporterCfg(
@@ -53,19 +56,17 @@ class MySceneCfg(InteractiveSceneCfg):
         visual_material=None,
         debug_vis=False,
     )
-    
     # robots
     robot: ArticulationCfg = MISSING
     # sensors
-    height_scanner = None
-    # height_scanner = RayCasterCfg(
-    #     prim_path="{ENV_REGEX_NS}/Robot/base",
-    #     offset=RayCasterCfg.OffsetCfg(pos=(0.0, 0.0, 20.0)),
-    #     ray_alignment="yaw",
-    #     pattern_cfg=patterns.GridPatternCfg(resolution=0.1, size=[1.6, 1.0]),
-    #     debug_vis=False,
-    #     mesh_prim_paths=["/World/ground"],
-    # )
+    height_scanner = RayCasterCfg(
+        prim_path="{ENV_REGEX_NS}/Robot/base",
+        offset=RayCasterCfg.OffsetCfg(pos=(0.0, 0.0, 20.0)),
+        ray_alignment="yaw",
+        pattern_cfg=patterns.GridPatternCfg(resolution=0.1, size=[1.6, 1.0]),
+        debug_vis=False,
+        mesh_prim_paths=["/World/ground"],
+    )
     contact_forces = ContactSensorCfg(prim_path="{ENV_REGEX_NS}/Robot/.*", history_length=3, track_air_time=True)
     # lights
     sky_light = AssetBaseCfg(
@@ -104,8 +105,7 @@ class CommandsCfg:
 class ActionsCfg:
     """Action specifications for the MDP."""
 
-    joint_pos = mdp.JointThrustActionCfg(asset_name="robot", joint_names=[".*"], scale=0.5, use_default_offset=True)
-    # joint_pos = mdp.JointPositionActionCfg(asset_name="robot", joint_names=[".*"], scale=0.5, use_default_offset=True)
+    joint_pos = mdp.JointPositionActionCfg(asset_name="robot", joint_names=[".*"], scale=0.5, use_default_offset=True)
 
 
 @configclass
@@ -163,7 +163,7 @@ class EventCfg:
         func=mdp.randomize_rigid_body_mass,
         mode="startup",
         params={
-            "asset_cfg": SceneEntityCfg("robot", body_names=["base_link", 'back_left_prop', 'back_right_prop', 'front_left_prop', 'front_right_prop']),
+            "asset_cfg": SceneEntityCfg("robot", body_names="base"),
             "mass_distribution_params": (-5.0, 5.0),
             "operation": "add",
         },
@@ -173,7 +173,7 @@ class EventCfg:
         func=mdp.randomize_rigid_body_com,
         mode="startup",
         params={
-            "asset_cfg": SceneEntityCfg("robot", body_names="base_link"),
+            "asset_cfg": SceneEntityCfg("robot", body_names="base"),
             "com_range": {"x": (-0.05, 0.05), "y": (-0.05, 0.05), "z": (-0.01, 0.01)},
         },
     )
@@ -183,7 +183,7 @@ class EventCfg:
         func=mdp.apply_external_force_torque,
         mode="reset",
         params={
-            "asset_cfg": SceneEntityCfg("robot", body_names="base_link"),
+            "asset_cfg": SceneEntityCfg("robot", body_names="base"),
             "force_range": (0.0, 0.0),
             "torque_range": (-0.0, 0.0),
         },
@@ -283,7 +283,7 @@ class CurriculumCfg:
 
 
 @configclass
-class NavigationVelocityFloatingObstacleEnvCfg(ManagerBasedRLEnvCfg):
+class LocomotionVelocityRoughEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the locomotion velocity-tracking environment."""
 
     # Scene settings

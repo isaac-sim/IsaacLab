@@ -16,9 +16,9 @@ from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 import isaaclab_tasks.manager_based.navigation.mdp as mdp
-from isaaclab_tasks.manager_based.locomotion.velocity.config.anymal_c.flat_env_cfg import AnymalCFlatEnvCfg
+from isaaclab_tasks.manager_based.locomotion.velocity.config.anymal_c.floating_obstacles_env_cfg import AnimalCFloatingObstacleEnvCfg
 
-LOW_LEVEL_ENV_CFG = AnymalCFlatEnvCfg()
+LOW_LEVEL_ENV_CFG = AnimalCFloatingObstacleEnvCfg()
 
 
 @configclass
