@@ -63,7 +63,7 @@ class RaycasterSensorSceneCfg(InteractiveSceneCfg):
         update_period=1 / 60,
         offset=RayCasterCfg.OffsetCfg(pos=(0, 0, 0.5)),
         mesh_prim_paths=["/World/Ground"],
-        attach_yaw_only=True,
+        ray_alignment="yaw",
         pattern_cfg=patterns.LidarPatternCfg(
             channels=100, vertical_fov_range=[-90, 90], horizontal_fov_range=[-90, 90], horizontal_res=1.0
         ),

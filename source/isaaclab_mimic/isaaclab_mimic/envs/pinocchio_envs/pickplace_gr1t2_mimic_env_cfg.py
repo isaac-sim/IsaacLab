@@ -3,11 +3,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-# Copyright (c) 2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
-# All rights reserved.
-#
-# SPDX-License-Identifier: Apache-2.0
-
 from isaaclab.envs.mimic_env_cfg import MimicEnvCfg, SubTaskConfig
 from isaaclab.utils import configclass
 
@@ -22,7 +17,7 @@ class PickPlaceGR1T2MimicEnvCfg(PickPlaceGR1T2EnvCfg, MimicEnvCfg):
         super().__post_init__()
 
         # Override the existing values
-        self.datagen_config.name = "demo_src_gr1t2_demo_task_D0"
+        self.datagen_config.name = "gr1t2_pick_place_D0"
         self.datagen_config.generation_guarantee = True
         self.datagen_config.generation_keep_failed = False
         self.datagen_config.generation_num_trials = 1000

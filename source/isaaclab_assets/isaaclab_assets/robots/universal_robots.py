@@ -52,67 +52,22 @@ UR10_CFG = ArticulationCfg(
 )
 """Configuration of UR-10 arm using implicit actuator models."""
 
+UR10_LONG_SUCTION_CFG = UR10_CFG.copy()
+UR10_LONG_SUCTION_CFG.spawn.usd_path = f"{ISAAC_NUCLEUS_DIR}/Robots/UniversalRobots/ur10/ur10.usd"
+UR10_LONG_SUCTION_CFG.spawn.variants = {"Gripper": "Long_Suction"}
+UR10_LONG_SUCTION_CFG.spawn.rigid_props.disable_gravity = True
+UR10_LONG_SUCTION_CFG.init_state.joint_pos = {
+    "shoulder_pan_joint": 0.0,
+    "shoulder_lift_joint": -1.5707,
+    "elbow_joint": 1.5707,
+    "wrist_1_joint": -1.5707,
+    "wrist_2_joint": 1.5707,
+    "wrist_3_joint": 0.0,
+}
 
-"""UR10 with long suction"""
-UR10_LONG_SUCTION_CFG = ArticulationCfg(
-    spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/UniversalRobots/ur10/ur10.usd",
-        variants={"Gripper": "Long_Suction"},
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
-            disable_gravity=True,
-            max_depenetration_velocity=5.0,
-        ),
-        activate_contact_sensors=False,
-    ),
-    init_state=ArticulationCfg.InitialStateCfg(
-        joint_pos={
-            "shoulder_pan_joint": 0.0,
-            "shoulder_lift_joint": -1.5707,
-            "elbow_joint": 1.5707,
-            "wrist_1_joint": -1.5707,
-            "wrist_2_joint": 1.5707,
-            "wrist_3_joint": 0.0,
-        },
-    ),
-    actuators={
-        "arm": ImplicitActuatorCfg(
-            joint_names_expr=[".*_joint"],
-            velocity_limit_sim=100.0,
-            effort_limit_sim=2000.0,
-            stiffness=800.0,
-            damping=40.0,
-        ),
-    },
-)
+"""Configuration of UR10 arm with long suction gripper."""
 
-"""UR10 with short suction"""
-UR10_SHORT_SUCTION_CFG = ArticulationCfg(
-    spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/UniversalRobots/ur10/ur10.usd",
-        variants={"Gripper": "Short_Suction"},
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
-            disable_gravity=True,
-            max_depenetration_velocity=5.0,
-        ),
-        activate_contact_sensors=False,
-    ),
-    init_state=ArticulationCfg.InitialStateCfg(
-        joint_pos={
-            "shoulder_pan_joint": 0.0,
-            "shoulder_lift_joint": -1.5707,
-            "elbow_joint": 1.5707,
-            "wrist_1_joint": -1.5707,
-            "wrist_2_joint": 1.5707,
-            "wrist_3_joint": 0.0,
-        },
-    ),
-    actuators={
-        "arm": ImplicitActuatorCfg(
-            joint_names_expr=[".*_joint"],
-            velocity_limit_sim=100.0,
-            effort_limit_sim=2000.0,
-            stiffness=800.0,
-            damping=40.0,
-        ),
-    },
-)
+UR10_SHORT_SUCTION_CFG = UR10_LONG_SUCTION_CFG.copy()
+UR10_SHORT_SUCTION_CFG.spawn.variants = {"Gripper": "Short_Suction"}
+
+"""Configuration of UR10 arm with short suction gripper."""

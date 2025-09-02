@@ -9,10 +9,10 @@ from isaacsim.core.utils.extensions import get_extension_path_from_name
 
 from isaaclab.controllers.rmp_flow import RmpFlowControllerCfg
 
-# from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
+from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
-# FIXME: temp use nucleus folder path, remove this line in public release and use above ISAACLAB_NUCLEUS_DIR
-ISAACLAB_NUCLEUS_DIR = "https://isaac-dev.ov.nvidia.com/omni/web3/omniverse://isaac-dev.ov.nvidia.com/Isaac/IsaacLab"
+# FIXME: temp uploaded to nucleus folder, remove this line in public release and use above ISAACLAB_NUCLEUS_DIR
+# ISAACLAB_NUCLEUS_DIR = "omniverse://isaac-dev.ov.nvidia.com/Isaac/IsaacLab"
 
 ISAACLAB_NUCLEUS_RMPFLOW_DIR = os.path.join(ISAACLAB_NUCLEUS_DIR, "Controllers", "RmpFlowAssets")
 

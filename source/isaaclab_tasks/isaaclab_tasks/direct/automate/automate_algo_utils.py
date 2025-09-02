@@ -138,7 +138,7 @@ def model_succ_w_gp(held_asset_pose, fixed_asset_pose, success):
 
     # Create and fit the Gaussian Process Classifier
     # gp = GaussianProcessClassifier(kernel=kernel, random_state=42)
-    gp = GaussianProcessRegressor()
+    gp = GaussianProcessRegressor(random_state=42)
     gp.fit(relative_position, y)
 
     return gp

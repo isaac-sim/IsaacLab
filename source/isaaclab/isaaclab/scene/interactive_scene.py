@@ -138,7 +138,8 @@ class InteractiveScene:
         self.env_prim_paths = self.cloner.generate_paths(f"{self.env_ns}/env", self.cfg.num_envs)
         # create source prim
         self.stage.DefinePrim(self.env_prim_paths[0], "Xform")
-
+        # allocate env indices
+        self._ALL_INDICES = torch.arange(self.cfg.num_envs, dtype=torch.long, device=self.device)
         # when replicate_physics=False, we assume heterogeneous environments and clone the xforms first.
         # this triggers per-object level cloning in the spawner.
         if not self.cfg.replicate_physics:
@@ -515,7 +516,7 @@ class InteractiveScene:
         """
         # resolve env_ids
         if env_ids is None:
-            env_ids = slice(None)
+            env_ids = self._ALL_INDICES
         # articulations
         for asset_name, articulation in self._articulations.items():
             asset_state = state["articulation"][asset_name]
@@ -752,8 +753,8 @@ class InteractiveScene:
                         asset_paths = sim_utils.find_matching_prim_paths(rigid_object_cfg.prim_path)
                         self._global_prim_paths += asset_paths
             elif isinstance(asset_cfg, SurfaceGripperCfg):
-                self._surface_grippers[asset_name] = asset_cfg.class_type(asset_cfg)
                 # add surface grippers to scene
+                self._surface_grippers[asset_name] = asset_cfg.class_type(asset_cfg)
             elif isinstance(asset_cfg, SensorBaseCfg):
                 # Update target frame path(s)' regex name space for FrameTransformer
                 if isinstance(asset_cfg, FrameTransformerCfg):

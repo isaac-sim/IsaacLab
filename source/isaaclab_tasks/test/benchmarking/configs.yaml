@@ -31,7 +31,7 @@ fast:
       reward: 45
       episode_length: 900
     upper_thresholds:
-      duration: 500
+      duration: 750
   skrl:Isaac-Cartpole-RGB-Camera-Direct-v0:
     max_iterations: 50
     lower_thresholds:

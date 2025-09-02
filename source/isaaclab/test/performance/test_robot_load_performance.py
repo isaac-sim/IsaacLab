@@ -33,6 +33,7 @@ from isaaclab.utils.timer import Timer
         ({"name": "Anymal_D", "robot_cfg": ANYMAL_D_CFG, "expected_load_time": 40.0}, "cpu"),
     ],
 )
+@pytest.mark.isaacsim_ci
 def test_robot_load_performance(test_config, device):
     """Test robot load time."""
     with build_simulation_context(device=device) as sim:

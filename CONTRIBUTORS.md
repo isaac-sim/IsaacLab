@@ -20,6 +20,7 @@ Guidelines for modifications:
 ---
 
 * Antonio Serrano-Muñoz
+* Ben Johnston
 * David Hoeller
 * Farbod Farshidian
 * Hunter Hansen
@@ -37,6 +38,7 @@ Guidelines for modifications:
 ## Contributors
 
 * Alessandro Assirelli
+* Alex Omar
 * Alice Zhou
 * Amr Mousa
 * Andrej Orsula
@@ -58,6 +60,7 @@ Guidelines for modifications:
 * David Yang
 * Dhananjay Shendre
 * Dorsa Rohani
+* Emily Sturman
 * Fabian Jenelten
 * Felipe Mohr
 * Felix Yu
@@ -67,6 +70,7 @@ Guidelines for modifications:
 * HoJin Jeon
 * Hongwei Xiong
 * Hongyu Li
+* Huihua Zhao
 * Iretiayo Akinola
 * Jack Zeng
 * Jan Kerner
@@ -85,11 +89,15 @@ Guidelines for modifications:
 * Lionel Gulich
 * Louis Le Lay
 * Lorenz Wellhausen
+* Lukas Fröhlich
 * Manuel Schweiger
 * Masoud Moghani
+* Maurice Rahme
 * Michael Gussert
 * Michael Noseworthy
+* Michael Lin
 * Miguel Alonso Jr
+* Mingyu Lee
 * Muhong Guo
 * Nicola Loi
 * Norbert Cygiert
@@ -112,6 +120,7 @@ Guidelines for modifications:
 * Shafeef Omar
 * Shaoshu Su
 * Shaurya Dewan
+* Sixiang Chen
 * Shundo Kishi
 * Stefan Van de Mosselaer
 * Stephan Pleines
@@ -121,9 +130,11 @@ Guidelines for modifications:
 * Vladimir Fokow
 * Wei Yang
 * Xavier Nal
+* Xinpeng Liu
 * Yang Jin
 * Yanzi Zhu
 * Yijie Guo
+* Yohan Choi
 * Yujian Zhang
 * Yun Liu
 * Ziqi Fan
@@ -138,4 +149,5 @@ Guidelines for modifications:
 * Gavriel State
 * Hammad Mazhar
 * Marco Hutter
+* Yan Chang
 * Yashraj Narang

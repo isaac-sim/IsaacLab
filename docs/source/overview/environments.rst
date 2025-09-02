@@ -3,7 +3,7 @@
 Available Environments
 ======================
 
-The following lists comprises of all the RL tasks implementations that are available in Isaac Lab.
+The following lists comprises of all the RL or IL tasks implementations that are available in Isaac Lab.
 While we try to keep this list up-to-date, you can always get the latest list of environments by
 running the following command:
 
@@ -113,6 +113,10 @@ for the lift-cube environment:
     |                    |                         | Blueprint env used for the NVIDIA Isaac GR00T blueprint for synthetic       |
     |                    | |stack-cube-bp-link|    | manipulation motion generation                                              |
     +--------------------+-------------------------+-----------------------------------------------------------------------------+
+    | |surface-gripper|  | |long-suction-link|     | Stack three cubes (bottom to top: blue, red, green)                         |
+    |                    |                         | with the UR10 arm and long surface gripper                                  |
+    |                    | |short-suction-link|    | or short surface gripper.                                                   |
+    +--------------------+-------------------------+-----------------------------------------------------------------------------+
     | |cabi-franka|      | |cabi-franka-link|      | Grasp the handle of a cabinet's drawer and open it with the Franka robot    |
     |                    |                         |                                                                             |
     |                    | |franka-direct-link|    |                                                                             |
@@ -132,6 +136,12 @@ for the lift-cube environment:
     +--------------------+-------------------------+-----------------------------------------------------------------------------+
     | |gr1_pick_place|   | |gr1_pick_place-link|   | Pick up and place an object in a basket with a GR-1 humanoid robot          |
     +--------------------+-------------------------+-----------------------------------------------------------------------------+
+    | |gr1_pp_waist|     | |gr1_pp_waist-link|     | Pick up and place an object in a basket with a GR-1 humanoid robot          |
+    |                    |                         | with waist degrees-of-freedom enables that provides a wider reach space.    |
+    +--------------------+-------------------------+-----------------------------------------------------------------------------+
+    | |galbot_stack|     | |galbot_stack-link|     | Stack three cubes (bottom to top: blue, red, green) with the left arm of    |
+    |                    |                         | a Galbot humanoid robot                                                     |
+    +--------------------+-------------------------+-----------------------------------------------------------------------------+
     | |agibot_place_mug| | |agibot_place_mug-link| | Pick up and place a mug upright with a Agibot A2D humanoid robot            |
     +--------------------+-------------------------+-----------------------------------------------------------------------------+
     | |agibot_place_toy| | |agibot_place_toy-link| | Pick up and place an object in a box with a Agibot A2D humanoid robot       |
@@ -145,6 +155,9 @@ for the lift-cube environment:
 .. |cube-shadow| image:: ../_static/tasks/manipulation/shadow_cube.jpg
 .. |stack-cube| image:: ../_static/tasks/manipulation/franka_stack.jpg
 .. |gr1_pick_place| image:: ../_static/tasks/manipulation/gr-1_pick_place.jpg
+.. |gr1_pp_waist| image:: ../_static/tasks/manipulation/gr-1_pick_place_waist.jpg
+.. |surface-gripper| image:: ../_static/tasks/manipulation/ur10_stack_surface_gripper.jpg
+.. |galbot_stack| image:: ../_static/tasks/manipulation/galbot_stack_cube.jpg
 .. |agibot_place_mug| image:: ../_static/tasks/manipulation/agibot_place_mug.jpg
 .. |agibot_place_toy| image:: ../_static/tasks/manipulation/agibot_place_toy.jpg
 
@@ -158,8 +171,12 @@ for the lift-cube environment:
 .. |cube-allegro-link| replace:: `Isaac-Repose-Cube-Allegro-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/inhand/config/allegro_hand/allegro_env_cfg.py>`__
 .. |allegro-direct-link| replace:: `Isaac-Repose-Cube-Allegro-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/allegro_hand/allegro_hand_env_cfg.py>`__
 .. |stack-cube-link| replace:: `Isaac-Stack-Cube-Franka-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/stack/config/franka/stack_joint_pos_env_cfg.py>`__
-.. |stack-cube-bp-link| replace:: `Isaac-Stack-Cube-Franka-Blueprint-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/stack/config/franka/stack_ik_rel_blueprint_env_cfg.py>`__
+.. |stack-cube-bp-link| replace:: `Isaac-Stack-Cube-Franka-IK-Rel-Blueprint-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/stack/config/franka/stack_ik_rel_blueprint_env_cfg.py>`__
 .. |gr1_pick_place-link| replace:: `Isaac-PickPlace-GR1T2-Abs-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/pick_place/pickplace_gr1t2_env_cfg.py>`__
+.. |gr1_pp_waist-link| replace:: `Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/pick_place/pickplace_gr1t2_waist_enabled_env_cfg.py>`__
+.. |galbot_stack-link| replace:: `Isaac-Stack-Cube-Galbot-Left-Arm-Gripper-RmpFlow-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/stack/config/galbot/stack_rmp_rel_env_cfg.py>`__
+.. |long-suction-link| replace:: `Isaac-Stack-Cube-UR10-Long-Suction-IK-Rel-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/stack/config/ur10_gripper/stack_ik_rel_env_cfg.py>`__
+.. |short-suction-link| replace:: `Isaac-Stack-Cube-UR10-Short-Suction-IK-Rel-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/stack/config/ur10_gripper/stack_ik_rel_env_cfg.py>`__
 
 .. |cube-shadow-link| replace:: `Isaac-Repose-Cube-Shadow-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/shadow_hand/shadow_hand_env_cfg.py>`__
 .. |cube-shadow-ff-link| replace:: `Isaac-Repose-Cube-Shadow-OpenAI-FF-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/shadow_hand/shadow_hand_env_cfg.py>`__
@@ -253,6 +270,44 @@ We provide environments for both disassembly and assembly.
 
 .. |assembly-link| replace:: `Isaac-AutoMate-Assembly-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/automate/assembly_env_cfg.py>`__
 .. |disassembly-link| replace:: `Isaac-AutoMate-Disassembly-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/automate/disassembly_env_cfg.py>`__
+
+FORGE
+~~~~~~~~
+
+FORGE environments extend Factory environments with:
+
+* Force sensing: Add observations for force experienced by the end-effector.
+* Excessive force penalty: Add an option to penalize the agent for excessive contact forces.
+* Dynamics randomization: Randomize controller gains, asset properties (friction, mass), and dead-zone.
+* Success prediction: Add an extra action that predicts task success.
+
+These tasks share the same task configurations and control options. You can switch between them by specifying the task name.
+
+* |forge-peg-link|: Peg insertion with the Franka arm
+* |forge-gear-link|: Gear meshing with the Franka arm
+* |forge-nut-link|: Nut-Bolt fastening with the Franka arm
+
+.. table::
+    :widths: 33 37 30
+
+    +--------------------+-------------------------+-----------------------------------------------------------------------------+
+    | World              | Environment ID          | Description                                                                 |
+    +====================+=========================+=============================================================================+
+    | |forge-peg|        | |forge-peg-link|        | Insert peg into the socket with the Franka robot                            |
+    +--------------------+-------------------------+-----------------------------------------------------------------------------+
+    | |forge-gear|       | |forge-gear-link|       | Insert and mesh gear into the base with other gears, using the Franka robot |
+    +--------------------+-------------------------+-----------------------------------------------------------------------------+
+    | |forge-nut|        | |forge-nut-link|        | Thread the nut onto the first 2 threads of the bolt, using the Franka robot |
+    +--------------------+-------------------------+-----------------------------------------------------------------------------+
+
+.. |forge-peg| image:: ../_static/tasks/factory/peg_insert.jpg
+.. |forge-gear| image:: ../_static/tasks/factory/gear_mesh.jpg
+.. |forge-nut| image:: ../_static/tasks/factory/nut_thread.jpg
+
+.. |forge-peg-link| replace:: `Isaac-Forge-PegInsert-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/forge/forge_env_cfg.py>`__
+.. |forge-gear-link| replace:: `Isaac-Forge-GearMesh-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/forge/forge_env_cfg.py>`__
+.. |forge-nut-link| replace:: `Isaac-Forge-NutThread-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/forge/forge_env_cfg.py>`__
+
 
 Locomotion
 ~~~~~~~~~~
@@ -752,6 +807,18 @@ inferencing, including reading from an already trained checkpoint and disabling 
       -
       - Direct
       -
+    * - Isaac-Forge-GearMesh-Direct-v0
+      -
+      - Direct
+      - **rl_games** (PPO)
+    * - Isaac-Forge-NutThread-Direct-v0
+      -
+      - Direct
+      - **rl_games** (PPO)
+    * - Isaac-Forge-PegInsert-Direct-v0
+      -
+      - Direct
+      - **rl_games** (PPO)
     * - Isaac-Franka-Cabinet-Direct-v0
       -
       - Direct
@@ -876,11 +943,11 @@ inferencing, including reading from an already trained checkpoint and disabling 
       -
       - Manager Based
       -
-    * - Isaac-Stack-Cube-Instance-Randomize-Franka-IK-Rel-v0 (Requires running with ``--enable_cameras``)
+    * - Isaac-Stack-Cube-Instance-Randomize-Franka-IK-Rel-v0
       -
       - Manager Based
       -
-    * - Isaac-Stack-Cube-Instance-Randomize-Franka-v0 (Requires running with ``--enable_cameras``)
+    * - Isaac-Stack-Cube-Instance-Randomize-Franka-v0
       -
       - Manager Based
       -
