@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.2.1" />
-    <meta name="docbuild:last-update" content="Sep 01, 2025"/>
+    <meta name="docbuild:last-update" content="Sep 02, 2025"/>
   </head>
   
   
@@ -588,6 +588,7 @@
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">gymnasium</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">gym</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">tensordict</span><span class="w"> </span><span class="kn">import</span> <span class="n">TensorDict</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">rsl_rl.env</span><span class="w"> </span><span class="kn">import</span> <span class="n">VecEnv</span>
 
@@ -595,16 +596,9 @@
 
 
 <div class="viewcode-block" id="RslRlVecEnvWrapper"><a class="viewcode-back" href="../../../source/api/lab_rl/isaaclab_rl.html#isaaclab_rl.rsl_rl.RslRlVecEnvWrapper">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">RslRlVecEnvWrapper</span><span class="p">(</span><span class="n">VecEnv</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Wraps around Isaac Lab environment for RSL-RL library</span>
-
-<span class="sd">    To use asymmetric actor-critic, the environment instance must have the attributes :attr:`num_privileged_obs` (int).</span>
-<span class="sd">    This is used by the learning agent to allocate buffers in the trajectory memory. Additionally, the returned</span>
-<span class="sd">    observations should have the key &quot;critic&quot; which corresponds to the privileged observations. Since this is</span>
-<span class="sd">    optional for some environments, the wrapper checks if these attributes exist. If they don&#39;t then the wrapper</span>
-<span class="sd">    defaults to zero as number of privileged observations.</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Wraps around Isaac Lab environment for the RSL-RL library</span>
 
 <span class="sd">    .. caution::</span>
-
 <span class="sd">        This class must be the last wrapper in the wrapper chain. This is because the wrapper does not follow</span>
 <span class="sd">        the :class:`gym.Wrapper` interface. Any subsequent wrappers will need to be modified to work with this</span>
 <span class="sd">        wrapper.</span>
@@ -626,12 +620,14 @@
 <span class="sd">        Raises:</span>
 <span class="sd">            ValueError: When the environment is not an instance of :class:`ManagerBasedRLEnv` or :class:`DirectRLEnv`.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
+
         <span class="c1"># check that input is valid</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">unwrapped</span><span class="p">,</span> <span class="n">ManagerBasedRLEnv</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">unwrapped</span><span class="p">,</span> <span class="n">DirectRLEnv</span><span class="p">):</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
                 <span class="s2">&quot;The environment must be inherited from ManagerBasedRLEnv or DirectRLEnv. Environment type:&quot;</span>
                 <span class="sa">f</span><span class="s2">&quot; </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">env</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span>
             <span class="p">)</span>
+
         <span class="c1"># initialize the wrapper</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">env</span> <span class="o">=</span> <span class="n">env</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">clip_actions</span> <span class="o">=</span> <span class="n">clip_actions</span>
@@ -646,20 +642,6 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">num_actions</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">unwrapped</span><span class="o">.</span><span class="n">action_manager</span><span class="o">.</span><span class="n">total_action_dim</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">num_actions</span> <span class="o">=</span> <span class="n">gym</span><span class="o">.</span><span class="n">spaces</span><span class="o">.</span><span class="n">flatdim</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">unwrapped</span><span class="o">.</span><span class="n">single_action_space</span><span class="p">)</span>
-        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">unwrapped</span><span class="p">,</span> <span class="s2">&quot;observation_manager&quot;</span><span class="p">):</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">num_obs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">unwrapped</span><span class="o">.</span><span class="n">observation_manager</span><span class="o">.</span><span class="n">group_obs_dim</span><span class="p">[</span><span class="s2">&quot;policy&quot;</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">num_obs</span> <span class="o">=</span> <span class="n">gym</span><span class="o">.</span><span class="n">spaces</span><span class="o">.</span><span class="n">flatdim</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">unwrapped</span><span class="o">.</span><span class="n">single_observation_space</span><span class="p">[</span><span class="s2">&quot;policy&quot;</span><span class="p">])</span>
-        <span class="c1"># -- privileged observations</span>
-        <span class="k">if</span> <span class="p">(</span>
-            <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">unwrapped</span><span class="p">,</span> <span class="s2">&quot;observation_manager&quot;</span><span class="p">)</span>
-            <span class="ow">and</span> <span class="s2">&quot;critic&quot;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">unwrapped</span><span class="o">.</span><span class="n">observation_manager</span><span class="o">.</span><span class="n">group_obs_dim</span>
-        <span class="p">):</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">num_privileged_obs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">unwrapped</span><span class="o">.</span><span class="n">observation_manager</span><span class="o">.</span><span class="n">group_obs_dim</span><span class="p">[</span><span class="s2">&quot;critic&quot;</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
-        <span class="k">elif</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">unwrapped</span><span class="p">,</span> <span class="s2">&quot;num_states&quot;</span><span class="p">)</span> <span class="ow">and</span> <span class="s2">&quot;critic&quot;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">unwrapped</span><span class="o">.</span><span class="n">single_observation_space</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">num_privileged_obs</span> <span class="o">=</span> <span class="n">gym</span><span class="o">.</span><span class="n">spaces</span><span class="o">.</span><span class="n">flatdim</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">unwrapped</span><span class="o">.</span><span class="n">single_observation_space</span><span class="p">[</span><span class="s2">&quot;critic&quot;</span><span class="p">])</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">num_privileged_obs</span> <span class="o">=</span> <span class="mi">0</span>
 
         <span class="c1"># modify the action space to the clip range</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_modify_action_space</span><span class="p">()</span>
@@ -716,14 +698,6 @@
 <span class="sd">    Properties</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-<div class="viewcode-block" id="RslRlVecEnvWrapper.get_observations"><a class="viewcode-back" href="../../../source/api/lab_rl/isaaclab_rl.html#isaaclab_rl.rsl_rl.RslRlVecEnvWrapper.get_observations">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">get_observations</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="nb">dict</span><span class="p">]:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns the current observations of the environment.&quot;&quot;&quot;</span>
-        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">unwrapped</span><span class="p">,</span> <span class="s2">&quot;observation_manager&quot;</span><span class="p">):</span>
-            <span class="n">obs_dict</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">unwrapped</span><span class="o">.</span><span class="n">observation_manager</span><span class="o">.</span><span class="n">compute</span><span class="p">()</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="n">obs_dict</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">unwrapped</span><span class="o">.</span><span class="n">_get_observations</span><span class="p">()</span>
-        <span class="k">return</span> <span class="n">obs_dict</span><span class="p">[</span><span class="s2">&quot;policy&quot;</span><span class="p">],</span> <span class="p">{</span><span class="s2">&quot;observations&quot;</span><span class="p">:</span> <span class="n">obs_dict</span><span class="p">}</span></div>
-
     <span class="nd">@property</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">episode_length_buf</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;The episode length buffer.&quot;&quot;&quot;</span>
@@ -745,13 +719,20 @@
     <span class="k">def</span><span class="w"> </span><span class="nf">seed</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">seed</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>  <span class="c1"># noqa: D102</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">unwrapped</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="n">seed</span><span class="p">)</span>
 
-    <span class="k">def</span><span class="w"> </span><span class="nf">reset</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="nb">dict</span><span class="p">]:</span>  <span class="c1"># noqa: D102</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">reset</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">TensorDict</span><span class="p">,</span> <span class="nb">dict</span><span class="p">]:</span>  <span class="c1"># noqa: D102</span>
         <span class="c1"># reset the environment</span>
-        <span class="n">obs_dict</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">env</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
-        <span class="c1"># return observations</span>
-        <span class="k">return</span> <span class="n">obs_dict</span><span class="p">[</span><span class="s2">&quot;policy&quot;</span><span class="p">],</span> <span class="p">{</span><span class="s2">&quot;observations&quot;</span><span class="p">:</span> <span class="n">obs_dict</span><span class="p">}</span>
+        <span class="n">obs_dict</span><span class="p">,</span> <span class="n">extras</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">env</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">TensorDict</span><span class="p">(</span><span class="n">obs_dict</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">num_envs</span><span class="p">]),</span> <span class="n">extras</span>
 
-    <span class="k">def</span><span class="w"> </span><span class="nf">step</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">actions</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="nb">dict</span><span class="p">]:</span>
+<div class="viewcode-block" id="RslRlVecEnvWrapper.get_observations"><a class="viewcode-back" href="../../../source/api/lab_rl/isaaclab_rl.html#isaaclab_rl.rsl_rl.RslRlVecEnvWrapper.get_observations">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">get_observations</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">TensorDict</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns the current observations of the environment.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">unwrapped</span><span class="p">,</span> <span class="s2">&quot;observation_manager&quot;</span><span class="p">):</span>
+            <span class="n">obs_dict</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">unwrapped</span><span class="o">.</span><span class="n">observation_manager</span><span class="o">.</span><span class="n">compute</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">obs_dict</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">unwrapped</span><span class="o">.</span><span class="n">_get_observations</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">TensorDict</span><span class="p">(</span><span class="n">obs_dict</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">num_envs</span><span class="p">])</span></div>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">step</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">actions</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">TensorDict</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="nb">dict</span><span class="p">]:</span>
         <span class="c1"># clip actions</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">clip_actions</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">actions</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">clamp</span><span class="p">(</span><span class="n">actions</span><span class="p">,</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">clip_actions</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">clip_actions</span><span class="p">)</span>
@@ -759,16 +740,12 @@
         <span class="n">obs_dict</span><span class="p">,</span> <span class="n">rew</span><span class="p">,</span> <span class="n">terminated</span><span class="p">,</span> <span class="n">truncated</span><span class="p">,</span> <span class="n">extras</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">env</span><span class="o">.</span><span class="n">step</span><span class="p">(</span><span class="n">actions</span><span class="p">)</span>
         <span class="c1"># compute dones for compatibility with RSL-RL</span>
         <span class="n">dones</span> <span class="o">=</span> <span class="p">(</span><span class="n">terminated</span> <span class="o">|</span> <span class="n">truncated</span><span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">long</span><span class="p">)</span>
-        <span class="c1"># move extra observations to the extras dict</span>
-        <span class="n">obs</span> <span class="o">=</span> <span class="n">obs_dict</span><span class="p">[</span><span class="s2">&quot;policy&quot;</span><span class="p">]</span>
-        <span class="n">extras</span><span class="p">[</span><span class="s2">&quot;observations&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">obs_dict</span>
         <span class="c1"># move time out information to the extras dict</span>
         <span class="c1"># this is only needed for infinite horizon tasks</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">unwrapped</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">is_finite_horizon</span><span class="p">:</span>
             <span class="n">extras</span><span class="p">[</span><span class="s2">&quot;time_outs&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">truncated</span>
-
         <span class="c1"># return the step information</span>
-        <span class="k">return</span> <span class="n">obs</span><span class="p">,</span> <span class="n">rew</span><span class="p">,</span> <span class="n">dones</span><span class="p">,</span> <span class="n">extras</span>
+        <span class="k">return</span> <span class="n">TensorDict</span><span class="p">(</span><span class="n">obs_dict</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">num_envs</span><span class="p">]),</span> <span class="n">rew</span><span class="p">,</span> <span class="n">dones</span><span class="p">,</span> <span class="n">extras</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">close</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>  <span class="c1"># noqa: D102</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">env</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
@@ -783,7 +760,8 @@
             <span class="k">return</span>
 
         <span class="c1"># modify the action space to the clip range</span>
-        <span class="c1"># note: this is only possible for the box action space. we need to change it in the future for other action spaces.</span>
+        <span class="c1"># note: this is only possible for the box action space. we need to change it in the future for other</span>
+        <span class="c1">#   action spaces.</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">env</span><span class="o">.</span><span class="n">unwrapped</span><span class="o">.</span><span class="n">single_action_space</span> <span class="o">=</span> <span class="n">gym</span><span class="o">.</span><span class="n">spaces</span><span class="o">.</span><span class="n">Box</span><span class="p">(</span>
             <span class="n">low</span><span class="o">=-</span><span class="bp">self</span><span class="o">.</span><span class="n">clip_actions</span><span class="p">,</span> <span class="n">high</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">clip_actions</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_actions</span><span class="p">,)</span>
         <span class="p">)</span>
@@ -837,7 +815,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Sep 01, 2025.
+  Last updated on Sep 02, 2025.
   <br/>
 </p>
   </div>

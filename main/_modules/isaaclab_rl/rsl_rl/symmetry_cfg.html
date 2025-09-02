@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.2.1" />
-    <meta name="docbuild:last-update" content="Sep 01, 2025"/>
+    <meta name="docbuild:last-update" content="Sep 02, 2025"/>
   </head>
   
   
@@ -622,13 +622,11 @@
 <span class="sd">    Args:</span>
 
 <span class="sd">        env (VecEnv): The environment object. This is used to access the environment&#39;s properties.</span>
-<span class="sd">        obs (torch.Tensor | None): The observation tensor. If None, the observation is not used.</span>
+<span class="sd">        obs (tensordict.TensorDict | None): The observation tensor dictionary. If None, the observation is not used.</span>
 <span class="sd">        action (torch.Tensor | None): The action tensor. If None, the action is not used.</span>
-<span class="sd">        obs_type (str): The name of the observation type. Defaults to &quot;policy&quot;.</span>
-<span class="sd">            This is useful when handling augmentation for different observation groups.</span>
 
 <span class="sd">    Returns:</span>
-<span class="sd">        A tuple containing the augmented observation and action tensors. The tensors can be None,</span>
+<span class="sd">        A tuple containing the augmented observation dictionary and action tensors. The tensors can be None,</span>
 <span class="sd">        if their respective inputs are None.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
@@ -681,7 +679,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Sep 01, 2025.
+  Last updated on Sep 02, 2025.
   <br/>
 </p>
   </div>

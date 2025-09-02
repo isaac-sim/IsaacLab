@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.2.1" />
-    <meta name="docbuild:last-update" content="Sep 01, 2025"/>
+    <meta name="docbuild:last-update" content="Sep 02, 2025"/>
   </head>
   
   
@@ -615,6 +615,12 @@
     <span class="n">noise_std_type</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;scalar&quot;</span><span class="p">,</span> <span class="s2">&quot;log&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;scalar&quot;</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The type of noise standard deviation for the policy. Default is scalar.&quot;&quot;&quot;</span>
 
+    <span class="n">actor_obs_normalization</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to normalize the observation for the actor network.&quot;&quot;&quot;</span>
+
+    <span class="n">critic_obs_normalization</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to normalize the observation for the critic network.&quot;&quot;&quot;</span>
+
     <span class="n">actor_hidden_dims</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The hidden dimensions of the actor network.&quot;&quot;&quot;</span>
 
@@ -697,13 +703,11 @@
 <span class="sd">    Otherwise, the advantage is normalized over the entire collected trajectories.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">symmetry_cfg</span><span class="p">:</span> <span class="n">RslRlSymmetryCfg</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The symmetry configuration. Default is None, in which case symmetry is not used.&quot;&quot;&quot;</span>
-
     <span class="n">rnd_cfg</span><span class="p">:</span> <span class="n">RslRlRndCfg</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The configuration for the Random Network Distillation (RND) module. Default is None,</span>
-<span class="sd">    in which case RND is not used.</span>
-<span class="sd">    &quot;&quot;&quot;</span></div>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The RND configuration. Default is None, in which case RND is not used.&quot;&quot;&quot;</span>
+
+    <span class="n">symmetry_cfg</span><span class="p">:</span> <span class="n">RslRlSymmetryCfg</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The symmetry configuration. Default is None, in which case symmetry is not used.&quot;&quot;&quot;</span></div>
 
 
 <span class="c1">#########################</span>
@@ -711,9 +715,9 @@
 <span class="c1">#########################</span>
 
 
-<div class="viewcode-block" id="RslRlOnPolicyRunnerCfg"><a class="viewcode-back" href="../../../source/api/lab_rl/isaaclab_rl.html#isaaclab_rl.rsl_rl.RslRlOnPolicyRunnerCfg">[docs]</a><span class="nd">@configclass</span>
-<span class="k">class</span><span class="w"> </span><span class="nc">RslRlOnPolicyRunnerCfg</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration of the runner for on-policy algorithms.&quot;&quot;&quot;</span>
+<div class="viewcode-block" id="RslRlBaseRunnerCfg"><a class="viewcode-back" href="../../../source/api/lab_rl/isaaclab_rl.html#isaaclab_rl.rsl_rl.RslRlBaseRunnerCfg">[docs]</a><span class="nd">@configclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">RslRlBaseRunnerCfg</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Base configuration of the runner.&quot;&quot;&quot;</span>
 
     <span class="n">seed</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">42</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The seed for the experiment. Default is 42.&quot;&quot;&quot;</span>
@@ -727,17 +731,36 @@
     <span class="n">max_iterations</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The maximum number of iterations.&quot;&quot;&quot;</span>
 
-    <span class="n">empirical_normalization</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="n">MISSING</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to use empirical normalization.&quot;&quot;&quot;</span>
+    <span class="n">empirical_normalization</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;This parameter is deprecated and will be removed in the future.</span>
 
-    <span class="n">policy</span><span class="p">:</span> <span class="n">RslRlPpoActorCriticCfg</span> <span class="o">|</span> <span class="n">RslRlDistillationStudentTeacherCfg</span> <span class="o">=</span> <span class="n">MISSING</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The policy configuration.&quot;&quot;&quot;</span>
+<span class="sd">    Use `actor_obs_normalization` and `critic_obs_normalization` instead.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">algorithm</span><span class="p">:</span> <span class="n">RslRlPpoAlgorithmCfg</span> <span class="o">|</span> <span class="n">RslRlDistillationAlgorithmCfg</span> <span class="o">=</span> <span class="n">MISSING</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The algorithm configuration.&quot;&quot;&quot;</span>
+    <span class="n">obs_groups</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;A mapping from observation groups to observation sets.</span>
+
+<span class="sd">    The keys of the dictionary are predefined observation sets used by the underlying algorithm</span>
+<span class="sd">    and values are lists of observation groups provided by the environment.</span>
+
+<span class="sd">    For instance, if the environment provides a dictionary of observations with groups &quot;policy&quot;, &quot;images&quot;,</span>
+<span class="sd">    and &quot;privileged&quot;, these can be mapped to algorithmic observation sets as follows:</span>
+
+<span class="sd">    .. code-block:: python</span>
+
+<span class="sd">        obs_groups = {</span>
+<span class="sd">            &quot;policy&quot;: [&quot;policy&quot;, &quot;images&quot;],</span>
+<span class="sd">            &quot;critic&quot;: [&quot;policy&quot;, &quot;privileged&quot;],</span>
+<span class="sd">        }</span>
+
+<span class="sd">    This way, the policy will receive the &quot;policy&quot; and &quot;images&quot; observations, and the critic will</span>
+<span class="sd">    receive the &quot;policy&quot; and &quot;privileged&quot; observations.</span>
+
+<span class="sd">    For more details, please check ``vec_env.py`` in the rsl_rl library.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">clip_actions</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The clipping value for actions. If ``None``, then no clipping is done.</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The clipping value for actions. If None, then no clipping is done. Defaults to None.</span>
 
 <span class="sd">    .. note::</span>
 <span class="sd">        This clipping is performed inside the :class:`RslRlVecEnvWrapper` wrapper.</span>
@@ -767,7 +790,10 @@
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The wandb project name. Default is &quot;isaaclab&quot;.&quot;&quot;&quot;</span>
 
     <span class="n">resume</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to resume. Default is False.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to resume a previous training. Default is False.</span>
+
+<span class="sd">    This flag will be ignored for distillation.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">load_run</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;.*&quot;</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The run directory to load. Default is &quot;.*&quot; (all).</span>
@@ -780,6 +806,34 @@
 
 <span class="sd">    If regex expression, the latest (alphabetical order) matching file will be loaded.</span>
 <span class="sd">    &quot;&quot;&quot;</span></div>
+
+
+<div class="viewcode-block" id="RslRlOnPolicyRunnerCfg"><a class="viewcode-back" href="../../../source/api/lab_rl/isaaclab_rl.html#isaaclab_rl.rsl_rl.RslRlOnPolicyRunnerCfg">[docs]</a><span class="nd">@configclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">RslRlOnPolicyRunnerCfg</span><span class="p">(</span><span class="n">RslRlBaseRunnerCfg</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration of the runner for on-policy algorithms.&quot;&quot;&quot;</span>
+
+    <span class="n">class_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;OnPolicyRunner&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The runner class name. Default is OnPolicyRunner.&quot;&quot;&quot;</span>
+
+    <span class="n">policy</span><span class="p">:</span> <span class="n">RslRlPpoActorCriticCfg</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The policy configuration.&quot;&quot;&quot;</span>
+
+    <span class="n">algorithm</span><span class="p">:</span> <span class="n">RslRlPpoAlgorithmCfg</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The algorithm configuration.&quot;&quot;&quot;</span></div>
+
+
+<div class="viewcode-block" id="RslRlDistillationRunnerCfg"><a class="viewcode-back" href="../../../source/api/lab_rl/isaaclab_rl.html#isaaclab_rl.rsl_rl.RslRlDistillationRunnerCfg">[docs]</a><span class="nd">@configclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">RslRlDistillationRunnerCfg</span><span class="p">(</span><span class="n">RslRlBaseRunnerCfg</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration of the runner for distillation algorithms.&quot;&quot;&quot;</span>
+
+    <span class="n">class_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;DistillationRunner&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The runner class name. Default is DistillationRunner.&quot;&quot;&quot;</span>
+
+    <span class="n">policy</span><span class="p">:</span> <span class="n">RslRlDistillationStudentTeacherCfg</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The policy configuration.&quot;&quot;&quot;</span>
+
+    <span class="n">algorithm</span><span class="p">:</span> <span class="n">RslRlDistillationAlgorithmCfg</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The algorithm configuration.&quot;&quot;&quot;</span></div>
 </pre></div>
 
                 </article>
@@ -827,7 +881,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Sep 01, 2025.
+  Last updated on Sep 02, 2025.
   <br/>
 </p>
   </div>
