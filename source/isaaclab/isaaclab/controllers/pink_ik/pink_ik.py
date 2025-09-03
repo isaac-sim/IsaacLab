@@ -152,7 +152,7 @@ class PinkIKController:
             task.set_target_from_configuration(self.pink_configuration)
         for task in self.cfg.fixed_input_tasks:
             task.set_target_from_configuration(self.pink_configuration)
-    
+
     def compute(
         self,
         curr_joint_pos: np.ndarray,

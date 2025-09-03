@@ -141,7 +141,7 @@ class PinkInverseKinematicsAction(ActionTerm):
             task_dim = self.position_dim + self.relative_orientation_dim  # 6 dimensions
         else:
             task_dim = self.pose_dim  # 7 dimensions
-        
+
         return frame_tasks_count * task_dim + self.hand_joint_dim
 
     @property
@@ -267,8 +267,12 @@ class PinkInverseKinematicsAction(ActionTerm):
                 for task_index, task in enumerate(ik_controller.cfg.variable_input_tasks):
                     if isinstance(task, FrameTask):
                         target = task.transform_target_to_world
-                        target.translation = controlled_frame_in_base_link_frame_pos[task_index, env_index, :].cpu().numpy()
-                        target.rotation = controlled_frame_in_base_link_frame_mat[task_index, env_index, :].cpu().numpy()
+                        target.translation = (
+                            controlled_frame_in_base_link_frame_pos[task_index, env_index, :].cpu().numpy()
+                        )
+                        target.rotation = (
+                            controlled_frame_in_base_link_frame_mat[task_index, env_index, :].cpu().numpy()
+                        )
                         task.set_target(target)
 
     def apply_actions(self):
