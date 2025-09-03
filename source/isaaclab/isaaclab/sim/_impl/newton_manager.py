@@ -13,7 +13,6 @@ from newton import Axis, Contacts, Control, Model, ModelBuilder, State, eval_fk
 from newton.sensors import ContactSensor as NewtonContactSensor
 from newton.sensors import populate_contacts
 from newton.solvers import SolverBase, SolverFeatherstone, SolverMuJoCo, SolverXPBD
-from newton.utils import parse_usd
 from newton.viewer import RendererOpenGL
 
 from isaaclab.sim._impl.newton_manager_cfg import NewtonCfg
@@ -157,7 +156,7 @@ class NewtonManager:
         stage = omni.usd.get_context().get_stage()
         up_axis = UsdGeom.GetStageUpAxis(stage)
         builder = ModelBuilder(up_axis=up_axis)
-        parse_usd(stage, builder)
+        builder.add_usd(stage)
         NewtonManager.set_builder(builder)
 
     @classmethod

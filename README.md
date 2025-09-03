@@ -13,7 +13,7 @@
 [![License](https://img.shields.io/badge/license-BSD--3-yellow.svg)](https://opensource.org/licenses/BSD-3-Clause)
 [![License](https://img.shields.io/badge/license-Apache--2.0-yellow.svg)](https://opensource.org/license/apache-2-0)
 
-This branch of Isaac Lab is an experimental feature branch that provides an initial integration with the Newton Physics Engine, and is under active development. 
+This branch of Isaac Lab is an experimental feature branch that provides an initial integration with the Newton Physics Engine, and is under active development.
 Many features are not yet supported, and only a limited set of classic RL and flat terrain locomotion reinforcement learning examples are included at the moment.
 
 Documentation for this branch can be found [here](https://isaac-sim.github.io/IsaacLab/main/source/experimental-features/newton-physics-integration/index.html).
