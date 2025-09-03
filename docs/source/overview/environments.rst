@@ -942,6 +942,14 @@ inferencing, including reading from an already trained checkpoint and disabling 
       -
       - Manager Based
       -
+    * - Isaac-Stack-Cube-UR10-Long-Suction-IK-Rel-v0
+      -
+      - Manager Based
+      -
+    * - Isaac-Stack-Cube-UR10-Short-Suction-IK-Rel-v0
+      -
+      - Manager Based
+      -
     * - Isaac-Velocity-Flat-Anymal-B-v0
       - Isaac-Velocity-Flat-Anymal-B-Play-v0
       - Manager Based
