@@ -275,6 +275,7 @@ def combine_frame_transforms_batch(
     )
 
 
+
 @wp.kernel
 def project_vec_from_quat_single(
     vec: wp.vec3f,
@@ -328,6 +329,9 @@ def project_velocities_to_frame(
     index = wp.tid()
     resulting_velocity[index] = project_velocity_to_frame(velocity[index], pose[index])
 
+"""
+Heading utility kernels
+"""
 
 @wp.func
 def heading_vec_b(quat: wp.quatf, vec: wp.vec3f) -> float:
@@ -344,57 +348,112 @@ def compute_heading(
     index = wp.tid()
     heading[index] = heading_vec_b(quat_w[index], forward_vec_b)
 
+"""
+Update kernels
+"""
 
 @wp.kernel
 def update_transforms_array(
     pose: wp.array(dtype=wp.transformf),
-    indices: wp.array(dtype=wp.int32),
     new_pose: wp.array(dtype=wp.transformf),
+    env_mask: wp.array(dtype=wp.bool),
 ):
+    """
+    Update a transforms array.
+
+    Args:
+        pose: The pose. Shape is (num_instances, 7).
+        new_pose: The new pose. Shape is (num_instances, 7).
+        env_mask: The mask of the environments to update the pose for. Shape is (num_instances,). (modified)
+    """
     index = wp.tid()
-    pose[indices[index]] = new_pose[index]
+    if env_mask[index]:
+        pose[index] = new_pose[index]
 
 @wp.kernel
 def update_transforms_array_with_value(
     value: wp.transformf,
     pose: wp.array(dtype=wp.transformf),
-    indices: wp.array(dtype=wp.int32),
+    env_mask: wp.array(dtype=wp.bool),
 ):
+    """
+    Update a transforms array with a value.
+
+    Args:
+        value: The value. Shape is (7,).
+        pose: The pose. Shape is (num_instances, 7).
+        env_mask: The mask of the environments to update the pose for. Shape is (num_instances,). (modified)
+    """
     index = wp.tid()
-    pose[indices[index]] = value
+    if env_mask[index]:
+        pose[index] = value
 
 @wp.kernel
 def update_spatial_vector_array(
     velocity: wp.array(dtype=wp.spatial_vectorf),
-    indices: wp.array(dtype=wp.int32),
     new_velocity: wp.array(dtype=wp.spatial_vectorf),
+    env_mask: wp.array(dtype=wp.bool),
 ):
+    """
+    Update a spatial vector array.
+
+    Args:
+        velocity: The velocity. Shape is (num_instances, 6).
+        new_velocity: The new velocity. Shape is (num_instances, 6).
+        env_mask: The mask of the environments to update the velocity for. Shape is (num_instances,). (modified)
+    """
     index = wp.tid()
-    velocity[indices[index]] = new_velocity[index]
+    if env_mask[index]:
+        velocity[index] = new_velocity[index]
 
 @wp.kernel
 def update_spatial_vector_array_with_value(
     value: wp.spatial_vectorf,
     velocity: wp.array(dtype=wp.spatial_vectorf),
-    indices: wp.array(dtype=wp.int32),
+    env_mask: wp.array(dtype=wp.bool),
 ):
+    """
+    Update a spatial vector array with a value.
+
+    Args:
+        value: The value. Shape is (6,).
+        velocity: The velocity. Shape is (num_instances, 6).
+        env_mask: The mask of the environments to update the velocity for. Shape is (num_instances,). (modified)
+    """
     index = wp.tid()
-    velocity[indices[index]] = value
+    if env_mask[index]:
+        velocity[index] = value
+
+"""
+Transform kernels
+"""
 
 @wp.kernel
 def transform_CoM_pose_to_link_frame(
     com_pose_w: wp.array(dtype=wp.transformf),
     com_pose_link_frame: wp.array(dtype=wp.transformf),
     link_pose_w: wp.array(dtype=wp.transformf),
-    indices: wp.array(dtype=wp.int32),
+    env_mask: wp.array(dtype=wp.bool),
 ):
+    """
+    Transform a CoM pose to a link frame.
+
+
+
+    Args:
+        com_pose_w: The CoM pose in the world frame. Shape is (num_instances, 7).
+        com_pose_link_frame: The CoM pose in the link frame. Shape is (num_instances, 7).
+        link_pose_w: The link pose in the world frame. Shape is (num_instances, 7).
+        env_mask: The mask of the environments to transform the CoM pose to the link frame for. Shape is (num_instances,). (modified)
+    """
     index = wp.tid()
-    link_pose_w[indices[index]] = combine_transforms(
+    if env_mask[index]:
+        link_pose_w[index] = combine_transforms(
         wp.transform_get_translation(com_pose_w[index]),
         wp.transform_get_rotation(com_pose_w[index]),
-        wp.transform_get_translation(com_pose_link_frame[indices[index]]),
-        wp.quatf(0.0, 0.0, 0.0, 1.0)
-    )
+            wp.transform_get_translation(com_pose_link_frame[index]),
+            wp.quatf(0.0, 0.0, 0.0, 1.0)
+        )
 
 @wp.kernel
 def update_wrench_array(
