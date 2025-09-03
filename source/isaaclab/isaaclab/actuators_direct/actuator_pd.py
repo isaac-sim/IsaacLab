@@ -14,7 +14,9 @@ import omni.log
 from isaaclab.utils import DelayBuffer, LinearInterpolation
 from isaaclab.utils.types import ArticulationActions
 
+import warp as wp
 from .actuator_base import ActuatorBase
+from .kernels import compute_implicit_actuator
 
 if TYPE_CHECKING:
     from .actuator_cfg import (
@@ -131,17 +133,23 @@ class ImplicitActuator(ActuatorBase):
         Returns:
             The computed desired joint positions, joint velocities and joint efforts.
         """
-        # store approximate torques for reward computation
-        if self.control_mode == "position":
-            error_pos = control_action.joint_targets - joint_pos
-            error_vel = torch.zeros_like(joint_vel) - joint_vel
-        elif self.control_mode == "velocity":
-            error_pos = torch.zeros_like(joint_pos) - joint_pos
-            error_vel = control_action.joint_targets - joint_vel
-        self.computed_effort = self.stiffness * error_pos + self.damping * error_vel + control_action.joint_efforts
-        # clip the torques based on the motor limits
-        self.applied_effort = self._clip_effort(self.computed_effort)
-        return control_action
+        wp.launch(
+            compute_implicit_actuator,
+            dim=(self._num_envs, self._num_joints),
+            inputs=[
+                self.data.stiffness,
+                self.data.damping,
+                self.data.effort,
+                self.data.effort_limit_sim,
+                joint_pos,
+                joint_vel,
+                control_action.joint_targets,
+                self.data.computed_effort,
+                self.data.applied_effort,
+                self.data.all_env_mask,
+                self.joint_mask,
+            ]
+        )
 
 
 """

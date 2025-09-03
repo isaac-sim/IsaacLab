@@ -113,7 +113,7 @@ def split_state(
         root_velocity[env_index] = split_state_to_velocity(root_state[env_index])
 
 @wp.func
-def combine_state_to_pose(
+def combine_state(
     pose: wp.transformf,
     velocity: wp.spatial_vectorf,
 ) -> wp.array(dtype=wp.float32):
@@ -125,6 +125,13 @@ def combine_state_to_pose(
     .. note:: The quaternion is given in the following format: (qx, qy, qz, qw).
     
     .. caution:: The velocity is given with angular velocity first and linear velocity second.
+
+    Args:
+        pose: The pose. Shape is (1, 7).
+        velocity: The velocity. Shape is (1, 6).
+
+    Returns:
+        The state. Shape is (1, 13).
     """
     position = wp.transform_get_translation(pose)
     quaternion = wp.transform_get_rotation(pose)
@@ -134,7 +141,30 @@ def combine_state_to_pose(
     )
 
 @wp.kernel
-def combine_state(
+def combine_pose_and_velocity_to_state(
+    root_pose: wp.array(dtype=wp.transformf),
+    root_velocity: wp.array(dtype=wp.spatial_vectorf),
+    root_state: wp.array2d(dtype=wp.float32),
+):
+    """
+    Combine a pose and a velocity into a state.
+
+    The state is given in the following format: (x, y, z, qx, qy, qz, qw, wx, wy, wz, vx, vy, vz).
+    
+    .. note:: The quaternion is given in the following format: (qx, qy, qz, qw).
+
+    .. caution:: The velocity is given with angular velocity first and linear velocity second.
+
+    Args:
+        pose: The pose. Shape is (num_instances, 7).
+        velocity: The velocity. Shape is (num_instances, 6).
+        state: The state. Shape is (num_instances, 13). (modified)
+    """
+    env_index = wp.tid()
+    root_state[env_index] = combine_state(root_pose[env_index], root_velocity[env_index])
+
+@wp.kernel
+def combine_pose_and_velocity_to_state_masked(
     root_pose: wp.array(dtype=wp.transformf),
     root_velocity: wp.array(dtype=wp.spatial_vectorf),
     root_state: wp.array2d(dtype=wp.float32),
@@ -157,7 +187,58 @@ def combine_state(
     """
     env_index = wp.tid()
     if env_mask[env_index]:
-        root_state[env_index] = combine_state_to_pose(root_pose[env_index], root_velocity[env_index])
+        root_state[env_index] = combine_state(root_pose[env_index], root_velocity[env_index])
+
+@wp.kernel
+def combine_pose_and_velocity_to_state_batched(
+    root_pose: wp.array2d(dtype=wp.transformf),
+    root_velocity: wp.array2d(dtype=wp.spatial_vectorf),
+    root_state: wp.array2d(dtype=wp.float32),
+):
+    """
+    Combine a pose and a velocity into a state.
+
+    The state is given in the following format: (x, y, z, qx, qy, qz, qw, wx, wy, wz, vx, vy, vz).
+    
+    .. note:: The quaternion is given in the following format: (qx, qy, qz, qw).
+
+    .. caution:: The velocity is given with angular velocity first and linear velocity second.
+
+    Args:
+        pose: The pose. Shape is (num_instances, num_bodies, 7).
+        velocity: The velocity. Shape is (num_instances, num_bodies, 6).
+        state: The state. Shape is (num_instances, num_bodies, 13). (modified)
+    """
+    env_index, body_index = wp.tid()
+    root_state[env_index, body_index] = combine_state(root_pose[env_index, body_index], root_velocity[env_index, body_index])
+
+@wp.kernel
+def combine_pose_and_velocity_to_state_batched_masked(
+    root_pose: wp.array2d(dtype=wp.transformf),
+    root_velocity: wp.array2d(dtype=wp.spatial_vectorf),
+    root_state: wp.array2d(dtype=wp.float32),
+    env_mask: wp.array(dtype=wp.bool),
+    body_mask: wp.array(dtype=wp.bool),
+):
+    """
+    Combine a pose and a velocity into a state.
+
+    The state is given in the following format: (x, y, z, qx, qy, qz, qw, wx, wy, wz, vx, vy, vz).
+    
+    .. note:: The quaternion is given in the following format: (qx, qy, qz, qw).
+
+    .. caution:: The velocity is given with angular velocity first and linear velocity second.
+
+    Args:
+        pose: The pose. Shape is (num_instances, num_bodies, 7).
+        velocity: The velocity. Shape is (num_instances, num_bodies, 6).
+        state: The state. Shape is (num_instances, num_bodies, 13). (modified)
+        env_mask: The mask of the environments to combine the state for. Shape is (num_instances,).
+        body_mask: The mask of the bodies to combine the state for. Shape is (num_bodies,).
+    """
+    env_index, body_index = wp.tid()
+    if env_mask[env_index] and body_mask[body_index]:
+        root_state[env_index, body_index] = combine_state(root_pose[env_index, body_index], root_velocity[env_index, body_index])
 
 
 """
@@ -354,17 +435,17 @@ Update kernels
 
 @wp.kernel
 def update_transforms_array(
-    pose: wp.array(dtype=wp.transformf),
     new_pose: wp.array(dtype=wp.transformf),
+    pose: wp.array(dtype=wp.transformf),
     env_mask: wp.array(dtype=wp.bool),
 ):
     """
     Update a transforms array.
 
     Args:
-        pose: The pose. Shape is (num_instances, 7).
-        new_pose: The new pose. Shape is (num_instances, 7).
-        env_mask: The mask of the environments to update the pose for. Shape is (num_instances,). (modified)
+        new_pose: The new pose. Shape is (num_instances, 7). 
+        pose: The pose. Shape is (num_instances, 7). (modified)
+        env_mask: The mask of the environments to update the pose for. Shape is (num_instances,).
     """
     index = wp.tid()
     if env_mask[index]:
@@ -381,8 +462,8 @@ def update_transforms_array_with_value(
 
     Args:
         value: The value. Shape is (7,).
-        pose: The pose. Shape is (num_instances, 7).
-        env_mask: The mask of the environments to update the pose for. Shape is (num_instances,). (modified)
+        pose: The pose. Shape is (num_instances, 7). (modified)
+        env_mask: The mask of the environments to update the pose for. Shape is (num_instances,). 
     """
     index = wp.tid()
     if env_mask[index]:
@@ -398,9 +479,9 @@ def update_spatial_vector_array(
     Update a spatial vector array.
 
     Args:
-        velocity: The velocity. Shape is (num_instances, 6).
         new_velocity: The new velocity. Shape is (num_instances, 6).
-        env_mask: The mask of the environments to update the velocity for. Shape is (num_instances,). (modified)
+        velocity: The velocity. Shape is (num_instances, 6). (modified)
+        env_mask: The mask of the environments to update the velocity for. Shape is (num_instances,).
     """
     index = wp.tid()
     if env_mask[index]:
@@ -417,8 +498,8 @@ def update_spatial_vector_array_with_value(
 
     Args:
         value: The value. Shape is (6,).
-        velocity: The velocity. Shape is (num_instances, 6).
-        env_mask: The mask of the environments to update the velocity for. Shape is (num_instances,). (modified)
+        velocity: The velocity. Shape is (num_instances, 6). (modified)
+        env_mask: The mask of the environments to update the velocity for. Shape is (num_instances,).
     """
     index = wp.tid()
     if env_mask[index]:
@@ -443,8 +524,8 @@ def transform_CoM_pose_to_link_frame(
     Args:
         com_pose_w: The CoM pose in the world frame. Shape is (num_instances, 7).
         com_pose_link_frame: The CoM pose in the link frame. Shape is (num_instances, 7).
-        link_pose_w: The link pose in the world frame. Shape is (num_instances, 7).
-        env_mask: The mask of the environments to transform the CoM pose to the link frame for. Shape is (num_instances,). (modified)
+        link_pose_w: The link pose in the world frame. Shape is (num_instances, 7). (modified)
+        env_mask: The mask of the environments to transform the CoM pose to the link frame for. Shape is (num_instances,).
     """
     index = wp.tid()
     if env_mask[index]:
@@ -454,55 +535,3 @@ def transform_CoM_pose_to_link_frame(
             wp.transform_get_translation(com_pose_link_frame[index]),
             wp.quatf(0.0, 0.0, 0.0, 1.0)
         )
-
-@wp.kernel
-def update_wrench_array(
-    new_value: wp.array2d(dtype=wp.spatial_vectorf),
-    wrench: wp.array2d(dtype=wp.spatial_vectorf),
-    env_ids: wp.array(dtype=wp.int32),
-    body_ids: wp.array(dtype=wp.int32),
-):
-    env_index, body_index = wp.tid()
-    wrench[env_ids[env_index], body_ids[body_index]] = new_value[env_index, body_index]
-
-@wp.kernel
-def update_wrench_array_with_value(
-    value: wp.spatial_vectorf,
-    wrench: wp.array2d(dtype=wp.spatial_vectorf),
-    env_ids: wp.array(dtype=wp.int32),
-    body_ids: wp.array(dtype=wp.int32),
-):
-    env_index, body_index = wp.tid()
-    wrench[env_ids[env_index], body_ids[body_index]] = value
-
-@wp.func
-def update_wrench_with_force(
-    force: wp.vec3f,
-) -> wp.spatial_vectorf:
-    return wp.spatial_vectorf(wp.vec3f(0.0, 0.0, 0.0), force)
-
-@wp.func
-def update_wrench_with_torque(
-    torque: wp.vec3f,
-) -> wp.spatial_vectorf:
-    return wp.spatial_vectorf(torque, wp.vec3f(0.0, 0.0, 0.0))
-
-@wp.kernel
-def update_wrench_array_with_force(
-    forces: wp.array2d(dtype=wp.vec3f),
-    wrench: wp.array2d(dtype=wp.spatial_vectorf),
-    env_ids: wp.array(dtype=wp.int32),
-    body_ids: wp.array(dtype=wp.int32),
-):
-    env_index, body_index = wp.tid()
-    wrench[env_ids[env_index], body_ids[body_index]] = update_wrench_with_force(forces[env_index, body_index])
-
-@wp.kernel
-def update_wrench_array_with_torque(
-    torques: wp.array2d(dtype=wp.vec3f),
-    wrench: wp.array2d(dtype=wp.spatial_vectorf),
-    env_ids: wp.array(dtype=wp.int32),
-    body_ids: wp.array(dtype=wp.int32),
-):
-    env_index, body_index = wp.tid()
-    wrench[env_ids[env_index], body_ids[body_index]] = update_wrench_with_torque(torques[env_index, body_index])

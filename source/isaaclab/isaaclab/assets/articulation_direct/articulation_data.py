@@ -31,39 +31,6 @@ def warn_overhead_cost(*args, **kwargs):
     return wrapper
 
 
-# FIXME: Need to create one for each articulation view.
-class NewtonAutoMapper:
-    NewtonArticulationView = None
-
-    @staticmethod
-    def cast_to_torch(data):
-        return wp.to_torch(data)
-
-    @staticmethod
-    def cast_to_wp(data, dtype: wp.dtype | None = None):
-        if dtype is not None:
-            return wp.from_torch(data, dtype=dtype)
-        else:
-            return wp.from_torch(data)
-
-    def __init__(self, default, dtype):
-        self._default = default
-        self._dtype = dtype
-
-    @classmethod
-    def set_articulation_view(cls, articulation_view):
-        cls.NewtonArticulationView = articulation_view
-
-    def __set_name__(self, owner, name):
-        self._name = name
-
-    def __get__(self, type):
-        return getattr(self.NewtonArticulationView, self._name, self._default)
-
-    def __set__(self, value):
-        setattr(self.NewtonArticulationView, self._name, value)
-        
-
 class ArticulationData:
     """Data container for an articulation.
 
@@ -95,7 +62,6 @@ class ArticulationData:
         # note: this is stored as a weak reference to avoid circular references between the asset class
         #  and the data container. This is important to avoid memory leaks.
         self._root_newton_view = weakref.proxy(root_newton_view)
-        NewtonAutoMapper.set_articulation_view(self._root_newton_view)
 
         # Set initial time stamp
         self._sim_timestamp = 0.0
@@ -130,8 +96,8 @@ class ArticulationData:
         #self._body_com_vel_w = TimestampedWarpBuffer(shape=(self._root_newton_view.count, self._root_newton_view.num_bodies), dtype=wp.spatial_vectorf)
         self._body_com_acc_w = TimestampedWarpBuffer(shape=(self._root_newton_view.count, self._root_newton_view.num_bodies), dtype=wp.spatial_vectorf)
         # -- joint state
-        self._joint_pos = TimestampedWarpBuffer(shape=(self._root_newton_view.count, self._root_newton_view.num_joints), dtype=wp.float32)
-        self._joint_vel = TimestampedWarpBuffer(shape=(self._root_newton_view.count, self._root_newton_view.num_joints), dtype=wp.float32)
+        #self._joint_pos = TimestampedWarpBuffer(shape=(self._root_newton_view.count, self._root_newton_view.num_joints), dtype=wp.float32)
+        #self._joint_vel = TimestampedWarpBuffer(shape=(self._root_newton_view.count, self._root_newton_view.num_joints), dtype=wp.float32)
         self._joint_acc = TimestampedWarpBuffer(shape=(self._root_newton_view.count, self._root_newton_view.num_joints), dtype=wp.float32)
         #self._body_incoming_joint_wrench_b = TimestampedWarpBuffer()
 
@@ -193,17 +159,19 @@ class ArticulationData:
 
     This quantity is configured through the :attr:`isaaclab.assets.ArticulationCfg.init_state` parameter.
     """
+
+    #TODO: GIVE THEM A NAME THAT'S MORE EXPLICIT. I.E. _root_link_pose_w -> sim_bind_root_link_pose_w
     ##
     # Root state properties. (Directly binded to the simulation)
     ##
 
-    root_link_pose_w: wp.array = None
+    sim_bind_root_link_pose_w: wp.array = None
     """Root link pose ``wp.transformf`` in the world frame. Shape is (num_instances,).
     
     The pose is in the form of [pos, quat]. The orientation is provided in (x, y, z, w) format.
     """
 
-    root_com_vel_w: wp.array = None
+    sim_bind_root_com_vel_w: wp.array = None
     """Root center of mass velocity ``wp.spatial_vectorf`` in the world frame. Shape is (num_instances,).
     
     The velocity is in the form of [ang_vel, lin_vel].
@@ -213,19 +181,19 @@ class ArticulationData:
     # Body state properties. (Directly binded to the simulation)
     ##
 
-    body_link_pose_w: wp.array = None
+    sim_bind_body_link_pose_w: wp.array = None
     """Body link pose ``wp.transformf`` in the world frame. Shape is (num_instances, num_bodies).
     
     The pose is in the form of [pos, quat]. The orientation is provided in (x, y, z, w) format.
     """
 
-    body_com_vel_w: wp.array = None
+    sim_bind_body_com_vel_w: wp.array = None
     """Body center of mass velocity ``wp.spatial_vectorf`` in the world frame. Shape is (num_instances, num_bodies).
     
     The velocity is in the form of [ang_vel, lin_vel].
     """
     
-    body_com_pos_b: wp.array = None
+    sim_bind_body_com_pos_b: wp.array = None
     """Center of mass pose ``wp.transformf`` of all bodies in their respective body's link frames.
 
     Shapes are (num_instances, num_bodies,). The pose is in the form of [pos, quat].
@@ -276,7 +244,7 @@ class ArticulationData:
     # Joint properties. (Directly binded to the simulation)
     ##
 
-    joint_control_mode: wp.array = None
+    sim_bind_joint_control_mode: wp.array = None
     """Joint control mode. Shape is (num_instances, num_joints).
 
     When using implicit actuator models Newton needs to know how the joints are controlled.
@@ -289,39 +257,61 @@ class ArticulationData:
     This quantity is set by the :meth:`Articulation.write_joint_control_mode_to_sim` method.
     """
 
-    joint_stiffness: wp.array = None
+    sim_bind_joint_stiffness: wp.array = None
     """Joint stiffness provided to the simulation. Shape is (num_instances, num_joints).
 
     In the case of explicit actuators, the value for the corresponding joints is zero.
     """
 
-    joint_damping: wp.array = None
+    sim_bind_joint_damping: wp.array = None
     """Joint damping provided to the simulation. Shape is (num_instances, num_joints)
 
     In the case of explicit actuators, the value for the corresponding joints is zero.
     """
 
-    joint_armature: wp.array = None
+    sim_bind_joint_armature: wp.array = None
     """Joint armature provided to the simulation. Shape is (num_instances, num_joints)."""
 
-    joint_friction_coeff: wp.array = None
+    sim_bind_joint_friction_coeff: wp.array = None
     """Joint friction coefficient provided to the simulation. Shape is (num_instances, num_joints)."""
 
-    joint_pos_limits_lower: wp.array = None
+    sim_bind_joint_pos_limits_lower: wp.array = None
     """Joint position limits lower provided to the simulation. Shape is (num_instances, num_joints)."""
 
-    joint_pos_limits_upper: wp.array = None
+    sim_bind_joint_pos_limits_upper: wp.array = None
     """Joint position limits upper provided to the simulation. Shape is (num_instances, num_joints)."""
 
-    joint_vel_limits: wp.array = None
+    sim_bind_joint_vel_limits_sim: wp.array = None
     """Joint maximum velocity provided to the simulation. Shape is (num_instances, num_joints)."""
 
-    joint_effort_limits: wp.array = None
+    sim_bind_joint_effort_limits_sim: wp.array = None
     """Joint maximum effort provided to the simulation. Shape is (num_instances, num_joints)."""
+
+    ##
+    # Joint states
+    ##
+
+    sim_bind_joint_pos: wp.array = None
+    """Joint positions. Shape is (num_instances, num_joints)."""
+
+    sim_bind_joint_vel: wp.array = None
+    """Joint velocities. Shape is (num_instances, num_joints)."""
 
     ##
     # Joint properties - Custom.
     ##
+
+    joint_effort_limits: wp.array = None
+    """Joint effort limits. Shape is (num_instances, num_joints)."""
+
+    joint_vel_limits: wp.array = None
+    """Joint velocity limits. Shape is (num_instances, num_joints)."""
+
+    joint_dynamic_friction: wp.array = None
+    """Joint dynamic friction. Shape is (num_instances, num_joints)."""
+
+    joint_viscous_friction: wp.array = None
+    """Joint viscous friction. Shape is (num_instances, num_joints)."""
 
     soft_joint_pos_limits: wp.array = None
     r"""Soft joint positions limits for all joints. Shape is (num_instances, num_joints, 2).
@@ -391,19 +381,76 @@ class ArticulationData:
     """Spatial tendon offset provided to the simulation. Shape is (num_instances, num_spatial_tendons)."""
 
     ##
-    # Root state properties.
+    # Direct simulation bindings accessors.
     ##
 
     @property
     def root_link_pose_w(self) -> wp.array:
-        """Root link pose ``wp.transformf`` in simulation world frame.
+        return self.sim_bind_root_link_pose_w
 
-        Shapes are (num_instances,). The pose is in the form of [pos, quat].
-        This quantity is the pose of the articulation root's actor frame relative to the world.
-        The orientation is provided in (x, y, z, w) format.
-        """
-        
-        return self._root_newton_view.get_root_transforms(NewtonManager.get_state_0())
+    @property
+    def root_com_vel_w(self) -> wp.array:
+        return self.sim_bind_root_com_vel_w
+
+    @property
+    def body_link_pose_w(self) -> wp.array:
+        return self.sim_bind_body_link_pose_w
+
+    @property
+    def body_com_vel_w(self) -> wp.array:
+        return self.sim_bind_body_com_vel_w
+
+    @property
+    def body_com_pos_b(self) -> wp.array:
+        return self.sim_bind_body_com_pos_b
+    
+    @property
+    def joint_control_mode(self) -> wp.array:
+        return self.sim_bind_joint_control_mode
+
+    @property
+    def joint_stiffness(self) -> wp.array:
+        return self.sim_bind_joint_stiffness
+
+    @property
+    def joint_damping(self) -> wp.array:
+        return self.sim_bind_joint_damping
+
+    @property
+    def joint_armature(self) -> wp.array:
+        return self.sim_bind_joint_armature 
+
+    @property
+    def joint_friction_coeff(self) -> wp.array:
+        return self.sim_bind_joint_friction_coeff
+    
+    @property
+    def joint_pos_limits_lower(self) -> wp.array:
+        return self.sim_bind_joint_pos_limits_lower
+    
+    @property
+    def joint_pos_limits_upper(self) -> wp.array:
+        return self.sim_bind_joint_pos_limits_upper    
+    
+    @property
+    def joint_vel_limits_sim(self) -> wp.array:
+        return self.sim_bind_joint_vel_limits_sim
+    
+    @property
+    def joint_effort_limits_sim(self) -> wp.array:
+        return self.sim_bind_joint_effort_limits_sim
+
+    @property
+    def joint_pos(self) -> wp.array:
+        return self.sim_bind_joint_pos
+
+    @property
+    def joint_vel(self) -> wp.array:
+        return self.sim_bind_joint_vel
+    
+    ##
+    # Root state properties.
+    ##
 
     @property
     def root_link_vel_w(self) -> wp.array:
@@ -421,7 +468,7 @@ class ArticulationData:
                 inputs=[
                     self.root_com_vel_w,
                     self.body_link_pose_w,
-                    self.body_com_pos_b,
+                    self.sim_bind_body_com_pos_b,
                     self._root_link_vel_w.data,
                 ]
             )
@@ -445,8 +492,8 @@ class ArticulationData:
                 dim=(self._root_newton_view.count),
                 device=self.device,
                 inputs=[
-                    self.root_link_pose_w,
-                    self.body_com_pos_b,
+                    self.sim_bind_root_link_pose_w,
+                    self.sim_bind_body_com_pos_b,
                     self._root_com_pose_w.data,
                 ]
             )
@@ -456,18 +503,7 @@ class ArticulationData:
         return self._root_com_pose_w.data
 
     @property
-    def root_com_vel_w(self) -> wp.array:
-        """Root center of mass velocity ``wp.spatial_vectorf`` in simulation world frame.
-
-        Shapes are (num_instances,). Velocities are in the form of [wx, wy, wz, vx, vy, vz].
-        This quantity contains the linear and angular velocities of the articulation root's center of mass frame
-        relative to the world.
-        """
-
-        return self._root_newton_view.get_root_velocities(NewtonManager.get_state_0())
-
-    @property
-    def root_state_w(self) -> tuple[wp.array, wp.array]:
+    def root_state_w(self) -> wp.array:
         """Root state ``[wp.transformf, wp.spatial_vectorf]`` in simulation world frame.
 
         Shapes are (num_instances,), (num_instances,). The pose is in the form of [pos, quat].
@@ -475,11 +511,21 @@ class ArticulationData:
         The pose is of the articulation root's actor frame relative to the world.
         The velocity is of the articulation root's center of mass frame.
         """
-
-        return self.root_link_pose_w, self.root_com_vel_w
+        state = wp.zeros((self._root_newton_view.count, 13), dtype=wp.float32, device=self.device)
+        wp.launch(
+            combine_pose_and_velocity_to_state,
+            dim=(self._root_newton_view.count,),
+            device=self.device,
+            inputs=[
+                self.sim_bind_root_link_pose_w,
+                self.sim_bind_root_com_vel_w,
+                state,
+            ]
+        )
+        return state
 
     @property
-    def root_link_state_w(self) -> tuple[wp.array, wp.array]:
+    def root_link_state_w(self) -> wp.array:
         """Root link state ``[wp.transformf, wp.spatial_vectorf]`` in simulation world frame.
 
         Shapes are (num_instances,), (num_instances,). The pose is in the form of [pos, quat].
@@ -487,11 +533,21 @@ class ArticulationData:
         The pose is of the articulation root's actor frame relative to the world.
         The velocity is of the articulation root's actor frame.
         """
-
-        return self.root_link_pose_w, self.root_link_vel_w
+        state = wp.zeros((self._root_newton_view.count, 13), dtype=wp.float32, device=self.device)
+        wp.launch(
+            combine_pose_and_velocity_to_state,
+            dim=(self._root_newton_view.count,),
+            device=self.device,
+            inputs=[
+                self.sim_bind_root_link_pose_w,
+                self.root_link_vel_w,
+                state,
+            ]
+        )
+        return state
 
     @property
-    def root_com_state_w(self) -> tuple[wp.array, wp.array]:
+    def root_com_state_w(self) -> wp.array:
         """Root center of mass state ``[wp.transformf, wp.spatial_vectorf]`` in simulation world frame.
 
         Shapes are (num_instances,), (num_instances,). The pose is in the form of [pos, quat].
@@ -499,8 +555,18 @@ class ArticulationData:
         The pose is of the articulation root's center of mass frame relative to the world.
         The velocity is of the articulation root's center of mass frame.
         """
-
-        return self.root_com_pose_w, self.root_com_vel_w
+        state = wp.zeros((self._root_newton_view.count, 13), dtype=wp.float32, device=self.device)
+        wp.launch(
+            combine_pose_and_velocity_to_state,
+            dim=(self._root_newton_view.count,),
+            device=self.device,
+            inputs=[
+                self.root_com_pose_w,
+                self.sim_bind_root_com_vel_w,
+                state,
+            ]
+        )
+        return state
 
     ##
     # Body state properties.
@@ -521,9 +587,9 @@ class ArticulationData:
                 dim=(self._root_newton_view.count, self._root_newton_view.num_bodies),
                 device=self.device,
                 inputs=[
-                    self.body_com_vel_w,
-                    self.body_link_pose_w,
-                    self.body_com_pos_b,
+                    self.sim_bind_body_com_vel_w,
+                    self.sim_bind_body_link_pose_w,
+                    self.sim_bind_body_com_pos_b,
                     self._body_link_vel_w.data,
                 ]
             )
@@ -546,8 +612,8 @@ class ArticulationData:
                 dim=(self._root_newton_view.count, self._root_newton_view.num_bodies),
                 device=self.device,
                 inputs=[
-                    self.body_link_pose_w,
-                    self.body_com_pos_b,
+                    self.sim_bind_body_link_pose_w,
+                    self.sim_bind_body_com_pos_b,
                     self._body_com_pose_w.data,
                 ]
             )
@@ -555,8 +621,9 @@ class ArticulationData:
             self._body_com_pose_w.timestamp = self._sim_timestamp
         return self._body_com_pose_w.data
 
+    @warn_overhead_cost
     @property
-    def body_state_w(self) -> tuple[wp.array, wp.array]:
+    def body_state_w(self) -> wp.array:
         """State of all bodies ``[wp.transformf, wp.spatial_vectorf]`` in simulation world frame.
 
         Shapes are (num_instances, num_bodies,), (num_instances, num_bodies,). The pose is in the form of [pos, quat].
@@ -565,10 +632,22 @@ class ArticulationData:
         The velocity is of the articulation links' center of mass frame.
         """
 
-        return self.body_link_pose_w, self.body_com_vel_w
+        state = wp.zeros((self._root_newton_view.count, self._root_newton_view.num_bodies, 13), dtype=wp.float32, device=self.device)
+        wp.launch(
+            combine_pose_and_velocity_to_state_batched,
+            dim=(self._root_newton_view.count, self._root_newton_view.num_bodies),
+            device=self.device,
+            inputs=[
+                self.sim_bind_body_link_pose_w,
+                self.sim_bind_body_com_vel_w,
+                state,
+            ]
+        )
+        return state
 
+    @warn_overhead_cost
     @property
-    def body_link_state_w(self) -> tuple[wp.array, wp.array]:
+    def body_link_state_w(self) -> wp.array:
         """State of all bodies' link frame ``[wp.transformf, wp.spatial_vectorf]`` in simulation world frame.
 
         Shapes are (num_instances, num_bodies,), (num_instances, num_bodies,). The pose is in the form of [pos, quat].
@@ -576,10 +655,22 @@ class ArticulationData:
         The position, quaternion, and linear/angular velocity are of the body's link frame relative to the world.
         """
 
-        return self.body_link_pose_w, self.body_link_vel_w
+        state = wp.zeros((self._root_newton_view.count, self._root_newton_view.num_bodies, 13), dtype=wp.float32, device=self.device)
+        wp.launch(
+            combine_pose_and_velocity_to_state_batched,
+            dim=(self._root_newton_view.count, self._root_newton_view.num_bodies),
+            device=self.device,
+            inputs=[
+                self.sim_bind_body_link_pose_w,
+                self.body_link_vel_w,
+                state,
+            ]
+        )
+        return state
 
+    @warn_overhead_cost
     @property
-    def body_com_state_w(self) -> tuple[wp.array, wp.array]:
+    def body_com_state_w(self) -> wp.array:
         """State of all bodies center of mass ``[wp.transformf, wp.spatial_vectorf]`` in simulation world frame.
 
         Shapes are (num_instances, num_bodies,), (num_instances, num_bodies,). The pose is in the form of [pos, quat].
@@ -590,7 +681,18 @@ class ArticulationData:
         principle inertia.
         """
 
-        return self.body_com_pose_w, self.body_com_vel_w
+        state = wp.zeros((self._root_newton_view.count, self._root_newton_view.num_bodies, 13), dtype=wp.float32, device=self.device)
+        wp.launch(
+            combine_pose_and_velocity_to_state_batched,
+            dim=(self._root_newton_view.count, self._root_newton_view.num_bodies),
+            device=self.device,
+            inputs=[
+                self.body_com_pose_w,
+                self.sim_bind_body_com_vel_w,
+                state,
+            ]
+        )
+        return state
 
     @property
     def body_com_acc_w(self) -> wp.array:
@@ -600,14 +702,13 @@ class ArticulationData:
         All values are relative to the world.
         """
         if self._body_com_acc_w.timestamp < self._sim_timestamp:
-            dt = self._sim_timestamp - self._body_com_vel_w.timestamp
             wp.launch(
                 derive_body_acceleration_from_velocity,
                 dim=(self._root_newton_view.count, self._root_newton_view.num_bodies),
                 inputs=[
-                    self.body_com_vel_w,
+                    self.sim_bind_body_com_vel_w,
                     self._previous_body_com_vel,
-                    dt,
+                    NewtonManager.get_dt(),
                     self._body_com_acc_w.data,
                 ]
             )
@@ -626,7 +727,7 @@ class ArticulationData:
         """
         out = wp.zeros((self._root_newton_view.count, self._root_newton_view.count), dtype=wp.transformf, device=self.device)
         wp.launch(
-            generate_body_com_pose_b,
+            generate_pose_from_position_with_unit_quaternion,
             dim=(self._root_newton_view.count, self._root_newton_view.count),
             inputs=[
                 self.body_com_pos_b,
@@ -656,36 +757,17 @@ class ArticulationData:
     ##
 
     @property
-    def joint_pos(self) -> wp.array:
-        """Joint positions of all joints. Shape is (num_instances, num_joints)."""
-        if self._joint_pos.timestamp < self._sim_timestamp:
-            # read data from simulation and set the buffer data and timestamp
-            self._joint_pos.data = self._root_newton_view.get_dof_positions(NewtonManager.get_state_0())
-            self._joint_pos.timestamp = self._sim_timestamp
-        return self._joint_pos.data
-
-    @property
-    def joint_vel(self) -> wp.array:
-        """Joint velocities of all joints. Shape is (num_instances, num_joints)."""
-        if self._joint_vel.timestamp < self._sim_timestamp:
-            # read data from simulation and set the buffer data and timestamp
-            self._joint_vel.data = self._root_newton_view.get_dof_velocities(NewtonManager.get_state_0())
-            self._joint_vel.timestamp = self._sim_timestamp
-        return self._joint_vel.data
-
-    @property
     def joint_acc(self) -> wp.array:
         """Joint acceleration of all joints. Shape is (num_instances, num_joints)."""
         if self._joint_acc.timestamp < self._sim_timestamp:
             # note: we use finite differencing to compute acceleration
-            dt = self._sim_timestamp - self._joint_acc.timestamp
             wp.launch(
                 derive_joint_acceleration_from_velocity,
                 dim=(self._root_newton_view.count, self._root_newton_view.num_joints),
                 inputs=[
-                    self._joint_vel.data,
+                    self.sim_bind_joint_vel,
                     self._previous_joint_vel,
-                    dt,
+                    NewtonManager.get_dt(),
                     self._joint_acc.data,
                 ]
             )
@@ -696,6 +778,7 @@ class ArticulationData:
     # Derived Properties.
     ##
 
+    #FIXME: USE SIM_BIND_LINK_POSE_W RATHER THAN JUST THE QUATERNION
     @property
     def projected_gravity_b(self):
         """Projection of the gravity direction on base frame. Shape is (num_instances, 3)."""
@@ -713,6 +796,7 @@ class ArticulationData:
             self._projected_gravity_b.timestamp = self._sim_timestamp
         return self._projected_gravity_b.data
 
+    #FIXME: USE SIM_BIND_LINK_POSE_W RATHER THAN JUST THE QUATERNION
     @property
     def heading_w(self):
         """Yaw heading of the base frame (in radians). Shape is (num_instances,).
@@ -748,7 +832,7 @@ class ArticulationData:
                 dim=self._root_newton_view.count,
                 inputs=[
                     self.root_link_vel_w,
-                    self.root_link_pose_w,
+                    self.sim_bind_root_link_pose_w,
                     self._root_link_vel_b.data,
                 ]
             )
@@ -766,8 +850,8 @@ class ArticulationData:
                 project_velocities_to_frame,
                 dim=self._root_newton_view.count,
                 inputs=[
-                    self.root_com_vel_w,
-                    self.root_link_pose_w,
+                    self.sim_bind_root_com_vel_w,
+                    self.sim_bind_root_link_pose_w,
                     self._root_com_vel_b.data,
                 ]
             )
@@ -791,7 +875,7 @@ class ArticulationData:
             get_position,
             dim=self._root_newton_view.count,
             inputs=[
-                self.root_link_pose_w,
+                self.sim_bind_root_link_pose_w,
                 out,
             ]
         )
@@ -810,7 +894,7 @@ class ArticulationData:
             get_quat,
             dim=self._root_newton_view.count,
             inputs=[
-                self.root_link_pose_w,
+                self.sim_bind_root_link_pose_w,
                 out,
             ]
         )
@@ -901,7 +985,7 @@ class ArticulationData:
             get_linear_velocity,
             dim=self._root_newton_view.count,
             inputs=[
-                self.root_com_vel_w,
+                self.sim_bind_root_com_vel_w,
                 out,
             ]
         )
@@ -919,7 +1003,7 @@ class ArticulationData:
             get_angular_velocity,
             dim=self._root_newton_view.count,
             inputs=[
-                self.root_com_vel_w,
+                self.sim_bind_root_com_vel_w,
                 out,
             ]
         )
@@ -937,7 +1021,7 @@ class ArticulationData:
             get_position,
             dim=(self._root_newton_view.count, self._root_newton_view.count),
             inputs=[
-                self.body_link_pose_w,
+                self.sim_bind_body_link_pose_w,
                 out,
             ]
         )
@@ -956,7 +1040,7 @@ class ArticulationData:
             get_quat,
             dim=(self._root_newton_view.count, self._root_newton_view.count),
             inputs=[
-                self.body_link_pose_w,
+                self.sim_bind_body_link_pose_w,
                 out,
             ]
         )
@@ -1047,7 +1131,7 @@ class ArticulationData:
             get_linear_velocity,
             dim=(self._root_newton_view.count, self._root_newton_view.count),
             inputs=[
-                self.body_com_vel_w,
+                self.sim_bind_body_com_vel_w,
                 out,
             ]
         )
@@ -1065,7 +1149,7 @@ class ArticulationData:
             get_angular_velocity,
             dim=(self._root_newton_view.count, self._root_newton_view.count),
             inputs=[
-                self.body_com_vel_w,
+                self.sim_bind_body_com_vel_w,
                 out,
             ]
         )
@@ -1214,8 +1298,8 @@ class ArticulationData:
             make_joint_pos_limits_from_lower_and_upper_limits,
             dim=(self._root_newton_view.count, self._root_newton_view.count),
             inputs=[
-                self.joint_pos_limit_lower,
-                self.joint_pos_limits_upper,
+                self.sim_bind_joint_pos_limits_lower,
+                self.sim_bind_joint_pos_limits_upper,
                 out,
             ]
         )
@@ -1229,7 +1313,7 @@ class ArticulationData:
     @property
     def root_pose_w(self) -> wp.array:
         """Same as :attr:`root_link_pose_w`."""
-        return self.root_link_pose_w
+        return self.sim_bind_root_link_pose_w
 
     @deprecate(replacement="root_link_pos_w")
     @property
@@ -1247,7 +1331,7 @@ class ArticulationData:
     @property
     def root_vel_w(self) -> wp.array:
         """Same as :attr:`root_com_vel_w`."""
-        return self.root_com_vel_w
+        return self.sim_bind_root_com_vel_w
 
     @deprecate(replacement="root_com_lin_vel_w")
     @property
@@ -1277,7 +1361,7 @@ class ArticulationData:
     @property
     def body_pose_w(self) -> wp.array:
         """Same as :attr:`body_link_pose_w`."""
-        return self.body_link_pose_w
+        return self.sim_bind_body_link_pose_w
 
     @deprecate(replacement="body_link_pos_w")
     @property
@@ -1295,7 +1379,7 @@ class ArticulationData:
     @property
     def body_vel_w(self) -> wp.array:
         """Same as :attr:`body_com_vel_w`."""
-        return self.body_com_vel_w
+        return self.sim_bind_body_com_vel_w
 
     @deprecate(replacement="body_com_lin_vel_w")
     @property
@@ -1331,7 +1415,7 @@ class ArticulationData:
     @property
     def com_pos_b(self) -> wp.array:
         """Same as :attr:`body_com_pos_b`."""
-        return self.body_com_pos_b
+        return self.sim_bind_body_com_pos_b
 
     @deprecate(replacement="body_com_quat_b")
     @property
@@ -1354,7 +1438,7 @@ class ArticulationData:
             "The `joint_friction` property will be deprecated in a future release. Please use"
             " `joint_friction_coeff` instead."
         )
-        return self.joint_friction_coeff
+        return self.sim_bind_joint_friction_coeff
 
     @deprecate(replacement="fixed_tendon_pos_limits")
     @property

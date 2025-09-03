@@ -427,6 +427,14 @@ class NewtonManager:
         return NewtonManager._control
 
     @classmethod
+    def get_dt(cls):
+        return NewtonManager._dt
+
+    @classmethod
+    def get_solver_dt(cls):
+        return NewtonManager._solver_dt
+
+    @classmethod
     def forward_kinematics(cls, mask: wp.array | None = None) -> None:
         """Evaluates the forward kinematics for the selected articulations.
 

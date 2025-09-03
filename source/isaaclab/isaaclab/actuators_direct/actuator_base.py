@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-import torch
 import warp as wp
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
@@ -13,6 +12,8 @@ from typing import TYPE_CHECKING, ClassVar, Literal
 
 import isaaclab.utils.string as string_utils
 from isaaclab.utils.types import ArticulationActions
+from .actuator_data import ActuatorData
+from isaaclab.assets.articulation_direct.kernels import *
 
 if TYPE_CHECKING:
     from .actuator_cfg import ActuatorBaseCfg
@@ -43,61 +44,8 @@ class ActuatorBase(ABC):
     If a class inherits from :class:`ImplicitActuator`, then this flag should be set to :obj:`True`.
     """
 
-    computed_effort: wp.array
-    """The computed effort for the actuator group. Shape is (num_envs, num_joints)."""
-
-    applied_effort: wp.array
-    """The applied effort for the actuator group. Shape is (num_envs, num_joints).
-
-    This is the effort obtained after clipping the :attr:`computed_effort` based on the
-    actuator characteristics.
-    """
-
-    effort_limit: wp.array
-    """The effort limit for the actuator group. Shape is (num_envs, num_joints).
-
-    For implicit actuators, the :attr:`effort_limit` and :attr:`effort_limit_sim` are the same.
-    """
-
-    effort_limit_sim: wp.array
-    """The effort limit for the actuator group in the simulation. Shape is (num_envs, num_joints).
-
-    For implicit actuators, the :attr:`effort_limit` and :attr:`effort_limit_sim` are the same.
-    """
-
-    velocity_limit: wp.array
-    """The velocity limit for the actuator group. Shape is (num_envs, num_joints).
-
-    For implicit actuators, the :attr:`velocity_limit` and :attr:`velocity_limit_sim` are the same.
-    """
-
-    velocity_limit_sim: wp.array
-    """The velocity limit for the actuator group in the simulation. Shape is (num_envs, num_joints).
-
-    For implicit actuators, the :attr:`velocity_limit` and :attr:`velocity_limit_sim` are the same.
-    """
-
-    control_mode: Literal["position", "velocity", "none"]
-    """The control mode of the actuator.
-
-    The control mode can be one of the following:
-
-    * ``"position"``: Position control
-    * ``"velocity"``: Velocity control
-    * ``"none"``: No control (used for explicit actuators or direct effort control)
-    """
-
-    stiffness: wp.array
-    """The stiffness (P gain) of the PD controller. Shape is (num_envs, num_joints)."""
-
-    damping: wp.array
-    """The damping (D gain) of the PD controller. Shape is (num_envs, num_joints)."""
-
-    armature: wp.array
-    """The armature of the actuator joints. Shape is (num_envs, num_joints)."""
-
-    friction: wp.array
-    """The joint friction of the actuator joints. Shape is (num_envs, num_joints)."""
+    data: ActuatorData
+    """The data for the actuator group. Shape is (num_envs, num_joints)."""
 
     _DEFAULT_MAX_EFFORT_SIM: ClassVar[float] = 1.0e9
     """The default maximum effort for the actuator joints in the simulation. Defaults to 1.0e9.
@@ -106,20 +54,14 @@ class ActuatorBase(ABC):
     actuator, then this value is used.
     """
 
+
     def __init__(
         self,
         cfg: ActuatorBaseCfg,
         joint_names: list[str],
-        joint_ids: wp.array,
-        num_envs: int,
+        joint_mask: wp.array,
+        articulation_data: ActuatorData,
         device: str,
-        stiffness: wp.array,
-        damping: wp.array,
-        armature: wp.array,
-        friction: wp.array,
-        effort_limit: wp.array,
-        velocity_limit: wp.array,
-        control_mode: Literal["position", "velocity"] = "position",
     ):
         """Initialize the actuator.
 
@@ -136,71 +78,47 @@ class ActuatorBase(ABC):
             joint_ids: The joint indices in the articulation. If :obj:`slice(None)`, then all
                 the joints in the articulation are part of the group.
             num_envs: Number of articulations in the view.
+            num_joints: Number of joints in the articulation.
             device: Device used for processing.
-            control_mode: The default control mode. Defaults to "position".
-            stiffness: The default joint stiffness (P gain). Defaults to 0.0.
-                If a tensor, then the shape is (num_envs, num_joints).
-            damping: The default joint damping (D gain). Defaults to 0.0.
-                If a tensor, then the shape is (num_envs, num_joints).
-            armature: The default joint armature. Defaults to 0.0.
-                If a tensor, then the shape is (num_envs, num_joints).
-            friction: The default joint friction. Defaults to 0.0.
-                If a tensor, then the shape is (num_envs, num_joints).
-            effort_limit: The default effort limit. Defaults to infinity.
-                If a tensor, then the shape is (num_envs, num_joints).
-            velocity_limit: The default velocity limit. Defaults to infinity.
-                If a tensor, then the shape is (num_envs, num_joints).
+            joint_mask: The mask of joints to use.
+            articulation_data: The data for the articulation.
         """
         # save parameters
         self.cfg = cfg
-        self._num_envs = num_envs
         self._device = device
         self._joint_names = joint_names
-        self._joint_indices = joint_ids
+        self._joint_mask = joint_mask
+        # Get the number of environments and joints from the articulation data
+        self._num_envs = articulation_data.all_env_mask.shape[0]
+        self._num_joints = articulation_data.all_joint_mask.shape[0]
 
         # For explicit models, we do not want to enforce the effort limit through the solver
         # (unless it is explicitly set)
         if not self.is_implicit_model and self.cfg.effort_limit_sim is None:
             self.cfg.effort_limit_sim = self._DEFAULT_MAX_EFFORT_SIM
 
-        # Direct bind to simulation buffers. Shape is (num_envs, num_joints) with num_joints, the number of joints in
-        # the articulation, not the number of joints in the actuator group.
-        self.stifness = stiffness
-        self.damping = damping
-        self.armature = armature
-        self.friction = friction
-        self.effort_limit_sim = effort_limit
-        self.velocity_limit_sim = velocity_limit 
-        self.control_mode = control_mode
-        # Non-simulation buffers (Used only in the actuator model). Shape is (num_envs, num_joints), with num_joints,
-        # the number of joints in the actuator group.
-        self.effort_limit = wp.zeros((self._num_envs, self.num_joints), dtype=wp.float32, device=self._device)
-        self.velocity_limit = wp.zeros((self._num_envs, self.num_joints), dtype=wp.float32, device=self._device)
+        # resolve usd, actuator configuration values
+        # case 1: if usd_value == actuator_cfg_value: all good,
+        # case 2: if usd_value != actuator_cfg_value: we use actuator_cfg_value
+        # case 3: if actuator_cfg_value is None: we use usd_value
 
-        # parse joint stiffness and damping
-        self._parse_joint_parameter(self.cfg.stiffness, stiffness)
-        self._parse_joint_parameter(self.cfg.damping, damping)
-        # parse joint armature and friction
-        self._parse_joint_parameter(self.cfg.armature, armature)
-        self._parse_joint_parameter(self.cfg.friction, friction)
-        # parse joint limits
-        # -- velocity
-        self._parse_joint_parameter(self.cfg.velocity_limit_sim, velocity_limit)
-        self._parse_joint_parameter(self.cfg.velocity_limit, self.velocity_limit_sim)
-        # -- effort
-        self._parse_joint_parameter(self.cfg.effort_limit_sim, effort_limit)
-        self.effort_limit = self._parse_joint_parameter(self.cfg.effort_limit, self.effort_limit_sim)
+        to_check = [
+            ("velocity_limit_sim", self.data.velocity_limit_sim),
+            ("effort_limit_sim", self.data.effort_limit_sim),
+            ("stiffness", self.data.stiffness),
+            ("damping", self.data.damping),
+            ("armature", self.data.armature),
+            ("friction", self.data.friction),
+            ("dynamic_friction", self.data.dynamic_friction),
+            ("viscous_friction", self.data.viscous_friction),
+        ]
+        for param_name, newton_val in to_check:
+            cfg_val = getattr(self.cfg, param_name)
+            self._parse_joint_parameter(cfg_val, newton_val)
 
-        # create commands buffers for allocation
-        self.computed_effort = wp.zeros((self._num_envs, self.num_joints), dtype=wp.float32, device=self._device)
-        self.applied_effort = wp.zeros_like(self.computed_effort)
 
     def __str__(self) -> str:
         """Returns: A string representation of the actuator group."""
-        # resolve joint indices for printing
-        joint_indices = self.joint_indices
-        if joint_indices == slice(None):
-            joint_indices = list(range(self.num_joints))
         # resolve model type (implicit or explicit)
         model_type = "implicit" if self.is_implicit_model else "explicit"
 
@@ -210,7 +128,7 @@ class ActuatorBase(ABC):
             f"\tNumber of joints      : {self.num_joints}\n"
             f"\tJoint names expression: {self.cfg.joint_names_expr}\n"
             f"\tJoint names           : {self.joint_names}\n"
-            f"\tJoint indices         : {joint_indices}\n"
+            f"\tJoint mask            : {self.joint_mask}\n"
         )
 
     """
@@ -228,32 +146,26 @@ class ActuatorBase(ABC):
         return self._joint_names
 
     @property
-    def joint_indices(self) -> slice | torch.Tensor:
-        """Articulation's joint indices that are part of the group.
-
-        Note:
-            If :obj:`slice(None)` is returned, then the group contains all the joints in the articulation.
-            We do this to avoid unnecessary indexing of the joints for performance reasons.
-        """
-        return self._joint_indices
+    def joint_mask(self) -> wp.array:
+        """Articulation's masked indices that denote which joints are part of the group."""
+        return self._joint_mask
 
     """
     Operations.
     """
 
     @abstractmethod
-    def reset(self, env_ids: Sequence[int]):
+    def reset(self, env_mask: wp.array(dtype=wp.int32)):
         """Reset the internals within the group.
 
         Args:
-            env_ids: List of environment IDs to reset.
+            env_mask: Mask of environments to reset.
         """
         raise NotImplementedError
 
     @abstractmethod
     def compute(
-        self, control_action: ArticulationActions, joint_pos: torch.Tensor, joint_vel: torch.Tensor
-    ) -> ArticulationActions:
+        self, control_action: ArticulationActions, joint_pos: wp.array, joint_vel: wp.array) -> ArticulationActions:
         """Process the actuator group actions and compute the articulation actions.
 
         It computes the articulation actions based on the actuator model type
@@ -274,8 +186,8 @@ class ActuatorBase(ABC):
     """
 
     def _parse_joint_parameter(
-        self, cfg_value: float | dict[str, float] | None, default_value: float | wp.array | None
-    ) :
+        self, cfg_value: float | dict[str, float] | None, original_value: wp.array | None
+    ):
         """Parse the joint parameter from the configuration.
 
         Args:
@@ -294,50 +206,80 @@ class ActuatorBase(ABC):
         """
         # parse the parameter
         if cfg_value is not None:
-            if isinstance(cfg_value, (float, int)):
+            if isinstance(cfg_value, float):
                 # if float, then use the same value for all joints
-                param, float(cfg_value))
+                wp.launch(
+                    update_joint_array_with_value,
+                    dim=(self._num_envs, self._num_joints),
+                    inputs=[
+                        float(cfg_value),
+                        original_value,
+                        self.data.all_env_mask,
+                        self.data.all_joint_mask,
+                    ]
+                )
+            elif isinstance(cfg_value, int):
+                # if int, then use the same value for all joints
+                wp.launch(
+                    update_joint_array_with_value_int,
+                    dim=(self._num_envs, self._num_joints),
+                    inputs=[
+                        float(cfg_value),
+                        original_value,
+                        self.data.all_env_mask,
+                        self.data.all_joint_mask,
+                    ]
+                )
             elif isinstance(cfg_value, dict):
                 # if dict, then parse the regular expression
                 indices, _, values = string_utils.resolve_matching_names_values(cfg_value, self.joint_names)
-                # note: need to specify type to be safe (e.g. values are ints, but we want floats)
-                param[:, indices] = torch.tensor(values, dtype=torch.float, device=self._device)
+                tmp_param =wp.zeros((self._num_joints,), dtype=wp.float32, device=self._device)
+                wp.launch(
+                    populate_empty_array,
+                    dim=(self._num_envs, self._num_joints),
+                    inputs=[
+                        tmp_param,
+                        wp.array(values, dtype=wp.float32, device=self._device),
+                        wp.array(indices, dtype=wp.int32, device=self._device),
+                    ]
+                )
+                wp.launch(
+                    update_joint_array_with_value_array,
+                    dim=(self._num_envs, self._num_joints),
+                    inputs=[
+                        tmp_param,
+                        original_value,
+                        self.data.all_env_mask,
+                        self.data.all_joint_mask,
+                    ]
+                )
             else:
                 raise TypeError(
                     f"Invalid type for parameter value: {type(cfg_value)} for "
                     + f"actuator on joints {self.joint_names}. Expected float or dict."
                 )
-        elif default_value is not None:
-            if isinstance(default_value, (float, int)):
-                # if float, then use the same value for all joints
-                param[:] = float(default_value)
-            elif isinstance(default_value, torch.Tensor):
-                # if tensor, then use the same tensor for all joints
-                if default_value.shape == (self._num_envs, self.num_joints):
-                    param = default_value.float()
-                else:
-                    raise ValueError(
-                        "Invalid default value tensor shape.\n"
-                        f"Got: {default_value.shape}\n"
-                        f"Expected: {(self._num_envs, self.num_joints)}"
-                    )
-            else:
-                raise TypeError(
-                    f"Invalid type for default value: {type(default_value)} for "
-                    + f"actuator on joints {self.joint_names}. Expected float or Tensor."
-                )
         else:
-            raise ValueError("The parameter value is None and no default value is provided.")
+            raise ValueError("The parameter value is None and no newton value is provided.")
 
-        return param
-
-    def _clip_effort(self, effort: torch.Tensor) -> torch.Tensor:
+    def _clip_effort(self, effort: wp.array) -> None:
         """Clip the desired torques based on the motor limits.
 
+        .. note:: The array is modified in place.
+
         Args:
-            desired_torques: The desired torques to clip.
+            desired_torques: The desired torques to clip. Expected shape is (num_envs, num_joints).
 
         Returns:
             The clipped torques.
         """
-        return torch.clip(effort, min=-self.effort_limit, max=self.effort_limit)
+        wp.launch(
+            clip_joint_array_with_limits_masked,
+            dim=(self._num_envs, self._num_joints),
+            inputs=[
+                self.data.effort_limit_sim,
+                self.data.effort_limit_sim,
+                effort,
+                self.data.all_env_mask,
+                self.joint_mask,
+            ]
+        )

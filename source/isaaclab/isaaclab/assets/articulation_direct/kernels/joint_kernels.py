@@ -28,6 +28,30 @@ def update_joint_array(
     if env_mask[env_index] and joint_mask[joint_index]:
         joint_data[env_index, joint_index] = new_data[env_index, joint_index]
 
+@wp.kernel
+def update_joint_array_int(
+    new_data: wp.array2d(dtype=wp.int32),
+    joint_data: wp.array2d(dtype=wp.int32),
+    env_mask: wp.array(dtype=bool),
+    joint_mask: wp.array(dtype=bool),
+):
+    """
+    Update the joint data for the given environment and joint indices from the newton data.
+
+    .. note:: The :arg:`env_mask` length must be equal to the number of instances in the newton data.
+    The :arg:`joint_mask` length must be equal to the number of joints in the newton data. The :arg:`new_data` shape
+    must match the :arg:`joint_data` shape.
+
+    Args:
+        new_data: The new data to update the joint data with. Shape is (num_instances, num_joints).
+        joint_data: The joint data to update. Shape is (num_instances, num_joints). (modified)
+        env_mask: The environment mask to update the joint data for. Shape is (num_instances,).
+        joint_mask: The joint mask to update the joint data for. Shape is (num_joints,).
+    """
+    env_index, joint_index = wp.tid()
+    if env_mask[env_index] and joint_mask[joint_index]:
+        joint_data[env_index, joint_index] = new_data[env_index, joint_index]
+
 
 @wp.kernel
 def update_joint_array_with_value_array(
