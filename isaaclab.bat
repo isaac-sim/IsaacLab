@@ -380,22 +380,6 @@ if "%arg%"=="-i" (
     rem once we have a docker container, we need to disable vscode settings
     call :update_vscode_settings
 
-    rem pull omni.warp binary from https://github.com/NVIDIA/warp/releases/tag/v1.9.0rc1 and place it in the apps/ directory
-    rem if the extracted directory does not exist in the apps/ directory
-    if not exist "%ISAACLAB_PATH%\apps\warp-1.9.0rc1" (
-        echo [INFO] Downloading omni.warp binary...
-        rem download the zip file to a temporary location
-        set temp_zip=%ISAACLAB_PATH%\apps\warp-1.9.0rc1.zip
-        curl -L -o "!temp_zip!" "https://github.com/NVIDIA/warp/archive/refs/tags/v1.9.0rc1.zip"
-        rem unzip the file to the apps directory
-        powershell -command "Expand-Archive -Path '!temp_zip!' -DestinationPath '%ISAACLAB_PATH%\apps\' -Force"
-        rem clean up the temporary zip file
-        del "!temp_zip!"
-        echo [INFO] Successfully downloaded and extracted omni.warp binary.
-    ) else (
-        echo [INFO] omni.warp binary directory already exists at %ISAACLAB_PATH%\apps\warp-1.9.0rc1
-    )
-
     shift
 ) else if "%arg%"=="--install" (
     rem install the python packages in source directory
@@ -445,22 +429,6 @@ if "%arg%"=="-i" (
     rem update the vscode settings
     rem once we have a docker container, we need to disable vscode settings
     call :update_vscode_settings
-
-    rem pull omni.warp binary from https://github.com/NVIDIA/warp/releases/tag/v1.9.0rc1 and place it in the apps/ directory
-    rem if the extracted directory does not exist in the apps/ directory
-    if not exist "%ISAACLAB_PATH%\apps\warp-1.9.0rc1" (
-        echo [INFO] Downloading omni.warp binary...
-        rem download the zip file to a temporary location
-        set temp_zip=%ISAACLAB_PATH%\apps\warp-1.9.0rc1.zip
-        curl -L -o "!temp_zip!" "https://github.com/NVIDIA/warp/archive/refs/tags/v1.9.0rc1.zip"
-        rem unzip the file to the apps directory
-        powershell -command "Expand-Archive -Path '!temp_zip!' -DestinationPath '%ISAACLAB_PATH%\apps\' -Force"
-        rem clean up the temporary zip file
-        del "!temp_zip!"
-        echo [INFO] Successfully downloaded and extracted omni.warp binary.
-    ) else (
-        echo [INFO] omni.warp binary directory already exists at %ISAACLAB_PATH%\apps\warp-1.9.0rc1
-    )
 
     shift
 ) else if "%arg%"=="-c" (

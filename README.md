@@ -13,15 +13,10 @@
 [![License](https://img.shields.io/badge/license-BSD--3-yellow.svg)](https://opensource.org/licenses/BSD-3-Clause)
 [![License](https://img.shields.io/badge/license-Apache--2.0-yellow.svg)](https://opensource.org/license/apache-2-0)
 
+This branch of Isaac Lab is an experimental feature branch that provides an initial integration with the Newton Physics Engine, and is under active development. 
+Many features are not yet supported, and only a limited set of classic RL and flat terrain locomotion reinforcement learning examples are included at the moment.
 
-This branch of Isaac Lab is a development branch compatible with the latest
-[Isaac Sim repository](https://github.com/isaac-sim/IsaacSim). Please note that some updates and changes are still being worked
-on until the official Isaac Lab 2.2 release. Currently, this branch requires the latest updates in the Isaac Sim open source repo.
-We are continuously working on enabling backwards compatibility with Isaac Sim 4.5, which is currently not possible with this branch.
-A quick list of updates and changes in this branch can be found in the [Release Notes](https://github.com/isaac-sim/IsaacLab/blob/feature/isaacsim_5_0/docs/source/refs/release_notes.rst).
-To run Isaac Lab with the Open Source Isaac Sim, please refer to
-[Getting Started with Open-Source Isaac Sim](#getting-started-with-open-source-isaac-sim).
-
+Documentation for this branch can be found [here](https://isaac-sim.github.io/IsaacLab/main/source/experimental-features/newton-physics-integration/index.html).
 
 **Isaac Lab** is a GPU-accelerated, open-source framework designed to unify and simplify robotics research workflows, such as reinforcement learning, imitation learning, and motion planning. Built on [NVIDIA Isaac Sim](https://docs.isaacsim.omniverse.nvidia.com/latest/index.html), it combines fast and accurate physics and sensor simulation, making it an ideal choice for sim-to-real transfer in robotics.
 
@@ -37,112 +32,23 @@ Isaac Lab offers a comprehensive set of tools and environments designed to facil
 - **Sensors**: RGB/depth/segmentation cameras, camera annotations, IMU, contact sensors, ray casters.
 
 
-## Getting Started
-
-### Getting Started with Open-Source Isaac Sim
-
-Isaac Sim is now open source and available on GitHub! To run Isaac Lab with the open source Isaac Sim repo,
-ensure you are using the `feature/isaacsim_5_0` branch.
-
-For detailed Isaac Sim installation instructions, please refer to
-[Isaac Sim README](https://github.com/isaac-sim/IsaacSim?tab=readme-ov-file#quick-start).
-
-1. Clone Isaac Sim
-
-    ```
-    git clone https://github.com/isaac-sim/IsaacSim.git
-    ```
-
-2. Build Isaac Sim
-
-    ```
-    cd IsaacSim
-    ./build.sh
-    ```
-
-    On Windows, please use `build.bat` instead.
-
-3. Clone Isaac Lab
-
-    ```
-    cd ..
-    git clone -b feature/isaacsim_5_0 https://github.com/isaac-sim/IsaacLab.git
-    cd isaaclab
-    ```
-
-4. Set up symlink in Isaac Lab
-
-    Linux:
-
-    ```
-    ln -s IsaacSim/_build/linux-x86_64/release _isaac_sim
-    ```
-
-    Windows:
-
-    ```
-    mklink /D _isaac_sim IsaacSim\_build\windows-x86_64\release
-    ```
-
-5. Install Isaac Lab
-
-    Linux:
-
-    ```
-    ./isaaclab.sh -i
-    ```
-
-    Windows:
-
-    ```
-    isaaclab.bat -i
-    ```
-
-6. Train!
-
-    Linux:
-
-    ```
-    ./isaaclab.sh -p scripts/reinforcement_learning/skrl/train.py --task Isaac-Ant-v0 --headless
-    ```
-
-    Windows:
-
-    ```
-    isaaclab.bat -p scripts\reinforcement_learning\skrl\train.py --task Isaac-Ant-v0 --headless
-    ```
-
-### Documentation
-
-Note that the current public documentations may not include all features of the latest feature/isaacsim_5_0 branch.
-
-Our [documentation page](https://isaac-sim.github.io/IsaacLab) provides everything you need to get started, including detailed tutorials and step-by-step guides. Follow these links to learn more about:
-
-- [Installation steps](https://isaac-sim.github.io/IsaacLab/main/source/setup/installation/index.html#local-installation)
-- [Reinforcement learning](https://isaac-sim.github.io/IsaacLab/main/source/overview/reinforcement-learning/rl_existing_scripts.html)
-- [Tutorials](https://isaac-sim.github.io/IsaacLab/main/source/tutorials/index.html)
-- [Available environments](https://isaac-sim.github.io/IsaacLab/main/source/overview/environments.html)
-
-
 ## Isaac Sim Version Dependency
 
 Isaac Lab is built on top of Isaac Sim and requires specific versions of Isaac Sim that are compatible with each release of Isaac Lab.
 Below, we outline the recent Isaac Lab releases and GitHub branches and their corresponding dependency versions for Isaac Sim.
 
-| Isaac Lab Version             | Isaac Sim Version |
-| ----------------------------- | ----------------- |
-| `main` branch                 | Isaac Sim 4.5     |
-| `v2.1.0`                      | Isaac Sim 4.5     |
-| `v2.0.2`                      | Isaac Sim 4.5     |
-| `v2.0.1`                      | Isaac Sim 4.5     |
-| `v2.0.0`                      | Isaac Sim 4.5     |
-| `feature/isaacsim_5_0` branch | Isaac Sim 5.0     |
+| Isaac Lab Version             | Isaac Sim Version             |
+| ----------------------------- | ----------------------------- |
+| `main` branch                 | Isaac Sim 4.5 / Isaac Sim 5.0 |
+| `v2.2.0`                      | Isaac Sim 4.5 / Isaac Sim 5.0 |
+| `v2.1.0`                      | Isaac Sim 4.5                 |
+| `v2.0.2`                      | Isaac Sim 4.5                 |
+| `v2.0.1`                      | Isaac Sim 4.5                 |
+| `v2.0.0`                      | Isaac Sim 4.5                 |
+| `feature/newton` branch       | Isaac Sim 5.0                 |
 
-Note that the `feature/isaacsim_5_0` will contain active updates and may contain some breaking changes
-until the official Isaac Lab 2.2 release.
-It currently requires the [Isaac Sim 5.0 branch](https://github.com/isaac-sim/IsaacSim) available on GitHub built from source.
-Please refer to the README in the `feature/isaacsim_5_0` branch for instructions for using Isaac Lab with Isaac Sim 5.0.
-We are actively working on introducing backwards compatibility support for Isaac Sim 4.5 for this branch.
+Note that the `feature/newton` branch will contain active updates and may contain some breaking changes
+until the official Isaac Lab 3.0 release.
 
 
 ## Contributing to Isaac Lab
