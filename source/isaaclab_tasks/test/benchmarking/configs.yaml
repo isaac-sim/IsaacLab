@@ -26,24 +26,24 @@ full_test:
 # mode for PR tests (default mode)
 fast:
   rsl_rl:Isaac-Ant-Direct-v0:
-    max_iterations: 200
+    max_iterations: 500
     lower_thresholds:
-      reward: 45
-      episode_length: 900
+      reward: 7000
+      episode_length: 800
     upper_thresholds:
       duration: 500
   rsl_rl:Isaac-Cartpole-Direct-v0:
     max_iterations: 300
     lower_thresholds:
-      reward: 200
-      episode_length: 150
+      reward: 280
+      episode_length: 280
     upper_thresholds:
       duration: 500
   rsl_rl:Isaac-Humanoid-Direct-v0:
-    max_iterations: 200
+    max_iterations: 500
     lower_thresholds:
-      reward: 50
-      episode_length: 750
+      reward: 600
+      episode_length: 500
     upper_thresholds:
       duration: 500
   rsl_rl:Isaac-Velocity-Flat-Anymal-D-v0:
@@ -54,14 +54,14 @@ fast:
     upper_thresholds:
       duration: 3000
   rsl_rl:Isaac-Velocity-Flat-G1-v0:
-    max_iterations: 200
+    max_iterations: 500
     lower_thresholds:
       reward: 15
       episode_length: 700
     upper_thresholds:
       duration: 3000
   rsl_rl:Isaac-Velocity-Flat-H1-v0:
-    max_iterations: 200
+    max_iterations: 500
     lower_thresholds:
       reward: 15
       episode_length: 700
