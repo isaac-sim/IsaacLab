@@ -393,6 +393,7 @@ class RigidObject(AssetBase):
             all the external wrenches will be applied in the frame specified by the last call.
 
             .. code-block:: python
+
                 # example of setting external wrench in the global frame
                 asset.set_external_force_and_torque(forces=torch.ones(1, 1, 3), env_ids=[0], is_global=True)
                 # example of setting external wrench in the link frame
