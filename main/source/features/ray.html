@@ -702,7 +702,7 @@ to execute these jobs with workers in parallel and/or sequentially.</p>
 specifying the <code class="docutils literal notranslate"><span class="pre">--num_workers</span></code> argument for resource-wrapped jobs, or <code class="docutils literal notranslate"><span class="pre">--num_workers_per_node</span></code>
 for tuning jobs, which is especially critical for parallel aggregate
 job processing on local/virtual multi-GPU machines. Tuning jobs assume homogeneous node resource composition for nodes with GPUs.</p>
-<p>The two following files contain the core functionality of the Ray integration.</p>
+<p>The three following files contain the core functionality of the Ray integration.</p>
 <details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
 <summary class="sd-summary-title sd-card-header">
 <span class="sd-summary-icon"><svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-code" viewBox="0 0 16 16" aria-hidden="true"><path d="m11.28 3.22 4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.749.749 0 0 1-1.275-.326.749.749 0 0 1 .215-.734L13.94 8l-3.72-3.72a.749.749 0 0 1 .326-1.275.749.749 0 0 1 .734.215Zm-6.56 0a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042L2.06 8l3.72 3.72a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L.47 8.53a.75.75 0 0 1 0-1.06Z"></path></svg></span><span class="sd-summary-text">scripts/reinforcement_learning/ray/wrap_resources.py</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
@@ -711,17 +711,11 @@ job processing on local/virtual multi-GPU machines. Tuning jobs assume homogeneo
 <span class="c1">#</span>
 <span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
 
-<span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
-
-<span class="kn">import</span><span class="w"> </span><span class="nn">ray</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">util</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">ray.util.scheduling_strategies</span><span class="w"> </span><span class="kn">import</span> <span class="n">NodeAffinitySchedulingStrategy</span>
-
 <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">This script dispatches sub-job(s) (individual jobs, use :file:`tuner.py` for tuning jobs)</span>
-<span class="hll"><span class="sd">to worker(s) on GPU-enabled node(s) of a specific cluster as part of an resource-wrapped aggregate</span>
-</span><span class="hll"><span class="sd">job. If no desired compute resources for each sub-job are specified,</span>
-</span><span class="hll"><span class="sd">this script creates one worker per available node for each node with GPU(s) in the cluster.</span>
+<span class="sd">to worker(s) on GPU-enabled node(s) of a specific cluster as part of an resource-wrapped aggregate</span>
+<span class="sd">job. If no desired compute resources for each sub-job are specified,</span>
+<span class="hll"><span class="sd">this script creates one worker per available node for each node with GPU(s) in the cluster.</span>
 </span><span class="hll"><span class="sd">If the desired resources for each sub-job is specified,</span>
 </span><span class="hll"><span class="sd">the maximum number of workers possible with the desired resources are created for each node</span>
 </span><span class="hll"><span class="sd">with GPU(s) in the cluster. It is also possible to split available node resources for each node</span>
@@ -772,7 +766,11 @@ job processing on local/virtual multi-GPU machines. Tuning jobs assume homogeneo
 </span><span class="hll"><span class="sd">    ./isaaclab.sh -p scripts/reinforcement_learning/ray/wrap_resources.py -h</span>
 </span><span class="hll"><span class="sd">&quot;&quot;&quot;</span>
 </span><span class="hll">
+</span><span class="hll"><span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
+</span><span class="hll">
+</span><span class="hll"><span class="kn">import</span><span class="w"> </span><span class="nn">util</span>
 </span>
+
 <span class="k">def</span><span class="w"> </span><span class="nf">wrap_resources_to_jobs</span><span class="p">(</span><span class="n">jobs</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="n">args</span><span class="p">:</span> <span class="n">argparse</span><span class="o">.</span><span class="n">Namespace</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Provided a list of jobs, dispatch jobs to one worker per available node,</span>
@@ -783,9 +781,14 @@ job processing on local/virtual multi-GPU machines. Tuning jobs assume homogeneo
 <span class="sd">        args: The arguments for resource allocation</span>
 
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="n">ray</span><span class="o">.</span><span class="n">is_initialized</span><span class="p">():</span>
-        <span class="n">ray</span><span class="o">.</span><span class="n">init</span><span class="p">(</span><span class="n">address</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">ray_address</span><span class="p">,</span> <span class="n">log_to_driver</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-    <span class="n">job_results</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">job_objs</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">util</span><span class="o">.</span><span class="n">ray_init</span><span class="p">(</span>
+        <span class="n">ray_address</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">ray_address</span><span class="p">,</span>
+        <span class="n">runtime_env</span><span class="o">=</span><span class="p">{</span>
+            <span class="s2">&quot;py_modules&quot;</span><span class="p">:</span> <span class="kc">None</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">args</span><span class="o">.</span><span class="n">py_modules</span> <span class="k">else</span> <span class="n">args</span><span class="o">.</span><span class="n">py_modules</span><span class="p">,</span>
+        <span class="p">},</span>
+        <span class="n">log_to_driver</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+    <span class="p">)</span>
     <span class="n">gpu_node_resources</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">get_gpu_node_resources</span><span class="p">(</span><span class="n">include_id</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">include_gb_ram</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 
     <span class="k">if</span> <span class="nb">any</span><span class="p">([</span><span class="n">args</span><span class="o">.</span><span class="n">gpu_per_worker</span><span class="p">,</span> <span class="n">args</span><span class="o">.</span><span class="n">cpu_per_worker</span><span class="p">,</span> <span class="n">args</span><span class="o">.</span><span class="n">ram_gb_per_worker</span><span class="p">])</span> <span class="ow">and</span> <span class="n">args</span><span class="o">.</span><span class="n">num_workers</span><span class="p">:</span>
@@ -805,7 +808,7 @@ job processing on local/virtual multi-GPU machines. Tuning jobs assume homogeneo
         <span class="n">jobs</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;nvidia-smi&quot;</span><span class="p">]</span> <span class="o">*</span> <span class="n">num_nodes</span>
     <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">job</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">jobs</span><span class="p">):</span>
         <span class="n">gpu_node</span> <span class="o">=</span> <span class="n">gpu_node_resources</span><span class="p">[</span><span class="n">i</span> <span class="o">%</span> <span class="n">num_nodes</span><span class="p">]</span>
-        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[INFO]: Submitting job </span><span class="si">{</span><span class="n">i</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="si">}</span><span class="s2"> of </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">jobs</span><span class="p">)</span><span class="si">}</span><span class="s2"> with job &#39;</span><span class="si">{</span><span class="n">job</span><span class="si">}</span><span class="s2">&#39; to node </span><span class="si">{</span><span class="n">gpu_node</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[INFO]: Creating job </span><span class="si">{</span><span class="n">i</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="si">}</span><span class="s2"> of </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">jobs</span><span class="p">)</span><span class="si">}</span><span class="s2"> with job &#39;</span><span class="si">{</span><span class="n">job</span><span class="si">}</span><span class="s2">&#39; to node </span><span class="si">{</span><span class="n">gpu_node</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
         <span class="nb">print</span><span class="p">(</span>
             <span class="sa">f</span><span class="s2">&quot;[INFO]: Resource parameters: GPU: </span><span class="si">{</span><span class="n">args</span><span class="o">.</span><span class="n">gpu_per_worker</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span>
             <span class="sa">f</span><span class="s2">&quot; CPU: </span><span class="si">{</span><span class="n">args</span><span class="o">.</span><span class="n">cpu_per_worker</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="si">}</span><span class="s2"> RAM </span><span class="si">{</span><span class="n">args</span><span class="o">.</span><span class="n">ram_gb_per_worker</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span>
@@ -814,19 +817,19 @@ job processing on local/virtual multi-GPU machines. Tuning jobs assume homogeneo
         <span class="n">num_gpus</span> <span class="o">=</span> <span class="n">args</span><span class="o">.</span><span class="n">gpu_per_worker</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">/</span> <span class="n">args</span><span class="o">.</span><span class="n">num_workers</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
         <span class="n">num_cpus</span> <span class="o">=</span> <span class="n">args</span><span class="o">.</span><span class="n">cpu_per_worker</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">/</span> <span class="n">args</span><span class="o">.</span><span class="n">num_workers</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
         <span class="n">memory</span> <span class="o">=</span> <span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">ram_gb_per_worker</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">*</span> <span class="mi">1024</span><span class="o">**</span><span class="mi">3</span><span class="p">)</span> <span class="o">/</span> <span class="n">args</span><span class="o">.</span><span class="n">num_workers</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
-        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[INFO]: Requesting </span><span class="si">{</span><span class="n">num_gpus</span><span class="si">=}</span><span class="s2"> </span><span class="si">{</span><span class="n">num_cpus</span><span class="si">=}</span><span class="s2"> </span><span class="si">{</span><span class="n">memory</span><span class="si">=}</span><span class="s2"> id=</span><span class="si">{</span><span class="n">gpu_node</span><span class="p">[</span><span class="s1">&#39;id&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-        <span class="n">job</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">remote_execute_job</span><span class="o">.</span><span class="n">options</span><span class="p">(</span>
-            <span class="n">num_gpus</span><span class="o">=</span><span class="n">num_gpus</span><span class="p">,</span>
-            <span class="n">num_cpus</span><span class="o">=</span><span class="n">num_cpus</span><span class="p">,</span>
-            <span class="n">memory</span><span class="o">=</span><span class="n">memory</span><span class="p">,</span>
-            <span class="n">scheduling_strategy</span><span class="o">=</span><span class="n">NodeAffinitySchedulingStrategy</span><span class="p">(</span><span class="n">gpu_node</span><span class="p">[</span><span class="s2">&quot;id&quot;</span><span class="p">],</span> <span class="n">soft</span><span class="o">=</span><span class="kc">False</span><span class="p">),</span>
-        <span class="p">)</span><span class="o">.</span><span class="n">remote</span><span class="p">(</span><span class="n">job</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;Job </span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">args</span><span class="o">.</span><span class="n">test</span><span class="p">)</span>
-        <span class="n">job_results</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">job</span><span class="p">)</span>
-
-    <span class="n">results</span> <span class="o">=</span> <span class="n">ray</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">job_results</span><span class="p">)</span>
-    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">result</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">results</span><span class="p">):</span>
-        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[INFO]: Job </span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2"> result: </span><span class="si">{</span><span class="n">result</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO]: All jobs completed.&quot;</span><span class="p">)</span>
+        <span class="n">job_objs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+            <span class="n">util</span><span class="o">.</span><span class="n">Job</span><span class="p">(</span>
+                <span class="n">cmd</span><span class="o">=</span><span class="n">job</span><span class="p">,</span>
+                <span class="n">name</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;Job-</span><span class="si">{</span><span class="n">i</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+                <span class="n">resources</span><span class="o">=</span><span class="n">util</span><span class="o">.</span><span class="n">JobResource</span><span class="p">(</span><span class="n">num_gpus</span><span class="o">=</span><span class="n">num_gpus</span><span class="p">,</span> <span class="n">num_cpus</span><span class="o">=</span><span class="n">num_cpus</span><span class="p">,</span> <span class="n">memory</span><span class="o">=</span><span class="n">memory</span><span class="p">),</span>
+                <span class="n">node</span><span class="o">=</span><span class="n">util</span><span class="o">.</span><span class="n">JobNode</span><span class="p">(</span>
+                    <span class="n">specific</span><span class="o">=</span><span class="s2">&quot;node_id&quot;</span><span class="p">,</span>
+                    <span class="n">node_id</span><span class="o">=</span><span class="n">gpu_node</span><span class="p">[</span><span class="s2">&quot;id&quot;</span><span class="p">],</span>
+                <span class="p">),</span>
+            <span class="p">)</span>
+        <span class="p">)</span>
+    <span class="c1"># submit jobs</span>
+    <span class="n">util</span><span class="o">.</span><span class="n">submit_wrapped_jobs</span><span class="p">(</span><span class="n">jobs</span><span class="o">=</span><span class="n">job_objs</span><span class="p">,</span> <span class="n">test_mode</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">test</span><span class="p">,</span> <span class="n">concurrent</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
 
 
 <span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
@@ -840,6 +843,15 @@ job processing on local/virtual multi-GPU machines. Tuning jobs assume homogeneo
             <span class="s2">&quot;Run nvidia-smi test instead of the arbitrary job,&quot;</span>
             <span class="s2">&quot;can use as a sanity check prior to any jobs to check &quot;</span>
             <span class="s2">&quot;that GPU resources are correctly isolated.&quot;</span>
+        <span class="p">),</span>
+    <span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+        <span class="s2">&quot;--py_modules&quot;</span><span class="p">,</span>
+        <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span>
+        <span class="n">nargs</span><span class="o">=</span><span class="s2">&quot;*&quot;</span><span class="p">,</span>
+        <span class="n">default</span><span class="o">=</span><span class="p">[],</span>
+        <span class="n">help</span><span class="o">=</span><span class="p">(</span>
+            <span class="s2">&quot;List of python modules or paths to add before running the job. Example: --py_modules my_package/my_package&quot;</span>
         <span class="p">),</span>
     <span class="p">)</span>
     <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
@@ -915,8 +927,8 @@ job processing on local/virtual multi-GPU machines. Tuning jobs assume homogeneo
 </span><span class="hll"><span class="sd">    --cfg_file hyperparameter_tuning/vision_cartpole_cfg.py \</span>
 </span><span class="hll"><span class="sd">    --cfg_class CartpoleTheiaJobCfg --mlflow_uri &lt;MLFLOW_URI_FROM_GROK_OR_MANUAL&gt;</span>
 </span><span class="hll">
-</span><span class="sd">&quot;&quot;&quot;</span>
-
+</span><span class="hll"><span class="sd">&quot;&quot;&quot;</span>
+</span>
 <span class="n">DOCKER_PREFIX</span> <span class="o">=</span> <span class="s2">&quot;/workspace/isaaclab/&quot;</span>
 <span class="n">BASE_DIR</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">expanduser</span><span class="p">(</span><span class="s2">&quot;~&quot;</span><span class="p">)</span>
 <span class="n">PYTHON_EXEC</span> <span class="o">=</span> <span class="s2">&quot;./isaaclab.sh -p&quot;</span>
@@ -1328,6 +1340,242 @@ job processing on local/virtual multi-GPU machines. Tuning jobs assume homogeneo
 </pre></div>
 </div>
 </div>
+</details><details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
+<summary class="sd-summary-title sd-card-header">
+<span class="sd-summary-icon"><svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-code" viewBox="0 0 16 16" aria-hidden="true"><path d="m11.28 3.22 4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.749.749 0 0 1-1.275-.326.749.749 0 0 1 .215-.734L13.94 8l-3.72-3.72a.749.749 0 0 1 .326-1.275.749.749 0 0 1 .734.215Zm-6.56 0a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042L2.06 8l3.72 3.72a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L.47 8.53a.75.75 0 0 1 0-1.06Z"></path></svg></span><span class="sd-summary-text">scripts/reinforcement_learning/ray/task_runner.py</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).</span>
+<span class="c1"># All rights reserved.</span>
+<span class="c1">#</span>
+<span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">This script dispatches one or more user-defined Python tasks to workers in a Ray cluster.</span>
+<span class="sd">Each task, along with its resource requirements and execution parameters, is specified in a YAML configuration file.</span>
+<span class="sd">Users may define the number of CPUs, GPUs, and the amount of memory to allocate per task via the config file.</span>
+
+<span class="sd">Key features:</span>
+<span class="sd">-------------</span>
+<span class="hll"><span class="sd">- Fine-grained, per-task resource management via config fields (`num_gpus`, `num_cpus`, `memory`).</span>
+</span><span class="hll"><span class="sd">- Parallel execution of multiple tasks using available resources across the Ray cluster.</span>
+</span><span class="hll"><span class="sd">- Option to specify node affinity for tasks, e.g., by hostname, node ID, or any node.</span>
+</span><span class="hll"><span class="sd">- Optional batch (simultaneous) or independent scheduling of tasks.</span>
+</span><span class="hll">
+</span><span class="hll"><span class="sd">Task scheduling and distribution are handled via Ray’s built-in resource manager.</span>
+</span><span class="hll">
+</span><span class="hll"><span class="sd">YAML configuration fields:</span>
+</span><span class="hll"><span class="sd">--------------------------</span>
+</span><span class="hll"><span class="sd">- `pip`: List of extra pip packages to install before running any tasks.</span>
+</span><span class="hll"><span class="sd">- `py_modules`: List of additional Python module paths (directories or files) to include in the runtime environment.</span>
+</span><span class="hll"><span class="sd">- `concurrent`: (bool) It determines task dispatch semantics:</span>
+</span><span class="hll"><span class="sd">    - If `concurrent: true`, **all tasks are scheduled as a batch**. The script waits until sufficient resources are available for every task in the batch, then launches all tasks together. If resources are insufficient, all tasks remain blocked until the cluster can support the full batch.</span>
+</span><span class="hll"><span class="sd">    - If `concurrent: false`, tasks are launched as soon as resources are available for each individual task, and Ray independently schedules them. This may result in non-simultaneous task start times.</span>
+</span><span class="hll"><span class="sd">- `tasks`: List of task specifications, each with:</span>
+</span><span class="hll"><span class="sd">    - `name`: String identifier for the task.</span>
+</span><span class="hll"><span class="sd">    - `py_args`: Arguments to the Python interpreter (e.g., script/module, flags, user arguments).</span>
+</span><span class="hll"><span class="sd">    - `num_gpus`: Number of GPUs to allocate (float or string arithmetic, e.g., &quot;2*2&quot;).</span>
+</span><span class="hll"><span class="sd">    - `num_cpus`: Number of CPUs to allocate (float or string).</span>
+</span><span class="hll"><span class="sd">    - `memory`: Amount of RAM in bytes (int or string).</span>
+</span><span class="hll"><span class="sd">    - `node` (optional): Node placement constraints.</span>
+</span><span class="hll"><span class="sd">        - `specific` (str): Type of node placement, support `hostname`, `node_id`, or `any`.</span>
+</span><span class="hll"><span class="sd">            - `any`: Place the task on any available node.</span>
+</span><span class="hll"><span class="sd">            - `hostname`: Place the task on a specific hostname. `hostname` must be specified in the node field.</span>
+</span><span class="hll"><span class="sd">            - `node_id`: Place the task on a specific node ID. `node_id` must be specified in the node field.</span>
+</span><span class="hll"><span class="sd">        - `hostname` (str): Specific hostname to place the task on.</span>
+</span><span class="hll"><span class="sd">        - `node_id` (str): Specific node ID to place the task on.</span>
+</span><span class="hll">
+</span><span class="hll">
+</span><span class="hll"><span class="sd">Typical usage:</span>
+</span><span class="hll"><span class="sd">---------------</span>
+</span><span class="hll">
+</span><span class="hll"><span class="sd">.. code-block:: bash</span>
+</span><span class="hll">
+</span><span class="hll"><span class="sd">    # Print help and argument details:</span>
+</span><span class="hll"><span class="sd">    python task_runner.py -h</span>
+</span><span class="hll">
+</span><span class="hll"><span class="sd">    # Submit tasks defined in a YAML file to the Ray cluster (auto-detects Ray head address):</span>
+</span><span class="hll"><span class="sd">    python task_runner.py --task_cfg /path/to/tasks.yaml</span>
+</span><span class="hll">
+</span><span class="hll"><span class="sd">YAML configuration example-1:</span>
+</span><span class="hll"><span class="sd">---------------------------</span>
+</span><span class="hll"><span class="sd">.. code-block:: yaml</span>
+</span><span class="hll">
+</span><span class="hll"><span class="sd">    pip: [&quot;xxx&quot;]</span>
+</span><span class="hll"><span class="sd">    py_modules: [&quot;my_package/my_package&quot;]</span>
+</span><span class="hll"><span class="sd">    concurrent: false</span>
+</span><span class="hll"><span class="sd">    tasks:</span>
+</span><span class="hll"><span class="sd">      - name: &quot;Isaac-Cartpole-v0&quot;</span>
+</span><span class="hll"><span class="sd">        py_args: &quot;-m torch.distributed.run --nnodes=1 --nproc_per_node=2  --rdzv_endpoint=localhost:29501 /workspace/isaaclab/scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Cartpole-v0 --max_iterations 200 --headless --distributed&quot;</span>
+</span><span class="hll"><span class="sd">        num_gpus: 2</span>
+</span><span class="hll"><span class="sd">        num_cpus: 10</span>
+</span><span class="hll"><span class="sd">        memory: 10737418240</span>
+</span><span class="hll"><span class="sd">      - name: &quot;script need some dependencies&quot;</span>
+</span><span class="hll"><span class="sd">        py_args: &quot;script.py --option arg&quot;</span>
+</span><span class="hll"><span class="sd">        num_gpus: 0</span>
+</span><span class="hll"><span class="sd">        num_cpus: 1</span>
+</span><span class="hll"><span class="sd">        memory: 10*1024*1024*1024</span>
+</span><span class="hll">
+</span><span class="hll"><span class="sd">YAML configuration example-2:</span>
+</span><span class="hll"><span class="sd">---------------------------</span>
+</span><span class="hll"><span class="sd">.. code-block:: yaml</span>
+</span><span class="hll">
+</span><span class="hll"><span class="sd">    pip: [&quot;xxx&quot;]</span>
+</span><span class="hll"><span class="sd">    py_modules: [&quot;my_package/my_package&quot;]</span>
+</span><span class="hll"><span class="sd">    concurrent: true</span>
+</span><span class="hll"><span class="sd">    tasks:</span>
+</span><span class="hll"><span class="sd">    - name: &quot;Isaac-Cartpole-v0-multi-node-train-1&quot;</span>
+</span><span class="hll"><span class="sd">        py_args: &quot;-m torch.distributed.run --nproc_per_node=1 --nnodes=2 --node_rank=0 --rdzv_id=123 --rdzv_backend=c10d --rdzv_endpoint=localhost:5555 /workspace/isaaclab/scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Cartpole-v0 --headless --distributed --max_iterations 1000&quot;</span>
+</span><span class="hll"><span class="sd">        num_gpus: 1</span>
+</span><span class="hll"><span class="sd">        num_cpus: 10</span>
+</span><span class="hll"><span class="sd">        memory: 10*1024*1024*1024</span>
+</span><span class="hll"><span class="sd">        node:</span>
+</span><span class="hll"><span class="sd">          specific: &quot;hostname&quot;</span>
+</span><span class="hll"><span class="sd">          hostname: &quot;xxx&quot;</span>
+</span><span class="hll"><span class="sd">    - name: &quot;Isaac-Cartpole-v0-multi-node-train-2&quot;</span>
+</span><span class="hll"><span class="sd">        py_args: &quot;-m torch.distributed.run --nproc_per_node=1 --nnodes=2 --node_rank=1 --rdzv_id=123 --rdzv_backend=c10d --rdzv_endpoint=x.x.x.x:5555 /workspace/isaaclab/scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Cartpole-v0 --headless --distributed --max_iterations 1000&quot;</span>
+</span><span class="hll"><span class="sd">        num_gpus: 1</span>
+</span><span class="hll"><span class="sd">        num_cpus: 10</span>
+</span><span class="hll"><span class="sd">        memory: 10*1024*1024*1024</span>
+</span><span class="hll"><span class="sd">        node:</span>
+</span><span class="hll"><span class="sd">          specific: &quot;hostname&quot;</span>
+</span><span class="hll"><span class="sd">          hostname: &quot;xxx&quot;</span>
+</span><span class="hll">
+</span><span class="hll"><span class="sd">To stop all tasks early, press Ctrl+C; the script will cancel all running Ray tasks.</span>
+</span><span class="hll"><span class="sd">&quot;&quot;&quot;</span>
+</span><span class="hll">
+</span><span class="hll"><span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
+</span><span class="hll"><span class="kn">import</span><span class="w"> </span><span class="nn">yaml</span>
+</span><span class="hll"><span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">datetime</span>
+</span><span class="hll">
+</span><span class="hll"><span class="kn">import</span><span class="w"> </span><span class="nn">util</span>
+</span><span class="hll">
+</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">parse_args</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">argparse</span><span class="o">.</span><span class="n">Namespace</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Parse command-line arguments for the Ray task runner.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        argparse.Namespace: The namespace containing parsed CLI arguments:</span>
+<span class="sd">            - task_cfg (str): Path to the YAML task file.</span>
+<span class="sd">            - ray_address (str): Ray cluster address.</span>
+<span class="sd">            - test (bool): Whether to run a GPU resource isolation sanity check.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">parser</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">&quot;Run tasks from a YAML config file.&quot;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;--task_cfg&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span> <span class="n">required</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Path to the YAML task file.&quot;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;--ray_address&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s2">&quot;auto&quot;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">&quot;the Ray address.&quot;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+        <span class="s2">&quot;--test&quot;</span><span class="p">,</span>
+        <span class="n">action</span><span class="o">=</span><span class="s2">&quot;store_true&quot;</span><span class="p">,</span>
+        <span class="n">help</span><span class="o">=</span><span class="p">(</span>
+            <span class="s2">&quot;Run nvidia-smi test instead of the arbitrary job,&quot;</span>
+            <span class="s2">&quot;can use as a sanity check prior to any jobs to check &quot;</span>
+            <span class="s2">&quot;that GPU resources are correctly isolated.&quot;</span>
+        <span class="p">),</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">parser</span><span class="o">.</span><span class="n">parse_args</span><span class="p">()</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">parse_task_resource</span><span class="p">(</span><span class="n">task</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">util</span><span class="o">.</span><span class="n">JobResource</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Parse task resource requirements from the YAML configuration.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        task (dict): Dictionary representing a single task&#39;s configuration.</span>
+<span class="sd">            Keys may include `num_gpus`, `num_cpus`, and `memory`, each either</span>
+<span class="sd">            as a number or evaluatable string expression.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        util.JobResource: Resource object with the parsed values.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">resource</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">JobResource</span><span class="p">()</span>
+    <span class="k">if</span> <span class="s2">&quot;num_gpus&quot;</span> <span class="ow">in</span> <span class="n">task</span><span class="p">:</span>
+        <span class="n">resource</span><span class="o">.</span><span class="n">num_gpus</span> <span class="o">=</span> <span class="nb">eval</span><span class="p">(</span><span class="n">task</span><span class="p">[</span><span class="s2">&quot;num_gpus&quot;</span><span class="p">])</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">task</span><span class="p">[</span><span class="s2">&quot;num_gpus&quot;</span><span class="p">],</span> <span class="nb">str</span><span class="p">)</span> <span class="k">else</span> <span class="n">task</span><span class="p">[</span><span class="s2">&quot;num_gpus&quot;</span><span class="p">]</span>
+    <span class="k">if</span> <span class="s2">&quot;num_cpus&quot;</span> <span class="ow">in</span> <span class="n">task</span><span class="p">:</span>
+        <span class="n">resource</span><span class="o">.</span><span class="n">num_cpus</span> <span class="o">=</span> <span class="nb">eval</span><span class="p">(</span><span class="n">task</span><span class="p">[</span><span class="s2">&quot;num_cpus&quot;</span><span class="p">])</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">task</span><span class="p">[</span><span class="s2">&quot;num_cpus&quot;</span><span class="p">],</span> <span class="nb">str</span><span class="p">)</span> <span class="k">else</span> <span class="n">task</span><span class="p">[</span><span class="s2">&quot;num_cpus&quot;</span><span class="p">]</span>
+    <span class="k">if</span> <span class="s2">&quot;memory&quot;</span> <span class="ow">in</span> <span class="n">task</span><span class="p">:</span>
+        <span class="n">resource</span><span class="o">.</span><span class="n">memory</span> <span class="o">=</span> <span class="nb">eval</span><span class="p">(</span><span class="n">task</span><span class="p">[</span><span class="s2">&quot;memory&quot;</span><span class="p">])</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">task</span><span class="p">[</span><span class="s2">&quot;memory&quot;</span><span class="p">],</span> <span class="nb">str</span><span class="p">)</span> <span class="k">else</span> <span class="n">task</span><span class="p">[</span><span class="s2">&quot;memory&quot;</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">resource</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">run_tasks</span><span class="p">(</span>
+    <span class="n">tasks</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">],</span> <span class="n">args</span><span class="p">:</span> <span class="n">argparse</span><span class="o">.</span><span class="n">Namespace</span><span class="p">,</span> <span class="n">runtime_env</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">concurrent</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Submit tasks to the Ray cluster for execution.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        tasks (list[dict]): A list of task configuration dictionaries.</span>
+<span class="sd">        args (argparse.Namespace): Parsed command-line arguments.</span>
+<span class="sd">        runtime_env (dict | None): Ray runtime environment configuration containing:</span>
+<span class="sd">            - pip (list[str] | None): Additional pip packages to install.</span>
+<span class="sd">            - py_modules (list[str] | None): Python modules to include in the environment.</span>
+<span class="sd">        concurrent (bool): Whether to launch tasks simultaneously as a batch,</span>
+<span class="sd">                           or independently as resources become available.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        None</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">job_objs</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">util</span><span class="o">.</span><span class="n">ray_init</span><span class="p">(</span><span class="n">ray_address</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">ray_address</span><span class="p">,</span> <span class="n">runtime_env</span><span class="o">=</span><span class="n">runtime_env</span><span class="p">,</span> <span class="n">log_to_driver</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">task</span> <span class="ow">in</span> <span class="n">tasks</span><span class="p">:</span>
+        <span class="n">resource</span> <span class="o">=</span> <span class="n">parse_task_resource</span><span class="p">(</span><span class="n">task</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[INFO] Creating job </span><span class="si">{</span><span class="n">task</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> with resource=</span><span class="si">{</span><span class="n">resource</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">job</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">Job</span><span class="p">(</span>
+            <span class="n">name</span><span class="o">=</span><span class="n">task</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">],</span>
+            <span class="n">py_args</span><span class="o">=</span><span class="n">task</span><span class="p">[</span><span class="s2">&quot;py_args&quot;</span><span class="p">],</span>
+            <span class="n">resources</span><span class="o">=</span><span class="n">resource</span><span class="p">,</span>
+            <span class="n">node</span><span class="o">=</span><span class="n">util</span><span class="o">.</span><span class="n">JobNode</span><span class="p">(</span>
+                <span class="n">specific</span><span class="o">=</span><span class="n">task</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;node&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;specific&quot;</span><span class="p">),</span>
+                <span class="n">hostname</span><span class="o">=</span><span class="n">task</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;node&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;hostname&quot;</span><span class="p">),</span>
+                <span class="n">node_id</span><span class="o">=</span><span class="n">task</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;node&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;node_id&quot;</span><span class="p">),</span>
+            <span class="p">),</span>
+        <span class="p">)</span>
+        <span class="n">job_objs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">job</span><span class="p">)</span>
+    <span class="n">start</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[INFO] Creating </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">job_objs</span><span class="p">)</span><span class="si">}</span><span class="s2"> jobs at </span><span class="si">{</span><span class="n">start</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s1">&#39;%H:%M:%S.</span><span class="si">%f</span><span class="s1">&#39;</span><span class="p">)</span><span class="si">}</span><span class="s2"> with runtime env=</span><span class="si">{</span><span class="n">runtime_env</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="c1"># submit jobs</span>
+    <span class="n">util</span><span class="o">.</span><span class="n">submit_wrapped_jobs</span><span class="p">(</span>
+        <span class="n">jobs</span><span class="o">=</span><span class="n">job_objs</span><span class="p">,</span>
+        <span class="n">test_mode</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">test</span><span class="p">,</span>
+        <span class="n">concurrent</span><span class="o">=</span><span class="n">concurrent</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">end</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span>
+    <span class="nb">print</span><span class="p">(</span>
+        <span class="sa">f</span><span class="s2">&quot;[INFO] All jobs completed at </span><span class="si">{</span><span class="n">end</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s1">&#39;%H:%M:%S.</span><span class="si">%f</span><span class="s1">&#39;</span><span class="p">)</span><span class="si">}</span><span class="s2">, took </span><span class="si">{</span><span class="p">(</span><span class="n">end</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">start</span><span class="p">)</span><span class="o">.</span><span class="n">total_seconds</span><span class="p">()</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2"> seconds.&quot;</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Main entry point for the Ray task runner script.</span>
+
+<span class="sd">    Reads the YAML task configuration file, parses CLI arguments,</span>
+<span class="sd">    and dispatches tasks to the Ray cluster.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        None</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">args</span> <span class="o">=</span> <span class="n">parse_args</span><span class="p">()</span>
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">task_cfg</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+        <span class="n">config</span> <span class="o">=</span> <span class="n">yaml</span><span class="o">.</span><span class="n">safe_load</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+    <span class="n">tasks</span> <span class="o">=</span> <span class="n">config</span><span class="p">[</span><span class="s2">&quot;tasks&quot;</span><span class="p">]</span>
+    <span class="n">runtime_env</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s2">&quot;pip&quot;</span><span class="p">:</span> <span class="kc">None</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;pip&quot;</span><span class="p">)</span> <span class="k">else</span> <span class="n">config</span><span class="p">[</span><span class="s2">&quot;pip&quot;</span><span class="p">],</span>
+        <span class="s2">&quot;py_modules&quot;</span><span class="p">:</span> <span class="kc">None</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;py_modules&quot;</span><span class="p">)</span> <span class="k">else</span> <span class="n">config</span><span class="p">[</span><span class="s2">&quot;py_modules&quot;</span><span class="p">],</span>
+    <span class="p">}</span>
+    <span class="n">concurrent</span> <span class="o">=</span> <span class="n">config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;concurrent&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+    <span class="n">run_tasks</span><span class="p">(</span>
+        <span class="n">tasks</span><span class="o">=</span><span class="n">tasks</span><span class="p">,</span>
+        <span class="n">args</span><span class="o">=</span><span class="n">args</span><span class="p">,</span>
+        <span class="n">runtime_env</span><span class="o">=</span><span class="n">runtime_env</span><span class="p">,</span>
+        <span class="n">concurrent</span><span class="o">=</span><span class="n">concurrent</span><span class="p">,</span>
+    <span class="p">)</span>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
+    <span class="n">main</span><span class="p">()</span>
+</pre></div>
+</div>
+</div>
 </details><p>The following script can be used to submit aggregate
 jobs to one or more Ray cluster(s), which can be used for
 running jobs on a remote cluster or simultaneous jobs with heterogeneous
@@ -1340,21 +1588,14 @@ resource requirements.</p>
 <span class="c1">#</span>
 <span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
 
-<span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">concurrent.futures</span><span class="w"> </span><span class="kn">import</span> <span class="n">ThreadPoolExecutor</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">This script submits aggregate job(s) to cluster(s) described in a</span>
+<span class="sd">config file containing ``name: &lt;NAME&gt; address: http://&lt;IP&gt;:&lt;PORT&gt;`` on</span>
+<span class="sd">a new line for each cluster. For KubeRay clusters, this file</span>
+<span class="sd">can be automatically created with :file:`grok_cluster_with_kubectl.py`</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">ray</span><span class="w"> </span><span class="kn">import</span> <span class="n">job_submission</span>
-<span class="hll">
-</span><span class="hll"><span class="sd">&quot;&quot;&quot;</span>
-</span><span class="hll"><span class="sd">This script submits aggregate job(s) to cluster(s) described in a</span>
-</span><span class="hll"><span class="sd">config file containing ``name: &lt;NAME&gt; address: http://&lt;IP&gt;:&lt;PORT&gt;`` on</span>
-</span><span class="hll"><span class="sd">a new line for each cluster. For KubeRay clusters, this file</span>
-</span><span class="hll"><span class="sd">can be automatically created with :file:`grok_cluster_with_kubectl.py`</span>
-</span><span class="hll">
-</span><span class="hll"><span class="sd">Aggregate job(s) are matched with cluster(s) via the following relation:</span>
-</span><span class="hll"><span class="sd">cluster_line_index_submitted_to = job_index % total_cluster_count</span>
+<span class="sd">Aggregate job(s) are matched with cluster(s) via the following relation:</span>
+<span class="hll"><span class="sd">cluster_line_index_submitted_to = job_index % total_cluster_count</span>
 </span><span class="hll">
 </span><span class="hll"><span class="sd">Aggregate jobs are separated by the * delimiter. The ``--aggregate_jobs`` argument must be</span>
 </span><span class="hll"><span class="sd">the last argument supplied to the script.</span>
@@ -1363,7 +1604,11 @@ resource requirements.</p>
 </span><span class="hll"><span class="sd">creates several individual jobs when started on a cluster. Alternatively, an aggregate job</span>
 </span><span class="hll"><span class="sd">could be a :file:&#39;../wrap_resources.py` resource-wrapped job,</span>
 </span><span class="hll"><span class="sd">which may contain several individual sub-jobs separated by</span>
-</span><span class="hll"><span class="sd">the + delimiter.</span>
+</span><span class="hll"><span class="sd">the + delimiter. An aggregate job could also be a :file:`../task_runner.py` multi-task submission job,</span>
+</span><span class="hll"><span class="sd">where each sub-job and its resource requirements are defined in a YAML configuration file.</span>
+</span><span class="hll"><span class="sd">In this mode, :file:`../task_runner.py` will read the YAML file (via --task_cfg), and</span>
+</span><span class="hll"><span class="sd">submit all defined sub-tasks to the Ray cluster, supporting per-job resource specification and</span>
+</span><span class="hll"><span class="sd">real-time streaming of sub-job outputs.</span>
 </span><span class="hll">
 </span><span class="hll"><span class="sd">If there are more aggregate jobs than cluster(s), aggregate jobs will be submitted</span>
 </span><span class="hll"><span class="sd">as clusters become available via the defined relation above. If there are less aggregate job(s)</span>
@@ -1385,10 +1630,22 @@ resource requirements.</p>
 </span><span class="hll"><span class="sd">    # Example: Submitting resource wrapped job</span>
 </span><span class="hll"><span class="sd">    python3 scripts/reinforcement_learning/ray/submit_job.py --aggregate_jobs wrap_resources.py --test</span>
 </span><span class="hll">
+</span><span class="hll"><span class="sd">    # Example: submitting tasks with specific resources, and supporting pip packages and py_modules</span>
+</span><span class="hll"><span class="sd">    # You may use relative paths for task_cfg and py_modules, placing them in the scripts/reinforcement_learning/ray directory, which will be uploaded to the cluster.</span>
+</span><span class="hll"><span class="sd">    python3 scripts/reinforcement_learning/ray/submit_job.py --aggregate_jobs task_runner.py --task_cfg tasks.yaml</span>
+</span><span class="hll">
 </span><span class="hll"><span class="sd">    # For all command line arguments</span>
 </span><span class="hll"><span class="sd">    python3 scripts/reinforcement_learning/ray/submit_job.py -h</span>
 </span><span class="hll"><span class="sd">&quot;&quot;&quot;</span>
-</span><span class="n">script_directory</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="vm">__file__</span><span class="p">))</span>
+</span><span class="hll">
+</span><span class="hll"><span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
+</span><span class="hll"><span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+</span><span class="hll"><span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
+</span><span class="hll"><span class="kn">from</span><span class="w"> </span><span class="nn">concurrent.futures</span><span class="w"> </span><span class="kn">import</span> <span class="n">ThreadPoolExecutor</span>
+</span><span class="hll">
+</span><span class="hll"><span class="kn">from</span><span class="w"> </span><span class="nn">ray</span><span class="w"> </span><span class="kn">import</span> <span class="n">job_submission</span>
+</span>
+<span class="n">script_directory</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="vm">__file__</span><span class="p">))</span>
 <span class="n">CONFIG</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;working_dir&quot;</span><span class="p">:</span> <span class="n">script_directory</span><span class="p">,</span> <span class="s2">&quot;executable&quot;</span><span class="p">:</span> <span class="s2">&quot;/workspace/isaaclab/isaaclab.sh -p&quot;</span><span class="p">}</span>
 
 
@@ -1785,8 +2042,8 @@ resource requirements.</p>
 <span class="kn">from</span><span class="w"> </span><span class="nn">jinja2</span><span class="w"> </span><span class="kn">import</span> <span class="n">Environment</span><span class="p">,</span> <span class="n">FileSystemLoader</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">kubernetes</span><span class="w"> </span><span class="kn">import</span> <span class="n">config</span>
 
-<span class="sd">&quot;&quot;&quot;This script helps create one or more KubeRay clusters.</span>
-<span class="hll">
+<span class="hll"><span class="sd">&quot;&quot;&quot;This script helps create one or more KubeRay clusters.</span>
+</span><span class="hll">
 </span><span class="hll"><span class="sd">Usage:</span>
 </span><span class="hll">
 </span><span class="hll"><span class="sd">.. code-block:: bash</span>
@@ -1807,8 +2064,8 @@ resource requirements.</p>
 </span><span class="hll"><span class="sd">    --num_workers 1 2 --num_clusters 1 \</span>
 </span><span class="hll"><span class="sd">    --worker_accelerator nvidia-l4 nvidia-tesla-t4 --gpu_per_worker 1 2 4</span>
 </span><span class="hll"><span class="sd">&quot;&quot;&quot;</span>
-</span><span class="hll"><span class="n">RAY_DIR</span> <span class="o">=</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span><span class="o">.</span><span class="n">parent</span>
-</span>
+</span><span class="n">RAY_DIR</span> <span class="o">=</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span><span class="o">.</span><span class="n">parent</span>
+
 
 <span class="k">def</span><span class="w"> </span><span class="nf">apply_manifest</span><span class="p">(</span><span class="n">args</span><span class="p">:</span> <span class="n">argparse</span><span class="o">.</span><span class="n">Namespace</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Provided a Jinja templated ray.io/v1alpha1 file,</span>
@@ -2000,17 +2257,11 @@ tensorboard<span class="w"> </span>--logdir<span class="o">=</span>.
 <span class="c1">#</span>
 <span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
 
-<span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
-
-<span class="kn">import</span><span class="w"> </span><span class="nn">ray</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">util</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">ray.util.scheduling_strategies</span><span class="w"> </span><span class="kn">import</span> <span class="n">NodeAffinitySchedulingStrategy</span>
-
 <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">This script dispatches sub-job(s) (individual jobs, use :file:`tuner.py` for tuning jobs)</span>
-<span class="hll"><span class="sd">to worker(s) on GPU-enabled node(s) of a specific cluster as part of an resource-wrapped aggregate</span>
-</span><span class="hll"><span class="sd">job. If no desired compute resources for each sub-job are specified,</span>
-</span><span class="hll"><span class="sd">this script creates one worker per available node for each node with GPU(s) in the cluster.</span>
+<span class="sd">to worker(s) on GPU-enabled node(s) of a specific cluster as part of an resource-wrapped aggregate</span>
+<span class="sd">job. If no desired compute resources for each sub-job are specified,</span>
+<span class="hll"><span class="sd">this script creates one worker per available node for each node with GPU(s) in the cluster.</span>
 </span><span class="hll"><span class="sd">If the desired resources for each sub-job is specified,</span>
 </span><span class="hll"><span class="sd">the maximum number of workers possible with the desired resources are created for each node</span>
 </span><span class="hll"><span class="sd">with GPU(s) in the cluster. It is also possible to split available node resources for each node</span>
@@ -2061,7 +2312,11 @@ tensorboard<span class="w"> </span>--logdir<span class="o">=</span>.
 </span><span class="hll"><span class="sd">    ./isaaclab.sh -p scripts/reinforcement_learning/ray/wrap_resources.py -h</span>
 </span><span class="hll"><span class="sd">&quot;&quot;&quot;</span>
 </span><span class="hll">
+</span><span class="hll"><span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
+</span><span class="hll">
+</span><span class="hll"><span class="kn">import</span><span class="w"> </span><span class="nn">util</span>
 </span>
+
 <span class="k">def</span><span class="w"> </span><span class="nf">wrap_resources_to_jobs</span><span class="p">(</span><span class="n">jobs</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="n">args</span><span class="p">:</span> <span class="n">argparse</span><span class="o">.</span><span class="n">Namespace</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Provided a list of jobs, dispatch jobs to one worker per available node,</span>
@@ -2072,9 +2327,14 @@ tensorboard<span class="w"> </span>--logdir<span class="o">=</span>.
 <span class="sd">        args: The arguments for resource allocation</span>
 
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="n">ray</span><span class="o">.</span><span class="n">is_initialized</span><span class="p">():</span>
-        <span class="n">ray</span><span class="o">.</span><span class="n">init</span><span class="p">(</span><span class="n">address</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">ray_address</span><span class="p">,</span> <span class="n">log_to_driver</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-    <span class="n">job_results</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">job_objs</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">util</span><span class="o">.</span><span class="n">ray_init</span><span class="p">(</span>
+        <span class="n">ray_address</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">ray_address</span><span class="p">,</span>
+        <span class="n">runtime_env</span><span class="o">=</span><span class="p">{</span>
+            <span class="s2">&quot;py_modules&quot;</span><span class="p">:</span> <span class="kc">None</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">args</span><span class="o">.</span><span class="n">py_modules</span> <span class="k">else</span> <span class="n">args</span><span class="o">.</span><span class="n">py_modules</span><span class="p">,</span>
+        <span class="p">},</span>
+        <span class="n">log_to_driver</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+    <span class="p">)</span>
     <span class="n">gpu_node_resources</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">get_gpu_node_resources</span><span class="p">(</span><span class="n">include_id</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">include_gb_ram</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 
     <span class="k">if</span> <span class="nb">any</span><span class="p">([</span><span class="n">args</span><span class="o">.</span><span class="n">gpu_per_worker</span><span class="p">,</span> <span class="n">args</span><span class="o">.</span><span class="n">cpu_per_worker</span><span class="p">,</span> <span class="n">args</span><span class="o">.</span><span class="n">ram_gb_per_worker</span><span class="p">])</span> <span class="ow">and</span> <span class="n">args</span><span class="o">.</span><span class="n">num_workers</span><span class="p">:</span>
@@ -2094,7 +2354,7 @@ tensorboard<span class="w"> </span>--logdir<span class="o">=</span>.
         <span class="n">jobs</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;nvidia-smi&quot;</span><span class="p">]</span> <span class="o">*</span> <span class="n">num_nodes</span>
     <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">job</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">jobs</span><span class="p">):</span>
         <span class="n">gpu_node</span> <span class="o">=</span> <span class="n">gpu_node_resources</span><span class="p">[</span><span class="n">i</span> <span class="o">%</span> <span class="n">num_nodes</span><span class="p">]</span>
-        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[INFO]: Submitting job </span><span class="si">{</span><span class="n">i</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="si">}</span><span class="s2"> of </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">jobs</span><span class="p">)</span><span class="si">}</span><span class="s2"> with job &#39;</span><span class="si">{</span><span class="n">job</span><span class="si">}</span><span class="s2">&#39; to node </span><span class="si">{</span><span class="n">gpu_node</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[INFO]: Creating job </span><span class="si">{</span><span class="n">i</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="si">}</span><span class="s2"> of </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">jobs</span><span class="p">)</span><span class="si">}</span><span class="s2"> with job &#39;</span><span class="si">{</span><span class="n">job</span><span class="si">}</span><span class="s2">&#39; to node </span><span class="si">{</span><span class="n">gpu_node</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
         <span class="nb">print</span><span class="p">(</span>
             <span class="sa">f</span><span class="s2">&quot;[INFO]: Resource parameters: GPU: </span><span class="si">{</span><span class="n">args</span><span class="o">.</span><span class="n">gpu_per_worker</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span>
             <span class="sa">f</span><span class="s2">&quot; CPU: </span><span class="si">{</span><span class="n">args</span><span class="o">.</span><span class="n">cpu_per_worker</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="si">}</span><span class="s2"> RAM </span><span class="si">{</span><span class="n">args</span><span class="o">.</span><span class="n">ram_gb_per_worker</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span>
@@ -2103,19 +2363,19 @@ tensorboard<span class="w"> </span>--logdir<span class="o">=</span>.
         <span class="n">num_gpus</span> <span class="o">=</span> <span class="n">args</span><span class="o">.</span><span class="n">gpu_per_worker</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">/</span> <span class="n">args</span><span class="o">.</span><span class="n">num_workers</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
         <span class="n">num_cpus</span> <span class="o">=</span> <span class="n">args</span><span class="o">.</span><span class="n">cpu_per_worker</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">/</span> <span class="n">args</span><span class="o">.</span><span class="n">num_workers</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
         <span class="n">memory</span> <span class="o">=</span> <span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">ram_gb_per_worker</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">*</span> <span class="mi">1024</span><span class="o">**</span><span class="mi">3</span><span class="p">)</span> <span class="o">/</span> <span class="n">args</span><span class="o">.</span><span class="n">num_workers</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
-        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[INFO]: Requesting </span><span class="si">{</span><span class="n">num_gpus</span><span class="si">=}</span><span class="s2"> </span><span class="si">{</span><span class="n">num_cpus</span><span class="si">=}</span><span class="s2"> </span><span class="si">{</span><span class="n">memory</span><span class="si">=}</span><span class="s2"> id=</span><span class="si">{</span><span class="n">gpu_node</span><span class="p">[</span><span class="s1">&#39;id&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-        <span class="n">job</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">remote_execute_job</span><span class="o">.</span><span class="n">options</span><span class="p">(</span>
-            <span class="n">num_gpus</span><span class="o">=</span><span class="n">num_gpus</span><span class="p">,</span>
-            <span class="n">num_cpus</span><span class="o">=</span><span class="n">num_cpus</span><span class="p">,</span>
-            <span class="n">memory</span><span class="o">=</span><span class="n">memory</span><span class="p">,</span>
-            <span class="n">scheduling_strategy</span><span class="o">=</span><span class="n">NodeAffinitySchedulingStrategy</span><span class="p">(</span><span class="n">gpu_node</span><span class="p">[</span><span class="s2">&quot;id&quot;</span><span class="p">],</span> <span class="n">soft</span><span class="o">=</span><span class="kc">False</span><span class="p">),</span>
-        <span class="p">)</span><span class="o">.</span><span class="n">remote</span><span class="p">(</span><span class="n">job</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;Job </span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">args</span><span class="o">.</span><span class="n">test</span><span class="p">)</span>
-        <span class="n">job_results</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">job</span><span class="p">)</span>
-
-    <span class="n">results</span> <span class="o">=</span> <span class="n">ray</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">job_results</span><span class="p">)</span>
-    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">result</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">results</span><span class="p">):</span>
-        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[INFO]: Job </span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2"> result: </span><span class="si">{</span><span class="n">result</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO]: All jobs completed.&quot;</span><span class="p">)</span>
+        <span class="n">job_objs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+            <span class="n">util</span><span class="o">.</span><span class="n">Job</span><span class="p">(</span>
+                <span class="n">cmd</span><span class="o">=</span><span class="n">job</span><span class="p">,</span>
+                <span class="n">name</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;Job-</span><span class="si">{</span><span class="n">i</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+                <span class="n">resources</span><span class="o">=</span><span class="n">util</span><span class="o">.</span><span class="n">JobResource</span><span class="p">(</span><span class="n">num_gpus</span><span class="o">=</span><span class="n">num_gpus</span><span class="p">,</span> <span class="n">num_cpus</span><span class="o">=</span><span class="n">num_cpus</span><span class="p">,</span> <span class="n">memory</span><span class="o">=</span><span class="n">memory</span><span class="p">),</span>
+                <span class="n">node</span><span class="o">=</span><span class="n">util</span><span class="o">.</span><span class="n">JobNode</span><span class="p">(</span>
+                    <span class="n">specific</span><span class="o">=</span><span class="s2">&quot;node_id&quot;</span><span class="p">,</span>
+                    <span class="n">node_id</span><span class="o">=</span><span class="n">gpu_node</span><span class="p">[</span><span class="s2">&quot;id&quot;</span><span class="p">],</span>
+                <span class="p">),</span>
+            <span class="p">)</span>
+        <span class="p">)</span>
+    <span class="c1"># submit jobs</span>
+    <span class="n">util</span><span class="o">.</span><span class="n">submit_wrapped_jobs</span><span class="p">(</span><span class="n">jobs</span><span class="o">=</span><span class="n">job_objs</span><span class="p">,</span> <span class="n">test_mode</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">test</span><span class="p">,</span> <span class="n">concurrent</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
 
 
 <span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
@@ -2129,6 +2389,15 @@ tensorboard<span class="w"> </span>--logdir<span class="o">=</span>.
             <span class="s2">&quot;Run nvidia-smi test instead of the arbitrary job,&quot;</span>
             <span class="s2">&quot;can use as a sanity check prior to any jobs to check &quot;</span>
             <span class="s2">&quot;that GPU resources are correctly isolated.&quot;</span>
+        <span class="p">),</span>
+    <span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+        <span class="s2">&quot;--py_modules&quot;</span><span class="p">,</span>
+        <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span>
+        <span class="n">nargs</span><span class="o">=</span><span class="s2">&quot;*&quot;</span><span class="p">,</span>
+        <span class="n">default</span><span class="o">=</span><span class="p">[],</span>
+        <span class="n">help</span><span class="o">=</span><span class="p">(</span>
+            <span class="s2">&quot;List of python modules or paths to add before running the job. Example: --py_modules my_package/my_package&quot;</span>
         <span class="p">),</span>
     <span class="p">)</span>
     <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
@@ -2148,7 +2417,250 @@ tensorboard<span class="w"> </span>--logdir<span class="o">=</span>.
 </pre></div>
 </div>
 </div>
-</details><p>Transferring files from the running container can be done as follows.</p>
+</details><p>The <code class="docutils literal notranslate"><span class="pre">task_runner.py</span></code> dispatches Python tasks to a Ray cluster via a single declarative YAML file. This approach allows users to specify additional pip packages and Python modules for each run. Fine-grained resource allocation is supported, with explicit control over the number of CPUs, GPUs, and memory assigned to each task. The runner also offers advanced scheduling capabilities: tasks can be restricted to specific nodes by hostname or node ID, and supports two launch modes: tasks can be executed independently as resources become available, or grouped into a simultaneous batch—ideal for multi-node training jobs—which ensures that all tasks launch together only when sufficient resources are available across the cluster.</p>
+<details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
+<summary class="sd-summary-title sd-card-header">
+<span class="sd-summary-icon"><svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-code" viewBox="0 0 16 16" aria-hidden="true"><path d="m11.28 3.22 4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.749.749 0 0 1-1.275-.326.749.749 0 0 1 .215-.734L13.94 8l-3.72-3.72a.749.749 0 0 1 .326-1.275.749.749 0 0 1 .734.215Zm-6.56 0a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042L2.06 8l3.72 3.72a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L.47 8.53a.75.75 0 0 1 0-1.06Z"></path></svg></span><span class="sd-summary-text">scripts/reinforcement_learning/ray/task_runner.py</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).</span>
+<span class="c1"># All rights reserved.</span>
+<span class="c1">#</span>
+<span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">This script dispatches one or more user-defined Python tasks to workers in a Ray cluster.</span>
+<span class="sd">Each task, along with its resource requirements and execution parameters, is specified in a YAML configuration file.</span>
+<span class="sd">Users may define the number of CPUs, GPUs, and the amount of memory to allocate per task via the config file.</span>
+
+<span class="sd">Key features:</span>
+<span class="sd">-------------</span>
+<span class="hll"><span class="sd">- Fine-grained, per-task resource management via config fields (`num_gpus`, `num_cpus`, `memory`).</span>
+</span><span class="hll"><span class="sd">- Parallel execution of multiple tasks using available resources across the Ray cluster.</span>
+</span><span class="hll"><span class="sd">- Option to specify node affinity for tasks, e.g., by hostname, node ID, or any node.</span>
+</span><span class="hll"><span class="sd">- Optional batch (simultaneous) or independent scheduling of tasks.</span>
+</span><span class="hll">
+</span><span class="hll"><span class="sd">Task scheduling and distribution are handled via Ray’s built-in resource manager.</span>
+</span><span class="hll">
+</span><span class="hll"><span class="sd">YAML configuration fields:</span>
+</span><span class="hll"><span class="sd">--------------------------</span>
+</span><span class="hll"><span class="sd">- `pip`: List of extra pip packages to install before running any tasks.</span>
+</span><span class="hll"><span class="sd">- `py_modules`: List of additional Python module paths (directories or files) to include in the runtime environment.</span>
+</span><span class="hll"><span class="sd">- `concurrent`: (bool) It determines task dispatch semantics:</span>
+</span><span class="hll"><span class="sd">    - If `concurrent: true`, **all tasks are scheduled as a batch**. The script waits until sufficient resources are available for every task in the batch, then launches all tasks together. If resources are insufficient, all tasks remain blocked until the cluster can support the full batch.</span>
+</span><span class="hll"><span class="sd">    - If `concurrent: false`, tasks are launched as soon as resources are available for each individual task, and Ray independently schedules them. This may result in non-simultaneous task start times.</span>
+</span><span class="hll"><span class="sd">- `tasks`: List of task specifications, each with:</span>
+</span><span class="hll"><span class="sd">    - `name`: String identifier for the task.</span>
+</span><span class="hll"><span class="sd">    - `py_args`: Arguments to the Python interpreter (e.g., script/module, flags, user arguments).</span>
+</span><span class="hll"><span class="sd">    - `num_gpus`: Number of GPUs to allocate (float or string arithmetic, e.g., &quot;2*2&quot;).</span>
+</span><span class="hll"><span class="sd">    - `num_cpus`: Number of CPUs to allocate (float or string).</span>
+</span><span class="hll"><span class="sd">    - `memory`: Amount of RAM in bytes (int or string).</span>
+</span><span class="hll"><span class="sd">    - `node` (optional): Node placement constraints.</span>
+</span><span class="hll"><span class="sd">        - `specific` (str): Type of node placement, support `hostname`, `node_id`, or `any`.</span>
+</span><span class="hll"><span class="sd">            - `any`: Place the task on any available node.</span>
+</span><span class="hll"><span class="sd">            - `hostname`: Place the task on a specific hostname. `hostname` must be specified in the node field.</span>
+</span><span class="hll"><span class="sd">            - `node_id`: Place the task on a specific node ID. `node_id` must be specified in the node field.</span>
+</span><span class="hll"><span class="sd">        - `hostname` (str): Specific hostname to place the task on.</span>
+</span><span class="hll"><span class="sd">        - `node_id` (str): Specific node ID to place the task on.</span>
+</span><span class="hll">
+</span><span class="hll">
+</span><span class="hll"><span class="sd">Typical usage:</span>
+</span><span class="hll"><span class="sd">---------------</span>
+</span><span class="hll">
+</span><span class="hll"><span class="sd">.. code-block:: bash</span>
+</span><span class="hll">
+</span><span class="hll"><span class="sd">    # Print help and argument details:</span>
+</span><span class="hll"><span class="sd">    python task_runner.py -h</span>
+</span><span class="hll">
+</span><span class="hll"><span class="sd">    # Submit tasks defined in a YAML file to the Ray cluster (auto-detects Ray head address):</span>
+</span><span class="hll"><span class="sd">    python task_runner.py --task_cfg /path/to/tasks.yaml</span>
+</span><span class="hll">
+</span><span class="hll"><span class="sd">YAML configuration example-1:</span>
+</span><span class="hll"><span class="sd">---------------------------</span>
+</span><span class="hll"><span class="sd">.. code-block:: yaml</span>
+</span><span class="hll">
+</span><span class="hll"><span class="sd">    pip: [&quot;xxx&quot;]</span>
+</span><span class="hll"><span class="sd">    py_modules: [&quot;my_package/my_package&quot;]</span>
+</span><span class="hll"><span class="sd">    concurrent: false</span>
+</span><span class="hll"><span class="sd">    tasks:</span>
+</span><span class="hll"><span class="sd">      - name: &quot;Isaac-Cartpole-v0&quot;</span>
+</span><span class="hll"><span class="sd">        py_args: &quot;-m torch.distributed.run --nnodes=1 --nproc_per_node=2  --rdzv_endpoint=localhost:29501 /workspace/isaaclab/scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Cartpole-v0 --max_iterations 200 --headless --distributed&quot;</span>
+</span><span class="hll"><span class="sd">        num_gpus: 2</span>
+</span><span class="hll"><span class="sd">        num_cpus: 10</span>
+</span><span class="hll"><span class="sd">        memory: 10737418240</span>
+</span><span class="hll"><span class="sd">      - name: &quot;script need some dependencies&quot;</span>
+</span><span class="hll"><span class="sd">        py_args: &quot;script.py --option arg&quot;</span>
+</span><span class="hll"><span class="sd">        num_gpus: 0</span>
+</span><span class="hll"><span class="sd">        num_cpus: 1</span>
+</span><span class="hll"><span class="sd">        memory: 10*1024*1024*1024</span>
+</span><span class="hll">
+</span><span class="hll"><span class="sd">YAML configuration example-2:</span>
+</span><span class="hll"><span class="sd">---------------------------</span>
+</span><span class="hll"><span class="sd">.. code-block:: yaml</span>
+</span><span class="hll">
+</span><span class="hll"><span class="sd">    pip: [&quot;xxx&quot;]</span>
+</span><span class="hll"><span class="sd">    py_modules: [&quot;my_package/my_package&quot;]</span>
+</span><span class="hll"><span class="sd">    concurrent: true</span>
+</span><span class="hll"><span class="sd">    tasks:</span>
+</span><span class="hll"><span class="sd">    - name: &quot;Isaac-Cartpole-v0-multi-node-train-1&quot;</span>
+</span><span class="hll"><span class="sd">        py_args: &quot;-m torch.distributed.run --nproc_per_node=1 --nnodes=2 --node_rank=0 --rdzv_id=123 --rdzv_backend=c10d --rdzv_endpoint=localhost:5555 /workspace/isaaclab/scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Cartpole-v0 --headless --distributed --max_iterations 1000&quot;</span>
+</span><span class="hll"><span class="sd">        num_gpus: 1</span>
+</span><span class="hll"><span class="sd">        num_cpus: 10</span>
+</span><span class="hll"><span class="sd">        memory: 10*1024*1024*1024</span>
+</span><span class="hll"><span class="sd">        node:</span>
+</span><span class="hll"><span class="sd">          specific: &quot;hostname&quot;</span>
+</span><span class="hll"><span class="sd">          hostname: &quot;xxx&quot;</span>
+</span><span class="hll"><span class="sd">    - name: &quot;Isaac-Cartpole-v0-multi-node-train-2&quot;</span>
+</span><span class="hll"><span class="sd">        py_args: &quot;-m torch.distributed.run --nproc_per_node=1 --nnodes=2 --node_rank=1 --rdzv_id=123 --rdzv_backend=c10d --rdzv_endpoint=x.x.x.x:5555 /workspace/isaaclab/scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Cartpole-v0 --headless --distributed --max_iterations 1000&quot;</span>
+</span><span class="hll"><span class="sd">        num_gpus: 1</span>
+</span><span class="hll"><span class="sd">        num_cpus: 10</span>
+</span><span class="hll"><span class="sd">        memory: 10*1024*1024*1024</span>
+</span><span class="hll"><span class="sd">        node:</span>
+</span><span class="hll"><span class="sd">          specific: &quot;hostname&quot;</span>
+</span><span class="hll"><span class="sd">          hostname: &quot;xxx&quot;</span>
+</span><span class="hll">
+</span><span class="hll"><span class="sd">To stop all tasks early, press Ctrl+C; the script will cancel all running Ray tasks.</span>
+</span><span class="hll"><span class="sd">&quot;&quot;&quot;</span>
+</span><span class="hll">
+</span><span class="hll"><span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
+</span><span class="hll"><span class="kn">import</span><span class="w"> </span><span class="nn">yaml</span>
+</span><span class="hll"><span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">datetime</span>
+</span><span class="hll">
+</span><span class="hll"><span class="kn">import</span><span class="w"> </span><span class="nn">util</span>
+</span><span class="hll">
+</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">parse_args</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">argparse</span><span class="o">.</span><span class="n">Namespace</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Parse command-line arguments for the Ray task runner.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        argparse.Namespace: The namespace containing parsed CLI arguments:</span>
+<span class="sd">            - task_cfg (str): Path to the YAML task file.</span>
+<span class="sd">            - ray_address (str): Ray cluster address.</span>
+<span class="sd">            - test (bool): Whether to run a GPU resource isolation sanity check.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">parser</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">&quot;Run tasks from a YAML config file.&quot;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;--task_cfg&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span> <span class="n">required</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Path to the YAML task file.&quot;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;--ray_address&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s2">&quot;auto&quot;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">&quot;the Ray address.&quot;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+        <span class="s2">&quot;--test&quot;</span><span class="p">,</span>
+        <span class="n">action</span><span class="o">=</span><span class="s2">&quot;store_true&quot;</span><span class="p">,</span>
+        <span class="n">help</span><span class="o">=</span><span class="p">(</span>
+            <span class="s2">&quot;Run nvidia-smi test instead of the arbitrary job,&quot;</span>
+            <span class="s2">&quot;can use as a sanity check prior to any jobs to check &quot;</span>
+            <span class="s2">&quot;that GPU resources are correctly isolated.&quot;</span>
+        <span class="p">),</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">parser</span><span class="o">.</span><span class="n">parse_args</span><span class="p">()</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">parse_task_resource</span><span class="p">(</span><span class="n">task</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">util</span><span class="o">.</span><span class="n">JobResource</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Parse task resource requirements from the YAML configuration.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        task (dict): Dictionary representing a single task&#39;s configuration.</span>
+<span class="sd">            Keys may include `num_gpus`, `num_cpus`, and `memory`, each either</span>
+<span class="sd">            as a number or evaluatable string expression.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        util.JobResource: Resource object with the parsed values.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">resource</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">JobResource</span><span class="p">()</span>
+    <span class="k">if</span> <span class="s2">&quot;num_gpus&quot;</span> <span class="ow">in</span> <span class="n">task</span><span class="p">:</span>
+        <span class="n">resource</span><span class="o">.</span><span class="n">num_gpus</span> <span class="o">=</span> <span class="nb">eval</span><span class="p">(</span><span class="n">task</span><span class="p">[</span><span class="s2">&quot;num_gpus&quot;</span><span class="p">])</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">task</span><span class="p">[</span><span class="s2">&quot;num_gpus&quot;</span><span class="p">],</span> <span class="nb">str</span><span class="p">)</span> <span class="k">else</span> <span class="n">task</span><span class="p">[</span><span class="s2">&quot;num_gpus&quot;</span><span class="p">]</span>
+    <span class="k">if</span> <span class="s2">&quot;num_cpus&quot;</span> <span class="ow">in</span> <span class="n">task</span><span class="p">:</span>
+        <span class="n">resource</span><span class="o">.</span><span class="n">num_cpus</span> <span class="o">=</span> <span class="nb">eval</span><span class="p">(</span><span class="n">task</span><span class="p">[</span><span class="s2">&quot;num_cpus&quot;</span><span class="p">])</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">task</span><span class="p">[</span><span class="s2">&quot;num_cpus&quot;</span><span class="p">],</span> <span class="nb">str</span><span class="p">)</span> <span class="k">else</span> <span class="n">task</span><span class="p">[</span><span class="s2">&quot;num_cpus&quot;</span><span class="p">]</span>
+    <span class="k">if</span> <span class="s2">&quot;memory&quot;</span> <span class="ow">in</span> <span class="n">task</span><span class="p">:</span>
+        <span class="n">resource</span><span class="o">.</span><span class="n">memory</span> <span class="o">=</span> <span class="nb">eval</span><span class="p">(</span><span class="n">task</span><span class="p">[</span><span class="s2">&quot;memory&quot;</span><span class="p">])</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">task</span><span class="p">[</span><span class="s2">&quot;memory&quot;</span><span class="p">],</span> <span class="nb">str</span><span class="p">)</span> <span class="k">else</span> <span class="n">task</span><span class="p">[</span><span class="s2">&quot;memory&quot;</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">resource</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">run_tasks</span><span class="p">(</span>
+    <span class="n">tasks</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">],</span> <span class="n">args</span><span class="p">:</span> <span class="n">argparse</span><span class="o">.</span><span class="n">Namespace</span><span class="p">,</span> <span class="n">runtime_env</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">concurrent</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Submit tasks to the Ray cluster for execution.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        tasks (list[dict]): A list of task configuration dictionaries.</span>
+<span class="sd">        args (argparse.Namespace): Parsed command-line arguments.</span>
+<span class="sd">        runtime_env (dict | None): Ray runtime environment configuration containing:</span>
+<span class="sd">            - pip (list[str] | None): Additional pip packages to install.</span>
+<span class="sd">            - py_modules (list[str] | None): Python modules to include in the environment.</span>
+<span class="sd">        concurrent (bool): Whether to launch tasks simultaneously as a batch,</span>
+<span class="sd">                           or independently as resources become available.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        None</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">job_objs</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">util</span><span class="o">.</span><span class="n">ray_init</span><span class="p">(</span><span class="n">ray_address</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">ray_address</span><span class="p">,</span> <span class="n">runtime_env</span><span class="o">=</span><span class="n">runtime_env</span><span class="p">,</span> <span class="n">log_to_driver</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">task</span> <span class="ow">in</span> <span class="n">tasks</span><span class="p">:</span>
+        <span class="n">resource</span> <span class="o">=</span> <span class="n">parse_task_resource</span><span class="p">(</span><span class="n">task</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[INFO] Creating job </span><span class="si">{</span><span class="n">task</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> with resource=</span><span class="si">{</span><span class="n">resource</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">job</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">Job</span><span class="p">(</span>
+            <span class="n">name</span><span class="o">=</span><span class="n">task</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">],</span>
+            <span class="n">py_args</span><span class="o">=</span><span class="n">task</span><span class="p">[</span><span class="s2">&quot;py_args&quot;</span><span class="p">],</span>
+            <span class="n">resources</span><span class="o">=</span><span class="n">resource</span><span class="p">,</span>
+            <span class="n">node</span><span class="o">=</span><span class="n">util</span><span class="o">.</span><span class="n">JobNode</span><span class="p">(</span>
+                <span class="n">specific</span><span class="o">=</span><span class="n">task</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;node&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;specific&quot;</span><span class="p">),</span>
+                <span class="n">hostname</span><span class="o">=</span><span class="n">task</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;node&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;hostname&quot;</span><span class="p">),</span>
+                <span class="n">node_id</span><span class="o">=</span><span class="n">task</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;node&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;node_id&quot;</span><span class="p">),</span>
+            <span class="p">),</span>
+        <span class="p">)</span>
+        <span class="n">job_objs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">job</span><span class="p">)</span>
+    <span class="n">start</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[INFO] Creating </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">job_objs</span><span class="p">)</span><span class="si">}</span><span class="s2"> jobs at </span><span class="si">{</span><span class="n">start</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s1">&#39;%H:%M:%S.</span><span class="si">%f</span><span class="s1">&#39;</span><span class="p">)</span><span class="si">}</span><span class="s2"> with runtime env=</span><span class="si">{</span><span class="n">runtime_env</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="c1"># submit jobs</span>
+    <span class="n">util</span><span class="o">.</span><span class="n">submit_wrapped_jobs</span><span class="p">(</span>
+        <span class="n">jobs</span><span class="o">=</span><span class="n">job_objs</span><span class="p">,</span>
+        <span class="n">test_mode</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">test</span><span class="p">,</span>
+        <span class="n">concurrent</span><span class="o">=</span><span class="n">concurrent</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">end</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span>
+    <span class="nb">print</span><span class="p">(</span>
+        <span class="sa">f</span><span class="s2">&quot;[INFO] All jobs completed at </span><span class="si">{</span><span class="n">end</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s1">&#39;%H:%M:%S.</span><span class="si">%f</span><span class="s1">&#39;</span><span class="p">)</span><span class="si">}</span><span class="s2">, took </span><span class="si">{</span><span class="p">(</span><span class="n">end</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">start</span><span class="p">)</span><span class="o">.</span><span class="n">total_seconds</span><span class="p">()</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2"> seconds.&quot;</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Main entry point for the Ray task runner script.</span>
+
+<span class="sd">    Reads the YAML task configuration file, parses CLI arguments,</span>
+<span class="sd">    and dispatches tasks to the Ray cluster.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        None</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">args</span> <span class="o">=</span> <span class="n">parse_args</span><span class="p">()</span>
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">task_cfg</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+        <span class="n">config</span> <span class="o">=</span> <span class="n">yaml</span><span class="o">.</span><span class="n">safe_load</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+    <span class="n">tasks</span> <span class="o">=</span> <span class="n">config</span><span class="p">[</span><span class="s2">&quot;tasks&quot;</span><span class="p">]</span>
+    <span class="n">runtime_env</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s2">&quot;pip&quot;</span><span class="p">:</span> <span class="kc">None</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;pip&quot;</span><span class="p">)</span> <span class="k">else</span> <span class="n">config</span><span class="p">[</span><span class="s2">&quot;pip&quot;</span><span class="p">],</span>
+        <span class="s2">&quot;py_modules&quot;</span><span class="p">:</span> <span class="kc">None</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;py_modules&quot;</span><span class="p">)</span> <span class="k">else</span> <span class="n">config</span><span class="p">[</span><span class="s2">&quot;py_modules&quot;</span><span class="p">],</span>
+    <span class="p">}</span>
+    <span class="n">concurrent</span> <span class="o">=</span> <span class="n">config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;concurrent&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+    <span class="n">run_tasks</span><span class="p">(</span>
+        <span class="n">tasks</span><span class="o">=</span><span class="n">tasks</span><span class="p">,</span>
+        <span class="n">args</span><span class="o">=</span><span class="n">args</span><span class="p">,</span>
+        <span class="n">runtime_env</span><span class="o">=</span><span class="n">runtime_env</span><span class="p">,</span>
+        <span class="n">concurrent</span><span class="o">=</span><span class="n">concurrent</span><span class="p">,</span>
+    <span class="p">)</span>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
+    <span class="n">main</span><span class="p">()</span>
+</pre></div>
+</div>
+</div>
+</details><p>To use this script, run a command similar to the following (replace <code class="docutils literal notranslate"><span class="pre">tasks.yaml</span></code> with your actual configuration file):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>scripts/reinforcement_learning/ray/submit_job.py<span class="w"> </span>--aggregate_jobs<span class="w"> </span>task_runner.py<span class="w"> </span>--task_cfg<span class="w"> </span>tasks.yaml
+</pre></div>
+</div>
+<p>For detailed instructions on how to write your <code class="docutils literal notranslate"><span class="pre">tasks.yaml</span></code> file, please refer to the comments in <code class="docutils literal notranslate"><span class="pre">task_runner.py</span></code>.</p>
+<p><strong>Tip:</strong> Place the <code class="docutils literal notranslate"><span class="pre">tasks.yaml</span></code> file in the <code class="docutils literal notranslate"><span class="pre">scripts/reinforcement_learning/ray</span></code> directory so that it is included when the <code class="docutils literal notranslate"><span class="pre">working_dir</span></code> is uploaded. You can then reference it using a relative path in the command.</p>
+<p>Transferring files from the running container can be done as follows.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>docker<span class="w"> </span>container<span class="w"> </span>ps
 docker<span class="w"> </span>cp<span class="w"> </span>&lt;ISAAC_RAY_IMAGE_ID_FROM_CONTAINER_PS&gt;:&lt;/path/in/container/file&gt;<span class="w">  </span>&lt;/path/on/host/&gt;
 </pre></div>
@@ -2374,8 +2886,8 @@ where instructions are included in the following creation file.</p>
 </span><span class="hll"><span class="sd">    --num_workers 1 2 --num_clusters 1 \</span>
 </span><span class="hll"><span class="sd">    --worker_accelerator nvidia-l4 nvidia-tesla-t4 --gpu_per_worker 1 2 4</span>
 </span><span class="hll"><span class="sd">&quot;&quot;&quot;</span>
-</span><span class="hll"><span class="n">RAY_DIR</span> <span class="o">=</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span><span class="o">.</span><span class="n">parent</span>
-</span>
+</span><span class="n">RAY_DIR</span> <span class="o">=</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span><span class="o">.</span><span class="n">parent</span>
+
 
 <span class="k">def</span><span class="w"> </span><span class="nf">apply_manifest</span><span class="p">(</span><span class="n">args</span><span class="p">:</span> <span class="n">argparse</span><span class="o">.</span><span class="n">Namespace</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Provided a Jinja templated ray.io/v1alpha1 file,</span>
@@ -3042,21 +3554,14 @@ python3<span class="w"> </span>scripts/reinforcement_learning/ray/submit_job.py<
 <span class="c1">#</span>
 <span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
 
-<span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">concurrent.futures</span><span class="w"> </span><span class="kn">import</span> <span class="n">ThreadPoolExecutor</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">This script submits aggregate job(s) to cluster(s) described in a</span>
+<span class="sd">config file containing ``name: &lt;NAME&gt; address: http://&lt;IP&gt;:&lt;PORT&gt;`` on</span>
+<span class="sd">a new line for each cluster. For KubeRay clusters, this file</span>
+<span class="sd">can be automatically created with :file:`grok_cluster_with_kubectl.py`</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">ray</span><span class="w"> </span><span class="kn">import</span> <span class="n">job_submission</span>
-<span class="hll">
-</span><span class="hll"><span class="sd">&quot;&quot;&quot;</span>
-</span><span class="hll"><span class="sd">This script submits aggregate job(s) to cluster(s) described in a</span>
-</span><span class="hll"><span class="sd">config file containing ``name: &lt;NAME&gt; address: http://&lt;IP&gt;:&lt;PORT&gt;`` on</span>
-</span><span class="hll"><span class="sd">a new line for each cluster. For KubeRay clusters, this file</span>
-</span><span class="hll"><span class="sd">can be automatically created with :file:`grok_cluster_with_kubectl.py`</span>
-</span><span class="hll">
-</span><span class="hll"><span class="sd">Aggregate job(s) are matched with cluster(s) via the following relation:</span>
-</span><span class="hll"><span class="sd">cluster_line_index_submitted_to = job_index % total_cluster_count</span>
+<span class="sd">Aggregate job(s) are matched with cluster(s) via the following relation:</span>
+<span class="hll"><span class="sd">cluster_line_index_submitted_to = job_index % total_cluster_count</span>
 </span><span class="hll">
 </span><span class="hll"><span class="sd">Aggregate jobs are separated by the * delimiter. The ``--aggregate_jobs`` argument must be</span>
 </span><span class="hll"><span class="sd">the last argument supplied to the script.</span>
@@ -3065,7 +3570,11 @@ python3<span class="w"> </span>scripts/reinforcement_learning/ray/submit_job.py<
 </span><span class="hll"><span class="sd">creates several individual jobs when started on a cluster. Alternatively, an aggregate job</span>
 </span><span class="hll"><span class="sd">could be a :file:&#39;../wrap_resources.py` resource-wrapped job,</span>
 </span><span class="hll"><span class="sd">which may contain several individual sub-jobs separated by</span>
-</span><span class="hll"><span class="sd">the + delimiter.</span>
+</span><span class="hll"><span class="sd">the + delimiter. An aggregate job could also be a :file:`../task_runner.py` multi-task submission job,</span>
+</span><span class="hll"><span class="sd">where each sub-job and its resource requirements are defined in a YAML configuration file.</span>
+</span><span class="hll"><span class="sd">In this mode, :file:`../task_runner.py` will read the YAML file (via --task_cfg), and</span>
+</span><span class="hll"><span class="sd">submit all defined sub-tasks to the Ray cluster, supporting per-job resource specification and</span>
+</span><span class="hll"><span class="sd">real-time streaming of sub-job outputs.</span>
 </span><span class="hll">
 </span><span class="hll"><span class="sd">If there are more aggregate jobs than cluster(s), aggregate jobs will be submitted</span>
 </span><span class="hll"><span class="sd">as clusters become available via the defined relation above. If there are less aggregate job(s)</span>
@@ -3087,10 +3596,22 @@ python3<span class="w"> </span>scripts/reinforcement_learning/ray/submit_job.py<
 </span><span class="hll"><span class="sd">    # Example: Submitting resource wrapped job</span>
 </span><span class="hll"><span class="sd">    python3 scripts/reinforcement_learning/ray/submit_job.py --aggregate_jobs wrap_resources.py --test</span>
 </span><span class="hll">
+</span><span class="hll"><span class="sd">    # Example: submitting tasks with specific resources, and supporting pip packages and py_modules</span>
+</span><span class="hll"><span class="sd">    # You may use relative paths for task_cfg and py_modules, placing them in the scripts/reinforcement_learning/ray directory, which will be uploaded to the cluster.</span>
+</span><span class="hll"><span class="sd">    python3 scripts/reinforcement_learning/ray/submit_job.py --aggregate_jobs task_runner.py --task_cfg tasks.yaml</span>
+</span><span class="hll">
 </span><span class="hll"><span class="sd">    # For all command line arguments</span>
 </span><span class="hll"><span class="sd">    python3 scripts/reinforcement_learning/ray/submit_job.py -h</span>
 </span><span class="hll"><span class="sd">&quot;&quot;&quot;</span>
-</span><span class="n">script_directory</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="vm">__file__</span><span class="p">))</span>
+</span><span class="hll">
+</span><span class="hll"><span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
+</span><span class="hll"><span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+</span><span class="hll"><span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
+</span><span class="hll"><span class="kn">from</span><span class="w"> </span><span class="nn">concurrent.futures</span><span class="w"> </span><span class="kn">import</span> <span class="n">ThreadPoolExecutor</span>
+</span><span class="hll">
+</span><span class="hll"><span class="kn">from</span><span class="w"> </span><span class="nn">ray</span><span class="w"> </span><span class="kn">import</span> <span class="n">job_submission</span>
+</span>
+<span class="n">script_directory</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="vm">__file__</span><span class="p">))</span>
 <span class="n">CONFIG</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;working_dir&quot;</span><span class="p">:</span> <span class="n">script_directory</span><span class="p">,</span> <span class="s2">&quot;executable&quot;</span><span class="p">:</span> <span class="s2">&quot;/workspace/isaaclab/isaaclab.sh -p&quot;</span><span class="p">}</span>
 
 
