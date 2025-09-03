@@ -34,6 +34,7 @@ def test_setup_teardown():
     SimulationContext.clear_instance()
 
 
+@pytest.mark.isaacsim_ci
 def test_singleton():
     """Tests that the singleton is working."""
     sim1 = SimulationContext()
@@ -55,6 +56,7 @@ def test_singleton():
     sim3.clear_instance()
 
 
+@pytest.mark.isaacsim_ci
 def test_initialization():
     """Test the simulation config."""
     cfg = SimulationCfg(physics_prim_path="/Physics/PhysX", render_interval=5, gravity=(0.0, -0.5, -0.5))
@@ -76,6 +78,7 @@ def test_initialization():
     np.testing.assert_almost_equal(gravity, cfg.gravity)
 
 
+@pytest.mark.isaacsim_ci
 def test_sim_version():
     """Test obtaining the version."""
     sim = SimulationContext()
@@ -84,6 +87,7 @@ def test_sim_version():
     assert version[0] >= 4
 
 
+@pytest.mark.isaacsim_ci
 def test_carb_setting():
     """Test setting carb settings."""
     sim = SimulationContext()
@@ -95,6 +99,7 @@ def test_carb_setting():
     assert tuple(sim.get_setting("/myExt/using_omniverse_version")) == tuple(sim.get_version())
 
 
+@pytest.mark.isaacsim_ci
 def test_headless_mode():
     """Test that render mode is headless since we are running in headless mode."""
     sim = SimulationContext()
@@ -131,6 +136,7 @@ def test_headless_mode():
 #     assert ctypes.c_long.from_address(id(sim)).value == sim_ref_count - 1
 
 
+@pytest.mark.isaacsim_ci
 def test_zero_gravity():
     """Test that gravity can be properly disabled."""
     cfg = SimulationCfg(gravity=(0.0, 0.0, 0.0))

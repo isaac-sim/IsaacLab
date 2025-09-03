@@ -10,6 +10,8 @@ import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
+from pink.tasks import FrameTask
+
 import isaaclab.utils.math as math_utils
 from isaaclab.assets.articulation import Articulation
 from isaaclab.controllers.pink_ik import PinkIKController
@@ -17,6 +19,7 @@ from isaaclab.managers.action_manager import ActionTerm
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
+    from isaaclab.envs.utils.io_descriptors import GenericActionIODescriptor
 
     from . import pink_actions_cfg
 
@@ -56,7 +59,9 @@ class PinkInverseKinematicsAction(ActionTerm):
         assert env.num_envs > 0, "Number of environments specified are less than 1."
         self._ik_controllers = []
         for _ in range(env.num_envs):
-            self._ik_controllers.append(PinkIKController(cfg=copy.deepcopy(self.cfg.controller), device=self.device))
+            self._ik_controllers.append(
+                PinkIKController(cfg=self.cfg.controller.copy(), robot_cfg=env.scene.cfg.robot, device=self.device)
+            )
 
         # Create tensors to store raw and processed actions
         self._raw_actions = torch.zeros(self.num_envs, self.action_dim, device=self.device)
@@ -112,8 +117,11 @@ class PinkInverseKinematicsAction(ActionTerm):
     @property
     def action_dim(self) -> int:
         """Dimension of the action space (based on number of tasks and pose dimension)."""
-        # The tasks for all the controllers are the same, hence just using the first one to calculate the action_dim
-        return len(self._ik_controllers[0].cfg.variable_input_tasks) * self.pose_dim + self.hand_joint_dim
+        # Count only FrameTask instances in variable_input_tasks
+        frame_tasks_count = sum(
+            1 for task in self._ik_controllers[0].cfg.variable_input_tasks if isinstance(task, FrameTask)
+        )
+        return frame_tasks_count * self.pose_dim + self.hand_joint_dim
 
     @property
     def raw_actions(self) -> torch.Tensor:
@@ -124,6 +132,31 @@ class PinkInverseKinematicsAction(ActionTerm):
     def processed_actions(self) -> torch.Tensor:
         """Get the processed actions tensor."""
         return self._processed_actions
+
+    @property
+    def IO_descriptor(self) -> GenericActionIODescriptor:
+        """The IO descriptor of the action term.
+
+        This descriptor is used to describe the action term of the pink inverse kinematics action.
+        It adds the following information to the base descriptor:
+        - scale: The scale of the action term.
+        - offset: The offset of the action term.
+        - clip: The clip of the action term.
+        - pink_controller_joint_names: The names of the pink controller joints.
+        - hand_joint_names: The names of the hand joints.
+        - controller_cfg: The configuration of the pink controller.
+
+        Returns:
+            The IO descriptor of the action term.
+        """
+        super().IO_descriptor
+        self._IO_descriptor.shape = (self.action_dim,)
+        self._IO_descriptor.dtype = str(self.raw_actions.dtype)
+        self._IO_descriptor.action_type = "PinkInverseKinematicsAction"
+        self._IO_descriptor.pink_controller_joint_names = self._pink_controlled_joint_names
+        self._IO_descriptor.hand_joint_names = self._hand_joint_names
+        self._IO_descriptor.extras["controller_cfg"] = self.cfg.controller.__dict__
+        return self._IO_descriptor
 
     # """
     # Operations.
@@ -137,7 +170,6 @@ class PinkInverseKinematicsAction(ActionTerm):
         """
         # Store the raw actions
         self._raw_actions[:] = actions
-        self._processed_actions[:] = self.raw_actions
 
         # Make a copy of actions before modifying so that raw actions are not modified
         actions_clone = actions.clone()
@@ -178,10 +210,11 @@ class PinkInverseKinematicsAction(ActionTerm):
         # Loop through each task and set the target
         for env_index, ik_controller in enumerate(self._ik_controllers):
             for task_index, task in enumerate(ik_controller.cfg.variable_input_tasks):
-                target = task.transform_target_to_world
-                target.translation = controlled_frame_in_base_link_frame_pos[task_index, env_index, :].cpu().numpy()
-                target.rotation = controlled_frame_in_base_link_frame_mat[task_index, env_index, :].cpu().numpy()
-                task.set_target(target)
+                if isinstance(task, FrameTask):
+                    target = task.transform_target_to_world
+                    target.translation = controlled_frame_in_base_link_frame_pos[task_index, env_index, :].cpu().numpy()
+                    target.rotation = controlled_frame_in_base_link_frame_mat[task_index, env_index, :].cpu().numpy()
+                    task.set_target(target)
 
     def apply_actions(self):
         # start_time = time.time()  # Capture the time before the step

@@ -43,33 +43,48 @@ install_system_deps() {
     fi
 }
 
+# Returns success (exit code 0 / "true") if the detected Isaac Sim version starts with 4.5,
+# otherwise returns non-zero ("false"). Works with both symlinked binary installs and pip installs.
 is_isaacsim_version_4_5() {
+    local version=""
     local python_exe
     python_exe=$(extract_python_exe)
 
-    # 1) Try the VERSION file
-    local sim_file
-    sim_file=$("${python_exe}" -c "import isaacsim; print(isaacsim.__file__)" 2>/dev/null) || return 1
-    local version_path
-    version_path=$(dirname "${sim_file}")/../../VERSION
-    if [[ -f "${version_path}" ]]; then
-        local ver
-        ver=$(head -n1 "${version_path}")
-        [[ "${ver}" == 4.5* ]] && return 0
+    # 0) Fast path: read VERSION file from the symlinked _isaac_sim directory (binary install)
+    # If the repository has _isaac_sim → <IsaacSimRoot> symlink, the VERSION file is the simplest source of truth.
+    if [[ -f "${ISAACLAB_PATH}/_isaac_sim/VERSION" ]]; then
+        # Read first line of the VERSION file; don't fail the whole script on errors.
+        version=$(head -n1 "${ISAACLAB_PATH}/_isaac_sim/VERSION" || true)
     fi
 
-    # 2) Fallback to importlib.metadata via a here-doc
-    local ver
-    ver=$("${python_exe}" <<'PYCODE' 2>/dev/null
+    # 1) Package-path probe: import isaacsim and walk up to ../../VERSION (pip or nonstandard layouts)
+    # If we still don't know the version, ask Python where the isaacsim package lives
+    if [[ -z "$version" ]]; then
+        local sim_file=""
+        # Print isaacsim.__file__; suppress errors so set -e won't abort.
+        sim_file=$("${python_exe}" -c 'import isaacsim, os; print(isaacsim.__file__)' 2>/dev/null || true)
+        if [[ -n "$sim_file" ]]; then
+            local version_path
+            version_path="$(dirname "$sim_file")/../../VERSION"
+            # If that VERSION file exists, read it.
+            [[ -f "$version_path" ]] && version=$(head -n1 "$version_path" || true)
+        fi
+    fi
+
+    # 2) Fallback: use package metadata via importlib.metadata.version("isaacsim")
+    if [[ -z "$version" ]]; then
+        version=$("${python_exe}" <<'PY' 2>/dev/null || true
 from importlib.metadata import version, PackageNotFoundError
 try:
     print(version("isaacsim"))
 except PackageNotFoundError:
-    import sys; sys.exit(1)
-PYCODE
-) || return 1
+    pass
+PY
+)
+    fi
 
-    [[ "${ver}" == 4.5* ]]
+    # Final decision: return success if version begins with "4.5", 0 if match, 1 otherwise.
+    [[ "$version" == 4.5* ]]
 }
 
 # check if running in docker
@@ -79,6 +94,30 @@ is_docker() {
     [[ $(cat /proc/1/comm) == "containerd-shim" ]] || \
     grep -q docker /proc/mounts || \
     [[ "$(hostname)" == *"."* ]]
+}
+
+ensure_cuda_torch() {
+  local py="$1"
+  local -r TORCH_VER="2.7.0"
+  local -r TV_VER="0.22.0"
+  local -r CUDA_TAG="cu128"
+  local -r PYTORCH_INDEX="https://download.pytorch.org/whl/${CUDA_TAG}"
+  local torch_ver
+
+  if "$py" -m pip show torch >/dev/null 2>&1; then
+    torch_ver="$("$py" -m pip show torch 2>/dev/null | awk -F': ' '/^Version/{print $2}')"
+    echo "[INFO] Found PyTorch version ${torch_ver}."
+    if [[ "$torch_ver" != "${TORCH_VER}+${CUDA_TAG}" ]]; then
+      echo "[INFO] Replacing PyTorch ${torch_ver} → ${TORCH_VER}+${CUDA_TAG}..."
+      "$py" -m pip uninstall -y torch torchvision torchaudio >/dev/null 2>&1 || true
+      "$py" -m pip install "torch==${TORCH_VER}" "torchvision==${TV_VER}" --index-url "${PYTORCH_INDEX}"
+    else
+      echo "[INFO] PyTorch ${TORCH_VER}+${CUDA_TAG} already installed."
+    fi
+  else
+    echo "[INFO] Installing PyTorch ${TORCH_VER}+${CUDA_TAG}..."
+    "$py" -m pip install "torch==${TORCH_VER}" "torchvision==${TV_VER}" --index-url "${PYTORCH_INDEX}"
+  fi
 }
 
 # extract isaac sim path
@@ -349,21 +388,7 @@ while [[ $# -gt 0 ]]; do
             python_exe=$(extract_python_exe)
             # check if pytorch is installed and its version
             # install pytorch with cuda 12.8 for blackwell support
-            if ${python_exe} -m pip list 2>/dev/null | grep -q "torch"; then
-                torch_version=$(${python_exe} -m pip show torch 2>/dev/null | grep "Version:" | awk '{print $2}')
-                echo "[INFO] Found PyTorch version ${torch_version} installed."
-                if [[ "${torch_version}" != "2.7.0+cu128" ]]; then
-                    echo "[INFO] Uninstalling PyTorch version ${torch_version}..."
-                    ${python_exe} -m pip uninstall -y torch torchvision torchaudio
-                    echo "[INFO] Installing PyTorch 2.7.0 with CUDA 12.8 support..."
-                    ${python_exe} -m pip install torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
-                else
-                    echo "[INFO] PyTorch 2.7.0 is already installed."
-                fi
-            else
-                echo "[INFO] Installing PyTorch 2.7.0 with CUDA 12.8 support..."
-                ${python_exe} -m pip install torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
-            fi
+            ensure_cuda_torch ${python_exe}
             # recursively look into directories and install them
             # this does not check dependencies between extensions
             export -f extract_python_exe
@@ -389,6 +414,9 @@ while [[ $# -gt 0 ]]; do
             ${python_exe} -m pip install -e ${ISAACLAB_PATH}/source/isaaclab_rl["${framework_name}"]
             ${python_exe} -m pip install -e ${ISAACLAB_PATH}/source/isaaclab_mimic["${framework_name}"]
 
+            # in some rare cases, torch might not be installed properly by setup.py, add one more check here
+            # can prevent that from happening
+            ensure_cuda_torch ${python_exe}
             # check if we are inside a docker container or are building a docker image
             # in that case don't setup VSCode since it asks for EULA agreement which triggers user interaction
             if is_docker; then

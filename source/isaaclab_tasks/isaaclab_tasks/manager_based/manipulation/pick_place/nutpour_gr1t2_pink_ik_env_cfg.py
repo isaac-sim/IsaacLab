@@ -3,10 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from pink.tasks import FrameTask
+from pink.tasks import DampingTask, FrameTask
 
 import isaaclab.controllers.utils as ControllerUtils
-from isaaclab.controllers.pink_ik_cfg import PinkIKControllerCfg
+from isaaclab.controllers.pink_ik import NullSpacePostureTask, PinkIKControllerCfg
 from isaaclab.devices import DevicesCfg
 from isaaclab.devices.openxr import OpenXRDeviceCfg
 from isaaclab.devices.openxr.retargeters import GR1T2RetargeterCfg
@@ -106,6 +106,10 @@ class NutPourGR1T2PinkIKEnvCfg(NutPourGR1T2BaseEnvCfg):
                 "L_thumb_distal_joint",
                 "R_thumb_distal_joint",
             ],
+            target_eef_link_names={
+                "left_wrist": "left_hand_pitch_link",
+                "right_wrist": "right_hand_pitch_link",
+            },
             # the robot in the sim scene we are controlling
             asset_name="robot",
             # Configuration for the IK controller
@@ -116,20 +120,45 @@ class NutPourGR1T2PinkIKEnvCfg(NutPourGR1T2BaseEnvCfg):
                 base_link_name="base_link",
                 num_hand_joints=22,
                 show_ik_warnings=False,
+                fail_on_joint_limit_violation=False,  # Determines whether to pink solver will fail due to a joint limit violation
                 variable_input_tasks=[
                     FrameTask(
                         "GR1T2_fourier_hand_6dof_left_hand_pitch_link",
-                        position_cost=1.0,  # [cost] / [m]
+                        position_cost=8.0,  # [cost] / [m]
                         orientation_cost=1.0,  # [cost] / [rad]
                         lm_damping=10,  # dampening for solver for step jumps
-                        gain=0.1,
+                        gain=0.5,
                     ),
                     FrameTask(
                         "GR1T2_fourier_hand_6dof_right_hand_pitch_link",
-                        position_cost=1.0,  # [cost] / [m]
+                        position_cost=8.0,  # [cost] / [m]
                         orientation_cost=1.0,  # [cost] / [rad]
                         lm_damping=10,  # dampening for solver for step jumps
-                        gain=0.1,
+                        gain=0.5,
+                    ),
+                    DampingTask(
+                        cost=0.5,  # [cost] * [s] / [rad]
+                    ),
+                    NullSpacePostureTask(
+                        cost=0.2,
+                        lm_damping=1,
+                        controlled_frames=[
+                            "GR1T2_fourier_hand_6dof_left_hand_pitch_link",
+                            "GR1T2_fourier_hand_6dof_right_hand_pitch_link",
+                        ],
+                        controlled_joints=[
+                            "left_shoulder_pitch_joint",
+                            "left_shoulder_roll_joint",
+                            "left_shoulder_yaw_joint",
+                            "left_elbow_pitch_joint",
+                            "right_shoulder_pitch_joint",
+                            "right_shoulder_roll_joint",
+                            "right_shoulder_yaw_joint",
+                            "right_elbow_pitch_joint",
+                            "waist_yaw_joint",
+                            "waist_pitch_joint",
+                            "waist_roll_joint",
+                        ],
                     ),
                 ],
                 fixed_input_tasks=[
@@ -160,8 +189,8 @@ class NutPourGR1T2PinkIKEnvCfg(NutPourGR1T2BaseEnvCfg):
                     retargeters=[
                         GR1T2RetargeterCfg(
                             enable_visualization=True,
-                            # OpenXR hand tracking has 26 joints per hand
-                            num_open_xr_hand_joints=2 * 26,
+                            # number of joints in both hands
+                            num_open_xr_hand_joints=2 * self.NUM_OPENXR_HAND_JOINTS,
                             sim_device=self.sim.device,
                             hand_joint_names=self.actions.gr1_action.hand_joint_names,
                         ),

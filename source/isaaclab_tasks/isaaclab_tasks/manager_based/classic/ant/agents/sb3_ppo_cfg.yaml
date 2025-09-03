@@ -21,9 +21,10 @@ learning_rate: !!float 3e-5
 use_sde: True
 clip_range: 0.4
 device: "cuda:0"
-policy_kwargs: "dict(
-                  log_std_init=-1,
-                  ortho_init=False,
-                  activation_fn=nn.ReLU,
-                  net_arch=dict(pi=[256, 256], vf=[256, 256])
-                )"
+policy_kwargs:
+  log_std_init: -1
+  ortho_init: False
+  activation_fn: 'nn.ReLU'
+  net_arch:
+    pi: [256, 256]
+    vf: [256, 256]

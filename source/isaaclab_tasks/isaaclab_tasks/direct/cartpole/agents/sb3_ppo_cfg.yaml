@@ -16,11 +16,10 @@ n_epochs: 20
 ent_coef: 0.01
 learning_rate: !!float 3e-4
 clip_range: !!float 0.2
-policy_kwargs: "dict(
-                  activation_fn=nn.ELU,
-                  net_arch=[32, 32],
-                  squash_output=False,
-                )"
+policy_kwargs:
+  activation_fn: 'nn.ELU'
+  net_arch: [32, 32]
+  squash_output: False
 vf_coef: 1.0
 max_grad_norm: 1.0
 device: "cuda:0"
