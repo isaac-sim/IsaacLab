@@ -605,6 +605,7 @@
 <span class="k">class</span><span class="w"> </span><span class="nc">Se3KeyboardCfg</span><span class="p">(</span><span class="n">DeviceCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for SE3 keyboard devices.&quot;&quot;&quot;</span>
 
+    <span class="n">gripper_term</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
     <span class="n">pos_sensitivity</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.4</span>
     <span class="n">rot_sensitivity</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.8</span>
     <span class="n">retargeters</span><span class="p">:</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
@@ -650,6 +651,7 @@
         <span class="c1"># store inputs</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">pos_sensitivity</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">pos_sensitivity</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">rot_sensitivity</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">rot_sensitivity</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gripper_term</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">gripper_term</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_sim_device</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">sim_device</span>
         <span class="c1"># acquire omniverse interfaces</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_appwindow</span> <span class="o">=</span> <span class="n">omni</span><span class="o">.</span><span class="n">appwindow</span><span class="o">.</span><span class="n">get_default_app_window</span><span class="p">()</span>
@@ -722,9 +724,11 @@
         <span class="c1"># convert to rotation vector</span>
         <span class="n">rot_vec</span> <span class="o">=</span> <span class="n">Rotation</span><span class="o">.</span><span class="n">from_euler</span><span class="p">(</span><span class="s2">&quot;XYZ&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_delta_rot</span><span class="p">)</span><span class="o">.</span><span class="n">as_rotvec</span><span class="p">()</span>
         <span class="c1"># return the command and gripper state</span>
-        <span class="n">gripper_value</span> <span class="o">=</span> <span class="o">-</span><span class="mf">1.0</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_close_gripper</span> <span class="k">else</span> <span class="mf">1.0</span>
-        <span class="n">delta_pose</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">_delta_pos</span><span class="p">,</span> <span class="n">rot_vec</span><span class="p">])</span>
-        <span class="n">command</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">delta_pose</span><span class="p">,</span> <span class="n">gripper_value</span><span class="p">)</span>
+        <span class="n">command</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">_delta_pos</span><span class="p">,</span> <span class="n">rot_vec</span><span class="p">])</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">gripper_term</span><span class="p">:</span>
+            <span class="n">gripper_value</span> <span class="o">=</span> <span class="o">-</span><span class="mf">1.0</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_close_gripper</span> <span class="k">else</span> <span class="mf">1.0</span>
+            <span class="n">command</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">command</span><span class="p">,</span> <span class="n">gripper_value</span><span class="p">)</span>
+
         <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">command</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_sim_device</span><span class="p">)</span></div>
 
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
