@@ -17,7 +17,7 @@ from curobo.types.math import Pose
 from curobo.types.state import JointState
 from curobo.util.logger import setup_curobo_logger
 from curobo.util.usd_helper import UsdHelper
-from curobo.util_file import get_robot_configs_path, join_path, load_yaml
+from curobo.util_file import load_yaml
 from curobo.wrap.reacher.motion_gen import MotionGen, MotionGenConfig, MotionGenPlanConfig
 
 import isaaclab.utils.math as PoseUtils
@@ -131,8 +131,11 @@ class CuroboPlanner(MotionPlanner):
             print("WARNING: CUDA not available, cuRobo using CPU - this may cause device compatibility issues")
 
         # Load robot configuration
-        robot_cfg_path: str = get_robot_configs_path()
-        robot_cfg: dict[str, Any] = load_yaml(join_path(robot_cfg_path, self.config.robot_config_file))["robot_cfg"]
+        if self.config.robot_config_file is None:
+            raise ValueError("robot_config_file is required")
+        robot_cfg_file = self.config.robot_config_file
+        robot_cfg: dict[str, Any] = load_yaml(robot_cfg_file)["robot_cfg"]
+        print(f"Loaded robot configuration from {robot_cfg_file}")
 
         # Configure collision spheres
         if self.config.collision_spheres_file:
@@ -362,7 +365,7 @@ class CuroboPlanner(MotionPlanner):
         link_poses = {}
         if link_state.links_position is not None and link_state.links_quaternion is not None:
             for i, link in enumerate(link_state.link_names):
-                link_poses[link] = Pose(
+                link_poses[link] = self._make_pose(
                     position=link_state.links_position[..., i, :],
                     quaternion=link_state.links_quaternion[..., i, :],
                     name=link,
@@ -580,7 +583,7 @@ class CuroboPlanner(MotionPlanner):
                 current_quat = self._to_curobo_device(current_quat_raw)
 
                 # Create cuRobo pose and update collision checker directly
-                curobo_pose = Pose(position=current_pos, quaternion=current_quat)
+                curobo_pose = self._make_pose(position=current_pos, quaternion=current_quat)
                 self.motion_gen.world_coll_checker.update_obstacle_pose(  # type: ignore
                     object_path, curobo_pose, env_idx=self.env_id, update_cpu_reference=True
                 )
@@ -634,17 +637,13 @@ class CuroboPlanner(MotionPlanner):
 
         # Match Isaac Lab object names to world paths
         for object_name in rigid_objects.keys():
-            matched_path = None
             # Direct name matching
             for path in world_object_paths:
                 if object_name.lower().replace("_", "") in path.lower().replace("_", ""):
-                    matched_path = path
+                    mappings[object_name] = path
+                    if self.debug:
+                        print(f"MAPPING: {object_name} -> {path}")
                     break
-
-            if matched_path:
-                mappings[object_name] = matched_path
-                if self.debug:
-                    print(f"MAPPING: {object_name} -> {matched_path}")
             else:
                 if self.debug:
                     print(f"WARNING: Could not find world path for {object_name}")
@@ -833,9 +832,7 @@ class CuroboPlanner(MotionPlanner):
         These names correspond to Isaac Lab scene object names, not full USD paths.
 
         Returns:
-            List of attached object names (e.g., ["cube_1", "cube_2"])
-        """
-        # With cumotion.py pattern, we store objects in self.attached_objects dict
+            List of attached object names (e.g., ["cube_1", "cube_2"])"""
         return list(self.attached_objects.keys())
 
     def has_attached_objects(self) -> bool:
@@ -847,7 +844,6 @@ class CuroboPlanner(MotionPlanner):
         Returns:
             True if one or more objects are attached, False if no attachments exist
         """
-        # With cumotion.py pattern, check if attached_objects dict is non-empty
         return len(self.attached_objects) != 0
 
     # =====================================================================================
@@ -912,12 +908,12 @@ class CuroboPlanner(MotionPlanner):
             velocity=(
                 self._to_curobo_device(joint_state.velocity.detach().clone())
                 if joint_state.velocity is not None
-                else cuda_position * 0.0
+                else torch.zeros_like(cuda_position)
             ),
             acceleration=(
                 self._to_curobo_device(joint_state.acceleration.detach().clone())
                 if joint_state.acceleration is not None
-                else cuda_position * 0.0
+                else torch.zeros_like(cuda_position)
             ),
             joint_names=joint_state.joint_names,
             tensor_args=self.tensor_args,
@@ -929,6 +925,49 @@ class CuroboPlanner(MotionPlanner):
     # =====================================================================================
     # PLANNING CORE METHODS
     # =====================================================================================
+
+    def _make_pose(
+        self,
+        position: torch.Tensor | np.ndarray | list[float] | None = None,
+        quaternion: torch.Tensor | np.ndarray | list[float] | None = None,
+        *,
+        name: str | None = None,
+        normalize_rotation: bool = False,
+    ) -> Pose:
+        """Create a cuRobo Pose with sensible defaults and device/dtype alignment.
+
+        Auto-populates missing fields with identity values and ensures tensors are
+        on the cuRobo device with the correct dtype.
+
+        Args:
+            position: Optional position as Tensor/ndarray/list. Defaults to [0, 0, 0].
+            quaternion: Optional quaternion as Tensor/ndarray/list (w, x, y, z). Defaults to [1, 0, 0, 0].
+            name: Optional name of the link that this pose represents.
+            normalize_rotation: Whether to normalize the quaternion inside Pose.
+
+        Returns:
+            Pose: A cuRobo Pose on the configured cuRobo device and dtype.
+        """
+        # Defaults
+        if position is None:
+            position = torch.tensor([0.0, 0.0, 0.0], dtype=self.tensor_args.dtype, device=self.tensor_args.device)
+        if quaternion is None:
+            quaternion = torch.tensor(
+                [1.0, 0.0, 0.0, 0.0], dtype=self.tensor_args.dtype, device=self.tensor_args.device
+            )
+
+        # Convert to tensors if needed
+        if not isinstance(position, torch.Tensor):
+            position = torch.tensor(position, dtype=self.tensor_args.dtype, device=self.tensor_args.device)
+        else:
+            position = self._to_curobo_device(position)
+
+        if not isinstance(quaternion, torch.Tensor):
+            quaternion = torch.tensor(quaternion, dtype=self.tensor_args.dtype, device=self.tensor_args.device)
+        else:
+            quaternion = self._to_curobo_device(quaternion)
+
+        return Pose(position=position, quaternion=quaternion, name=name, normalize_rotation=normalize_rotation)
 
     def _set_active_links(self, links: list[str], active: bool) -> None:
         """Configure collision checking for specific robot links.
@@ -977,10 +1016,9 @@ class CuroboPlanner(MotionPlanner):
         target_pos: torch.Tensor
         target_rot: torch.Tensor
         target_pos, target_rot = PoseUtils.unmake_pose(target_pose_cuda)
-        target_curobo_pose: Pose = Pose(
+        target_curobo_pose: Pose = self._make_pose(
             position=target_pos,
             quaternion=PoseUtils.quat_from_matrix(target_rot),
-            normalize_rotation=False,
         )
 
         start_state: JointState = self._get_current_joint_state_for_curobo()
@@ -1212,17 +1250,8 @@ class CuroboPlanner(MotionPlanner):
         if retreat_distance is not None and retreat_distance > 0:
             ee_pose: Pose = self.get_ee_pose(start_state)
             retreat_pose: Pose = ee_pose.multiply(
-                Pose(
-                    position=torch.tensor(
-                        [0.0, 0.0, -retreat_distance],
-                        device=self.tensor_args.device,
-                        dtype=self.tensor_args.dtype,
-                    ),
-                    quaternion=torch.tensor(
-                        [1.0, 0.0, 0.0, 0.0],
-                        device=self.tensor_args.device,
-                        dtype=self.tensor_args.dtype,
-                    ),
+                self._make_pose(
+                    position=[0.0, 0.0, -retreat_distance],
                 )
             )
             target_poses.append(retreat_pose)
@@ -1230,17 +1259,8 @@ class CuroboPlanner(MotionPlanner):
         contacts.append(contact)
         if approach_distance is not None and approach_distance > 0:
             approach_pose: Pose = goal_pose.multiply(
-                Pose(
-                    position=torch.tensor(
-                        [0.0, 0.0, -approach_distance],
-                        device=self.tensor_args.device,
-                        dtype=self.tensor_args.dtype,
-                    ),
-                    quaternion=torch.tensor(
-                        [1.0, 0.0, 0.0, 0.0],
-                        device=self.tensor_args.device,
-                        dtype=self.tensor_args.dtype,
-                    ),
+                self._make_pose(
+                    position=[0.0, 0.0, -approach_distance],
                 )
             )
             target_poses.append(approach_pose)
