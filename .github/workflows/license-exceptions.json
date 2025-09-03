@@ -395,5 +395,10 @@
     "package": "zipp",
     "license" : "UNKNOWN",
     "comment": "MIT"
+  },
+  {
+    "package": "fsspec",
+    "license" : "UNKNOWN",
+    "comment": "BSD"
   }
 ]
