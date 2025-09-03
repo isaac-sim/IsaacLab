@@ -5,6 +5,7 @@
 
 import gymnasium as gym
 import torch
+from tensordict import TensorDict
 
 from rsl_rl.env import VecEnv
 
@@ -12,16 +13,9 @@ from isaaclab.envs import DirectRLEnv, ManagerBasedRLEnv
 
 
 class RslRlVecEnvWrapper(VecEnv):
-    """Wraps around Isaac Lab environment for RSL-RL library
-
-    To use asymmetric actor-critic, the environment instance must have the attributes :attr:`num_privileged_obs` (int).
-    This is used by the learning agent to allocate buffers in the trajectory memory. Additionally, the returned
-    observations should have the key "critic" which corresponds to the privileged observations. Since this is
-    optional for some environments, the wrapper checks if these attributes exist. If they don't then the wrapper
-    defaults to zero as number of privileged observations.
+    """Wraps around Isaac Lab environment for the RSL-RL library
 
     .. caution::
-
         This class must be the last wrapper in the wrapper chain. This is because the wrapper does not follow
         the :class:`gym.Wrapper` interface. Any subsequent wrappers will need to be modified to work with this
         wrapper.
@@ -43,12 +37,14 @@ class RslRlVecEnvWrapper(VecEnv):
         Raises:
             ValueError: When the environment is not an instance of :class:`ManagerBasedRLEnv` or :class:`DirectRLEnv`.
         """
+
         # check that input is valid
         if not isinstance(env.unwrapped, ManagerBasedRLEnv) and not isinstance(env.unwrapped, DirectRLEnv):
             raise ValueError(
                 "The environment must be inherited from ManagerBasedRLEnv or DirectRLEnv. Environment type:"
                 f" {type(env)}"
             )
+
         # initialize the wrapper
         self.env = env
         self.clip_actions = clip_actions
@@ -63,20 +59,6 @@ class RslRlVecEnvWrapper(VecEnv):
             self.num_actions = self.unwrapped.action_manager.total_action_dim
         else:
             self.num_actions = gym.spaces.flatdim(self.unwrapped.single_action_space)
-        if hasattr(self.unwrapped, "observation_manager"):
-            self.num_obs = self.unwrapped.observation_manager.group_obs_dim["policy"][0]
-        else:
-            self.num_obs = gym.spaces.flatdim(self.unwrapped.single_observation_space["policy"])
-        # -- privileged observations
-        if (
-            hasattr(self.unwrapped, "observation_manager")
-            and "critic" in self.unwrapped.observation_manager.group_obs_dim
-        ):
-            self.num_privileged_obs = self.unwrapped.observation_manager.group_obs_dim["critic"][0]
-        elif hasattr(self.unwrapped, "num_states") and "critic" in self.unwrapped.single_observation_space:
-            self.num_privileged_obs = gym.spaces.flatdim(self.unwrapped.single_observation_space["critic"])
-        else:
-            self.num_privileged_obs = 0
 
         # modify the action space to the clip range
         self._modify_action_space()
@@ -133,14 +115,6 @@ class RslRlVecEnvWrapper(VecEnv):
     Properties
     """
 
-    def get_observations(self) -> tuple[torch.Tensor, dict]:
-        """Returns the current observations of the environment."""
-        if hasattr(self.unwrapped, "observation_manager"):
-            obs_dict = self.unwrapped.observation_manager.compute()
-        else:
-            obs_dict = self.unwrapped._get_observations()
-        return obs_dict["policy"], {"observations": obs_dict}
-
     @property
     def episode_length_buf(self) -> torch.Tensor:
         """The episode length buffer."""
@@ -162,13 +136,20 @@ class RslRlVecEnvWrapper(VecEnv):
     def seed(self, seed: int = -1) -> int:  # noqa: D102
         return self.unwrapped.seed(seed)
 
-    def reset(self) -> tuple[torch.Tensor, dict]:  # noqa: D102
+    def reset(self) -> tuple[TensorDict, dict]:  # noqa: D102
         # reset the environment
-        obs_dict, _ = self.env.reset()
-        # return observations
-        return obs_dict["policy"], {"observations": obs_dict}
+        obs_dict, extras = self.env.reset()
+        return TensorDict(obs_dict, batch_size=[self.num_envs]), extras
 
-    def step(self, actions: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, dict]:
+    def get_observations(self) -> TensorDict:
+        """Returns the current observations of the environment."""
+        if hasattr(self.unwrapped, "observation_manager"):
+            obs_dict = self.unwrapped.observation_manager.compute()
+        else:
+            obs_dict = self.unwrapped._get_observations()
+        return TensorDict(obs_dict, batch_size=[self.num_envs])
+
+    def step(self, actions: torch.Tensor) -> tuple[TensorDict, torch.Tensor, torch.Tensor, dict]:
         # clip actions
         if self.clip_actions is not None:
             actions = torch.clamp(actions, -self.clip_actions, self.clip_actions)
@@ -176,16 +157,12 @@ class RslRlVecEnvWrapper(VecEnv):
         obs_dict, rew, terminated, truncated, extras = self.env.step(actions)
         # compute dones for compatibility with RSL-RL
         dones = (terminated | truncated).to(dtype=torch.long)
-        # move extra observations to the extras dict
-        obs = obs_dict["policy"]
-        extras["observations"] = obs_dict
         # move time out information to the extras dict
         # this is only needed for infinite horizon tasks
         if not self.unwrapped.cfg.is_finite_horizon:
             extras["time_outs"] = truncated
-
         # return the step information
-        return obs, rew, dones, extras
+        return TensorDict(obs_dict, batch_size=[self.num_envs]), rew, dones, extras
 
     def close(self):  # noqa: D102
         return self.env.close()
@@ -200,7 +177,8 @@ class RslRlVecEnvWrapper(VecEnv):
             return
 
         # modify the action space to the clip range
-        # note: this is only possible for the box action space. we need to change it in the future for other action spaces.
+        # note: this is only possible for the box action space. we need to change it in the future for other
+        #   action spaces.
         self.env.unwrapped.single_action_space = gym.spaces.Box(
             low=-self.clip_actions, high=self.clip_actions, shape=(self.num_actions,)
         )
