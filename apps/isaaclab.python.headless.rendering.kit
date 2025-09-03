@@ -9,7 +9,7 @@
 [package]
 title = "Isaac Lab Python Headless Camera"
 description = "An app for running Isaac Lab headlessly with rendering enabled"
-version = "2.2.0"
+version = "2.2.1"
 
 # That makes it browsable in UI with "experience" filter
 keywords = ["experience", "app", "isaaclab", "python", "camera", "minimal"]
@@ -82,6 +82,9 @@ omni.replicator.asyncRendering = false
 app.updateOrder.checkForHydraRenderComplete = 1000
 app.renderer.waitIdle=true
 app.hydraEngine.waitIdle=true
+
+# Forces serial processing for omni graph to avoid NCCL timeout hangs in distributed training
+app.execution.debug.forceSerial = true
 
 app.audio.enabled = false
 

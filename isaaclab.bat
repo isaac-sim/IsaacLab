@@ -377,7 +377,6 @@ if "%arg%"=="-i" (
     rem install the python packages in source directory
     echo [INFO] Installing extensions inside the Isaac Lab repository...
     call :extract_python_exe
-
     rem check if pytorch is installed and its version
     rem install pytorch with cuda 12.8 for blackwell support
     call !python_exe! -m pip list | findstr /C:"torch" >nul
@@ -547,7 +546,7 @@ if "%arg%"=="-i" (
             set "skip=1"
         )
     )
-    !isaacsim_exe! --ext-folder %ISAACLAB_PATH%\source !allArgs1
+    !isaacsim_exe! --ext-folder %ISAACLAB_PATH%\source !allArgs!
     goto :end
 ) else if "%arg%"=="--sim" (
     rem run the simulator exe provided by Isaac Sim
@@ -562,7 +561,7 @@ if "%arg%"=="-i" (
             set "skip=1"
         )
     )
-    !isaacsim_exe! --ext-folder %ISAACLAB_PATH%\source !allArgs1
+    !isaacsim_exe! --ext-folder %ISAACLAB_PATH%\source !allArgs!
     goto :end
 ) else if "%arg%"=="-n" (
     rem run the template generator script
