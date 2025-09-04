@@ -3,5 +3,4 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from .reach import *
-from .cabinet import *
+"""Manipulation environments to open drawers in a cabinet."""

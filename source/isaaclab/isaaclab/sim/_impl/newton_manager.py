@@ -75,6 +75,7 @@ class NewtonManager:
     _gravity_vector: tuple[float, float, float] = (0.0, 0.0, -9.81)
     _up_axis: str = "Z"
     _num_envs: int = None
+    _views: list[str] = []
 
     @classmethod
     def clear(cls):
@@ -98,6 +99,7 @@ class NewtonManager:
         NewtonManager._cfg = NewtonCfg()
         NewtonManager._up_axis = "Z"
         NewtonManager._first_call = True
+        NewtonManager._views = []
 
     @classmethod
     def set_builder(cls, builder):
@@ -110,6 +112,14 @@ class NewtonManager:
     @classmethod
     def add_on_start_callback(cls, callback) -> None:
         NewtonManager._on_start_callbacks.append(callback)
+
+    @classmethod
+    def add_view(cls, view) -> None:
+        NewtonManager._views.append(view)
+
+    @classmethod
+    def get_views(cls) -> list:
+        return NewtonManager._views
 
     @classmethod
     def start_simulation(cls) -> None:

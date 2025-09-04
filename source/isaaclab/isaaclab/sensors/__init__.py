@@ -38,3 +38,4 @@ interpretation of the prim paths for different sensor types:
 from .contact_sensor import *  # noqa: F401, F403
 from .sensor_base import SensorBase  # noqa: F401
 from .sensor_base_cfg import SensorBaseCfg  # noqa: F401
+from .frame_transformer import *  # noqa: F401, F403

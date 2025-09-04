@@ -18,7 +18,7 @@ from pxr import PhysxSchema
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation, ArticulationCfg, AssetBaseCfg
 from isaaclab.cloner import GridCloner
-from isaaclab.sensors import ContactSensorCfg, SensorBase, SensorBaseCfg
+from isaaclab.sensors import ContactSensorCfg, SensorBase, SensorBaseCfg, FrameTransformerCfg
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils import get_current_stage_id
 from isaaclab.terrains import TerrainImporter, TerrainImporterCfg
@@ -651,7 +651,10 @@ class InteractiveScene:
                                 contact_partners_shape_expr.format(ENV_REGEX_NS=self.env_regex_ns)
                             )
                         asset_cfg.filter_shape_paths_expr = updated_contact_partners_shape_expr
-
+                elif isinstance(asset_cfg, FrameTransformerCfg):
+                    if asset_cfg.target_frames is not None:
+                        for target_frame in asset_cfg.target_frames:
+                            target_frame.prim_path = target_frame.prim_path.format(ENV_REGEX_NS=self.env_regex_ns)
                 self._sensors[asset_name] = asset_cfg.class_type(asset_cfg)
             elif isinstance(asset_cfg, AssetBaseCfg):
                 # manually spawn asset
