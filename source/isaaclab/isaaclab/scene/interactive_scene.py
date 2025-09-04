@@ -30,7 +30,7 @@ from isaaclab.assets import (
     SurfaceGripper,
     SurfaceGripperCfg,
 )
-from isaaclab.sensors import ContactSensorCfg, FrameTransformerCfg, SensorBase, SensorBaseCfg
+from isaaclab.sensors import ContactSensorCfg, FrameTransformerCfg, SensorBase, SensorBaseCfg, TactileSensorCfg
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils import get_current_stage_id
 from isaaclab.terrains import TerrainImporter, TerrainImporterCfg
@@ -763,6 +763,11 @@ class InteractiveScene:
                     for filter_prim_path in asset_cfg.filter_prim_paths_expr:
                         updated_filter_prim_paths_expr.append(filter_prim_path.format(ENV_REGEX_NS=self.env_regex_ns))
                     asset_cfg.filter_prim_paths_expr = updated_filter_prim_paths_expr
+                elif isinstance(asset_cfg, TactileSensorCfg):
+                    if hasattr(asset_cfg, "camera_cfg") and asset_cfg.camera_cfg is not None:
+                        asset_cfg.camera_cfg.prim_path = asset_cfg.camera_cfg.prim_path.format(
+                            ENV_REGEX_NS=self.env_regex_ns
+                        )
 
                 self._sensors[asset_name] = asset_cfg.class_type(asset_cfg)
             elif isinstance(asset_cfg, AssetBaseCfg):
