@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.2.1" />
-    <meta name="docbuild:last-update" content="Sep 03, 2025"/>
+    <meta name="docbuild:last-update" content="Sep 04, 2025"/>
   </head>
   
   
@@ -604,10 +604,13 @@
 <span class="sd">    The border width is subtracted from the :obj:`size` of the terrain. If non-zero, it must be</span>
 <span class="sd">    greater than or equal to the :obj:`horizontal scale`.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+
     <span class="n">horizontal_scale</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.1</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The discretization of the terrain along the x and y axes (in m). Defaults to 0.1.&quot;&quot;&quot;</span>
+
     <span class="n">vertical_scale</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.005</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The discretization of the terrain along the z axis (in m). Defaults to 0.005.&quot;&quot;&quot;</span>
+
     <span class="n">slope_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The slope threshold above which surfaces are made vertical. Defaults to None,</span>
 <span class="sd">    in which case no correction is applied.&quot;&quot;&quot;</span></div>
@@ -626,8 +629,10 @@
 
     <span class="n">noise_range</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The minimum and maximum height noise (i.e. along z) of the terrain (in m).&quot;&quot;&quot;</span>
+
     <span class="n">noise_step</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The minimum height (in m) change between two points.&quot;&quot;&quot;</span>
+
     <span class="n">downsampled_scale</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The distance between two randomly sampled points on the terrain. Defaults to None,</span>
 <span class="sd">    in which case the :obj:`horizontal scale` is used.</span>
@@ -645,8 +650,10 @@
 
     <span class="n">slope_range</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The slope of the terrain (in radians).&quot;&quot;&quot;</span>
+
     <span class="n">platform_width</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The width of the square platform at the center of the terrain. Defaults to 1.0.&quot;&quot;&quot;</span>
+
     <span class="n">inverted</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether the pyramid is inverted. Defaults to False.</span>
 
@@ -675,10 +682,13 @@
 
     <span class="n">step_height_range</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The minimum and maximum height of the steps (in m).&quot;&quot;&quot;</span>
+
     <span class="n">step_width</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The width of the steps (in m).&quot;&quot;&quot;</span>
+
     <span class="n">platform_width</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The width of the square platform at the center of the terrain. Defaults to 1.0.&quot;&quot;&quot;</span>
+
     <span class="n">inverted</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether the pyramid stairs is inverted. Defaults to False.</span>
 
@@ -710,12 +720,16 @@
 
 <span class="sd">    The following modes are supported: &quot;choice&quot;, &quot;fixed&quot;.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+
     <span class="n">obstacle_width_range</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The minimum and maximum width of the obstacles (in m).&quot;&quot;&quot;</span>
+
     <span class="n">obstacle_height_range</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The minimum and maximum height of the obstacles (in m).&quot;&quot;&quot;</span>
+
     <span class="n">num_obstacles</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The number of obstacles to generate.&quot;&quot;&quot;</span>
+
     <span class="n">platform_width</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The width of the square platform at the center of the terrain. Defaults to 1.0.&quot;&quot;&quot;</span></div>
 
@@ -728,8 +742,9 @@
 
     <span class="n">amplitude_range</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The minimum and maximum amplitude of the wave (in m).&quot;&quot;&quot;</span>
-    <span class="n">num_waves</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mf">1.0</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The number of waves to generate. Defaults to 1.0.&quot;&quot;&quot;</span></div>
+
+    <span class="n">num_waves</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The number of waves to generate. Defaults to 1.&quot;&quot;&quot;</span></div>
 
 
 <div class="viewcode-block" id="HfSteppingStonesTerrainCfg"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.terrains.html#isaaclab.terrains.height_field.hf_terrains_cfg.HfSteppingStonesTerrainCfg">[docs]</a><span class="nd">@configclass</span>
@@ -740,12 +755,16 @@
 
     <span class="n">stone_height_max</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The maximum height of the stones (in m).&quot;&quot;&quot;</span>
+
     <span class="n">stone_width_range</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The minimum and maximum width of the stones (in m).&quot;&quot;&quot;</span>
+
     <span class="n">stone_distance_range</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The minimum and maximum distance between stones (in m).&quot;&quot;&quot;</span>
+
     <span class="n">holes_depth</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="o">-</span><span class="mf">10.0</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The depth of the holes (negative obstacles). Defaults to -10.0.&quot;&quot;&quot;</span>
+
     <span class="n">platform_width</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The width of the square platform at the center of the terrain. Defaults to 1.0.&quot;&quot;&quot;</span></div>
 </pre></div>
@@ -795,7 +814,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Sep 03, 2025.
+  Last updated on Sep 04, 2025.
   <br/>
 </p>
   </div>

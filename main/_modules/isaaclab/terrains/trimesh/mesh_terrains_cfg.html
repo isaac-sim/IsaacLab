@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.2.1" />
-    <meta name="docbuild:last-update" content="Sep 03, 2025"/>
+    <meta name="docbuild:last-update" content="Sep 04, 2025"/>
   </head>
   
   
@@ -619,16 +619,16 @@
 
 <span class="sd">    The border is a flat terrain with the same height as the terrain.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+
     <span class="n">step_height_range</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The minimum and maximum height of the steps (in m).&quot;&quot;&quot;</span>
+
     <span class="n">step_width</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The width of the steps (in m).&quot;&quot;&quot;</span>
+
     <span class="n">platform_width</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The width of the square platform at the center of the terrain. Defaults to 1.0.&quot;&quot;&quot;</span>
-    <span class="n">platform_height</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="o">-</span><span class="mf">1.0</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The height of the platform.  Defaults to -1.0.</span>
 
-<span class="sd">    If the value is negative, the height is the same as the object height.&quot;&quot;&quot;</span>
     <span class="n">holes</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;If True, the terrain will have holes in the steps. Defaults to False.</span>
 
@@ -657,10 +657,13 @@
 
     <span class="n">grid_width</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The width of the grid cells (in m).&quot;&quot;&quot;</span>
+
     <span class="n">grid_height_range</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The minimum and maximum height of the grid cells (in m).&quot;&quot;&quot;</span>
+
     <span class="n">platform_width</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The width of the square platform at the center of the terrain. Defaults to 1.0.&quot;&quot;&quot;</span>
+
     <span class="n">holes</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;If True, the terrain will have holes in the steps. Defaults to False.</span>
 
@@ -677,8 +680,10 @@
 
     <span class="n">rail_thickness_range</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The thickness of the inner and outer rails (in m).&quot;&quot;&quot;</span>
+
     <span class="n">rail_height_range</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The minimum and maximum height of the rails (in m).&quot;&quot;&quot;</span>
+
     <span class="n">platform_width</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The width of the square platform at the center of the terrain. Defaults to 1.0.&quot;&quot;&quot;</span></div>
 
@@ -691,8 +696,10 @@
 
     <span class="n">pit_depth_range</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The minimum and maximum height of the pit (in m).&quot;&quot;&quot;</span>
+
     <span class="n">platform_width</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The width of the square platform at the center of the terrain. Defaults to 1.0.&quot;&quot;&quot;</span>
+
     <span class="n">double_pit</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;If True, the pit contains two levels of stairs. Defaults to False.&quot;&quot;&quot;</span></div>
 
@@ -705,8 +712,10 @@
 
     <span class="n">box_height_range</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The minimum and maximum height of the box (in m).&quot;&quot;&quot;</span>
+
     <span class="n">platform_width</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The width of the square platform at the center of the terrain. Defaults to 1.0.&quot;&quot;&quot;</span>
+
     <span class="n">double_box</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;If True, the pit contains two levels of stairs/boxes. Defaults to False.&quot;&quot;&quot;</span></div>
 
@@ -719,6 +728,7 @@
 
     <span class="n">gap_width_range</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The minimum and maximum width of the gap (in m).&quot;&quot;&quot;</span>
+
     <span class="n">platform_width</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The width of the square platform at the center of the terrain. Defaults to 1.0.&quot;&quot;&quot;</span></div>
 
@@ -731,10 +741,13 @@
 
     <span class="n">ring_width_range</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The minimum and maximum width of the ring (in m).&quot;&quot;&quot;</span>
+
     <span class="n">ring_height_range</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The minimum and maximum height of the ring (in m).&quot;&quot;&quot;</span>
+
     <span class="n">ring_thickness</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The thickness (along z) of the ring (in m).&quot;&quot;&quot;</span>
+
     <span class="n">platform_width</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The width of the square platform at the center of the terrain. Defaults to 1.0.&quot;&quot;&quot;</span></div>
 
@@ -747,10 +760,13 @@
 
     <span class="n">num_bars</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The number of bars per-side the star. Must be greater than 2.&quot;&quot;&quot;</span>
+
     <span class="n">bar_width_range</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The minimum and maximum width of the bars in the star (in m).&quot;&quot;&quot;</span>
+
     <span class="n">bar_height_range</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The minimum and maximum height of the bars in the star (in m).&quot;&quot;&quot;</span>
+
     <span class="n">platform_width</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The width of the cylindrical platform at the center of the terrain. Defaults to 1.0.&quot;&quot;&quot;</span></div>
 
@@ -777,6 +793,7 @@
 <span class="sd">    ``make_{object_type}`` in the current module scope. If it is a callable, the function will</span>
 <span class="sd">    use the callable to generate the object.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+
     <span class="n">object_params_start</span><span class="p">:</span> <span class="n">ObjectCfg</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The object curriculum parameters at the start of the curriculum.&quot;&quot;&quot;</span>
 
@@ -794,6 +811,12 @@
 
     <span class="n">platform_width</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The width of the cylindrical platform at the center of the terrain. Defaults to 1.0.&quot;&quot;&quot;</span>
+
+    <span class="n">platform_height</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="o">-</span><span class="mf">1.0</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The height of the platform. Defaults to -1.0.</span>
+
+<span class="sd">    If the value is negative, the height is the same as the object height.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_height_noise</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
@@ -823,6 +846,7 @@
 
     <span class="n">object_params_start</span><span class="p">:</span> <span class="n">ObjectCfg</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The object curriculum parameters at the start of the curriculum.&quot;&quot;&quot;</span>
+
     <span class="n">object_params_end</span><span class="p">:</span> <span class="n">ObjectCfg</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The object curriculum parameters at the end of the curriculum.&quot;&quot;&quot;</span></div>
 
@@ -846,6 +870,7 @@
 
     <span class="n">object_params_start</span><span class="p">:</span> <span class="n">ObjectCfg</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The box curriculum parameters at the start of the curriculum.&quot;&quot;&quot;</span>
+
     <span class="n">object_params_end</span><span class="p">:</span> <span class="n">ObjectCfg</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The box curriculum parameters at the end of the curriculum.&quot;&quot;&quot;</span></div>
 
@@ -869,6 +894,7 @@
 
     <span class="n">object_params_start</span><span class="p">:</span> <span class="n">ObjectCfg</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The box curriculum parameters at the start of the curriculum.&quot;&quot;&quot;</span>
+
     <span class="n">object_params_end</span><span class="p">:</span> <span class="n">ObjectCfg</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The box curriculum parameters at the end of the curriculum.&quot;&quot;&quot;</span></div>
 </pre></div>
@@ -918,7 +944,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Sep 03, 2025.
+  Last updated on Sep 04, 2025.
   <br/>
 </p>
   </div>
