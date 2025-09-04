@@ -123,7 +123,7 @@ class RecorderTerm(ManagerTermBase):
         """
         return None, None
 
-    def record_pre_physics_step(self) -> tuple[str | None, torch.Tensor | dict | None]:
+    def record_post_physics_decimation_step(self) -> tuple[str | None, torch.Tensor | dict | None]:
         """Record data before the physics step is executed.
 
         Returns:
@@ -371,14 +371,14 @@ class RecorderManager(ManagerBase):
             key, value = term.record_post_step()
             self.add_to_episodes(key, value)
 
-    def record_pre_physics_step(self) -> None:
+    def record_post_physics_decimation_step(self) -> None:
         """Trigger recorder terms for pre-physics step functions."""
         # Do nothing if no active recorder terms are provided
         if len(self.active_terms) == 0:
             return
 
         for term in self._terms.values():
-            key, value = term.record_pre_physics_step()
+            key, value = term.record_post_physics_decimation_step()
             self.add_to_episodes(key, value)
 
     def record_pre_reset(self, env_ids: Sequence[int] | None, force_export_or_skip=None) -> None:
