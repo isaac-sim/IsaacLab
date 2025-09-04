@@ -72,6 +72,13 @@ class CuroboPlannerConfig:
     static_objects: list[str] = field(default_factory=list)
     """Names of static objects to not update in the world model."""
 
+    # Optional prim path configuration
+    robot_prim_path: str | None = None
+    """Absolute USD prim path to the robot root for world extraction; None derives it from environment root."""
+
+    world_ignore_substrings: list[str] | None = None
+    """List of substring patterns to ignore when extracting world obstacles (e.g., default ground plane, debug prims)."""
+
     # Motion planning parameters
     collision_checker_type: CollisionCheckerType = CollisionCheckerType.MESH
     """Type of collision checker to use."""
@@ -156,6 +163,9 @@ class CuroboPlannerConfig:
 
     rotation_threshold: float = 0.05
     """Rotation threshold for motion planning."""
+
+    cuda_device: int | None = None
+    """Preferred CUDA device index; None uses torch.cuda.current_device() (respects CUDA_VISIBLE_DEVICES)."""
 
     def get_world_config(self) -> WorldConfig:
         """Load and prepare the world configuration.
@@ -384,6 +394,8 @@ class CuroboPlannerConfig:
             debug_planner=False,
             sphere_update_freq=5,
             motion_noise_scale=0.02,
+            # World extraction tuning for Franka envs
+            world_ignore_substrings=["/World/defaultGroundPlane", "/curobo"],
         )
 
     @classmethod

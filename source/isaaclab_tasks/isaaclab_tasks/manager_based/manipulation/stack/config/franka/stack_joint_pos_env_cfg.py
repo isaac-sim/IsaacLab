@@ -3,8 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import os
-
 from isaaclab.assets import RigidObjectCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import SceneEntityCfg
@@ -61,6 +59,7 @@ class EventCfg:
 
 @configclass
 class FrankaCubeStackEnvCfg(StackEnvCfg):
+
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
@@ -88,15 +87,6 @@ class FrankaCubeStackEnvCfg(StackEnvCfg):
             open_command_expr={"panda_finger_.*": 0.04},
             close_command_expr={"panda_finger_.*": 0.0},
         )
-
-        # Apply skillgen-specific cube position randomization if enabled
-        if os.getenv("ISAACLAB_USE_SKILLGEN") == "1":
-            self.events.randomize_cube_positions.params["pose_range"] = {
-                "x": (0.45, 0.6),
-                "y": (-0.23, 0.23),
-                "z": (0.0203, 0.0203),
-                "yaw": (-1.0, 1, 0),
-            }
 
         # Rigid body properties of each cube
         cube_properties = RigidBodyPropertiesCfg(
@@ -153,7 +143,7 @@ class FrankaCubeStackEnvCfg(StackEnvCfg):
                     prim_path="{ENV_REGEX_NS}/Robot/panda_hand",
                     name="end_effector",
                     offset=OffsetCfg(
-                        pos=[0.0, 0.0, 0.0] if os.getenv("ISAACLAB_USE_SKILLGEN") == "1" else [0.0, 0.0, 0.1034],
+                        pos=[0.0, 0.0, 0.1034],
                     ),
                 ),
                 FrameTransformerCfg.FrameCfg(
