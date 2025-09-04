@@ -77,6 +77,7 @@ class NewtonManager:
     _num_envs: int = None
     _visualizer_update_counter: int = 0
     _visualizer_update_frequency: int = 1  # Configurable frequency for all rendering updates
+    _views: list[str] = []
 
     @classmethod
     def clear(cls):
@@ -102,6 +103,7 @@ class NewtonManager:
         NewtonManager._first_call = True
         NewtonManager._visualizer_update_counter = 0
         NewtonManager._visualizer_update_frequency = NewtonManager._cfg.newton_viewer_update_frequency
+        NewtonManager._views = []
 
     @classmethod
     def set_builder(cls, builder):
@@ -114,6 +116,14 @@ class NewtonManager:
     @classmethod
     def add_on_start_callback(cls, callback) -> None:
         NewtonManager._on_start_callbacks.append(callback)
+
+    @classmethod
+    def add_view(cls, view) -> None:
+        NewtonManager._views.append(view)
+
+    @classmethod
+    def get_views(cls) -> list:
+        return NewtonManager._views
 
     @classmethod
     def start_simulation(cls) -> None:
