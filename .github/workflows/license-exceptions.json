@@ -390,5 +390,15 @@
     "package": "ml_dtypes",
     "license" : "UNKNOWN",
     "comment": "Apache 2.0"
+  },
+  {
+    "package": "zipp",
+    "license" : "UNKNOWN",
+    "comment": "MIT"
+  },
+  {
+    "package": "fsspec",
+    "license" : "UNKNOWN",
+    "comment": "BSD"
   }
 ]
