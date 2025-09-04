@@ -8,26 +8,30 @@ Manus and Vive for teleoperation and interaction.
 """
 
 import contextlib
-import carb
 import numpy as np
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
 
+import carb
+
 from isaaclab.devices.openxr.common import HAND_JOINT_NAMES
 from isaaclab.devices.retargeter_base import RetargeterBase
 
 from ..device_base import DeviceBase, DeviceCfg
-from .xr_cfg import XrCfg
 from .openxr_device import OpenXRDevice
+from .xr_cfg import XrCfg
 
 # For testing purposes, we need to mock the XRCore
 XRCore = None
 
 with contextlib.suppress(ModuleNotFoundError):
     from omni.kit.xr.core import XRCore
+
 from isaacsim.core.prims import SingleXFormPrim
-from .manus_vive_utils import ManusViveIntegration, HAND_JOINT_MAP
+
+from .manus_vive_utils import HAND_JOINT_MAP, ManusViveIntegration
+
 
 @dataclass
 class ManusViveCfg(DeviceCfg):
@@ -39,9 +43,9 @@ class ManusViveCfg(DeviceCfg):
 class ManusVive(DeviceBase):
     """Manus gloves and Vive trackers for teleoperation and interaction.
 
-    This device tracks hand joints using Manus gloves and Vive trackers and makes them available as: 
-    
-    1. A dictionary of tracking data (when used without retargeters) 
+    This device tracks hand joints using Manus gloves and Vive trackers and makes them available as:
+
+    1. A dictionary of tracking data (when used without retargeters)
     2. Retargeted commands for robot control (when retargeters are provided)
 
     The user needs to install the Manus SDK and add `{path_to_manus_sdk}/manus_sdk/lib` to `LD_LIBRARY_PATH`.
@@ -49,9 +53,9 @@ class ManusVive(DeviceBase):
 
     * Vive tracker poses in scene frame, calibrated from AVP wrist poses.
     * Hand joints calculated from Vive wrist joints and Manus hand joints (relative to wrist).
-    * Vive trackers are automatically mapped to the left and right wrist joints. 
+    * Vive trackers are automatically mapped to the left and right wrist joints.
 
-    Raw data format (_get_raw_data output): consistent with :class:`OpenXRDevice`. 
+    Raw data format (_get_raw_data output): consistent with :class:`OpenXRDevice`.
     Joint names are defined in `HAND_JOINT_MAP` from `isaaclab.devices.openxr.manus_vive_utils`.
 
     Teleop commands: consistent with :class:`OpenXRDevice`.
@@ -67,8 +71,9 @@ class ManusVive(DeviceBase):
     data is transformed into robot control commands suitable for teleoperation.
     """
 
-    class TrackingTarget(Enum): 
+    class TrackingTarget(Enum):
         """Enum class specifying what to track with Manus+Vive. Consistent with :class:`OpenXRDevice.TrackingTarget`."""
+
         HAND_LEFT = 0
         HAND_RIGHT = 1
         HEAD = 2
@@ -169,7 +174,7 @@ class ManusVive(DeviceBase):
     def add_callback(self, key: str, func: Callable):
         """Add additional functions to bind to client messages. Consistent with :meth:`OpenXRDevice.add_callback`."""
         self._additional_callbacks[key] = func
-    
+
     def _get_raw_data(self) -> dict:
         """Get the latest tracking data from Manus and Vive.
 
@@ -182,15 +187,15 @@ class ManusVive(DeviceBase):
         Each pose is represented as a 7-element array: [x, y, z, qw, qx, qy, qz]
         where the first 3 elements are position and the last 4 are quaternion orientation.
         """
-        hand_tracking_data = self._manus_vive.get_all_device_data()['manus_gloves']
-        result = {'left': self._previous_joint_poses_left, 'right': self._previous_joint_poses_right}
+        hand_tracking_data = self._manus_vive.get_all_device_data()["manus_gloves"]
+        result = {"left": self._previous_joint_poses_left, "right": self._previous_joint_poses_right}
         for joint, pose in hand_tracking_data.items():
             hand, index = joint.split("_")
             joint_name = HAND_JOINT_MAP[int(index)]
-            result[hand][joint_name] = np.array(pose['position'] + pose['orientation'], dtype=np.float32)
+            result[hand][joint_name] = np.array(pose["position"] + pose["orientation"], dtype=np.float32)
         return {
-            OpenXRDevice.TrackingTarget.HAND_LEFT: result['left'],
-            OpenXRDevice.TrackingTarget.HAND_RIGHT: result['right'],
+            OpenXRDevice.TrackingTarget.HAND_LEFT: result["left"],
+            OpenXRDevice.TrackingTarget.HAND_RIGHT: result["right"],
             OpenXRDevice.TrackingTarget.HEAD: self._calculate_headpose(),
         }
 

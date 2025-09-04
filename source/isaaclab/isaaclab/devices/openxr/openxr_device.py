@@ -54,7 +54,7 @@ class OpenXRDevice(DeviceBase):
 
     Teleop commands:
     The device responds to several teleop commands that can be subscribed to via add_callback():
-    
+
     * "START": Resume hand tracking data flow
     * "STOP": Pause hand tracking data flow
     * "RESET": Reset the tracking and signal simulation reset

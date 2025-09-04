@@ -14,7 +14,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.controllers.pink_ik import NullSpacePostureTask, PinkIKControllerCfg
 from isaaclab.devices.device_base import DevicesCfg
-from isaaclab.devices.openxr import OpenXRDeviceCfg, XrCfg
+from isaaclab.devices.openxr import ManusViveCfg, OpenXRDeviceCfg, XrCfg
 from isaaclab.devices.openxr.retargeters.humanoid.fourier.gr1t2_retargeter import GR1T2RetargeterCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.envs.mdp.actions.pink_actions_cfg import PinkInverseKinematicsActionCfg
