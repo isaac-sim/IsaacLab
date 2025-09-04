@@ -22,6 +22,7 @@ from ..device_base import DeviceBase, DeviceCfg
 class Se3KeyboardCfg(DeviceCfg):
     """Configuration for SE3 keyboard devices."""
 
+    gripper_term: bool = True
     pos_sensitivity: float = 0.4
     rot_sensitivity: float = 0.8
     retargeters: None = None
@@ -67,6 +68,7 @@ class Se3Keyboard(DeviceBase):
         # store inputs
         self.pos_sensitivity = cfg.pos_sensitivity
         self.rot_sensitivity = cfg.rot_sensitivity
+        self.gripper_term = cfg.gripper_term
         self._sim_device = cfg.sim_device
         # acquire omniverse interfaces
         self._appwindow = omni.appwindow.get_default_app_window()
@@ -139,9 +141,11 @@ class Se3Keyboard(DeviceBase):
         # convert to rotation vector
         rot_vec = Rotation.from_euler("XYZ", self._delta_rot).as_rotvec()
         # return the command and gripper state
-        gripper_value = -1.0 if self._close_gripper else 1.0
-        delta_pose = np.concatenate([self._delta_pos, rot_vec])
-        command = np.append(delta_pose, gripper_value)
+        command = np.concatenate([self._delta_pos, rot_vec])
+        if self.gripper_term:
+            gripper_value = -1.0 if self._close_gripper else 1.0
+            command = np.append(command, gripper_value)
+
         return torch.tensor(command, dtype=torch.float32, device=self._sim_device)
 
     """
