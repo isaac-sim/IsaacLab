@@ -13,9 +13,9 @@ from newton import Axis, Contacts, Control, Model, ModelBuilder, State, eval_fk
 from newton.sensors import ContactSensor as NewtonContactSensor
 from newton.sensors import populate_contacts
 from newton.solvers import SolverBase, SolverFeatherstone, SolverMuJoCo, SolverXPBD
-from isaaclab.sim._impl.newton_viewer import NewtonViewerGL
 
 from isaaclab.sim._impl.newton_manager_cfg import NewtonCfg
+from isaaclab.sim._impl.newton_viewer import NewtonViewerGL
 from isaaclab.utils.timer import Timer
 
 
@@ -318,7 +318,7 @@ class NewtonManager:
                 NewtonManager._renderer.begin_frame(NewtonManager._sim_time)
                 NewtonManager._renderer.log_state(NewtonManager._state_0)
                 NewtonManager._renderer.end_frame()
-            
+
             # Use configurable frequency for both paused and unpaused rendering
             NewtonManager._visualizer_update_counter += 1
             if NewtonManager._visualizer_update_counter >= NewtonManager._visualizer_update_frequency:
