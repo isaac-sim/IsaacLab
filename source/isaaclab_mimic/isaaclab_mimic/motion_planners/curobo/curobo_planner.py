@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import logging
 import numpy as np
 import torch
 from dataclasses import dataclass
@@ -27,6 +28,39 @@ from isaaclab.managers import SceneEntityCfg
 
 from isaaclab_mimic.motion_planners.base_motion_planner import MotionPlanner
 from isaaclab_mimic.motion_planners.curobo.curobo_planner_config import CuroboPlannerConfig
+
+
+class PlannerLogger:
+    """Planner logger that only initializes when first used to avoid unwanted logging setup."""
+
+    def __init__(self, name: str, level: int = logging.INFO):
+        self._name = name
+        self._level = level
+        self._logger = None
+
+    @property
+    def logger(self):
+        if self._logger is None:
+            self._logger = logging.getLogger(self._name)
+            if not self._logger.handlers:
+                handler = logging.StreamHandler()
+                formatter = logging.Formatter("%(name)s - %(levelname)s - %(message)s")
+                handler.setFormatter(formatter)
+                self._logger.addHandler(handler)
+                self._logger.setLevel(self._level)
+        return self._logger
+
+    def debug(self, msg, *args, **kwargs):
+        self.logger.debug(msg, *args, **kwargs)
+
+    def info(self, msg, *args, **kwargs):
+        self.logger.info(msg, *args, **kwargs)
+
+    def warning(self, msg, *args, **kwargs):
+        self.logger.warning(msg, *args, **kwargs)
+
+    def error(self, msg, *args, **kwargs):
+        self.logger.error(msg, *args, **kwargs)
 
 
 @dataclass
@@ -91,6 +125,10 @@ class CuroboPlanner(MotionPlanner):
         # Initialize base class
         super().__init__(env=env, robot=robot, env_id=env_id, debug=config.debug_planner)
 
+        # Initialize planner logger with debug level based on config
+        log_level = logging.DEBUG if config.debug_planner else logging.INFO
+        self.logger = PlannerLogger(f"CuroboPlanner_{env_id}", log_level)
+
         # Store instance variables
         self.config: CuroboPlannerConfig = config
         self.n_repeat: int | None = self.config.n_repeat
@@ -98,8 +136,8 @@ class CuroboPlanner(MotionPlanner):
         self.visualize_plan: bool = self.config.visualize_plan
         self.visualize_spheres: bool = self.config.visualize_spheres
 
-        # Print the config parameter values
-        print(f"Config parameter values: {self.config}")
+        # Log the config parameter values
+        self.logger.info(f"Config parameter values: {self.config}")
 
         # Initialize plan visualizer if enabled
         if self.visualize_plan:
@@ -111,7 +149,7 @@ class CuroboPlanner(MotionPlanner):
             self.plan_visualizer = PlanVisualizer(
                 robot_name=self.config.robot_name,
                 recording_id=f"curobo_plan_{env_id}",
-                debug=self.debug,
+                debug=config.debug_planner,
                 base_translation=base_translation,
             )
 
@@ -127,19 +165,18 @@ class CuroboPlanner(MotionPlanner):
         if torch.cuda.is_available():
             idx = self.config.cuda_device if self.config.cuda_device is not None else torch.cuda.current_device()
             self.tensor_args = TensorDeviceType(device=torch.device(f"cuda:{idx}"), dtype=torch.float32)
-            if self.debug:
-                print(f"cuRobo motion planner initialized on CUDA device {idx}")
+            self.logger.debug(f"cuRobo motion planner initialized on CUDA device {idx}")
         else:
             # Fallback to CPU if CUDA not available, but this may cause issues
             self.tensor_args = TensorDeviceType()
-            print("WARNING: CUDA not available, cuRobo using CPU - this may cause device compatibility issues")
+            self.logger.warning("CUDA not available, cuRobo using CPU - this may cause device compatibility issues")
 
         # Load robot configuration
         if self.config.robot_config_file is None:
             raise ValueError("robot_config_file is required")
         robot_cfg_file = self.config.robot_config_file
         robot_cfg: dict[str, Any] = load_yaml(robot_cfg_file)["robot_cfg"]
-        print(f"Loaded robot configuration from {robot_cfg_file}")
+        self.logger.info(f"Loaded robot configuration from {robot_cfg_file}")
 
         # Configure collision spheres
         if self.config.collision_spheres_file:
@@ -200,7 +237,7 @@ class CuroboPlanner(MotionPlanner):
         self.sphere_update_freq: int = self.config.sphere_update_freq
 
         # Warm up planner
-        print("Warming up motion planner...")
+        self.logger.info("Warming up motion planner...")
         self.motion_gen.warmup(enable_graph=True, warmup_js_trajopt=False)
 
         # Read static world geometry once
@@ -323,8 +360,7 @@ class CuroboPlanner(MotionPlanner):
 
         object_path = object_mappings.get(object_name)
         if not object_path:
-            if self.debug:
-                print(f"Object {object_name} not found in world model")
+            self.logger.debug(f"Object {object_name} not found in world model")
             return None
 
         # Search for object in world model
@@ -340,8 +376,7 @@ class CuroboPlanner(MotionPlanner):
                     if obj.pose is not None:
                         return Pose.from_list(obj.pose, tensor_args=self.tensor_args)
 
-        if self.debug:
-            print(f"Object {object_name} found in mappings but pose not available")
+        self.logger.debug(f"Object {object_name} found in mappings but pose not available")
         return None
 
     def get_attached_pose(self, link_name: str, joint_state: JointState | None = None) -> Pose:
@@ -384,8 +419,7 @@ class CuroboPlanner(MotionPlanner):
         if link_name == self.config.attached_object_link_name:
             ee_link = self.config.ee_link_name or self.robot_cfg["kinematics"]["ee_link"]
             if ee_link in link_poses:
-                if self.debug:
-                    print(f"DEBUG GET_ATTACHED_POSE: Using {ee_link} for {link_name}")
+                self.logger.debug(f"Using {ee_link} for {link_name}")
                 return link_poses[ee_link]
 
         # Return directly for other links
@@ -417,17 +451,16 @@ class CuroboPlanner(MotionPlanner):
 
         # Get current link pose
         link_pose = self.get_attached_pose(link_name, joint_state)
-        print(f"Getting object pose for {object_name}")
+        self.logger.info(f"Getting object pose for {object_name}")
         obj_pose = self.get_object_pose(object_name)
 
         # Compute relative pose
         attach_pose = link_pose.inverse().multiply(obj_pose)
 
-        if self.debug:
-            print(f"Creating attachment for {object_name} to {link_name}")
-            print(f"Link pose: {link_pose.position}")
-            print(f"Object pose (ACTUAL): {obj_pose.position}")
-            print(f"Computed relative pose: {attach_pose.position}")
+        self.logger.debug(f"Creating attachment for {object_name} to {link_name}")
+        self.logger.debug(f"Link pose: {link_pose.position}")
+        self.logger.debug(f"Object pose (ACTUAL): {obj_pose.position}")
+        self.logger.debug(f"Computed relative pose: {attach_pose.position}")
 
         return Attachment(attach_pose, link_name)
 
@@ -449,8 +482,7 @@ class CuroboPlanner(MotionPlanner):
         # Establish validation baseline on first call, validate on subsequent calls
         if self._expected_objects is None:
             self._expected_objects = set(self._get_world_object_names())
-            if self.debug:
-                print(f"Established object validation baseline: {len(self._expected_objects)} objects")
+            self.logger.debug(f"Established object validation baseline: {len(self._expected_objects)} objects")
         else:
             # Subsequent calls: validate no changes
             current_objects = set(self._get_world_object_names())
@@ -511,8 +543,7 @@ class CuroboPlanner(MotionPlanner):
             return object_names
 
         except Exception as e:
-            if self.debug:
-                print(f"ERROR getting world object names: {e}")
+            self.logger.debug(f"ERROR getting world object names: {e}")
             return []
 
     def _sync_object_poses_with_isaaclab(self) -> None:
@@ -540,8 +571,7 @@ class CuroboPlanner(MotionPlanner):
             # Skip static mesh objects - they should not be dynamically updated
             static_objects = getattr(self.config, "static_objects", [])
             if any(static_name in object_name.lower() for static_name in static_objects):
-                if self.debug:
-                    print(f"SYNC: Skipping static object {object_name}")
+                self.logger.debug(f"SYNC: Skipping static object {object_name}")
                 continue
 
             # Get current pose from Lab (may be on CPU or CUDA depending on --device flag)
@@ -569,8 +599,7 @@ class CuroboPlanner(MotionPlanner):
             if self._update_object_in_world_model(world_model, object_name, object_path, pose_list):
                 updated_count += 1
 
-        if self.debug:
-            print(f"SYNC: Updated {updated_count} object poses in cuRobo world model")
+        self.logger.debug(f"SYNC: Updated {updated_count} object poses in cuRobo world model")
 
         # Sync object poses with collision checker
         if updated_count > 0:
@@ -600,8 +629,7 @@ class CuroboPlanner(MotionPlanner):
                     object_path, curobo_pose, env_idx=self.env_id, update_cpu_reference=True
                 )
 
-            if self.debug:
-                print(f"Updated {updated_count} object poses in collision checker")
+            self.logger.debug(f"Updated {updated_count} object poses in collision checker")
 
     def _get_object_mappings(self) -> dict[str, str]:
         """Get object mappings with caching for performance optimization.
@@ -616,8 +644,7 @@ class CuroboPlanner(MotionPlanner):
             world_model = self.motion_gen.world_coll_checker.world_model
             rigid_objects = self.env.scene.rigid_objects
             self._cached_object_mappings = self._discover_object_mappings(world_model, rigid_objects)
-            if self.debug:
-                print(f"Computed and cached object mappings: {len(self._cached_object_mappings)} objects")
+            self.logger.debug(f"Computed and cached object mappings: {len(self._cached_object_mappings)} objects")
 
         return self._cached_object_mappings
 
@@ -653,12 +680,10 @@ class CuroboPlanner(MotionPlanner):
             for path in world_object_paths:
                 if object_name.lower().replace("_", "") in path.lower().replace("_", ""):
                     mappings[object_name] = path
-                    if self.debug:
-                        print(f"MAPPING: {object_name} -> {path}")
+                    self.logger.debug(f"MAPPING: {object_name} -> {path}")
                     break
             else:
-                if self.debug:
-                    print(f"WARNING: Could not find world path for {object_name}")
+                self.logger.debug(f"WARNING: Could not find world path for {object_name}")
 
         return mappings
 
@@ -696,12 +721,10 @@ class CuroboPlanner(MotionPlanner):
                     # Use bidirectional matching for robust path matching
                     if object_path == primitive_name or object_path in primitive_name or primitive_name in object_path:
                         primitive.pose = pose_list
-                        if self.debug:
-                            print(f"Updated {primitive_type} {object_name} pose")
+                        self.logger.debug(f"Updated {primitive_type} {object_name} pose")
                         return True
 
-        if self.debug:
-            print(f"WARNING: Object {object_name} not found in world model")
+        self.logger.debug(f"WARNING: Object {object_name} not found in world model")
         return False
 
     def _attach_object(self, object_name: str, object_path: str, env_id: int) -> bool:
@@ -723,8 +746,7 @@ class CuroboPlanner(MotionPlanner):
         try:
             current_joint_state = self._get_current_joint_state_for_curobo()
 
-            if self.debug:
-                print(f"DEBUG ATTACH: Attaching {object_name} at path {object_path}")
+            self.logger.debug(f"Attaching {object_name} at path {object_path}")
 
             # Create attachment record (relative pose object-frame to parent link)
             attachment = self.create_attachment(
@@ -743,29 +765,28 @@ class CuroboPlanner(MotionPlanner):
             )
 
             if success:
-                if self.debug:
-                    print(f"DEBUG ATTACH: Successfully attached {object_name}")
-                    print(f"DEBUG ATTACH: Current attached objects: {list(self.attached_objects.keys())}")
+                self.logger.debug(f"Successfully attached {object_name}")
+                self.logger.debug(f"Current attached objects: {list(self.attached_objects.keys())}")
 
                 # Force sphere visualization update
                 if self.visualize_spheres:
                     self._update_sphere_visualization(force_update=True)
 
-                print("Sphere count after attach is successful: ", self._count_active_spheres())
+                self.logger.info(f"Sphere count after attach is successful: {self._count_active_spheres()}")
 
                 # Deactivate the original obstacle as it's now carried by the robot
                 self.motion_gen.world_coll_checker.enable_obstacle(object_path, enable=False, env_idx=self.env_id)
 
                 return True
             else:
-                print(f"ERROR: cuRobo attach_objects_to_robot failed for {object_name}")
+                self.logger.error(f"cuRobo attach_objects_to_robot failed for {object_name}")
                 # Clean up on failure
                 if object_name in self.attached_objects:
                     del self.attached_objects[object_name]
                 return False
 
         except Exception as e:
-            print(f"ERROR: Failed to attach objects: {e}")
+            self.logger.error(f"Failed to attach objects: {e}")
         return False
 
     def _detach_objects(self, link_names: set[str] | None = None) -> bool:
@@ -784,9 +805,8 @@ class CuroboPlanner(MotionPlanner):
         if link_names is None:
             link_names = self.attachment_links
 
-        if self.debug:
-            print(f"DEBUG DETACH: Detaching objects from links: {link_names}")
-            print(f"DEBUG DETACH: Current attached objects: {list(self.attached_objects.keys())}")
+        self.logger.debug(f"Detaching objects from links: {link_names}")
+        self.logger.debug(f"Current attached objects: {list(self.attached_objects.keys())}")
 
         # Get cached object mappings to find the USD path for re-enabling
         object_mappings = self._get_object_mappings()
@@ -802,11 +822,9 @@ class CuroboPlanner(MotionPlanner):
             if object_path:
                 try:
                     self.motion_gen.world_coll_checker.enable_obstacle(object_path, enable=True, env_idx=self.env_id)
-                    if self.debug:
-                        print(f"DEBUG DETACH: Re-enabled obstacle {object_path}")
+                    self.logger.debug(f"Re-enabled obstacle {object_path}")
                 except Exception as e:
-                    if self.debug:
-                        print(f"ERROR re-enabling obstacle {object_path}: {e}")
+                    self.logger.debug(f"ERROR re-enabling obstacle {object_path}: {e}")
 
             # Collect the link that will need re-enabling
             detached_links.add(attachment.parent)
@@ -815,25 +833,19 @@ class CuroboPlanner(MotionPlanner):
             del self.attached_objects[object_name]
             detached_info.append((object_name, attachment.parent))
 
-        if self.debug and detached_info:
+        if detached_info:
             for obj_name, parent_link in detached_info:
-                print(f"DEBUG DETACH: Detached {obj_name} from {parent_link}")
+                self.logger.debug(f"Detached {obj_name} from {parent_link}")
 
         # Re-enable collision checking for the attachment links (following the planning pattern)
         if detached_links:
             self._set_active_links(list(detached_links), active=True)
-            if self.debug:
-                print(f"DEBUG DETACH: Re-enabled collision for attachment links: {detached_links}")
+            self.logger.debug(f"Re-enabled collision for attachment links: {detached_links}")
 
         # Call cuRobo's detach for each link
         for link_name in link_names:
-            try:
-                self.motion_gen.detach_object_from_robot(link_name=link_name)
-                if self.debug:
-                    print(f"DEBUG DETACH: Called cuRobo detach for link {link_name}")
-            except Exception as e:
-                if self.debug:
-                    print(f"DEBUG DETACH: cuRobo detach failed for {link_name}: {e}")
+            self.motion_gen.detach_object_from_robot(link_name=link_name)
+            self.logger.debug(f"Called cuRobo detach for link {link_name}")
 
         return True
 
@@ -1035,8 +1047,7 @@ class CuroboPlanner(MotionPlanner):
 
         start_state: JointState = self._get_current_joint_state_for_curobo()
 
-        if self.debug:
-            print(f"Retiming enabled: {enable_retiming}, Step size: {step_size}")
+        self.logger.debug(f"Retiming enabled: {enable_retiming}, Step size: {step_size}")
 
         success: bool = self._plan_to_contact(
             start_state=start_state,
@@ -1087,12 +1098,12 @@ class CuroboPlanner(MotionPlanner):
                     ee_pos = kin.ee_position if hasattr(kin, "ee_position") else kin.ee_pose.position
                     ee_positions_list.append(ee_pos.cpu().numpy().squeeze())
 
-                if self.debug and len(ee_positions_list) > 0:
-                    print("Link names from kinematics:", kin.link_names)
+                self.logger.debug(
+                    f"Link names from kinematics: {kin.link_names if len(ee_positions_list) > 0 else 'No EE positions'}"
+                )
 
             except Exception as e:
-                if self.debug:
-                    print(f"Failed to compute EE positions for visualization: {e}")
+                self.logger.debug(f"Failed to compute EE positions for visualization: {e}")
                 ee_positions_list = None
 
             try:
@@ -1153,11 +1164,10 @@ class CuroboPlanner(MotionPlanner):
 
         # Count spheres before planning
         sphere_counts_before = self._count_active_spheres()
-        if self.debug:
-            print(
-                f"Planning phase contact={contact}: Spheres before - Total: {sphere_counts_before['total']}, Robot:"
-                f" {sphere_counts_before['robot_links']}, Attached: {sphere_counts_before['attached_objects']}"
-            )
+        self.logger.debug(
+            f"Planning phase contact={contact}: Spheres before - Total: {sphere_counts_before['total']}, Robot:"
+            f" {sphere_counts_before['robot_links']}, Attached: {sphere_counts_before['attached_objects']}"
+        )
 
         if contact:
             # Store current spheres for the attached link so we can restore later
@@ -1167,24 +1177,20 @@ class CuroboPlanner(MotionPlanner):
                     attached_link
                 ).clone()
 
-            if self.debug:
-                print("Attached link: ", attached_links)
+            self.logger.debug(f"Attached link: {attached_links}")
             # Disable all specified links for contact planning
-            if self.debug:
-                print("Disable link names: ", disable_link_names)
+            self.logger.debug(f"Disable link names: {disable_link_names}")
             self._set_active_links(disable_link_names + attached_links, active=False)
         else:
-            if self.debug:
-                print("Disable link names: ", disable_link_names)
+            self.logger.debug(f"Disable link names: {disable_link_names}")
 
         # Count spheres after link disabling
         sphere_counts_after_disable = self._count_active_spheres()
-        if self.debug:
-            print(
-                f"Planning phase contact={contact}: Spheres after disable - Total:"
-                f" {sphere_counts_after_disable['total']}, Robot: {sphere_counts_after_disable['robot_links']},"
-                f" Attached: {sphere_counts_after_disable['attached_objects']}"
-            )
+        self.logger.debug(
+            f"Planning phase contact={contact}: Spheres after disable - Total:"
+            f" {sphere_counts_after_disable['total']}, Robot: {sphere_counts_after_disable['robot_links']},"
+            f" Attached: {sphere_counts_after_disable['attached_objects']}"
+        )
 
         planning_success = False
         try:
@@ -1193,12 +1199,10 @@ class CuroboPlanner(MotionPlanner):
             if result.success.item():
                 if result.optimized_plan is not None and len(result.optimized_plan.position) != 0:
                     self._current_plan = result.optimized_plan
-                    if self.debug:
-                        print(f"Using optimized plan with {len(self._current_plan.position)} waypoints")
+                    self.logger.debug(f"Using optimized plan with {len(self._current_plan.position)} waypoints")
                 else:
                     self._current_plan = result.get_interpolated_plan()
-                    if self.debug:
-                        print(f"Using interpolated plan with {len(self._current_plan.position)} waypoints")
+                    self.logger.debug(f"Using interpolated plan with {len(self._current_plan.position)} waypoints")
 
                 self._current_plan = self.motion_gen.get_full_js(self._current_plan)
                 common_js_names: list[str] = [
@@ -1208,15 +1212,12 @@ class CuroboPlanner(MotionPlanner):
                 self._plan_index = 0
 
                 planning_success = True
-                if self.debug:
-                    print(f"Contact planning succeeded with {len(self._current_plan.position)} waypoints")
+                self.logger.debug(f"Contact planning succeeded with {len(self._current_plan.position)} waypoints")
             else:
-                if self.debug:
-                    print(f"Contact planning failed: {result.status}")
+                self.logger.debug(f"Contact planning failed: {result.status}")
 
         except Exception as e:
-            if self.debug:
-                print(f"Error during planning: {e}")
+            self.logger.debug(f"Error during planning: {e}")
 
         # Always restore sphere state after planning, regardless of success
         if contact:
@@ -1252,8 +1253,7 @@ class CuroboPlanner(MotionPlanner):
         Returns:
             True if all planning phases succeeded, False if any phase failed
         """
-        if self.debug:
-            print(f"Multi-phase planning: retreat={retreat_distance}, approach={approach_distance}")
+        self.logger.debug(f"Multi-phase planning: retreat={retreat_distance}, approach={approach_distance}")
 
         target_poses: list[Pose] = []
         contacts: list[bool] = []
@@ -1283,11 +1283,10 @@ class CuroboPlanner(MotionPlanner):
         full_plan: JointState | None = None
 
         for i, (target_pose, contact_flag) in enumerate(zip(target_poses, contacts)):
-            if self.debug:
-                print(
-                    f"Planning phase {i + 1} of {len(target_poses)}: contact={contact_flag} (collision"
-                    f" {'disabled' if contact_flag else 'enabled'})"
-                )
+            self.logger.debug(
+                f"Planning phase {i + 1} of {len(target_poses)}: contact={contact_flag} (collision"
+                f" {'disabled' if contact_flag else 'enabled'})"
+            )
 
             success: bool = self._plan_to_contact_pose(
                 start_state=current_state,
@@ -1296,8 +1295,7 @@ class CuroboPlanner(MotionPlanner):
             )
 
             if not success:
-                if self.debug:
-                    print(f"Phase {i + 1} planning failed")
+                self.logger.debug(f"Phase {i + 1} planning failed")
                 return False
 
             if full_plan is None:
@@ -1320,11 +1318,11 @@ class CuroboPlanner(MotionPlanner):
         if retime_plan and step_size is not None:
             original_length: int = len(self._current_plan.position)
             self._current_plan = self._linearly_retime_plan(step_size=step_size, plan=self._current_plan)
-            if self.debug:
-                print(f"Retimed complete plan from {original_length} to {len(self._current_plan.position)} waypoints")
+            self.logger.debug(
+                f"Retimed complete plan from {original_length} to {len(self._current_plan.position)} waypoints"
+            )
 
-        if self.debug:
-            print(f"Multi-phase planning succeeded with {len(self._current_plan.position)} total waypoints")
+        self.logger.debug(f"Multi-phase planning succeeded with {len(self._current_plan.position)} total waypoints")
 
         return True
 
@@ -1396,11 +1394,10 @@ class CuroboPlanner(MotionPlanner):
         # Interpolate waypoints
         sampled_waypoints = (1 - weights) * waypoints[indices - 1] + weights * waypoints[indices]
 
-        if self.debug:
-            print(
-                f"Retiming: {len(path)} to {len(sampled_waypoints)} waypoints, "
-                f"Distance: {total_distance:.3f}, Step size: {step_size}"
-            )
+        self.logger.debug(
+            f"Retiming: {len(path)} to {len(sampled_waypoints)} waypoints, "
+            f"Distance: {total_distance:.3f}, Step size: {step_size}"
+        )
 
         retimed_plan = JointState(
             position=sampled_waypoints,
@@ -1503,7 +1500,7 @@ class CuroboPlanner(MotionPlanner):
         self._plan_index = original_plan_index
 
         if self.n_repeat is not None and self.n_repeat > 0 and len(planned_poses) > 0:
-            print(f"Repeating final pose {self.n_repeat} times")
+            self.logger.info(f"Repeating final pose {self.n_repeat} times")
             final_pose: torch.Tensor = planned_poses[-1]
             planned_poses.extend([final_pose] * self.n_repeat)
 
@@ -1699,8 +1696,10 @@ class CuroboPlanner(MotionPlanner):
         # If sphere_index >= total_robot_spheres, it's an attached object sphere
         is_attached = sphere_index >= total_robot_spheres
 
-        if self.debug and sphere_index < 5:  # Debug first few spheres
-            print(f"DEBUG SPHERE {sphere_index}: total_robot_spheres={total_robot_spheres}, is_attached={is_attached}")
+        if sphere_index < 5:  # Debug first few spheres
+            self.logger.debug(
+                f"SPHERE {sphere_index}: total_robot_spheres={total_robot_spheres}, is_attached={is_attached}"
+            )
 
         return is_attached
 
@@ -1735,9 +1734,8 @@ class CuroboPlanner(MotionPlanner):
         # Always reset the plan before starting a new one to ensure a clean state
         self.reset_plan()
 
-        if self.debug:
-            print("\n=== MOTION PLANNING DEBUG ===")
-            print(f"Expected attached object: {expected_attached_object}")
+        self.logger.debug("=== MOTION PLANNING DEBUG ===")
+        self.logger.debug(f"Expected attached object: {expected_attached_object}")
 
         self.update_world()
         gripper_closed = expected_attached_object is not None
@@ -1745,80 +1743,69 @@ class CuroboPlanner(MotionPlanner):
         current_attached = self.get_attached_objects()
         gripper_pos = self.robot.data.joint_pos[env_id, -2:]
 
-        if self.debug:
-            print(f"Current attached objects: {current_attached}")
+        self.logger.debug(f"Current attached objects: {current_attached}")
 
         # Attach object if expected but not currently attached
         if expected_attached_object and expected_attached_object not in current_attached:
-            if self.debug:
-                print(f"Need to attach {expected_attached_object}")
+            self.logger.debug(f"Need to attach {expected_attached_object}")
 
             object_mappings = self._get_object_mappings()
 
-            if self.debug:
-                print(f"Object mappings found: {list(object_mappings.keys())}")
+            self.logger.debug(f"Object mappings found: {list(object_mappings.keys())}")
 
             if expected_attached_object in object_mappings:
                 expected_path = object_mappings[expected_attached_object]
 
-                if self.debug:
-                    print(f"Object path: {expected_path}")
+                self.logger.debug(f"Object path: {expected_path}")
 
-                    # Debug object poses
-                    rigid_objects = self.env.scene.rigid_objects
-                    if expected_attached_object in rigid_objects:
-                        obj = rigid_objects[expected_attached_object]
-                        origin = self.env.scene.env_origins[env_id]
-                        obj_pos = obj.data.root_pos_w[env_id] - origin
-                        print(f"Isaac Lab object position: {obj_pos}")
+                # Debug object poses
+                rigid_objects = self.env.scene.rigid_objects
+                if expected_attached_object in rigid_objects:
+                    obj = rigid_objects[expected_attached_object]
+                    origin = self.env.scene.env_origins[env_id]
+                    obj_pos = obj.data.root_pos_w[env_id] - origin
+                    self.logger.debug(f"Isaac Lab object position: {obj_pos}")
 
-                        # Debug end-effector position
-                        ee_frame_cfg = SceneEntityCfg("ee_frame")
-                        ee_frame = self.env.scene[ee_frame_cfg.name]
-                        ee_pos = ee_frame.data.target_pos_w[env_id, 0, :] - origin
-                        print(f"End-effector position: {ee_pos}")
+                    # Debug end-effector position
+                    ee_frame_cfg = SceneEntityCfg("ee_frame")
+                    ee_frame = self.env.scene[ee_frame_cfg.name]
+                    ee_pos = ee_frame.data.target_pos_w[env_id, 0, :] - origin
+                    self.logger.debug(f"End-effector position: {ee_pos}")
 
-                        # Debug distance
-                        distance = torch.linalg.vector_norm(obj_pos - ee_pos).item()
-                        print(f"Distance EE to object: {distance:.4f}")
+                    # Debug distance
+                    distance = torch.linalg.vector_norm(obj_pos - ee_pos).item()
+                    self.logger.debug(f"Distance EE to object: {distance:.4f}")
 
-                        # Debug gripper state
-                        gripper_open_val = self.config.grasp_gripper_open_val
-                        print(f"Gripper positions: {gripper_pos}")
-                        print(f"Gripper open val: {gripper_open_val}")
+                    # Debug gripper state
+                    gripper_open_val = self.config.grasp_gripper_open_val
+                    self.logger.debug(f"Gripper positions: {gripper_pos}")
+                    self.logger.debug(f"Gripper open val: {gripper_open_val}")
 
                 is_grasped = self._check_object_grasped(gripper_pos, expected_attached_object)
 
-                if self.debug:
-                    print(f"Is grasped check result: {is_grasped}")
+                self.logger.debug(f"Is grasped check result: {is_grasped}")
 
                 if is_grasped:
                     self._attach_object(expected_attached_object, expected_path, env_id)
-                    if self.debug:
-                        print(f"Attached {expected_attached_object}")
+                    self.logger.debug(f"Attached {expected_attached_object}")
                 else:
-                    if self.debug:
-                        print(
-                            "Object not detected as grasped - attachment skipped"
-                        )  # This will cause collision with ghost object!
+                    self.logger.debug(
+                        "Object not detected as grasped - attachment skipped"
+                    )  # This will cause collision with ghost object!
             else:
-                if self.debug:
-                    print(f"Object {expected_attached_object} not found in world mappings")
+                self.logger.debug(f"Object {expected_attached_object} not found in world mappings")
 
         # Detach objects if no object should be attached (i.e., placing/releasing)
         if expected_attached_object is None and current_attached:
-            if self.debug:
-                print("Detaching all objects as no object expected to be attached")
+            self.logger.debug("Detaching all objects as no object expected to be attached")
             self._detach_objects()
 
-        if self.debug:
-            print(f"Planning motion with attached objects: {self.get_attached_objects()}")
+        self.logger.debug(f"Planning motion with attached objects: {self.get_attached_objects()}")
 
         plan_success = self.plan_motion(target_pose, step_size, enable_retiming)
 
-        if self.debug:
-            print(f"Planning result: {plan_success}")
-            print("=== END POST-GRASP DEBUG ===\n")
+        self.logger.debug(f"Planning result: {plan_success}")
+        self.logger.debug("=== END POST-GRASP DEBUG ===")
 
         self._detach_objects()
 
@@ -1843,7 +1830,7 @@ class CuroboPlanner(MotionPlanner):
         gripper_open_val = self.config.grasp_gripper_open_val
         object_grasped = gripper_pos[0].item() < gripper_open_val
 
-        print(
+        self.logger.info(
             f"Object {object_name} is grasped: {object_grasped}"
             if object_grasped
             else f"Object {object_name} is not grasped"
@@ -1917,11 +1904,9 @@ class CuroboPlanner(MotionPlanner):
         # Any spheres beyond robot_sphere_count are attached object spheres
         attached_sphere_count = max(0, total_spheres - robot_sphere_count)
 
-        if self.debug:
-            print(
-                f"DEBUG SPHERE COUNT: Total={total_spheres}, Robot={robot_sphere_count},"
-                f"Attached={attached_sphere_count}"
-            )
+        self.logger.debug(
+            f"SPHERE COUNT: Total={total_spheres}, Robot={robot_sphere_count},Attached={attached_sphere_count}"
+        )
 
         return {
             "total": total_spheres,

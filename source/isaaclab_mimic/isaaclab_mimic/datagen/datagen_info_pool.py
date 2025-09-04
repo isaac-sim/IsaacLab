@@ -91,7 +91,11 @@ class DataGenInfoPool:
         Add a datagen info from the given episode.
 
         Args:
-            episode (EpisodeData): episode to add
+            episode (EpisodeData): Episode to add.
+
+        Raises:
+            ValueError: Episode lacks 'datagen_info' annotations in observations.
+            ValueError: Subtask termination signal is not increasing.
         """
         ep_grp = episode.data
 
