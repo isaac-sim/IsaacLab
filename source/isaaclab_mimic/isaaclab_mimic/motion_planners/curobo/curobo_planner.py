@@ -27,7 +27,6 @@ from isaaclab.managers import SceneEntityCfg
 
 from isaaclab_mimic.motion_planners.base_motion_planner import MotionPlanner
 from isaaclab_mimic.motion_planners.curobo.curobo_planner_config import CuroboPlannerConfig
-from isaaclab_mimic.motion_planners.curobo.plan_visualizer import PlanVisualizer
 
 
 @dataclass
@@ -101,6 +100,8 @@ class CuroboPlanner(MotionPlanner):
 
         # Initialize plan visualizer if enabled
         if self.visualize_plan:
+            from isaaclab_mimic.motion_planners.curobo.plan_visualizer import PlanVisualizer
+
             # Use env-local base translation for multi-env rendering consistency
             env_origin = self.env.scene.env_origins[env_id, :3]
             base_translation = (self.robot.data.root_pos_w[env_id, :3] - env_origin).detach().cpu().numpy()
