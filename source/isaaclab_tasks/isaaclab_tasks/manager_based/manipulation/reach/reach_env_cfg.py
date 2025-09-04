@@ -7,6 +7,10 @@ from dataclasses import MISSING
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
+from isaaclab.devices import DevicesCfg
+from isaaclab.devices.gamepad import Se3GamepadCfg
+from isaaclab.devices.keyboard import Se3KeyboardCfg
+from isaaclab.devices.spacemouse import Se3SpaceMouseCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import ActionTermCfg as ActionTerm
 from isaaclab.managers import CurriculumTermCfg as CurrTerm
@@ -206,3 +210,20 @@ class ReachEnvCfg(ManagerBasedRLEnvCfg):
         self.viewer.eye = (3.5, 3.5, 3.5)
         # simulation settings
         self.sim.dt = 1.0 / 60.0
+
+        self.teleop_devices = DevicesCfg(
+            devices={
+                "keyboard": Se3KeyboardCfg(
+                    gripper_term=False,
+                    sim_device=self.sim.device,
+                ),
+                "gamepad": Se3GamepadCfg(
+                    gripper_term=False,
+                    sim_device=self.sim.device,
+                ),
+                "spacemouse": Se3SpaceMouseCfg(
+                    gripper_term=False,
+                    sim_device=self.sim.device,
+                ),
+            },
+        )
