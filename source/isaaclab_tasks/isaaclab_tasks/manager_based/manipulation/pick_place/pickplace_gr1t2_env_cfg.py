@@ -437,5 +437,17 @@ class PickPlaceGR1T2EnvCfg(ManagerBasedRLEnvCfg):
                     sim_device=self.sim.device,
                     xr_cfg=self.xr,
                 ),
+                "manusvive": ManusViveCfg(
+                    retargeters=[
+                        GR1T2RetargeterCfg(
+                            enable_visualization=True,
+                            num_open_xr_hand_joints=2 * 26,
+                            sim_device=self.sim.device,
+                            hand_joint_names=self.actions.pink_ik_cfg.hand_joint_names,
+                        ),
+                    ],
+                    sim_device=self.sim.device,
+                    xr_cfg=self.xr,
+                ),
             }
         )

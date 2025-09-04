@@ -19,7 +19,7 @@ parser.add_argument(
     "--teleop_device",
     type=str,
     default="keyboard",
-    choices=["keyboard", "spacemouse", "gamepad", "handtracking"],
+    choices=["keyboard", "spacemouse", "gamepad", "handtracking", "manusvive"],
     help="Device for interacting with environment",
 )
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
@@ -42,7 +42,7 @@ if args_cli.enable_pinocchio:
     # not the one installed by Isaac Sim pinocchio is required by the Pink IK controllers and the
     # GR1T2 retargeter
     import pinocchio  # noqa: F401
-if "handtracking" in args_cli.teleop_device.lower():
+if "handtracking" in args_cli.teleop_device.lower() or "manusvive" in args_cli.teleop_device.lower():
     app_launcher_args["xr"] = True
 
 # launch omniverse app
