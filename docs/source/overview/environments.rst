@@ -971,6 +971,14 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Isaac-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor-Play-v0
       - Manager Based
       -
+    * - Isaac-Place-Mug-Agibot-Left-Arm-RmpFlow-v0
+      -
+      - Manager Based
+      -
+    * - Isaac-Place-Toy2Box-Agibot-Right-Arm-RmpFlow-v0
+      -
+      - Manager Based
+      -
     * - Isaac-Velocity-Flat-Anymal-B-v0
       - Isaac-Velocity-Flat-Anymal-B-Play-v0
       - Manager Based
