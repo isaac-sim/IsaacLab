@@ -97,17 +97,17 @@ class NewtonViewerGL(ViewerGL):
 
         # Then render a small floating window with training controls
         imgui = self.ui.imgui
-        io = self.ui.io
         # Place near left panel but offset
-        try:
+        from contextlib import suppress
+
+        with suppress(Exception):
             imgui.set_next_window_pos(imgui.ImVec2(320, 10))
-        except Exception:
-            pass
 
         flags = 0
         if imgui.begin("Training Controls", flags=flags):
             self._render_training_controls(imgui)
         imgui.end()
+        return None
 
     def _render_left_panel(self):
         """Override the left panel to remove the base pause checkbox."""
@@ -219,3 +219,4 @@ class NewtonViewerGL(ViewerGL):
             # self._render_selection_panel()
 
         imgui.end()
+        return

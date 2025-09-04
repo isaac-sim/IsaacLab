@@ -46,7 +46,6 @@ def replicate_environment(
     with Timer(name="newton_env_builder", msg="Env Builder took:", enable=True, format="ms"):
         builder = ModelBuilder(up_axis=up_axis)
 
-        # first, load everything except the prototype env
         stage_info = builder.add_usd(
             source,
             ignore_paths=[prototype_path],
@@ -77,21 +76,20 @@ def replicate_environment(
             joint_start = builder.joint_count
             articulation_start = builder.articulation_count
 
-            with Timer(name="newton_add_builder", msg="Add builder took:", enable=False, format="ms"):
-                builder.add_builder(
-                    prototype_builder, xform=wp.transform(np.array(pos) + np.array(spawn_offset), wp.quat_identity())
-                )
+            builder.add_builder(
+                prototype_builder, xform=wp.transform(np.array(pos) + np.array(spawn_offset), wp.quat_identity())
+            )
 
-                if i > 0:
-                    update_paths(
-                        builder,
-                        prototype_path,
-                        path_pattern.format(i),
-                        body_start=body_start,
-                        shape_start=shape_start,
-                        joint_start=joint_start,
-                        articulation_start=articulation_start,
-                    )
+            if i > 0:
+                update_paths(
+                    builder,
+                    prototype_path,
+                    path_pattern.format(i),
+                    body_start=body_start,
+                    shape_start=shape_start,
+                    joint_start=joint_start,
+                    articulation_start=articulation_start,
+                )
 
     return builder, stage_info
 
