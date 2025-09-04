@@ -372,7 +372,7 @@ class RecorderManager(ManagerBase):
             self.add_to_episodes(key, value)
 
     def record_post_physics_decimation_step(self) -> None:
-        """Trigger recorder terms for pre-physics step functions."""
+        """Trigger recorder terms for post-physics step functions in the decimation loop."""
         # Do nothing if no active recorder terms are provided
         if len(self.active_terms) == 0:
             return
