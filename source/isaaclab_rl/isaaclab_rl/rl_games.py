@@ -135,9 +135,11 @@ class RlGamesVecEnvWrapper(IVecEnv):
             space = [space.shape[0] for space in self.state_space.values()]
             self.rlg_num_states = sum(space)
         else:
-            raise TypeError(f"only valid combination for state space is gym.space.Box when concate_obs_groups is True,\
-                and gym.space.Dict when concate_obs_groups is False. You have concate_obs_groups: \
-                {self._concate_obs_groups}, and state_space: {self.state_space.__class__}")
+            raise TypeError(
+                "only valid combination for state space is gym.space.Box when concate_obs_groups is True,             "
+                "   and gym.space.Dict when concate_obs_groups is False. You have concate_obs_groups:                "
+                f" {self._concate_obs_groups}, and state_space: {self.state_space.__class__}"
+            )
 
     def __str__(self):
         """Returns the wrapper name and the :attr:`env` representation string."""
@@ -304,7 +306,7 @@ class RlGamesVecEnvWrapper(IVecEnv):
             A dictionary for RL-Games with keys:
             - ``"obs"``: either a concatenated tensor (``concate_obs_group=True``) or a Dict of group tensors.
             - ``"states"`` (optional): same structure as above when state groups are configured; omitted otherwise.
-         """
+        """
         # clip the observations
         for key, obs in obs_dict.items():
             obs_dict[key] = torch.clamp(obs, -self._clip_obs, self._clip_obs)
