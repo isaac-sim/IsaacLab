@@ -31,15 +31,32 @@ from isaaclab_mimic.motion_planners.curobo.curobo_planner_config import CuroboPl
 
 
 class PlannerLogger:
-    """Planner logger that only initializes when first used to avoid unwanted logging setup."""
+    """Logger class for motion planner debugging and monitoring.
+
+    This class provides standard logging functionality while maintaining isolation from
+    the main application's logging configuration. The logger supports configurable verbosity
+    levels and formats messages consistently for debugging motion planning operations,
+    collision checking, and object manipulation.
+    """
 
     def __init__(self, name: str, level: int = logging.INFO):
+        """Initialize the logger with specified name and level.
+
+        Args:
+            name: Logger name for identification in log messages
+            level: Logging level (DEBUG, INFO, WARNING, ERROR)
+        """
         self._name = name
         self._level = level
         self._logger = None
 
     @property
     def logger(self):
+        """Get the underlying logger instance, initializing it if needed.
+
+        Returns:
+            Configured Python logger instance with stream handler and formatter
+        """
         if self._logger is None:
             self._logger = logging.getLogger(self._name)
             if not self._logger.handlers:
@@ -51,15 +68,43 @@ class PlannerLogger:
         return self._logger
 
     def debug(self, msg, *args, **kwargs):
+        """Log debug-level message for detailed internal state information.
+
+        Args:
+            msg: Message string or format string
+            *args: Positional arguments for message formatting
+            **kwargs: Keyword arguments passed to underlying logger
+        """
         self.logger.debug(msg, *args, **kwargs)
 
     def info(self, msg, *args, **kwargs):
+        """Log info-level message for important operational events.
+
+        Args:
+            msg: Message string or format string
+            *args: Positional arguments for message formatting
+            **kwargs: Keyword arguments passed to underlying logger
+        """
         self.logger.info(msg, *args, **kwargs)
 
     def warning(self, msg, *args, **kwargs):
+        """Log warning-level message for potentially problematic conditions.
+
+        Args:
+            msg: Message string or format string
+            *args: Positional arguments for message formatting
+            **kwargs: Keyword arguments passed to underlying logger
+        """
         self.logger.warning(msg, *args, **kwargs)
 
     def error(self, msg, *args, **kwargs):
+        """Log error-level message for serious problems and failures.
+
+        Args:
+            msg: Message string or format string
+            *args: Positional arguments for message formatting
+            **kwargs: Keyword arguments passed to underlying logger
+        """
         self.logger.error(msg, *args, **kwargs)
 
 
@@ -743,51 +788,46 @@ class CuroboPlanner(MotionPlanner):
         Returns:
             True if attachment succeeded, False if attachment failed
         """
-        try:
-            current_joint_state = self._get_current_joint_state_for_curobo()
+        current_joint_state = self._get_current_joint_state_for_curobo()
 
-            self.logger.debug(f"Attaching {object_name} at path {object_path}")
+        self.logger.debug(f"Attaching {object_name} at path {object_path}")
 
-            # Create attachment record (relative pose object-frame to parent link)
-            attachment = self.create_attachment(
-                object_name,
-                self.config.attached_object_link_name,
-                current_joint_state,
-            )
-            self.attached_objects[object_name] = attachment
-            success = self.motion_gen.attach_objects_to_robot(
-                joint_state=current_joint_state,
-                object_names=[object_path],
-                link_name=self.config.attached_object_link_name,
-                surface_sphere_radius=self.config.surface_sphere_radius,
-                sphere_fit_type=SphereFitType.SAMPLE_SURFACE,
-                world_objects_pose_offset=None,
-            )
+        # Create attachment record (relative pose object-frame to parent link)
+        attachment = self.create_attachment(
+            object_name,
+            self.config.attached_object_link_name,
+            current_joint_state,
+        )
+        self.attached_objects[object_name] = attachment
+        success = self.motion_gen.attach_objects_to_robot(
+            joint_state=current_joint_state,
+            object_names=[object_path],
+            link_name=self.config.attached_object_link_name,
+            surface_sphere_radius=self.config.surface_sphere_radius,
+            sphere_fit_type=SphereFitType.SAMPLE_SURFACE,
+            world_objects_pose_offset=None,
+        )
 
-            if success:
-                self.logger.debug(f"Successfully attached {object_name}")
-                self.logger.debug(f"Current attached objects: {list(self.attached_objects.keys())}")
+        if success:
+            self.logger.debug(f"Successfully attached {object_name}")
+            self.logger.debug(f"Current attached objects: {list(self.attached_objects.keys())}")
 
-                # Force sphere visualization update
-                if self.visualize_spheres:
-                    self._update_sphere_visualization(force_update=True)
+            # Force sphere visualization update
+            if self.visualize_spheres:
+                self._update_sphere_visualization(force_update=True)
 
-                self.logger.info(f"Sphere count after attach is successful: {self._count_active_spheres()}")
+            self.logger.info(f"Sphere count after attach is successful: {self._count_active_spheres()}")
 
-                # Deactivate the original obstacle as it's now carried by the robot
-                self.motion_gen.world_coll_checker.enable_obstacle(object_path, enable=False, env_idx=self.env_id)
+            # Deactivate the original obstacle as it's now carried by the robot
+            self.motion_gen.world_coll_checker.enable_obstacle(object_path, enable=False, env_idx=self.env_id)
 
-                return True
-            else:
-                self.logger.error(f"cuRobo attach_objects_to_robot failed for {object_name}")
-                # Clean up on failure
-                if object_name in self.attached_objects:
-                    del self.attached_objects[object_name]
-                return False
-
-        except Exception as e:
-            self.logger.error(f"Failed to attach objects: {e}")
-        return False
+            return True
+        else:
+            self.logger.error(f"cuRobo attach_objects_to_robot failed for {object_name}")
+            # Clean up on failure
+            if object_name in self.attached_objects:
+                del self.attached_objects[object_name]
+            return False
 
     def _detach_objects(self, link_names: set[str] | None = None) -> bool:
         """Detach objects from robot and restore collision checking.
