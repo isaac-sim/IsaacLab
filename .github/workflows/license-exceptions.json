@@ -390,5 +390,10 @@
     "package": "ml_dtypes",
     "license" : "UNKNOWN",
     "comment": "Apache 2.0"
+  },
+  {
+    "package": "zipp",
+    "license" : "UNKNOWN",
+    "comment": "MIT"
   }
 ]
