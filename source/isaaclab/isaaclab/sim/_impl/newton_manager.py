@@ -67,6 +67,7 @@ class NewtonManager:
     _up_axis: str = "Z"
     _num_envs: int = None
     _model_changes: set[int] = set()
+    _views: list[str] = []
 
     @classmethod
     def clear(cls):
@@ -96,6 +97,7 @@ class NewtonManager:
         NewtonManager._up_axis = "Z"
         NewtonManager._first_call = True
         NewtonManager._model_changes = set()
+        NewtonManager._views = []
 
     @classmethod
     def set_builder(cls, builder):
@@ -108,6 +110,14 @@ class NewtonManager:
     @classmethod
     def add_on_start_callback(cls, callback) -> None:
         NewtonManager._on_start_callbacks.append(callback)
+
+    @classmethod
+    def add_view(cls, view) -> None:
+        NewtonManager._views.append(view)
+
+    @classmethod
+    def get_views(cls) -> list:
+        return NewtonManager._views
 
     @classmethod
     def add_model_change(cls, change: SolverNotifyFlags) -> None:
