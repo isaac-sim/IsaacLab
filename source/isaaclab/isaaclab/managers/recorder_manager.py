@@ -440,20 +440,6 @@ class RecorderManager(ManagerBase):
 
         # Add custom episode metadata if available
         ep_meta = self._env.cfg.get_ep_meta()
-
-        def convert_fixture_to_name(d) -> dict:
-            if not isinstance(d, dict):
-                # Check if it is a fixture type
-                if hasattr(d, "__class__") and "lwlab.core.models.fixtures" in d.__class__.__module__:
-                    return d.name
-                return d
-            result = {}
-            for k, v in d.items():
-                result[k] = convert_fixture_to_name(v)
-            return result
-
-        for obj in ep_meta["object_cfgs"]:
-            obj["placement"] = convert_fixture_to_name(obj["placement"])
         return ep_meta
 
     def export_episodes(self, env_ids: Sequence[int] | None = None) -> None:
