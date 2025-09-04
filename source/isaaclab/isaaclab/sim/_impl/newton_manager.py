@@ -13,8 +13,7 @@ from newton import Axis, Contacts, Control, Model, ModelBuilder, State, eval_fk
 from newton.sensors import ContactSensor as NewtonContactSensor
 from newton.sensors import populate_contacts
 from newton.solvers import SolverBase, SolverFeatherstone, SolverMuJoCo, SolverXPBD
-from newton.utils import parse_usd
-from newton.viewer import ViewerGL
+from isaaclab.sim._impl.newton_viewer import NewtonViewerGL
 
 from isaaclab.sim._impl.newton_manager_cfg import NewtonCfg
 from isaaclab.utils.timer import Timer
@@ -27,7 +26,7 @@ def flipped_match(x: str, y: str) -> re.Match | None:
 
     Args:
         x: The body/shape name in the simulation.
-        y: The body/shape name in the contact view.
+        y: The body/shape name in the contact w.
 
     Returns:
         The match object if the body/shape name is found in the contact view, otherwise None.
@@ -76,7 +75,8 @@ class NewtonManager:
     _gravity_vector: tuple[float, float, float] = (0.0, 0.0, -9.81)
     _up_axis: str = "Z"
     _num_envs: int = None
-    _paused_update_counter: int = 0
+    _visualizer_update_counter: int = 0
+    _visualizer_update_frequency: int = 1  # Configurable frequency for all rendering updates
 
     @classmethod
     def clear(cls):
@@ -100,7 +100,8 @@ class NewtonManager:
         NewtonManager._cfg = NewtonCfg()
         NewtonManager._up_axis = "Z"
         NewtonManager._first_call = True
-        NewtonManager._paused_update_counter = 0
+        NewtonManager._visualizer_update_counter = 0
+        NewtonManager._visualizer_update_frequency = 10
 
     @classmethod
     def set_builder(cls, builder):
@@ -159,7 +160,7 @@ class NewtonManager:
         stage = omni.usd.get_context().get_stage()
         up_axis = UsdGeom.GetStageUpAxis(stage)
         builder = ModelBuilder(up_axis=up_axis)
-        parse_usd(stage, builder)
+        builder.add_usd(stage)
         NewtonManager.set_builder(builder)
 
     @classmethod
@@ -303,24 +304,33 @@ class NewtonManager:
 
         This function renders the simulation using the OpenGL renderer.
         """
+
         if NewtonManager._renderer is None:
-            NewtonManager._renderer = ViewerGL(width=1280, height=720)
+            NewtonManager._renderer = NewtonViewerGL(width=1280, height=720)
             NewtonManager._renderer.camera.pos = (0, 3, 10)
             NewtonManager._renderer.up_axis = NewtonManager._up_axis
             NewtonManager._renderer.scaling = 1.0
             NewtonManager._renderer._paused = False
             NewtonManager._renderer.set_model(NewtonManager._model)
         else:
-            if not NewtonManager._renderer.is_paused():
+            # Keep updating the renderer until the training is resumed
+            while NewtonManager._renderer.is_training_paused():
                 NewtonManager._renderer.begin_frame(NewtonManager._sim_time)
                 NewtonManager._renderer.log_state(NewtonManager._state_0)
-                NewtonManager._renderer.end_frame()  # Pending Newton PR #625 merge
-                # NewtonManager._renderer._update() # Works without the above PR
-            else:
-                NewtonManager._paused_update_counter += 1
-                if NewtonManager._paused_update_counter >= 10:
+                NewtonManager._renderer.end_frame()
+            
+            # Use configurable frequency for both paused and unpaused rendering
+            NewtonManager._visualizer_update_counter += 1
+            if NewtonManager._visualizer_update_counter >= NewtonManager._visualizer_update_frequency:
+                if not NewtonManager._renderer.is_paused():
+                    # Render the frame normally when not paused
+                    NewtonManager._renderer.begin_frame(NewtonManager._sim_time)
+                    NewtonManager._renderer.log_state(NewtonManager._state_0)
+                    NewtonManager._renderer.end_frame()
+                else:
+                    # Just update the renderer when paused (no actual rendering)
                     NewtonManager._renderer._update()
-                    NewtonManager._paused_update_counter = 0
+                NewtonManager._visualizer_update_counter = 0
 
     @classmethod
     def sync_fabric_transforms(cls) -> None:

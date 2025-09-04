@@ -8,7 +8,6 @@ from typing import Any
 
 import warp as wp
 from newton import AxisType, ModelBuilder
-from newton.utils import parse_usd
 
 from isaaclab.utils.timer import Timer
 
@@ -48,9 +47,8 @@ def replicate_environment(
         builder = ModelBuilder(up_axis=up_axis)
 
         # first, load everything except the prototype env
-        stage_info = parse_usd(
+        stage_info = builder.add_usd(
             source,
-            builder,
             ignore_paths=[prototype_path],
             **usd_kwargs,
         )
@@ -63,9 +61,8 @@ def replicate_environment(
     with Timer(name="newton_prototype_builder", msg="Prototype Builder took:", enable=True, format="ms"):
         # load just the prototype env
         prototype_builder = ModelBuilder(up_axis=up_axis)
-        parse_usd(
+        prototype_builder.add_usd(
             source,
-            prototype_builder,
             root_path=prototype_path,
             load_non_physics_prims=False,
             **usd_kwargs,

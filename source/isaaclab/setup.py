@@ -51,7 +51,7 @@ INSTALL_REQUIRES = [
     "mujoco==3.3.6.dev798190254",
     "mujoco-warp @ git+https://github.com/google-deepmind/mujoco_warp.git@baeb10e73237df13802217d310788e1f02dcf92d",
     "newton-physics @ git+https://github.com/newton-physics/newton.git@alpha-1",
-    "imgui[pyglet]==2.0.0",
+    "imgui-bundle==1.92.0",
 ]
 
 
