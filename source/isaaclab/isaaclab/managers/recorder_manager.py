@@ -124,7 +124,7 @@ class RecorderTerm(ManagerTermBase):
         return None, None
 
     def record_post_physics_decimation_step(self) -> tuple[str | None, torch.Tensor | dict | None]:
-        """Record data before the physics step is executed.
+        """Record data after the physics step is executed in the decimation loop.
 
         Returns:
             A tuple of key and value to be recorded.
