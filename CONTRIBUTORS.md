@@ -141,6 +141,7 @@ Guidelines for modifications:
 * Ziqi Fan
 * Zoe McCarthy
 * David Leon
+* Song Yi
 
 ## Acknowledgements
 

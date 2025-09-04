@@ -413,7 +413,7 @@ Annotations denote the end of a subtask. For the pick and place task, this means
 Each demo requires a single annotation between the first and second subtask of the right arm. This annotation ("S" button press) should be done when the right robot arm finishes the "idle" subtask and begins to
 move towards the target object. An example of a correct annotation is shown below:
 
-.. figure:: ../_static/tasks/manipulation/gr-1_pick_place_annotation.jpg
+.. figure:: ../../_static/tasks/manipulation/gr-1_pick_place_annotation.jpg
    :width: 100%
    :align: center
 
