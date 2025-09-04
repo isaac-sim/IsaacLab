@@ -11,7 +11,6 @@ Main data generation script.
 """Launch Isaac Sim Simulator first."""
 
 import argparse
-import os
 
 from isaaclab.app import AppLauncher
 
@@ -92,12 +91,6 @@ def main():
     if task_name:
         task_name = args_cli.task.split(":")[-1]
     env_name = task_name or get_env_name_from_dataset(args_cli.input_file)
-
-    # Export a flag for cfg-time decisions (env cfg __post_init__)
-    if args_cli.use_skillgen:
-        os.environ["ISAACLAB_USE_SKILLGEN"] = "1"
-    else:
-        os.environ.pop("ISAACLAB_USE_SKILLGEN", None)
 
     # Configure environment
     env_cfg, success_term = setup_env_config(

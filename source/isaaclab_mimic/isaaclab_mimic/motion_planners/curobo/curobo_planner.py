@@ -84,6 +84,9 @@ class CuroboPlanner(MotionPlanner):
             num_trajopt_seeds: Number of seeds for trajectory optimization
             num_graph_seeds: Number of seeds for graph search
             interpolation_dt: Time step for interpolating waypoints
+
+        Raises:
+            ValueError: If robot_config_file is not provided
         """
         # Initialize base class
         super().__init__(env=env, robot=robot, env_id=env_id, debug=config.debug_planner)
@@ -122,10 +125,10 @@ class CuroboPlanner(MotionPlanner):
         # This isolates the motion planner from Isaac Lab's device configuration
         self.tensor_args: TensorDeviceType
         if torch.cuda.is_available():
-            cuda_device = torch.device("cuda:0")
-            self.tensor_args = TensorDeviceType(device=cuda_device, dtype=torch.float32)
+            idx = self.config.cuda_device if self.config.cuda_device is not None else torch.cuda.current_device()
+            self.tensor_args = TensorDeviceType(device=torch.device(f"cuda:{idx}"), dtype=torch.float32)
             if self.debug:
-                print("cuRobo motion planner initialized on CUDA device.")
+                print(f"cuRobo motion planner initialized on CUDA device {idx}")
         else:
             # Fallback to CPU if CUDA not available, but this may cause issues
             self.tensor_args = TensorDeviceType()
@@ -259,17 +262,19 @@ class CuroboPlanner(MotionPlanner):
         in update_world() to maintain performance.
         """
         env_prim_path = f"/World/envs/env_{self.env_id}"
-        robot_prim_path = f"{env_prim_path}/Robot"
+        robot_prim_path = self.config.robot_prim_path or f"{env_prim_path}/Robot"
+
+        ignore_list = self.config.world_ignore_substrings or [
+            f"{env_prim_path}/Robot",
+            f"{env_prim_path}/target",
+            "/World/defaultGroundPlane",
+            "/curobo",
+        ]
 
         self._static_world_config = self.usd_helper.get_obstacles_from_stage(
             only_paths=[env_prim_path],
             reference_prim_path=robot_prim_path,
-            ignore_substring=[
-                f"{env_prim_path}/Robot",
-                f"{env_prim_path}/target",
-                "/World/defaultGroundPlane",
-                "/curobo",
-            ],
+            ignore_substring=ignore_list,
         )
         self._static_world_config = self._static_world_config.get_collision_check_world()
 
@@ -352,6 +357,9 @@ class CuroboPlanner(MotionPlanner):
 
         Returns:
             World pose of the specified link in cuRobo coordinate frame
+
+        Raises:
+            KeyError: If link_name is not found in the computed link poses
         """
         if joint_state is None:
             joint_state = self._get_current_joint_state_for_curobo()
@@ -433,6 +441,9 @@ class CuroboPlanner(MotionPlanner):
 
         The method validates that the set of objects hasn't changed at runtime, as cuRobo
         requires world model reinitialization when objects are added or removed.
+
+        Raises:
+            RuntimeError: If the set of objects has changed at runtime
         """
 
         # Establish validation baseline on first call, validate on subsequent calls
@@ -1200,7 +1211,6 @@ class CuroboPlanner(MotionPlanner):
                 if self.debug:
                     print(f"Contact planning succeeded with {len(self._current_plan.position)} waypoints")
             else:
-                planning_success = False
                 if self.debug:
                     print(f"Contact planning failed: {result.status}")
 
