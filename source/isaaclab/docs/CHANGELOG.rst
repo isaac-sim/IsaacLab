@@ -1,6 +1,21 @@
 Changelog
 ---------
 
+0.45.10 (2025-09-02)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed regression in reach task configuration where the gripper command was being returned.
+* Added :attr:`~isaaclab.devices.Se3GamepadCfg.gripper_term` to :class:`~isaaclab.devices.Se3GamepadCfg`
+  to control whether the gamepad device should return a gripper command.
+* Added :attr:`~isaaclab.devices.Se3SpaceMouseCfg.gripper_term` to :class:`~isaaclab.devices.Se3SpaceMouseCfg`
+  to control whether the spacemouse device should return a gripper command.
+* Added :attr:`~isaaclab.devices.Se3KeyboardCfg.gripper_term` to :class:`~isaaclab.devices.Se3KeyboardCfg`
+  to control whether the keyboard device should return a gripper command.
+
+
 0.45.9 (2025-08-27)
 ~~~~~~~~~~~~~~~~~~~
 
