@@ -39,6 +39,7 @@ parser.add_argument(
 )
 parser.add_argument("--checkpoint", type=str, default=None, help="Path to model checkpoint to resume training.")
 parser.add_argument("--max_iterations", type=int, default=None, help="RL Policy training iterations.")
+parser.add_argument("--export_io_descriptors", action="store_true", default=False, help="Export IO descriptors.")
 parser.add_argument(
     "--ml_framework",
     type=str,
@@ -76,6 +77,7 @@ import os
 import random
 from datetime import datetime
 
+import omni
 import skrl
 from packaging import version
 
@@ -170,6 +172,15 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
 
     # get checkpoint path (to resume training)
     resume_path = retrieve_file_path(args_cli.checkpoint) if args_cli.checkpoint else None
+
+    # set the IO descriptors output directory if requested
+    if isinstance(env_cfg, ManagerBasedRLEnvCfg):
+        env_cfg.export_io_descriptors = args_cli.export_io_descriptors
+        env_cfg.io_descriptors_output_dir = os.path.join(log_root_path, log_dir)
+    else:
+        omni.log.warn(
+            "IO descriptors are only supported for manager based RL environments. No IO descriptors will be exported."
+        )
 
     # create isaac environment
     env = gym.make(args_cli.task, cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None)

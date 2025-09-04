@@ -7,12 +7,17 @@ import os
 import re
 import select
 import subprocess
+import sys
 import threading
+from collections.abc import Sequence
+from dataclasses import dataclass
 from datetime import datetime
 from math import isclose
 from time import time
+from typing import Any
 
 import ray
+from ray.util.scheduling_strategies import NodeAffinitySchedulingStrategy
 from tensorboard.backend.event_processing.directory_watcher import DirectoryDeletedError
 from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
 
@@ -307,12 +312,21 @@ def execute_job(
         return " ".join(result_details)
 
 
+def ray_init(ray_address: str = "auto", runtime_env: dict[str, Any] | None = None, log_to_driver: bool = False):
+    """Initialize Ray with the given address and runtime environment."""
+    if not ray.is_initialized():
+        print(
+            f"[INFO] Initializing Ray with address {ray_address}, log_to_driver={log_to_driver},"
+            f" runtime_env={runtime_env}"
+        )
+        ray.init(address=ray_address, runtime_env=runtime_env, log_to_driver=log_to_driver)
+
+
 def get_gpu_node_resources(
     total_resources: bool = False,
     one_node_only: bool = False,
     include_gb_ram: bool = False,
     include_id: bool = False,
-    ray_address: str = "auto",
 ) -> list[dict] | dict:
     """Get information about available GPU node resources.
 
@@ -329,8 +343,7 @@ def get_gpu_node_resources(
         or simply the resource for a single node if requested.
     """
     if not ray.is_initialized():
-        ray.init(address=ray_address)
-
+        raise Exception("Ray is not initialized. Please initialize Ray before getting node resources.")
     nodes = ray.nodes()
     node_resources = []
     total_cpus = 0
@@ -481,3 +494,225 @@ def _dicts_equal(d1: dict, d2: dict, tol=1e-9) -> bool:
         elif d1[key] != d2[key]:
             return False
     return True
+
+
+@dataclass
+class JobResource:
+    """A dataclass to represent a resource request for a job."""
+
+    num_gpus: float | None = None
+    num_cpus: float | None = None
+    memory: int | None = None  # in bytes
+
+    def to_opt(self) -> dict[str, Any]:
+        """Convert the resource request to a dictionary."""
+        opt = {}
+        if self.num_gpus is not None:
+            opt["num_gpus"] = self.num_gpus
+        if self.num_cpus is not None:
+            opt["num_cpus"] = self.num_cpus
+        if self.memory is not None:
+            opt["memory"] = self.memory
+        return opt
+
+    def to_pg_resources(self) -> dict[str, Any]:
+        """Convert the resource request to a dictionary suitable for placement groups."""
+        res = {}
+        if self.num_gpus is not None:
+            res["GPU"] = self.num_gpus
+        if self.num_cpus is not None:
+            res["CPU"] = self.num_cpus
+        if self.memory is not None:
+            res["memory"] = self.memory
+        return res
+
+
+@dataclass
+class JobNode:
+    """A dataclass to represent a node for job affinity."""
+
+    specific: str | None = None
+    hostname: str | None = None
+    node_id: str | None = None
+
+    def to_opt(self, nodes: list[dict[str, Any]]) -> dict[str, Any]:
+        """
+        Convert node affinity settings into a dictionary of Ray actor scheduling options.
+
+        Args:
+            nodes (list[dict[str, Any]]): List of node metadata from `ray.nodes()` which looks like this:
+            [{
+                'NodeID': 'xxx',
+                'Alive': True,
+                'NodeManagerAddress': 'x.x.x.x',
+                'NodeManagerHostname': 'ray-head-mjzzf',
+                'NodeManagerPort': 44039,
+                'ObjectManagerPort': 35689,
+                'ObjectStoreSocketName': '/tmp/ray/session_xxx/sockets/plasma_store',
+                'RayletSocketName': '/tmp/ray/session_xxx/sockets/raylet',
+                'MetricsExportPort': 8080,
+                'NodeName': 'x.x.x.x',
+                'RuntimeEnvAgentPort': 63725,
+                'DeathReason': 0,
+                'DeathReasonMessage': '',
+                'alive': True,
+                'Resources': {
+                    'node:__internal_head__': 1.0,
+                    'object_store_memory': 422449279795.0,
+                    'memory': 1099511627776.0,
+                    'GPU': 8.0,
+                    'node:x.x.x.x': 1.0,
+                    'CPU': 192.0,
+                    'accelerator_type:H20': 1.0
+                    },
+                'Labels': {
+                    'ray.io/node_id': 'xxx'
+                    }
+                },...]
+
+        Returns:
+            dict[str, Any]: A dictionary with possible scheduling options:
+                - Empty if no specific placement requirement.
+                - "scheduling_strategy" key set to `NodeAffinitySchedulingStrategy`
+                  if hostname or node_id placement is specified.
+
+        Raises:
+            ValueError: If hostname/node_id is specified but not found in the cluster
+                        or the node is not alive.
+        """
+        opt = {}
+        if self.specific is None or self.specific == "any":
+            return opt
+        elif self.specific == "hostname":
+            if self.hostname is None:
+                raise ValueError("Hostname must be specified when specific is 'hostname'")
+            for node in nodes:
+                if node["NodeManagerHostname"] == self.hostname:
+                    if node["alive"] is False:
+                        raise ValueError(f"Node {node['NodeID']} is not alive")
+                    opt["scheduling_strategy"] = NodeAffinitySchedulingStrategy(node_id=node["NodeID"], soft=False)
+                    return opt
+            raise ValueError(f"Hostname {self.hostname} not found in nodes: {nodes}")
+        elif self.specific == "node_id":
+            if self.node_id is None:
+                raise ValueError("Node ID must be specified when specific is 'node_id'")
+            for node in nodes:
+                if node["NodeID"] == self.node_id:
+                    if node["alive"] is False:
+                        raise ValueError(f"Node {node['NodeID']} is not alive")
+                    opt["scheduling_strategy"] = NodeAffinitySchedulingStrategy(node_id=node["NodeID"], soft=False)
+                    return opt
+            raise ValueError(f"Node ID {self.node_id} not found in nodes: {nodes}")
+        else:
+            raise ValueError(f"Invalid specific value: {self.specific}. Must be 'any', 'hostname', or 'node_id'.")
+
+
+@dataclass
+class Job:
+    """A dataclass to represent a job to be submitted to Ray."""
+
+    # job command
+    cmd: str | None = None
+    py_args: str | None = None
+    # identifier string for the job, e.g., "job 0"
+    name: str = ""
+    # job resources, e.g., {"CPU": 4, "GPU": 1}
+    resources: JobResource | None = None
+    # specify the node to run the job on, if needed to run on a specific node
+    node: JobNode | None = None
+
+    def to_opt(self, nodes: list[dict[str, Any]]) -> dict[str, Any]:
+        """
+        Convert the job definition into a dictionary of Ray scheduling options.
+
+        Args:
+            nodes (list[dict[str, Any]]): Node information from `ray.nodes()`.
+
+        Returns:
+            dict[str, Any]: Combined scheduling options from:
+                - `JobResource.to_opt()` for resource requirements
+                - `JobNode.to_opt()` for node placement constraints
+        """
+        opt = {}
+        if self.resources is not None:
+            opt.update(self.resources.to_opt())
+        if self.node is not None:
+            opt.update(self.node.to_opt(nodes))
+        return opt
+
+
+@ray.remote
+class JobActor:
+    """Actor to run job in Ray cluster."""
+
+    def __init__(self, job: Job, test_mode: bool, log_all_output: bool, extract_experiment: bool = False):
+        self.job = job
+        self.test_mode = test_mode
+        self.log_all_output = log_all_output
+        self.extract_experiment = extract_experiment
+        self.done = True
+
+    def ready(self) -> bool:
+        """Check if the job is ready to run."""
+        return self.done
+
+    def run(self):
+        """Run the job."""
+        cmd = self.job.cmd if self.job.cmd else " ".join([sys.executable, *self.job.py_args.split()])
+        return execute_job(
+            job_cmd=cmd,
+            identifier_string=self.job.name,
+            test_mode=self.test_mode,
+            extract_experiment=self.extract_experiment,
+            log_all_output=self.log_all_output,
+        )
+
+
+def submit_wrapped_jobs(
+    jobs: Sequence[Job],
+    log_realtime: bool = True,
+    test_mode: bool = False,
+    concurrent: bool = False,
+) -> None:
+    """
+    Submit a list of jobs to the Ray cluster and manage their execution.
+
+    Args:
+        jobs (Sequence[Job]): A sequence of Job objects to execute on Ray.
+        log_realtime (bool): Whether to log stdout/stderr in real-time. Defaults to True.
+        test_mode (bool): If True, run in GPU sanity-check mode instead of actual jobs. Defaults to False.
+        concurrent (bool): Whether to launch tasks simultaneously as a batch,
+                           or independently as resources become available. Defaults to False.
+
+    Returns:
+        None
+    """
+    if jobs is None or len(jobs) == 0:
+        print("[WARNING]: No jobs to submit")
+        return
+    if not ray.is_initialized():
+        raise Exception("Ray is not initialized. Please initialize Ray before submitting jobs.")
+    nodes = ray.nodes()
+    actors = []
+    for i, job in enumerate(jobs):
+        opts = job.to_opt(nodes)
+        name = job.name or f"job_{i + 1}"
+        print(f"[INFO] Create {name} with opts={opts}")
+        job_actor = JobActor.options(**opts).remote(job, test_mode, log_realtime)
+        actors.append(job_actor)
+    try:
+        if concurrent:
+            ray.get([actor.ready.remote() for actor in actors])
+            print("[INFO] All actors are ready to run.")
+        future = [actor.run.remote() for actor in actors]
+        while future:
+            ready, not_ready = ray.wait(future, timeout=5)
+            for result in ray.get(ready):
+                print(f"\n{result}\n")
+            future = not_ready
+        print("[INFO] all jobs completed.")
+    except KeyboardInterrupt:
+        print("[INFO] KeyboardInterrupt received, cancelling …")
+        for actor in actors:
+            ray.cancel(actor, force=True)
+        sys.exit(0)
