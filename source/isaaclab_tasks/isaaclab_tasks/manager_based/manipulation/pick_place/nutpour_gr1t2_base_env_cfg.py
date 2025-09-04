@@ -298,6 +298,9 @@ class NutPourGR1T2BaseEnvCfg(ManagerBasedRLEnvCfg):
         anchor_rot=(1.0, 0.0, 0.0, 0.0),
     )
 
+    # OpenXR hand tracking has 26 joints per hand
+    NUM_OPENXR_HAND_JOINTS = 26
+
     # Temporary directory for URDF files
     temp_urdf_dir = tempfile.gettempdir()
 

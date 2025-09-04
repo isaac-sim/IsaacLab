@@ -333,7 +333,7 @@ Collect human demonstrations
 
    Data collection for the GR-1 humanoid robot environment requires use of an Apple Vision Pro headset. If you do not have access to
    an Apple Vision Pro, you may skip this step and continue on to the next step: `Generate the dataset`_.
-   A pre-recorded annotated dataset is provided in the next step .
+   A pre-recorded annotated dataset is provided in the next step.
 
 .. tip::
    The GR1 scene utilizes the wrist poses from the Apple Vision Pro (AVP) as setpoints for a differential IK controller (Pink-IK).
@@ -380,6 +380,9 @@ Collect five demonstrations by running the following command:
    --dataset_file ./datasets/dataset_gr1.hdf5 \
    --num_demos 5 --enable_pinocchio
 
+.. note::
+   We also provide a GR-1 pick and place task with waist degrees-of-freedom enabled ``Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0`` (see :ref:`environments` for details on the available environments, including the GR1 Waist Enabled variant). The same command above applies but with the task name changed to ``Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0``.
+
 .. tip::
    If a demo fails during data collection, the environment can be reset using the teleoperation controls panel in the XR teleop client
    on the Apple Vision Pro or via voice control by saying "reset". See :ref:`teleoperate-apple-vision-pro` for more details.
@@ -410,7 +413,7 @@ Annotations denote the end of a subtask. For the pick and place task, this means
 Each demo requires a single annotation between the first and second subtask of the right arm. This annotation ("S" button press) should be done when the right robot arm finishes the "idle" subtask and begins to
 move towards the target object. An example of a correct annotation is shown below:
 
-.. figure:: ../_static/tasks/manipulation/gr-1_pick_place_annotation.jpg
+.. figure:: ../../_static/tasks/manipulation/gr-1_pick_place_annotation.jpg
    :width: 100%
    :align: center
 
