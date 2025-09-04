@@ -48,6 +48,35 @@ RUN --mount=type=cache,target=/var/cache/apt \
     apt -y autoremove && apt clean autoclean && \
     rm -rf /var/lib/apt/lists/*
 
+# Detect Ubuntu version and install CUDA 12.8 via NVIDIA network repo (cuda-keyring)
+RUN set -euo pipefail && \
+    . /etc/os-release && \
+    case "$ID" in \
+      ubuntu) \
+        case "$VERSION_ID" in \
+          "20.04") cuda_repo="ubuntu2004";; \
+          "22.04") cuda_repo="ubuntu2204";; \
+          "24.04") cuda_repo="ubuntu2404";; \
+          *) echo "Unsupported Ubuntu $VERSION_ID"; exit 1;; \
+        esac ;; \
+      *) echo "Unsupported base OS: $ID"; exit 1 ;; \
+    esac && \
+    apt-get update && apt-get install -y --no-install-recommends wget gnupg ca-certificates && \
+    wget -q https://developer.download.nvidia.com/compute/cuda/repos/${cuda_repo}/x86_64/cuda-keyring_1.1-1_all.deb && \
+    dpkg -i cuda-keyring_1.1-1_all.deb && \
+    rm -f cuda-keyring_1.1-1_all.deb && \
+    wget -q https://developer.download.nvidia.com/compute/cuda/repos/${cuda_repo}/x86_64/cuda-${cuda_repo}.pin && \
+    mv cuda-${cuda_repo}.pin /etc/apt/preferences.d/cuda-repository-pin-600 && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends cuda-toolkit-12-8 && \
+    apt-get -y autoremove && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+
+ENV CUDA_HOME=/usr/local/cuda-12.8
+ENV PATH=${CUDA_HOME}/bin:${PATH}
+ENV LD_LIBRARY_PATH=${CUDA_HOME}/lib64:${LD_LIBRARY_PATH}
+ENV TORCH_CUDA_ARCH_LIST=8.0+PTX
+
 # Copy the Isaac Lab directory (files to exclude are defined in .dockerignore)
 COPY ../ ${ISAACLAB_PATH}
 
@@ -90,6 +119,10 @@ RUN touch /bin/nvidia-smi && \
 # use pip caching to avoid reinstalling large packages
 RUN --mount=type=cache,target=${DOCKER_USER_HOME}/.cache/pip \
     ${ISAACLAB_PATH}/isaaclab.sh --install
+
+# Install cuRobo from source (pinned commit); needs CUDA env and Torch
+RUN ${ISAACLAB_PATH}/isaaclab.sh -p -m pip install --no-build-isolation \
+    "nvidia-curobo @ git+https://github.com/NVlabs/curobo.git@ebb71702f3f70e767f40fd8e050674af0288abe8"
 
 # HACK: Remove install of quadprog dependency
 RUN ${ISAACLAB_PATH}/isaaclab.sh -p -m pip uninstall -y quadprog
