@@ -14,6 +14,7 @@ import util
 from ray import air, tune
 from ray.tune.search.optuna import OptunaSearch
 from ray.tune.search.repeater import Repeater
+from ray.tune.stopper import CombinedStopper
 
 """
 This script breaks down an aggregate tuning job, as defined by a hyperparameter sweep configuration,
@@ -203,13 +204,18 @@ class LogExtractionErrorStopper(tune.Stopper):
             return False
 
 
-def invoke_tuning_run(cfg: dict, args: argparse.Namespace) -> None:
+def invoke_tuning_run(
+    cfg: dict,
+    args: argparse.Namespace,
+    stopper: tune.Stopper | None = None,
+) -> None:
     """Invoke an Isaac-Ray tuning run.
 
     Log either to a local directory or to MLFlow.
     Args:
         cfg: Configuration dictionary extracted from job setup
         args: Command-line arguments related to tuning.
+        stopper: Custom stopper, optional.
     """
     # Allow for early exit
     os.environ["TUNE_DISABLE_STRICT_METRIC_CHECKING"] = "1"
@@ -237,6 +243,12 @@ def invoke_tuning_run(cfg: dict, args: argparse.Namespace) -> None:
     )
     repeat_search = Repeater(searcher, repeat=args.repeat_run_count)
 
+    # Configure the stoppers
+    stoppers: CombinedStopper = CombinedStopper(*[
+        LogExtractionErrorStopper(max_errors=MAX_LOG_EXTRACTION_ERRORS),
+        *([stopper] if stopper is not None else []),
+    ])
+
     if args.run_mode == "local":  # Standard config, to file
         run_config = air.RunConfig(
             storage_path="/tmp/ray",
@@ -246,7 +258,7 @@ def invoke_tuning_run(cfg: dict, args: argparse.Namespace) -> None:
                 checkpoint_frequency=0,  # Disable periodic checkpointing
                 checkpoint_at_end=False,  # Disable final checkpoint
             ),
-            stop=LogExtractionErrorStopper(max_errors=MAX_LOG_EXTRACTION_ERRORS),
+            stop=stoppers,
         )
 
     elif args.run_mode == "remote":  # MLFlow, to MLFlow server
@@ -262,7 +274,7 @@ def invoke_tuning_run(cfg: dict, args: argparse.Namespace) -> None:
             storage_path="/tmp/ray",
             callbacks=[mlflow_callback],
             checkpoint_config=ray.train.CheckpointConfig(checkpoint_frequency=0, checkpoint_at_end=False),
-            stop=LogExtractionErrorStopper(max_errors=MAX_LOG_EXTRACTION_ERRORS),
+            stop=stoppers,
         )
     else:
         raise ValueError("Unrecognized run mode.")
@@ -399,6 +411,12 @@ if __name__ == "__main__":
         default=MAX_LOG_EXTRACTION_ERRORS,
         help="Max number number of LogExtractionError failures before we abort the whole tuning run.",
     )
+    parser.add_argument(
+        "--stopper",
+        type=str,
+        default=None,
+        help="A stop criteria in the cfg_file, must be a tune.Stopper instance.",
+    )
 
     args = parser.parse_args()
     PROCESS_RESPONSE_TIMEOUT = args.process_response_timeout
@@ -457,7 +475,16 @@ if __name__ == "__main__":
         print(f"[INFO]: Successfully instantiated class '{class_name}' from {file_path}")
         cfg = instance.cfg
         print(f"[INFO]: Grabbed the following hyperparameter sweep config: \n {cfg}")
-        invoke_tuning_run(cfg, args)
+        # Load optional stopper config
+        stopper = None
+        if args.stopper and hasattr(module, args.stopper):
+            stopper = getattr(module, args.stopper)
+            if isinstance(stopper, type) and issubclass(stopper, tune.Stopper):
+                stopper = stopper()
+            else:
+                raise TypeError(f"[ERROR]: Unsupported stop criteria type: {type(stopper)}")
+            print(f"[INFO]: Loaded custom stop criteria from '{args.stopper}'")
+        invoke_tuning_run(cfg, args, stopper=stopper)
 
     else:
         raise AttributeError(f"[ERROR]:Class '{class_name}' not found in {file_path}")
