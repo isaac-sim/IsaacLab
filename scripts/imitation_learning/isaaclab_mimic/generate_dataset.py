@@ -126,14 +126,14 @@ def main():
     motion_planners = None
     if args_cli.use_skillgen:
         from isaaclab_mimic.motion_planners.curobo.curobo_planner import CuroboPlanner
-        from isaaclab_mimic.motion_planners.curobo.curobo_planner_config import CuroboPlannerConfig
+        from isaaclab_mimic.motion_planners.curobo.curobo_planner_cfg import CuroboPlannerCfg
 
         # Create one motion planner per environment
         motion_planners = {}
         for env_id in range(num_envs):
             print(f"Initializing motion planner for environment {env_id}")
             # Create a config instance from the task name
-            planner_config = CuroboPlannerConfig.from_task_name(env_name)
+            planner_config = CuroboPlannerCfg.from_task_name(env_name)
 
             # Ensure visualization is only enabled for the first environment
             # If not, sphere and plan visualization will be too slow in isaac lab

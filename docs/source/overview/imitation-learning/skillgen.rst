@@ -11,7 +11,7 @@ What is SkillGen?
 SkillGen addresses key limitations in traditional demonstration generation:
 
 * **Motion Quality**: Uses cuRobo's GPU-accelerated motion planner to generate smooth, collision-free trajectories
-* **Validity**: Generates kinematically feasible plans between skill segments  
+* **Validity**: Generates kinematically feasible plans between skill segments
 * **Diversity**: Generates varied demonstrations through configurable sampling and planning parameters
 * **Adaptability**: Generates demonstrations that can be adapted to new object placements and scene configurations during data generation
 
@@ -57,7 +57,7 @@ cuRobo provides the motion planning capabilities for SkillGen. This installation
 .. note::
    * The commit hash ``ebb71702f3f70e767f40fd8e050674af0288abe8`` is tested with Isaac Lab - using other versions may cause compatibility issues. This commit has the support for quad face mesh triangulation, required for cuRobo to parse usds as collision objects.
 
-   * cuRobo is installed from source and is editable installed. This means that the cuRobo source code will be cloned in the current directory under ``src/nvidia-curobo``. Users can choose their working directory to install cuRobo. 
+   * cuRobo is installed from source and is editable installed. This means that the cuRobo source code will be cloned in the current directory under ``src/nvidia-curobo``. Users can choose their working directory to install cuRobo.
 
 Step 3: Install Rerun
 ^^^^^^^^^^^^^^^^^^^^^
@@ -71,10 +71,10 @@ For trajectory visualization during development:
 .. note::
 
    **Rerun Visualization Setup:**
-   
+
    * Rerun is optional but highly recommended for debugging and validating planned trajectories during development
    * Enable trajectory visualization by setting ``visualize_plan = True`` in the cuRobo planner configuration
-   * When enabled, SkillGen will stream planned end-effector trajectories, waypoints, and collision data to Rerun for interactive inspection
+   * When enabled, cuRobo planner interface will stream planned end-effector trajectories, waypoints, and collision data to Rerun for interactive inspection
    * Visualization helps identify planning issues, collision problems, and trajectory smoothness before full dataset generation
    * Can also be ran with ``--headless`` to disable isaacsim visualization but still visualize and debug end effector trajectories
 
@@ -90,7 +90,7 @@ Test that cuRobo works with Isaac Lab:
 
 .. tip::
 
-   If you run into ``libstdc++.so.6: version `GLIBCXX_3.4.30' not found`` error, you can try these commands to fix it:
+   If you run into ``libstdc++.so.6: version 'GLIBCXX_3.4.30' not found`` error, you can try these commands to fix it:
 
    .. code:: bash
 
@@ -109,13 +109,13 @@ Dataset Contents
 The dataset contains:
 
 * Human demonstrations of Franka arm cube stacking
-* Manually annotated subtask boundaries for each demonstration  
+* Manually annotated subtask boundaries for each demonstration
 * Compatible with both basic cube stacking and adaptive bin stacking tasks
 
 Download and Setup
 ^^^^^^^^^^^^^^^^^^
 
-1. Download the dataset by clicking `here <https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.0/Isaac/IsaacLab/Mimic/franka_stack_datasets/annotated_dataset_skillgen.hdf5>`__.
+1. Download the pre-annotated dataset by clicking `here <https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.0/Isaac/IsaacLab/Mimic/franka_stack_datasets/annotated_dataset_skillgen.hdf5>`__.
 
 2. Prepare the datasets directory and move the downloaded file:
 
@@ -137,9 +137,9 @@ Download and Setup
 .. note::
 
    **SkillGen-specific data collection and annotation**
-   
+
    * Using the provided annotated dataset is the fastest path to get started with SkillGen
-   * If you create your own dataset, SkillGen requires manual annotation of both subtask termination and start boundaries (no auto-annotation)
+   * If you create your own dataset, SkillGen requires manual annotation of both subtask start and termination boundaries (no auto-annotation)
    * Start boundary signals are mandatory for SkillGen; use ``--annotate_subtask_start_signals`` during annotation or data generation will fail
    * Keep your subtask definitions (``object_ref``, ``subtask_term_signal``) consistent with the SkillGen environment config
 
@@ -189,7 +189,7 @@ This converts absolute, scene-specific motions into object-relative skill segmen
 
 Manual Annotation Workflow
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
-Contrary to the Isaac Lab Mimic workflow, SkillGen requires manual annotation of subtask start and termination boundaries. For example, for grasping a cube, the start signal is right before the gripper closes and the termination signal is right after the object is grasped. You can adjust the start and termination signals to fit your subtask definition. 
+Contrary to the Isaac Lab Mimic workflow, SkillGen requires manual annotation of subtask start and termination boundaries. For example, for grasping a cube, the start signal is right before the gripper closes and the termination signal is right after the object is grasped. You can adjust the start and termination signals to fit your subtask definition.
 
 .. code:: bash
 
@@ -203,13 +203,13 @@ Contrary to the Isaac Lab Mimic workflow, SkillGen requires manual annotation of
 .. tip::
 
    **Manual Annotation Controls:**
-   
+
    * Press ``N`` to start/continue playback
    * Press ``B`` to pause
    * Press ``S`` to mark subtask boundary
    * Press ``Q`` to skip current demonstration
 
-   When annotating the start and end signals for a skill segment (e.g., grasp, stack, etc.), pause the playback using ``B`` a few steps before the skill, annotate the start signal using ``S``, and then resume playback using ``N``. After the skill is completed, pause again a few steps later to annotate the end signal using ``S``. 
+   When annotating the start and end signals for a skill segment (e.g., grasp, stack, etc.), pause the playback using ``B`` a few steps before the skill, annotate the start signal using ``S``, and then resume playback using ``N``. After the skill is completed, pause again a few steps later to annotate the end signal using ``S``.
 
 Data Generation with SkillGen
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -245,7 +245,7 @@ Task 1: Basic Cube Stacking
 
 Generate demonstrations for the standard Isaac Lab Mimic cube stacking task. In this task, the Franka robot must:
 
-1. Pick up the red cube and place it on the blue cube  
+1. Pick up the red cube and place it on the blue cube
 2. Pick up the green cube and place it on the red cube
 3. Final stack order: blue (bottom), red (middle), green (top).
 
@@ -276,7 +276,7 @@ Once satisfied with small-scale results, generate a full training dataset:
    ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
    --device cpu \
    --headless \
-   --num_envs 5 \
+   --num_envs 1 \
    --generation_num_trials 1000 \
    --input_file ./datasets/annotated_dataset_skillgen.hdf5 \
    --output_file ./datasets/generated_dataset_skillgen_cube_stack.hdf5 \
@@ -321,7 +321,7 @@ Generate the complete adaptive stacking dataset:
    ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
    --device cpu \
    --headless \
-   --num_envs 8 \
+   --num_envs 1 \
    --generation_num_trials 1000 \
    --input_file ./datasets/annotated_dataset_skillgen.hdf5 \
    --output_file ./datasets/generated_dataset_skillgen_bin_cube_stack.hdf5 \
@@ -382,7 +382,7 @@ Test your trained policies:
 
 .. code:: bash
 
-   # Adaptive bin stacking evaluation  
+   # Adaptive bin stacking evaluation
    ./isaaclab.sh -p scripts/imitation_learning/robomimic/play.py \
    --device cpu \
    --task Isaac-Stack-Cube-Bin-Franka-IK-Rel-v0 \
@@ -401,12 +401,6 @@ Base Motion Planner (Extensible)
 
 * Location: ``isaaclab_mimic/motion_planners/base_motion_planner.py``
 * Purpose: Uniform interface for all motion planners used by SkillGen
-* Minimal API:
-
-  * ``update_world_and_plan_motion(subtask_ctx, world_state)``: synchronize scene and compute a motion for the current subtask
-  * ``get_planned_poses()``: return the time-parameterized end-effector and joint targets for execution/stitching
-  * ``reset()``: clear internal state between trials
-
 * Extensibility: New planners can be added by subclassing and implementing the same API; SkillGen consumes the API without code changes
 
 cuRobo Planner (GPU, collision-aware)
@@ -440,31 +434,33 @@ cuRobo Planner (GPU, collision-aware)
 
 These tests can also serve as a reference for how to use cuRobo as a standalone motion planner.
 
+.. note::
+
+   For detailed cuRobo config creation and parameters, please see the file ``isaaclab_mimic/motion_planners/curobo/curobo_planner_config.py``.
+
 Generation Pipeline Integration
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 When ``--use_skillgen`` is enabled in ``generate_dataset.py``, the following pipeline is executed:
 
-1. **Subtask boundary extraction**
-   SkillGen reads subtask start and termination boundaries from the annotated dataset.
+1. Randomize subtask boundaries
+   Randomize per-demo start and termination indices for each subtask using task-configured offset ranges.
 
-2. **Per-subtask planning**
-   For each subtask, the planner performs:
-   - **Goal sampling**: Samples a goal, aware of the task and data generation configuration
-   - **World synchronization**: Updates the world state, including robot configuration, objects, and collision spheres
-   - **Motion planning**: Plans a collision-free trajectory using cuRobo
-   - **Success evaluation**: Assesses whether planning criteria are met
+2. Build per-subtask trajectories
+   For each end-effector and subtask:
+   - Select a source demonstration segment (strategy-driven; respects coordination/sequential constraints)
+   - Transform the segment to the current scene (object-relative or coordination delta; optional first-pose interpolation)
+   - Wrap the transformed segment into a waypoint trajectory
 
-3. **Trajectory stitching**
-   Planned motion segments are stitched together across subtasks to form a complete trajectory.
+3. Transition between subtasks
+   - If ``use_skillgen``: before executing the next subtask, plan a collision-aware transition with cuRobo to the subtask’s first waypoint (world sync, optional attach/detach), execute the planned waypoints, then resume the subtask trajectory
+   - Otherwise: interpolate and merge directly into the subtask trajectory
 
-Visualization and Debugging
-^^^^^^^^^^^^^^^^^^^^^^^^^^^
+4. Execute with constraints
+   Execute waypoints step-by-step across end-effectors while enforcing subtask constraints (sequential, coordination with synchronous steps); optionally update planner visualization if enabled
 
-Rerun-based visualization (optional)
-  * Set ``visualize_plan = True`` in the cuRobo planner configuration to stream trajectories
-  * Visualizes end-effector poses, waypoints, and collision/contact spheres for phase debugging
-  * Works with ``--headless`` to disable Isaac Sim viewport while keeping planner visualization
+5. Record and export
+   Accumulate states/observations/actions, set the episode success flag, and export the episode (the outer pipeline filters/consumes successes)
 
 .. note::
 
@@ -473,4 +469,3 @@ Rerun-based visualization (optional)
 .. note::
 
    SkillGen is an advanced system that builds on Isaac Lab Mimic. Ensure you're comfortable with the base system before tackling complex SkillGen workflows.
-

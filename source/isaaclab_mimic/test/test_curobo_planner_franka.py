@@ -32,7 +32,7 @@ from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
 ISAAC_NUCLEUS_DIR: str = getattr(_al_assets, "ISAAC_NUCLEUS_DIR", "/Isaac")
 
 from isaaclab_mimic.motion_planners.curobo.curobo_planner import CuroboPlanner
-from isaaclab_mimic.motion_planners.curobo.curobo_planner_config import CuroboPlannerConfig
+from isaaclab_mimic.motion_planners.curobo.curobo_planner_cfg import CuroboPlannerCfg
 
 from isaaclab_tasks.manager_based.manipulation.stack.config.franka.stack_joint_pos_env_cfg import FrankaCubeStackEnvCfg
 
@@ -73,7 +73,7 @@ def curobo_test_env() -> Generator[dict[str, Any], None, None]:
     env.reset()
 
     robot = env.scene["robot"]
-    planner = CuroboPlanner(env=env, robot=robot, config=CuroboPlannerConfig.franka_config())
+    planner = CuroboPlanner(env=env, robot=robot, config=CuroboPlannerCfg.franka_config())
 
     goal_pose_visualizer = None
     if not headless:

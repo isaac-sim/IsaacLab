@@ -11,7 +11,7 @@ from isaaclab.assets import Articulation
 from isaaclab.envs.manager_based_env import ManagerBasedEnv
 
 
-class MotionPlanner(ABC):
+class MotionPlannerBase(ABC):
     """Abstract base class for motion planners.
 
     This class defines the public interface that all motion planners must implement.
@@ -24,7 +24,10 @@ class MotionPlanner(ABC):
     3. Execute plan using has_next_waypoint() and get_next_waypoint_ee_pose()
 
     Example:
-        >>> planner = AnyMotionPlanner(env, robot)
+        >>> from isaaclab_mimic.motion_planners.curobo.curobo_planner import CuroboPlanner
+        >>> from isaaclab_mimic.motion_planners.curobo.curobo_planner_cfg import CuroboPlannerCfg
+        >>> config = CuroboPlannerCfg.franka_config()
+        >>> planner = CuroboPlanner(env, robot, config)
         >>> success = planner.update_world_and_plan_motion(target_pose)
         >>> if success:
         >>>     while planner.has_next_waypoint():

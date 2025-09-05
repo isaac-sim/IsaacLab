@@ -26,8 +26,8 @@ from isaaclab.assets import Articulation
 from isaaclab.envs.manager_based_env import ManagerBasedEnv
 from isaaclab.managers import SceneEntityCfg
 
-from isaaclab_mimic.motion_planners.base_motion_planner import MotionPlanner
-from isaaclab_mimic.motion_planners.curobo.curobo_planner_config import CuroboPlannerConfig
+from isaaclab_mimic.motion_planners.curobo.curobo_planner_cfg import CuroboPlannerCfg
+from isaaclab_mimic.motion_planners.motion_planner_base import MotionPlannerBase
 
 
 class PlannerLogger:
@@ -120,7 +120,7 @@ class Attachment:
     parent: str  # Parent link name
 
 
-class CuroboPlanner(MotionPlanner):
+class CuroboPlanner(MotionPlannerBase):
     """Motion planner for robot manipulation using cuRobo.
 
     This planner provides collision-aware motion planning capabilities for robotic manipulation tasks.
@@ -139,7 +139,7 @@ class CuroboPlanner(MotionPlanner):
         self,
         env: ManagerBasedEnv,
         robot: Articulation,
-        config: CuroboPlannerConfig,
+        config: CuroboPlannerCfg,
         task_name: str | None = None,
         env_id: int = 0,
         collision_checker: CollisionCheckerType = CollisionCheckerType.MESH,
@@ -165,7 +165,7 @@ class CuroboPlanner(MotionPlanner):
             interpolation_dt: Time step for interpolating waypoints
 
         Raises:
-            ValueError: If robot_config_file is not provided
+            ValueError: If ``robot_config_file`` is not provided
         """
         # Initialize base class
         super().__init__(env=env, robot=robot, env_id=env_id, debug=config.debug_planner)
@@ -175,7 +175,7 @@ class CuroboPlanner(MotionPlanner):
         self.logger = PlannerLogger(f"CuroboPlanner_{env_id}", log_level)
 
         # Store instance variables
-        self.config: CuroboPlannerConfig = config
+        self.config: CuroboPlannerCfg = config
         self.n_repeat: int | None = self.config.n_repeat
         self.step_size: float | None = self.config.motion_step_size
         self.visualize_plan: bool = self.config.visualize_plan

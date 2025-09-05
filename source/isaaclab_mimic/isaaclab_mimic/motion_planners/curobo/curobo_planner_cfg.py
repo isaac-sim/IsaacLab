@@ -16,7 +16,7 @@ from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 
 
 @dataclass
-class CuroboPlannerConfig:
+class CuroboPlannerCfg:
     """Configuration for CuRobo motion planner.
 
     This dataclass provides a flexible configuration system for the CuRobo motion planner.
@@ -25,10 +25,10 @@ class CuroboPlannerConfig:
 
     Example Usage:
         >>> # Use a pre-configured robot
-        >>> config = CuroboPlannerConfig.franka_config()
+        >>> config = CuroboPlannerCfg.franka_config()
         >>>
         >>> # Or create from task name
-        >>> config = CuroboPlannerConfig.from_task_name("Isaac-Stack-Cube-Franka-v0")
+        >>> config = CuroboPlannerCfg.from_task_name("Isaac-Stack-Cube-Franka-v0")
         >>>
         >>> # Initialize planner with config
         >>> planner = CuroboPlanner(env, robot, config)
@@ -164,7 +164,7 @@ class CuroboPlannerConfig:
     rotation_threshold: float = 0.05
     """Rotation threshold for motion planning."""
 
-    cuda_device: int | None = None
+    cuda_device: int | None = 0
     """Preferred CUDA device index; None uses torch.cuda.current_device() (respects CUDA_VISIBLE_DEVICES)."""
 
     def get_world_config(self) -> WorldConfig:
@@ -263,7 +263,7 @@ class CuroboPlannerConfig:
     .. code-block:: python
 
         @classmethod
-        def my_robot_config(cls) -> "CuroboPlannerConfig":
+        def my_robot_config(cls) -> "CuroboPlannerCfg":
             # Option 1: Download from Nucleus (like Franka example)
             urdf_path = f"{ISAACLAB_NUCLEUS_DIR}/path/to/my_robot.urdf"
             local_urdf = retrieve_file_path(urdf_path, force_download=True)
@@ -318,7 +318,7 @@ class CuroboPlannerConfig:
     .. code-block:: python
 
         @classmethod
-        def my_robot_pick_place_config(cls) -> "CuroboPlannerConfig":
+        def my_robot_pick_place_config(cls) -> "CuroboPlannerCfg":
             config = cls.my_robot_config()  # Start from base config
 
             # Override for pick-and-place tasks
@@ -339,7 +339,7 @@ class CuroboPlannerConfig:
     .. code-block:: python
 
         @classmethod
-        def from_task_name(cls, task_name: str) -> "CuroboPlannerConfig":
+        def from_task_name(cls, task_name: str) -> "CuroboPlannerCfg":
             task_lower = task_name.lower()
 
             # Add your robot detection
@@ -367,13 +367,13 @@ class CuroboPlannerConfig:
     """
 
     @classmethod
-    def franka_config(cls) -> "CuroboPlannerConfig":
+    def franka_config(cls) -> "CuroboPlannerCfg":
         """Create configuration for Franka Panda robot.
 
         This method uses a custom URDF from Nucleus for the Franka robot.
 
         Returns:
-            CuroboPlannerConfig: Configuration for Franka robot
+            CuroboPlannerCfg: Configuration for Franka robot
         """
         urdf_path = f"{ISAACLAB_NUCLEUS_DIR}/Controllers/SkillGenAssets/FrankaPanda/franka_panda.urdf"
         local_urdf = retrieve_file_path(urdf_path, force_download=True)
@@ -406,7 +406,7 @@ class CuroboPlannerConfig:
         )
 
     @classmethod
-    def franka_stack_cube_bin_config(cls) -> "CuroboPlannerConfig":
+    def franka_stack_cube_bin_config(cls) -> "CuroboPlannerCfg":
         """Create configuration for Franka stacking cube in a bin."""
         config = cls.franka_config()
         config.static_objects = ["bin", "table"]
@@ -423,12 +423,12 @@ class CuroboPlannerConfig:
         return config
 
     @classmethod
-    def franka_stack_cube_config(cls) -> "CuroboPlannerConfig":
+    def franka_stack_cube_config(cls) -> "CuroboPlannerCfg":
         """Create configuration for Franka stacking a normal cube."""
         config = cls.franka_config()
         config.static_objects = ["table"]
         config.visualize_plan = False
-        config.debug_planner = False
+        config.debug_planner = True
         config.motion_noise_scale = 0.02
         config.collision_activation_distance = 0.01
         config.approach_distance = 0.05
@@ -438,14 +438,14 @@ class CuroboPlannerConfig:
         return config
 
     @classmethod
-    def from_task_name(cls, task_name: str) -> "CuroboPlannerConfig":
+    def from_task_name(cls, task_name: str) -> "CuroboPlannerCfg":
         """Create configuration from task name.
 
         Args:
             task_name: Task name (e.g., "Isaac-Stack-Cube-Bin-Franka-v0")
 
         Returns:
-            CuroboPlannerConfig: Configuration for the specified task
+            CuroboPlannerCfg: Configuration for the specified task
         """
         task_lower = task_name.lower()
 
