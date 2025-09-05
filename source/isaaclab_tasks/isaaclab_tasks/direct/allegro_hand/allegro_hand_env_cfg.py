@@ -39,7 +39,7 @@ class AllegroHandEnvCfg(DirectRLEnvCfg):
         ls_parallel=True,
         impratio=1,
         integrator="implicit",
-        save_to_mjcf="AllegroHand.xml",
+        #save_to_mjcf="AllegroHand.xml",
     )
 
     newton_cfg = NewtonCfg(
