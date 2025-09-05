@@ -84,7 +84,6 @@ if args_cli.asset_type == "allegro_hand":
         ],
         ray_alignment="world",
         pattern_cfg=patterns.GridPatternCfg(resolution=0.005, size=(0.4, 0.4), direction=(0, 0, -1)),
-        track_mesh_transforms=True,
         debug_vis=not args_cli.headless,
         visualizer_cfg=RAY_CASTER_MARKER_CFG.replace(prim_path="/Visuals/RayCaster"),
     )
@@ -105,7 +104,6 @@ elif args_cli.asset_type == "anymal_d":
         ],
         ray_alignment="world",
         pattern_cfg=patterns.GridPatternCfg(resolution=0.02, size=(2.5, 2.5), direction=(0, 0, -1)),
-        track_mesh_transforms=True,
         debug_vis=not args_cli.headless,
         visualizer_cfg=RAY_CASTER_MARKER_CFG.replace(prim_path="/Visuals/RayCaster"),
     )
@@ -143,7 +141,6 @@ elif args_cli.asset_type == "multi":
         ],
         ray_alignment="world",
         pattern_cfg=patterns.GridPatternCfg(resolution=0.01, size=(0.6, 0.6), direction=(0, 0, -1)),
-        track_mesh_transforms=True,
         debug_vis=not args_cli.headless,
         visualizer_cfg=RAY_CASTER_MARKER_CFG.replace(prim_path="/Visuals/RayCaster"),
     )

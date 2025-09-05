@@ -72,7 +72,7 @@ class MultiMeshRayCaster(RayCaster):
         for target in self.cfg.mesh_prim_paths:
             # Legacy support for string targets. Treat them as global targets.
             if isinstance(target, str):
-                self._raycast_targets_cfg.append(cfg.RaycastTargetCfg(target_prim_expr=target, is_global=True))
+                self._raycast_targets_cfg.append(cfg.RaycastTargetCfg(target_prim_expr=target, is_global=True, track_mesh_transforms=False))
             else:
                 self._raycast_targets_cfg.append(target)
 
@@ -351,9 +351,8 @@ class MultiMeshRayCaster(RayCaster):
             multi_mesh_ids_flattened.append(meshes_in_env)
 
         self._mesh_views = [
-            self.mesh_views[target_cfg.target_prim_expr]
+            self.mesh_views[target_cfg.target_prim_expr] if target_cfg.track_mesh_transforms else None
             for target_cfg in self._raycast_targets_cfg
-            if target_cfg.track_mesh_transforms
         ]
 
         # save a warp array with mesh ids that is passed to the raycast function
