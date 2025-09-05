@@ -105,6 +105,7 @@ from isaaclab.envs import DirectRLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
 from isaaclab.envs.ui import EmptyWindow
 from isaaclab.managers import DatasetExportMode
+from isaaclab.ui.xr_widgets import TeleopVisualizationManager, XRVisualization
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
@@ -469,15 +470,23 @@ def run_simulation_loop(
                 label_text = f"Recorded {current_recorded_demo_count} successful demonstrations."
                 print(label_text)
 
+            # Check if we've reached the desired number of demos
+            if args_cli.num_demos > 0 and env.recorder_manager.exported_successful_episode_count >= args_cli.num_demos:
+                label_text = f"All {current_recorded_demo_count} demonstrations recorded.\nExiting the app."
+                instruction_display.show_demo(label_text)
+                print(label_text)
+                target_time = time.time() + 0.8
+                while time.time() < target_time:
+                    if rate_limiter:
+                        rate_limiter.sleep(env)
+                    else:
+                        env.sim.render()
+                break
+
             # Handle reset if requested
             if should_reset_recording_instance:
                 success_step_count = handle_reset(env, success_step_count, instruction_display, label_text)
                 should_reset_recording_instance = False
-
-            # Check if we've reached the desired number of demos
-            if args_cli.num_demos > 0 and env.recorder_manager.exported_successful_episode_count >= args_cli.num_demos:
-                print(f"All {args_cli.num_demos} demonstrations recorded. Exiting the app.")
-                break
 
             # Check if simulation is stopped
             if env.sim.is_stopped():
@@ -511,6 +520,9 @@ def main() -> None:
 
     # Set up output directories
     output_dir, output_file_name = setup_output_directories()
+
+    # Assign the teleop visualization manager to the visualization system
+    XRVisualization.assign_manager(TeleopVisualizationManager)
 
     # Create and configure environment
     global env_cfg  # Make env_cfg available to setup_teleop_device

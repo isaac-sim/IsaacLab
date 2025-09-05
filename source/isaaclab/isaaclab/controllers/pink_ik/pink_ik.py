@@ -24,6 +24,7 @@ from pink.tasks import FrameTask
 from pinocchio.robot_wrapper import RobotWrapper
 
 from isaaclab.assets import ArticulationCfg
+from isaaclab.ui.xr_widgets import XRVisualization
 from isaaclab.utils.string import resolve_matching_names_values
 
 from .null_space_posture_task import NullSpacePostureTask
@@ -173,6 +174,8 @@ class PinkIKController:
                     "Warning: IK quadratic solver could not find a solution! Did not update the target joint"
                     f" positions.\nError: {e}"
                 )
+
+            XRVisualization.push_event("ik_error", {"error": e})
             return torch.tensor(curr_joint_pos, device=self.device, dtype=torch.float32)
 
         # Discard the first 6 values (for root and universal joints)
