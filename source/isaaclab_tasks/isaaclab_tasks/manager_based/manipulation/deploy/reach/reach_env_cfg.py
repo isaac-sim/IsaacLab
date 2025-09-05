@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -7,13 +7,8 @@ from dataclasses import MISSING
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
-from isaaclab.devices import DevicesCfg
-from isaaclab.devices.gamepad import Se3GamepadCfg
-from isaaclab.devices.keyboard import Se3KeyboardCfg
-from isaaclab.devices.spacemouse import Se3SpaceMouseCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import ActionTermCfg as ActionTerm
-from isaaclab.managers import CurriculumTermCfg as CurrTerm
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
@@ -25,7 +20,7 @@ from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
 
-import isaaclab_tasks.manager_based.manipulation.reach.mdp as mdp
+import isaaclab_tasks.manager_based.manipulation.deploy.mdp as mdp
 
 ##
 # Scene definition
@@ -33,7 +28,7 @@ import isaaclab_tasks.manager_based.manipulation.reach.mdp as mdp
 
 
 @configclass
-class ReachSceneCfg(InteractiveSceneCfg):
+class SceneCfg(InteractiveSceneCfg):
     """Configuration for the scene with a robotic arm."""
 
     # world
@@ -43,14 +38,6 @@ class ReachSceneCfg(InteractiveSceneCfg):
         init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, -1.05)),
     )
 
-    table = AssetBaseCfg(
-        prim_path="{ENV_REGEX_NS}/Table",
-        spawn=sim_utils.UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd",
-        ),
-        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.55, 0.0, 0.0), rot=(0.70711, 0.0, 0.0, 0.70711)),
-    )
-
     # robots
     robot: ArticulationCfg = MISSING
 
@@ -58,6 +45,13 @@ class ReachSceneCfg(InteractiveSceneCfg):
     light = AssetBaseCfg(
         prim_path="/World/light",
         spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), intensity=2500.0),
+    )
+
+    table = AssetBaseCfg(
+        prim_path="{ENV_REGEX_NS}/Table",
+        spawn=sim_utils.UsdFileCfg(
+            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/Stand/stand_instanceable.usd", scale=(2.0, 2.0, 2.0)
+        ),
     )
 
 
@@ -103,10 +97,9 @@ class ObservationsCfg:
         """Observations for policy group."""
 
         # observation terms (order preserved)
-        joint_pos = ObsTerm(func=mdp.joint_pos_rel, noise=Unoise(n_min=-0.01, n_max=0.01))
-        joint_vel = ObsTerm(func=mdp.joint_vel_rel, noise=Unoise(n_min=-0.01, n_max=0.01))
+        joint_pos = ObsTerm(func=mdp.joint_pos, noise=Unoise(n_min=-0.0, n_max=0.0))
+        joint_vel = ObsTerm(func=mdp.joint_vel, noise=Unoise(n_min=-0.0, n_max=0.0))
         pose_command = ObsTerm(func=mdp.generated_commands, params={"command_name": "ee_pose"})
-        actions = ObsTerm(func=mdp.last_action)
 
         def __post_init__(self):
             self.enable_corruption = True
@@ -121,11 +114,36 @@ class EventCfg:
     """Configuration for events."""
 
     reset_robot_joints = EventTerm(
-        func=mdp.reset_joints_by_scale,
+        func=mdp.reset_joints_by_offset,
         mode="reset",
         params={
-            "position_range": (0.5, 1.5),
+            "position_range": (-0.125, 0.125),
             "velocity_range": (0.0, 0.0),
+        },
+    )
+
+    robot_joint_stiffness_and_damping = EventTerm(
+        func=mdp.randomize_actuator_gains,
+        min_step_count_between_reset=200,
+        mode="reset",
+        params={
+            "asset_cfg": SceneEntityCfg("robot"),
+            "stiffness_distribution_params": (0.9, 1.1),
+            "damping_distribution_params": (0.75, 1.5),
+            "operation": "scale",
+            "distribution": "uniform",
+        },
+    )
+
+    joint_friction = EventTerm(
+        func=mdp.randomize_joint_parameters,
+        min_step_count_between_reset=200,
+        mode="reset",
+        params={
+            "asset_cfg": SceneEntityCfg("robot"),
+            "friction_distribution_params": (0.0, 0.1),
+            "operation": "add",
+            "distribution": "uniform",
         },
     )
 
@@ -134,30 +152,29 @@ class EventCfg:
 class RewardsCfg:
     """Reward terms for the MDP."""
 
-    # task terms
-    end_effector_position_tracking = RewTerm(
-        func=mdp.position_command_error,
-        weight=-0.2,
-        params={"asset_cfg": SceneEntityCfg("robot", body_names=MISSING), "command_name": "ee_pose"},
+    end_effector_keypoint_tracking = RewTerm(
+        func=mdp.keypoint_command_error,
+        weight=-1.5,
+        params={
+            "asset_cfg": SceneEntityCfg("ee_frame"),
+            "command_name": "ee_pose",
+            "keypoint_scale": 0.45,
+        },
     )
-    end_effector_position_tracking_fine_grained = RewTerm(
-        func=mdp.position_command_error_tanh,
-        weight=0.1,
-        params={"asset_cfg": SceneEntityCfg("robot", body_names=MISSING), "std": 0.1, "command_name": "ee_pose"},
-    )
-    end_effector_orientation_tracking = RewTerm(
-        func=mdp.orientation_command_error,
-        weight=-0.1,
-        params={"asset_cfg": SceneEntityCfg("robot", body_names=MISSING), "command_name": "ee_pose"},
+    end_effector_keypoint_tracking_exp = RewTerm(
+        func=mdp.keypoint_command_error_exp,
+        weight=1.5,
+        params={
+            "asset_cfg": SceneEntityCfg("ee_frame"),
+            "command_name": "ee_pose",
+            "kp_exp_coeffs": [(50, 0.0001), (300, 0.0001), (5000, 0.0001)],
+            "kp_use_sum_of_exps": False,
+            "keypoint_scale": 0.45,
+        },
     )
 
-    # action penalty
-    action_rate = RewTerm(func=mdp.action_rate_l2, weight=-0.0001)
-    joint_vel = RewTerm(
-        func=mdp.joint_vel_l2,
-        weight=-0.0001,
-        params={"asset_cfg": SceneEntityCfg("robot")},
-    )
+    action_rate = RewTerm(func=mdp.action_rate_l2, weight=-0.005)
+    action = RewTerm(func=mdp.action_l2, weight=-0.005)
 
 
 @configclass
@@ -167,19 +184,6 @@ class TerminationsCfg:
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
 
 
-@configclass
-class CurriculumCfg:
-    """Curriculum terms for the MDP."""
-
-    action_rate = CurrTerm(
-        func=mdp.modify_reward_weight, params={"term_name": "action_rate", "weight": -0.005, "num_steps": 4500}
-    )
-
-    joint_vel = CurrTerm(
-        func=mdp.modify_reward_weight, params={"term_name": "joint_vel", "weight": -0.001, "num_steps": 4500}
-    )
-
-
 ##
 # Environment configuration
 ##
@@ -187,10 +191,10 @@ class CurriculumCfg:
 
 @configclass
 class ReachEnvCfg(ManagerBasedRLEnvCfg):
-    """Configuration for the reach end-effector pose tracking environment."""
+    """Configuration for the end-effector pose tracking environment that has been deployed on a real robot."""
 
     # Scene settings
-    scene: ReachSceneCfg = ReachSceneCfg(num_envs=4096, env_spacing=2.5)
+    scene: SceneCfg = SceneCfg(num_envs=4096, env_spacing=2.5)
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
@@ -199,7 +203,6 @@ class ReachEnvCfg(ManagerBasedRLEnvCfg):
     rewards: RewardsCfg = RewardsCfg()
     terminations: TerminationsCfg = TerminationsCfg()
     events: EventCfg = EventCfg()
-    curriculum: CurriculumCfg = CurriculumCfg()
 
     def __post_init__(self):
         """Post initialization."""
@@ -209,21 +212,4 @@ class ReachEnvCfg(ManagerBasedRLEnvCfg):
         self.episode_length_s = 12.0
         self.viewer.eye = (3.5, 3.5, 3.5)
         # simulation settings
-        self.sim.dt = 1.0 / 60.0
-
-        self.teleop_devices = DevicesCfg(
-            devices={
-                "keyboard": Se3KeyboardCfg(
-                    gripper_term=False,
-                    sim_device=self.sim.device,
-                ),
-                "gamepad": Se3GamepadCfg(
-                    gripper_term=False,
-                    sim_device=self.sim.device,
-                ),
-                "spacemouse": Se3SpaceMouseCfg(
-                    gripper_term=False,
-                    sim_device=self.sim.device,
-                ),
-            },
-        )
+        self.sim.dt = 1.0 / 120.0

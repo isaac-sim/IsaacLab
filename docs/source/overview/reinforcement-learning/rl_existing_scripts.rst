@@ -87,6 +87,40 @@ RSL-RL
             :: run script for recording video of a trained agent (requires installing `ffmpeg`)
             isaaclab.bat -p scripts\reinforcement_learning\rsl_rl\play.py --task Isaac-Reach-Franka-v0 --headless --video --video_length 200
 
+-  Training and distilling an agent with
+   `RSL-RL <https://github.com/leggedrobotics/rsl_rl>`__ on ``Isaac-Velocity-Flat-Anymal-D-v0``:
+
+   .. tab-set::
+      :sync-group: os
+
+      .. tab-item:: :icon:`fa-brands fa-linux` Linux
+         :sync: linux
+
+         .. code:: bash
+
+            # install python module (for rsl-rl)
+            ./isaaclab.sh -i rsl_rl
+            # run script for rl training of the teacher agent
+            ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Velocity-Flat-Anymal-D-v0 --headless
+            # run script for distilling the teacher agent into a student agent
+            ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Velocity-Flat-Anymal-D-v0 --headless --agent rsl_rl_distillation_cfg_entry_point --load_run teacher_run_folder_name
+            # run script for playing the student with 64 environments
+            ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/play.py --task Isaac-Velocity-Flat-Anymal-D-v0 --num_envs 64 --agent rsl_rl_distillation_cfg_entry_point
+
+      .. tab-item:: :icon:`fa-brands fa-windows` Windows
+         :sync: windows
+
+         .. code:: batch
+
+            :: install python module (for rsl-rl)
+            isaaclab.bat -i rsl_rl
+            :: run script for rl training of the teacher agent
+            isaaclab.bat -p scripts\reinforcement_learning\rsl_rl\train.py --task Isaac-Velocity-Flat-Anymal-D-v0 --headless
+            :: run script for distilling the teacher agent into a student agent
+            isaaclab.bat -p scripts\reinforcement_learning\rsl_rl\train.py --task Isaac-Velocity-Flat-Anymal-D-v0 --headless --agent rsl_rl_distillation_cfg_entry_point --load_run teacher_run_folder_name
+            :: run script for playing the student with 64 environments
+            isaaclab.bat -p scripts\reinforcement_learning\rsl_rl\play.py --task Isaac-Velocity-Flat-Anymal-D-v0 --num_envs 64 --agent rsl_rl_distillation_cfg_entry_point
+
 SKRL
 ----
 

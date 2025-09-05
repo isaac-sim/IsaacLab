@@ -22,6 +22,7 @@ from .utils import convert_buffer
 class Se3SpaceMouseCfg(DeviceCfg):
     """Configuration for SE3 space mouse devices."""
 
+    gripper_term: bool = True
     pos_sensitivity: float = 0.4
     rot_sensitivity: float = 0.8
     retargeters: None = None
@@ -58,6 +59,7 @@ class Se3SpaceMouse(DeviceBase):
         # store inputs
         self.pos_sensitivity = cfg.pos_sensitivity
         self.rot_sensitivity = cfg.rot_sensitivity
+        self.gripper_term = cfg.gripper_term
         self._sim_device = cfg.sim_device
         # acquire device interface
         self._device = hid.device()
@@ -122,9 +124,11 @@ class Se3SpaceMouse(DeviceBase):
                 - gripper command: Last element as a binary value (+1.0 for open, -1.0 for close).
         """
         rot_vec = Rotation.from_euler("XYZ", self._delta_rot).as_rotvec()
-        delta_pose = np.concatenate([self._delta_pos, rot_vec])
-        gripper_value = -1.0 if self._close_gripper else 1.0
-        command = np.append(delta_pose, gripper_value)
+        command = np.concatenate([self._delta_pos, rot_vec])
+        if self.gripper_term:
+            gripper_value = -1.0 if self._close_gripper else 1.0
+            command = np.append(command, gripper_value)
+
         return torch.tensor(command, dtype=torch.float32, device=self._sim_device)
 
     """
