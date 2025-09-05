@@ -941,6 +941,11 @@
         <span class="c1"># update the deformable body data</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="mf">0.0</span><span class="p">)</span>
 
+        <span class="c1"># Initialize debug visualization handle</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_debug_vis_handle</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># set initial state of debug visualization</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">set_debug_vis</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">debug_vis</span><span class="p">)</span>
+
     <span class="k">def</span><span class="w"> </span><span class="nf">_create_buffers</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Create buffers for storing data.&quot;&quot;&quot;</span>
         <span class="c1"># constants</span>
