@@ -42,10 +42,12 @@ class MultiMeshRayCasterCfg(RayCasterCfg):
         """
 
         merge_prim_meshes: bool = True
-        """Whether to merge the meshes under each entry of :attr:`mesh_prim_paths`."""
+        """Whether to merge the meshes when a prim contains multiple meshes. Defaults to True. Note, this will
+        create a new mesh that combines all meshes in the prim. The raycast hits mesh ids will then refer to the single 
+        merged mesh."""
 
-        track_mesh_transforms: bool = False
-        """Whether the mesh transformations should be tracked. Defaults to False.
+        track_mesh_transforms: bool = True
+        """Whether the mesh transformations should be tracked. Defaults to True.
 
         Note:
             Not tracking the mesh transformations is recommended when the meshes are static to increase performance.
@@ -54,8 +56,7 @@ class MultiMeshRayCasterCfg(RayCasterCfg):
     class_type: type = MultiMeshRayCaster
 
     mesh_prim_paths: list[str | RaycastTargetCfg] = MISSING
-    """The list of mesh primitive paths to ray cast against. If an entry is a string, it is treated as
-    a global :attr:`target_prim_expr` of a :class:`RaycastTargetCfg` with default values for the other fields for backwards compatibility."""
+    """The list of mesh primitive paths to ray cast against. If an entry is a string, it is internally converted to a :class:`RaycastTargetCfg` with global set to true and track_mesh_transforms disabled to ensure backwards compatibility with the default raycaster."""
 
     update_mesh_ids: bool = False
     """Whether to update the mesh ids of the ray hits in the :attr:`data` container."""
