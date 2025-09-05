@@ -188,6 +188,41 @@ class BinaryJointVelocityActionCfg(BinaryJointActionCfg):
     class_type: type[ActionTerm] = binary_joint_actions.BinaryJointVelocityAction
 
 
+@configclass
+class AbsBinaryJointPositionActionCfg(ActionTermCfg):
+    """Configuration for the absolute binary joint position action term.
+
+    This action term is used for robust grasping by converting continuous gripper joint position actions
+    into binary open/close commands. Unlike directly applying continuous gripper joint position actions, this class
+    applies a threshold-based decision mechanism to determine whether to
+    open or close the gripper.
+
+    The action works by:
+    1. Taking a continuous input action value
+    2. Comparing it against a configurable threshold
+    3. Mapping the result to either open or close commands based on the threshold comparison
+    4. Applying the corresponding gripper open/close commands
+
+    This approach provides more predictable and stable grasping behavior compared to directly applying
+    continuous gripper joint position actions.
+
+    See :class:`AbsBinaryJointPositionAction` for more details.
+    """
+
+    joint_names: list[str] = MISSING
+    """List of joint names or regex expressions that the action will be mapped to."""
+    open_command_expr: dict[str, float] = MISSING
+    """The joint command to move to *open* configuration."""
+    close_command_expr: dict[str, float] = MISSING
+    """The joint command to move to *close* configuration."""
+    threshold: float = 0.5
+    """The threshold for the binary action. Defaults to 0.5."""
+    positive_threshold: bool = True
+    """Whether to use positive (Open actions > Close actions) threshold. Defaults to True."""
+
+    class_type: type[ActionTerm] = binary_joint_actions.AbsBinaryJointPositionAction
+
+
 ##
 # Non-holonomic actions.
 ##
