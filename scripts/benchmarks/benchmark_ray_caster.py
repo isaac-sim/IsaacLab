@@ -319,7 +319,7 @@ def main():
     results: list[dict[str, object]] = []
 
     for idx, num_envs in enumerate(NUM_ENVS):
-        print(f"\n[INFO]: Benchmarking with {num_envs} envs. {idx+1} / {len(NUM_ENVS)}")
+        print(f"\n[INFO]: Benchmarking with {num_envs} envs. {idx + 1} / {len(NUM_ENVS)}")
 
         # Default Raycaster
         for resolution in RESOLUTIONS:
