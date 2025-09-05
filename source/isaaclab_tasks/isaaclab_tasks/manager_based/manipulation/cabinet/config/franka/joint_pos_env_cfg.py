@@ -5,6 +5,9 @@
 
 from isaaclab.sensors import FrameTransformerCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
+from isaaclab.sim import SimulationCfg
+from isaaclab.sim._impl.newton_manager_cfg import NewtonCfg
+from isaaclab.sim._impl.solvers_cfg import MJWarpSolverCfg
 from isaaclab.utils import configclass
 
 from isaaclab_tasks.manager_based.manipulation.cabinet import mdp
@@ -22,6 +25,22 @@ from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG  # isort: skip
 
 @configclass
 class FrankaCabinetEnvCfg(CabinetEnvCfg):
+    sim: SimulationCfg = SimulationCfg(
+        newton_cfg=NewtonCfg(
+            solver_cfg=MJWarpSolverCfg(
+                njmax=60,
+                ncon_per_env=100,
+                ls_iterations=10,
+                cone="pyramidal",
+                impratio=1,
+                ls_parallel=True,
+                integrator="implicit",
+                #save_to_mjcf="FrankaCabinetEnv.xml",
+            ),
+            num_substeps=1,
+            debug_mode=False,
+        )
+    )
     def __post_init__(self):
         # post init of parent
         super().__post_init__()

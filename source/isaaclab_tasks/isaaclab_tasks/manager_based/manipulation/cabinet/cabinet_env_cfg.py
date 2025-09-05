@@ -162,29 +162,29 @@ class ObservationsCfg:
 class EventCfg:
     """Configuration for events."""
 
-    robot_physics_material = EventTerm(
-        func=mdp.randomize_rigid_body_material,
-        mode="startup",
-        params={
-            "asset_cfg": SceneEntityCfg("robot", body_names=".*"),
-            "static_friction_range": (0.8, 1.25),
-            "dynamic_friction_range": (0.8, 1.25),
-            "restitution_range": (0.0, 0.0),
-            "num_buckets": 16,
-        },
-    )
+    #robot_physics_material = EventTerm(
+    #    func=mdp.randomize_rigid_body_material,
+    #    mode="startup",
+    #    params={
+    #        "asset_cfg": SceneEntityCfg("robot", body_names=".*"),
+    #        "static_friction_range": (0.8, 1.25),
+    #        "dynamic_friction_range": (0.8, 1.25),
+    #        "restitution_range": (0.0, 0.0),
+    #        "num_buckets": 16,
+    #    },
+    #)
 
-    cabinet_physics_material = EventTerm(
-        func=mdp.randomize_rigid_body_material,
-        mode="startup",
-        params={
-            "asset_cfg": SceneEntityCfg("cabinet", body_names="drawer_handle_top"),
-            "static_friction_range": (1.0, 1.25),
-            "dynamic_friction_range": (1.25, 1.5),
-            "restitution_range": (0.0, 0.0),
-            "num_buckets": 16,
-        },
-    )
+    #cabinet_physics_material = EventTerm(
+    #    func=mdp.randomize_rigid_body_material,
+    #    mode="startup",
+    #    params={
+    #        "asset_cfg": SceneEntityCfg("cabinet", body_names="drawer_handle_top"),
+    #        "static_friction_range": (1.0, 1.25),
+    #        "dynamic_friction_range": (1.25, 1.5),
+    #        "restitution_range": (0.0, 0.0),
+    #        "num_buckets": 16,
+    #    },
+    #)
 
     reset_all = EventTerm(func=mdp.reset_scene_to_default, mode="reset")
 
