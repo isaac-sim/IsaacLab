@@ -34,7 +34,7 @@ from isaaclab.markers import FRAME_MARKER_CFG, VisualizationMarkers
 
 from isaaclab_mimic.envs.franka_stack_ik_rel_mimic_env_cfg import FrankaCubeStackIKRelMimicEnvCfg
 from isaaclab_mimic.motion_planners.curobo.curobo_planner import CuroboPlanner
-from isaaclab_mimic.motion_planners.curobo.curobo_planner_config import CuroboPlannerConfig
+from isaaclab_mimic.motion_planners.curobo.curobo_planner_cfg import CuroboPlannerCfg
 
 GRIPPER_OPEN_CMD: float = 1.0
 GRIPPER_CLOSE_CMD: float = -1.0
@@ -107,7 +107,7 @@ def cube_stack_test_env() -> Generator[dict[str, Any], None, None]:
     env.reset()
 
     robot: Articulation = env.scene["robot"]
-    planner_cfg = CuroboPlannerConfig.franka_stack_cube_config()
+    planner_cfg = CuroboPlannerCfg.franka_stack_cube_config()
     planner_cfg.visualize_plan = False
     planner_cfg.visualize_spheres = False
     planner_cfg.debug_planner = True
