@@ -10,8 +10,12 @@ from isaaclab.devices.openxr.openxr_device import OpenXRDevice, OpenXRDeviceCfg
 from isaaclab.devices.openxr.retargeters.manipulator.gripper_retargeter import GripperRetargeterCfg
 from isaaclab.devices.openxr.retargeters.manipulator.se3_rel_retargeter import Se3RelRetargeterCfg
 from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
+from isaaclab.managers import ObservationGroupCfg as ObsGroup
+from isaaclab.managers import ObservationTermCfg as ObsTerm
+from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils import configclass
 
+from ... import mdp
 from . import stack_joint_pos_env_cfg
 
 ##
@@ -21,10 +25,90 @@ from isaaclab_assets.robots.franka import FRANKA_PANDA_HIGH_PD_CFG  # isort: ski
 
 
 @configclass
+class ObservationsCfg:
+    """Observation specifications for the MDP."""
+
+    @configclass
+    class PolicyCfg(ObsGroup):
+        """Observations for policy group."""
+
+        actions = ObsTerm(func=mdp.last_action)
+        joint_pos = ObsTerm(func=mdp.joint_pos_rel)
+        joint_vel = ObsTerm(func=mdp.joint_vel_rel)
+        object = ObsTerm(func=mdp.object_obs)
+        cube_positions = ObsTerm(func=mdp.cube_positions_in_world_frame)
+        cube_orientations = ObsTerm(func=mdp.cube_orientations_in_world_frame)
+        eef_pos = ObsTerm(func=mdp.ee_frame_pos)
+        eef_quat = ObsTerm(func=mdp.ee_frame_quat)
+        gripper_pos = ObsTerm(func=mdp.gripper_pos)
+
+        def __post_init__(self):
+            self.enable_corruption = False
+            self.concatenate_terms = False
+
+    @configclass
+    class RGBCameraPolicyCfg(ObsGroup):
+        """Observations for policy group with RGB images."""
+
+        def __post_init__(self):
+            self.enable_corruption = False
+            self.concatenate_terms = False
+
+    @configclass
+    class SubtaskCfg(ObsGroup):
+        """Observations for subtask group."""
+
+        grasp_1 = ObsTerm(
+            func=mdp.object_grasped,
+            params={
+                "robot_cfg": SceneEntityCfg("robot"),
+                "ee_frame_cfg": SceneEntityCfg("ee_frame"),
+                "object_cfg": SceneEntityCfg("cube_2"),
+            },
+        )
+        stack_1 = ObsTerm(
+            func=mdp.object_stacked,
+            params={
+                "robot_cfg": SceneEntityCfg("robot"),
+                "upper_object_cfg": SceneEntityCfg("cube_2"),
+                "lower_object_cfg": SceneEntityCfg("cube_1"),
+            },
+        )
+        grasp_2 = ObsTerm(
+            func=mdp.object_grasped,
+            params={
+                "robot_cfg": SceneEntityCfg("robot"),
+                "ee_frame_cfg": SceneEntityCfg("ee_frame"),
+                "object_cfg": SceneEntityCfg("cube_3"),
+            },
+        )
+        stack_2 = ObsTerm(
+            func=mdp.object_stacked,
+            params={
+                "robot_cfg": SceneEntityCfg("robot"),
+                "upper_object_cfg": SceneEntityCfg("cube_3"),
+                "lower_object_cfg": SceneEntityCfg("cube_2"),
+            },
+        )
+
+        def __post_init__(self):
+            self.enable_corruption = False
+            self.concatenate_terms = False
+
+    # observation groups
+    policy: PolicyCfg = PolicyCfg()
+    rgb_camera: RGBCameraPolicyCfg = RGBCameraPolicyCfg()
+    subtask_terms: SubtaskCfg = SubtaskCfg()
+
+
+@configclass
 class FrankaCubeStackSkillgenEnvCfg(stack_joint_pos_env_cfg.FrankaCubeStackEnvCfg):
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
+
+        # Override observations with SkillGen-specific config
+        self.observations = ObservationsCfg()
 
         # Set Franka as robot
         # We switch here to a stiffer PD controller for IK tracking to be better.
