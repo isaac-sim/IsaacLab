@@ -53,6 +53,7 @@ Guidelines for modifications:
 * Brian Bingham
 * Cameron Upright
 * Calvin Yu
+* Cathy Y. Li
 * Cheng-Rong Lai
 * Chenyu Yang
 * Connor Smith

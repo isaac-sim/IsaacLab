@@ -3,61 +3,63 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""OpenXR-powered device for teleoperation and interaction."""
+"""
+Manus and Vive for teleoperation and interaction.
+"""
 
 import contextlib
 import numpy as np
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any
 
 import carb
+from isaacsim.core.version import get_version
 
 from isaaclab.devices.openxr.common import HAND_JOINT_NAMES
 from isaaclab.devices.retargeter_base import RetargeterBase
 
 from ..device_base import DeviceBase, DeviceCfg
+from .openxr_device import OpenXRDevice
 from .xr_cfg import XrCfg
 
-# For testing purposes, we need to mock the XRCore, XRPoseValidityFlags classes
+# For testing purposes, we need to mock the XRCore
 XRCore = None
-XRPoseValidityFlags = None
 
 with contextlib.suppress(ModuleNotFoundError):
-    from omni.kit.xr.core import XRCore, XRPoseValidityFlags
+    from omni.kit.xr.core import XRCore
+
 from isaacsim.core.prims import SingleXFormPrim
+
+from .manus_vive_utils import HAND_JOINT_MAP, ManusViveIntegration
 
 
 @dataclass
-class OpenXRDeviceCfg(DeviceCfg):
-    """Configuration for OpenXR devices."""
+class ManusViveCfg(DeviceCfg):
+    """Configuration for Manus and Vive."""
 
     xr_cfg: XrCfg | None = None
 
 
-class OpenXRDevice(DeviceBase):
-    """An OpenXR-powered device for teleoperation and interaction.
+class ManusVive(DeviceBase):
+    """Manus gloves and Vive trackers for teleoperation and interaction.
 
-    This device tracks hand joints using OpenXR and makes them available as:
+    This device tracks hand joints using Manus gloves and Vive trackers and makes them available as:
 
     1. A dictionary of tracking data (when used without retargeters)
     2. Retargeted commands for robot control (when retargeters are provided)
 
-    Raw data format (_get_raw_data output):
+    The user needs to install the Manus SDK and add `{path_to_manus_sdk}/manus_sdk/lib` to `LD_LIBRARY_PATH`.
+    Data are acquired by `ManusViveIntegration` from `isaaclab.devices.openxr.manus_vive_utils`, including
 
-    * A dictionary with keys matching TrackingTarget enum values (HAND_LEFT, HAND_RIGHT, HEAD)
-    * Each hand tracking entry contains a dictionary of joint poses
-    * Each joint pose is a 7D vector (x, y, z, qw, qx, qy, qz) in meters and quaternion units
-    * Joint names are defined in HAND_JOINT_NAMES from isaaclab.devices.openxr.common
-    * Supported joints include palm, wrist, and joints for thumb, index, middle, ring and little fingers
+    * Vive tracker poses in scene frame, calibrated from AVP wrist poses.
+    * Hand joints calculated from Vive wrist joints and Manus hand joints (relative to wrist).
+    * Vive trackers are automatically mapped to the left and right wrist joints.
 
-    Teleop commands:
-    The device responds to several teleop commands that can be subscribed to via add_callback():
+    Raw data format (_get_raw_data output): consistent with :class:`OpenXRDevice`.
+    Joint names are defined in `HAND_JOINT_MAP` from `isaaclab.devices.openxr.manus_vive_utils`.
 
-    * "START": Resume hand tracking data flow
-    * "STOP": Pause hand tracking data flow
-    * "RESET": Reset the tracking and signal simulation reset
+    Teleop commands: consistent with :class:`OpenXRDevice`.
 
     The device tracks the left hand, right hand, head position, or any combination of these
     based on the TrackingTarget enum values. When retargeters are provided, the raw tracking
@@ -65,13 +67,7 @@ class OpenXRDevice(DeviceBase):
     """
 
     class TrackingTarget(Enum):
-        """Enum class specifying what to track with OpenXR.
-
-        Attributes:
-            HAND_LEFT: Track the left hand (index 0 in _get_raw_data output)
-            HAND_RIGHT: Track the right hand (index 1 in _get_raw_data output)
-            HEAD: Track the head/headset position (index 2 in _get_raw_data output)
-        """
+        """Enum class specifying what to track with Manus+Vive. Consistent with :class:`OpenXRDevice.TrackingTarget`."""
 
         HAND_LEFT = 0
         HAND_RIGHT = 1
@@ -79,18 +75,19 @@ class OpenXRDevice(DeviceBase):
 
     TELEOP_COMMAND_EVENT_TYPE = "teleop_command"
 
-    def __init__(
-        self,
-        cfg: OpenXRDeviceCfg,
-        retargeters: list[RetargeterBase] | None = None,
-    ):
-        """Initialize the OpenXR device.
+    def __init__(self, cfg: ManusViveCfg, retargeters: list[RetargeterBase] | None = None):
+        """Initialize the Manus+Vive device.
 
         Args:
-            cfg: Configuration object for OpenXR settings.
+            cfg: Configuration object for Manus+Vive settings.
             retargeters: List of retargeter instances to use for transforming raw tracking data.
         """
         super().__init__(retargeters)
+        # Enforce minimum Isaac Sim version (>= 5.1)
+        version_info = get_version()
+        major, minor = int(version_info[2]), int(version_info[3])
+        if (major < 5) or (major == 5 and minor < 1):
+            raise RuntimeError(f"ManusVive requires Isaac Sim >= 5.1. Detected version {major}.{minor}. ")
         self._xr_cfg = cfg.xr_cfg or XrCfg()
         self._additional_callbacks = dict()
         self._vc_subscription = (
@@ -100,6 +97,7 @@ class OpenXRDevice(DeviceBase):
                 carb.events.type_from_string(self.TELEOP_COMMAND_EVENT_TYPE), self._on_teleop_command
             )
         )
+        self._manus_vive = ManusViveIntegration()
 
         # Initialize dictionaries instead of arrays
         default_pose = np.array([0, 0, 0, 1, 0, 0, 0], dtype=np.float32)
@@ -114,7 +112,6 @@ class OpenXRDevice(DeviceBase):
 
     def __del__(self):
         """Clean up resources when the object is destroyed.
-
         Properly unsubscribes from the XR message bus to prevent memory leaks
         and resource issues when the device is no longer needed.
         """
@@ -124,16 +121,14 @@ class OpenXRDevice(DeviceBase):
         # No need to explicitly clean up OpenXR instance as it's managed by NVIDIA Isaac Sim
 
     def __str__(self) -> str:
-        """Returns a string containing information about the OpenXR hand tracking device.
-
-        This provides details about the device configuration, tracking settings,
+        """Provide details about the device configuration, tracking settings,
         and available gesture commands.
 
         Returns:
-            Formatted string with device information
+            Formatted string with device information.
         """
 
-        msg = f"OpenXR Hand Tracking Device: {self.__class__.__name__}\n"
+        msg = f"Manus+Vive Hand Tracking Device: {self.__class__.__name__}\n"
         msg += f"\tAnchor Position: {self._xr_cfg.anchor_pos}\n"
         msg += f"\tAnchor Rotation: {self._xr_cfg.anchor_rot}\n"
 
@@ -160,35 +155,31 @@ class OpenXRDevice(DeviceBase):
 
         # Add joint tracking information
         msg += "\t----------------------------------------------\n"
-        msg += "\tTracked Joints: All 26 XR hand joints including:\n"
+        msg += "\tTracked Joints: 26 XR hand joints including:\n"
         msg += "\t\t- Wrist, palm\n"
         msg += "\t\t- Thumb (tip, intermediate joints)\n"
         msg += "\t\t- Fingers (tip, distal, intermediate, proximal)\n"
 
         return msg
 
-    """
-    Operations
-    """
-
     def reset(self):
+        """Reset cached joint and head poses."""
         default_pose = np.array([0, 0, 0, 1, 0, 0, 0], dtype=np.float32)
         self._previous_joint_poses_left = {name: default_pose.copy() for name in HAND_JOINT_NAMES}
         self._previous_joint_poses_right = {name: default_pose.copy() for name in HAND_JOINT_NAMES}
         self._previous_headpose = default_pose.copy()
 
     def add_callback(self, key: str, func: Callable):
-        """Add additional functions to bind to client messages.
+        """Register a callback for a given key.
 
         Args:
-            key: The message type to bind to. Valid values are "START", "STOP", and "RESET".
-            func: The function to call when the message is received. The callback function should not
-                take any arguments.
+            key: The message key to bind ('START', 'STOP', 'RESET').
+            func: The function to invoke when the message key is received.
         """
         self._additional_callbacks[key] = func
 
-    def _get_raw_data(self) -> Any:
-        """Get the latest tracking data from the OpenXR runtime.
+    def _get_raw_data(self) -> dict:
+        """Get the latest tracking data from Manus and Vive.
 
         Returns:
             Dictionary with TrackingTarget enum keys (HAND_LEFT, HAND_RIGHT, HEAD) containing:
@@ -199,76 +190,23 @@ class OpenXRDevice(DeviceBase):
         Each pose is represented as a 7-element array: [x, y, z, qw, qx, qy, qz]
         where the first 3 elements are position and the last 4 are quaternion orientation.
         """
+        hand_tracking_data = self._manus_vive.get_all_device_data()["manus_gloves"]
+        result = {"left": self._previous_joint_poses_left, "right": self._previous_joint_poses_right}
+        for joint, pose in hand_tracking_data.items():
+            hand, index = joint.split("_")
+            joint_name = HAND_JOINT_MAP[int(index)]
+            result[hand][joint_name] = np.array(pose["position"] + pose["orientation"], dtype=np.float32)
         return {
-            self.TrackingTarget.HAND_LEFT: self._calculate_joint_poses(
-                XRCore.get_singleton().get_input_device("/user/hand/left"),
-                self._previous_joint_poses_left,
-            ),
-            self.TrackingTarget.HAND_RIGHT: self._calculate_joint_poses(
-                XRCore.get_singleton().get_input_device("/user/hand/right"),
-                self._previous_joint_poses_right,
-            ),
-            self.TrackingTarget.HEAD: self._calculate_headpose(),
+            OpenXRDevice.TrackingTarget.HAND_LEFT: result["left"],
+            OpenXRDevice.TrackingTarget.HAND_RIGHT: result["right"],
+            OpenXRDevice.TrackingTarget.HEAD: self._calculate_headpose(),
         }
-
-    """
-    Internal helpers.
-    """
-
-    def _calculate_joint_poses(
-        self, hand_device: Any, previous_joint_poses: dict[str, np.ndarray]
-    ) -> dict[str, np.ndarray]:
-        """Calculate and update joint poses for a hand device.
-
-        This function retrieves the current joint poses from the OpenXR hand device and updates
-        the previous joint poses with the new data. If a joint's position or orientation is not
-        valid, it will use the previous values.
-
-        Args:
-            hand_device: The OpenXR input device for a hand (/user/hand/left or /user/hand/right).
-            previous_joint_poses: Dictionary mapping joint names to their previous poses.
-                Each pose is a 7-element array: [x, y, z, qw, qx, qy, qz].
-
-        Returns:
-            Updated dictionary of joint poses with the same structure as previous_joint_poses.
-            Each pose is represented as a 7-element numpy array: [x, y, z, qw, qx, qy, qz]
-            where the first 3 elements are position and the last 4 are quaternion orientation.
-        """
-        if hand_device is None:
-            return previous_joint_poses
-
-        joint_poses = hand_device.get_all_virtual_world_poses()
-
-        # Update each joint that is present in the current data
-        for joint_name, joint_pose in joint_poses.items():
-            if joint_name in HAND_JOINT_NAMES:
-                # Extract translation and rotation
-                if joint_pose.validity_flags & XRPoseValidityFlags.POSITION_VALID:
-                    position = joint_pose.pose_matrix.ExtractTranslation()
-                else:
-                    position = previous_joint_poses[joint_name][:3]
-
-                if joint_pose.validity_flags & XRPoseValidityFlags.ORIENTATION_VALID:
-                    quat = joint_pose.pose_matrix.ExtractRotationQuat()
-                    quati = quat.GetImaginary()
-                    quatw = quat.GetReal()
-                else:
-                    quatw = previous_joint_poses[joint_name][3]
-                    quati = previous_joint_poses[joint_name][4:]
-
-                # Directly update the dictionary with new data
-                previous_joint_poses[joint_name] = np.array(
-                    [position[0], position[1], position[2], quatw, quati[0], quati[1], quati[2]], dtype=np.float32
-                )
-
-        # No need for conversion, just return the updated dictionary
-        return previous_joint_poses
 
     def _calculate_headpose(self) -> np.ndarray:
         """Calculate the head pose from OpenXR.
 
         Returns:
-            numpy.ndarray: 7-element array containing head position (xyz) and orientation (wxyz)
+            7-element numpy.ndarray [x, y, z, qw, qx, qy, qz].
         """
         head_device = XRCore.get_singleton().get_input_device("/user/head")
         if head_device:
@@ -292,6 +230,11 @@ class OpenXRDevice(DeviceBase):
         return self._previous_headpose
 
     def _on_teleop_command(self, event: carb.events.IEvent):
+        """Handle teleoperation command events.
+
+        Args:
+            event: The XR message-bus event containing a 'message' payload.
+        """
         msg = event.payload["message"]
 
         if "start" in msg:

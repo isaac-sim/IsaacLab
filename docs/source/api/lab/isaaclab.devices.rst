@@ -16,6 +16,7 @@
     Se2SpaceMouse
     Se3SpaceMouse
     OpenXRDevice
+    ManusVive
     isaaclab.devices.openxr.retargeters.GripperRetargeter
     isaaclab.devices.openxr.retargeters.Se3AbsRetargeter
     isaaclab.devices.openxr.retargeters.Se3RelRetargeter
@@ -82,6 +83,14 @@ OpenXR
 ------
 
 .. autoclass:: OpenXRDevice
+    :members:
+    :inherited-members:
+    :show-inheritance:
+
+Manus + Vive
+------------
+
+.. autoclass:: ManusVive
     :members:
     :inherited-members:
     :show-inheritance:
