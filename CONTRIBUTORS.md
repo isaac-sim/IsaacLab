@@ -124,6 +124,7 @@ Guidelines for modifications:
 * Shundo Kishi
 * Stefan Van de Mosselaer
 * Stephan Pleines
+* Trushant Adeshara
 * Tyler Lum
 * Victor Khaustov
 * Virgilio Gómez Lambo
