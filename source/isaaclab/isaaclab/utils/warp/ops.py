@@ -193,7 +193,7 @@ def raycast_dynamic_meshes(
     return_normal: bool = False,
     return_face_id: bool = False,
     return_mesh_id: bool = False,
-) -> tuple[torch.Tensor, torch.Tensor | None, torch.Tensor | None, torch.Tensor | None]:
+) -> tuple[torch.Tensor, torch.Tensor | None, torch.Tensor | None, torch.Tensor | None, torch.Tensor | None]:
     """Performs ray-casting against multiple, dynamic meshes.
 
     Note that the :attr:`ray_starts` and :attr:`ray_directions`, and :attr:`ray_hits` should have compatible shapes

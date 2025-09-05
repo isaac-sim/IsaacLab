@@ -17,16 +17,15 @@ from isaaclab.app import AppLauncher
 simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 
 # Import after app launch
-import warp as wp  # noqa: E402
+import warp as wp
 
-from isaaclab.utils.utils.math import matrix_from_quat, quat_from_euler_xyz, random_orientation  # noqa: E402
-from isaaclab.utils.warp.ops import convert_to_warp_mesh, raycast_dynamic_meshes, raycast_single_mesh  # noqa: E402
+from isaaclab.utils.math import matrix_from_quat, quat_from_euler_xyz, random_orientation
+from isaaclab.utils.warp.ops import convert_to_warp_mesh, raycast_dynamic_meshes, raycast_mesh
 
 
 @pytest.fixture(scope="module")
 def raycast_setup():
     device = "cuda" if torch.cuda.is_available() else "cpu"
-
     # Base trimesh cube and its Warp conversion
     trimesh_mesh = trimesh.creation.box([2, 2, 1])
     single_mesh = [
@@ -49,6 +48,7 @@ def raycast_setup():
         "device": device,
         "trimesh_mesh": trimesh_mesh,
         "single_mesh_id": single_mesh_id,
+        "wp_mesh": single_mesh[0],
         "ray_starts": ray_starts,
         "ray_directions": ray_directions,
         "expected_ray_hits": expected_ray_hits,
@@ -85,7 +85,7 @@ def test_raycast_multi_cubes(raycast_setup):
 
     torch.testing.assert_close(ray_hits, torch.tensor([[[0, 0, -0.5], [0, 2.5, -0.5]]], device=device))
     torch.testing.assert_close(ray_distance, torch.tensor([[4.5, 4.5]], device=device))
-    torch.testing.assert_close(ray_normal, torch.tensor([[[0, 0, -1], [0, 0, -1]]], device=device))
+    torch.testing.assert_close(ray_normal, torch.tensor([[[0, 0, -1], [0, 0, -1]]], device=device, dtype=torch.float32))
     assert torch.equal(mesh_ids, torch.tensor([[0, 1]], dtype=torch.int32, device=device))
 
     # Case 2 (explicit poses/orientations)
@@ -104,7 +104,7 @@ def test_raycast_multi_cubes(raycast_setup):
 
     torch.testing.assert_close(ray_hits, torch.tensor([[[0, 0, -0.5], [0, 4.5, -0.5]]], device=device))
     torch.testing.assert_close(ray_distance, torch.tensor([[4.5, 4.5]], device=device))
-    torch.testing.assert_close(ray_normal, torch.tensor([[[0, 0, -1], [0, 0, -1]]], device=device))
+    torch.testing.assert_close(ray_normal, torch.tensor([[[0, 0, -1], [0, 0, -1]]], device=device, dtype=torch.float32))
     assert torch.equal(mesh_ids, torch.tensor([[0, 1]], dtype=torch.int32, device=device))
 
 
@@ -112,21 +112,22 @@ def test_raycast_single_cube(raycast_setup):
     device = raycast_setup["device"]
     ray_starts = raycast_setup["ray_starts"]
     ray_directions = raycast_setup["ray_directions"]
-    single_mesh_id = raycast_setup["single_mesh_id"]
+    mesh = raycast_setup["wp_mesh"]
     expected_ray_hits = raycast_setup["expected_ray_hits"]
+    single_mesh_id = raycast_setup["single_mesh_id"]
 
     # Single-mesh helper
-    ray_hits, ray_distance, ray_normal, ray_face_id = raycast_single_mesh(
+    ray_hits, ray_distance, ray_normal, ray_face_id = raycast_mesh(
         ray_starts,
         ray_directions,
-        single_mesh_id,
+        mesh,
         return_distance=True,
         return_normal=True,
         return_face_id=True,
     )
     torch.testing.assert_close(ray_hits, expected_ray_hits)
     torch.testing.assert_close(ray_distance, torch.tensor([[4.5, 4.5]], device=device))
-    torch.testing.assert_close(ray_normal, torch.tensor([[[0, 0, -1], [0, 0, -1]]], device=device))
+    torch.testing.assert_close(ray_normal, torch.tensor([[[0, 0, -1], [0, 0, -1]]], device=device, dtype=torch.float32))
     torch.testing.assert_close(ray_face_id, torch.tensor([[3, 8]], dtype=torch.int32, device=device))
 
     # Multi-mesh API with one mesh
@@ -140,7 +141,7 @@ def test_raycast_single_cube(raycast_setup):
     )
     torch.testing.assert_close(ray_hits, expected_ray_hits)
     torch.testing.assert_close(ray_distance, torch.tensor([[4.5, 4.5]], device=device))
-    torch.testing.assert_close(ray_normal, torch.tensor([[[0, 0, -1], [0, 0, -1]]], device=device))
+    torch.testing.assert_close(ray_normal, torch.tensor([[[0, 0, -1], [0, 0, -1]]], device=device, dtype=torch.float32))
     torch.testing.assert_close(ray_face_id, torch.tensor([[3, 8]], dtype=torch.int32, device=device))
 
 
@@ -165,7 +166,9 @@ def test_raycast_moving_cube(raycast_setup):
         offset = torch.tensor([[0, 0, distance.item()], [0, 0, distance.item()]], dtype=torch.float32, device=device)
         torch.testing.assert_close(ray_hits, expected_ray_hits + offset.unsqueeze(0))
         torch.testing.assert_close(ray_distance, distance + torch.tensor([[4.5, 4.5]], device=device))
-        torch.testing.assert_close(ray_normal, torch.tensor([[[0, 0, -1], [0, 0, -1]]], device=device))
+        torch.testing.assert_close(
+            ray_normal, torch.tensor([[[0, 0, -1], [0, 0, -1]]], device=device, dtype=torch.float32)
+        )
         torch.testing.assert_close(ray_face_id, torch.tensor([[3, 8]], dtype=torch.int32, device=device))
 
 
@@ -188,7 +191,7 @@ def test_raycast_rotated_cube(raycast_setup):
     )
     torch.testing.assert_close(ray_hits, expected_ray_hits)
     torch.testing.assert_close(ray_distance, torch.tensor([[4.5, 4.5]], device=device))
-    torch.testing.assert_close(ray_normal, torch.tensor([[[0, 0, -1], [0, 0, -1]]], device=device))
+    torch.testing.assert_close(ray_normal, torch.tensor([[[0, 0, -1], [0, 0, -1]]], device=device, dtype=torch.float32))
     # Rotated cube swaps face IDs
     torch.testing.assert_close(ray_face_id, torch.tensor([[8, 3]], dtype=torch.int32, device=device))
 
@@ -235,7 +238,3 @@ def test_raycast_random_cube(raycast_setup):
         torch.testing.assert_close(ray_distance, ray_distance_m)
         torch.testing.assert_close(ray_normal, ray_normal_m)
         torch.testing.assert_close(ray_face_id, ray_face_id_m)
-
-
-if __name__ == "__main__":
-    pytest.main([__file__, "-s"])
