@@ -51,6 +51,7 @@ INSTALL_REQUIRES = [
     "mujoco==3.3.6.dev798190254",
     "mujoco-warp @ git+https://github.com/google-deepmind/mujoco_warp.git@main",
     "newton-physics @ git+https://github.com/newton-physics/newton.git@main",
+    "imgui-bundle==1.92.0",
 ]
 
 
