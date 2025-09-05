@@ -1,6 +1,14 @@
 Changelog
 ---------
 
+0.45.13 (2025-09-05)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added action terms for using RMPFlow in Manager-Based environments.
+
 0.45.12 (2025-09-05)
 ~~~~~~~~~~~~~~~~~~~~
 
