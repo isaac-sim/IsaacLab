@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.2.1" />
-    <meta name="docbuild:last-update" content="Sep 04, 2025"/>
+    <meta name="docbuild:last-update" content="Sep 05, 2025"/>
   </head>
   
   
@@ -620,6 +620,7 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">gym.spaces</span>  <span class="c1"># needed for rl-games incompatibility: https://github.com/Denys88/rl_games/issues/261</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">gymnasium</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Callable</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">rl_games.common</span><span class="w"> </span><span class="kn">import</span> <span class="n">env_configurations</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">rl_games.common.vecenv</span><span class="w"> </span><span class="kn">import</span> <span class="n">IVecEnv</span>
@@ -643,12 +644,14 @@
 <span class="sd">    observations. This dictionary contains &quot;obs&quot; and &quot;states&quot; which typically correspond</span>
 <span class="sd">    to the actor and critic observations respectively.</span>
 
-<span class="sd">    To use asymmetric actor-critic, the environment observations from :class:`ManagerBasedRLEnv` or :class:`DirectRLEnv`</span>
-<span class="sd">    must have the key or group name &quot;critic&quot;. The observation group is used to set the</span>
-<span class="sd">    :attr:`num_states` (int) and :attr:`state_space` (:obj:`gym.spaces.Box`). These are</span>
-<span class="sd">    used by the learning agent in RL-Games to allocate buffers in the trajectory memory.</span>
-<span class="sd">    Since this is optional for some environments, the wrapper checks if these attributes exist.</span>
-<span class="sd">    If they don&#39;t then the wrapper defaults to zero as number of privileged observations.</span>
+<span class="sd">    To use asymmetric actor-critic, map privileged observation groups under ``&quot;states&quot;`` (e.g. ``[&quot;critic&quot;]``).</span>
+
+<span class="sd">    The wrapper supports **either** concatenated tensors (default) **or** Dict inputs:</span>
+<span class="sd">    when wrapper is concate mode, rl-games sees {&quot;obs&quot;: Tensor, (optional)&quot;states&quot;: Tensor}</span>
+<span class="sd">    when wrapper is not concate mode, rl-games sees {&quot;obs&quot;: dict[str, Tensor], (optional)&quot;states&quot;: dict[str, Tensor]}</span>
+<span class="sd">    - Concatenated mode (``concate_obs_group=True``): ``observation_space``/``state_space`` are ``gym.spaces.Box``.</span>
+<span class="sd">    - Dict mode (``concate_obs_group=False``): ``observation_space``/``state_space`` are ``gym.spaces.Dict`` keyed by</span>
+<span class="sd">      the requested groups. When no ``&quot;states&quot;`` groups are provided, the states Dict is omitted at runtime.</span>
 
 <span class="sd">    .. caution::</span>
 
@@ -662,7 +665,15 @@
 <span class="sd">        https://github.com/NVIDIA-Omniverse/IsaacGymEnvs</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-<div class="viewcode-block" id="RlGamesVecEnvWrapper.__init__"><a class="viewcode-back" href="../../source/api/lab_rl/isaaclab_rl.html#isaaclab_rl.rl_games.RlGamesVecEnvWrapper.__init__">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedRLEnv</span> <span class="o">|</span> <span class="n">DirectRLEnv</span><span class="p">,</span> <span class="n">rl_device</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">clip_obs</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">clip_actions</span><span class="p">:</span> <span class="nb">float</span><span class="p">):</span>
+<div class="viewcode-block" id="RlGamesVecEnvWrapper.__init__"><a class="viewcode-back" href="../../source/api/lab_rl/isaaclab_rl.html#isaaclab_rl.rl_games.RlGamesVecEnvWrapper.__init__">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedRLEnv</span> <span class="o">|</span> <span class="n">DirectRLEnv</span><span class="p">,</span>
+        <span class="n">rl_device</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">clip_obs</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+        <span class="n">clip_actions</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+        <span class="n">obs_groups</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">concate_obs_group</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Initializes the wrapper instance.</span>
 
 <span class="sd">        Args:</span>
@@ -670,6 +681,9 @@
 <span class="sd">            rl_device: The device on which agent computations are performed.</span>
 <span class="sd">            clip_obs: The clipping value for observations.</span>
 <span class="sd">            clip_actions: The clipping value for actions.</span>
+<span class="sd">            obs_groups: The remapping from isaaclab observation to rl-games, default to None for backward compatible.</span>
+<span class="sd">            concate_obs_group: The boolean value indicates if input to rl-games network is dict or tensor. Default to</span>
+<span class="sd">                True for backward compatible.</span>
 
 <span class="sd">        Raises:</span>
 <span class="sd">            ValueError: The environment is not inherited from :class:`ManagerBasedRLEnv` or :class:`DirectRLEnv`.</span>
@@ -688,11 +702,36 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">_clip_obs</span> <span class="o">=</span> <span class="n">clip_obs</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_clip_actions</span> <span class="o">=</span> <span class="n">clip_actions</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_sim_device</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">unwrapped</span><span class="o">.</span><span class="n">device</span>
-        <span class="c1"># information for privileged observations</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">state_space</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">rlg_num_states</span> <span class="o">=</span> <span class="mi">0</span>
+
+        <span class="c1"># resolve the observation group</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_concate_obs_groups</span> <span class="o">=</span> <span class="n">concate_obs_group</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_obs_groups</span> <span class="o">=</span> <span class="n">obs_groups</span>
+        <span class="k">if</span> <span class="n">obs_groups</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_obs_groups</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;obs&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;policy&quot;</span><span class="p">],</span> <span class="s2">&quot;states&quot;</span><span class="p">:</span> <span class="p">[]}</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">unwrapped</span><span class="o">.</span><span class="n">single_observation_space</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;policy&quot;</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">KeyError</span><span class="p">(</span><span class="s2">&quot;Policy observation group is expected if no explicit groups is defined&quot;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">unwrapped</span><span class="o">.</span><span class="n">single_observation_space</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;critic&quot;</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_obs_groups</span><span class="p">[</span><span class="s2">&quot;states&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;critic&quot;</span><span class="p">]</span>
+
+        <span class="k">if</span> <span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_concate_obs_groups</span>
+            <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">state_space</span><span class="p">,</span> <span class="n">gym</span><span class="o">.</span><span class="n">spaces</span><span class="o">.</span><span class="n">Box</span><span class="p">)</span>
+            <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">observation_space</span><span class="p">,</span> <span class="n">gym</span><span class="o">.</span><span class="n">spaces</span><span class="o">.</span><span class="n">Box</span><span class="p">)</span>
+        <span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">rlg_num_states</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">state_space</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">elif</span> <span class="p">(</span>
+            <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_concate_obs_groups</span>
+            <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">state_space</span><span class="p">,</span> <span class="n">gym</span><span class="o">.</span><span class="n">spaces</span><span class="o">.</span><span class="n">Dict</span><span class="p">)</span>
+            <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">observation_space</span><span class="p">,</span> <span class="n">gym</span><span class="o">.</span><span class="n">spaces</span><span class="o">.</span><span class="n">Dict</span><span class="p">)</span>
+        <span class="p">):</span>
+            <span class="n">space</span> <span class="o">=</span> <span class="p">[</span><span class="n">space</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">space</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">state_space</span><span class="o">.</span><span class="n">values</span><span class="p">()]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">rlg_num_states</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">space</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">rlg_num_states</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">state_space</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span></div>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span>
+                <span class="s2">&quot;only valid combination for state space is gym.space.Box when concate_obs_groups is True,             &quot;</span>
+                <span class="s2">&quot;   and gym.space.Dict when concate_obs_groups is False. You have concate_obs_groups:                &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot; </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_concate_obs_groups</span><span class="si">}</span><span class="s2">, and state_space: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">state_space</span><span class="o">.</span><span class="vm">__class__</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="p">)</span></div>
 
     <span class="k">def</span><span class="w"> </span><span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns the wrapper name and the :attr:`env` representation string.&quot;&quot;&quot;</span>
@@ -718,19 +757,18 @@
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">env</span><span class="o">.</span><span class="n">render_mode</span>
 
     <span class="nd">@property</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">observation_space</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">gym</span><span class="o">.</span><span class="n">spaces</span><span class="o">.</span><span class="n">Box</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns the :attr:`Env` :attr:`observation_space`.&quot;&quot;&quot;</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">observation_space</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">gym</span><span class="o">.</span><span class="n">spaces</span><span class="o">.</span><span class="n">Box</span> <span class="o">|</span> <span class="n">gym</span><span class="o">.</span><span class="n">spaces</span><span class="o">.</span><span class="n">Dict</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns the :attr:`Env` :attr:`observation_space` (``Box`` if concatenated, otherwise ``Dict``).&quot;&quot;&quot;</span>
         <span class="c1"># note: rl-games only wants single observation space</span>
-        <span class="n">policy_obs_space</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">unwrapped</span><span class="o">.</span><span class="n">single_observation_space</span><span class="p">[</span><span class="s2">&quot;policy&quot;</span><span class="p">]</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">policy_obs_space</span><span class="p">,</span> <span class="n">gymnasium</span><span class="o">.</span><span class="n">spaces</span><span class="o">.</span><span class="n">Box</span><span class="p">):</span>
-            <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span>
-                <span class="sa">f</span><span class="s2">&quot;The RL-Games wrapper does not currently support observation space: &#39;</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">policy_obs_space</span><span class="p">)</span><span class="si">}</span><span class="s2">&#39;.&quot;</span>
-                <span class="sa">f</span><span class="s2">&quot; If you need to support this, please modify the wrapper: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">,&quot;</span>
-                <span class="s2">&quot; and if you are nice, please send a merge-request.&quot;</span>
-            <span class="p">)</span>
-        <span class="c1"># note: maybe should check if we are a sub-set of the actual space. don&#39;t do it right now since</span>
-        <span class="c1">#   in ManagerBasedRLEnv we are setting action space as (-inf, inf).</span>
-        <span class="k">return</span> <span class="n">gym</span><span class="o">.</span><span class="n">spaces</span><span class="o">.</span><span class="n">Box</span><span class="p">(</span><span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">_clip_obs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_clip_obs</span><span class="p">,</span> <span class="n">policy_obs_space</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+        <span class="n">space</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">unwrapped</span><span class="o">.</span><span class="n">single_observation_space</span>
+        <span class="n">clip</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_clip_obs</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_concate_obs_groups</span><span class="p">:</span>
+            <span class="n">policy_space</span> <span class="o">=</span> <span class="p">{</span><span class="n">grp</span><span class="p">:</span> <span class="n">gym</span><span class="o">.</span><span class="n">spaces</span><span class="o">.</span><span class="n">Box</span><span class="p">(</span><span class="o">-</span><span class="n">clip</span><span class="p">,</span> <span class="n">clip</span><span class="p">,</span> <span class="n">space</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">grp</span><span class="p">)</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span> <span class="k">for</span> <span class="n">grp</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_obs_groups</span><span class="p">[</span><span class="s2">&quot;obs&quot;</span><span class="p">]}</span>
+            <span class="k">return</span> <span class="n">gym</span><span class="o">.</span><span class="n">spaces</span><span class="o">.</span><span class="n">Dict</span><span class="p">(</span><span class="n">policy_space</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">shapes</span> <span class="o">=</span> <span class="p">[</span><span class="n">space</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">group</span><span class="p">)</span><span class="o">.</span><span class="n">shape</span> <span class="k">for</span> <span class="n">group</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_obs_groups</span><span class="p">[</span><span class="s2">&quot;obs&quot;</span><span class="p">]]</span>
+            <span class="n">cat_shape</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_obs_concat_fn</span> <span class="o">=</span> <span class="n">make_concat_plan</span><span class="p">(</span><span class="n">shapes</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">gym</span><span class="o">.</span><span class="n">spaces</span><span class="o">.</span><span class="n">Box</span><span class="p">(</span><span class="o">-</span><span class="n">clip</span><span class="p">,</span> <span class="n">clip</span><span class="p">,</span> <span class="n">cat_shape</span><span class="p">)</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">action_space</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">gym</span><span class="o">.</span><span class="n">Space</span><span class="p">:</span>
@@ -776,23 +814,18 @@
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">unwrapped</span><span class="o">.</span><span class="n">device</span>
 
     <span class="nd">@property</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">state_space</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">gym</span><span class="o">.</span><span class="n">spaces</span><span class="o">.</span><span class="n">Box</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns the :attr:`Env` :attr:`observation_space`.&quot;&quot;&quot;</span>
-        <span class="c1"># note: rl-games only wants single observation space</span>
-        <span class="n">critic_obs_space</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">unwrapped</span><span class="o">.</span><span class="n">single_observation_space</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;critic&quot;</span><span class="p">)</span>
-        <span class="c1"># check if we even have a critic obs</span>
-        <span class="k">if</span> <span class="n">critic_obs_space</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="k">return</span> <span class="kc">None</span>
-        <span class="k">elif</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">critic_obs_space</span><span class="p">,</span> <span class="n">gymnasium</span><span class="o">.</span><span class="n">spaces</span><span class="o">.</span><span class="n">Box</span><span class="p">):</span>
-            <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span>
-                <span class="sa">f</span><span class="s2">&quot;The RL-Games wrapper does not currently support state space: &#39;</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">critic_obs_space</span><span class="p">)</span><span class="si">}</span><span class="s2">&#39;.&quot;</span>
-                <span class="sa">f</span><span class="s2">&quot; If you need to support this, please modify the wrapper: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">,&quot;</span>
-                <span class="s2">&quot; and if you are nice, please send a merge-request.&quot;</span>
-            <span class="p">)</span>
-        <span class="c1"># return casted space in gym.spaces.Box (OpenAI Gym)</span>
-        <span class="c1"># note: maybe should check if we are a sub-set of the actual space. don&#39;t do it right now since</span>
-        <span class="c1">#   in ManagerBasedRLEnv we are setting action space as (-inf, inf).</span>
-        <span class="k">return</span> <span class="n">gym</span><span class="o">.</span><span class="n">spaces</span><span class="o">.</span><span class="n">Box</span><span class="p">(</span><span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">_clip_obs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_clip_obs</span><span class="p">,</span> <span class="n">critic_obs_space</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">state_space</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">gym</span><span class="o">.</span><span class="n">spaces</span><span class="o">.</span><span class="n">Box</span> <span class="o">|</span> <span class="n">gym</span><span class="o">.</span><span class="n">spaces</span><span class="o">.</span><span class="n">Dict</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns the privileged observation space for the critic (``Box`` if concatenated, otherwise ``Dict``).&quot;&quot;&quot;</span>
+        <span class="c1"># # note: rl-games only wants single observation space</span>
+        <span class="n">space</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">unwrapped</span><span class="o">.</span><span class="n">single_observation_space</span>
+        <span class="n">clip</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_clip_obs</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_concate_obs_groups</span><span class="p">:</span>
+            <span class="n">state_space</span> <span class="o">=</span> <span class="p">{</span><span class="n">grp</span><span class="p">:</span> <span class="n">gym</span><span class="o">.</span><span class="n">spaces</span><span class="o">.</span><span class="n">Box</span><span class="p">(</span><span class="o">-</span><span class="n">clip</span><span class="p">,</span> <span class="n">clip</span><span class="p">,</span> <span class="n">space</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">grp</span><span class="p">)</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span> <span class="k">for</span> <span class="n">grp</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_obs_groups</span><span class="p">[</span><span class="s2">&quot;states&quot;</span><span class="p">]}</span>
+            <span class="k">return</span> <span class="n">gym</span><span class="o">.</span><span class="n">spaces</span><span class="o">.</span><span class="n">Dict</span><span class="p">(</span><span class="n">state_space</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">shapes</span> <span class="o">=</span> <span class="p">[</span><span class="n">space</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">group</span><span class="p">)</span><span class="o">.</span><span class="n">shape</span> <span class="k">for</span> <span class="n">group</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_obs_groups</span><span class="p">[</span><span class="s2">&quot;states&quot;</span><span class="p">]]</span>
+            <span class="n">cat_shape</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_states_concat_fn</span> <span class="o">=</span> <span class="n">make_concat_plan</span><span class="p">(</span><span class="n">shapes</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">gym</span><span class="o">.</span><span class="n">spaces</span><span class="o">.</span><span class="n">Box</span><span class="p">(</span><span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">_clip_obs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_clip_obs</span><span class="p">,</span> <span class="n">cat_shape</span><span class="p">)</span>
 
 <div class="viewcode-block" id="RlGamesVecEnvWrapper.get_number_of_agents"><a class="viewcode-back" href="../../source/api/lab_rl/isaaclab_rl.html#isaaclab_rl.rl_games.RlGamesVecEnvWrapper.get_number_of_agents">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">get_number_of_agents</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns number of actors in the environment.&quot;&quot;&quot;</span>
@@ -853,7 +886,7 @@
 <span class="sd">    Helper functions</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="k">def</span><span class="w"> </span><span class="nf">_process_obs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">obs_dict</span><span class="p">:</span> <span class="n">VecEnvObs</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_process_obs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">obs_dict</span><span class="p">:</span> <span class="n">VecEnvObs</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]</span> <span class="o">|</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]]:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Processing of the observations and states from the environment.</span>
 
 <span class="sd">        Note:</span>
@@ -863,32 +896,61 @@
 <span class="sd">        Args:</span>
 <span class="sd">            obs_dict: The current observations from environment.</span>
 
-<span class="sd">        Returns:</span>
-<span class="sd">            If environment provides states, then a dictionary containing the observations and states is returned.</span>
-<span class="sd">            Otherwise just the observations tensor is returned.</span>
+<span class="sd">         Returns:</span>
+<span class="sd">            A dictionary for RL-Games with keys:</span>
+<span class="sd">            - ``&quot;obs&quot;``: either a concatenated tensor (``concate_obs_group=True``) or a Dict of group tensors.</span>
+<span class="sd">            - ``&quot;states&quot;`` (optional): same structure as above when state groups are configured; omitted otherwise.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="c1"># process policy obs</span>
-        <span class="n">obs</span> <span class="o">=</span> <span class="n">obs_dict</span><span class="p">[</span><span class="s2">&quot;policy&quot;</span><span class="p">]</span>
         <span class="c1"># clip the observations</span>
-        <span class="n">obs</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">clamp</span><span class="p">(</span><span class="n">obs</span><span class="p">,</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">_clip_obs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_clip_obs</span><span class="p">)</span>
-        <span class="c1"># move the buffer to rl-device</span>
-        <span class="n">obs</span> <span class="o">=</span> <span class="n">obs</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_rl_device</span><span class="p">)</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">obs</span> <span class="ow">in</span> <span class="n">obs_dict</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">obs_dict</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">clamp</span><span class="p">(</span><span class="n">obs</span><span class="p">,</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">_clip_obs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_clip_obs</span><span class="p">)</span>
 
-        <span class="c1"># check if asymmetric actor-critic or not</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">rlg_num_states</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
-            <span class="c1"># acquire states from the environment if it exists</span>
-            <span class="k">try</span><span class="p">:</span>
-                <span class="n">states</span> <span class="o">=</span> <span class="n">obs_dict</span><span class="p">[</span><span class="s2">&quot;critic&quot;</span><span class="p">]</span>
-            <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
-                <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;Environment does not define key &#39;critic&#39; for privileged observations.&quot;</span><span class="p">)</span>
-            <span class="c1"># clip the states</span>
-            <span class="n">states</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">clamp</span><span class="p">(</span><span class="n">states</span><span class="p">,</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">_clip_obs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_clip_obs</span><span class="p">)</span>
-            <span class="c1"># move buffers to rl-device</span>
-            <span class="n">states</span> <span class="o">=</span> <span class="n">states</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_rl_device</span><span class="p">)</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
-            <span class="c1"># convert to dictionary</span>
-            <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;obs&quot;</span><span class="p">:</span> <span class="n">obs</span><span class="p">,</span> <span class="s2">&quot;states&quot;</span><span class="p">:</span> <span class="n">states</span><span class="p">}</span>
+        <span class="c1"># process input obs dict</span>
+        <span class="n">rl_games_obs</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;obs&quot;</span><span class="p">:</span> <span class="p">{</span><span class="n">group</span><span class="p">:</span> <span class="n">obs_dict</span><span class="p">[</span><span class="n">group</span><span class="p">]</span> <span class="k">for</span> <span class="n">group</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_obs_groups</span><span class="p">[</span><span class="s2">&quot;obs&quot;</span><span class="p">]}}</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_obs_groups</span><span class="p">[</span><span class="s2">&quot;states&quot;</span><span class="p">])</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">rl_games_obs</span><span class="p">[</span><span class="s2">&quot;states&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="n">group</span><span class="p">:</span> <span class="n">obs_dict</span><span class="p">[</span><span class="n">group</span><span class="p">]</span> <span class="k">for</span> <span class="n">group</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_obs_groups</span><span class="p">[</span><span class="s2">&quot;states&quot;</span><span class="p">]}</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_concate_obs_groups</span><span class="p">:</span>
+            <span class="n">rl_games_obs</span><span class="p">[</span><span class="s2">&quot;obs&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_obs_concat_fn</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">rl_games_obs</span><span class="p">[</span><span class="s2">&quot;obs&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">()))</span>
+            <span class="k">if</span> <span class="s2">&quot;states&quot;</span> <span class="ow">in</span> <span class="n">rl_games_obs</span><span class="p">:</span>
+                <span class="n">rl_games_obs</span><span class="p">[</span><span class="s2">&quot;states&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_states_concat_fn</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">rl_games_obs</span><span class="p">[</span><span class="s2">&quot;states&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">()))</span>
+
+        <span class="k">return</span> <span class="n">rl_games_obs</span></div>
+
+
+<div class="viewcode-block" id="make_concat_plan"><a class="viewcode-back" href="../../source/api/lab_rl/isaaclab_rl.html#isaaclab_rl.rl_games.make_concat_plan">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">make_concat_plan</span><span class="p">(</span><span class="n">shapes</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="o">...</span><span class="p">]])</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span> <span class="n">Callable</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Given per-sample shapes (no batch dim), return:</span>
+<span class="sd">      - the concatenated per-sample shape</span>
+<span class="sd">      - a function that concatenates a list of batch tensors accordingly.</span>
+
+<span class="sd">    Rules:</span>
+<span class="sd">      0) Empty -&gt; (0,), No-op</span>
+<span class="sd">      1) All 1D -&gt; concat features (dim=1).</span>
+<span class="sd">      2) Same rank &gt; 1:</span>
+<span class="sd">         2a) If all s[:-1] equal -&gt; concat along last dim (channels-last, dim=-1).</span>
+<span class="sd">         2b) If all s[1:] equal  -&gt; concat along first dim (channels-first, dim=1).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">shapes</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">(</span><span class="mi">0</span><span class="p">,),</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span>
+    <span class="c1"># case 1: all vectors</span>
+    <span class="k">if</span> <span class="nb">all</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">s</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">shapes</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">(</span><span class="nb">sum</span><span class="p">(</span><span class="n">s</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">shapes</span><span class="p">),),</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="c1"># case 2: same rank &gt; 1</span>
+    <span class="n">rank</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">shapes</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="k">if</span> <span class="nb">all</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">s</span><span class="p">)</span> <span class="o">==</span> <span class="n">rank</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">shapes</span><span class="p">)</span> <span class="ow">and</span> <span class="n">rank</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="c1"># 2a: concat along last axis (…C)</span>
+        <span class="k">if</span> <span class="nb">all</span><span class="p">(</span><span class="n">s</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="n">shapes</span><span class="p">[</span><span class="mi">0</span><span class="p">][:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">shapes</span><span class="p">):</span>
+            <span class="n">out_shape</span> <span class="o">=</span> <span class="n">shapes</span><span class="p">[</span><span class="mi">0</span><span class="p">][:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="p">(</span><span class="nb">sum</span><span class="p">(</span><span class="n">s</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">shapes</span><span class="p">),)</span>
+            <span class="k">return</span> <span class="n">out_shape</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+        <span class="c1"># 2b: concat along first axis (C…)</span>
+        <span class="k">if</span> <span class="nb">all</span><span class="p">(</span><span class="n">s</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span> <span class="o">==</span> <span class="n">shapes</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">1</span><span class="p">:]</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">shapes</span><span class="p">):</span>
+            <span class="n">out_shape</span> <span class="o">=</span> <span class="p">(</span><span class="nb">sum</span><span class="p">(</span><span class="n">s</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">shapes</span><span class="p">),)</span> <span class="o">+</span> <span class="n">shapes</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">1</span><span class="p">:]</span>
+            <span class="k">return</span> <span class="n">out_shape</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="k">return</span> <span class="n">obs</span></div>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Could not find a valid concatenation plan for rank </span><span class="si">{</span><span class="p">[(</span><span class="nb">len</span><span class="p">(</span><span class="n">s</span><span class="p">),)</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">s</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">shapes</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Could not find a valid concatenation plan, please make sure all value share the same size&quot;</span><span class="p">)</span></div>
 
 
 <span class="sd">&quot;&quot;&quot;</span>
@@ -978,7 +1040,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Sep 04, 2025.
+  Last updated on Sep 05, 2025.
   <br/>
 </p>
   </div>

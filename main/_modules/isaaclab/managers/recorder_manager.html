@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.2.1" />
-    <meta name="docbuild:last-update" content="Sep 04, 2025"/>
+    <meta name="docbuild:last-update" content="Sep 05, 2025"/>
   </head>
   
   
@@ -706,6 +706,15 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span>
 
+    <span class="k">def</span><span class="w"> </span><span class="nf">record_post_physics_decimation_step</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="nb">dict</span> <span class="o">|</span> <span class="kc">None</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Record data after the physics step is executed in the decimation loop.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            A tuple of key and value to be recorded.</span>
+<span class="sd">            Please refer to the `record_pre_reset` function for more details.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span>
+
 
 <div class="viewcode-block" id="RecorderManager"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.managers.html#isaaclab.managers.RecorderManager">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">RecorderManager</span><span class="p">(</span><span class="n">ManagerBase</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Manager for recording data from recorder terms.&quot;&quot;&quot;</span>
@@ -945,6 +954,16 @@
             <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="o">=</span> <span class="n">term</span><span class="o">.</span><span class="n">record_post_step</span><span class="p">()</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">add_to_episodes</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span></div>
 
+<div class="viewcode-block" id="RecorderManager.record_post_physics_decimation_step"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.managers.html#isaaclab.managers.RecorderManager.record_post_physics_decimation_step">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">record_post_physics_decimation_step</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Trigger recorder terms for post-physics step functions in the decimation loop.&quot;&quot;&quot;</span>
+        <span class="c1"># Do nothing if no active recorder terms are provided</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">active_terms</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">return</span>
+
+        <span class="k">for</span> <span class="n">term</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_terms</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+            <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="o">=</span> <span class="n">term</span><span class="o">.</span><span class="n">record_post_physics_decimation_step</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">add_to_episodes</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span></div>
+
 <div class="viewcode-block" id="RecorderManager.record_pre_reset"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.managers.html#isaaclab.managers.RecorderManager.record_pre_reset">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">record_pre_reset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span> <span class="n">force_export_or_skip</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Trigger recorder terms for pre-reset functions.</span>
 
@@ -989,6 +1008,23 @@
             <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="o">=</span> <span class="n">term</span><span class="o">.</span><span class="n">record_post_reset</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">add_to_episodes</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">)</span></div>
 
+<div class="viewcode-block" id="RecorderManager.get_ep_meta"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.managers.html#isaaclab.managers.RecorderManager.get_ep_meta">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">get_ep_meta</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Get the episode metadata.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_env</span><span class="o">.</span><span class="n">cfg</span><span class="p">,</span> <span class="s2">&quot;get_ep_meta&quot;</span><span class="p">):</span>
+            <span class="c1"># Add basic episode metadata</span>
+            <span class="n">ep_meta</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
+            <span class="n">ep_meta</span><span class="p">[</span><span class="s2">&quot;sim_args&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="s2">&quot;dt&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_env</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">dt</span><span class="p">,</span>
+                <span class="s2">&quot;decimation&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_env</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">decimation</span><span class="p">,</span>
+                <span class="s2">&quot;render_interval&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_env</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">render_interval</span><span class="p">,</span>
+                <span class="s2">&quot;num_envs&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_env</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span>
+            <span class="p">}</span>
+            <span class="k">return</span> <span class="n">ep_meta</span>
+
+        <span class="c1"># Add custom episode metadata if available</span>
+        <span class="n">ep_meta</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_env</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">get_ep_meta</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">ep_meta</span></div>
+
 <div class="viewcode-block" id="RecorderManager.export_episodes"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.managers.html#isaaclab.managers.RecorderManager.export_episodes">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">export_episodes</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Concludes and exports the episodes for the given environment ids.</span>
 
@@ -1007,8 +1043,18 @@
 
         <span class="c1"># Export episode data through dataset exporter</span>
         <span class="n">need_to_flush</span> <span class="o">=</span> <span class="kc">False</span>
+
+        <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">env_id</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_episodes</span> <span class="ow">and</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_episodes</span><span class="p">[</span><span class="n">env_id</span><span class="p">]</span><span class="o">.</span><span class="n">is_empty</span><span class="p">()</span> <span class="k">for</span> <span class="n">env_id</span> <span class="ow">in</span> <span class="n">env_ids</span><span class="p">):</span>
+            <span class="n">ep_meta</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_ep_meta</span><span class="p">()</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dataset_file_handler</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_dataset_file_handler</span><span class="o">.</span><span class="n">add_env_args</span><span class="p">(</span><span class="n">ep_meta</span><span class="p">)</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_failed_episode_dataset_file_handler</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_failed_episode_dataset_file_handler</span><span class="o">.</span><span class="n">add_env_args</span><span class="p">(</span><span class="n">ep_meta</span><span class="p">)</span>
+
         <span class="k">for</span> <span class="n">env_id</span> <span class="ow">in</span> <span class="n">env_ids</span><span class="p">:</span>
             <span class="k">if</span> <span class="n">env_id</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_episodes</span> <span class="ow">and</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_episodes</span><span class="p">[</span><span class="n">env_id</span><span class="p">]</span><span class="o">.</span><span class="n">is_empty</span><span class="p">():</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_episodes</span><span class="p">[</span><span class="n">env_id</span><span class="p">]</span><span class="o">.</span><span class="n">pre_export</span><span class="p">()</span>
+
                 <span class="n">episode_succeeded</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_episodes</span><span class="p">[</span><span class="n">env_id</span><span class="p">]</span><span class="o">.</span><span class="n">success</span>
                 <span class="n">target_dataset_file_handler</span> <span class="o">=</span> <span class="kc">None</span>
                 <span class="k">if</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">dataset_export_mode</span> <span class="o">==</span> <span class="n">DatasetExportMode</span><span class="o">.</span><span class="n">EXPORT_ALL</span><span class="p">)</span> <span class="ow">or</span> <span class="p">(</span>
@@ -1124,7 +1170,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Sep 04, 2025.
+  Last updated on Sep 05, 2025.
   <br/>
 </p>
   </div>

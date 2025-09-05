@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.2.1" />
-    <meta name="docbuild:last-update" content="Sep 04, 2025"/>
+    <meta name="docbuild:last-update" content="Sep 05, 2025"/>
   </head>
   
   
@@ -659,6 +659,7 @@
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rl_games.RlGamesVecEnvWrapper.get_env_info"><code class="docutils literal notranslate"><span class="pre">RlGamesVecEnvWrapper.get_env_info()</span></code></a></li>
 </ul>
 </li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rl_games.make_concat_plan"><code class="docutils literal notranslate"><span class="pre">make_concat_plan()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rl_games.RlGamesGpuEnv"><code class="docutils literal notranslate"><span class="pre">RlGamesGpuEnv</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rl_games.RlGamesGpuEnv.__init__"><code class="docutils literal notranslate"><span class="pre">RlGamesGpuEnv.__init__()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rl_games.RlGamesGpuEnv.get_number_of_agents"><code class="docutils literal notranslate"><span class="pre">RlGamesGpuEnv.get_number_of_agents()</span></code></a></li>
@@ -779,6 +780,8 @@
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlDistillationStudentTeacherRecurrentCfg"><code class="docutils literal notranslate"><span class="pre">RslRlDistillationStudentTeacherRecurrentCfg</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlDistillationStudentTeacherRecurrentCfg.class_name"><code class="docutils literal notranslate"><span class="pre">RslRlDistillationStudentTeacherRecurrentCfg.class_name</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlDistillationStudentTeacherRecurrentCfg.rnn_type"><code class="docutils literal notranslate"><span class="pre">RslRlDistillationStudentTeacherRecurrentCfg.rnn_type</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlDistillationStudentTeacherRecurrentCfg.rnn_hidden_dim"><code class="docutils literal notranslate"><span class="pre">RslRlDistillationStudentTeacherRecurrentCfg.rnn_hidden_dim</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlDistillationStudentTeacherRecurrentCfg.rnn_num_layers"><code class="docutils literal notranslate"><span class="pre">RslRlDistillationStudentTeacherRecurrentCfg.rnn_num_layers</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlDistillationStudentTeacherRecurrentCfg.__init__"><code class="docutils literal notranslate"><span class="pre">RslRlDistillationStudentTeacherRecurrentCfg.__init__()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlDistillationStudentTeacherRecurrentCfg.init_noise_std"><code class="docutils literal notranslate"><span class="pre">RslRlDistillationStudentTeacherRecurrentCfg.init_noise_std</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlDistillationStudentTeacherRecurrentCfg.noise_std_type"><code class="docutils literal notranslate"><span class="pre">RslRlDistillationStudentTeacherRecurrentCfg.noise_std_type</span></code></a></li>
@@ -787,8 +790,6 @@
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlDistillationStudentTeacherRecurrentCfg.student_hidden_dims"><code class="docutils literal notranslate"><span class="pre">RslRlDistillationStudentTeacherRecurrentCfg.student_hidden_dims</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlDistillationStudentTeacherRecurrentCfg.teacher_hidden_dims"><code class="docutils literal notranslate"><span class="pre">RslRlDistillationStudentTeacherRecurrentCfg.teacher_hidden_dims</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlDistillationStudentTeacherRecurrentCfg.activation"><code class="docutils literal notranslate"><span class="pre">RslRlDistillationStudentTeacherRecurrentCfg.activation</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlDistillationStudentTeacherRecurrentCfg.rnn_hidden_dim"><code class="docutils literal notranslate"><span class="pre">RslRlDistillationStudentTeacherRecurrentCfg.rnn_hidden_dim</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlDistillationStudentTeacherRecurrentCfg.rnn_num_layers"><code class="docutils literal notranslate"><span class="pre">RslRlDistillationStudentTeacherRecurrentCfg.rnn_num_layers</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlDistillationStudentTeacherRecurrentCfg.teacher_recurrent"><code class="docutils literal notranslate"><span class="pre">RslRlDistillationStudentTeacherRecurrentCfg.teacher_recurrent</span></code></a></li>
 </ul>
 </li>
@@ -855,9 +856,9 @@
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlPpoAlgorithmCfg.max_grad_norm"><code class="docutils literal notranslate"><span class="pre">RslRlPpoAlgorithmCfg.max_grad_norm</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlPpoAlgorithmCfg.value_loss_coef"><code class="docutils literal notranslate"><span class="pre">RslRlPpoAlgorithmCfg.value_loss_coef</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlPpoAlgorithmCfg.use_clipped_value_loss"><code class="docutils literal notranslate"><span class="pre">RslRlPpoAlgorithmCfg.use_clipped_value_loss</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlPpoAlgorithmCfg.__init__"><code class="docutils literal notranslate"><span class="pre">RslRlPpoAlgorithmCfg.__init__()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlPpoAlgorithmCfg.clip_param"><code class="docutils literal notranslate"><span class="pre">RslRlPpoAlgorithmCfg.clip_param</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlPpoAlgorithmCfg.normalize_advantage_per_mini_batch"><code class="docutils literal notranslate"><span class="pre">RslRlPpoAlgorithmCfg.normalize_advantage_per_mini_batch</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlPpoAlgorithmCfg.__init__"><code class="docutils literal notranslate"><span class="pre">RslRlPpoAlgorithmCfg.__init__()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlPpoAlgorithmCfg.rnd_cfg"><code class="docutils literal notranslate"><span class="pre">RslRlPpoAlgorithmCfg.rnd_cfg</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlPpoAlgorithmCfg.symmetry_cfg"><code class="docutils literal notranslate"><span class="pre">RslRlPpoAlgorithmCfg.symmetry_cfg</span></code></a></li>
 </ul>
@@ -954,6 +955,15 @@ for RL-Games <code class="xref py py-class docutils literal notranslate"><span c
 </tbody>
 </table>
 </div>
+<p><strong>Functions:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_rl.rl_games.make_concat_plan" title="isaaclab_rl.rl_games.make_concat_plan"><code class="xref py py-obj docutils literal notranslate"><span class="pre">make_concat_plan</span></code></a>(shapes)</p></td>
+<td><p>Given per-sample shapes (no batch dim), return:</p></td>
+</tr>
+</tbody>
+</table>
+</div>
 <dl class="py class">
 <dt class="sig sig-object py" id="isaaclab_rl.rl_games.RlGamesVecEnvWrapper">
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab_rl.rl_games.</span></span><span class="sig-name descname"><span class="pre">RlGamesVecEnvWrapper</span></span><a class="reference internal" href="../../../_modules/isaaclab_rl/rl_games.html#RlGamesVecEnvWrapper"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_rl.rl_games.RlGamesVecEnvWrapper" title="Permalink to this definition">#</a></dt>
@@ -966,12 +976,15 @@ observations and actions.</p>
 <p>For algorithms like asymmetric actor-critic, RL-Games expects a dictionary for
 observations. This dictionary contains “obs” and “states” which typically correspond
 to the actor and critic observations respectively.</p>
-<p>To use asymmetric actor-critic, the environment observations from <code class="xref py py-class docutils literal notranslate"><span class="pre">ManagerBasedRLEnv</span></code> or <code class="xref py py-class docutils literal notranslate"><span class="pre">DirectRLEnv</span></code>
-must have the key or group name “critic”. The observation group is used to set the
-<code class="xref py py-attr docutils literal notranslate"><span class="pre">num_states</span></code> (int) and <a class="reference internal" href="#isaaclab_rl.rl_games.RlGamesVecEnvWrapper.state_space" title="isaaclab_rl.rl_games.RlGamesVecEnvWrapper.state_space"><code class="xref py py-attr docutils literal notranslate"><span class="pre">state_space</span></code></a> (<code class="xref py py-obj docutils literal notranslate"><span class="pre">gym.spaces.Box</span></code>). These are
-used by the learning agent in RL-Games to allocate buffers in the trajectory memory.
-Since this is optional for some environments, the wrapper checks if these attributes exist.
-If they don’t then the wrapper defaults to zero as number of privileged observations.</p>
+<p>To use asymmetric actor-critic, map privileged observation groups under <code class="docutils literal notranslate"><span class="pre">&quot;states&quot;</span></code> (e.g. <code class="docutils literal notranslate"><span class="pre">[&quot;critic&quot;]</span></code>).</p>
+<p>The wrapper supports <strong>either</strong> concatenated tensors (default) <strong>or</strong> Dict inputs:
+when wrapper is concate mode, rl-games sees {“obs”: Tensor, (optional)”states”: Tensor}
+when wrapper is not concate mode, rl-games sees {“obs”: dict[str, Tensor], (optional)”states”: dict[str, Tensor]}
+- Concatenated mode (<code class="docutils literal notranslate"><span class="pre">concate_obs_group=True</span></code>): <code class="docutils literal notranslate"><span class="pre">observation_space</span></code>/<code class="docutils literal notranslate"><span class="pre">state_space</span></code> are <code class="docutils literal notranslate"><span class="pre">gym.spaces.Box</span></code>.
+- Dict mode (<code class="docutils literal notranslate"><span class="pre">concate_obs_group=False</span></code>): <code class="docutils literal notranslate"><span class="pre">observation_space</span></code>/<code class="docutils literal notranslate"><span class="pre">state_space</span></code> are <code class="docutils literal notranslate"><span class="pre">gym.spaces.Dict</span></code> keyed by</p>
+<blockquote>
+<div><p>the requested groups. When no <code class="docutils literal notranslate"><span class="pre">&quot;states&quot;</span></code> groups are provided, the states Dict is omitted at runtime.</p>
+</div></blockquote>
 <div class="admonition caution">
 <p class="admonition-title">Caution</p>
 <p>This class must be the last wrapper in the wrapper chain. This is because the wrapper does not follow
@@ -1008,7 +1021,7 @@ wrapper.</p>
 <td><p>Returns the <code class="xref py py-attr docutils literal notranslate"><span class="pre">Env</span></code> <a class="reference internal" href="#isaaclab_rl.rl_games.RlGamesVecEnvWrapper.render_mode" title="isaaclab_rl.rl_games.RlGamesVecEnvWrapper.render_mode"><code class="xref py py-attr docutils literal notranslate"><span class="pre">render_mode</span></code></a>.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_rl.rl_games.RlGamesVecEnvWrapper.observation_space" title="isaaclab_rl.rl_games.RlGamesVecEnvWrapper.observation_space"><code class="xref py py-obj docutils literal notranslate"><span class="pre">observation_space</span></code></a></p></td>
-<td><p>Returns the <code class="xref py py-attr docutils literal notranslate"><span class="pre">Env</span></code> <a class="reference internal" href="#isaaclab_rl.rl_games.RlGamesVecEnvWrapper.observation_space" title="isaaclab_rl.rl_games.RlGamesVecEnvWrapper.observation_space"><code class="xref py py-attr docutils literal notranslate"><span class="pre">observation_space</span></code></a>.</p></td>
+<td><p>Returns the <code class="xref py py-attr docutils literal notranslate"><span class="pre">Env</span></code> <a class="reference internal" href="#isaaclab_rl.rl_games.RlGamesVecEnvWrapper.observation_space" title="isaaclab_rl.rl_games.RlGamesVecEnvWrapper.observation_space"><code class="xref py py-attr docutils literal notranslate"><span class="pre">observation_space</span></code></a> (<code class="docutils literal notranslate"><span class="pre">Box</span></code> if concatenated, otherwise <code class="docutils literal notranslate"><span class="pre">Dict</span></code>).</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_rl.rl_games.RlGamesVecEnvWrapper.action_space" title="isaaclab_rl.rl_games.RlGamesVecEnvWrapper.action_space"><code class="xref py py-obj docutils literal notranslate"><span class="pre">action_space</span></code></a></p></td>
 <td><p>Returns the <code class="xref py py-attr docutils literal notranslate"><span class="pre">Env</span></code> <a class="reference internal" href="#isaaclab_rl.rl_games.RlGamesVecEnvWrapper.action_space" title="isaaclab_rl.rl_games.RlGamesVecEnvWrapper.action_space"><code class="xref py py-attr docutils literal notranslate"><span class="pre">action_space</span></code></a>.</p></td>
@@ -1023,14 +1036,14 @@ wrapper.</p>
 <td><p>Returns the base environment simulation device.</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_rl.rl_games.RlGamesVecEnvWrapper.state_space" title="isaaclab_rl.rl_games.RlGamesVecEnvWrapper.state_space"><code class="xref py py-obj docutils literal notranslate"><span class="pre">state_space</span></code></a></p></td>
-<td><p>Returns the <code class="xref py py-attr docutils literal notranslate"><span class="pre">Env</span></code> <a class="reference internal" href="#isaaclab_rl.rl_games.RlGamesVecEnvWrapper.observation_space" title="isaaclab_rl.rl_games.RlGamesVecEnvWrapper.observation_space"><code class="xref py py-attr docutils literal notranslate"><span class="pre">observation_space</span></code></a>.</p></td>
+<td><p>Returns the privileged observation space for the critic (<code class="docutils literal notranslate"><span class="pre">Box</span></code> if concatenated, otherwise <code class="docutils literal notranslate"><span class="pre">Dict</span></code>).</p></td>
 </tr>
 </tbody>
 </table>
 </div>
 <dl class="py method">
 <dt class="sig sig-object py" id="isaaclab_rl.rl_games.RlGamesVecEnvWrapper.__init__">
-<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="../lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedRLEnv" title="isaaclab.envs.manager_based_rl_env.ManagerBasedRLEnv"><span class="pre">ManagerBasedRLEnv</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference internal" href="../lab/isaaclab.envs.html#isaaclab.envs.DirectRLEnv" title="isaaclab.envs.direct_rl_env.DirectRLEnv"><span class="pre">DirectRLEnv</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">rl_device</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">clip_obs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">clip_actions</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab_rl/rl_games.html#RlGamesVecEnvWrapper.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_rl.rl_games.RlGamesVecEnvWrapper.__init__" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="../lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedRLEnv" title="isaaclab.envs.manager_based_rl_env.ManagerBasedRLEnv"><span class="pre">ManagerBasedRLEnv</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference internal" href="../lab/isaaclab.envs.html#isaaclab.envs.DirectRLEnv" title="isaaclab.envs.direct_rl_env.DirectRLEnv"><span class="pre">DirectRLEnv</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">rl_device</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">clip_obs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">clip_actions</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">obs_groups</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.13)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">concate_obs_group</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab_rl/rl_games.html#RlGamesVecEnvWrapper.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_rl.rl_games.RlGamesVecEnvWrapper.__init__" title="Permalink to this definition">#</a></dt>
 <dd><p>Initializes the wrapper instance.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -1039,6 +1052,9 @@ wrapper.</p>
 <li><p><strong>rl_device</strong> – The device on which agent computations are performed.</p></li>
 <li><p><strong>clip_obs</strong> – The clipping value for observations.</p></li>
 <li><p><strong>clip_actions</strong> – The clipping value for actions.</p></li>
+<li><p><strong>obs_groups</strong> – The remapping from isaaclab observation to rl-games, default to None for backward compatible.</p></li>
+<li><p><strong>concate_obs_group</strong> – The boolean value indicates if input to rl-games network is dict or tensor. Default to
+True for backward compatible.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Raises<span class="colon">:</span></dt>
@@ -1058,8 +1074,8 @@ wrapper.</p>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="isaaclab_rl.rl_games.RlGamesVecEnvWrapper.observation_space">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">observation_space</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">gym.spaces.Box</span></em><a class="headerlink" href="#isaaclab_rl.rl_games.RlGamesVecEnvWrapper.observation_space" title="Permalink to this definition">#</a></dt>
-<dd><p>Returns the <code class="xref py py-attr docutils literal notranslate"><span class="pre">Env</span></code> <a class="reference internal" href="#isaaclab_rl.rl_games.RlGamesVecEnvWrapper.observation_space" title="isaaclab_rl.rl_games.RlGamesVecEnvWrapper.observation_space"><code class="xref py py-attr docutils literal notranslate"><span class="pre">observation_space</span></code></a>.</p>
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">observation_space</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">gym.spaces.Box</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">gym.spaces.Dict</span></em><a class="headerlink" href="#isaaclab_rl.rl_games.RlGamesVecEnvWrapper.observation_space" title="Permalink to this definition">#</a></dt>
+<dd><p>Returns the <code class="xref py py-attr docutils literal notranslate"><span class="pre">Env</span></code> <a class="reference internal" href="#isaaclab_rl.rl_games.RlGamesVecEnvWrapper.observation_space" title="isaaclab_rl.rl_games.RlGamesVecEnvWrapper.observation_space"><code class="xref py py-attr docutils literal notranslate"><span class="pre">observation_space</span></code></a> (<code class="docutils literal notranslate"><span class="pre">Box</span></code> if concatenated, otherwise <code class="docutils literal notranslate"><span class="pre">Dict</span></code>).</p>
 </dd></dl>
 
 <dl class="py property">
@@ -1095,8 +1111,8 @@ wrapper.</p>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="isaaclab_rl.rl_games.RlGamesVecEnvWrapper.state_space">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">state_space</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">gym.spaces.Box</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab_rl.rl_games.RlGamesVecEnvWrapper.state_space" title="Permalink to this definition">#</a></dt>
-<dd><p>Returns the <code class="xref py py-attr docutils literal notranslate"><span class="pre">Env</span></code> <a class="reference internal" href="#isaaclab_rl.rl_games.RlGamesVecEnvWrapper.observation_space" title="isaaclab_rl.rl_games.RlGamesVecEnvWrapper.observation_space"><code class="xref py py-attr docutils literal notranslate"><span class="pre">observation_space</span></code></a>.</p>
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">state_space</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">gym.spaces.Box</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">gym.spaces.Dict</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab_rl.rl_games.RlGamesVecEnvWrapper.state_space" title="Permalink to this definition">#</a></dt>
+<dd><p>Returns the privileged observation space for the critic (<code class="docutils literal notranslate"><span class="pre">Box</span></code> if concatenated, otherwise <code class="docutils literal notranslate"><span class="pre">Dict</span></code>).</p>
 </dd></dl>
 
 <dl class="py method">
@@ -1111,6 +1127,26 @@ wrapper.</p>
 <dd><p>Returns the Gym spaces for the environment.</p>
 </dd></dl>
 
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="isaaclab_rl.rl_games.make_concat_plan">
+<span class="sig-prename descclassname"><span class="pre">isaaclab_rl.rl_games.</span></span><span class="sig-name descname"><span class="pre">make_concat_plan</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">shapes</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.13)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Callable" title="(in Python v3.13)"><span class="pre">collections.abc.Callable</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../../../_modules/isaaclab_rl/rl_games.html#make_concat_plan"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_rl.rl_games.make_concat_plan" title="Permalink to this definition">#</a></dt>
+<dd><dl class="simple">
+<dt>Given per-sample shapes (no batch dim), return:</dt><dd><ul class="simple">
+<li><p>the concatenated per-sample shape</p></li>
+<li><p>a function that concatenates a list of batch tensors accordingly.</p></li>
+</ul>
+</dd>
+<dt>Rules:</dt><dd><ol class="arabic simple" start="0">
+<li><p>Empty -&gt; (0,), No-op</p></li>
+<li><p>All 1D -&gt; concat features (dim=1).</p></li>
+<li><p>Same rank &gt; 1:
+2a) If all s[:-1] equal -&gt; concat along last dim (channels-last, dim=-1).
+2b) If all s[1:] equal  -&gt; concat along first dim (channels-first, dim=1).</p></li>
+</ol>
+</dd>
+</dl>
 </dd></dl>
 
 <dl class="py class">
@@ -1930,7 +1966,7 @@ then it is appended to the run directory’s name, i.e. the logging directory’
 
 <dl class="py class">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlDistillationRunnerCfg">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab_rl.rsl_rl.</span></span><span class="sig-name descname"><span class="pre">RslRlDistillationRunnerCfg</span></span><a class="reference internal" href="../../../_modules/isaaclab_rl/rsl_rl/rl_cfg.html#RslRlDistillationRunnerCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlDistillationRunnerCfg" title="Permalink to this definition">#</a></dt>
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab_rl.rsl_rl.</span></span><span class="sig-name descname"><span class="pre">RslRlDistillationRunnerCfg</span></span><a class="reference internal" href="../../../_modules/isaaclab_rl/rsl_rl/distillation_cfg.html#RslRlDistillationRunnerCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlDistillationRunnerCfg" title="Permalink to this definition">#</a></dt>
 <dd><p>Bases: <a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlBaseRunnerCfg" title="isaaclab_rl.rsl_rl.rl_cfg.RslRlBaseRunnerCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">RslRlBaseRunnerCfg</span></code></a></p>
 <p>Configuration of the runner for distillation algorithms.</p>
 <p><strong>Methods:</strong></p>
@@ -2273,6 +2309,12 @@ then it is appended to the run directory’s name, i.e. the logging directory’
 <tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlDistillationStudentTeacherRecurrentCfg.rnn_type" title="isaaclab_rl.rsl_rl.RslRlDistillationStudentTeacherRecurrentCfg.rnn_type"><code class="xref py py-obj docutils literal notranslate"><span class="pre">rnn_type</span></code></a></p></td>
 <td><p>The type of the RNN network.</p></td>
 </tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlDistillationStudentTeacherRecurrentCfg.rnn_hidden_dim" title="isaaclab_rl.rsl_rl.RslRlDistillationStudentTeacherRecurrentCfg.rnn_hidden_dim"><code class="xref py py-obj docutils literal notranslate"><span class="pre">rnn_hidden_dim</span></code></a></p></td>
+<td><p>The hidden dimension of the RNN network.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlDistillationStudentTeacherRecurrentCfg.rnn_num_layers" title="isaaclab_rl.rsl_rl.RslRlDistillationStudentTeacherRecurrentCfg.rnn_num_layers"><code class="xref py py-obj docutils literal notranslate"><span class="pre">rnn_num_layers</span></code></a></p></td>
+<td><p>The number of layers of the RNN network.</p></td>
+</tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlDistillationStudentTeacherRecurrentCfg.init_noise_std" title="isaaclab_rl.rsl_rl.RslRlDistillationStudentTeacherRecurrentCfg.init_noise_std"><code class="xref py py-obj docutils literal notranslate"><span class="pre">init_noise_std</span></code></a></p></td>
 <td><p>The initial noise standard deviation for the student policy.</p></td>
 </tr>
@@ -2293,12 +2335,6 @@ then it is appended to the run directory’s name, i.e. the logging directory’
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlDistillationStudentTeacherRecurrentCfg.activation" title="isaaclab_rl.rsl_rl.RslRlDistillationStudentTeacherRecurrentCfg.activation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">activation</span></code></a></p></td>
 <td><p>The activation function for the student and teacher networks.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlDistillationStudentTeacherRecurrentCfg.rnn_hidden_dim" title="isaaclab_rl.rsl_rl.RslRlDistillationStudentTeacherRecurrentCfg.rnn_hidden_dim"><code class="xref py py-obj docutils literal notranslate"><span class="pre">rnn_hidden_dim</span></code></a></p></td>
-<td><p>The hidden dimension of the RNN network.</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlDistillationStudentTeacherRecurrentCfg.rnn_num_layers" title="isaaclab_rl.rsl_rl.RslRlDistillationStudentTeacherRecurrentCfg.rnn_num_layers"><code class="xref py py-obj docutils literal notranslate"><span class="pre">rnn_num_layers</span></code></a></p></td>
-<td><p>The number of layers of the RNN network.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_rl.rsl_rl.RslRlDistillationStudentTeacherRecurrentCfg.teacher_recurrent" title="isaaclab_rl.rsl_rl.RslRlDistillationStudentTeacherRecurrentCfg.teacher_recurrent"><code class="xref py py-obj docutils literal notranslate"><span class="pre">teacher_recurrent</span></code></a></p></td>
 <td><p>Whether the teacher network is recurrent too.</p></td>
@@ -2325,6 +2361,18 @@ then it is appended to the run directory’s name, i.e. the logging directory’
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlDistillationStudentTeacherRecurrentCfg.rnn_type">
 <span class="sig-name descname"><span class="pre">rnn_type</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlDistillationStudentTeacherRecurrentCfg.rnn_type" title="Permalink to this definition">#</a></dt>
 <dd><p>The type of the RNN network. Either “lstm” or “gru”.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlDistillationStudentTeacherRecurrentCfg.rnn_hidden_dim">
+<span class="sig-name descname"><span class="pre">rnn_hidden_dim</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlDistillationStudentTeacherRecurrentCfg.rnn_hidden_dim" title="Permalink to this definition">#</a></dt>
+<dd><p>The hidden dimension of the RNN network.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlDistillationStudentTeacherRecurrentCfg.rnn_num_layers">
+<span class="sig-name descname"><span class="pre">rnn_num_layers</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlDistillationStudentTeacherRecurrentCfg.rnn_num_layers" title="Permalink to this definition">#</a></dt>
+<dd><p>The number of layers of the RNN network.</p>
 </dd></dl>
 
 <dl class="py method">
@@ -2372,18 +2420,6 @@ then it is appended to the run directory’s name, i.e. the logging directory’
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlDistillationStudentTeacherRecurrentCfg.activation">
 <span class="sig-name descname"><span class="pre">activation</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlDistillationStudentTeacherRecurrentCfg.activation" title="Permalink to this definition">#</a></dt>
 <dd><p>The activation function for the student and teacher networks.</p>
-</dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlDistillationStudentTeacherRecurrentCfg.rnn_hidden_dim">
-<span class="sig-name descname"><span class="pre">rnn_hidden_dim</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlDistillationStudentTeacherRecurrentCfg.rnn_hidden_dim" title="Permalink to this definition">#</a></dt>
-<dd><p>The hidden dimension of the RNN network.</p>
-</dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlDistillationStudentTeacherRecurrentCfg.rnn_num_layers">
-<span class="sig-name descname"><span class="pre">rnn_num_layers</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlDistillationStudentTeacherRecurrentCfg.rnn_num_layers" title="Permalink to this definition">#</a></dt>
-<dd><p>The number of layers of the RNN network.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -2991,6 +3027,11 @@ then it is appended to the run directory’s name, i.e. the logging directory’
 <dd><p>Whether to use clipped value loss.</p>
 </dd></dl>
 
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlPpoAlgorithmCfg.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">class_name:</span> <span class="pre">str</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_learning_epochs:</span> <span class="pre">int</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_mini_batches:</span> <span class="pre">int</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">learning_rate:</span> <span class="pre">float</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">schedule:</span> <span class="pre">str</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gamma:</span> <span class="pre">float</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lam:</span> <span class="pre">float</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">entropy_coef:</span> <span class="pre">float</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">desired_kl:</span> <span class="pre">float</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_grad_norm:</span> <span class="pre">float</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">value_loss_coef:</span> <span class="pre">float</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">use_clipped_value_loss:</span> <span class="pre">bool</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">clip_param:</span> <span class="pre">float</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">normalize_advantage_per_mini_batch:</span> <span class="pre">bool</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rnd_cfg:</span> <span class="pre">~isaaclab_rl.rsl_rl.rnd_cfg.RslRlRndCfg</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">symmetry_cfg:</span> <span class="pre">~isaaclab_rl.rsl_rl.symmetry_cfg.RslRlSymmetryCfg</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span></span><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlPpoAlgorithmCfg.__init__" title="Permalink to this definition">#</a></dt>
+<dd></dd></dl>
+
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlPpoAlgorithmCfg.clip_param">
 <span class="sig-name descname"><span class="pre">clip_param</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlPpoAlgorithmCfg.clip_param" title="Permalink to this definition">#</a></dt>
@@ -3004,11 +3045,6 @@ then it is appended to the run directory’s name, i.e. the logging directory’
 <p>If True, the advantage is normalized over the mini-batches only.
 Otherwise, the advantage is normalized over the entire collected trajectories.</p>
 </dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlPpoAlgorithmCfg.__init__">
-<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">class_name:</span> <span class="pre">str</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_learning_epochs:</span> <span class="pre">int</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_mini_batches:</span> <span class="pre">int</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">learning_rate:</span> <span class="pre">float</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">schedule:</span> <span class="pre">str</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gamma:</span> <span class="pre">float</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lam:</span> <span class="pre">float</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">entropy_coef:</span> <span class="pre">float</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">desired_kl:</span> <span class="pre">float</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_grad_norm:</span> <span class="pre">float</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">value_loss_coef:</span> <span class="pre">float</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">use_clipped_value_loss:</span> <span class="pre">bool</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">clip_param:</span> <span class="pre">float</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">normalize_advantage_per_mini_batch:</span> <span class="pre">bool</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rnd_cfg:</span> <span class="pre">~isaaclab_rl.rsl_rl.rnd_cfg.RslRlRndCfg</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">symmetry_cfg:</span> <span class="pre">~isaaclab_rl.rsl_rl.symmetry_cfg.RslRlSymmetryCfg</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span></span><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlPpoAlgorithmCfg.__init__" title="Permalink to this definition">#</a></dt>
-<dd></dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlPpoAlgorithmCfg.rnd_cfg">
@@ -3492,6 +3528,7 @@ wrapper.</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rl_games.RlGamesVecEnvWrapper.get_env_info"><code class="docutils literal notranslate"><span class="pre">RlGamesVecEnvWrapper.get_env_info()</span></code></a></li>
 </ul>
 </li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rl_games.make_concat_plan"><code class="docutils literal notranslate"><span class="pre">make_concat_plan()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rl_games.RlGamesGpuEnv"><code class="docutils literal notranslate"><span class="pre">RlGamesGpuEnv</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rl_games.RlGamesGpuEnv.__init__"><code class="docutils literal notranslate"><span class="pre">RlGamesGpuEnv.__init__()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rl_games.RlGamesGpuEnv.get_number_of_agents"><code class="docutils literal notranslate"><span class="pre">RlGamesGpuEnv.get_number_of_agents()</span></code></a></li>
@@ -3612,6 +3649,8 @@ wrapper.</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlDistillationStudentTeacherRecurrentCfg"><code class="docutils literal notranslate"><span class="pre">RslRlDistillationStudentTeacherRecurrentCfg</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlDistillationStudentTeacherRecurrentCfg.class_name"><code class="docutils literal notranslate"><span class="pre">RslRlDistillationStudentTeacherRecurrentCfg.class_name</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlDistillationStudentTeacherRecurrentCfg.rnn_type"><code class="docutils literal notranslate"><span class="pre">RslRlDistillationStudentTeacherRecurrentCfg.rnn_type</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlDistillationStudentTeacherRecurrentCfg.rnn_hidden_dim"><code class="docutils literal notranslate"><span class="pre">RslRlDistillationStudentTeacherRecurrentCfg.rnn_hidden_dim</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlDistillationStudentTeacherRecurrentCfg.rnn_num_layers"><code class="docutils literal notranslate"><span class="pre">RslRlDistillationStudentTeacherRecurrentCfg.rnn_num_layers</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlDistillationStudentTeacherRecurrentCfg.__init__"><code class="docutils literal notranslate"><span class="pre">RslRlDistillationStudentTeacherRecurrentCfg.__init__()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlDistillationStudentTeacherRecurrentCfg.init_noise_std"><code class="docutils literal notranslate"><span class="pre">RslRlDistillationStudentTeacherRecurrentCfg.init_noise_std</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlDistillationStudentTeacherRecurrentCfg.noise_std_type"><code class="docutils literal notranslate"><span class="pre">RslRlDistillationStudentTeacherRecurrentCfg.noise_std_type</span></code></a></li>
@@ -3620,8 +3659,6 @@ wrapper.</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlDistillationStudentTeacherRecurrentCfg.student_hidden_dims"><code class="docutils literal notranslate"><span class="pre">RslRlDistillationStudentTeacherRecurrentCfg.student_hidden_dims</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlDistillationStudentTeacherRecurrentCfg.teacher_hidden_dims"><code class="docutils literal notranslate"><span class="pre">RslRlDistillationStudentTeacherRecurrentCfg.teacher_hidden_dims</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlDistillationStudentTeacherRecurrentCfg.activation"><code class="docutils literal notranslate"><span class="pre">RslRlDistillationStudentTeacherRecurrentCfg.activation</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlDistillationStudentTeacherRecurrentCfg.rnn_hidden_dim"><code class="docutils literal notranslate"><span class="pre">RslRlDistillationStudentTeacherRecurrentCfg.rnn_hidden_dim</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlDistillationStudentTeacherRecurrentCfg.rnn_num_layers"><code class="docutils literal notranslate"><span class="pre">RslRlDistillationStudentTeacherRecurrentCfg.rnn_num_layers</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlDistillationStudentTeacherRecurrentCfg.teacher_recurrent"><code class="docutils literal notranslate"><span class="pre">RslRlDistillationStudentTeacherRecurrentCfg.teacher_recurrent</span></code></a></li>
 </ul>
 </li>
@@ -3688,9 +3725,9 @@ wrapper.</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlPpoAlgorithmCfg.max_grad_norm"><code class="docutils literal notranslate"><span class="pre">RslRlPpoAlgorithmCfg.max_grad_norm</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlPpoAlgorithmCfg.value_loss_coef"><code class="docutils literal notranslate"><span class="pre">RslRlPpoAlgorithmCfg.value_loss_coef</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlPpoAlgorithmCfg.use_clipped_value_loss"><code class="docutils literal notranslate"><span class="pre">RslRlPpoAlgorithmCfg.use_clipped_value_loss</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlPpoAlgorithmCfg.__init__"><code class="docutils literal notranslate"><span class="pre">RslRlPpoAlgorithmCfg.__init__()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlPpoAlgorithmCfg.clip_param"><code class="docutils literal notranslate"><span class="pre">RslRlPpoAlgorithmCfg.clip_param</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlPpoAlgorithmCfg.normalize_advantage_per_mini_batch"><code class="docutils literal notranslate"><span class="pre">RslRlPpoAlgorithmCfg.normalize_advantage_per_mini_batch</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlPpoAlgorithmCfg.__init__"><code class="docutils literal notranslate"><span class="pre">RslRlPpoAlgorithmCfg.__init__()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlPpoAlgorithmCfg.rnd_cfg"><code class="docutils literal notranslate"><span class="pre">RslRlPpoAlgorithmCfg.rnd_cfg</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.RslRlPpoAlgorithmCfg.symmetry_cfg"><code class="docutils literal notranslate"><span class="pre">RslRlPpoAlgorithmCfg.symmetry_cfg</span></code></a></li>
 </ul>
@@ -3759,7 +3796,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Sep 04, 2025.
+  Last updated on Sep 05, 2025.
   <br/>
 </p>
   </div>
