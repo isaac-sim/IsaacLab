@@ -1348,6 +1348,7 @@ class Articulation(AssetBase):
         self._root_newton_view = NewtonArticulationView(
             NewtonManager.get_model(), prim_path, verbose=True, exclude_joint_types=[JointType.FREE, JointType.FIXED]
         )
+        NewtonManager.add_view(self._root_newton_view)
 
         # log information about the articulation
         print(f"[INFO]:Articulation initialized at: {self.cfg.prim_path} with root '{prim_path}'.")
