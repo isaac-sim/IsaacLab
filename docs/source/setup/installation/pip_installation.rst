@@ -15,7 +15,7 @@ If you encounter any issues, please report them to the
 
 .. attention::
 
-   Installing Isaac Sim with pip requires GLIBC 2.34+ version compatibility.
+   Installing Isaac Sim with pip requires GLIBC 2.35+ version compatibility.
    To check the GLIBC version on your system, use command ``ldd --version``.
 
    This may pose compatibility issues with some Linux distributions. For instance, Ubuntu 20.04 LTS has GLIBC 2.31
