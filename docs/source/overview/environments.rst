@@ -3,7 +3,7 @@
 Available Environments
 ======================
 
-The following lists comprises of all the RL or IL tasks implementations that are available in Isaac Lab.
+The following lists comprises of all the RL and IL tasks implementations that are available in Isaac Lab.
 While we try to keep this list up-to-date, you can always get the latest list of environments by
 running the following command:
 
