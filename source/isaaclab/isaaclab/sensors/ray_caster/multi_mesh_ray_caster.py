@@ -351,7 +351,9 @@ class MultiMeshRayCaster(RayCaster):
             multi_mesh_ids_flattened.append(meshes_in_env)
 
         self._mesh_views = [
-            self.mesh_views[target_cfg.target_prim_expr] for target_cfg in self._raycast_targets_cfg if target_cfg.track_mesh_transforms
+            self.mesh_views[target_cfg.target_prim_expr]
+            for target_cfg in self._raycast_targets_cfg
+            if target_cfg.track_mesh_transforms
         ]
 
         # save a warp array with mesh ids that is passed to the raycast function
@@ -375,7 +377,7 @@ class MultiMeshRayCaster(RayCaster):
             if not target_cfg.track_mesh_transforms:
                 mesh_idx += self._num_meshes_per_env[target_cfg.target_prim_expr]
                 continue
-            
+
             # update position of the target meshes
             pos_w, ori_w = compute_world_poses(view, None)
             pos_w = pos_w.squeeze(0) if len(pos_w.shape) == 3 else pos_w
