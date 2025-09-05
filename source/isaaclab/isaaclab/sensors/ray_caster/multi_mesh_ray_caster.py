@@ -308,7 +308,7 @@ class MultiMeshRayCaster(RayCaster):
                     multi_mesh_ids[target_prim_path].append(wp_mesh_ids[mesh_idx : mesh_idx + n_meshes_per_env])
                     mesh_idx += n_meshes_per_env
 
-            if self.cfg.track_mesh_transforms:
+            if target_cfg.track_mesh_transforms:
                 mesh_prim = sim_utils.find_first_matching_prim(target_prim_path)
                 self.mesh_views[target_prim_path], MultiMeshRayCaster.mesh_offsets[target_prim_path] = (
                     self._get_trackable_prim_view(target_prim_path)
@@ -350,10 +350,9 @@ class MultiMeshRayCaster(RayCaster):
                 meshes_in_env.extend(multi_mesh_ids[target_cfg.target_prim_expr][env_idx])
             multi_mesh_ids_flattened.append(meshes_in_env)
 
-        if self.cfg.track_mesh_transforms:
-            self._mesh_views = [
-                self.mesh_views[target_cfg.target_prim_expr] for target_cfg in self._raycast_targets_cfg
-            ]
+        self._mesh_views = [
+            self.mesh_views[target_cfg.target_prim_expr] for target_cfg in self._raycast_targets_cfg if target_cfg.track_mesh_transforms
+        ]
 
         # save a warp array with mesh ids that is passed to the raycast function
         self._mesh_ids_wp = wp.array2d(multi_mesh_ids_flattened, dtype=wp.uint64, device=self.device)
@@ -370,29 +369,32 @@ class MultiMeshRayCaster(RayCaster):
 
         self._update_ray_infos(env_ids)
 
-        if self.cfg.track_mesh_transforms:
-            # Update the mesh positions and rotations
-            mesh_idx = 0
-            for view, target_cfg in zip(self._mesh_views, self._raycast_targets_cfg):
-                # update position of the target meshes
-                pos_w, ori_w = compute_world_poses(view, None)
-                pos_w = pos_w.squeeze(0) if len(pos_w.shape) == 3 else pos_w
-                ori_w = ori_w.squeeze(0) if len(ori_w.shape) == 3 else ori_w
+        # Update the mesh positions and rotations
+        mesh_idx = 0
+        for view, target_cfg in zip(self._mesh_views, self._raycast_targets_cfg):
+            if not target_cfg.track_mesh_transforms:
+                mesh_idx += self._num_meshes_per_env[target_cfg.target_prim_expr]
+                continue
+            
+            # update position of the target meshes
+            pos_w, ori_w = compute_world_poses(view, None)
+            pos_w = pos_w.squeeze(0) if len(pos_w.shape) == 3 else pos_w
+            ori_w = ori_w.squeeze(0) if len(ori_w.shape) == 3 else ori_w
 
-                if target_cfg.target_prim_expr in MultiMeshRayCaster.mesh_offsets:
-                    pos_offset, ori_offset = MultiMeshRayCaster.mesh_offsets[target_cfg.target_prim_expr]
-                    pos_w -= pos_offset
-                    ori_w = quat_mul(ori_offset.expand(ori_w.shape[0], -1), ori_w)
+            if target_cfg.target_prim_expr in MultiMeshRayCaster.mesh_offsets:
+                pos_offset, ori_offset = MultiMeshRayCaster.mesh_offsets[target_cfg.target_prim_expr]
+                pos_w -= pos_offset
+                ori_w = quat_mul(ori_offset.expand(ori_w.shape[0], -1), ori_w)
 
-                count = view.count
-                if not target_cfg.is_global:
-                    count = count // self._num_envs
-                    pos_w = pos_w.view(self._num_envs, count, 3)
-                    ori_w = ori_w.view(self._num_envs, count, 4)
+            count = view.count
+            if not target_cfg.is_global:
+                count = count // self._num_envs
+                pos_w = pos_w.view(self._num_envs, count, 3)
+                ori_w = ori_w.view(self._num_envs, count, 4)
 
-                self._mesh_positions_w[:, mesh_idx : mesh_idx + count] = pos_w
-                self._mesh_orientations_w[:, mesh_idx : mesh_idx + count] = ori_w
-                mesh_idx += count
+            self._mesh_positions_w[:, mesh_idx : mesh_idx + count] = pos_w
+            self._mesh_orientations_w[:, mesh_idx : mesh_idx + count] = ori_w
+            mesh_idx += count
 
         self._data.ray_hits_w[env_ids], _, _, _, mesh_ids = raycast_dynamic_meshes(
             self._ray_starts_w[env_ids],

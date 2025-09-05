@@ -39,21 +39,21 @@ class MultiMeshRayCasterCfg(RayCasterCfg):
         and the same warp mesh is used for all environments. This provides a performance boost when the target prim
         is shared across all environments.
         """
-        
+                
         merge_prim_meshes: bool = True
         """Whether to merge the meshes under each entry of :attr:`mesh_prim_paths`."""
+
+        track_mesh_transforms: bool = False
+        """Whether the meshes transformations should be tracked. Defaults to False.
+
+        Note:
+            Not tracking the mesh transformations is recommended when the meshes are static to increase performance.
+        """
 
     class_type: type = MultiMeshRayCaster
 
     mesh_prim_paths: list[str | RaycastTargetCfg] = MISSING
     """The list of mesh primitive paths to ray cast against."""
-
-    track_mesh_transforms: bool = False
-    """Whether the meshes transformations should be tracked. Defaults to False.
-
-    Note:
-        Not tracking the mesh transformations is recommended when the meshes are static to increase performance.
-    """
 
 
     update_mesh_ids: bool = False
