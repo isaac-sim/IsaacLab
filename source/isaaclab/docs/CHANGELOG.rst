@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.44.11 (2025-09-04)
+0.45.12 (2025-09-04)
 ~~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -11,8 +11,28 @@ Added
   * Added :attr:`~isaaclab.manager.RecorderManagerCfg.export_in_close` configuration parameter.
   
   
-0.45.10 (2025-09-02)
+0.45.11 (2025-09-02)
 ~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixes a high memory usage and perf slowdown issue in episode data by removing the use of torch.cat when appending to the episode data
+  at each timestep. The use of torch.cat was causing the episode data to be copied at each timestep, which causes high memory usage and
+  significant performance slowdown when recording longer episode data.
+* Patches the configclass to allow validate dict with key is not a string.
+
+Added
+^^^^^
+
+* Added optional episode metadata (ep_meta) to be stored in the HDF5 data attributes.
+* Added option to record data pre-physics step.
+* Added joint_target data to episode data. Joint target data can be optionally recorded by the user and replayed to improve
+  determinism of replay.
+
+
+0.45.10 (2025-09-02)
+~~~~~~~~~~~~~~~~~~~
 
 Fixed
 ^^^^^
