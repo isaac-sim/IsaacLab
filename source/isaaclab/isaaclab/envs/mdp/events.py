@@ -596,8 +596,10 @@ class randomize_actuator_gains(ManagerTermBase):
                 actuator_indices = slice(None)
                 if isinstance(actuator.joint_indices, slice):
                     global_indices = slice(None)
-                else:
+                elif isinstance(actuator.joint_indices, torch.Tensor):
                     global_indices = actuator.joint_indices.to(self.asset.device)
+                else:
+                    raise TypeError("Actuator joint indices must be a slice or a torch.Tensor.")
             elif isinstance(actuator.joint_indices, slice):
                 # we take the joints defined in the asset config
                 global_indices = torch.tensor(self.asset_cfg.joint_ids, device=self.asset.device)
