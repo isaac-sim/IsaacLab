@@ -319,15 +319,14 @@ class FrameTransformer(SensorBase):
     def _initialize_impl(self):
         super()._initialize_impl()
 
-        # Collect all target frames, their associated body prim paths and their offsets so that we can extract
-        # the prim, check that it has the appropriate rigid body API in a single loop.
-        # First element is None because user can't specify source frame name
+        # Collect all target frames, their associated body prim paths and their offsets
         frames = [target_frame.name for target_frame in self.cfg.target_frames]
         frame_prim_paths = [target_frame.prim_path for target_frame in self.cfg.target_frames]
         # First element is None because source frame offset is handled separately
         frame_offsets = [target_frame.offset for target_frame in self.cfg.target_frames]
 
-        # Find the source frame body index in the views
+        # Loop through all the views attached to the Newton manager to find the source frame body
+        # and set view id and the id of the body within that view.
         source_frame_prim_path = self.cfg.prim_path
         frame_found = False
         body_name = source_frame_prim_path.rsplit("/", 1)[-1]
@@ -350,10 +349,12 @@ class FrameTransformer(SensorBase):
                     break
             if frame_found:
                 break
+        # Raise an error if the source frame body is not found
         if not frame_found:
             raise ValueError(f"Source frame '{body_name}' not found.")
         self._source_frame_body_name = body_name
-        print("[INFO]: FrameTransformer initialized!")
+        # Print the information about the source frame body
+        print("[INFO]: Initializing FrameTransformer!")
         print(f"[INFO]: Using source body: {body_name} as reference frame.")
         print(f"[INFO]: + Body found in view id: {self._warp_source_view_id}.")
         print(f"[INFO]: + Body id in view {self._warp_source_view_id}: {self._warp_source_body_id}.")
@@ -363,21 +364,31 @@ class FrameTransformer(SensorBase):
         offsets = []
         self._target_frame_names = []
         for prim_path, offset, frame_name in zip(frame_prim_paths, frame_offsets, frames):
+            # Find the matching prims
             prims = sim_utils.find_matching_prims(prim_path)
+            # Duplicate the target frame names if more than one prim is found
             self._target_frame_names.extend([frame_name] * len(prims))
+            # Add to the list all the matching prims
             matching_prims.extend(prims)
+            # Duplicate the offsets if more than one prim is found
             offsets.extend([offset] * len(prims))
+        # Convert the matching prims to a list of prim paths
         matching_prims = [prim.GetPath().pathString for prim in matching_prims]
+
+        # Set the number of bodies/frames found in the scene
         self._num_frames = len(matching_prims)
         # Create a buffer to store the pose of the target frames
         pose = torch.zeros((self._num_frames, 7), dtype=torch.float32, device=self._device)
         # Set the default to identity transform
         pose[:, -1] = 1.0
+
         # Create a dictionary to store the body id, frame id and body name for each view
         self._warp_view_body_id = {}
         self._warp_view_frame_id = {}
         self._warp_view_body_name = {}
         self._target_frame_body_names = []
+
+        # Loop through all the matching prims and offsets to find the bodies in the scene
         for frame_id, (prim_path, offset) in enumerate(zip(matching_prims, offsets)):
             frame_found = False
             # Go through all the views to find the requested bodies
@@ -408,8 +419,10 @@ class FrameTransformer(SensorBase):
                     pose[frame_id, 4] = offset.rot[2]
                     pose[frame_id, 5] = offset.rot[3]
                     pose[frame_id, 6] = offset.rot[0]
+            # Raise an error if the frame is not found
             if not frame_found:
                 raise ValueError(f"Frame '{body_name}' found.")
+        # Set the target frame names
         self._data.target_frame_names = self._target_frame_names
         print(f"[INFO]: Found {self._num_frames} target frames.")
         for key in self._warp_view_body_name:
@@ -418,6 +431,7 @@ class FrameTransformer(SensorBase):
                 self._warp_view_body_name[key], self._warp_view_body_id[key], self._warp_view_frame_id[key]
             ):
                 print(f"[INFO]:   + Found {body_name} in view {key} with body id {body_id} and frame id {frame_id}.")
+        print("[INFO]: FrameTransformer initialized!")
         # Convert the pose to a wp.array
         self._warp_offset_buffer = wp.from_torch(pose, dtype=wp.transformf)
 
