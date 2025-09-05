@@ -14,8 +14,8 @@ from dataclasses import dataclass
 from enum import Enum
 
 import carb
-
 from isaacsim.core.version import get_version
+
 from isaaclab.devices.openxr.common import HAND_JOINT_NAMES
 from isaaclab.devices.retargeter_base import RetargeterBase
 

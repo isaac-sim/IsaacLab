@@ -481,6 +481,7 @@ def get_pairing_error(trans_errs: list, rot_errs: list) -> float:
     Returns:
         The weighted sum of medians of translation and rotation errors.
     """
+
     def _median(values: list) -> float:
         try:
             return float(np.median(np.asarray(values, dtype=np.float64)))

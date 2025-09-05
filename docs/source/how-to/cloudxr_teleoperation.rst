@@ -415,7 +415,7 @@ as the Vive trackers attached to the back of the hands occlude the optical hand 
 
 .. note::
 
-   To avoid resource contention and crashes, ensure Manus and Vive devices are connected to different USB controllers/buses. 
+   To avoid resource contention and crashes, ensure Manus and Vive devices are connected to different USB controllers/buses.
    Use ``lsusb -t`` to identify different buses and connect devices accordingly.
 
    Vive trackers are automatically calculated to map to the left and right wrist joints.
