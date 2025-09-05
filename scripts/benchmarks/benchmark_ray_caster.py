@@ -141,14 +141,15 @@ def _make_scene_cfg_multi(
         prim_path="{ENV_REGEX_NS}/ray_caster_origin",
         mesh_prim_paths=["/World/ground"]
         + [
-            MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr=f"/World/envs/env_.*/sphere_{i}")
+            MultiMeshRayCasterCfg.RaycastTargetCfg(
+                target_prim_expr=f"/World/envs/env_.*/sphere_{i}", track_mesh_transforms=track_mesh_transforms
+            )
             for i in range(num_assets)
         ],
         pattern_cfg=patterns.GridPatternCfg(resolution=resolution, size=(5.0, 5.0)),
         offset=RayCasterCfg.OffsetCfg(pos=(0.0, 0.0, 20.0)),
         debug_vis=debug_vis,
         ray_alignment="world",
-        track_mesh_transforms=track_mesh_transforms,
         reference_meshes=reference_meshes,
     )
     return scene_cfg
