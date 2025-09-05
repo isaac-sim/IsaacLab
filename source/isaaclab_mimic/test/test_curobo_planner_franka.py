@@ -14,7 +14,7 @@ random.seed(SEED)
 
 from isaaclab.app import AppLauncher
 
-headless = True
+headless = False
 app_launcher = AppLauncher(headless=headless)
 simulation_app: Any = app_launcher.app
 
@@ -101,7 +101,6 @@ def curobo_test_env() -> Generator[dict[str, Any], None, None]:
 
     # Teardown: close the environment and simulation app
     env.close()
-    simulation_app.close()
 
 
 class TestCuroboPlanner:

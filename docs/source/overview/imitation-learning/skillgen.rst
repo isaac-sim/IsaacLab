@@ -346,7 +346,7 @@ Train a state-based policy for the basic cube stacking task:
 .. code:: bash
 
    ./isaaclab.sh -p scripts/imitation_learning/robomimic/train.py \
-   --task Isaac-Stack-Cube-Franka-IK-Rel-v0 \
+   --task Isaac-Stack-Cube-Franka-IK-Rel-Skillgen-v0 \
    --algo bc \
    --dataset ./datasets/generated_dataset_skillgen_cube_stack.hdf5
 
@@ -358,13 +358,13 @@ Train a policy for the more complex adaptive bin stacking:
 .. code:: bash
 
    ./isaaclab.sh -p scripts/imitation_learning/robomimic/train.py \
-   --task Isaac-Stack-Cube-Bin-Franka-IK-Rel-v0 \
+   --task Isaac-Stack-Cube-Bin-Franka-IK-Rel-Mimic-v0 \
    --algo bc \
    --dataset ./datasets/generated_dataset_skillgen_bin_cube_stack.hdf5
 
 .. note::
 
-   The training script will save the model checkpoints in the model directory under ``PATH_TO_MODEL_DIRECTORY/logs/model_checkpoint.pth``.
+   The training script will save the model checkpoints in the model directory under ``IssacLab/logs/robomimic``.
 
 Evaluating Trained Policies
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -376,7 +376,7 @@ Test your trained policies:
    # Basic cube stacking evaluation
    ./isaaclab.sh -p scripts/imitation_learning/robomimic/play.py \
    --device cpu \
-   --task Isaac-Stack-Cube-Franka-IK-Rel-v0 \
+   --task Isaac-Stack-Cube-Franka-IK-Rel-Skillgen-v0 \
    --num_rollouts 50 \
    --checkpoint /path/to/model_checkpoint.pth
 
@@ -385,7 +385,7 @@ Test your trained policies:
    # Adaptive bin stacking evaluation
    ./isaaclab.sh -p scripts/imitation_learning/robomimic/play.py \
    --device cpu \
-   --task Isaac-Stack-Cube-Bin-Franka-IK-Rel-v0 \
+   --task Isaac-Stack-Cube-Bin-Franka-IK-Rel-Mimic-v0 \
    --num_rollouts 50 \
    --checkpoint /path/to/model_checkpoint.pth
 
