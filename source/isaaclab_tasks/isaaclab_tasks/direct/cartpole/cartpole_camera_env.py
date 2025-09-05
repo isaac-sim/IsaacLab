@@ -27,6 +27,7 @@ class CartpoleRGBCameraEnvCfg(DirectRLEnvCfg):
     decimation = 2
     episode_length_s = 5.0
     action_scale = 100.0  # [N]
+    num_stacked_frames = 4
 
     # simulation
     sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation)
@@ -52,7 +53,7 @@ class CartpoleRGBCameraEnvCfg(DirectRLEnvCfg):
     # spaces
     action_space = 1
     state_space = 0
-    observation_space = [tiled_camera.height, tiled_camera.width, 3]
+    observation_space = [tiled_camera.height, tiled_camera.width, 3 * num_stacked_frames]
 
     # change viewer settings
     viewer = ViewerCfg(eye=(20.0, 20.0, 20.0))
@@ -74,6 +75,7 @@ class CartpoleRGBCameraEnvCfg(DirectRLEnvCfg):
 
 @configclass
 class CartpoleDepthCameraEnvCfg(CartpoleRGBCameraEnvCfg):
+    num_stacked_frames = 4
     # camera
     tiled_camera: TiledCameraCfg = TiledCameraCfg(
         prim_path="/World/envs/env_.*/Camera",
@@ -87,7 +89,7 @@ class CartpoleDepthCameraEnvCfg(CartpoleRGBCameraEnvCfg):
     )
 
     # spaces
-    observation_space = [tiled_camera.height, tiled_camera.width, 1]
+    observation_space = [tiled_camera.height, tiled_camera.width, num_stacked_frames]
 
 
 class CartpoleCameraEnv(DirectRLEnv):
@@ -105,6 +107,25 @@ class CartpoleCameraEnv(DirectRLEnv):
 
         self.joint_pos = self._cartpole.data.joint_pos
         self.joint_vel = self._cartpole.data.joint_vel
+
+        if "rgb" in self.cfg.tiled_camera.data_types:
+            self.stacked_frames = torch.zeros(
+                (
+                    self.num_envs,
+                    self.cfg.tiled_camera.height,
+                    self.cfg.tiled_camera.width,
+                    self.cfg.num_stacked_frames,
+                    3,
+                ),
+                dtype=torch.uint8,
+                device=self.device,
+            )
+        elif "depth" in self.cfg.tiled_camera.data_types:
+            self.stacked_frames = torch.zeros(
+                (self.num_envs, self.cfg.tiled_camera.height, self.cfg.tiled_camera.width, self.cfg.num_stacked_frames),
+                dtype=torch.float32,
+                device=self.device,
+            )
 
         if len(self.cfg.tiled_camera.data_types) != 1:
             raise ValueError(
@@ -147,10 +168,33 @@ class CartpoleCameraEnv(DirectRLEnv):
             # normalize the camera data for better training results
             mean_tensor = torch.mean(camera_data, dim=(1, 2), keepdim=True)
             camera_data -= mean_tensor
+            # Roll the stack of frames
+            self.stacked_frames = torch.roll(self.stacked_frames, shifts=1, dims=3)
+            # Set the last frame to the current camera data
+            self.stacked_frames[:, :, :, -1] = camera_data
+            observations = {
+                "policy": self.stacked_frames.reshape(
+                    self.num_envs,
+                    self.cfg.tiled_camera.height,
+                    self.cfg.tiled_camera.width,
+                    self.cfg.num_stacked_frames * 3,
+                )
+            }
         elif "depth" in self.cfg.tiled_camera.data_types:
             camera_data = self._tiled_camera.data.output[data_type]
             camera_data[camera_data == float("inf")] = 0
-        observations = {"policy": camera_data.clone()}
+            # Roll the stack of frames
+            self.stacked_frames = torch.roll(self.stacked_frames, shifts=1, dims=3)
+            # Set the last frame to the current camera data
+            self.stacked_frames[:, :, :, -1] = camera_data[:, :, :, -1]
+            observations = {
+                "policy": self.stacked_frames.reshape(
+                    self.num_envs,
+                    self.cfg.tiled_camera.height,
+                    self.cfg.tiled_camera.width,
+                    self.cfg.num_stacked_frames,
+                )
+            }
 
         if self.cfg.write_image_to_file:
             save_images_to_file(observations["policy"], f"cartpole_{data_type}.png")
@@ -185,6 +229,17 @@ class CartpoleCameraEnv(DirectRLEnv):
         if env_ids is None:
             env_ids = self._cartpole._ALL_INDICES
         super()._reset_idx(env_ids)
+
+        data_type = "rgb" if "rgb" in self.cfg.tiled_camera.data_types else "depth"
+        if data_type == "rgb":
+            camera_data = self._tiled_camera.data.output[data_type][env_ids] / 255.0
+            mean_tensor = torch.mean(camera_data, dim=(1, 2), keepdim=True)
+            camera_data -= mean_tensor
+            self.stacked_frames[env_ids] = camera_data
+        elif data_type == "depth":
+            camera_data = self._tiled_camera.data.output[data_type][env_ids]
+            camera_data[camera_data == float("inf")] = 0
+            self.stacked_frames[env_ids] = camera_data
 
         joint_pos = self._cartpole.data.default_joint_pos[env_ids]
         joint_pos[:, self._pole_dof_idx] += sample_uniform(
