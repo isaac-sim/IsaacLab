@@ -16,7 +16,7 @@ from pxr import Sdf
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
 from isaaclab.assets import Articulation, ArticulationCfg, AssetBaseCfg, RigidObject, RigidObjectCfg
-from isaaclab.sensors import ContactSensorCfg, SensorBase, SensorBaseCfg, FrameTransformerCfg
+from isaaclab.sensors import ContactSensorCfg, FrameTransformerCfg, SensorBase, SensorBaseCfg
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.prims import XFormPrim
 from isaaclab.sim.utils.stage import get_current_stage, get_current_stage_id
