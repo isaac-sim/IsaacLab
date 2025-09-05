@@ -597,7 +597,7 @@ class randomize_actuator_gains(ManagerTermBase):
                 if isinstance(actuator.joint_indices, slice):
                     global_indices = slice(None)
                 else:
-                    global_indices = actuator_joint_indices = actuator.joint_indices.to(self.asset.device)
+                    global_indices = actuator.joint_indices.to(self.asset.device)
             elif isinstance(actuator.joint_indices, slice):
                 # we take the joints defined in the asset config
                 global_indices = torch.tensor(self.asset_cfg.joint_ids, device=self.asset.device)
