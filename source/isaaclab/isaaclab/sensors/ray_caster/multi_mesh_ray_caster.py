@@ -37,7 +37,7 @@ if TYPE_CHECKING:
 
 
 class MultiMeshRayCaster(RayCaster):
-    """A ray-casting sensor.
+    """A multi-mesh ray-casting sensor.
 
     The ray-caster uses a set of rays to detect collisions with meshes in the scene. The rays are
     defined in the sensor's local coordinate frame. The sensor can be configured to ray-cast against
