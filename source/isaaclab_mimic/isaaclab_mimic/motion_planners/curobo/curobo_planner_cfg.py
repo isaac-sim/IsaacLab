@@ -6,16 +6,16 @@
 import os
 import tempfile
 import yaml
-from dataclasses import dataclass, field
 
 from curobo.geom.sdf.world import CollisionCheckerType
 from curobo.geom.types import WorldConfig
 from curobo.util_file import get_robot_configs_path, get_world_configs_path, join_path, load_yaml
 
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
+from isaaclab.utils.configclass import configclass
 
 
-@dataclass
+@configclass
 class CuroboPlannerCfg:
     """Configuration for CuRobo motion planner.
 
@@ -47,17 +47,17 @@ class CuroboPlannerCfg:
     """End-effector link name (auto-detected from robot config if None)."""
 
     # Gripper configuration
-    gripper_joint_names: list[str] = field(default_factory=list)
+    gripper_joint_names: list[str] = []
     """Names of gripper joints."""
 
-    gripper_open_positions: dict[str, float] = field(default_factory=dict)
+    gripper_open_positions: dict[str, float] = {}
     """Open gripper positions for cuRobo to update spheres"""
 
-    gripper_closed_positions: dict[str, float] = field(default_factory=dict)
+    gripper_closed_positions: dict[str, float] = {}
     """Closed gripper positions for cuRobo to update spheres"""
 
     # Hand link configuration (for contact planning)
-    hand_link_names: list[str] = field(default_factory=list)
+    hand_link_names: list[str] = []
     """Names of hand/finger links to disable during contact planning."""
 
     # Attachment configuration
@@ -69,7 +69,7 @@ class CuroboPlannerCfg:
     """CuRobo world configuration file (without path)."""
 
     # Static objects to not update in the world model
-    static_objects: list[str] = field(default_factory=list)
+    static_objects: list[str] = []
     """Names of static objects to not update in the world model."""
 
     # Optional prim path configuration
@@ -92,7 +92,7 @@ class CuroboPlannerCfg:
     interpolation_dt: float = 0.05
     """Time step for interpolating waypoints."""
 
-    collision_cache_size: dict[str, int] = field(default_factory=lambda: {"obb": 150, "mesh": 150})
+    collision_cache_size: dict[str, int] = {"obb": 150, "mesh": 150}
     """Cache sizes for different collision types."""
 
     trajopt_tsteps: int = 32
@@ -155,7 +155,7 @@ class CuroboPlannerCfg:
     collision_spheres_file: str | None = None
     """Collision spheres configuration file (auto-detected if None)."""
 
-    extra_collision_spheres: dict[str, int] = field(default_factory=lambda: {"attached_object": 100})
+    extra_collision_spheres: dict[str, int] = {"attached_object": 100}
     """Extra collision spheres for attached objects."""
 
     position_threshold: float = 0.005
@@ -213,8 +213,8 @@ class CuroboPlannerCfg:
         world_cfg = WorldConfig(cuboid=world_cfg_table.cuboid, mesh=world_cfg_mesh.mesh)
         return world_cfg
 
-    @staticmethod
-    def _create_temp_robot_yaml(base_yaml: str, urdf_path: str) -> str:
+    @classmethod
+    def _create_temp_robot_yaml(cls, base_yaml: str, urdf_path: str) -> str:
         """Create a temporary robot configuration YAML with custom URDF path.
 
         Args:
