@@ -671,7 +671,7 @@ class CuroboPlanner(MotionPlannerBase):
                 # Create cuRobo pose and update collision checker directly
                 curobo_pose = self._make_pose(position=current_pos, quaternion=current_quat)
                 self.motion_gen.world_coll_checker.update_obstacle_pose(  # type: ignore
-                    object_path, curobo_pose, env_idx=self.env_id, update_cpu_reference=True
+                    object_path, curobo_pose, update_cpu_reference=True
                 )
 
             self.logger.debug(f"Updated {updated_count} object poses in collision checker")
@@ -819,7 +819,7 @@ class CuroboPlanner(MotionPlannerBase):
             self.logger.info(f"Sphere count after attach is successful: {self._count_active_spheres()}")
 
             # Deactivate the original obstacle as it's now carried by the robot
-            self.motion_gen.world_coll_checker.enable_obstacle(object_path, enable=False, env_idx=self.env_id)
+            self.motion_gen.world_coll_checker.enable_obstacle(object_path, enable=False)
 
             return True
         else:
@@ -861,7 +861,7 @@ class CuroboPlanner(MotionPlannerBase):
             object_path = object_mappings.get(object_name)
             if object_path:
                 try:
-                    self.motion_gen.world_coll_checker.enable_obstacle(object_path, enable=True, env_idx=self.env_id)
+                    self.motion_gen.world_coll_checker.enable_obstacle(object_path, enable=True)
                     self.logger.debug(f"Re-enabled obstacle {object_path}")
                 except Exception as e:
                     self.logger.debug(f"ERROR re-enabling obstacle {object_path}: {e}")
