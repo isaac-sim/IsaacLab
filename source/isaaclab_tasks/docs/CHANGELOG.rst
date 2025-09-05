@@ -1,6 +1,14 @@
 Changelog
 ---------
 
+0.10.50 (2025-09-05)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added stacking environments for Galbot with suction grippers.
+
 0.10.49 (2025-09-05)
 ~~~~~~~~~~~~~~~~~~~~
 

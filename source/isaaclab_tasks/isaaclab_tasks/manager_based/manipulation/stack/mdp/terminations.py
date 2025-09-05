@@ -30,7 +30,6 @@ def cubes_stacked(
     xy_threshold: float = 0.04,
     height_threshold: float = 0.005,
     height_diff: float = 0.0468,
-    gripper_open_val: torch.tensor = torch.tensor([0.04]),
     atol=0.0001,
     rtol=0.0001,
 ):
@@ -58,11 +57,36 @@ def cubes_stacked(
     stacked = torch.logical_and(pos_diff_c23[:, 2] < 0.0, stacked)
 
     # Check gripper positions
-    stacked = torch.logical_and(
-        torch.isclose(robot.data.joint_pos[:, -1], gripper_open_val.to(env.device), atol=atol, rtol=rtol), stacked
-    )
-    stacked = torch.logical_and(
-        torch.isclose(robot.data.joint_pos[:, -2], gripper_open_val.to(env.device), atol=atol, rtol=rtol), stacked
-    )
+    if hasattr(env.scene, "surface_grippers") and len(env.scene.surface_grippers) > 0:
+        surface_gripper = env.scene.surface_grippers["surface_gripper"]
+        suction_cup_status = surface_gripper.state.view(-1, 1)  # 1: closed, 0: closing, -1: open
+        suction_cup_is_open = (suction_cup_status == -1).to(torch.float32)
+        stacked = torch.logical_and(suction_cup_is_open, stacked)
+
+    else:
+        if hasattr(env.cfg, "gripper_joint_names"):
+            gripper_joint_ids, _ = robot.find_joints(env.cfg.gripper_joint_names)
+            assert len(gripper_joint_ids) == 2, "Terminations only support parallel gripper for now"
+
+            stacked = torch.logical_and(
+                torch.isclose(
+                    robot.data.joint_pos[:, gripper_joint_ids[0]],
+                    torch.tensor(env.cfg.gripper_open_val, dtype=torch.float32).to(env.device),
+                    atol=atol,
+                    rtol=rtol,
+                ),
+                stacked,
+            )
+            stacked = torch.logical_and(
+                torch.isclose(
+                    robot.data.joint_pos[:, gripper_joint_ids[1]],
+                    torch.tensor(env.cfg.gripper_open_val, dtype=torch.float32).to(env.device),
+                    atol=atol,
+                    rtol=rtol,
+                ),
+                stacked,
+            )
+        else:
+            raise ValueError("No gripper_joint_names found in environment config")
 
     return stacked
