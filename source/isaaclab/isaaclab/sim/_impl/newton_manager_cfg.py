@@ -27,4 +27,10 @@ class NewtonCfg:
     If set to False, the simulation performance will be severely degraded.
     """
 
+    newton_viwer_update_frequency: int = 1
+    """Frequency of updates to the Newton viewer."""
+
+    newton_viewer_camera_pos: tuple[float, float, float] = (10.0, 0.0, 3.0)
+    """Position of the camera in the Newton viewer."""
+
     solver_cfg: NewtonSolverCfg = MJWarpSolverCfg()

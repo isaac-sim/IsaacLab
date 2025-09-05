@@ -26,7 +26,7 @@ def flipped_match(x: str, y: str) -> re.Match | None:
 
     Args:
         x: The body/shape name in the simulation.
-        y: The body/shape name in the contact w.
+        y: The body/shape name in the contact view.
 
     Returns:
         The match object if the body/shape name is found in the contact view, otherwise None.
@@ -101,7 +101,7 @@ class NewtonManager:
         NewtonManager._up_axis = "Z"
         NewtonManager._first_call = True
         NewtonManager._visualizer_update_counter = 0
-        NewtonManager._visualizer_update_frequency = 10
+        NewtonManager._visualizer_update_frequency = NewtonManager._cfg.newton_viewer_update_frequency
 
     @classmethod
     def set_builder(cls, builder):
@@ -307,11 +307,11 @@ class NewtonManager:
 
         if NewtonManager._renderer is None:
             NewtonManager._renderer = NewtonViewerGL(width=1280, height=720)
-            NewtonManager._renderer.camera.pos = (0, 3, 10)
+            NewtonManager._renderer.set_model(NewtonManager._model)
+            NewtonManager._renderer.camera.pos = wp.vec3(*NewtonManager._cfg.newton_viewer_camera_pos)
             NewtonManager._renderer.up_axis = NewtonManager._up_axis
             NewtonManager._renderer.scaling = 1.0
             NewtonManager._renderer._paused = False
-            NewtonManager._renderer.set_model(NewtonManager._model)
         else:
             # Keep updating the renderer until the training is resumed
             while NewtonManager._renderer.is_training_paused():
