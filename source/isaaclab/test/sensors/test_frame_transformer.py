@@ -21,7 +21,8 @@ import pytest
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
-#from isaaclab.assets import RigidObjectCfg
+
+# from isaaclab.assets import RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import FrameTransformerCfg, OffsetCfg
 from isaaclab.terrains import TerrainImporterCfg
@@ -59,7 +60,7 @@ class MySceneCfg(InteractiveSceneCfg):
     frame_transformer: FrameTransformerCfg = None
 
     # block
-    #cube: RigidObjectCfg = RigidObjectCfg(
+    # cube: RigidObjectCfg = RigidObjectCfg(
     #    prim_path="{ENV_REGEX_NS}/cube",
     #    spawn=sim_utils.CuboidCfg(
     #        size=(0.2, 0.2, 0.2),
@@ -69,7 +70,7 @@ class MySceneCfg(InteractiveSceneCfg):
     #        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 0.0, 0.0)),
     #    ),
     #    init_state=RigidObjectCfg.InitialStateCfg(pos=(2.0, 0.0, 5)),
-    #)
+    # )
 
 
 @pytest.fixture
@@ -305,6 +306,7 @@ def test_frame_transformer_feet_wrt_thigh(sim):
             # check if they are same
             torch.testing.assert_close(feet_pos_source_tf[:, index], foot_pos_b)
             torch.testing.assert_close(feet_quat_source_tf[:, index], foot_quat_b)
+
 
 @pytest.mark.skip(reason="Rigid object test is not supported yet.")
 def test_frame_transformer_robot_body_to_external_cube(sim):
