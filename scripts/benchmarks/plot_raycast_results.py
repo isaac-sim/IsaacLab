@@ -9,7 +9,7 @@ import pandas as pd
 
 
 def compare_single_vs_multi():
-    df = pd.read_csv("/workspace/isaaclab/outputs/benchmarks/ray_caster_benchmark_single_vs_multi.csv")
+    df = pd.read_csv("outputs/benchmarks/ray_caster_benchmark_single_vs_multi.csv")
     # %% Types & cleaning
     df["resolution"] = df["resolution"].astype(float)
     df["num_envs"] = df["num_envs"].astype(int)
@@ -89,7 +89,7 @@ def compare_single_vs_multi():
 
 def compare_num_assets_vram_cache():
     """Plots Average steps per ms vs Num assets and Avg memory vs num assets"""
-    df = pd.read_csv("/workspace/isaaclab/outputs/benchmarks/ray_caster_benchmark_num_assets.csv")
+    df = pd.read_csv("outputs/benchmarks/ray_caster_benchmark_num_assets.csv")
     df["num_assets"] = df["num_assets"].astype(int)
     df["avg_memory"] = df["avg_memory"].astype(float)
     df["fps"] = 1.0 / (df["per_step_ms"] * 1e-3)
@@ -116,7 +116,7 @@ def compare_num_assets_vram_cache():
 
 def compare_num_assets():
     """Plots Average steps per ms vs Num assets and Avg memory vs num assets"""
-    df = pd.read_csv("/workspace/isaaclab/outputs/benchmarks/ray_caster_benchmark_num_assets.csv")
+    df = pd.read_csv("outputs/benchmarks/ray_caster_benchmark_num_assets.csv")
     df = df[df["reference_meshes"] is True]
     df["num_assets"] = df["num_assets"].astype(int)
     df["avg_memory"] = df["avg_memory"].astype(float)
@@ -147,7 +147,7 @@ def compare_num_assets():
 
 def compare_num_faces():
     """Plots Average steps per ms vs Num faces and Avg memory vs num faces"""
-    df = pd.read_csv("/workspace/isaaclab/outputs/benchmarks/ray_caster_benchmark_num_faces.csv")
+    df = pd.read_csv("outputs/benchmarks/ray_caster_benchmark_num_faces.csv")
     # %% Types & cleaning
     df["num_faces"] = df["num_faces"].astype(int)
     df["avg_memory"] = df["avg_memory"].astype(float)
