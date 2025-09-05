@@ -43,7 +43,7 @@ class MultiMeshRayCasterCfg(RayCasterCfg):
 
         merge_prim_meshes: bool = True
         """Whether to merge the meshes when a prim contains multiple meshes. Defaults to True. Note, this will
-        create a new mesh that combines all meshes in the prim. The raycast hits mesh ids will then refer to the single 
+        create a new mesh that combines all meshes in the prim. The raycast hits mesh ids will then refer to the single
         merged mesh."""
 
         track_mesh_transforms: bool = True
