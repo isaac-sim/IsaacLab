@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import numpy as np
+from time import time
 
 import carb
 from isaacsim.core.utils.extensions import enable_extension
@@ -71,24 +72,26 @@ class ManusViveIntegration:
         self._pairB_rot_errs = []
 
     def get_all_device_data(self) -> dict:
-        """
-        Get all device data.
-        Format: {
-            'manus_gloves': {
-                '{left/right}_{joint_index}': {
-                    'position': [x, y, z],
-                    'orientation': [w, x, y, z]
+        """Get all tracked device data in scene coordinates.
+
+        Returns:
+            Manus glove joint data and Vive tracker data.
+            {
+                'manus_gloves': {
+                    '{left/right}_{joint_index}': {
+                        'position': [x, y, z],
+                        'orientation': [w, x, y, z]
+                    },
+                    ...
                 },
-                ...
-            },
-            'vive_trackers': {
-                '{vive_tracker_id}': {
-                    'position': [x, y, z],
-                    'orientation': [w, x, y, z]
-                },
-                ...
+                'vive_trackers': {
+                    '{vive_tracker_id}': {
+                        'position': [x, y, z],
+                        'orientation': [w, x, y, z]
+                    },
+                    ...
+                }
             }
-        }
         """
         self.update_manus()
         self.update_vive()
@@ -104,8 +107,10 @@ class ManusViveIntegration:
         }
 
     def get_device_status(self) -> dict:
-        """
-        Get device status.
+        """Get connection and data freshness status for Manus gloves and Vive trackers.
+
+        Returns:
+            Dictionary containing connection flags and last-data timestamps.
         Format: {
             'manus_gloves': {'connected': bool, 'last_data_time': float},
             'vive_trackers': {'connected': bool, 'last_data_time': float},
@@ -116,8 +121,9 @@ class ManusViveIntegration:
         return self.device_status
 
     def update_manus(self):
-        """Update raw Manus glove data."""
+        """Update raw Manus glove data and status flags."""
         self.manus.update()
+        self.device_status["manus_gloves"]["last_data_time"] = time()
         manus_data = self.manus.get_data()
         self.device_status["left_hand_connected"] = "left_0" in manus_data
         self.device_status["right_hand_connected"] = "right_0" in manus_data
@@ -125,6 +131,7 @@ class ManusViveIntegration:
     def update_vive(self):
         """Update raw Vive tracker data, and initialize coordinate transformation if it is the first data update."""
         self.vive_tracker.update()
+        self.device_status["vive_trackers"]["last_data_time"] = time()
         try:
             # Initialize coordinate transformation from first Vive wrist position
             if self.scene_T_lighthouse_static is None:
@@ -223,7 +230,14 @@ class ManusViveIntegration:
             carb.log_error(f"Failed to initialize coordinate transformation: {e}")
 
     def _transform_vive_data(self, device_data: dict) -> dict:
-        """Transform all joints in vive data to scene coordinates."""
+        """Transform Vive tracker poses to scene coordinates.
+
+        Args:
+            device_data: raw vive tracker poses, with device id as keys.
+
+        Returns:
+            Vive tracker poses in scene coordinates, with device id as keys.
+        """
         transformed_data = {}
         for joint_name, joint_data in device_data.items():
             transformed_pose = self.default_pose
@@ -234,7 +248,14 @@ class ManusViveIntegration:
         return transformed_data
 
     def _get_scene_T_wrist_matrix(self, vive_data: dict) -> dict:
-        """Get the wrist position and orientation from vive data."""
+        """Compute scene-frame wrist transforms for left and right hands.
+
+        Args:
+            vive_data: Vive tracker poses expressed in scene coordinates.
+
+        Returns:
+            Dictionary with 'left' and 'right' keys mapping to 4x4 transforms.
+        """
         scene_T_wrist = {"left": Gf.Matrix4d().SetIdentity(), "right": Gf.Matrix4d().SetIdentity()}
         # 10 cm offset on Y-axis for change in vive tracker position after flipping the palm
         Rcorr = Gf.Matrix4d(self.rot_adjust, Gf.Vec3d(0, -0.1, 0))
@@ -245,7 +266,15 @@ class ManusViveIntegration:
         return scene_T_wrist
 
     def _transform_manus_data(self, manus_data: dict, scene_T_wrist: dict) -> dict:
-        """Transform Manus glove data: relative joint poses to wrist -> joint in scene coordinates"""
+        """Transform Manus glove joints from wrist-relative to scene coordinates.
+
+        Args:
+            manus_data: Raw Manus joint pose dictionary, wrist-relative.
+            scene_T_wrist: Dictionary of scene transforms for left and right wrists.
+
+        Returns:
+            Dictionary of Manus joint poses in scene coordinates.
+        """
         Rcorr = Gf.Matrix4d(self.rot_adjust, Gf.Vec3d(0, 0, 0)).GetInverse()
         transformed_data = {}
         for joint_name, joint_data in manus_data.items():
@@ -258,7 +287,15 @@ class ManusViveIntegration:
         return transformed_data
 
     def _get_palm(self, transformed_data: dict, hand: str) -> dict:
-        """Get palm position and orientation from transformed data."""
+        """Compute palm pose from middle metacarpal and proximal joints.
+
+        Args:
+            transformed_data: Manus joint poses in scene coordinates.
+            hand: The hand side, either 'left' or 'right'.
+
+        Returns:
+            Pose dictionary with 'position' and 'orientation'.
+        """
         if f"{hand}_6" not in transformed_data or f"{hand}_7" not in transformed_data:
             carb.log_error(f"Joint data not found for {hand}")
             return self.default_pose
@@ -269,7 +306,15 @@ class ManusViveIntegration:
 
 
 def compute_delta_errors(a: Gf.Matrix4d, b: Gf.Matrix4d) -> tuple[float, float]:
-    """Return (translation_error_m, rotation_error_deg) between transforms a and b."""
+    """Compute translation and rotation error between two transforms.
+
+    Args:
+        a: The first transform.
+        b: The second transform.
+
+    Returns:
+        Tuple containing (translation_error_m, rotation_error_deg).
+    """
     try:
         delta = a * b.GetInverse()
         t = delta.ExtractTranslation()
@@ -286,7 +331,14 @@ def compute_delta_errors(a: Gf.Matrix4d, b: Gf.Matrix4d) -> tuple[float, float]:
 
 
 def average_transforms(mats: list[Gf.Matrix4d]) -> Gf.Matrix4d:
-    """Average rigid transforms: mean translation and normalized mean quaternion (with sign alignment)."""
+    """Average rigid transforms across translations and quaternions.
+
+    Args:
+        mats: The list of 4x4 transforms to average.
+
+    Returns:
+        Averaged 4x4 transform, or None if the list is empty.
+    """
     if not mats:
         return None
     ref_quat = mats[0].ExtractRotation().GetQuat()
@@ -316,7 +368,16 @@ def average_transforms(mats: list[Gf.Matrix4d]) -> Gf.Matrix4d:
 def select_mode_cluster(
     mats: list[Gf.Matrix4d], trans_thresh_m: float = 0.03, rot_thresh_deg: float = 10.0
 ) -> list[Gf.Matrix4d]:
-    """Return the largest cluster (mode) under proximity thresholds."""
+    """Select the largest cluster of transforms under proximity thresholds.
+
+    Args:
+        mats: The list of 4x4 transforms to cluster.
+        trans_thresh_m: The translation threshold in meters.
+        rot_thresh_deg: The rotation threshold in degrees.
+
+    Returns:
+        The largest cluster (mode) of transforms.
+    """
     if not mats:
         return []
     best_cluster: list[Gf.Matrix4d] = []
@@ -332,7 +393,14 @@ def select_mode_cluster(
 
 
 def get_openxr_wrist_matrix(hand: str) -> Gf.Matrix4d:
-    """Get OpenXR wrist world matrix if valid, else None."""
+    """Get the OpenXR wrist matrix if valid.
+
+    Args:
+        hand: The hand side ('left' or 'right').
+
+    Returns:
+        4x4 transform for the wrist if valid, otherwise None.
+    """
     hand = hand.lower()
     try:
         hand_device = XRCore.get_singleton().get_input_device(f"/user/hand/{hand}")
@@ -351,8 +419,15 @@ def get_openxr_wrist_matrix(hand: str) -> Gf.Matrix4d:
         return None
 
 
-def get_vive_wrist_ids(vive_data: dict):
-    """Return tuple (wm0_id, wm1_id) if available, else Nones. Sort by key for stability."""
+def get_vive_wrist_ids(vive_data: dict) -> tuple[str, str]:
+    """Get the Vive wrist tracker IDs if available.
+
+    Args:
+        vive_data: The raw Vive data dictionary.
+
+    Returns:
+        (wm0_id, wm1_id) if available, otherwise None values.
+    """
     wm_ids = [k for k in vive_data.keys() if len(k) >= 2 and k[:2] == "WM"]
     wm_ids.sort()
     if len(wm_ids) >= 2:  # Assumes the first two vive trackers are the wrist trackers
@@ -363,7 +438,14 @@ def get_vive_wrist_ids(vive_data: dict):
 
 
 def pose_to_matrix(pose: dict) -> Gf.Matrix4d:
-    """Convert position and orientation to a 4x4 matrix."""
+    """Convert a pose dictionary to a 4x4 transform matrix.
+
+    Args:
+        pose: The pose with 'position' and 'orientation' fields.
+
+    Returns:
+        A 4x4 transform representing the pose.
+    """
     pos, ori = pose["position"], pose["orientation"]
     quat = Gf.Quatd(ori[0], Gf.Vec3d(ori[1], ori[2], ori[3]))
     rot = Gf.Matrix3d().SetRotate(quat)
@@ -372,7 +454,14 @@ def pose_to_matrix(pose: dict) -> Gf.Matrix4d:
 
 
 def matrix_to_pose(matrix: Gf.Matrix4d) -> dict:
-    """Convert a 4x4 matrix to position and orientation."""
+    """Convert a 4x4 transform matrix to a pose dictionary.
+
+    Args:
+        matrix: The 4x4 transform matrix to convert.
+
+    Returns:
+        Pose dictionary with 'position' and 'orientation'.
+    """
     pos = matrix.ExtractTranslation()
     rot = matrix.ExtractRotation()
     quat = rot.GetQuat()
@@ -383,6 +472,15 @@ def matrix_to_pose(matrix: Gf.Matrix4d) -> dict:
 
 
 def get_pairing_error(trans_errs: list, rot_errs: list) -> float:
+    """Compute a scalar pairing error from translation and rotation errors.
+
+    Args:
+        trans_errs: The list of translation errors across samples.
+        rot_errs: The list of rotation errors across samples.
+
+    Returns:
+        The weighted sum of medians of translation and rotation errors.
+    """
     def _median(values: list) -> float:
         try:
             return float(np.median(np.asarray(values, dtype=np.float64)))

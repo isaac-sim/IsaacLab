@@ -15,6 +15,7 @@ from enum import Enum
 
 import carb
 
+from isaacsim.core.version import get_version
 from isaaclab.devices.openxr.common import HAND_JOINT_NAMES
 from isaaclab.devices.retargeter_base import RetargeterBase
 
@@ -60,12 +61,6 @@ class ManusVive(DeviceBase):
 
     Teleop commands: consistent with :class:`OpenXRDevice`.
 
-    Note:
-
-        * To avoid resource contention and crashes, ensure Manus and Vive devices are connected to different USB controllers/buses. Use `lsusb -t` to identify different buses and connect devices accordingly.
-        * For Vive tracker poses calibration from AVP wrist poses, the user needs their palm facing up during the start of the session.
-        * Wrist auto-mapping calculation supports up to 2 Vive trackers; for more than 2 Vive trackers, it uses the first two trackers detected, which may not be correct.
-
     The device tracks the left hand, right hand, head position, or any combination of these
     based on the TrackingTarget enum values. When retargeters are provided, the raw tracking
     data is transformed into robot control commands suitable for teleoperation.
@@ -88,6 +83,11 @@ class ManusVive(DeviceBase):
             retargeters: List of retargeter instances to use for transforming raw tracking data.
         """
         super().__init__(retargeters)
+        # Enforce minimum Isaac Sim version (>= 5.1)
+        version_info = get_version()
+        major, minor = int(version_info[2]), int(version_info[3])
+        if (major < 5) or (major == 5 and minor < 1):
+            raise RuntimeError(f"ManusVive requires Isaac Sim >= 5.1. Detected version {major}.{minor}. ")
         self._xr_cfg = cfg.xr_cfg or XrCfg()
         self._additional_callbacks = dict()
         self._vc_subscription = (
@@ -112,7 +112,6 @@ class ManusVive(DeviceBase):
 
     def __del__(self):
         """Clean up resources when the object is destroyed.
-
         Properly unsubscribes from the XR message bus to prevent memory leaks
         and resource issues when the device is no longer needed.
         """
@@ -122,13 +121,11 @@ class ManusVive(DeviceBase):
         # No need to explicitly clean up OpenXR instance as it's managed by NVIDIA Isaac Sim
 
     def __str__(self) -> str:
-        """Returns a string containing information about the OpenXR hand tracking device.
-
-        This provides details about the device configuration, tracking settings,
+        """Provide details about the device configuration, tracking settings,
         and available gesture commands.
 
         Returns:
-            Formatted string with device information
+            Formatted string with device information.
         """
 
         msg = f"Manus+Vive Hand Tracking Device: {self.__class__.__name__}\n"
@@ -166,13 +163,19 @@ class ManusVive(DeviceBase):
         return msg
 
     def reset(self):
+        """Reset cached joint and head poses."""
         default_pose = np.array([0, 0, 0, 1, 0, 0, 0], dtype=np.float32)
         self._previous_joint_poses_left = {name: default_pose.copy() for name in HAND_JOINT_NAMES}
         self._previous_joint_poses_right = {name: default_pose.copy() for name in HAND_JOINT_NAMES}
         self._previous_headpose = default_pose.copy()
 
     def add_callback(self, key: str, func: Callable):
-        """Add additional functions to bind to client messages. Consistent with :meth:`OpenXRDevice.add_callback`."""
+        """Register a callback for a given key.
+
+        Args:
+            key: The message key to bind ('START', 'STOP', 'RESET').
+            func: The function to invoke when the message key is received.
+        """
         self._additional_callbacks[key] = func
 
     def _get_raw_data(self) -> dict:
@@ -203,7 +206,7 @@ class ManusVive(DeviceBase):
         """Calculate the head pose from OpenXR.
 
         Returns:
-            numpy.ndarray: 7-element array containing head position (xyz) and orientation (wxyz)
+            7-element numpy.ndarray [x, y, z, qw, qx, qy, qz].
         """
         head_device = XRCore.get_singleton().get_input_device("/user/head")
         if head_device:
@@ -227,6 +230,11 @@ class ManusVive(DeviceBase):
         return self._previous_headpose
 
     def _on_teleop_command(self, event: carb.events.IEvent):
+        """Handle teleoperation command events.
+
+        Args:
+            event: The XR message-bus event containing a 'message' payload.
+        """
         msg = event.payload["message"]
 
         if "start" in msg:
