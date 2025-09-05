@@ -262,7 +262,7 @@ class MultiMeshRayCaster(RayCaster):
 
                 if len(trimesh_meshes) == 1:
                     trimesh_mesh = trimesh_meshes[0]
-                elif self.cfg.merge_prim_meshes:
+                elif target_cfg.merge_prim_meshes:
                     # combine all trimesh meshes into a single mesh
                     trimesh_mesh = trimesh.util.concatenate(trimesh_meshes)
                 else:
