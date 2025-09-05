@@ -21,6 +21,8 @@ from isaaclab.assets import (
     Articulation,
     ArticulationCfg,
     AssetBaseCfg,
+    Deformable,
+    DeformableCfg,
     DeformableObject,
     DeformableObjectCfg,
     RigidObject,
@@ -120,6 +122,7 @@ class InteractiveScene:
         # initialize scene elements
         self._terrain = None
         self._articulations = dict()
+        self._deformables = dict()
         self._deformable_objects = dict()
         self._rigid_objects = dict()
         self._rigid_object_collections = dict()
@@ -383,6 +386,11 @@ class InteractiveScene:
         return self._articulations
 
     @property
+    def deformables(self) -> dict[str, Deformable]:
+        """A dictionary of deformables in the scene."""
+        return self._deformables
+
+    @property
     def deformable_objects(self) -> dict[str, DeformableObject]:
         """A dictionary of deformable objects in the scene."""
         return self._deformable_objects
@@ -448,6 +456,8 @@ class InteractiveScene:
         # -- assets
         for articulation in self._articulations.values():
             articulation.reset(env_ids)
+        for deformable in self._deformables.values():
+            deformable.reset(env_ids)
         for deformable_object in self._deformable_objects.values():
             deformable_object.reset(env_ids)
         for rigid_object in self._rigid_objects.values():
@@ -465,6 +475,8 @@ class InteractiveScene:
         # -- assets
         for articulation in self._articulations.values():
             articulation.write_data_to_sim()
+        for deformable in self._deformables.values():
+            deformable.write_data_to_sim()
         for deformable_object in self._deformable_objects.values():
             deformable_object.write_data_to_sim()
         for rigid_object in self._rigid_objects.values():
@@ -483,6 +495,8 @@ class InteractiveScene:
         # -- assets
         for articulation in self._articulations.values():
             articulation.update(dt)
+        for deformable in self._deformables.values():
+            deformable.update(dt)
         for deformable_object in self._deformable_objects.values():
             deformable_object.update(dt)
         for rigid_object in self._rigid_objects.values():
@@ -535,6 +549,17 @@ class InteractiveScene:
             #   This assumption does not hold for effort controlled joints.
             articulation.set_joint_position_target(joint_position, env_ids=env_ids)
             articulation.set_joint_velocity_target(joint_velocity, env_ids=env_ids)
+        # deformables
+        for asset_name, deformable in self._deformables.items():
+            asset_state = state["deformable"][asset_name]
+            nodal_position = asset_state["nodal_position"].clone()
+            if is_relative:
+                nodal_position[:, :3] += self.env_origins[env_ids]
+            nodal_velocity = asset_state["nodal_velocity"].clone()
+            # nodal_kinematic_target = asset_state["nodal_kinematic_target"].clone()
+            deformable.write_nodal_pos_to_sim(nodal_position, env_ids=env_ids)
+            deformable.write_nodal_velocity_to_sim(nodal_velocity, env_ids=env_ids)
+            # deformable.write_nodal_kinematic_target_to_sim(nodal_kinematic_target, env_ids=env_ids)
         # deformable objects
         for asset_name, deformable_object in self._deformable_objects.items():
             asset_state = state["deformable_object"][asset_name]
@@ -542,8 +567,10 @@ class InteractiveScene:
             if is_relative:
                 nodal_position[:, :3] += self.env_origins[env_ids]
             nodal_velocity = asset_state["nodal_velocity"].clone()
+            nodal_kinematic_target = asset_state["nodal_kinematic_target"].clone()
             deformable_object.write_nodal_pos_to_sim(nodal_position, env_ids=env_ids)
             deformable_object.write_nodal_velocity_to_sim(nodal_velocity, env_ids=env_ids)
+            deformable_object.write_nodal_kinematic_target_to_sim(nodal_kinematic_target, env_ids=env_ids)
         # rigid objects
         for asset_name, rigid_object in self._rigid_objects.items():
             asset_state = state["rigid_object"][asset_name]
@@ -625,6 +652,16 @@ class InteractiveScene:
             asset_state["joint_position"] = articulation.data.joint_pos.clone()
             asset_state["joint_velocity"] = articulation.data.joint_vel.clone()
             state["articulation"][asset_name] = asset_state
+        # deformables
+        state["deformable"] = dict()
+        for asset_name, deformable in self._deformables.items():
+            asset_state = dict()
+            asset_state["nodal_position"] = deformable.data.nodal_pos_w.clone()
+            if is_relative:
+                asset_state["nodal_position"][:, :3] -= self.env_origins
+            asset_state["nodal_velocity"] = deformable.data.nodal_vel_w.clone()
+            # asset_state["nodal_kinematic_target"] = deformable.data.nodal_kinematic_target.clone()
+            state["deformable"][asset_name] = asset_state
         # deformable objects
         state["deformable_object"] = dict()
         for asset_name, deformable_object in self._deformable_objects.items():
@@ -633,6 +670,7 @@ class InteractiveScene:
             if is_relative:
                 asset_state["nodal_position"][:, :3] -= self.env_origins
             asset_state["nodal_velocity"] = deformable_object.data.nodal_vel_w.clone()
+            asset_state["nodal_kinematic_target"] = deformable_object.data.nodal_kinematic_target.clone()
             state["deformable_object"][asset_name] = asset_state
         # rigid objects
         state["rigid_object"] = dict()
@@ -658,6 +696,7 @@ class InteractiveScene:
         all_keys = ["terrain"]
         for asset_family in [
             self._articulations,
+            self._deformables,
             self._deformable_objects,
             self._rigid_objects,
             self._rigid_object_collections,
@@ -685,6 +724,7 @@ class InteractiveScene:
         # check if it is in other dictionaries
         for asset_family in [
             self._articulations,
+            self._deformables,
             self._deformable_objects,
             self._rigid_objects,
             self._rigid_object_collections,
@@ -736,6 +776,8 @@ class InteractiveScene:
                 self._terrain = asset_cfg.class_type(asset_cfg)
             elif isinstance(asset_cfg, ArticulationCfg):
                 self._articulations[asset_name] = asset_cfg.class_type(asset_cfg)
+            elif isinstance(asset_cfg, DeformableCfg):
+                self._deformables[asset_name] = asset_cfg.class_type(asset_cfg)
             elif isinstance(asset_cfg, DeformableObjectCfg):
                 self._deformable_objects[asset_name] = asset_cfg.class_type(asset_cfg)
             elif isinstance(asset_cfg, RigidObjectCfg):
