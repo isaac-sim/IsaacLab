@@ -48,8 +48,8 @@ class NewtonManager:
     _state_1: State = None
     _state_temp: State = None
     _control: Control = None
-    _on_init_callbacks: list = []
-    _on_start_callbacks: list = []
+    _on_init_callbacks: dict = {}
+    _on_start_callbacks: dict = {}
     _contacts: Contacts = None
     _needs_collision_pipeline: bool = False
     _collision_pipeline = None
@@ -86,8 +86,8 @@ class NewtonManager:
         NewtonManager._graph = None
         NewtonManager._newton_stage_path = None
         NewtonManager._sim_time = 0.0
-        NewtonManager._on_init_callbacks = []
-        NewtonManager._on_start_callbacks = []
+        NewtonManager._on_init_callbacks = {}
+        NewtonManager._on_start_callbacks = {}
         NewtonManager._usdrt_stage = None
         # Only create new config if not during Python shutdown
         try:
@@ -104,12 +104,16 @@ class NewtonManager:
         NewtonManager._builder = builder
 
     @classmethod
-    def add_on_init_callback(cls, callback) -> None:
-        NewtonManager._on_init_callbacks.append(callback)
+    def add_on_init_callback(cls, callback, priority: int = 0) -> None:
+        if priority not in NewtonManager._on_init_callbacks:
+            NewtonManager._on_init_callbacks[priority] = []
+        NewtonManager._on_init_callbacks[priority].append(callback)
 
     @classmethod
-    def add_on_start_callback(cls, callback) -> None:
-        NewtonManager._on_start_callbacks.append(callback)
+    def add_on_start_callback(cls, callback, priority: int = 0) -> None:
+        if priority not in NewtonManager._on_start_callbacks:
+            NewtonManager._on_start_callbacks[priority] = []
+        NewtonManager._on_start_callbacks[priority].append(callback)
 
     @classmethod
     def add_view(cls, view) -> None:
@@ -136,8 +140,9 @@ class NewtonManager:
         if NewtonManager._builder is None:
             NewtonManager.instantiate_builder_from_stage()
         print("[INFO] Running on init callbacks")
-        for callback in NewtonManager._on_init_callbacks:
-            callback()
+        for priority in sorted(NewtonManager._on_init_callbacks.keys()):
+            for callback in NewtonManager._on_init_callbacks[priority]:
+                callback()
         print(f"[INFO] Finalizing model on device: {NewtonManager._device}")
         NewtonManager._builder.up_axis = Axis.from_string(NewtonManager._up_axis)
         # Set smaller contact margin for manipulation examples (default 10cm is too large)
@@ -154,8 +159,9 @@ class NewtonManager:
         # Initialize empty contacts - will be replaced in initialize_solver() if collision pipeline is needed
         NewtonManager._contacts = Contacts(0, 0)
         print("[INFO] Running on start callbacks")
-        for callback in NewtonManager._on_start_callbacks:
-            callback()
+        for priority in sorted(NewtonManager._on_start_callbacks.keys()):
+            for callback in NewtonManager._on_start_callbacks[priority]:
+                callback()
         if not NewtonManager._clone_physics_only:
             import usdrt
 

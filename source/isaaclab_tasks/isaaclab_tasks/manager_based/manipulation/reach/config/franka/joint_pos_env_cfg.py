@@ -40,8 +40,8 @@ class FrankaReachEnvCfg(ReachEnvCfg):
                 save_to_mjcf="FrankaReachEnv.xml",
             ),
             num_substeps=1,
-            debug_mode=True,
-        ),
+            debug_mode=False,
+        )
     )
 
     def __post_init__(self):
