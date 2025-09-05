@@ -17,7 +17,7 @@ from .ray_caster_cfg import RayCasterCfg
 
 @configclass
 class MultiMeshRayCasterCfg(RayCasterCfg):
-    """Configuration for the ray-cast sensor."""
+    """Configuration for the multi-mesh ray-cast sensor."""
 
     @configclass
     class RaycastTargetCfg:
