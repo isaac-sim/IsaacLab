@@ -46,6 +46,31 @@ class MultiMeshRayCaster(RayCaster):
     The meshes are parsed from the list of primitive paths provided in the configuration. These are then
     converted to warp meshes and stored in the :attr:`warp_meshes` list. The ray-caster then ray-casts against
     these warp meshes using the ray pattern provided in the configuration.
+
+    Compared to the default RayCaster, the MultiMeshRayCaster provides additional functionality and flexibility as
+    an extension of the default RayCaster with the following enhancements:
+
+    - Raycasting against multiple target types : Supports primitive shapes (spheres, cubes, …) as well as arbitrary
+        meshes.
+    - Dynamic mesh tracking : Keeps track of specified meshes, enabling raycasting against moving parts
+        (e.g., robot links, articulated bodies, or dynamic obstacles).
+    - Memory-efficient caching : Avoids redundant memory usage by reusing mesh data across environments.
+
+    Example usage to raycast against the visual meshes of a robot (e.g. anymal):
+        .. code-block:: python
+            ray_caster_cfg = MultiMeshRayCasterCfg(
+                prim_path="{ENV_REGEX_NS}/Robot",
+                mesh_prim_paths=[
+                    "/World/Ground",
+                    MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/LF_.*/visuals"),
+                    MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/RF_.*/visuals"),
+                    MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/LH_.*/visuals"),
+                    MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/RH_.*/visuals"),
+                    MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr="{ENV_REGEX_NS}/Robot/base/visuals"),
+                ],
+                ray_alignment="world",
+                pattern_cfg=patterns.GridPatternCfg(resolution=0.02, size=(2.5, 2.5), direction=(0, 0, -1)),
+            )
     """
 
     cfg: MultiMeshRayCasterCfg
@@ -72,7 +97,9 @@ class MultiMeshRayCaster(RayCaster):
         for target in self.cfg.mesh_prim_paths:
             # Legacy support for string targets. Treat them as global targets.
             if isinstance(target, str):
-                self._raycast_targets_cfg.append(cfg.RaycastTargetCfg(target_prim_expr=target, is_global=True, track_mesh_transforms=False))
+                self._raycast_targets_cfg.append(
+                    cfg.RaycastTargetCfg(target_prim_expr=target, is_global=True, track_mesh_transforms=False)
+                )
             else:
                 self._raycast_targets_cfg.append(target)
 
@@ -179,6 +206,12 @@ class MultiMeshRayCaster(RayCaster):
             3. Deduplicate identical vertex buffers (exact match) to avoid uploading duplicates to Warp.
             4. Partition mesh IDs per environment or mark as globally shared.
             5. Optionally create physics views (articulation / rigid body / fallback XForm) and cache local offsets.
+
+        Exceptions:
+            Raises a RuntimeError if:
+                - No prims match the provided expression.
+                - No supported mesh prims are found under a matched prim.
+                - Multiple mesh prims are found but merging is disabled.
         """
         multi_mesh_ids: dict[str, list[list[int]]] = {}
         for target_cfg in self._raycast_targets_cfg:
@@ -218,14 +251,14 @@ class MultiMeshRayCaster(RayCaster):
                     target_prim.GetPath(), lambda prim: prim.GetTypeName() in PRIMITIVE_MESH_TYPES + ["Mesh"]
                 )
                 if len(mesh_prims) == 0:
-                    error_msg = (
+                    warn_msg = (
                         f"No mesh prims found at path: {target_prim.GetPath()} with supported types:"
                         f" {PRIMITIVE_MESH_TYPES + ['Mesh']}"
                         " Skipping this target."
                     )
                     for prim in sim_utils.get_all_matching_child_prims(target_prim.GetPath(), lambda prim: True):
-                        error_msg += f"\n - Available prim '{prim.GetPath()}' of type '{prim.GetTypeName()}'"
-                    carb.log_warn(error_msg)
+                        warn_msg += f"\n - Available prim '{prim.GetPath()}' of type '{prim.GetTypeName()}'"
+                    carb.log_warn(warn_msg)
                     continue
 
                 trimesh_meshes = []
@@ -366,7 +399,11 @@ class MultiMeshRayCaster(RayCaster):
             )
 
     def _update_buffers_impl(self, env_ids: Sequence[int]):
-        """Fills the buffers of the sensor data."""
+        """Fills the buffers of the sensor data.
+
+        Args:
+            env_ids: The environment ids to update.
+        """
 
         self._update_ray_infos(env_ids)
 
