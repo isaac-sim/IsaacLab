@@ -28,7 +28,7 @@ class FrankaCabinetEnvCfg(CabinetEnvCfg):
     sim: SimulationCfg = SimulationCfg(
         newton_cfg=NewtonCfg(
             solver_cfg=MJWarpSolverCfg(
-                njmax=60,
+                njmax=90,
                 ncon_per_env=100,
                 ls_iterations=10,
                 cone="pyramidal",
