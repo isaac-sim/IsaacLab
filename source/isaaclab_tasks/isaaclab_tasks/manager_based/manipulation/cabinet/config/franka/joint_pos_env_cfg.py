@@ -35,12 +35,13 @@ class FrankaCabinetEnvCfg(CabinetEnvCfg):
                 impratio=1,
                 ls_parallel=True,
                 integrator="implicit",
-                #save_to_mjcf="FrankaCabinetEnv.xml",
+                # save_to_mjcf="FrankaCabinetEnv.xml",
             ),
             num_substeps=1,
             debug_mode=False,
         )
     )
+
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
