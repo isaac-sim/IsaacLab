@@ -136,7 +136,6 @@ def cube_stack_test_env() -> Generator[dict[str, Any], None, None]:
     }
 
     env.close()
-    simulation_app.close()
 
 
 class TestCubeStackPlanner:
