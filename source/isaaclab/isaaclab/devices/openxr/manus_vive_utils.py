@@ -51,12 +51,12 @@ HAND_JOINT_MAP = {
 class ManusViveIntegration:
     def __init__(self):
         enable_extension("isaacsim.xr.input_devices")
-        from isaacsim.xr.input_devices.impl.xr_device_integration import get_xr_device_integration
+        from isaacsim.xr.input_devices.impl.manus_vive_integration import get_manus_vive_integration
 
-        _xr_integration = get_xr_device_integration()
-        self.manus = _xr_integration.manus_tracker
-        self.vive_tracker = _xr_integration.vive_tracker
-        self.device_status = _xr_integration.device_status
+        _manus_vive_integration = get_manus_vive_integration()
+        self.manus = _manus_vive_integration.manus_tracker
+        self.vive_tracker = _manus_vive_integration.vive_tracker
+        self.device_status = _manus_vive_integration.device_status
         self.default_pose = {"position": [0, 0, 0], "orientation": [1, 0, 0, 0]}
         # 90-degree ccw rotation on Y-axis and 90-degree ccw rotation on Z-axis
         self.rot_adjust = Gf.Matrix3d().SetRotate(Gf.Quatd(0.5, Gf.Vec3d(-0.5, 0.5, 0.5)))
