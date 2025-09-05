@@ -27,7 +27,7 @@ if TYPE_CHECKING:
 
 
 class MultiMeshRayCasterCamera(RayCasterCamera, MultiMeshRayCaster):
-    """A ray-casting camera sensor.
+    """A multi-mesh ray-casting camera sensor.
 
     The ray-caster camera uses a set of rays to get the distances to meshes in the scene. The rays are
     defined in the sensor's local coordinate frame. The sensor has the same interface as the
