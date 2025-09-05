@@ -592,7 +592,14 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.managers.action_manager</span><span class="w"> </span><span class="kn">import</span> <span class="n">ActionTerm</span><span class="p">,</span> <span class="n">ActionTermCfg</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">configclass</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">.</span><span class="w"> </span><span class="kn">import</span> <span class="n">binary_joint_actions</span><span class="p">,</span> <span class="n">joint_actions</span><span class="p">,</span> <span class="n">joint_actions_to_limits</span><span class="p">,</span> <span class="n">non_holonomic_actions</span><span class="p">,</span> <span class="n">task_space_actions</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">binary_joint_actions</span><span class="p">,</span>
+    <span class="n">joint_actions</span><span class="p">,</span>
+    <span class="n">joint_actions_to_limits</span><span class="p">,</span>
+    <span class="n">non_holonomic_actions</span><span class="p">,</span>
+    <span class="n">surface_gripper_actions</span><span class="p">,</span>
+    <span class="n">task_space_actions</span><span class="p">,</span>
+<span class="p">)</span>
 
 <span class="c1">##</span>
 <span class="c1"># Joint actions.</span>
@@ -893,6 +900,28 @@
 <span class="sd">    Note: Functional only when ``nullspace_control`` is set to ``&quot;position&quot;`` within the</span>
 <span class="sd">        ``OperationalSpaceControllerCfg``.</span>
 <span class="sd">    &quot;&quot;&quot;</span></div>
+
+
+<span class="c1">##</span>
+<span class="c1"># Surface Gripper actions.</span>
+<span class="c1">##</span>
+
+
+<div class="viewcode-block" id="SurfaceGripperBinaryActionCfg"><a class="viewcode-back" href="../../../../../source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.actions.actions_cfg.SurfaceGripperBinaryActionCfg">[docs]</a><span class="nd">@configclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">SurfaceGripperBinaryActionCfg</span><span class="p">(</span><span class="n">ActionTermCfg</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for the binary surface gripper action term.</span>
+
+<span class="sd">    See :class:`SurfaceGripperBinaryAction` for more details.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">asset_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Name of the surface gripper asset in the scene.&quot;&quot;&quot;</span>
+    <span class="n">open_command</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="o">-</span><span class="mf">1.0</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The command value to open the gripper. Defaults to -1.0.&quot;&quot;&quot;</span>
+    <span class="n">close_command</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The command value to close the gripper. Defaults to 1.0.&quot;&quot;&quot;</span>
+
+    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">ActionTerm</span><span class="p">]</span> <span class="o">=</span> <span class="n">surface_gripper_actions</span><span class="o">.</span><span class="n">SurfaceGripperBinaryAction</span></div>
 </pre></div>
 
                 </article>

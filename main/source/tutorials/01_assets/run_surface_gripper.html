@@ -754,7 +754,7 @@ directory.</p>
 </span><span class="hll"><span class="linenos"> 72</span>    <span class="c1"># Surface Gripper: Next we define the surface gripper config</span>
 </span><span class="hll"><span class="linenos"> 73</span>    <span class="n">surface_gripper_cfg</span> <span class="o">=</span> <span class="n">SurfaceGripperCfg</span><span class="p">()</span>
 </span><span class="hll"><span class="linenos"> 74</span>    <span class="c1"># We need to tell the View which prim to use for the surface gripper</span>
-</span><span class="hll"><span class="linenos"> 75</span>    <span class="n">surface_gripper_cfg</span><span class="o">.</span><span class="n">prim_expr</span> <span class="o">=</span> <span class="s2">&quot;/World/Origin.*/Robot/picker_head/SurfaceGripper&quot;</span>
+</span><span class="hll"><span class="linenos"> 75</span>    <span class="n">surface_gripper_cfg</span><span class="o">.</span><span class="n">prim_path</span> <span class="o">=</span> <span class="s2">&quot;/World/Origin.*/Robot/picker_head/SurfaceGripper&quot;</span>
 </span><span class="hll"><span class="linenos"> 76</span>    <span class="c1"># We can then set different parameters for the surface gripper, note that if these parameters are not set,</span>
 </span><span class="hll"><span class="linenos"> 77</span>    <span class="c1"># the View will try to read them from the prim.</span>
 </span><span class="hll"><span class="linenos"> 78</span>    <span class="n">surface_gripper_cfg</span><span class="o">.</span><span class="n">max_grip_distance</span> <span class="o">=</span> <span class="mf">0.1</span>  <span class="c1"># [m] (Maximum distance at which the gripper can grasp an object)</span>
@@ -910,7 +910,7 @@ initialized when the play button is pressed.</p>
     <span class="c1"># Surface Gripper: Next we define the surface gripper config</span>
     <span class="n">surface_gripper_cfg</span> <span class="o">=</span> <span class="n">SurfaceGripperCfg</span><span class="p">()</span>
     <span class="c1"># We need to tell the View which prim to use for the surface gripper</span>
-    <span class="n">surface_gripper_cfg</span><span class="o">.</span><span class="n">prim_expr</span> <span class="o">=</span> <span class="s2">&quot;/World/Origin.*/Robot/picker_head/SurfaceGripper&quot;</span>
+    <span class="n">surface_gripper_cfg</span><span class="o">.</span><span class="n">prim_path</span> <span class="o">=</span> <span class="s2">&quot;/World/Origin.*/Robot/picker_head/SurfaceGripper&quot;</span>
     <span class="c1"># We can then set different parameters for the surface gripper, note that if these parameters are not set,</span>
     <span class="c1"># the View will try to read them from the prim.</span>
     <span class="n">surface_gripper_cfg</span><span class="o">.</span><span class="n">max_grip_distance</span> <span class="o">=</span> <span class="mf">0.1</span>  <span class="c1"># [m] (Maximum distance at which the gripper can grasp an object)</span>

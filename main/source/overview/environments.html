@@ -679,7 +679,7 @@
                   
   <section id="available-environments">
 <span id="environments"></span><h1>Available Environments<a class="headerlink" href="#available-environments" title="Permalink to this heading">#</a></h1>
-<p>The following lists comprises of all the RL tasks implementations that are available in Isaac Lab.
+<p>The following lists comprises of all the RL or IL tasks implementations that are available in Isaac Lab.
 While we try to keep this list up-to-date, you can always get the latest list of environments by
 running the following command:</p>
 <div class="sd-tab-set docutils">
@@ -805,35 +805,43 @@ This policy has been deployed to a real robot</p></td>
 Blueprint env used for the NVIDIA Isaac GR00T blueprint for synthetic
 manipulation motion generation</p></td>
 </tr>
-<tr class="row-odd"><td><p><img alt="cabi-franka" src="../../_images/franka_open_drawer.jpg" /></p></td>
+<tr class="row-odd"><td><p><img alt="surface-gripper" src="../../_images/ur10_stack_surface_gripper.jpg" /></p></td>
+<td><p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/stack/config/ur10_gripper/stack_ik_rel_env_cfg.py">Isaac-Stack-Cube-UR10-Long-Suction-IK-Rel-v0</a></p>
+<p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/stack/config/ur10_gripper/stack_ik_rel_env_cfg.py">Isaac-Stack-Cube-UR10-Short-Suction-IK-Rel-v0</a></p>
+</td>
+<td><p>Stack three cubes (bottom to top: blue, red, green)
+with the UR10 arm and long surface gripper
+or short surface gripper.</p></td>
+</tr>
+<tr class="row-even"><td><p><img alt="cabi-franka" src="../../_images/franka_open_drawer.jpg" /></p></td>
 <td><p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/cabinet/config/franka/joint_pos_env_cfg.py">Isaac-Open-Drawer-Franka-v0</a></p>
 <p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/franka_cabinet/franka_cabinet_env.py">Isaac-Franka-Cabinet-Direct-v0</a></p>
 </td>
 <td><p>Grasp the handle of a cabinet’s drawer and open it with the Franka robot</p></td>
 </tr>
-<tr class="row-even"><td><p><img alt="cube-allegro" src="../../_images/allegro_cube.jpg" /></p></td>
+<tr class="row-odd"><td><p><img alt="cube-allegro" src="../../_images/allegro_cube.jpg" /></p></td>
 <td><p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/inhand/config/allegro_hand/allegro_env_cfg.py">Isaac-Repose-Cube-Allegro-v0</a></p>
 <p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/allegro_hand/allegro_hand_env_cfg.py">Isaac-Repose-Cube-Allegro-Direct-v0</a></p>
 </td>
 <td><p>In-hand reorientation of a cube using Allegro hand</p></td>
 </tr>
-<tr class="row-odd"><td><p><img alt="cube-shadow" src="../../_images/shadow_cube.jpg" /></p></td>
+<tr class="row-even"><td><p><img alt="cube-shadow" src="../../_images/shadow_cube.jpg" /></p></td>
 <td><p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/shadow_hand/shadow_hand_env_cfg.py">Isaac-Repose-Cube-Shadow-Direct-v0</a></p>
 <p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/shadow_hand/shadow_hand_env_cfg.py">Isaac-Repose-Cube-Shadow-OpenAI-FF-Direct-v0</a></p>
 <p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/shadow_hand/shadow_hand_env_cfg.py">Isaac-Repose-Cube-Shadow-OpenAI-LSTM-Direct-v0</a></p>
 </td>
 <td><p>In-hand reorientation of a cube using Shadow hand</p></td>
 </tr>
-<tr class="row-even"><td><p><img alt="cube-shadow" src="../../_images/shadow_cube.jpg" /></p></td>
+<tr class="row-odd"><td><p><img alt="cube-shadow" src="../../_images/shadow_cube.jpg" /></p></td>
 <td><p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/shadow_hand/shadow_hand_vision_env.py">Isaac-Repose-Cube-Shadow-Vision-Direct-v0</a></p></td>
 <td><p>In-hand reorientation of a cube using Shadow hand using perceptive inputs.
 Requires running with <code class="docutils literal notranslate"><span class="pre">--enable_cameras</span></code>.</p></td>
 </tr>
-<tr class="row-odd"><td><p><img alt="gr1_pick_place" src="../../_images/gr-1_pick_place.jpg" /></p></td>
+<tr class="row-even"><td><p><img alt="gr1_pick_place" src="../../_images/gr-1_pick_place.jpg" /></p></td>
 <td><p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/pick_place/pickplace_gr1t2_env_cfg.py">Isaac-PickPlace-GR1T2-Abs-v0</a></p></td>
 <td><p>Pick up and place an object in a basket with a GR-1 humanoid robot</p></td>
 </tr>
-<tr class="row-even"><td><p><img alt="gr1_pp_waist" src="../../_images/gr-1_pick_place_waist.jpg" /></p></td>
+<tr class="row-odd"><td><p><img alt="gr1_pp_waist" src="../../_images/gr-1_pick_place_waist.jpg" /></p></td>
 <td><p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/pick_place/pickplace_gr1t2_waist_enabled_env_cfg.py">Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0</a></p></td>
 <td><p>Pick up and place an object in a basket with a GR-1 humanoid robot
 with waist degrees-of-freedom enables that provides a wider reach space.</p></td>

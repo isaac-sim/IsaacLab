@@ -1137,9 +1137,9 @@
             <span class="n">rigid_object</span><span class="o">.</span><span class="n">write_root_pose_to_sim</span><span class="p">(</span><span class="n">root_pose</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">)</span>
             <span class="n">rigid_object</span><span class="o">.</span><span class="n">write_root_velocity_to_sim</span><span class="p">(</span><span class="n">root_velocity</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">)</span>
         <span class="c1"># surface grippers</span>
-        <span class="k">for</span> <span class="n">asset_name</span><span class="p">,</span> <span class="n">gripper</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_surface_grippers</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="k">for</span> <span class="n">asset_name</span><span class="p">,</span> <span class="n">surface_gripper</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_surface_grippers</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
             <span class="n">asset_state</span> <span class="o">=</span> <span class="n">state</span><span class="p">[</span><span class="s2">&quot;gripper&quot;</span><span class="p">][</span><span class="n">asset_name</span><span class="p">]</span>
-            <span class="n">gripper</span><span class="o">.</span><span class="n">write_gripper_state_to_sim</span><span class="p">(</span><span class="n">asset_state</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">)</span>
+            <span class="n">surface_gripper</span><span class="o">.</span><span class="n">set_grippers_command</span><span class="p">(</span><span class="n">asset_state</span><span class="p">)</span>
 
         <span class="c1"># write data to simulation to make sure initial state is set</span>
         <span class="c1"># this propagates the joint targets to the simulation</span>
@@ -1226,6 +1226,10 @@
                 <span class="n">asset_state</span><span class="p">[</span><span class="s2">&quot;root_pose&quot;</span><span class="p">][:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span> <span class="o">-=</span> <span class="bp">self</span><span class="o">.</span><span class="n">env_origins</span>
             <span class="n">asset_state</span><span class="p">[</span><span class="s2">&quot;root_velocity&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">rigid_object</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">root_vel_w</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
             <span class="n">state</span><span class="p">[</span><span class="s2">&quot;rigid_object&quot;</span><span class="p">][</span><span class="n">asset_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">asset_state</span>
+        <span class="c1"># surface grippers</span>
+        <span class="n">state</span><span class="p">[</span><span class="s2">&quot;gripper&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">asset_name</span><span class="p">,</span> <span class="n">gripper</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_surface_grippers</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">state</span><span class="p">[</span><span class="s2">&quot;gripper&quot;</span><span class="p">][</span><span class="n">asset_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">gripper</span><span class="o">.</span><span class="n">state</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
         <span class="k">return</span> <span class="n">state</span></div>
 
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
@@ -1332,7 +1336,8 @@
                         <span class="n">asset_paths</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">find_matching_prim_paths</span><span class="p">(</span><span class="n">rigid_object_cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="p">)</span>
                         <span class="bp">self</span><span class="o">.</span><span class="n">_global_prim_paths</span> <span class="o">+=</span> <span class="n">asset_paths</span>
             <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">asset_cfg</span><span class="p">,</span> <span class="n">SurfaceGripperCfg</span><span class="p">):</span>
-                <span class="k">pass</span>
+                <span class="c1"># add surface grippers to scene</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_surface_grippers</span><span class="p">[</span><span class="n">asset_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">asset_cfg</span><span class="o">.</span><span class="n">class_type</span><span class="p">(</span><span class="n">asset_cfg</span><span class="p">)</span>
             <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">asset_cfg</span><span class="p">,</span> <span class="n">SensorBaseCfg</span><span class="p">):</span>
                 <span class="c1"># Update target frame path(s)&#39; regex name space for FrameTransformer</span>
                 <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">asset_cfg</span><span class="p">,</span> <span class="n">FrameTransformerCfg</span><span class="p">):</span>
