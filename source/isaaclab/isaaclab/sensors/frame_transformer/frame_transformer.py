@@ -9,18 +9,13 @@ import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-import omni.log
-
 import warp as wp
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.string as string_utils
 from isaaclab.markers import VisualizationMarkers
-from isaaclab.utils.math import (
-    normalize,
-    quat_from_angle_axis,
-)
 from isaaclab.sim._impl.newton_manager import NewtonManager
+from isaaclab.utils.math import normalize, quat_from_angle_axis
 
 from ..sensor_base import SensorBase
 from .frame_transformer_data import FrameTransformerData
@@ -32,10 +27,11 @@ if TYPE_CHECKING:
 Warp kernels
 """
 
+
 @wp.kernel
 def set_env_mask(env_mask: wp.array(dtype=bool), env_ids: wp.array(dtype=wp.int32)):
     """Create an environment mask from the environment ids.
-    
+
     Args:
         env_mask: The environment mask (num_envs,). (modified)
         env_ids: The environment ids.
@@ -44,16 +40,17 @@ def set_env_mask(env_mask: wp.array(dtype=bool), env_ids: wp.array(dtype=wp.int3
     idx = wp.tid()
     env_mask[env_ids[idx]] = True
 
+
 @wp.func
 def combine_frame_transform(pos_1: wp.vec3f, quat_1: wp.quatf, pos_2: wp.vec3f, quat_2: wp.quatf) -> wp.transformf:
     """Combine two frame transforms.
-    
+
     Args:
         pos_1: The position of the first frame.
         quat_1: The quaternion of the first frame.
         pos_2: The position of the second frame.
         quat_2: The quaternion of the second frame.
-    
+
     Returns:
         The combined frame transform.
     """
@@ -61,16 +58,17 @@ def combine_frame_transform(pos_1: wp.vec3f, quat_1: wp.quatf, pos_2: wp.vec3f, 
     pos = pos_1 + wp.quat_rotate(quat_1, pos_2)
     return wp.transformf(pos, quat)
 
+
 @wp.func
 def subtract_frame_transform(pos_1: wp.vec3f, quat_1: wp.quatf, pos_2: wp.vec3f, quat_2: wp.quatf) -> wp.transformf:
     """Subtract two frame transforms.
-    
+
     Args:
         pos_1: The position of the first frame.
         quat_1: The quaternion of the first frame.
         pos_2: The position of the second frame.
         quat_2: The quaternion of the second frame.
-    
+
     Returns:
         The subtracted frame transform.
     """
@@ -78,18 +76,20 @@ def subtract_frame_transform(pos_1: wp.vec3f, quat_1: wp.quatf, pos_2: wp.vec3f,
     pos = wp.quat_rotate_inv(quat_1, pos_2 - pos_1)
     return wp.transformf(pos, quat)
 
+
 @wp.func
 def split_transform_to_quat4lab(transform: wp.transformf) -> wp.vec4f:
     """Split a frame transform into a quaternion in wxyz order.
-    
+
     Args:
         transform: The frame transform in xyzw order.
-    
+
     Returns:
         The quaternion in wxyz order.
     """
     quat = wp.transform_get_rotation(transform)
     return wp.vec4f(quat[3], quat[0], quat[1], quat[2])
+
 
 @wp.kernel
 def update_source_transform(
@@ -108,7 +108,7 @@ def update_source_transform(
 
     .. note:: The output positions and quaternions are used to keep everything compatible
         with the rest of the code but they are not needed.
-    
+
     Args:
         offset: The offset of the source frame.
         source_index: The index of the source frame.
@@ -128,6 +128,7 @@ def update_source_transform(
         )
         output_pos[idx] = wp.transform_get_translation(output_transforms[idx])
         output_quat[idx] = split_transform_to_quat4lab(output_transforms[idx])
+
 
 @wp.kernel
 def update_frame_transforms(
@@ -149,7 +150,7 @@ def update_frame_transforms(
 
     .. note:: The output positions and quaternions are used to keep everything compatible
         with the rest of the code but they are not needed.
-    
+
     Args:
         frame_offsets: The offsets of the frames.
         origin_transforms: The origin transforms.
@@ -172,20 +173,30 @@ def update_frame_transforms(
             wp.transform_get_translation(frame_offsets[frame_to_view_ids[frame_idx]]),
             wp.transform_get_rotation(frame_offsets[frame_to_view_ids[frame_idx]]),
         )
-        frames_pos_world[env_idx][frame_to_view_ids[frame_idx]] = wp.transform_get_translation(frames_transforms_origin[env_idx][frame_to_view_ids[frame_idx]])
-        frames_quat_world[env_idx][frame_to_view_ids[frame_idx]] = split_transform_to_quat4lab(frames_transforms_origin[env_idx][frame_to_view_ids[frame_idx]])
+        frames_pos_world[env_idx][frame_to_view_ids[frame_idx]] = wp.transform_get_translation(
+            frames_transforms_origin[env_idx][frame_to_view_ids[frame_idx]]
+        )
+        frames_quat_world[env_idx][frame_to_view_ids[frame_idx]] = split_transform_to_quat4lab(
+            frames_transforms_origin[env_idx][frame_to_view_ids[frame_idx]]
+        )
         frames_transforms_origin[env_idx][frame_to_view_ids[frame_idx]] = subtract_frame_transform(
             wp.transform_get_translation(origin_transforms[env_idx]),
             wp.transform_get_rotation(origin_transforms[env_idx]),
             wp.transform_get_translation(frames_transforms_origin[env_idx][frame_to_view_ids[frame_idx]]),
             wp.transform_get_rotation(frames_transforms_origin[env_idx][frame_to_view_ids[frame_idx]]),
         )
-        frames_pos_origin[env_idx][frame_to_view_ids[frame_idx]] = wp.transform_get_translation(frames_transforms_origin[env_idx][frame_to_view_ids[frame_idx]])
-        frames_quat_origin[env_idx][frame_to_view_ids[frame_idx]] = split_transform_to_quat4lab(frames_transforms_origin[env_idx][frame_to_view_ids[frame_idx]])
+        frames_pos_origin[env_idx][frame_to_view_ids[frame_idx]] = wp.transform_get_translation(
+            frames_transforms_origin[env_idx][frame_to_view_ids[frame_idx]]
+        )
+        frames_quat_origin[env_idx][frame_to_view_ids[frame_idx]] = split_transform_to_quat4lab(
+            frames_transforms_origin[env_idx][frame_to_view_ids[frame_idx]]
+        )
+
 
 """
 FrameTransformer class
 """
+
 
 class FrameTransformer(SensorBase):
     """A sensor for reporting frame transforms.
@@ -342,7 +353,7 @@ class FrameTransformer(SensorBase):
         if not frame_found:
             raise ValueError(f"Source frame '{body_name}' not found.")
         self._source_frame_body_name = body_name
-        print("[INFO]: FrameTransformer initialized!") 
+        print("[INFO]: FrameTransformer initialized!")
         print(f"[INFO]: Using source body: {body_name} as reference frame.")
         print(f"[INFO]: + Body found in view id: {self._warp_source_view_id}.")
         print(f"[INFO]: + Body id in view {self._warp_source_view_id}: {self._warp_source_body_id}.")
@@ -360,11 +371,12 @@ class FrameTransformer(SensorBase):
         self._num_frames = len(matching_prims)
         # Create a buffer to store the pose of the target frames
         pose = torch.zeros((self._num_frames, 7), dtype=torch.float32, device=self._device)
-        # Set the defaut to identity transform
+        # Set the default to identity transform
+        pose[:, -1] = 1.0
+        # Create a dictionary to store the body id, frame id and body name for each view
         self._warp_view_body_id = {}
         self._warp_view_frame_id = {}
         self._warp_view_body_name = {}
-        pose[:, -1] = 1.0
         self._target_frame_body_names = []
         for frame_id, (prim_path, offset) in enumerate(zip(matching_prims, offsets)):
             frame_found = False
@@ -402,7 +414,9 @@ class FrameTransformer(SensorBase):
         print(f"[INFO]: Found {self._num_frames} target frames.")
         for key in self._warp_view_body_name:
             print(f"[INFO]: + Found {len(self._warp_view_body_name[key])} bodies in view {key}.")
-            for body_name, body_id, frame_id in zip(self._warp_view_body_name[key], self._warp_view_body_id[key], self._warp_view_frame_id[key]):
+            for body_name, body_id, frame_id in zip(
+                self._warp_view_body_name[key], self._warp_view_body_id[key], self._warp_view_frame_id[key]
+            ):
                 print(f"[INFO]:   + Found {body_name} in view {key} with body id {body_id} and frame id {frame_id}.")
         # Convert the pose to a wp.array
         self._warp_offset_buffer = wp.from_torch(pose, dtype=wp.transformf)
@@ -418,11 +432,32 @@ class FrameTransformer(SensorBase):
         self._warp_source_pos_w = wp.zeros((self._num_envs,), dtype=wp.vec3f, device=self._device)
         self._warp_source_quat_w = wp.zeros((self._num_envs,), dtype=wp.vec4f, device=self._device)
         self._warp_source_transforms_w = wp.zeros((self._num_envs,), dtype=wp.transformf, device=self._device)
-        self._warp_target_pos_w = wp.zeros((self._num_envs, self._num_frames,), dtype=wp.vec3f, device=self._device)
-        self._warp_target_quat_w = wp.zeros((self._num_envs, self._num_frames,), dtype=wp.vec4f, device=self._device)
+        self._warp_target_pos_w = wp.zeros(
+            (
+                self._num_envs,
+                self._num_frames,
+            ),
+            dtype=wp.vec3f,
+            device=self._device,
+        )
+        self._warp_target_quat_w = wp.zeros(
+            (
+                self._num_envs,
+                self._num_frames,
+            ),
+            dtype=wp.vec4f,
+            device=self._device,
+        )
         self._warp_target_pos_source = wp.zeros_like(self._warp_target_pos_w, device=self._device)
         self._warp_target_quat_source = wp.zeros_like(self._warp_target_quat_w, device=self._device)
-        self._warp_target_transform_source = wp.zeros((self._num_envs, self._num_frames,), dtype=wp.transformf, device=self._device)
+        self._warp_target_transform_source = wp.zeros(
+            (
+                self._num_envs,
+                self._num_frames,
+            ),
+            dtype=wp.transformf,
+            device=self._device,
+        )
         # Bindings with dataclass
         self._data.source_pos_w = wp.to_torch(self._warp_source_pos_w)
         self._data.source_quat_w = wp.to_torch(self._warp_source_quat_w)
@@ -435,7 +470,7 @@ class FrameTransformer(SensorBase):
         for key in self._warp_view_body_id:
             view = NewtonManager._views[key].get_link_transforms(NewtonManager.get_state_0())
             if len(view.shape) == 1:
-                view = view.reshape((-1,1))
+                view = view.reshape((-1, 1))
             self._warp_views[key] = view
 
     def _update_buffers_impl(self, env_ids: Sequence[int]):
@@ -451,7 +486,7 @@ class FrameTransformer(SensorBase):
                 inputs=[
                     self._ENV_MASK,
                     env_ids.to(torch.int32),
-                ]
+                ],
             )
             env_mask = self._ENV_MASK
 
@@ -467,7 +502,7 @@ class FrameTransformer(SensorBase):
                 self._warp_source_pos_w,
                 self._warp_source_quat_w,
                 env_mask,
-            ]
+            ],
         )
         # Update the frame transforms in the origin frame and the world frame
         for view_id in self._warp_view_body_id.keys():
@@ -486,7 +521,7 @@ class FrameTransformer(SensorBase):
                     self._warp_view_frame_id[view_id],
                     self._warp_view_body_id[view_id],
                     env_mask,
-                ]
+                ],
             )
 
     def _set_debug_vis_impl(self, debug_vis: bool):

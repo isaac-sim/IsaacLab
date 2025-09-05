@@ -162,7 +162,7 @@ class ObservationsCfg:
 class EventCfg:
     """Configuration for events."""
 
-    #robot_physics_material = EventTerm(
+    # robot_physics_material = EventTerm(
     #    func=mdp.randomize_rigid_body_material,
     #    mode="startup",
     #    params={
@@ -172,9 +172,9 @@ class EventCfg:
     #        "restitution_range": (0.0, 0.0),
     #        "num_buckets": 16,
     #    },
-    #)
+    # )
 
-    #cabinet_physics_material = EventTerm(
+    # cabinet_physics_material = EventTerm(
     #    func=mdp.randomize_rigid_body_material,
     #    mode="startup",
     #    params={
@@ -184,7 +184,7 @@ class EventCfg:
     #        "restitution_range": (0.0, 0.0),
     #        "num_buckets": 16,
     #    },
-    #)
+    # )
 
     reset_all = EventTerm(func=mdp.reset_scene_to_default, mode="reset")
 
@@ -272,6 +272,6 @@ class CabinetEnvCfg(ManagerBasedRLEnvCfg):
         # simulation settings
         self.sim.dt = 1 / 60  # 60Hz
         self.sim.render_interval = self.decimation
-        #self.sim.physx.bounce_threshold_velocity = 0.2
-        #self.sim.physx.bounce_threshold_velocity = 0.01
-        #self.sim.physx.friction_correlation_distance = 0.00625
+        # self.sim.physx.bounce_threshold_velocity = 0.2
+        # self.sim.physx.bounce_threshold_velocity = 0.01
+        # self.sim.physx.friction_correlation_distance = 0.00625
