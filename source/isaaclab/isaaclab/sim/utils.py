@@ -570,7 +570,7 @@ def make_uninstanceable(prim_path: str | Sdf.Path, stage: Usd.Stage | None = Non
             # make the prim uninstanceable
             child_prim.SetInstanceable(False)
         # add children to list
-        all_prims += child_prim.GetChildren()
+        all_prims += child_prim.GetFilteredChildren(Usd.TraverseInstanceProxies())
 
 
 """
@@ -617,7 +617,7 @@ def get_first_matching_child_prim(
         if predicate(child_prim):
             return child_prim
         # add children to list
-        all_prims += child_prim.GetChildren()
+        all_prims += child_prim.GetFilteredChildren(Usd.TraverseInstanceProxies())
     return None
 
 
@@ -673,7 +673,7 @@ def get_all_matching_child_prims(
             output_prims.append(child_prim)
         # add children to list
         if depth is None or current_depth < depth:
-            all_prims_queue += [(child, current_depth + 1) for child in child_prim.GetChildren()]
+            all_prims_queue += [(child, current_depth + 1) for child in child_prim.GetFilteredChildren(Usd.TraverseInstanceProxies())]
 
     return output_prims
 
