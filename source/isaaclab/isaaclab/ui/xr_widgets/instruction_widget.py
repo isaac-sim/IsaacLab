@@ -6,7 +6,6 @@
 import asyncio
 import functools
 import textwrap
-from collections.abc import Callable
 from typing import Any, TypeAlias
 
 import omni.kit.commands
@@ -216,19 +215,16 @@ def show_instruction(
     return container
 
 
-def hide_instruction(target_prim_path: str = "/newPrim", callback: Callable | None = None) -> None:
+def hide_instruction(target_prim_path: str = "/newPrim") -> None:
     """Hide and clean up a specific instruction widget.
 
     Args:
         target_prim_path (str): Prim path of the widget to hide.
-        callback (Callable | None): Optional callable invoked after the widget is hidden.
 
     Returns:
         None: This function does not return a value.
     """
 
-    if callback:
-        callback()
 
     global camera_facing_widget_container, camera_facing_widget_timers
 
