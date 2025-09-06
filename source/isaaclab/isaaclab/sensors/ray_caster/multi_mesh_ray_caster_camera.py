@@ -59,7 +59,7 @@ class MultiMeshRayCasterCamera(RayCasterCamera, MultiMeshRayCaster):
     def __str__(self) -> str:
         """Returns: A string containing information about the instance."""
         return (
-            f"Ray-Caster-Camera @ '{self.cfg.prim_path}': \n"
+            f"Multi-Mesh Ray-Caster-Camera @ '{self.cfg.prim_path}': \n"
             f"\tview type            : {self._view.__class__}\n"
             f"\tupdate period (s)    : {self.cfg.update_period}\n"
             f"\tnumber of meshes     : {len(MultiMeshRayCaster.meshes)}\n"
