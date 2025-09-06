@@ -132,7 +132,6 @@ def _sample_update_left_panel(mgr: VisualizationManager, data_collector: DataCol
                 "text_color": 0xFFFFFFFF,
                 "prim_path_source": "/World/defaultGroundPlane/GroundPlane",
                 "translation": Gf.Vec3f(0, -3, 1),
-                "preferred_height": 1.5,
             },
         )
         mgr.set_attr("_left_panel_created", True)
@@ -172,7 +171,6 @@ def _sample_update_right_panel(mgr: VisualizationManager, data_collector: DataCo
                 "text_color": 0xFFFFFFFF,
                 "prim_path_source": "/World/defaultGroundPlane/GroundPlane",
                 "translation": Gf.Vec3f(0, 3, 1),
-                "preferred_height": 1.5,
             },
         )
         mgr.set_attr("_right_panel_created", True)

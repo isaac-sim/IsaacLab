@@ -220,8 +220,8 @@ class VisualizationManager:
             "translation": Gf.Vec3f(0, 2, 2),  # hard-coded temporarily
             "display_duration": 0.0,
             "font_size": 0.13,
-            "preferred_width": 2,
-            "preferred_height": 3,
+            "max_width": 2,
+            "min_width": 2,
         }
 
     def display_widget(self, text: str, name: str, args: dict[str, Any]) -> None:

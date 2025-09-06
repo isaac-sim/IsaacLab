@@ -129,8 +129,6 @@ def show_instruction(
     font_size: float = 0.1,
     text_color: int = 0xFFFFFFFF,
     target_prim_path: str = "/newPrim",
-    preferred_width: float = 0.0,
-    preferred_height: float = 0.0,
 ) -> UiContainer | None:
     """Create and display an instruction widget with the given text.
 
@@ -149,8 +147,6 @@ def show_instruction(
         font_size (float): Font size of the rendered text.
         text_color (int): RGBA color encoded as a 32-bit integer.
         target_prim_path (str): Prim path where the widget prim will be created/copied.
-        preferred_width (float): If greater than zero, forces the width of the widget.
-        preferred_height (float): If greater than zero, forces the height of the widget.
 
     Returns:
         UiContainer | None: The container that owns the instruction widget, or ``None`` if creation failed.
@@ -175,15 +171,7 @@ def show_instruction(
     if get_prim_at_path(target_prim_path):
         delete_prim(target_prim_path)
 
-    # Compute dimensions and wrap text.
-    if preferred_width > 0.0:
-        max_width = preferred_width
-        min_width = preferred_width
-
     width, height, wrapped_text = compute_widget_dimensions(text, font_size, max_width, min_width)
-
-    if preferred_height > 0.0:
-        height = preferred_height
 
     # Create the widget component.
     widget_component = WidgetComponent(
