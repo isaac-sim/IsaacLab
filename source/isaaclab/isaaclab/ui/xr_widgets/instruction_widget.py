@@ -225,7 +225,6 @@ def hide_instruction(target_prim_path: str = "/newPrim") -> None:
         None: This function does not return a value.
     """
 
-
     global camera_facing_widget_container, camera_facing_widget_timers
 
     if target_prim_path in camera_facing_widget_container:
