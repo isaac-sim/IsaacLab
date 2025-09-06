@@ -22,20 +22,62 @@ camera_facing_widget_timers = {}
 
 
 class SimpleTextWidget(ui.Widget):
-    def __init__(self, text: str | None = "Simple Text", style: dict[str, Any] | None = None, **kwargs):
+    """A rectangular text label widget for XR overlays.
+
+    The widget renders a centered label over a rectangular background. It keeps
+    track of the configured style and an original width value used by
+    higher-level helpers to update the text.
+    """
+
+    def __init__(
+        self,
+        text: str | None = "Simple Text",
+        style: dict[str, Any] | None = None,
+        original_width: float = 0.0,
+        **kwargs
+    ):
+        """Initialize the text widget.
+
+        Args:
+            text (str): Initial text to display.
+            style (dict[str, Any]): Optional style dictionary (for example: ``{"font_size": 1, "color": 0xFFFFFFFF}``).
+            original_width (float): Width used when updating the text.
+            **kwargs: Additional keyword arguments forwarded to ``ui.Widget``.
+        """
         super().__init__(**kwargs)
         if style is None:
             style = {"font_size": 1, "color": 0xFFFFFFFF}
         self._text = text
         self._style = style
         self._ui_label = None
+        self._original_width = original_width
         self._build_ui()
 
     def set_label_text(self, text: str):
-        """Update the text displayed by the label."""
+        """Update the text displayed by the label.
+
+        Args:
+            text (str): New label text to display.
+        """
         self._text = text
         if self._ui_label:
             self._ui_label.text = self._text
+
+    def get_font_size(self):
+        """Return the configured font size.
+
+        Returns:
+            float: Font size value.
+        """
+        return self._style.get("font_size", 1)
+
+    def get_width(self):
+        """Return the width used when updating the text.
+
+        Returns:
+            float: Width used when updating the text.
+        """
+        return self._original_width
 
     def _build_ui(self):
         """Build the UI with a window-like rectangle and centered label."""
@@ -47,14 +89,20 @@ class SimpleTextWidget(ui.Widget):
 
 def compute_widget_dimensions(
     text: str, font_size: float, max_width: float, min_width: float
-) -> tuple[float, float, list[str]]:
-    """
-    Estimate widget dimensions based on text content.
+) -> tuple[float, float, str]:
+    """Estimate widget width/height and wrap the text.
+
+    Args:
+        text (str): Raw text to render.
+        font_size (float): Font size used for estimating character metrics.
+        max_width (float): Maximum allowed widget width.
+        min_width (float): Minimum allowed widget width.
 
     Returns:
-        actual_width (float): The width, clamped between min_width and max_width.
-        actual_height (float): The computed height based on wrapped text lines.
-        lines (List[str]): The list of wrapped text lines.
+        tuple[float, float, str]: A tuple ``(width, height, wrapped_text)`` where
+        ``width`` and ``height`` are the computed widget dimensions, and
+        ``wrapped_text`` contains the input text broken into newline-separated
+        lines to fit within the width constraints.
     """
     # Estimate average character width.
     char_width = 0.6 * font_size
@@ -66,7 +114,8 @@ def compute_widget_dimensions(
     actual_width = max(min(computed_width, max_width), min_width)
     line_height = 1.2 * font_size
     actual_height = len(lines) * line_height
-    return actual_width, actual_height, lines
+    wrapped_text = "\n".join(lines)
+    return actual_width, actual_height, wrapped_text
 
 
 def show_instruction(
@@ -77,29 +126,29 @@ def show_instruction(
     max_width: float = 2.5,
     min_width: float = 1.0,  # Prevent widget from being too narrow.
     font_size: float = 0.1,
+    text_color: int = 0xFFFFFFFF,
     target_prim_path: str = "/newPrim",
 ) -> UiContainer | None:
-    """
-    Create and display the instruction widget based on the given text.
+    """Create and display an instruction widget with the given text.
 
-    The widget's width and height are computed dynamically based on the input text.
-    It automatically wraps text that is too long and adjusts the widget's height
-    accordingly. If a display duration is provided (non-zero), the widget is automatically
-    hidden after that many seconds.
+    The widget size is computed from the text and font size, wrapping content
+    to respect the width limits. If ``display_duration`` is provided and
+    non-zero, the widget is hidden automatically after the duration elapses.
 
     Args:
-        text (str): The instruction text to display.
-        prim_path_source (Optional[str]): The prim path to be used as a spatial sourcey
-            for the widget.
-        translation (Gf.Vec3d): A translation vector specifying the widget's position.
-        display_duration (Optional[float]): The time in seconds to display the widget before
-            automatically hiding it. If None or 0, the widget remains visible until manually
-            hidden.
-        target_prim_path (str): The target path where the copied prim will be created.
-            Defaults to "/newPrim".
+        text (str): Instruction text to display.
+        prim_path_source (str | None): Optional prim path used as a spatial source for the widget.
+        translation (Gf.Vec3d): World translation to apply to the widget.
+        display_duration (float | None): Seconds to keep the widget visible. If ``None`` or ``0``,
+            the widget remains until hidden manually.
+        max_width (float): Maximum widget width used for wrapping.
+        min_width (float): Minimum widget width used for wrapping.
+        font_size (float): Font size of the rendered text.
+        text_color (int): RGBA color encoded as a 32-bit integer.
+        target_prim_path (str): Prim path where the widget prim will be created/copied.
 
     Returns:
-        UiContainer: The container instance holding the instruction widget.
+        UiContainer | None: The container that owns the instruction widget, or ``None`` if creation failed.
     """
     global camera_facing_widget_container, camera_facing_widget_timers
 
@@ -121,9 +170,7 @@ def show_instruction(
     if get_prim_at_path(target_prim_path):
         delete_prim(target_prim_path)
 
-    # Compute dimensions and wrap text.
-    width, height, lines = compute_widget_dimensions(text, font_size, max_width, min_width)
-    wrapped_text = "\n".join(lines)
+    width, height, wrapped_text = compute_widget_dimensions(text, font_size, max_width, min_width)
 
     # Create the widget component.
     widget_component = WidgetComponent(
@@ -131,7 +178,7 @@ def show_instruction(
         width=width,
         height=height,
         resolution_scale=300,
-        widget_args=[wrapped_text, {"font_size": font_size}],
+        widget_args=[wrapped_text, {"font_size": font_size, "color": text_color}, width],
     )
 
     copied_prim = omni.kit.commands.execute(
@@ -160,17 +207,24 @@ def show_instruction(
 
     # Schedule auto-hide after the specified display_duration if provided.
     if display_duration:
-        timer = asyncio.get_event_loop().call_later(display_duration, functools.partial(hide, target_prim_path))
+        timer = asyncio.get_event_loop().call_later(
+            display_duration, functools.partial(hide_instruction, target_prim_path)
+        )
         camera_facing_widget_timers[target_prim_path] = timer
 
     return container
 
 
-def hide(target_prim_path: str = "/newPrim") -> None:
+def hide_instruction(target_prim_path: str = "/newPrim") -> None:
+    """Hide and clean up a specific instruction widget.
+
+    Args:
+        target_prim_path (str): Prim path of the widget to hide.
+
+    Returns:
+        None: This function does not return a value.
     """
-    Hide and clean up a specific instruction widget.
-    Also cleans up associated timer.
-    """
+
     global camera_facing_widget_container, camera_facing_widget_timers
 
     if target_prim_path in camera_facing_widget_container:
@@ -180,3 +234,44 @@ def hide(target_prim_path: str = "/newPrim") -> None:
 
     if target_prim_path in camera_facing_widget_timers:
         del camera_facing_widget_timers[target_prim_path]
+
+
+def update_instruction(target_prim_path: str = "/newPrim", text: str = ""):
+    """Update the text content of an existing instruction widget.
+
+    Args:
+        target_prim_path (str): Prim path of the widget to update.
+        text (str): New text content to display.
+
+    Returns:
+        bool: ``True`` if the widget existed and was updated, otherwise ``False``.
+    """
+    global camera_facing_widget_container
+
+    container_data = camera_facing_widget_container.get(target_prim_path)
+    if container_data:
+        container, current_text = container_data
+
+        # Only update if the text has actually changed
+        if current_text != text:
+            # Access the widget through the manipulator as shown in ui_container.py
+            manipulator = container.manipulator
+
+            # The WidgetComponent is stored in the manipulator's components
+            # Try to access the widget component and then the actual widget
+            components = getattr(manipulator, "_ComposableManipulator__components")
+            if len(components) > 0:
+                simple_text_widget = components[0]
+                if simple_text_widget and simple_text_widget.component and simple_text_widget.component.widget:
+                    width, height, wrapped_text = compute_widget_dimensions(
+                        text,
+                        simple_text_widget.component.widget.get_font_size(),
+                        simple_text_widget.component.widget.get_width(),
+                        simple_text_widget.component.widget.get_width(),
+                    )
+                    simple_text_widget.component.widget.set_label_text(wrapped_text)
+                # Update the stored text in the global dictionary
+                camera_facing_widget_container[target_prim_path] = (container, text)
+                return True
+
+    return False
