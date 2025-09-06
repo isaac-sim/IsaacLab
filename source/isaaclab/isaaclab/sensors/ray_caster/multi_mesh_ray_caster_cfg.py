@@ -49,7 +49,7 @@ class MultiMeshRayCasterCfg(RayCasterCfg):
         track_mesh_transforms: bool = True
         """Whether the mesh transformations should be tracked. Defaults to True.
 
-        Note:
+        .. note::
             Not tracking the mesh transformations is recommended when the meshes are static to increase performance.
         """
 
