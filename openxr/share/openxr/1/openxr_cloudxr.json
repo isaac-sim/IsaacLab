@@ -1,0 +1,7 @@
+{
+    "file_format_version": "1.0.0",
+    "runtime": {
+        "name": "NVIDIA™ CloudXR™ Runtime (based on Monado™)",
+        "library_path": "../../../lib/libopenxr_cloudxr.so"
+    }
+}

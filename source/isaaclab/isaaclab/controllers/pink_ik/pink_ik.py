@@ -24,13 +24,23 @@ from pink.tasks import FrameTask
 from pinocchio.robot_wrapper import RobotWrapper
 
 from isaaclab.assets import ArticulationCfg
-from isaaclab.ui.xr_widgets import XRVisualization
 from isaaclab.utils.string import resolve_matching_names_values
 
 from .null_space_posture_task import NullSpacePostureTask
 
 if TYPE_CHECKING:
     from .pink_ik_cfg import PinkIKControllerCfg
+
+# Conditional import for XR functionality
+XRVisualization = None
+try:
+    import carb
+
+    if carb.settings.get("/app/xr/enabled", False):
+        from isaaclab.ui.xr_widgets import XRVisualization
+except (ImportError, ModuleNotFoundError, AttributeError):
+    # XR functionality not available - this is expected when running without --xr flag
+    pass
 
 
 class PinkIKController:
@@ -175,7 +185,8 @@ class PinkIKController:
                     f" positions.\nError: {e}"
                 )
 
-            XRVisualization.push_event("ik_error", {"error": e})
+            if XRVisualization is not None:
+                XRVisualization.push_event("ik_error", {"error": e})
             return torch.tensor(curr_joint_pos, device=self.device, dtype=torch.float32)
 
         # Discard the first 6 values (for root and universal joints)
