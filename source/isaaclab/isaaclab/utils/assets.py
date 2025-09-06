@@ -13,9 +13,11 @@ For more information, please check information on `Omniverse Nucleus`_.
 .. _Omniverse Nucleus: https://docs.omniverse.nvidia.com/nucleus/latest/overview/overview.html
 """
 
+import asyncio
 import io
 import os
 import tempfile
+import time
 from typing import Literal
 
 import carb
@@ -127,3 +129,78 @@ def read_file(path: str) -> io.BytesIO:
         return io.BytesIO(memoryview(file_content).tobytes())
     else:
         raise FileNotFoundError(f"Unable to find the file: {path}")
+
+
+"""
+Nucleus Connection.
+"""
+
+
+def check_usd_path_with_timeout(usd_path: str, timeout: float = 300, log_interval: float = 30) -> bool:
+    """Checks whether the given USD file path is available on the NVIDIA Nucleus server.
+
+    This function synchronously runs an asynchronous USD path availability check,
+    logging progress periodically until it completes. The file is available on the server
+    if the HTTP status code is 200. Otherwise, the file is not available on the server.
+
+    This is useful for checking server responsiveness before attempting to load a remote
+    asset. It will block execution until the check completes or times out.
+
+    Args:
+        usd_path: The remote USD file path to check.
+        timeout: Maximum time (in seconds) to wait for the server check.
+        log_interval: Interval (in seconds) at which progress is logged.
+
+    Returns:
+        Whether the given USD path is available on the server.
+    """
+    start_time = time.time()
+    loop = asyncio.get_event_loop()
+
+    coroutine = _is_usd_path_available(usd_path, timeout)
+    task = asyncio.ensure_future(coroutine)
+
+    next_log_time = start_time + log_interval
+
+    first_log = True
+    while not task.done():
+        now = time.time()
+        if now >= next_log_time:
+            elapsed = int(now - start_time)
+            if first_log:
+                omni.log.warn(f"Checking server availability for USD path: {usd_path} (timeout: {timeout}s)")
+                first_log = False
+            omni.log.warn(f"Waiting for server response... ({elapsed}s elapsed)")
+            next_log_time += log_interval
+        loop.run_until_complete(asyncio.sleep(0.1))  # Yield to allow async work
+
+    return task.result()
+
+
+"""
+Helper functions.
+"""
+
+
+async def _is_usd_path_available(usd_path: str, timeout: float) -> bool:
+    """Checks whether the given USD path is available on the Omniverse Nucleus server.
+
+    This function is a asynchronous routine to check the availability of the given USD path on the Omniverse Nucleus server.
+    It will return True if the USD path is available on the server, False otherwise.
+
+    Args:
+        usd_path: The remote or local USD file path to check.
+        timeout: Timeout in seconds for the async stat call.
+
+    Returns:
+        Whether the given USD path is available on the server.
+    """
+    try:
+        result, _ = await asyncio.wait_for(omni.client.stat_async(usd_path), timeout=timeout)
+        return result == omni.client.Result.OK
+    except asyncio.TimeoutError:
+        omni.log.warn(f"Timed out after {timeout}s while checking for USD: {usd_path}")
+        return False
+    except Exception as ex:
+        omni.log.warn(f"Exception during USD file check: {type(ex).__name__}: {ex}")
+        return False
