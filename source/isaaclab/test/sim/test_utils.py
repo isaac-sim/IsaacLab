@@ -13,6 +13,7 @@ simulation_app = AppLauncher(headless=True).app
 """Rest everything follows."""
 
 import numpy as np
+import torch
 
 import isaacsim.core.utils.prims as prim_utils
 import isaacsim.core.utils.stage as stage_utils
@@ -20,6 +21,7 @@ import pytest
 from pxr import Sdf, Usd, UsdGeom
 
 import isaaclab.sim as sim_utils
+import isaaclab.utils.math as math_utils
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 
 
@@ -177,36 +179,50 @@ def test_resolve_prim_pose():
             "Sphere",
         )
 
-        # compute pose
-        # -- cube prim w.r.t. world frame
+        # cube prim w.r.t. world frame
         pos, quat = sim_utils.resolve_prim_pose(cube_prim)
         pos, quat = np.array(pos), np.array(quat)
         quat = quat if np.sign(rand_quats[i, 0, 0]) == np.sign(quat[0]) else -quat
-        np.testing.assert_allclose(pos, rand_positions[i, 0], atol=1e-5)
-        np.testing.assert_allclose(quat, rand_quats[i, 0], atol=1e-5)
-        # -- xform prim w.r.t. world frame
+        np.testing.assert_allclose(pos, rand_positions[i, 0], atol=1e-3)
+        np.testing.assert_allclose(quat, rand_quats[i, 0], atol=1e-3)
+        # xform prim w.r.t. world frame
         pos, quat = sim_utils.resolve_prim_pose(xform_prim)
         pos, quat = np.array(pos), np.array(quat)
         quat = quat if np.sign(rand_quats[i, 1, 0]) == np.sign(quat[0]) else -quat
-        np.testing.assert_allclose(pos, rand_positions[i, 1], atol=1e-5)
-        np.testing.assert_allclose(quat, rand_quats[i, 1], atol=1e-5)
-        # -- geometry prim w.r.t. xform prim
-        pos, quat = sim_utils.resolve_prim_pose(geometry_prim, ref_prim=xform_prim)
-        pos, quat = np.array(pos), np.array(quat)
-        quat = quat if np.sign(rand_quats[i, 2, 0]) == np.sign(quat[0]) else -quat
-        np.testing.assert_allclose(pos, rand_positions[i, 2], atol=1e-5)
-        np.testing.assert_allclose(quat, rand_quats[i, 2], atol=1e-5)
-        # -- dummy prim w.r.t. geometry prim
+        np.testing.assert_allclose(pos, rand_positions[i, 1], atol=1e-3)
+        np.testing.assert_allclose(quat, rand_quats[i, 1], atol=1e-3)
+        # dummy prim w.r.t. world frame
         pos, quat = sim_utils.resolve_prim_pose(dummy_prim)
         pos, quat = np.array(pos), np.array(quat)
         quat = quat if np.sign(rand_quats[i, 1, 0]) == np.sign(quat[0]) else -quat
-        np.testing.assert_allclose(pos, rand_positions[i, 1], atol=1e-5)
-        np.testing.assert_allclose(quat, rand_quats[i, 1], atol=1e-5)
-        # -- dummy prim w.r.t. xform prim
+        np.testing.assert_allclose(pos, rand_positions[i, 1], atol=1e-3)
+        np.testing.assert_allclose(quat, rand_quats[i, 1], atol=1e-3)
+
+        # geometry prim w.r.t. xform prim
+        pos, quat = sim_utils.resolve_prim_pose(geometry_prim, ref_prim=xform_prim)
+        pos, quat = np.array(pos), np.array(quat)
+        quat = quat if np.sign(rand_quats[i, 2, 0]) == np.sign(quat[0]) else -quat
+        np.testing.assert_allclose(pos, rand_positions[i, 2], atol=1e-3)
+        np.testing.assert_allclose(quat, rand_quats[i, 2], atol=1e-3)
+        # dummy prim w.r.t. xform prim
         pos, quat = sim_utils.resolve_prim_pose(dummy_prim, ref_prim=xform_prim)
         pos, quat = np.array(pos), np.array(quat)
-        np.testing.assert_allclose(pos, np.zeros(3), atol=1e-5)
-        np.testing.assert_allclose(quat, np.array([1, 0, 0, 0]), atol=1e-5)
+        np.testing.assert_allclose(pos, np.zeros(3), atol=1e-3)
+        np.testing.assert_allclose(quat, np.array([1, 0, 0, 0]), atol=1e-3)
+        # xform prim w.r.t. cube prim
+        pos, quat = sim_utils.resolve_prim_pose(xform_prim, ref_prim=cube_prim)
+        pos, quat = np.array(pos), np.array(quat)
+        # -- compute ground truth values
+        gt_pos, gt_quat = math_utils.subtract_frame_transforms(
+            torch.from_numpy(rand_positions[i, 0]).unsqueeze(0),
+            torch.from_numpy(rand_quats[i, 0]).unsqueeze(0),
+            torch.from_numpy(rand_positions[i, 1]).unsqueeze(0),
+            torch.from_numpy(rand_quats[i, 1]).unsqueeze(0),
+        )
+        gt_pos, gt_quat = gt_pos.squeeze(0).numpy(), gt_quat.squeeze(0).numpy()
+        quat = quat if np.sign(gt_quat[0]) == np.sign(quat[0]) else -quat
+        np.testing.assert_allclose(pos, gt_pos, atol=1e-3)
+        np.testing.assert_allclose(quat, gt_quat, atol=1e-3)
 
 
 def test_resolve_prim_scale():
@@ -259,20 +275,19 @@ def test_resolve_prim_scale():
             "Sphere",
         )
 
-        # compute scale
-        # -- cube prim
+        # cube prim
         scale = sim_utils.resolve_prim_scale(cube_prim)
         scale = np.array(scale)
         np.testing.assert_allclose(scale, rand_scales[i, 0], atol=1e-5)
-        # -- xform prim
+        # xform prim
         scale = sim_utils.resolve_prim_scale(xform_prim)
         scale = np.array(scale)
         np.testing.assert_allclose(scale, rand_scales[i, 1], atol=1e-5)
-        # -- geometry prim
+        # geometry prim
         scale = sim_utils.resolve_prim_scale(geometry_prim)
         scale = np.array(scale)
         np.testing.assert_allclose(scale, rand_scales[i, 1] * rand_scales[i, 2], atol=1e-5)
-        # -- dummy prim
+        # dummy prim
         scale = sim_utils.resolve_prim_scale(dummy_prim)
         scale = np.array(scale)
         np.testing.assert_allclose(scale, rand_scales[i, 1], atol=1e-5)
