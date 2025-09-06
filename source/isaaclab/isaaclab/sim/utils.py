@@ -11,9 +11,8 @@ import contextlib
 import functools
 import inspect
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Generator
 from typing import TYPE_CHECKING, Any
-from collections.abc import Generator
 
 import carb
 import isaacsim.core.utils.stage as stage_utils
