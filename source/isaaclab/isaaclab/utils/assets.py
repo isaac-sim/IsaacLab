@@ -137,7 +137,7 @@ Nucleus Connection.
 
 
 def check_usd_path_with_timeout(usd_path: str, timeout: float = 300, log_interval: float = 30) -> bool:
-    """Checks whether the given USD path is available on the NVIDIA Nucleus server.
+    """Checks whether the given USD file path is available on the NVIDIA Nucleus server.
 
     This function synchronously runs an asynchronous USD path availability check,
     logging progress periodically until it completes. The file is available on the server
