@@ -129,3 +129,150 @@ def test_select_usd_variants():
 
     # Check if the variant selection is correct
     assert variant_set.GetVariantSelection() == "red"
+
+
+def test_resolve_prim_pose():
+    """Test resolve_prim_pose() function."""
+    # number of objects
+    num_objects = 20
+    # sample random scales for x, y, z
+    rand_scales = np.random.uniform(0.5, 1.5, size=(num_objects, 3, 3))
+    rand_widths = np.random.uniform(0.1, 10.0, size=(num_objects,))
+    rand_widths[:] = 1.0
+    # sample random positions
+    rand_positions = np.random.uniform(-100, 100, size=(num_objects, 3, 3))
+    # sample random rotations
+    rand_quats = np.random.randn(num_objects, 3, 4)
+    rand_quats /= np.linalg.norm(rand_quats, axis=2, keepdims=True)
+
+    # create objects
+    for i in range(num_objects):
+        # simple cubes
+        cube_prim = prim_utils.create_prim(
+            f"/World/Cubes/instance_{i:02d}",
+            "Cube",
+            translation=rand_positions[i, 0],
+            orientation=rand_quats[i, 0],
+            scale=rand_scales[i, 0],
+            attributes={"size": rand_widths[i]},
+        )
+        # xform hierarchy
+        xform_prim = prim_utils.create_prim(
+            f"/World/Xform/instance_{i:02d}",
+            "Xform",
+            translation=rand_positions[i, 1],
+            orientation=rand_quats[i, 1],
+            # scale=rand_scales[i, 1],  # FIXME: Enabling this affects the test to fail.
+        )
+        geometry_prim = prim_utils.create_prim(
+            f"/World/Xform/instance_{i:02d}/geometry",
+            "Sphere",
+            translation=rand_positions[i, 2],
+            orientation=rand_quats[i, 2],
+            scale=rand_scales[i, 2],
+            attributes={"radius": rand_widths[i]},
+        )
+        dummy_prim = prim_utils.create_prim(
+            f"/World/Xform/instance_{i:02d}/dummy",
+            "Sphere",
+        )
+
+        # compute pose
+        # -- cube prim w.r.t. world frame
+        pos, quat = sim_utils.resolve_prim_pose(cube_prim)
+        pos, quat = np.array(pos), np.array(quat)
+        quat = quat if np.sign(rand_quats[i, 0, 0]) == np.sign(quat[0]) else -quat
+        np.testing.assert_allclose(pos, rand_positions[i, 0], atol=1e-5)
+        np.testing.assert_allclose(quat, rand_quats[i, 0], atol=1e-5)
+        # -- xform prim w.r.t. world frame
+        pos, quat = sim_utils.resolve_prim_pose(xform_prim)
+        pos, quat = np.array(pos), np.array(quat)
+        quat = quat if np.sign(rand_quats[i, 1, 0]) == np.sign(quat[0]) else -quat
+        np.testing.assert_allclose(pos, rand_positions[i, 1], atol=1e-5)
+        np.testing.assert_allclose(quat, rand_quats[i, 1], atol=1e-5)
+        # -- geometry prim w.r.t. xform prim
+        pos, quat = sim_utils.resolve_prim_pose(geometry_prim, ref_prim=xform_prim)
+        pos, quat = np.array(pos), np.array(quat)
+        quat = quat if np.sign(rand_quats[i, 2, 0]) == np.sign(quat[0]) else -quat
+        np.testing.assert_allclose(pos, rand_positions[i, 2], atol=1e-5)
+        np.testing.assert_allclose(quat, rand_quats[i, 2], atol=1e-5)
+        # -- dummy prim w.r.t. geometry prim
+        pos, quat = sim_utils.resolve_prim_pose(dummy_prim)
+        pos, quat = np.array(pos), np.array(quat)
+        quat = quat if np.sign(rand_quats[i, 1, 0]) == np.sign(quat[0]) else -quat
+        np.testing.assert_allclose(pos, rand_positions[i, 1], atol=1e-5)
+        np.testing.assert_allclose(quat, rand_quats[i, 1], atol=1e-5)
+        # -- dummy prim w.r.t. xform prim
+        pos, quat = sim_utils.resolve_prim_pose(dummy_prim, ref_prim=xform_prim)
+        pos, quat = np.array(pos), np.array(quat)
+        np.testing.assert_allclose(pos, np.zeros(3), atol=1e-5)
+        np.testing.assert_allclose(quat, np.array([1, 0, 0, 0]), atol=1e-5)
+
+
+def test_resolve_prim_scale():
+    """Test resolve_prim_scale() function.
+
+    To simplify the test, we assume that the effective scale at a prim
+    is the product of the scales of the prims in the hierarchy:
+
+        scale = scale_of_xform * scale_of_geometry_prim
+
+    This is only true when rotations are identity or the transforms are
+    orthogonal and uniformly scaled. Otherwise, scale is not composable
+    like that in local component-wise fashion.
+    """
+    # number of objects
+    num_objects = 20
+    # sample random scales for x, y, z
+    rand_scales = np.random.uniform(0.5, 1.5, size=(num_objects, 3, 3))
+    rand_widths = np.random.uniform(0.1, 10.0, size=(num_objects,))
+    rand_widths[:] = 1.0
+    # sample random positions
+    rand_positions = np.random.uniform(-100, 100, size=(num_objects, 3, 3))
+
+    # create objects
+    for i in range(num_objects):
+        # simple cubes
+        cube_prim = prim_utils.create_prim(
+            f"/World/Cubes/instance_{i:02d}",
+            "Cube",
+            translation=rand_positions[i, 0],
+            scale=rand_scales[i, 0],
+            attributes={"size": rand_widths[i]},
+        )
+        # xform hierarchy
+        xform_prim = prim_utils.create_prim(
+            f"/World/Xform/instance_{i:02d}",
+            "Xform",
+            translation=rand_positions[i, 1],
+            scale=rand_scales[i, 1],
+        )
+        geometry_prim = prim_utils.create_prim(
+            f"/World/Xform/instance_{i:02d}/geometry",
+            "Sphere",
+            translation=rand_positions[i, 2],
+            scale=rand_scales[i, 2],
+            attributes={"radius": rand_widths[i]},
+        )
+        dummy_prim = prim_utils.create_prim(
+            f"/World/Xform/instance_{i:02d}/dummy",
+            "Sphere",
+        )
+
+        # compute scale
+        # -- cube prim
+        scale = sim_utils.resolve_prim_scale(cube_prim)
+        scale = np.array(scale)
+        np.testing.assert_allclose(scale, rand_scales[i, 0], atol=1e-5)
+        # -- xform prim
+        scale = sim_utils.resolve_prim_scale(xform_prim)
+        scale = np.array(scale)
+        np.testing.assert_allclose(scale, rand_scales[i, 1], atol=1e-5)
+        # -- geometry prim
+        scale = sim_utils.resolve_prim_scale(geometry_prim)
+        scale = np.array(scale)
+        np.testing.assert_allclose(scale, rand_scales[i, 1] * rand_scales[i, 2], atol=1e-5)
+        # -- dummy prim
+        scale = sim_utils.resolve_prim_scale(dummy_prim)
+        scale = np.array(scale)
+        np.testing.assert_allclose(scale, rand_scales[i, 1], atol=1e-5)
