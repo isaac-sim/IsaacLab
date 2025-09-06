@@ -578,7 +578,7 @@ def resolve_prim_pose(
 ) -> tuple[tuple[float, float, float], tuple[float, float, float, float]]:
     """Resolve the pose of a prim with respect to another prim.
 
-     Note:
+    Note:
         This function ignores scale and skew by orthonormalizing the transformation
         matrix at the final step. However, if any ancestor prim in the hierarchy
         has non-uniform scale, that scale will still affect the resulting position
