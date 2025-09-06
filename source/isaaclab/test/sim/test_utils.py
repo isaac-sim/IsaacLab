@@ -41,9 +41,7 @@ def test_get_all_matching_child_prims():
     """Test get_all_matching_child_prims() function."""
     # create scene
     prim_utils.create_prim("/World/Floor")
-    prim_utils.create_prim(
-        "/World/Floor/Box", "Cube", position=np.array([75, 75, -150.1]), attributes={"size": 300}
-    )
+    prim_utils.create_prim("/World/Floor/Box", "Cube", position=np.array([75, 75, -150.1]), attributes={"size": 300})
     prim_utils.create_prim("/World/Wall", "Sphere", attributes={"radius": 1e3})
 
     # test
@@ -64,7 +62,9 @@ def test_get_all_matching_child_prims():
     assert isaaclab_result[0].GetPrimPath() == "/World/Floor/Box"
 
     # test with predicate and instanced prims
-    isaaclab_result = sim_utils.get_all_matching_child_prims("/World/Franka/panda_hand/visuals", predicate=lambda x: x.GetTypeName() == "Mesh")
+    isaaclab_result = sim_utils.get_all_matching_child_prims(
+        "/World/Franka/panda_hand/visuals", predicate=lambda x: x.GetTypeName() == "Mesh"
+    )
     assert len(isaaclab_result) == 1
     assert isaaclab_result[0].GetPrimPath() == "/World/Franka/panda_hand/visuals/panda_hand"
 
@@ -88,12 +88,16 @@ def test_get_first_matching_child_prim():
     )
 
     # test
-    isaaclab_result = sim_utils.get_first_matching_child_prim("/World", predicate=lambda prim: prim.HasAPI(UsdPhysics.ArticulationRootAPI))
+    isaaclab_result = sim_utils.get_first_matching_child_prim(
+        "/World", predicate=lambda prim: prim.HasAPI(UsdPhysics.ArticulationRootAPI)
+    )
     assert isaaclab_result is not None
     assert isaaclab_result.GetPrimPath() == "/World/env_1/Franka"
 
     # test with instanced prims
-    isaaclab_result = sim_utils.get_first_matching_child_prim("/World/env_1/Franka", predicate=lambda prim: prim.GetTypeName() == "Mesh")
+    isaaclab_result = sim_utils.get_first_matching_child_prim(
+        "/World/env_1/Franka", predicate=lambda prim: prim.GetTypeName() == "Mesh"
+    )
     assert isaaclab_result is not None
     assert isaaclab_result.GetPrimPath() == "/World/env_1/Franka/panda_link0/visuals/panda_link0"
 

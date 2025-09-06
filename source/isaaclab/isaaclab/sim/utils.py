@@ -673,7 +673,9 @@ def get_all_matching_child_prims(
             output_prims.append(child_prim)
         # add children to list
         if depth is None or current_depth < depth:
-            all_prims_queue += [(child, current_depth + 1) for child in child_prim.GetFilteredChildren(Usd.TraverseInstanceProxies())]
+            all_prims_queue += [
+                (child, current_depth + 1) for child in child_prim.GetFilteredChildren(Usd.TraverseInstanceProxies())
+            ]
 
     return output_prims
 
