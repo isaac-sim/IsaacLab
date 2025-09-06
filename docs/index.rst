@@ -108,7 +108,6 @@ Table of Contents
    source/overview/imitation-learning/index
    source/overview/showroom
    source/overview/simple_agents
-   source/overview/locomanipulation
 
 
 .. toctree::
