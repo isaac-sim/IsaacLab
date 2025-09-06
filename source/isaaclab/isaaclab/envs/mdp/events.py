@@ -55,9 +55,9 @@ def randomize_rigid_body_scale(
     If the dictionary does not contain a key, the range is set to one for that axis.
 
     Relative child path can be used to randomize the scale of a specific child prim of the asset.
-    For example, if the asset at prim path expression "/World/envs/env_.*/Object" has a child
-    with the path "/World/envs/env_.*/Object/mesh", then the relative child path should be "mesh" or
-    "/mesh".
+    For example, if the asset at prim path expression ``/World/envs/env_.*/Object`` has a child
+    with the path ``/World/envs/env_.*/Object/mesh``, then the relative child path should be ``mesh`` or
+    ``/mesh``.
 
     .. attention::
         Since this function modifies USD properties that are parsed by the physics engine once the simulation

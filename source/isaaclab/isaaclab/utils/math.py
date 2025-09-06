@@ -682,6 +682,7 @@ def quat_apply_yaw(quat: torch.Tensor, vec: torch.Tensor) -> torch.Tensor:
 
 def quat_rotate(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
     """Rotate a vector by a quaternion along the last dimension of q and v.
+
     .. deprecated v2.1.0:
          This function will be removed in a future release in favor of the faster implementation :meth:`quat_apply`.
 
@@ -705,6 +706,7 @@ def quat_rotate_inverse(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
 
     .. deprecated v2.1.0:
          This function will be removed in a future release in favor of the faster implementation :meth:`quat_apply_inverse`.
+
     Args:
         q: The quaternion in (w, x, y, z). Shape is (..., 4).
         v: The vector in (x, y, z). Shape is (..., 3).
