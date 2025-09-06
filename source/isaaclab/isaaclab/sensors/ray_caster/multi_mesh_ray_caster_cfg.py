@@ -56,7 +56,10 @@ class MultiMeshRayCasterCfg(RayCasterCfg):
     class_type: type = MultiMeshRayCaster
 
     mesh_prim_paths: list[str | RaycastTargetCfg] = MISSING
-    """The list of mesh primitive paths to ray cast against. If an entry is a string, it is internally converted to a :class:`RaycastTargetCfg` with global set to true and track_mesh_transforms disabled to ensure backwards compatibility with the default raycaster."""
+    """The list of mesh primitive paths to ray cast against.
+    
+    If an entry is a string, it is internally converted to :class:`RaycastTargetCfg` with :attr:`~RaycastTargetCfg.is_global` enabled and attr:`~RaycastTargetCfg.track_mesh_transforms` disabled. These settings ensure backwards compatibility with the default raycaster.
+    """
 
     update_mesh_ids: bool = False
     """Whether to update the mesh ids of the ray hits in the :attr:`data` container."""
