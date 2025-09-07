@@ -34,14 +34,14 @@ class MultiMeshRayCasterCfg(RayCasterCfg):
 
         If True, only the first mesh is read and then reused for all environments, rather than re-parsed.
         This provides a startup performance boost when there are many environments that all use the same asset.
-        
+
         .. note::
             If :attr:`MultiMeshRayCasterCfg.reference_meshes` is False, this flag has no effect.
         """
 
         merge_prim_meshes: bool = True
         """Whether to merge the parsed meshes for a prim that contains multiple meshes. Defaults to True.
-        
+
         This will create a new mesh that combines all meshes in the parsed prim. The raycast hits mesh IDs will then refer to the single
         merged mesh.
         """
@@ -57,7 +57,7 @@ class MultiMeshRayCasterCfg(RayCasterCfg):
 
     mesh_prim_paths: list[str | RaycastTargetCfg] = MISSING
     """The list of mesh primitive paths to ray cast against.
-    
+
     If an entry is a string, it is internally converted to :class:`RaycastTargetCfg` with :attr:`~RaycastTargetCfg.is_global` enabled and attr:`~RaycastTargetCfg.track_mesh_transforms` disabled. These settings ensure backwards compatibility with the default raycaster.
     """
 
