@@ -82,7 +82,6 @@ class MultiMeshRayCasterCamera(RayCasterCamera, MultiMeshRayCaster):
             self._num_envs, *self.image_shape, 1, device=self.device, dtype=torch.int16
         )
 
-
     def _initialize_rays_impl(self):
         # Create all indices buffer
         self._ALL_INDICES = torch.arange(self._view.count, device=self._device, dtype=torch.long)
@@ -111,7 +110,6 @@ class MultiMeshRayCasterCamera(RayCasterCamera, MultiMeshRayCaster):
 
         self._ray_starts_w = torch.zeros(self._view.count, self.num_rays, 3, device=self.device)
         self._ray_directions_w = torch.zeros(self._view.count, self.num_rays, 3, device=self.device)
-
 
     def _update_ray_infos(self, env_ids: Sequence[int]):
         """Updates the ray information buffers."""
@@ -179,8 +177,6 @@ class MultiMeshRayCasterCamera(RayCasterCamera, MultiMeshRayCaster):
         # lines_colors = [[0.0, 1.0, 0.0, 1.0]] * start_pts.shape[0]
         # line_thicknesses = [2.0] * start_pts.shape[0]
         # draw_interface.draw_lines(start_pts.tolist(), end_pts.tolist(), lines_colors, line_thicknesses)
-
-
 
         # ray cast and store the hits
         self.ray_hits_w, ray_depth, ray_normal, _, ray_mesh_ids = raycast_dynamic_meshes(
