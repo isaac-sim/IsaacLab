@@ -28,7 +28,6 @@ from isaaclab.utils.math import matrix_from_quat, quat_mul, subtract_frame_trans
 from isaaclab.utils.mesh import PRIMITIVE_MESH_TYPES, create_mesh_from_geom_shape, create_trimesh_from_geom_mesh
 from isaaclab.utils.warp import convert_to_warp_mesh, raycast_dynamic_meshes
 
-from ..utils import compute_world_poses
 from .multi_mesh_ray_caster_data import MultiMeshRayCasterData
 from .ray_caster import RayCaster
 
@@ -415,7 +414,7 @@ class MultiMeshRayCaster(RayCaster):
                 continue
 
             # update position of the target meshes
-            pos_w, ori_w = compute_world_poses(view, None)
+            pos_w, ori_w = sim_utils.compute_world_poses(view, None)
             pos_w = pos_w.squeeze(0) if len(pos_w.shape) == 3 else pos_w
             ori_w = ori_w.squeeze(0) if len(ori_w.shape) == 3 else ori_w
 
