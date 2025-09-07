@@ -10,7 +10,6 @@ from typing import Literal
 
 from isaaclab.utils import configclass
 
-from .distillation_cfg import RslRlDistillationAlgorithmCfg, RslRlDistillationStudentTeacherCfg
 from .rnd_cfg import RslRlRndCfg
 from .symmetry_cfg import RslRlSymmetryCfg
 
@@ -236,18 +235,4 @@ class RslRlOnPolicyRunnerCfg(RslRlBaseRunnerCfg):
     """The policy configuration."""
 
     algorithm: RslRlPpoAlgorithmCfg = MISSING
-    """The algorithm configuration."""
-
-
-@configclass
-class RslRlDistillationRunnerCfg(RslRlBaseRunnerCfg):
-    """Configuration of the runner for distillation algorithms."""
-
-    class_name: str = "DistillationRunner"
-    """The runner class name. Default is DistillationRunner."""
-
-    policy: RslRlDistillationStudentTeacherCfg = MISSING
-    """The policy configuration."""
-
-    algorithm: RslRlDistillationAlgorithmCfg = MISSING
     """The algorithm configuration."""
