@@ -7,9 +7,9 @@
 import torch
 
 from isaaclab.sensors.camera import CameraData
+from .ray_caster_data import RayCasterData
 
-
-class MultiMeshRayCasterCameraData(CameraData):
+class MultiMeshRayCasterCameraData(CameraData, RayCasterData):
     """Data container for the multi-mesh ray-cast sensor."""
 
     image_mesh_ids: torch.Tensor = None
