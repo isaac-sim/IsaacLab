@@ -1200,7 +1200,7 @@ PhysX prim views utils.
 """
 
 
-def compute_world_poses(
+def obtain_world_pose_from_view(
     physx_view: XFormPrim | physx.ArticulationView | physx.RigidBodyView,
     env_ids: torch.Tensor,
     clone: bool = False,
