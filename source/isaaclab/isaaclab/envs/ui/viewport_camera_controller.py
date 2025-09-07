@@ -12,6 +12,8 @@ import weakref
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
+import carb
+import omni.appwindow
 import omni.kit.app
 import omni.timeline
 
@@ -80,6 +82,73 @@ class ViewportCameraController:
         self._viewport_camera_update_handle = app_event_stream.create_subscription_to_pop(
             lambda event, obj=weakref.proxy(self): obj._update_tracking_callback(event)
         )
+        # subscribe to keyboard events if we want to use keyboard control
+        if cfg.register_keyboard_control:
+            carb_input = carb.input.acquire_input_interface()
+            keyboard = omni.appwindow.get_default_app_window().get_keyboard()
+            carb_input.subscribe_to_keyboard_events(keyboard, self._on_keyboard_event)
+
+    def _on_keyboard_event(self, event: carb.input.KeyboardEvent):
+        """Checks for a keyboard event and assign the corresponding command control depending on key pressed."""
+        if event.type == carb.input.KeyboardEventType.KEY_PRESS:
+            # we use the NUMPAD and PAGE_UP/DOWN keys to control the camera
+            if "NUMPAD" in event.input.name or "PAGE_UP" in event.input.name:
+                # rotation step size
+                increment = 0.1
+                # convert current camera position to spherical coordinates
+                radius = np.linalg.norm(self.default_cam_eye)  # radius of the sphere
+                x, y, z = self.default_cam_eye
+                theta = np.arctan2(y, x)  # azimuthal angle (around Z-axis)
+                phi = np.arccos(z / radius) if radius > 0 else 0  # polar angle (from Z-axis)
+
+                match event.input.name:
+                    case "NUMPAD_0":            # reset to default position
+                        self.default_cam_eye[:] = np.array(self._cfg.eye, dtype=np.float32)
+                        self.default_cam_lookat[:] = np.array(self._cfg.lookat, dtype=np.float32)
+                        return
+                    case "NUMPAD_1":            # front view
+                        offset = np.array([-radius, 0., 0.], dtype=np.float32)
+                        self.default_cam_eye[:] = self.default_cam_lookat[:] + offset
+                        return
+                    case "NUMPAD_3":            # side view
+                        offset = np.array([0., radius, 0.], dtype=np.float32)
+                        self.default_cam_eye[:] = self.default_cam_lookat[:] + offset
+                        return
+                    case "NUMPAD_7":            # top view
+                        offset = np.array([0., 0., radius], dtype=np.float32)
+                        self.default_cam_eye[:] = self.default_cam_lookat[:] + offset
+                        return
+                    case "NUMPAD_9":            # swap side
+                        self.default_cam_eye[:] *= -1
+                        return
+                    case "PAGE_UP":             # pedestal up
+                        self.default_cam_lookat[2] -= increment
+                        self.default_cam_eye[2] -= increment
+                        return
+                    case "PAGE_DOWN":           # pedestal down
+                        self.default_cam_lookat[2] += increment
+                        self.default_cam_eye[2] += increment
+                        return
+
+                    # otherwise rotate the camera on a virtual sphere around the lookat point
+                    case "NUMPAD_2":            # tilt up (increase polar angle)
+                        phi = min(np.pi - 0.1, phi + increment)
+                    case "NUMPAD_8":            # tilt down (decrease polar angle)
+                        phi = max(0.1, phi - increment)
+                    case "NUMPAD_4":            # arc left (decrease azimuthal angle)
+                        theta -= increment
+                    case "NUMPAD_6":            # arc right (increase azimuthal angle)
+                        theta += increment
+                    case "NUMPAD_ADD":          # dolly in (decrease radius)
+                        radius -= increment
+                    case "NUMPAD_SUBTRACT":     # dolly out (increase radius)
+                        radius += increment
+
+                # convert back to Cartesian coordinates
+                self.default_cam_eye[0] = radius * np.sin(phi) * np.cos(theta)
+                self.default_cam_eye[1] = radius * np.sin(phi) * np.sin(theta)
+                self.default_cam_eye[2] = radius * np.cos(phi)
+                return
 
     def __del__(self):
         """Unsubscribe from the callback."""
