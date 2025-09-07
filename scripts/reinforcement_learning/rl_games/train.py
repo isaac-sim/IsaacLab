@@ -148,6 +148,8 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     rl_device = agent_cfg["params"]["config"]["device"]
     clip_obs = agent_cfg["params"]["env"].get("clip_observations", math.inf)
     clip_actions = agent_cfg["params"]["env"].get("clip_actions", math.inf)
+    obs_groups = agent_cfg["params"]["env"].get("obs_groups")
+    concate_obs_groups = agent_cfg["params"]["env"].get("concate_obs_groups", True)
 
     # set the IO descriptors output directory if requested
     if isinstance(env_cfg, ManagerBasedRLEnvCfg):
@@ -178,7 +180,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         env = gym.wrappers.RecordVideo(env, **video_kwargs)
 
     # wrap around environment for rl-games
-    env = RlGamesVecEnvWrapper(env, rl_device, clip_obs, clip_actions)
+    env = RlGamesVecEnvWrapper(env, rl_device, clip_obs, clip_actions, obs_groups, concate_obs_groups)
 
     # register the environment to rl-games registry
     # note: in agents configuration: environment name must be "rlgpu"
