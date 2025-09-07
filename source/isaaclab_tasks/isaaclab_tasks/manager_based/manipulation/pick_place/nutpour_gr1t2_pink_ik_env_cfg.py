@@ -3,8 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from pink.tasks import DampingTask, FrameTask
 import carb
+from pink.tasks import DampingTask, FrameTask
+
 import isaaclab.controllers.utils as ControllerUtils
 from isaaclab.controllers.pink_ik import NullSpacePostureTask, PinkIKControllerCfg
 from isaaclab.devices import DevicesCfg

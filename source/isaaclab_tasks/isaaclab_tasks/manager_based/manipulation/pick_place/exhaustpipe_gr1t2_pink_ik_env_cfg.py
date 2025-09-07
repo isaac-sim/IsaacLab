@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import carb
 from pink.tasks import DampingTask, FrameTask
 
 import isaaclab.controllers.utils as ControllerUtils
@@ -12,7 +13,6 @@ from isaaclab.devices.openxr import OpenXRDeviceCfg
 from isaaclab.devices.openxr.retargeters import GR1T2RetargeterCfg
 from isaaclab.envs.mdp.actions.pink_actions_cfg import PinkInverseKinematicsActionCfg
 from isaaclab.utils import configclass
-import carb
 
 from isaaclab_tasks.manager_based.manipulation.pick_place.exhaustpipe_gr1t2_base_env_cfg import (
     ExhaustPipeGR1T2BaseEnvCfg,

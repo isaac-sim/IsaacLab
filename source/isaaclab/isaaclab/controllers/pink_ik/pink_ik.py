@@ -176,6 +176,7 @@ class PinkIKController:
 
             if self.cfg.xr_enabled:
                 from isaaclab.ui.xr_widgets import XRVisualization
+
                 XRVisualization.push_event("ik_error", {"error": e})
             return torch.tensor(curr_joint_pos, device=self.device, dtype=torch.float32)
 
