@@ -91,8 +91,9 @@ class ViewportCameraController:
     def _on_keyboard_event(self, event: carb.input.KeyboardEvent):
         """Checks for a keyboard event and assign the corresponding command control depending on key pressed."""
         if event.type == carb.input.KeyboardEventType.KEY_PRESS:
-            # we use the NUMPAD and PAGE_UP/DOWN keys to control the camera
-            if "NUMPAD" in event.input.name or "PAGE_UP" in event.input.name:
+            # we use the NUMPAD keys to control the camera
+            if "NUMPAD" in event.input.name:
+                ctrl_pressed = event.modifiers == 2
                 # rotation step size
                 increment = 0.1
                 # convert current camera position to spherical coordinates
@@ -106,42 +107,48 @@ class ViewportCameraController:
                         self.default_cam_eye[:] = np.array(self._cfg.eye, dtype=np.float32)
                         self.default_cam_lookat[:] = np.array(self._cfg.lookat, dtype=np.float32)
                         return
-                    case "NUMPAD_1":  # front view
+                    case "NUMPAD_1":  # front view / back view
                         offset = np.array([-radius, 0.0, 0.0], dtype=np.float32)
+                        if ctrl_pressed:
+                            offset *= -1
                         self.default_cam_eye[:] = self.default_cam_lookat[:] + offset
                         return
-                    case "NUMPAD_3":  # side view
+                    case "NUMPAD_3":  # right view / left view
                         offset = np.array([0.0, radius, 0.0], dtype=np.float32)
+                        if ctrl_pressed:
+                            offset *= -1
                         self.default_cam_eye[:] = self.default_cam_lookat[:] + offset
                         return
-                    case "NUMPAD_7":  # top view
+                    case "NUMPAD_7":  # top view / bottom view
                         offset = np.array([0.0, 0.0, radius], dtype=np.float32)
+                        if ctrl_pressed:
+                            offset *= -1
                         self.default_cam_eye[:] = self.default_cam_lookat[:] + offset
                         return
                     case "NUMPAD_9":  # swap side
                         self.default_cam_eye[:] *= -1
                         return
-                    case "PAGE_UP":  # pedestal up
-                        self.default_cam_lookat[2] -= increment
-                        self.default_cam_eye[2] -= increment
-                        return
-                    case "PAGE_DOWN":  # pedestal down
-                        self.default_cam_lookat[2] += increment
-                        self.default_cam_eye[2] += increment
-                        return
 
                     # otherwise rotate the camera on a virtual sphere around the lookat point
-                    case "NUMPAD_2":  # tilt up (increase polar angle)
+                    case "NUMPAD_2":  # arc up (increase polar angle) / pedestal down
+                        if ctrl_pressed:
+                            self.default_cam_lookat[2] -= increment
+                            self.default_cam_eye[2] -= increment
+                            return
                         phi = min(np.pi - 0.1, phi + increment)
-                    case "NUMPAD_8":  # tilt down (decrease polar angle)
+                    case "NUMPAD_8":  # arc down (decrease polar angle) / pedestal up
+                        if ctrl_pressed:
+                            self.default_cam_lookat[2] += increment
+                            self.default_cam_eye[2] += increment
+                            return
                         phi = max(0.1, phi - increment)
                     case "NUMPAD_4":  # arc left (decrease azimuthal angle)
                         theta -= increment
                     case "NUMPAD_6":  # arc right (increase azimuthal angle)
                         theta += increment
-                    case "NUMPAD_ADD":  # dolly in (decrease radius)
+                    case "NUMPAD_ADD":  # push in (decrease radius)
                         radius -= increment
-                    case "NUMPAD_SUBTRACT":  # dolly out (increase radius)
+                    case "NUMPAD_SUBTRACT":  # pull out (increase radius)
                         radius += increment
 
                 # convert back to Cartesian coordinates
