@@ -12,6 +12,7 @@ from isaaclab.devices.openxr import OpenXRDeviceCfg
 from isaaclab.devices.openxr.retargeters import GR1T2RetargeterCfg
 from isaaclab.envs.mdp.actions.pink_actions_cfg import PinkInverseKinematicsActionCfg
 from isaaclab.utils import configclass
+import carb
 
 from isaaclab_tasks.manager_based.manipulation.pick_place.exhaustpipe_gr1t2_base_env_cfg import (
     ExhaustPipeGR1T2BaseEnvCfg,
@@ -171,6 +172,7 @@ class ExhaustPipeGR1T2PinkIKEnvCfg(ExhaustPipeGR1T2BaseEnvCfg):
                     #     orientation_cost=0.05,  # [cost] / [rad]
                     # ),
                 ],
+                xr_enabled=carb.settings.get("/app/xr/enabled", False),
             ),
         )
         # Convert USD to URDF and change revolute joints to fixed

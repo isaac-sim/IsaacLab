@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from pink.tasks import DampingTask, FrameTask
-
+import carb
 import isaaclab.controllers.utils as ControllerUtils
 from isaaclab.controllers.pink_ik import NullSpacePostureTask, PinkIKControllerCfg
 from isaaclab.devices import DevicesCfg
@@ -169,6 +169,7 @@ class NutPourGR1T2PinkIKEnvCfg(NutPourGR1T2BaseEnvCfg):
                     #     orientation_cost=0.05,  # [cost] / [rad]
                     # ),
                 ],
+                xr_enabled=carb.settings.get("/app/xr/enabled", False),
             ),
         )
         # Convert USD to URDF and change revolute joints to fixed
