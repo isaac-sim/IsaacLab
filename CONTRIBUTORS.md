@@ -21,6 +21,7 @@ Guidelines for modifications:
 
 * Antonio Serrano-Muñoz
 * Ben Johnston
+* Clemens Schwarke
 * David Hoeller
 * Farbod Farshidian
 * Hunter Hansen
@@ -54,7 +55,6 @@ Guidelines for modifications:
 * Calvin Yu
 * Cheng-Rong Lai
 * Chenyu Yang
-* Clemens Schwarke
 * Connor Smith
 * CY (Chien-Ying) Chen
 * David Yang
@@ -140,6 +140,7 @@ Guidelines for modifications:
 * Ziqi Fan
 * Zoe McCarthy
 * David Leon
+* Song Yi
 
 ## Acknowledgements
 
