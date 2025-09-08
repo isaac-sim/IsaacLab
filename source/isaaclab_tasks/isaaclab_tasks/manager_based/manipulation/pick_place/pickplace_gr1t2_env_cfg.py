@@ -256,7 +256,7 @@ class ActionsCfg:
                 ),
             ],
             fixed_input_tasks=[],
-            xr_enabled=carb.settings.get("/app/xr/enabled", False),
+            xr_enabled=bool(carb.settings.get_settings().get("/app/xr/enabled")),
         ),
     )
 

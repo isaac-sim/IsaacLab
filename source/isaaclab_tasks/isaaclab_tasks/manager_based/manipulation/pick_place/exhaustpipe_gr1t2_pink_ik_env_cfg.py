@@ -172,7 +172,7 @@ class ExhaustPipeGR1T2PinkIKEnvCfg(ExhaustPipeGR1T2BaseEnvCfg):
                     #     orientation_cost=0.05,  # [cost] / [rad]
                     # ),
                 ],
-                xr_enabled=carb.settings.get("/app/xr/enabled", False),
+                xr_enabled=bool(carb.settings.get_settings().get("/app/xr/enabled")),
             ),
         )
         # Convert USD to URDF and change revolute joints to fixed
