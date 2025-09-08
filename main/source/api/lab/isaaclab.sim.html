@@ -63,7 +63,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.2.1" />
-    <meta name="docbuild:last-update" content="Sep 07, 2025"/>
+    <meta name="docbuild:last-update" content="Sep 08, 2025"/>
   </head>
   
   
@@ -395,9 +395,7 @@
 <li class="toctree-l2"><a class="reference internal" href="isaaclab.app.html">isaaclab.app</a></li>
 <li class="toctree-l2"><a class="reference internal" href="isaaclab.actuators.html">isaaclab.actuators</a></li>
 <li class="toctree-l2"><a class="reference internal" href="isaaclab.assets.html">isaaclab.assets</a></li>
-<li class="toctree-l2 has-children"><a class="reference internal" href="isaaclab.controllers.html">isaaclab.controllers</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="simple">
-</ul>
-</details></li>
+<li class="toctree-l2"><a class="reference internal" href="isaaclab.controllers.html">isaaclab.controllers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="isaaclab.devices.html">isaaclab.devices</a></li>
 <li class="toctree-l2"><a class="reference internal" href="isaaclab.envs.html">isaaclab.envs</a></li>
 <li class="toctree-l2"><a class="reference internal" href="isaaclab.managers.html">isaaclab.managers</a></li>
@@ -841,7 +839,7 @@ as a feature request elaborating on the required application.</p>
 <dl class="py class">
 <dt class="sig sig-object py" id="isaaclab.sim.SimulationContext">
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab.sim.</span></span><span class="sig-name descname"><span class="pre">SimulationContext</span></span><a class="reference internal" href="../../../_modules/isaaclab/sim/simulation_context.html#SimulationContext"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.sim.SimulationContext" title="Permalink to this definition">#</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">SimulationContext</span></code></p>
+<dd><p>Bases: <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/5.0.0/py/source/extensions/isaacsim.core.api/docs/index.html#isaacsim.core.api.simulation_context.SimulationContext" title="(in Isaac Sim)"><code class="xref py py-class docutils literal notranslate"><span class="pre">SimulationContext</span></code></a></p>
 <p>A class to control simulation-related events such as physics stepping and rendering.</p>
 <p>The simulation context helps control various simulation aspects. This includes:</p>
 <ul class="simple">
@@ -850,7 +848,7 @@ and the physics solver parameters (for more information, see <a class="reference
 <li><p>playing, pausing, stepping and stopping the simulation</p></li>
 <li><p>adding and removing callbacks to different simulation events such as physics stepping, rendering, etc.</p></li>
 </ul>
-<p>This class inherits from the <code class="xref py py-class docutils literal notranslate"><span class="pre">isaacsim.core.api.simulation_context.SimulationContext</span></code> class and
+<p>This class inherits from the <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/5.0.0/py/source/extensions/isaacsim.core.api/docs/index.html#isaacsim.core.api.simulation_context.SimulationContext" title="(in Isaac Sim)"><code class="xref py py-class docutils literal notranslate"><span class="pre">isaacsim.core.api.simulation_context.SimulationContext</span></code></a> class and
 adds additional functionalities such as setting up the simulation context with a configuration object,
 exposing other commonly used simulator-related functions, and performing version checks of Isaac Sim
 to ensure compatibility between releases.</p>
@@ -1617,9 +1615,13 @@ if more memory is required. Default is 2 ** 26.</p>
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab.sim.</span></span><span class="sig-name descname"><span class="pre">RenderCfg</span></span><a class="reference internal" href="../../../_modules/isaaclab/sim/simulation_cfg.html#RenderCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.sim.RenderCfg" title="Permalink to this definition">#</a></dt>
 <dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
 <p>Configuration for Omniverse RTX Renderer.</p>
-<p>These parameters are used to configure the Omniverse RTX Renderer. The defaults for IsaacLab are set in the
-experience files: <cite>apps/isaaclab.python.rendering.kit</cite> and <cite>apps/isaaclab.python.headless.rendering.kit</cite>. Setting any
-value here will override the defaults of the experience files.</p>
+<p>These parameters are used to configure the Omniverse RTX Renderer.</p>
+<p>The defaults for IsaacLab are set in the experience files:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">apps/isaaclab.python.rendering.kit</span></code>: Setting used when running the simulation with the GUI enabled.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">apps/isaaclab.python.headless.rendering.kit</span></code>: Setting used when running the simulation in headless mode.</p></li>
+</ul>
+<p>Setting any value here will override the defaults of the experience files.</p>
 <p>For more information, see the <a class="reference external" href="https://docs.omniverse.nvidia.com/materials-and-rendering/latest/rtx-renderer.html">Omniverse RTX Renderer documentation</a>.</p>
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
@@ -1634,7 +1636,7 @@ value here will override the defaults of the experience files.</p>
 <td><p>Enables Diffused Global Illumination at the cost of some performance.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.RenderCfg.antialiasing_mode" title="isaaclab.sim.RenderCfg.antialiasing_mode"><code class="xref py py-obj docutils literal notranslate"><span class="pre">antialiasing_mode</span></code></a></p></td>
-<td><p>Selects the anti-aliasing mode to use. Defaults to DLSS.</p></td>
+<td><p>Selects the anti-aliasing mode to use.</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.RenderCfg.enable_dlssg" title="isaaclab.sim.RenderCfg.enable_dlssg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enable_dlssg</span></code></a></p></td>
 <td><p>&quot;Enables the use of DLSS-G.</p></td>
@@ -1658,10 +1660,10 @@ value here will override the defaults of the experience files.</p>
 <td><p>Enables ambient occlusion at the cost of some performance.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.RenderCfg.carb_settings" title="isaaclab.sim.RenderCfg.carb_settings"><code class="xref py py-obj docutils literal notranslate"><span class="pre">carb_settings</span></code></a></p></td>
-<td><p>Provides a general dictionary for users to supply all carb rendering settings with native names. - Name strings can be formatted like a carb setting, .kit file setting, or python variable. - For instance, a key value pair can be     /rtx/translucency/enabled: False # carb      rtx.translucency.enabled: False # .kit      rtx_translucency_enabled: False # python.</p></td>
+<td><p>A general dictionary for users to supply all carb rendering settings with native names.</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.RenderCfg.rendering_mode" title="isaaclab.sim.RenderCfg.rendering_mode"><code class="xref py py-obj docutils literal notranslate"><span class="pre">rendering_mode</span></code></a></p></td>
-<td><p>Sets the rendering mode.</p></td>
+<td><p>The rendering mode.</p></td>
 </tr>
 </tbody>
 </table>
@@ -1670,120 +1672,117 @@ value here will override the defaults of the experience files.</p>
 <dt class="sig sig-object py" id="isaaclab.sim.RenderCfg.enable_translucency">
 <span class="sig-name descname"><span class="pre">enable_translucency</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab.sim.RenderCfg.enable_translucency" title="Permalink to this definition">#</a></dt>
 <dd><p>Enables translucency for specular transmissive surfaces such as glass at the cost of some performance. Default is False.</p>
-<p>Set variable: /rtx/translucency/enabled</p>
+<p>This is set by the variable: <code class="docutils literal notranslate"><span class="pre">/rtx/translucency/enabled</span></code>.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab.sim.RenderCfg.enable_reflections">
 <span class="sig-name descname"><span class="pre">enable_reflections</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab.sim.RenderCfg.enable_reflections" title="Permalink to this definition">#</a></dt>
 <dd><p>Enables reflections at the cost of some performance. Default is False.</p>
-<p>Set variable: /rtx/reflections/enabled</p>
+<p>This is set by the variable: <code class="docutils literal notranslate"><span class="pre">/rtx/reflections/enabled</span></code>.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab.sim.RenderCfg.enable_global_illumination">
 <span class="sig-name descname"><span class="pre">enable_global_illumination</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab.sim.RenderCfg.enable_global_illumination" title="Permalink to this definition">#</a></dt>
 <dd><p>Enables Diffused Global Illumination at the cost of some performance. Default is False.</p>
-<p>Set variable: /rtx/indirectDiffuse/enabled</p>
+<p>This is set by the variable: <code class="docutils literal notranslate"><span class="pre">/rtx/indirectDiffuse/enabled</span></code>.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab.sim.RenderCfg.antialiasing_mode">
 <span class="sig-name descname"><span class="pre">antialiasing_mode</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.13)"><span class="pre">Literal</span></a><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'Off'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'FXAA'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'DLSS'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'TAA'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'DLAA'</span></span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab.sim.RenderCfg.antialiasing_mode" title="Permalink to this definition">#</a></dt>
-<dd><dl class="simple">
-<dt>Selects the anti-aliasing mode to use. Defaults to DLSS.</dt><dd><ul class="simple">
-<li><p>DLSS: Boosts performance by using AI to output higher resolution frames from a lower resolution input. DLSS samples multiple lower resolution images and uses motion data and feedback from prior frames to reconstruct native quality images.</p></li>
-<li><p>DLAA: Provides higher image quality with an AI-based anti-aliasing technique. DLAA uses the same Super Resolution technology developed for DLSS, reconstructing a native resolution image to maximize image quality.</p></li>
+<dd><p>Selects the anti-aliasing mode to use. Defaults to DLSS.</p>
+<ul class="simple">
+<li><p><strong>DLSS</strong>: Boosts performance by using AI to output higher resolution frames from a lower resolution input.
+DLSS samples multiple lower resolution images and uses motion data and feedback from prior frames to reconstruct
+native quality images.</p></li>
+<li><p><strong>DLAA</strong>: Provides higher image quality with an AI-based anti-aliasing technique. DLAA uses the same Super Resolution
+technology developed for DLSS, reconstructing a native resolution image to maximize image quality.</p></li>
 </ul>
-</dd>
-</dl>
-<p>Set variable: /rtx/post/dlss/execMode</p>
+<p>This is set by the variable: <code class="docutils literal notranslate"><span class="pre">/rtx/post/dlss/execMode</span></code>.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab.sim.RenderCfg.enable_dlssg">
 <span class="sig-name descname"><span class="pre">enable_dlssg</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab.sim.RenderCfg.enable_dlssg" title="Permalink to this definition">#</a></dt>
-<dd><dl class="simple">
-<dt>“Enables the use of DLSS-G.</dt><dd><p>DLSS Frame Generation boosts performance by using AI to generate more frames.
-DLSS analyzes sequential frames and motion data to create additional high quality frames.
-This feature requires an Ada Lovelace architecture GPU.
-Enabling this feature also enables additional thread-related activities, which can hurt performance.
-Default is False.</p>
-</dd>
-</dl>
-<p>Set variable: /rtx-transient/dlssg/enabled</p>
+<dd><p>“Enables the use of DLSS-G. Default is False.</p>
+<p>DLSS Frame Generation boosts performance by using AI to generate more frames. DLSS analyzes sequential frames
+and motion data to create additional high quality frames.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This feature requires an Ada Lovelace architecture GPU. Enabling this feature also enables additional
+thread-related activities, which can hurt performance.</p>
+</div>
+<p>This is set by the variable: <code class="docutils literal notranslate"><span class="pre">/rtx-transient/dlssg/enabled</span></code>.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab.sim.RenderCfg.enable_dl_denoiser">
 <span class="sig-name descname"><span class="pre">enable_dl_denoiser</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab.sim.RenderCfg.enable_dl_denoiser" title="Permalink to this definition">#</a></dt>
-<dd><dl class="simple">
-<dt>Enables the use of a DL denoiser.</dt><dd><p>The DL denoiser can help improve the quality of renders, but comes at a cost of performance.</p>
-</dd>
-</dl>
-<p>Set variable: /rtx-transient/dldenoiser/enabled</p>
+<dd><p>Enables the use of a DL denoiser.</p>
+<p>The DL denoiser can help improve the quality of renders, but comes at a cost of performance.</p>
+<p>This is set by the variable: <code class="docutils literal notranslate"><span class="pre">/rtx-transient/dldenoiser/enabled</span></code>.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab.sim.RenderCfg.dlss_mode">
 <span class="sig-name descname"><span class="pre">dlss_mode</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.13)"><span class="pre">Literal</span></a><span class="p"><span class="pre">[</span></span><span class="m"><span class="pre">0</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="m"><span class="pre">1</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="m"><span class="pre">2</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="m"><span class="pre">3</span></span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab.sim.RenderCfg.dlss_mode" title="Permalink to this definition">#</a></dt>
-<dd><dl class="simple">
-<dt>For DLSS anti-aliasing, selects the performance/quality tradeoff mode.</dt><dd><p>Valid values are 0 (Performance), 1 (Balanced), 2 (Quality), or 3 (Auto). Default is 0.</p>
-</dd>
-</dl>
-<p>Set variable: /rtx/post/dlss/execMode</p>
+<dd><p>For DLSS anti-aliasing, selects the performance/quality tradeoff mode. Default is 0.</p>
+<p>Valid values are:</p>
+<ul class="simple">
+<li><p>0 (Performance)</p></li>
+<li><p>1 (Balanced)</p></li>
+<li><p>2 (Quality)</p></li>
+<li><p>3 (Auto)</p></li>
+</ul>
+<p>This is set by the variable: <code class="docutils literal notranslate"><span class="pre">/rtx/post/dlss/execMode</span></code>.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab.sim.RenderCfg.enable_direct_lighting">
 <span class="sig-name descname"><span class="pre">enable_direct_lighting</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab.sim.RenderCfg.enable_direct_lighting" title="Permalink to this definition">#</a></dt>
-<dd><p>Enable direct light contributions from lights.</p>
-<p>Set variable: /rtx/directLighting/enabled</p>
+<dd><p>Enable direct light contributions from lights. Default is False.</p>
+<p>This is set by the variable: <code class="docutils literal notranslate"><span class="pre">/rtx/directLighting/enabled</span></code>.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab.sim.RenderCfg.samples_per_pixel">
 <span class="sig-name descname"><span class="pre">samples_per_pixel</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab.sim.RenderCfg.samples_per_pixel" title="Permalink to this definition">#</a></dt>
-<dd><dl class="simple">
-<dt>Defines the Direct Lighting samples per pixel.</dt><dd><p>Higher values increase the direct lighting quality at the cost of performance. Default is 1.</p>
-</dd>
-</dl>
-<p>Set variable: /rtx/directLighting/sampledLighting/samplesPerPixel</p>
+<dd><p>Defines the Direct Lighting samples per pixel. Default is 1.</p>
+<p>A higher value increases the direct lighting quality at the cost of performance.</p>
+<p>This is set by the variable: <code class="docutils literal notranslate"><span class="pre">/rtx/directLighting/sampledLighting/samplesPerPixel</span></code>.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab.sim.RenderCfg.enable_shadows">
 <span class="sig-name descname"><span class="pre">enable_shadows</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab.sim.RenderCfg.enable_shadows" title="Permalink to this definition">#</a></dt>
-<dd><p>Enables shadows at the cost of performance. When disabled, lights will not cast shadows. Defaults to True.</p>
-<p>Set variable: /rtx/shadows/enabled</p>
+<dd><p>Enables shadows at the cost of performance. Defaults to True.</p>
+<p>When disabled, lights will not cast shadows.</p>
+<p>This is set by the variable: <code class="docutils literal notranslate"><span class="pre">/rtx/shadows/enabled</span></code>.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab.sim.RenderCfg.enable_ambient_occlusion">
 <span class="sig-name descname"><span class="pre">enable_ambient_occlusion</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab.sim.RenderCfg.enable_ambient_occlusion" title="Permalink to this definition">#</a></dt>
 <dd><p>Enables ambient occlusion at the cost of some performance. Default is False.</p>
-<p>Set variable: /rtx/ambientOcclusion/enabled</p>
+<p>This is set by the variable: <code class="docutils literal notranslate"><span class="pre">/rtx/ambientOcclusion/enabled</span></code>.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab.sim.RenderCfg.carb_settings">
-<span class="sig-name descname"><span class="pre">carb_settings</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><span class="pre">dict</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab.sim.RenderCfg.carb_settings" title="Permalink to this definition">#</a></dt>
-<dd><p>Provides a general dictionary for users to supply all carb rendering settings with native names.
-- Name strings can be formatted like a carb setting, .kit file setting, or python variable.
-- For instance, a key value pair can be</p>
-<blockquote>
-<div><dl class="simple">
-<dt>/rtx/translucency/enabled: False # carb</dt><dd><p>rtx.translucency.enabled: False # .kit
-rtx_translucency_enabled: False # python</p>
-</dd>
-</dl>
-</div></blockquote>
+<span class="sig-name descname"><span class="pre">carb_settings</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.13)"><span class="pre">Any</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab.sim.RenderCfg.carb_settings" title="Permalink to this definition">#</a></dt>
+<dd><p>A general dictionary for users to supply all carb rendering settings with native names.</p>
+<p>The keys of the dictionary can be formatted like a carb setting, .kit file setting, or python variable.
+For instance, a key value pair can be <code class="docutils literal notranslate"><span class="pre">/rtx/translucency/enabled:</span> <span class="pre">False</span></code> (carb), <code class="docutils literal notranslate"><span class="pre">rtx.translucency.enabled:</span> <span class="pre">False</span></code> (.kit),
+or <code class="docutils literal notranslate"><span class="pre">rtx_translucency_enabled:</span> <span class="pre">False</span></code> (python).</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab.sim.RenderCfg.rendering_mode">
 <span class="sig-name descname"><span class="pre">rendering_mode</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.13)"><span class="pre">Literal</span></a><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'performance'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'balanced'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'quality'</span></span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab.sim.RenderCfg.rendering_mode" title="Permalink to this definition">#</a></dt>
-<dd><p>Sets the rendering mode. Behaves the same as the CLI arg ‘–rendering_mode’</p>
+<dd><p>The rendering mode.</p>
+<p>This behaves the same as the passing the CLI arg <code class="docutils literal notranslate"><span class="pre">--rendering_mode</span></code> to an executable script.</p>
 </dd></dl>
 
 </dd></dl>
@@ -1946,7 +1945,7 @@ allows us to set the value of the attributes in these cases.</p>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="isaaclab.sim.utils.apply_nested">
-<span class="sig-prename descclassname"><span class="pre">isaaclab.sim.utils.</span></span><span class="sig-name descname"><span class="pre">apply_nested</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">func</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Callable" title="(in Python v3.13)"><span class="pre">Callable</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Callable" title="(in Python v3.13)"><span class="pre">Callable</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab/sim/utils.html#apply_nested"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.sim.utils.apply_nested" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">isaaclab.sim.utils.</span></span><span class="sig-name descname"><span class="pre">apply_nested</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">func</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://trimesh.org/trimesh.typed.html#trimesh.typed.Callable" title="(in trimesh)"><span class="pre">Callable</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://trimesh.org/trimesh.typed.html#trimesh.typed.Callable" title="(in trimesh)"><span class="pre">Callable</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab/sim/utils.html#apply_nested"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.sim.utils.apply_nested" title="Permalink to this definition">#</a></dt>
 <dd><p>Decorator to apply a function to all prims under a specified prim-path.</p>
 <p>The function iterates over the provided prim path and all its children to apply input function
 to all prims under the specified prim path.</p>
@@ -1974,7 +1973,7 @@ the function succeeded or not.</p>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="isaaclab.sim.utils.clone">
-<span class="sig-prename descclassname"><span class="pre">isaaclab.sim.utils.</span></span><span class="sig-name descname"><span class="pre">clone</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">func</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Callable" title="(in Python v3.13)"><span class="pre">Callable</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Callable" title="(in Python v3.13)"><span class="pre">Callable</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab/sim/utils.html#clone"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.sim.utils.clone" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">isaaclab.sim.utils.</span></span><span class="sig-name descname"><span class="pre">clone</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">func</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://trimesh.org/trimesh.typed.html#trimesh.typed.Callable" title="(in trimesh)"><span class="pre">Callable</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://trimesh.org/trimesh.typed.html#trimesh.typed.Callable" title="(in trimesh)"><span class="pre">Callable</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab/sim/utils.html#clone"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.sim.utils.clone" title="Permalink to this definition">#</a></dt>
 <dd><p>Decorator for cloning a prim based on matching prim paths of the prim’s parent.</p>
 <p>The decorator checks if the parent prim path matches any prim paths in the stage. If so, it clones the
 spawned prim at each matching prim path. For example, if the input prim path is: <code class="docutils literal notranslate"><span class="pre">/World/Table_[0-9]/Bottle</span></code>,
@@ -2560,7 +2559,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Sep 07, 2025.
+  Last updated on Sep 08, 2025.
   <br/>
 </p>
   </div>

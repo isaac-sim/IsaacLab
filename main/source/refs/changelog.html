@@ -63,7 +63,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.2.1" />
-    <meta name="docbuild:last-update" content="Sep 07, 2025"/>
+    <meta name="docbuild:last-update" content="Sep 08, 2025"/>
   </head>
   
   
@@ -395,9 +395,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.app.html">isaaclab.app</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.actuators.html">isaaclab.actuators</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.assets.html">isaaclab.assets</a></li>
-<li class="toctree-l2 has-children"><a class="reference internal" href="../api/lab/isaaclab.controllers.html">isaaclab.controllers</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="simple">
-</ul>
-</details></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.controllers.html">isaaclab.controllers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.devices.html">isaaclab.devices</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.envs.html">isaaclab.envs</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.managers.html">isaaclab.managers</a></li>
@@ -2816,7 +2814,7 @@ this changelog to make it easier to find the changelog for a specific extension.
 <section id="changed">
 <h4>Changed<a class="headerlink" href="#changed" title="Permalink to this heading">#</a></h4>
 <ul class="simple">
-<li><p>Added AssetBase inheritance for <code class="xref py py-class docutils literal notranslate"><span class="pre">SurfaceGripper</span></code></p></li>
+<li><p>Added AssetBase inheritance for <code class="xref py py-class docutils literal notranslate"><span class="pre">SurfaceGripper</span></code>.</p></li>
 </ul>
 </section>
 </section>
@@ -2870,7 +2868,7 @@ to control whether the keyboard device should return a gripper command.</p></li>
 <section id="id9">
 <h4>Added<a class="headerlink" href="#id9" title="Permalink to this heading">#</a></h4>
 <ul class="simple">
-<li><p>Created <code class="xref py py-attr docutils literal notranslate"><span class="pre">target_eef_link_names</span></code> to <code class="xref py py-class docutils literal notranslate"><span class="pre">PinkIKControllerCfg</span></code>
+<li><p>Created <code class="xref py py-attr docutils literal notranslate"><span class="pre">target_eef_link_names</span></code> to <a class="reference internal" href="../api/lab/isaaclab.controllers.html#isaaclab.controllers.pink_ik.PinkIKControllerCfg" title="isaaclab.controllers.pink_ik.PinkIKControllerCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">PinkIKControllerCfg</span></code></a>
 to specify the target end-effector link names for the pink inverse kinematics controller.</p></li>
 </ul>
 </section>
@@ -2882,7 +2880,7 @@ to increase end-effector tracking accuracy and speed. Also added a null-space re
 <li><p>Improved the test_pink_ik script to more comprehensive test on controller accuracy. Also, migrated to use pytest. With the current IK controller
 improvements, our unit tests pass position and orientation accuracy test within <strong>(1 mm, 1 degree)</strong>. Previously, the position accuracy tolerances
 were set to <strong>(30 mm, 10 degrees)</strong>.</p></li>
-<li><p>Included a new config parameter <code class="xref py py-attr docutils literal notranslate"><span class="pre">fail_on_ik_error</span></code> to <code class="xref py py-class docutils literal notranslate"><span class="pre">PinkIKControllerCfg</span></code>
+<li><p>Included a new config parameter <code class="xref py py-attr docutils literal notranslate"><span class="pre">fail_on_ik_error</span></code> to <a class="reference internal" href="../api/lab/isaaclab.controllers.html#isaaclab.controllers.pink_ik.PinkIKControllerCfg" title="isaaclab.controllers.pink_ik.PinkIKControllerCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">PinkIKControllerCfg</span></code></a>
 to control whether the IK controller raise an exception if robot joint limits are exceeded. In the case of an exception, the controller will hold the
 last joint position. This adds to stability of the controller and avoids operator experiencing what is perceived as sudden large delays in robot control.</p></li>
 </ul>
@@ -3004,10 +3002,10 @@ locations.</p></li>
 <section id="id33">
 <h4>Fixed<a class="headerlink" href="#id33" title="Permalink to this heading">#</a></h4>
 <ul class="simple">
-<li><p>Fixed the old termination manager in <a class="reference internal" href="../api/lab/isaaclab.managers.html#isaaclab.managers.TerminationManager" title="isaaclab.managers.TerminationManager"><code class="xref py py-class docutils literal notranslate"><span class="pre">TerminationManager</span></code></a> term_done logging that logs the</p></li>
+<li><p>Fixed the old termination manager in <a class="reference internal" href="../api/lab/isaaclab.managers.html#isaaclab.managers.TerminationManager" title="isaaclab.managers.TerminationManager"><code class="xref py py-class docutils literal notranslate"><span class="pre">TerminationManager</span></code></a> term_done logging that
+logs the instantaneous term done count at reset. This let to inaccurate aggregation of termination count,
+obscuring the what really happening during the training. Instead we log the episodic term done.</p></li>
 </ul>
-<p>instantaneous term done count at reset. This let to inaccurate aggregation of termination count, obscuring the what really
-happeningduring the traing. Instead we log the episodic term done.</p>
 </section>
 </section>
 <section id="id34">
@@ -5990,7 +5988,7 @@ provided by Isaac Sim to the ones provided in Isaac Lab’s <code class="docutil
 <h4>Fixed<a class="headerlink" href="#id562" title="Permalink to this heading">#</a></h4>
 <ul class="simple">
 <li><p>Fixed the env origins in <code class="xref py py-meth docutils literal notranslate"><span class="pre">_compute_env_origins_grid()</span></code> of <code class="xref py py-class docutils literal notranslate"><span class="pre">isaaclab.terrain.TerrainImporter</span></code>
-to match that obtained from the Isaac Sim <code class="xref py py-class docutils literal notranslate"><span class="pre">isaacsim.core.cloner.GridCloner</span></code> class.</p></li>
+to match that obtained from the Isaac Sim <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/5.0.0/py/source/extensions/isaacsim.core.cloner/docs/index.html#isaacsim.core.cloner.GridCloner" title="(in Isaac Sim)"><code class="xref py py-class docutils literal notranslate"><span class="pre">isaacsim.core.cloner.GridCloner</span></code></a> class.</p></li>
 </ul>
 </section>
 <section id="id563">
@@ -7559,7 +7557,7 @@ prim at the next available prim path if a prim already exists at the given path.
 <h4>Added<a class="headerlink" href="#id826" title="Permalink to this heading">#</a></h4>
 <ul class="simple">
 <li><p>Added the <a class="reference internal" href="../api/lab/isaaclab.sim.html#isaaclab.sim.SimulationContext" title="isaaclab.sim.SimulationContext"><code class="xref py py-class docutils literal notranslate"><span class="pre">isaaclab.sim.SimulationContext</span></code></a> class to the <a class="reference internal" href="../api/lab/isaaclab.sim.html#module-isaaclab.sim" title="isaaclab.sim"><code class="xref py py-mod docutils literal notranslate"><span class="pre">isaaclab.sim</span></code></a> module.
-This class inherits from the <code class="xref py py-class docutils literal notranslate"><span class="pre">isaacsim.core.api.simulation_context.SimulationContext</span></code> class and adds
+This class inherits from the <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/5.0.0/py/source/extensions/isaacsim.core.api/docs/index.html#isaacsim.core.api.simulation_context.SimulationContext" title="(in Isaac Sim)"><code class="xref py py-class docutils literal notranslate"><span class="pre">isaacsim.core.api.simulation_context.SimulationContext</span></code></a> class and adds
 the ability to create a simulation context from a configuration object.</p></li>
 </ul>
 </section>
@@ -11340,7 +11338,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Sep 07, 2025.
+  Last updated on Sep 08, 2025.
   <br/>
 </p>
   </div>

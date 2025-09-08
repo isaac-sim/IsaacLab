@@ -63,7 +63,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.0.0" />
-    <meta name="docbuild:last-update" content="Sep 07, 2025"/>
+    <meta name="docbuild:last-update" content="Sep 08, 2025"/>
   </head>
   
   
@@ -786,7 +786,7 @@ as a feature request elaborating on the required application.</p>
 <dl class="py class">
 <dt class="sig sig-object py" id="isaaclab.sim.SimulationContext">
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab.sim.</span></span><span class="sig-name descname"><span class="pre">SimulationContext</span></span><a class="reference internal" href="../../../_modules/isaaclab/sim/simulation_context.html#SimulationContext"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.sim.SimulationContext" title="Permalink to this definition">#</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">SimulationContext</span></code></p>
+<dd><p>Bases: <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/5.0.0/py/source/extensions/isaacsim.core.api/docs/index.html#isaacsim.core.api.simulation_context.SimulationContext" title="(in Isaac Sim)"><code class="xref py py-class docutils literal notranslate"><span class="pre">SimulationContext</span></code></a></p>
 <p>A class to control simulation-related events such as physics stepping and rendering.</p>
 <p>The simulation context helps control various simulation aspects. This includes:</p>
 <ul class="simple">
@@ -795,7 +795,7 @@ and the physics solver parameters (for more information, see <a class="reference
 <li><p>playing, pausing, stepping and stopping the simulation</p></li>
 <li><p>adding and removing callbacks to different simulation events such as physics stepping, rendering, etc.</p></li>
 </ul>
-<p>This class inherits from the <code class="xref py py-class docutils literal notranslate"><span class="pre">isaacsim.core.api.simulation_context.SimulationContext</span></code> class and
+<p>This class inherits from the <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/5.0.0/py/source/extensions/isaacsim.core.api/docs/index.html#isaacsim.core.api.simulation_context.SimulationContext" title="(in Isaac Sim)"><code class="xref py py-class docutils literal notranslate"><span class="pre">isaacsim.core.api.simulation_context.SimulationContext</span></code></a> class and
 adds additional functionalities such as setting up the simulation context with a configuration object,
 exposing other commonly used simulator-related functions, and performing version checks of Isaac Sim
 to ensure compatibility between releases.</p>
@@ -1801,7 +1801,7 @@ allows us to set the value of the attributes in these cases.</p>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="isaaclab.sim.utils.apply_nested">
-<span class="sig-prename descclassname"><span class="pre">isaaclab.sim.utils.</span></span><span class="sig-name descname"><span class="pre">apply_nested</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">func</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Callable" title="(in Python v3.13)"><span class="pre">Callable</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Callable" title="(in Python v3.13)"><span class="pre">Callable</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab/sim/utils.html#apply_nested"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.sim.utils.apply_nested" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">isaaclab.sim.utils.</span></span><span class="sig-name descname"><span class="pre">apply_nested</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">func</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://trimesh.org/trimesh.typed.html#trimesh.typed.Callable" title="(in trimesh)"><span class="pre">Callable</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://trimesh.org/trimesh.typed.html#trimesh.typed.Callable" title="(in trimesh)"><span class="pre">Callable</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab/sim/utils.html#apply_nested"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.sim.utils.apply_nested" title="Permalink to this definition">#</a></dt>
 <dd><p>Decorator to apply a function to all prims under a specified prim-path.</p>
 <p>The function iterates over the provided prim path and all its children to apply input function
 to all prims under the specified prim path.</p>
@@ -1829,7 +1829,7 @@ the function succeeded or not.</p>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="isaaclab.sim.utils.clone">
-<span class="sig-prename descclassname"><span class="pre">isaaclab.sim.utils.</span></span><span class="sig-name descname"><span class="pre">clone</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">func</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Callable" title="(in Python v3.13)"><span class="pre">Callable</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Callable" title="(in Python v3.13)"><span class="pre">Callable</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab/sim/utils.html#clone"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.sim.utils.clone" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">isaaclab.sim.utils.</span></span><span class="sig-name descname"><span class="pre">clone</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">func</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://trimesh.org/trimesh.typed.html#trimesh.typed.Callable" title="(in trimesh)"><span class="pre">Callable</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://trimesh.org/trimesh.typed.html#trimesh.typed.Callable" title="(in trimesh)"><span class="pre">Callable</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab/sim/utils.html#clone"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.sim.utils.clone" title="Permalink to this definition">#</a></dt>
 <dd><p>Decorator for cloning a prim based on matching prim paths of the prim’s parent.</p>
 <p>The decorator checks if the parent prim path matches any prim paths in the stage. If so, it clones the
 spawned prim at each matching prim path. For example, if the input prim path is: <code class="docutils literal notranslate"><span class="pre">/World/Table_[0-9]/Bottle</span></code>,
@@ -2319,7 +2319,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Sep 07, 2025.
+  Last updated on Sep 08, 2025.
   <br/>
 </p>
   </div>

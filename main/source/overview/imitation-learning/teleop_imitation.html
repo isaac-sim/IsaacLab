@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.2.1" />
-    <meta name="docbuild:last-update" content="Sep 07, 2025"/>
+    <meta name="docbuild:last-update" content="Sep 08, 2025"/>
   </head>
   
   
@@ -393,9 +393,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.app.html">isaaclab.app</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.actuators.html">isaaclab.actuators</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.assets.html">isaaclab.assets</a></li>
-<li class="toctree-l2 has-children"><a class="reference internal" href="../../api/lab/isaaclab.controllers.html">isaaclab.controllers</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="simple">
-</ul>
-</details></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.controllers.html">isaaclab.controllers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.devices.html">isaaclab.devices</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.envs.html">isaaclab.envs</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.managers.html">isaaclab.managers</a></li>
@@ -667,7 +665,7 @@
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#demo-2-visuomotor-policy-for-a-humanoid-robot">Demo 2: Visuomotor Policy for a Humanoid Robot</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#download-the-dataset">Download the Dataset</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id3">Train a policy</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id1">Train a policy</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#visualize-results-demo-2">Visualize the results</a></li>
 </ul>
 </li>
@@ -1112,10 +1110,10 @@ Record the normalization parameters for later use in the visualization step.</p>
 <p class="admonition-title">Note</p>
 <p>Change the <code class="docutils literal notranslate"><span class="pre">NORM_FACTOR</span></code> in the above command with the values generated in the training step.</p>
 </div>
-<figure class="align-center" id="id5">
+<figure class="align-center" id="id3">
 <a class="reference internal image-reference" href="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/gr-1_steering_wheel_pick_place_policy.gif"><img alt="GR-1 humanoid robot performing a pick and place task" src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/gr-1_steering_wheel_pick_place_policy.gif" style="width: 100%;" /></a>
 <figcaption>
-<p><span class="caption-text">The trained policy performing the pick and place task in Isaac Lab.</span><a class="headerlink" href="#id5" title="Permalink to this image">#</a></p>
+<p><span class="caption-text">The trained policy performing the pick and place task in Isaac Lab.</span><a class="headerlink" href="#id3" title="Permalink to this image">#</a></p>
 </figcaption>
 </figure>
 </section>
@@ -1175,8 +1173,8 @@ Make sure to annotate the right eef subtasks with different action indices.</p>
 </div>
 </div>
 </section>
-<section id="id3">
-<h3>Train a policy<a class="headerlink" href="#id3" title="Permalink to this heading">#</a></h3>
+<section id="id1">
+<h3>Train a policy<a class="headerlink" href="#id1" title="Permalink to this heading">#</a></h3>
 <p>Use <a class="reference external" href="https://robomimic.github.io/">Robomimic</a> to train a visuomotor BC agent for the task.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/imitation_learning/robomimic/train.py<span class="w"> </span><span class="se">\</span>
 --task<span class="w"> </span>Isaac-NutPour-GR1T2-Pink-IK-Abs-v0<span class="w"> </span>--algo<span class="w"> </span>bc<span class="w"> </span><span class="se">\</span>
@@ -1193,7 +1191,7 @@ Record the normalization parameters for later use in the visualization step.</p>
 </div>
 </section>
 <section id="visualize-results-demo-2">
-<span id="id4"></span><h3>Visualize the results<a class="headerlink" href="#visualize-results-demo-2" title="Permalink to this heading">#</a></h3>
+<span id="id2"></span><h3>Visualize the results<a class="headerlink" href="#visualize-results-demo-2" title="Permalink to this heading">#</a></h3>
 <p>Visualize the results of the trained policy by running the following command, using the normalization parameters recorded in the prior training step:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/imitation_learning/robomimic/play.py<span class="w"> </span><span class="se">\</span>
 --device<span class="w"> </span>cpu<span class="w"> </span><span class="se">\</span>
@@ -1212,10 +1210,10 @@ Record the normalization parameters for later use in the visualization step.</p>
 <p class="admonition-title">Note</p>
 <p>Change the <code class="docutils literal notranslate"><span class="pre">NORM_FACTOR</span></code> in the above command with the values generated in the training step.</p>
 </div>
-<figure class="align-center" id="id6">
+<figure class="align-center" id="id4">
 <a class="reference internal image-reference" href="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/gr-1_nut_pouring_policy.gif"><img alt="GR-1 humanoid robot performing a pouring task" src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/gr-1_nut_pouring_policy.gif" style="width: 100%;" /></a>
 <figcaption>
-<p><span class="caption-text">The trained visuomotor policy performing the pouring task in Isaac Lab.</span><a class="headerlink" href="#id6" title="Permalink to this image">#</a></p>
+<p><span class="caption-text">The trained visuomotor policy performing the pouring task in Isaac Lab.</span><a class="headerlink" href="#id4" title="Permalink to this image">#</a></p>
 </figcaption>
 </figure>
 </section>
@@ -1403,7 +1401,7 @@ smooth and natural.</p>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#demo-2-visuomotor-policy-for-a-humanoid-robot">Demo 2: Visuomotor Policy for a Humanoid Robot</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#download-the-dataset">Download the Dataset</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id3">Train a policy</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id1">Train a policy</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#visualize-results-demo-2">Visualize the results</a></li>
 </ul>
 </li>
@@ -1454,7 +1452,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Sep 07, 2025.
+  Last updated on Sep 08, 2025.
   <br/>
 </p>
   </div>

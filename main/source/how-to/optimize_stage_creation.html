@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.2.1" />
-    <meta name="docbuild:last-update" content="Sep 07, 2025"/>
+    <meta name="docbuild:last-update" content="Sep 08, 2025"/>
   </head>
   
   
@@ -393,9 +393,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.app.html">isaaclab.app</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.actuators.html">isaaclab.actuators</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.assets.html">isaaclab.assets</a></li>
-<li class="toctree-l2 has-children"><a class="reference internal" href="../api/lab/isaaclab.controllers.html">isaaclab.controllers</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="simple">
-</ul>
-</details></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.controllers.html">isaaclab.controllers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.devices.html">isaaclab.devices</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.envs.html">isaaclab.envs</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.managers.html">isaaclab.managers</a></li>
@@ -679,7 +677,7 @@ These features are particularly effective for large-scale RL setups with thousan
 </section>
 <section id="usage-examples">
 <h2>Usage Examples<a class="headerlink" href="#usage-examples" title="Permalink to this heading">#</a></h2>
-<p>Fabric cloning can be toggled by setting the <code class="docutils literal notranslate"><span class="pre">clone_in_fabric</span></code> flag in the <code class="docutils literal notranslate"><span class="pre">InteractiveSceneCfg</span></code> configuration.</p>
+<p>Fabric cloning can be toggled by setting the <a class="reference internal" href="../api/lab/isaaclab.scene.html#isaaclab.scene.InteractiveSceneCfg.clone_in_fabric" title="isaaclab.scene.InteractiveSceneCfg.clone_in_fabric"><code class="xref py py-attr docutils literal notranslate"><span class="pre">isaaclab.scene.InteractiveSceneCfg.clone_in_fabric</span></code></a> flag.</p>
 <p><strong>Using Fabric Cloning with a RL environment</strong></p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># create environment configuration</span>
 <span class="n">env_cfg</span> <span class="o">=</span> <span class="n">CartpoleEnvCfg</span><span class="p">()</span>
@@ -688,7 +686,7 @@ These features are particularly effective for large-scale RL setups with thousan
 <span class="n">env</span> <span class="o">=</span> <span class="n">ManagerBasedRLEnv</span><span class="p">(</span><span class="n">cfg</span><span class="o">=</span><span class="n">env_cfg</span><span class="p">)</span>
 </pre></div>
 </div>
-<p>Stage in memory can be toggled by setting the <code class="docutils literal notranslate"><span class="pre">create_stage_in_memory</span></code> in the <code class="docutils literal notranslate"><span class="pre">SimulationCfg</span></code> configuration.</p>
+<p>Stage in memory can be toggled by setting the <a class="reference internal" href="../api/lab/isaaclab.sim.html#isaaclab.sim.SimulationCfg.create_stage_in_memory" title="isaaclab.sim.SimulationCfg.create_stage_in_memory"><code class="xref py py-attr docutils literal notranslate"><span class="pre">isaaclab.sim.SimulationCfg.create_stage_in_memory</span></code></a> flag.</p>
 <p><strong>Using Stage in Memory with a RL environment</strong></p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># create config and set flag</span>
 <span class="n">cfg</span> <span class="o">=</span> <span class="n">CartpoleEnvCfg</span><span class="p">()</span>
@@ -699,8 +697,9 @@ These features are particularly effective for large-scale RL setups with thousan
 </pre></div>
 </div>
 <p>Note, if stage in memory is enabled without using an existing RL environment class, a few more steps are need.
-The stage creation steps should be wrapped in a <code class="docutils literal notranslate"><span class="pre">with</span></code> statement to set the stage context.
-If the stage needs to be attached, the <code class="docutils literal notranslate"><span class="pre">attach_stage_to_usd_context</span></code> function should be called after the stage is created.</p>
+The stage creation steps should be wrapped in a <a class="reference external" href="https://docs.python.org/3/reference/compound_stmts.html#with" title="(in Python v3.13)"><code class="xref std std-keyword docutils literal notranslate"><span class="pre">with</span></code></a> statement to set the stage context.
+If the stage needs to be attached, the <a class="reference internal" href="../api/lab/isaaclab.sim.html#isaaclab.sim.utils.attach_stage_to_usd_context" title="isaaclab.sim.utils.attach_stage_to_usd_context"><code class="xref py py-meth docutils literal notranslate"><span class="pre">attach_stage_to_usd_context()</span></code></a> function should
+be called after the stage is created.</p>
 <p><strong>Using Stage in Memory with a manual scene setup</strong></p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># init simulation context with stage in memory</span>
 <span class="n">sim</span> <span class="o">=</span> <span class="n">SimulationContext</span><span class="p">(</span><span class="n">cfg</span><span class="o">=</span><span class="n">SimulationCfg</span><span class="p">(</span><span class="n">create_stage_in_memory</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span>
@@ -911,7 +910,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Sep 07, 2025.
+  Last updated on Sep 08, 2025.
   <br/>
 </p>
   </div>

@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.2.1" />
-    <meta name="docbuild:last-update" content="Sep 07, 2025"/>
+    <meta name="docbuild:last-update" content="Sep 08, 2025"/>
   </head>
   
   
@@ -393,9 +393,7 @@
 <li class="toctree-l2"><a class="reference internal" href="isaaclab.app.html">isaaclab.app</a></li>
 <li class="toctree-l2"><a class="reference internal" href="isaaclab.actuators.html">isaaclab.actuators</a></li>
 <li class="toctree-l2"><a class="reference internal" href="isaaclab.assets.html">isaaclab.assets</a></li>
-<li class="toctree-l2 has-children"><a class="reference internal" href="isaaclab.controllers.html">isaaclab.controllers</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="simple">
-</ul>
-</details></li>
+<li class="toctree-l2"><a class="reference internal" href="isaaclab.controllers.html">isaaclab.controllers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="isaaclab.devices.html">isaaclab.devices</a></li>
 <li class="toctree-l2"><a class="reference internal" href="isaaclab.envs.html">isaaclab.envs</a></li>
 <li class="toctree-l2"><a class="reference internal" href="isaaclab.managers.html">isaaclab.managers</a></li>
@@ -2945,9 +2943,9 @@ individual axis is performed equally. If it is a dictionary, the scaling is inde
 The keys of the dictionary are <code class="docutils literal notranslate"><span class="pre">x</span></code>, <code class="docutils literal notranslate"><span class="pre">y</span></code>, and <code class="docutils literal notranslate"><span class="pre">z</span></code>. The values are tuples of the form <code class="docutils literal notranslate"><span class="pre">(min,</span> <span class="pre">max)</span></code>.</p>
 <p>If the dictionary does not contain a key, the range is set to one for that axis.</p>
 <p>Relative child path can be used to randomize the scale of a specific child prim of the asset.
-For example, if the asset at prim path expression “/World/envs/<a href="#id4"><span class="problematic" id="id5">env_</span></a>.*/Object” has a child
-with the path “/World/envs/<a href="#id6"><span class="problematic" id="id7">env_</span></a>.*/Object/mesh”, then the relative child path should be “mesh” or
-“/mesh”.</p>
+For example, if the asset at prim path expression <code class="docutils literal notranslate"><span class="pre">/World/envs/env_.*/Object</span></code> has a child
+with the path <code class="docutils literal notranslate"><span class="pre">/World/envs/env_.*/Object/mesh</span></code>, then the relative child path should be <code class="docutils literal notranslate"><span class="pre">mesh</span></code> or
+<code class="docutils literal notranslate"><span class="pre">/mesh</span></code>.</p>
 <div class="admonition attention">
 <p class="admonition-title">Attention</p>
 <p>Since this function modifies USD properties that are parsed by the physics engine once the simulation
@@ -5313,7 +5311,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Sep 07, 2025.
+  Last updated on Sep 08, 2025.
   <br/>
 </p>
   </div>

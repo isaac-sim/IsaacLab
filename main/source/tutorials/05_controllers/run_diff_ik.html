@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.2.1" />
-    <meta name="docbuild:last-update" content="Sep 07, 2025"/>
+    <meta name="docbuild:last-update" content="Sep 08, 2025"/>
   </head>
   
   
@@ -393,9 +393,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.app.html">isaaclab.app</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.actuators.html">isaaclab.actuators</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.assets.html">isaaclab.assets</a></li>
-<li class="toctree-l2 has-children"><a class="reference internal" href="../../api/lab/isaaclab.controllers.html">isaaclab.controllers</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="simple">
-</ul>
-</details></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.controllers.html">isaaclab.controllers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.devices.html">isaaclab.devices</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.envs.html">isaaclab.envs</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.managers.html">isaaclab.managers</a></li>
@@ -937,7 +935,7 @@ user to provide the necessary information about the robot. This includes the rob
 joint positions, current end-effector pose, and the Jacobian matrix.</p>
 <p>While the attribute <a class="reference internal" href="../../api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.joint_pos" title="isaaclab.assets.ArticulationData.joint_pos"><code class="xref py py-attr docutils literal notranslate"><span class="pre">assets.ArticulationData.joint_pos</span></code></a> provides the joint positions,
 we only want the joint positions of the robot’s arm, and not the gripper. Similarly, while
-the attribute <code class="xref py py-attr docutils literal notranslate"><span class="pre">assets.Articulationdata.body_state_w</span></code> provides the state of all the
+the attribute <a class="reference internal" href="../../api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.body_state_w" title="isaaclab.assets.ArticulationData.body_state_w"><code class="xref py py-attr docutils literal notranslate"><span class="pre">assets.ArticulationData.body_state_w</span></code></a> provides the state of all the
 robot’s bodies, we only want the state of the robot’s end-effector. Thus, we need to
 index into these arrays to obtain the desired quantities.</p>
 <p>For this, the articulation class provides the methods <a class="reference internal" href="../../api/lab/isaaclab.assets.html#isaaclab.assets.Articulation.find_joints" title="isaaclab.assets.Articulation.find_joints"><code class="xref py py-meth docutils literal notranslate"><span class="pre">find_joints()</span></code></a>
@@ -1112,7 +1110,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Sep 07, 2025.
+  Last updated on Sep 08, 2025.
   <br/>
 </p>
   </div>

@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.2.1" />
-    <meta name="docbuild:last-update" content="Sep 07, 2025"/>
+    <meta name="docbuild:last-update" content="Sep 08, 2025"/>
   </head>
   
   
@@ -392,9 +392,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab/isaaclab.app.html">isaaclab.app</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab/isaaclab.actuators.html">isaaclab.actuators</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab/isaaclab.assets.html">isaaclab.assets</a></li>
-<li class="toctree-l2 has-children"><a class="reference internal" href="../../../source/api/lab/isaaclab.controllers.html">isaaclab.controllers</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="simple">
-</ul>
-</details></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab/isaaclab.controllers.html">isaaclab.controllers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab/isaaclab.devices.html">isaaclab.devices</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab/isaaclab.envs.html">isaaclab.envs</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab/isaaclab.managers.html">isaaclab.managers</a></li>
@@ -592,7 +590,7 @@
 <span class="sd">configuring the environment instances, viewer settings, and simulation parameters.</span>
 <span class="sd">&quot;&quot;&quot;</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Literal</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Literal</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">configclass</span>
 
@@ -748,9 +746,14 @@
 <span class="k">class</span><span class="w"> </span><span class="nc">RenderCfg</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for Omniverse RTX Renderer.</span>
 
-<span class="sd">    These parameters are used to configure the Omniverse RTX Renderer. The defaults for IsaacLab are set in the</span>
-<span class="sd">    experience files: `apps/isaaclab.python.rendering.kit` and `apps/isaaclab.python.headless.rendering.kit`. Setting any</span>
-<span class="sd">    value here will override the defaults of the experience files.</span>
+<span class="sd">    These parameters are used to configure the Omniverse RTX Renderer.</span>
+
+<span class="sd">    The defaults for IsaacLab are set in the experience files:</span>
+
+<span class="sd">    * ``apps/isaaclab.python.rendering.kit``: Setting used when running the simulation with the GUI enabled.</span>
+<span class="sd">    * ``apps/isaaclab.python.headless.rendering.kit``: Setting used when running the simulation in headless mode.</span>
+
+<span class="sd">    Setting any value here will override the defaults of the experience files.</span>
 
 <span class="sd">    For more information, see the `Omniverse RTX Renderer documentation`_.</span>
 
@@ -760,88 +763,109 @@
     <span class="n">enable_translucency</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Enables translucency for specular transmissive surfaces such as glass at the cost of some performance. Default is False.</span>
 
-<span class="sd">    Set variable: /rtx/translucency/enabled</span>
+<span class="sd">    This is set by the variable: ``/rtx/translucency/enabled``.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">enable_reflections</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Enables reflections at the cost of some performance. Default is False.</span>
 
-<span class="sd">    Set variable: /rtx/reflections/enabled</span>
+<span class="sd">    This is set by the variable: ``/rtx/reflections/enabled``.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">enable_global_illumination</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Enables Diffused Global Illumination at the cost of some performance. Default is False.</span>
 
-<span class="sd">    Set variable: /rtx/indirectDiffuse/enabled</span>
+<span class="sd">    This is set by the variable: ``/rtx/indirectDiffuse/enabled``.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">antialiasing_mode</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;Off&quot;</span><span class="p">,</span> <span class="s2">&quot;FXAA&quot;</span><span class="p">,</span> <span class="s2">&quot;DLSS&quot;</span><span class="p">,</span> <span class="s2">&quot;TAA&quot;</span><span class="p">,</span> <span class="s2">&quot;DLAA&quot;</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Selects the anti-aliasing mode to use. Defaults to DLSS.</span>
-<span class="sd">       - DLSS: Boosts performance by using AI to output higher resolution frames from a lower resolution input. DLSS samples multiple lower resolution images and uses motion data and feedback from prior frames to reconstruct native quality images.</span>
-<span class="sd">       - DLAA: Provides higher image quality with an AI-based anti-aliasing technique. DLAA uses the same Super Resolution technology developed for DLSS, reconstructing a native resolution image to maximize image quality.</span>
 
-<span class="sd">    Set variable: /rtx/post/dlss/execMode</span>
+<span class="sd">    - **DLSS**: Boosts performance by using AI to output higher resolution frames from a lower resolution input.</span>
+<span class="sd">      DLSS samples multiple lower resolution images and uses motion data and feedback from prior frames to reconstruct</span>
+<span class="sd">      native quality images.</span>
+<span class="sd">    - **DLAA**: Provides higher image quality with an AI-based anti-aliasing technique. DLAA uses the same Super Resolution</span>
+<span class="sd">      technology developed for DLSS, reconstructing a native resolution image to maximize image quality.</span>
+
+<span class="sd">    This is set by the variable: ``/rtx/post/dlss/execMode``.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">enable_dlssg</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;&quot;Enables the use of DLSS-G.</span>
-<span class="sd">        DLSS Frame Generation boosts performance by using AI to generate more frames.</span>
-<span class="sd">        DLSS analyzes sequential frames and motion data to create additional high quality frames.</span>
-<span class="sd">        This feature requires an Ada Lovelace architecture GPU.</span>
-<span class="sd">        Enabling this feature also enables additional thread-related activities, which can hurt performance.</span>
-<span class="sd">        Default is False.</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;&quot;Enables the use of DLSS-G. Default is False.</span>
 
-<span class="sd">    Set variable: /rtx-transient/dlssg/enabled</span>
+<span class="sd">    DLSS Frame Generation boosts performance by using AI to generate more frames. DLSS analyzes sequential frames</span>
+<span class="sd">    and motion data to create additional high quality frames.</span>
+
+<span class="sd">    .. note::</span>
+
+<span class="sd">        This feature requires an Ada Lovelace architecture GPU. Enabling this feature also enables additional</span>
+<span class="sd">        thread-related activities, which can hurt performance.</span>
+
+<span class="sd">    This is set by the variable: ``/rtx-transient/dlssg/enabled``.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">enable_dl_denoiser</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Enables the use of a DL denoiser.</span>
-<span class="sd">       The DL denoiser can help improve the quality of renders, but comes at a cost of performance.</span>
 
-<span class="sd">    Set variable: /rtx-transient/dldenoiser/enabled</span>
+<span class="sd">    The DL denoiser can help improve the quality of renders, but comes at a cost of performance.</span>
+
+<span class="sd">    This is set by the variable: ``/rtx-transient/dldenoiser/enabled``.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">dlss_mode</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;For DLSS anti-aliasing, selects the performance/quality tradeoff mode.</span>
-<span class="sd">       Valid values are 0 (Performance), 1 (Balanced), 2 (Quality), or 3 (Auto). Default is 0.</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;For DLSS anti-aliasing, selects the performance/quality tradeoff mode. Default is 0.</span>
 
-<span class="sd">    Set variable: /rtx/post/dlss/execMode</span>
+<span class="sd">    Valid values are:</span>
+
+<span class="sd">    * 0 (Performance)</span>
+<span class="sd">    * 1 (Balanced)</span>
+<span class="sd">    * 2 (Quality)</span>
+<span class="sd">    * 3 (Auto)</span>
+
+<span class="sd">    This is set by the variable: ``/rtx/post/dlss/execMode``.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">enable_direct_lighting</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Enable direct light contributions from lights.</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Enable direct light contributions from lights. Default is False.</span>
 
-<span class="sd">    Set variable: /rtx/directLighting/enabled</span>
+<span class="sd">    This is set by the variable: ``/rtx/directLighting/enabled``.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">samples_per_pixel</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Defines the Direct Lighting samples per pixel.</span>
-<span class="sd">       Higher values increase the direct lighting quality at the cost of performance. Default is 1.</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Defines the Direct Lighting samples per pixel. Default is 1.</span>
 
-<span class="sd">    Set variable: /rtx/directLighting/sampledLighting/samplesPerPixel&quot;&quot;&quot;</span>
+<span class="sd">    A higher value increases the direct lighting quality at the cost of performance.</span>
+
+<span class="sd">    This is set by the variable: ``/rtx/directLighting/sampledLighting/samplesPerPixel``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">enable_shadows</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Enables shadows at the cost of performance. When disabled, lights will not cast shadows. Defaults to True.</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Enables shadows at the cost of performance. Defaults to True.</span>
 
-<span class="sd">    Set variable: /rtx/shadows/enabled</span>
+<span class="sd">    When disabled, lights will not cast shadows.</span>
+
+<span class="sd">    This is set by the variable: ``/rtx/shadows/enabled``.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">enable_ambient_occlusion</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Enables ambient occlusion at the cost of some performance. Default is False.</span>
 
-<span class="sd">    Set variable: /rtx/ambientOcclusion/enabled</span>
+<span class="sd">    This is set by the variable: ``/rtx/ambientOcclusion/enabled``.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">carb_settings</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Provides a general dictionary for users to supply all carb rendering settings with native names.</span>
-<span class="sd">        - Name strings can be formatted like a carb setting, .kit file setting, or python variable.</span>
-<span class="sd">        - For instance, a key value pair can be</span>
-<span class="sd">            /rtx/translucency/enabled: False # carb</span>
-<span class="sd">             rtx.translucency.enabled: False # .kit</span>
-<span class="sd">             rtx_translucency_enabled: False # python&quot;&quot;&quot;</span>
+    <span class="n">carb_settings</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;A general dictionary for users to supply all carb rendering settings with native names.</span>
+
+<span class="sd">    The keys of the dictionary can be formatted like a carb setting, .kit file setting, or python variable.</span>
+<span class="sd">    For instance, a key value pair can be ``/rtx/translucency/enabled: False`` (carb), ``rtx.translucency.enabled: False`` (.kit),</span>
+<span class="sd">    or ``rtx_translucency_enabled: False`` (python).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">rendering_mode</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;performance&quot;</span><span class="p">,</span> <span class="s2">&quot;balanced&quot;</span><span class="p">,</span> <span class="s2">&quot;quality&quot;</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Sets the rendering mode. Behaves the same as the CLI arg &#39;--rendering_mode&#39;&quot;&quot;&quot;</span></div>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The rendering mode.</span>
+
+<span class="sd">    This behaves the same as the passing the CLI arg ``--rendering_mode`` to an executable script.</span>
+<span class="sd">    &quot;&quot;&quot;</span></div>
 
 
 <div class="viewcode-block" id="SimulationCfg"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.sim.html#isaaclab.sim.SimulationCfg">[docs]</a><span class="nd">@configclass</span>
@@ -975,7 +999,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Sep 07, 2025.
+  Last updated on Sep 08, 2025.
   <br/>
 </p>
   </div>

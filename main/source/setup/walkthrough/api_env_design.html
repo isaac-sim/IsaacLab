@@ -52,6 +52,8 @@
     <script src="../../../_static/copybutton.js"></script>
     <script src="../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
     <script src="../../../_static/design-tabs.js"></script>
+    <script>window.MathJax = {"tex": {"inlineMath": [["\\(", "\\)"]], "displayMath": [["\\[", "\\]"]]}}</script>
+    <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <script>DOCUMENTATION_OPTIONS.pagename = 'source/setup/walkthrough/api_env_design';</script>
     <link rel="icon" href="../../../_static/favicon.ico"/>
     <link rel="index" title="Index" href="../../../genindex.html" />
@@ -61,7 +63,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.2.1" />
-    <meta name="docbuild:last-update" content="Sep 07, 2025"/>
+    <meta name="docbuild:last-update" content="Sep 08, 2025"/>
   </head>
   
   
@@ -393,9 +395,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.app.html">isaaclab.app</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.actuators.html">isaaclab.actuators</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.assets.html">isaaclab.assets</a></li>
-<li class="toctree-l2 has-children"><a class="reference internal" href="../../api/lab/isaaclab.controllers.html">isaaclab.controllers</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="simple">
-</ul>
-</details></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.controllers.html">isaaclab.controllers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.devices.html">isaaclab.devices</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.envs.html">isaaclab.envs</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.managers.html">isaaclab.managers</a></li>
@@ -704,7 +704,7 @@ are compositional in this way as a solution for cloning arbitrarily complex envi
 <p>The <strong>sim</strong> is an instance of <a class="reference internal" href="../../api/lab/isaaclab.sim.html#isaaclab.sim.SimulationCfg" title="isaaclab.sim.SimulationCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">SimulationCfg</span></code></a>, and this is the config that controls the nature of the simulated reality we are building. This field is a member
 of the base class, <code class="docutils literal notranslate"><span class="pre">DirecRLEnvCfg</span></code>, but has a default sim configuration, so it’s <em>technically</em> optional.   The <code class="docutils literal notranslate"><span class="pre">SimulationCfg</span></code> dictates
 how finely to step through time (dt), the direction of gravity, and even how physics should be simulated. In this case we only specify the time step and the render interval, with the
-former indicating that each step through time should simulate :math:<a href="#id1"><span class="problematic" id="id2">`</span></a>1/120`th of a second, and the latter being how many steps we should take before we render a frame (a value of 2 means
+former indicating that each step through time should simulate <span class="math notranslate nohighlight">\(1/120\)</span> th of a second, and the latter being how many steps we should take before we render a frame (a value of 2 means
 render every other frame).</p>
 <p>The <strong>scene</strong> is an instance of <a class="reference internal" href="../../api/lab/isaaclab.scene.html#isaaclab.scene.InteractiveSceneCfg" title="isaaclab.scene.InteractiveSceneCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">InteractiveSceneCfg</span></code></a>. The scene describes what goes “on the stage” and manages those simulation entities to be cloned across environments.
 The scene is also a member of the base class <code class="docutils literal notranslate"><span class="pre">DirectRLEnvCfg</span></code>, but unlike the sim it has no default and must be defined in every <code class="docutils literal notranslate"><span class="pre">DirectRLEnvCfg</span></code>.  The <code class="docutils literal notranslate"><span class="pre">InteractiveSceneCfg</span></code>
@@ -869,7 +869,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Sep 07, 2025.
+  Last updated on Sep 08, 2025.
   <br/>
 </p>
   </div>

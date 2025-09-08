@@ -63,7 +63,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.2.1" />
-    <meta name="docbuild:last-update" content="Sep 07, 2025"/>
+    <meta name="docbuild:last-update" content="Sep 08, 2025"/>
   </head>
   
   
@@ -395,9 +395,7 @@
 <li class="toctree-l2"><a class="reference internal" href="isaaclab.app.html">isaaclab.app</a></li>
 <li class="toctree-l2"><a class="reference internal" href="isaaclab.actuators.html">isaaclab.actuators</a></li>
 <li class="toctree-l2"><a class="reference internal" href="isaaclab.assets.html">isaaclab.assets</a></li>
-<li class="toctree-l2 has-children"><a class="reference internal" href="isaaclab.controllers.html">isaaclab.controllers</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="simple">
-</ul>
-</details></li>
+<li class="toctree-l2"><a class="reference internal" href="isaaclab.controllers.html">isaaclab.controllers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="isaaclab.devices.html">isaaclab.devices</a></li>
 <li class="toctree-l2"><a class="reference internal" href="isaaclab.envs.html">isaaclab.envs</a></li>
 <li class="toctree-l2"><a class="reference internal" href="isaaclab.managers.html">isaaclab.managers</a></li>
@@ -738,6 +736,31 @@
 </li>
 </ul>
 </li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#mjcf-converter">MJCF Converter</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.converters.MjcfConverter"><code class="docutils literal notranslate"><span class="pre">MjcfConverter</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.converters.MjcfConverter.cfg"><code class="docutils literal notranslate"><span class="pre">MjcfConverter.cfg</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.converters.MjcfConverter.__init__"><code class="docutils literal notranslate"><span class="pre">MjcfConverter.__init__()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.converters.MjcfConverter.usd_dir"><code class="docutils literal notranslate"><span class="pre">MjcfConverter.usd_dir</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.converters.MjcfConverter.usd_file_name"><code class="docutils literal notranslate"><span class="pre">MjcfConverter.usd_file_name</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.converters.MjcfConverter.usd_instanceable_meshes_path"><code class="docutils literal notranslate"><span class="pre">MjcfConverter.usd_instanceable_meshes_path</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.converters.MjcfConverter.usd_path"><code class="docutils literal notranslate"><span class="pre">MjcfConverter.usd_path</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.converters.MjcfConverterCfg"><code class="docutils literal notranslate"><span class="pre">MjcfConverterCfg</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.converters.MjcfConverterCfg.link_density"><code class="docutils literal notranslate"><span class="pre">MjcfConverterCfg.link_density</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.converters.MjcfConverterCfg.import_inertia_tensor"><code class="docutils literal notranslate"><span class="pre">MjcfConverterCfg.import_inertia_tensor</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.converters.MjcfConverterCfg.asset_path"><code class="docutils literal notranslate"><span class="pre">MjcfConverterCfg.asset_path</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.converters.MjcfConverterCfg.usd_dir"><code class="docutils literal notranslate"><span class="pre">MjcfConverterCfg.usd_dir</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.converters.MjcfConverterCfg.usd_file_name"><code class="docutils literal notranslate"><span class="pre">MjcfConverterCfg.usd_file_name</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.converters.MjcfConverterCfg.force_usd_conversion"><code class="docutils literal notranslate"><span class="pre">MjcfConverterCfg.force_usd_conversion</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.converters.MjcfConverterCfg.make_instanceable"><code class="docutils literal notranslate"><span class="pre">MjcfConverterCfg.make_instanceable</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.converters.MjcfConverterCfg.fix_base"><code class="docutils literal notranslate"><span class="pre">MjcfConverterCfg.fix_base</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.converters.MjcfConverterCfg.import_sites"><code class="docutils literal notranslate"><span class="pre">MjcfConverterCfg.import_sites</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.converters.MjcfConverterCfg.self_collision"><code class="docutils literal notranslate"><span class="pre">MjcfConverterCfg.self_collision</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
 </ul>
             </nav>
         </div>
@@ -780,6 +803,12 @@ sub-classes of the <a class="reference internal" href="#isaaclab.sim.converters.
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.converters.UrdfConverterCfg" title="isaaclab.sim.converters.UrdfConverterCfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">UrdfConverterCfg</span></code></a></p></td>
 <td><p>The configuration class for UrdfConverter.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.converters.MjcfConverter" title="isaaclab.sim.converters.MjcfConverter"><code class="xref py py-obj docutils literal notranslate"><span class="pre">MjcfConverter</span></code></a></p></td>
+<td><p>Converter for a MJCF description file to a USD file.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.converters.MjcfConverterCfg" title="isaaclab.sim.converters.MjcfConverterCfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">MjcfConverterCfg</span></code></a></p></td>
+<td><p>The configuration class for MjcfConverter.</p></td>
 </tr>
 </tbody>
 </table>
@@ -1621,6 +1650,222 @@ used in the scene. For more information, please check the USD documentation on
 </dd></dl>
 
 </section>
+<section id="mjcf-converter">
+<h2>MJCF Converter<a class="headerlink" href="#mjcf-converter" title="Permalink to this heading">#</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="isaaclab.sim.converters.MjcfConverter">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab.sim.converters.</span></span><span class="sig-name descname"><span class="pre">MjcfConverter</span></span><a class="reference internal" href="../../../_modules/isaaclab/sim/converters/mjcf_converter.html#MjcfConverter"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.sim.converters.MjcfConverter" title="Permalink to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#isaaclab.sim.converters.AssetConverterBase" title="isaaclab.sim.converters.asset_converter_base.AssetConverterBase"><code class="xref py py-class docutils literal notranslate"><span class="pre">AssetConverterBase</span></code></a></p>
+<p>Converter for a MJCF description file to a USD file.</p>
+<p>This class wraps around the <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/robot_setup/ext_isaacsim_asset_importer_mjcf.html">isaacsim.asset.importer.mjcf</a> extension to provide a lazy implementation
+for MJCF to USD conversion. It stores the output USD file in an instanceable format since that is
+what is typically used in all learning related applications.</p>
+<div class="admonition caution">
+<p class="admonition-title">Caution</p>
+<p>The current lazy conversion implementation does not automatically trigger USD generation if
+only the mesh files used by the MJCF are modified. To force generation, either set
+<a class="reference internal" href="#isaaclab.sim.converters.AssetConverterBaseCfg.force_usd_conversion" title="isaaclab.sim.converters.AssetConverterBaseCfg.force_usd_conversion"><code class="xref py py-obj docutils literal notranslate"><span class="pre">AssetConverterBaseCfg.force_usd_conversion</span></code></a> to True or delete the output directory.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>From Isaac Sim 4.5 onwards, the extension name changed from <code class="docutils literal notranslate"><span class="pre">omni.importer.mjcf</span></code> to
+<code class="docutils literal notranslate"><span class="pre">isaacsim.asset.importer.mjcf</span></code>. This converter class now uses the latest extension from Isaac Sim.</p>
+</div>
+<p><strong>Attributes:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.converters.MjcfConverter.cfg" title="isaaclab.sim.converters.MjcfConverter.cfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">cfg</span></code></a></p></td>
+<td><p>The configuration instance for MJCF to USD conversion.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.converters.MjcfConverter.usd_dir" title="isaaclab.sim.converters.MjcfConverter.usd_dir"><code class="xref py py-obj docutils literal notranslate"><span class="pre">usd_dir</span></code></a></p></td>
+<td><p>The absolute path to the directory where the generated USD files are stored.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.converters.MjcfConverter.usd_file_name" title="isaaclab.sim.converters.MjcfConverter.usd_file_name"><code class="xref py py-obj docutils literal notranslate"><span class="pre">usd_file_name</span></code></a></p></td>
+<td><p>The file name of the generated USD file.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.converters.MjcfConverter.usd_instanceable_meshes_path" title="isaaclab.sim.converters.MjcfConverter.usd_instanceable_meshes_path"><code class="xref py py-obj docutils literal notranslate"><span class="pre">usd_instanceable_meshes_path</span></code></a></p></td>
+<td><p>The relative path to the USD file with meshes.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.converters.MjcfConverter.usd_path" title="isaaclab.sim.converters.MjcfConverter.usd_path"><code class="xref py py-obj docutils literal notranslate"><span class="pre">usd_path</span></code></a></p></td>
+<td><p>The absolute path to the generated USD file.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Methods:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.converters.MjcfConverter.__init__" title="isaaclab.sim.converters.MjcfConverter.__init__"><code class="xref py py-obj docutils literal notranslate"><span class="pre">__init__</span></code></a>(cfg)</p></td>
+<td><p>Initializes the class.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab.sim.converters.MjcfConverter.cfg">
+<span class="sig-name descname"><span class="pre">cfg</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#isaaclab.sim.converters.MjcfConverterCfg" title="isaaclab.sim.converters.mjcf_converter_cfg.MjcfConverterCfg"><span class="pre">MjcfConverterCfg</span></a></em><a class="headerlink" href="#isaaclab.sim.converters.MjcfConverter.cfg" title="Permalink to this definition">#</a></dt>
+<dd><p>The configuration instance for MJCF to USD conversion.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab.sim.converters.MjcfConverter.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#isaaclab.sim.converters.MjcfConverterCfg" title="isaaclab.sim.converters.mjcf_converter_cfg.MjcfConverterCfg"><span class="pre">MjcfConverterCfg</span></a></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab/sim/converters/mjcf_converter.html#MjcfConverter.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.sim.converters.MjcfConverter.__init__" title="Permalink to this definition">#</a></dt>
+<dd><p>Initializes the class.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>cfg</strong> – The configuration instance for URDF to USD conversion.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="isaaclab.sim.converters.MjcfConverter.usd_dir">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">usd_dir</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></em><a class="headerlink" href="#isaaclab.sim.converters.MjcfConverter.usd_dir" title="Permalink to this definition">#</a></dt>
+<dd><p>The absolute path to the directory where the generated USD files are stored.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="isaaclab.sim.converters.MjcfConverter.usd_file_name">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">usd_file_name</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></em><a class="headerlink" href="#isaaclab.sim.converters.MjcfConverter.usd_file_name" title="Permalink to this definition">#</a></dt>
+<dd><p>The file name of the generated USD file.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="isaaclab.sim.converters.MjcfConverter.usd_instanceable_meshes_path">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">usd_instanceable_meshes_path</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></em><a class="headerlink" href="#isaaclab.sim.converters.MjcfConverter.usd_instanceable_meshes_path" title="Permalink to this definition">#</a></dt>
+<dd><p>The relative path to the USD file with meshes.</p>
+<p>The path is with respect to the USD directory <a class="reference internal" href="#isaaclab.sim.converters.MjcfConverter.usd_dir" title="isaaclab.sim.converters.MjcfConverter.usd_dir"><code class="xref py py-attr docutils literal notranslate"><span class="pre">usd_dir</span></code></a>. This is to ensure that the
+mesh references in the generated USD file are resolved relatively. Otherwise, it becomes
+difficult to move the USD asset to a different location.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="isaaclab.sim.converters.MjcfConverter.usd_path">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">usd_path</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></em><a class="headerlink" href="#isaaclab.sim.converters.MjcfConverter.usd_path" title="Permalink to this definition">#</a></dt>
+<dd><p>The absolute path to the generated USD file.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="isaaclab.sim.converters.MjcfConverterCfg">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab.sim.converters.</span></span><span class="sig-name descname"><span class="pre">MjcfConverterCfg</span></span><a class="reference internal" href="../../../_modules/isaaclab/sim/converters/mjcf_converter_cfg.html#MjcfConverterCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.sim.converters.MjcfConverterCfg" title="Permalink to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#isaaclab.sim.converters.AssetConverterBaseCfg" title="isaaclab.sim.converters.asset_converter_base_cfg.AssetConverterBaseCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">AssetConverterBaseCfg</span></code></a></p>
+<p>The configuration class for MjcfConverter.</p>
+<p><strong>Attributes:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.converters.MjcfConverterCfg.link_density" title="isaaclab.sim.converters.MjcfConverterCfg.link_density"><code class="xref py py-obj docutils literal notranslate"><span class="pre">link_density</span></code></a></p></td>
+<td><p>Default density used for links.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.converters.MjcfConverterCfg.import_inertia_tensor" title="isaaclab.sim.converters.MjcfConverterCfg.import_inertia_tensor"><code class="xref py py-obj docutils literal notranslate"><span class="pre">import_inertia_tensor</span></code></a></p></td>
+<td><p>Import the inertia tensor from mjcf.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.converters.MjcfConverterCfg.asset_path" title="isaaclab.sim.converters.MjcfConverterCfg.asset_path"><code class="xref py py-obj docutils literal notranslate"><span class="pre">asset_path</span></code></a></p></td>
+<td><p>The absolute path to the asset file to convert into USD.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.converters.MjcfConverterCfg.usd_dir" title="isaaclab.sim.converters.MjcfConverterCfg.usd_dir"><code class="xref py py-obj docutils literal notranslate"><span class="pre">usd_dir</span></code></a></p></td>
+<td><p>The output directory path to store the generated USD file.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.converters.MjcfConverterCfg.usd_file_name" title="isaaclab.sim.converters.MjcfConverterCfg.usd_file_name"><code class="xref py py-obj docutils literal notranslate"><span class="pre">usd_file_name</span></code></a></p></td>
+<td><p>The name of the generated usd file.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.converters.MjcfConverterCfg.force_usd_conversion" title="isaaclab.sim.converters.MjcfConverterCfg.force_usd_conversion"><code class="xref py py-obj docutils literal notranslate"><span class="pre">force_usd_conversion</span></code></a></p></td>
+<td><p>Force the conversion of the asset file to usd.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.converters.MjcfConverterCfg.make_instanceable" title="isaaclab.sim.converters.MjcfConverterCfg.make_instanceable"><code class="xref py py-obj docutils literal notranslate"><span class="pre">make_instanceable</span></code></a></p></td>
+<td><p>Make the generated USD file instanceable.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.converters.MjcfConverterCfg.fix_base" title="isaaclab.sim.converters.MjcfConverterCfg.fix_base"><code class="xref py py-obj docutils literal notranslate"><span class="pre">fix_base</span></code></a></p></td>
+<td><p>Create a fix joint to the root/base link.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.converters.MjcfConverterCfg.import_sites" title="isaaclab.sim.converters.MjcfConverterCfg.import_sites"><code class="xref py py-obj docutils literal notranslate"><span class="pre">import_sites</span></code></a></p></td>
+<td><p>Import the sites from the MJCF.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.converters.MjcfConverterCfg.self_collision" title="isaaclab.sim.converters.MjcfConverterCfg.self_collision"><code class="xref py py-obj docutils literal notranslate"><span class="pre">self_collision</span></code></a></p></td>
+<td><p>Activate self-collisions between links of the articulation.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab.sim.converters.MjcfConverterCfg.link_density">
+<span class="sig-name descname"><span class="pre">link_density</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a></em><a class="headerlink" href="#isaaclab.sim.converters.MjcfConverterCfg.link_density" title="Permalink to this definition">#</a></dt>
+<dd><p>Default density used for links. Defaults to 0.</p>
+<p>This setting is only effective if <code class="docutils literal notranslate"><span class="pre">&quot;inertial&quot;</span></code> properties are missing in the MJCF.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab.sim.converters.MjcfConverterCfg.import_inertia_tensor">
+<span class="sig-name descname"><span class="pre">import_inertia_tensor</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></em><a class="headerlink" href="#isaaclab.sim.converters.MjcfConverterCfg.import_inertia_tensor" title="Permalink to this definition">#</a></dt>
+<dd><p>Import the inertia tensor from mjcf. Defaults to True.</p>
+<p>If the <code class="docutils literal notranslate"><span class="pre">&quot;inertial&quot;</span></code> tag is missing, then it is imported as an identity.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab.sim.converters.MjcfConverterCfg.asset_path">
+<span class="sig-name descname"><span class="pre">asset_path</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></em><a class="headerlink" href="#isaaclab.sim.converters.MjcfConverterCfg.asset_path" title="Permalink to this definition">#</a></dt>
+<dd><p>The absolute path to the asset file to convert into USD.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab.sim.converters.MjcfConverterCfg.usd_dir">
+<span class="sig-name descname"><span class="pre">usd_dir</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab.sim.converters.MjcfConverterCfg.usd_dir" title="Permalink to this definition">#</a></dt>
+<dd><p>The output directory path to store the generated USD file. Defaults to None.</p>
+<p>If None, it is resolved as <code class="docutils literal notranslate"><span class="pre">/tmp/IsaacLab/usd_{date}_{time}_{random}</span></code>, where
+the parameters in braces are runtime generated.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab.sim.converters.MjcfConverterCfg.usd_file_name">
+<span class="sig-name descname"><span class="pre">usd_file_name</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab.sim.converters.MjcfConverterCfg.usd_file_name" title="Permalink to this definition">#</a></dt>
+<dd><p>The name of the generated usd file. Defaults to None.</p>
+<p>If None, it is resolved from the asset file name. For example, if the asset file
+name is <code class="docutils literal notranslate"><span class="pre">&quot;my_asset.urdf&quot;</span></code>, then the generated USD file name is <code class="docutils literal notranslate"><span class="pre">&quot;my_asset.usd&quot;</span></code>.</p>
+<p>If the providing file name does not end with “.usd” or “.usda”, then the extension
+“.usd” is appended to the file name.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab.sim.converters.MjcfConverterCfg.force_usd_conversion">
+<span class="sig-name descname"><span class="pre">force_usd_conversion</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></em><a class="headerlink" href="#isaaclab.sim.converters.MjcfConverterCfg.force_usd_conversion" title="Permalink to this definition">#</a></dt>
+<dd><p>Force the conversion of the asset file to usd. Defaults to False.</p>
+<p>If True, then the USD file is always generated. It will overwrite the existing USD file if it exists.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab.sim.converters.MjcfConverterCfg.make_instanceable">
+<span class="sig-name descname"><span class="pre">make_instanceable</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></em><a class="headerlink" href="#isaaclab.sim.converters.MjcfConverterCfg.make_instanceable" title="Permalink to this definition">#</a></dt>
+<dd><p>Make the generated USD file instanceable. Defaults to True.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Instancing helps reduce the memory footprint of the asset when multiple copies of the asset are
+used in the scene. For more information, please check the USD documentation on
+<a class="reference external" href="https://openusd.org/dev/api/_usd__page__scenegraph_instancing.html">scene-graph instancing</a>.</p>
+</div>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab.sim.converters.MjcfConverterCfg.fix_base">
+<span class="sig-name descname"><span class="pre">fix_base</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></em><a class="headerlink" href="#isaaclab.sim.converters.MjcfConverterCfg.fix_base" title="Permalink to this definition">#</a></dt>
+<dd><p>Create a fix joint to the root/base link. Defaults to True.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab.sim.converters.MjcfConverterCfg.import_sites">
+<span class="sig-name descname"><span class="pre">import_sites</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></em><a class="headerlink" href="#isaaclab.sim.converters.MjcfConverterCfg.import_sites" title="Permalink to this definition">#</a></dt>
+<dd><p>Import the sites from the MJCF. Defaults to True.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab.sim.converters.MjcfConverterCfg.self_collision">
+<span class="sig-name descname"><span class="pre">self_collision</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></em><a class="headerlink" href="#isaaclab.sim.converters.MjcfConverterCfg.self_collision" title="Permalink to this definition">#</a></dt>
+<dd><p>Activate self-collisions between links of the articulation. Defaults to False.</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
 </section>
 
 
@@ -1761,6 +2006,31 @@ used in the scene. For more information, please check the USD documentation on
 </li>
 </ul>
 </li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#mjcf-converter">MJCF Converter</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.converters.MjcfConverter"><code class="docutils literal notranslate"><span class="pre">MjcfConverter</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.converters.MjcfConverter.cfg"><code class="docutils literal notranslate"><span class="pre">MjcfConverter.cfg</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.converters.MjcfConverter.__init__"><code class="docutils literal notranslate"><span class="pre">MjcfConverter.__init__()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.converters.MjcfConverter.usd_dir"><code class="docutils literal notranslate"><span class="pre">MjcfConverter.usd_dir</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.converters.MjcfConverter.usd_file_name"><code class="docutils literal notranslate"><span class="pre">MjcfConverter.usd_file_name</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.converters.MjcfConverter.usd_instanceable_meshes_path"><code class="docutils literal notranslate"><span class="pre">MjcfConverter.usd_instanceable_meshes_path</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.converters.MjcfConverter.usd_path"><code class="docutils literal notranslate"><span class="pre">MjcfConverter.usd_path</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.converters.MjcfConverterCfg"><code class="docutils literal notranslate"><span class="pre">MjcfConverterCfg</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.converters.MjcfConverterCfg.link_density"><code class="docutils literal notranslate"><span class="pre">MjcfConverterCfg.link_density</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.converters.MjcfConverterCfg.import_inertia_tensor"><code class="docutils literal notranslate"><span class="pre">MjcfConverterCfg.import_inertia_tensor</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.converters.MjcfConverterCfg.asset_path"><code class="docutils literal notranslate"><span class="pre">MjcfConverterCfg.asset_path</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.converters.MjcfConverterCfg.usd_dir"><code class="docutils literal notranslate"><span class="pre">MjcfConverterCfg.usd_dir</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.converters.MjcfConverterCfg.usd_file_name"><code class="docutils literal notranslate"><span class="pre">MjcfConverterCfg.usd_file_name</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.converters.MjcfConverterCfg.force_usd_conversion"><code class="docutils literal notranslate"><span class="pre">MjcfConverterCfg.force_usd_conversion</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.converters.MjcfConverterCfg.make_instanceable"><code class="docutils literal notranslate"><span class="pre">MjcfConverterCfg.make_instanceable</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.converters.MjcfConverterCfg.fix_base"><code class="docutils literal notranslate"><span class="pre">MjcfConverterCfg.fix_base</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.converters.MjcfConverterCfg.import_sites"><code class="docutils literal notranslate"><span class="pre">MjcfConverterCfg.import_sites</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.converters.MjcfConverterCfg.self_collision"><code class="docutils literal notranslate"><span class="pre">MjcfConverterCfg.self_collision</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
 </ul>
   </nav></div>
 
@@ -1794,7 +2064,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Sep 07, 2025.
+  Last updated on Sep 08, 2025.
   <br/>
 </p>
   </div>

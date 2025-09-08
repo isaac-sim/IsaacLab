@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.2.1" />
-    <meta name="docbuild:last-update" content="Sep 07, 2025"/>
+    <meta name="docbuild:last-update" content="Sep 08, 2025"/>
   </head>
   
   
@@ -393,9 +393,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.app.html">isaaclab.app</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.actuators.html">isaaclab.actuators</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.assets.html">isaaclab.assets</a></li>
-<li class="toctree-l2 has-children"><a class="reference internal" href="../../api/lab/isaaclab.controllers.html">isaaclab.controllers</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="simple">
-</ul>
-</details></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.controllers.html">isaaclab.controllers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.devices.html">isaaclab.devices</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.envs.html">isaaclab.envs</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.managers.html">isaaclab.managers</a></li>
@@ -976,8 +974,8 @@ we close this tutorial, let’s take a look at how we can attach an IO descripto
 <h2>Attaching IO Descriptors to Custom Action Terms<a class="headerlink" href="#attaching-io-descriptors-to-custom-action-terms" title="Permalink to this heading">#</a></h2>
 <p>In this section, we will cover how to attach IO descriptors to custom action terms. Action terms are classes that
 inherit from the <a class="reference internal" href="../../api/lab/isaaclab.managers.html#isaaclab.managers.ActionTerm" title="isaaclab.managers.ActionTerm"><code class="xref py py-class docutils literal notranslate"><span class="pre">managers.ActionTerm</span></code></a> class. To add an IO descriptor to an action term, we need to expand
-upon its <code class="xref py py-meth docutils literal notranslate"><span class="pre">ActionTerm.IO_descriptor()</span></code> property.</p>
-<p>By default, the <code class="xref py py-meth docutils literal notranslate"><span class="pre">ActionTerm.IO_descriptor()</span></code> property returns the base descriptor and fills the following fields:
+upon its <a class="reference internal" href="../../api/lab/isaaclab.managers.html#isaaclab.managers.ActionTerm.IO_descriptor" title="isaaclab.managers.ActionTerm.IO_descriptor"><code class="xref py py-meth docutils literal notranslate"><span class="pre">IO_descriptor()</span></code></a> property.</p>
+<p>By default, the <a class="reference internal" href="../../api/lab/isaaclab.managers.html#isaaclab.managers.ActionTerm.IO_descriptor" title="isaaclab.managers.ActionTerm.IO_descriptor"><code class="xref py py-meth docutils literal notranslate"><span class="pre">IO_descriptor()</span></code></a> property returns the base descriptor and fills the following fields:
 - <code class="docutils literal notranslate"><span class="pre">name</span></code>: The name of the action term.
 - <code class="docutils literal notranslate"><span class="pre">full_path</span></code>: The full path of the action term.
 - <code class="docutils literal notranslate"><span class="pre">description</span></code>: The description of the action term.
@@ -992,7 +990,7 @@ upon its <code class="xref py py-meth docutils literal notranslate"><span class=
     <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_IO_descriptor</span>
 </pre></div>
 </div>
-<p>To add more information to the descriptor, we need to override the <code class="xref py py-meth docutils literal notranslate"><span class="pre">ActionTerm.IO_descriptor()</span></code> property.
+<p>To add more information to the descriptor, we need to override the <a class="reference internal" href="../../api/lab/isaaclab.managers.html#isaaclab.managers.ActionTerm.IO_descriptor" title="isaaclab.managers.ActionTerm.IO_descriptor"><code class="xref py py-meth docutils literal notranslate"><span class="pre">IO_descriptor()</span></code></a> property.
 Let’s take a look at an example on how to add the joint names, scale, offset, and clip to the descriptor.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="nd">@property</span>
 <span class="k">def</span><span class="w"> </span><span class="nf">IO_descriptor</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">GenericActionIODescriptor</span><span class="p">:</span>
@@ -1117,7 +1115,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Sep 07, 2025.
+  Last updated on Sep 08, 2025.
   <br/>
 </p>
   </div>

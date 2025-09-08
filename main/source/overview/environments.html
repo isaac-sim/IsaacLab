@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.2.1" />
-    <meta name="docbuild:last-update" content="Sep 07, 2025"/>
+    <meta name="docbuild:last-update" content="Sep 08, 2025"/>
   </head>
   
   
@@ -393,9 +393,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.app.html">isaaclab.app</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.actuators.html">isaaclab.actuators</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.assets.html">isaaclab.assets</a></li>
-<li class="toctree-l2 has-children"><a class="reference internal" href="../api/lab/isaaclab.controllers.html">isaaclab.controllers</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="simple">
-</ul>
-</details></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.controllers.html">isaaclab.controllers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.devices.html">isaaclab.devices</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.envs.html">isaaclab.envs</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.managers.html">isaaclab.managers</a></li>
@@ -1327,6 +1325,532 @@ If these environments are run with other libraries or without the <cite>IPPO</ci
 <p>For environments that have a different task name listed under <code class="docutils literal notranslate"><span class="pre">Inference</span> <span class="pre">Task</span> <span class="pre">Name</span></code>, please use the Inference Task Name
 provided when running <code class="docutils literal notranslate"><span class="pre">play.py</span></code> or any inferencing workflows. These tasks provide more suitable configurations for
 inferencing, including reading from an already trained checkpoint and disabling runtime perturbations used for training.</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 32.4%" />
+<col style="width: 24.5%" />
+<col style="width: 18.6%" />
+<col style="width: 24.5%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><strong>Task Name</strong></p></td>
+<td><p><strong>Inference Task Name</strong></p></td>
+<td><p><strong>Workflow</strong></p></td>
+<td><p><strong>RL Library</strong></p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Ant-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>rl_games</strong> (PPO), <strong>rsl_rl</strong> (PPO), <strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Ant-v0</p></td>
+<td></td>
+<td><p>Manager Based</p></td>
+<td><p><strong>rsl_rl</strong> (PPO), <strong>rl_games</strong> (PPO), <strong>skrl</strong> (PPO), <strong>sb3</strong> (PPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Cart-Double-Pendulum-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>rl_games</strong> (PPO), <strong>skrl</strong> (IPPO, PPO, MAPPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Cartpole-Camera-Showcase-Box-Box-Direct-v0 (Requires running with <code class="docutils literal notranslate"><span class="pre">--enable_cameras</span></code>)</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Cartpole-Camera-Showcase-Box-Discrete-Direct-v0 (Requires running with <code class="docutils literal notranslate"><span class="pre">--enable_cameras</span></code>)</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Cartpole-Camera-Showcase-Box-MultiDiscrete-Direct-v0 (Requires running with <code class="docutils literal notranslate"><span class="pre">--enable_cameras</span></code>)</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Cartpole-Camera-Showcase-Dict-Box-Direct-v0 (Requires running with <code class="docutils literal notranslate"><span class="pre">--enable_cameras</span></code>)</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Cartpole-Camera-Showcase-Dict-Discrete-Direct-v0 (Requires running with <code class="docutils literal notranslate"><span class="pre">--enable_cameras</span></code>)</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Cartpole-Camera-Showcase-Dict-MultiDiscrete-Direct-v0 (Requires running with <code class="docutils literal notranslate"><span class="pre">--enable_cameras</span></code>)</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Cartpole-Camera-Showcase-Tuple-Box-Direct-v0 (Requires running with <code class="docutils literal notranslate"><span class="pre">--enable_cameras</span></code>)</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Cartpole-Camera-Showcase-Tuple-Discrete-Direct-v0 (Requires running with <code class="docutils literal notranslate"><span class="pre">--enable_cameras</span></code>)</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Cartpole-Camera-Showcase-Tuple-MultiDiscrete-Direct-v0 (Requires running with <code class="docutils literal notranslate"><span class="pre">--enable_cameras</span></code>)</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Cartpole-Depth-Camera-Direct-v0 (Requires running with <code class="docutils literal notranslate"><span class="pre">--enable_cameras</span></code>)</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>rl_games</strong> (PPO), <strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Cartpole-Depth-v0 (Requires running with <code class="docutils literal notranslate"><span class="pre">--enable_cameras</span></code>)</p></td>
+<td></td>
+<td><p>Manager Based</p></td>
+<td><p><strong>rl_games</strong> (PPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Cartpole-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>rl_games</strong> (PPO), <strong>rsl_rl</strong> (PPO), <strong>skrl</strong> (PPO), <strong>sb3</strong> (PPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Cartpole-RGB-Camera-Direct-v0 (Requires running with <code class="docutils literal notranslate"><span class="pre">--enable_cameras</span></code>)</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>rl_games</strong> (PPO), <strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Cartpole-RGB-ResNet18-v0 (Requires running with <code class="docutils literal notranslate"><span class="pre">--enable_cameras</span></code>)</p></td>
+<td></td>
+<td><p>Manager Based</p></td>
+<td><p><strong>rl_games</strong> (PPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Cartpole-RGB-TheiaTiny-v0 (Requires running with <code class="docutils literal notranslate"><span class="pre">--enable_cameras</span></code>)</p></td>
+<td></td>
+<td><p>Manager Based</p></td>
+<td><p><strong>rl_games</strong> (PPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Cartpole-RGB-v0 (Requires running with <code class="docutils literal notranslate"><span class="pre">--enable_cameras</span></code>)</p></td>
+<td></td>
+<td><p>Manager Based</p></td>
+<td><p><strong>rl_games</strong> (PPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Cartpole-Showcase-Box-Box-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Cartpole-Showcase-Box-Discrete-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Cartpole-Showcase-Box-MultiDiscrete-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Cartpole-Showcase-Dict-Box-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Cartpole-Showcase-Dict-Discrete-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Cartpole-Showcase-Dict-MultiDiscrete-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Cartpole-Showcase-Discrete-Box-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Cartpole-Showcase-Discrete-Discrete-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Cartpole-Showcase-Discrete-MultiDiscrete-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Cartpole-Showcase-MultiDiscrete-Box-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Cartpole-Showcase-MultiDiscrete-Discrete-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Cartpole-Showcase-MultiDiscrete-MultiDiscrete-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Cartpole-Showcase-Tuple-Box-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Cartpole-Showcase-Tuple-Discrete-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Cartpole-Showcase-Tuple-MultiDiscrete-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Cartpole-v0</p></td>
+<td></td>
+<td><p>Manager Based</p></td>
+<td><p><strong>rl_games</strong> (PPO), <strong>rsl_rl</strong> (PPO), <strong>skrl</strong> (PPO), <strong>sb3</strong> (PPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Factory-GearMesh-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>rl_games</strong> (PPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Factory-NutThread-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>rl_games</strong> (PPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Factory-PegInsert-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>rl_games</strong> (PPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-AutoMate-Assembly-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>rl_games</strong> (PPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-AutoMate-Disassembly-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Forge-GearMesh-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>rl_games</strong> (PPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Forge-NutThread-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>rl_games</strong> (PPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Forge-PegInsert-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>rl_games</strong> (PPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Franka-Cabinet-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>rl_games</strong> (PPO), <strong>rsl_rl</strong> (PPO), <strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Humanoid-AMP-Dance-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>skrl</strong> (AMP)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Humanoid-AMP-Run-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>skrl</strong> (AMP)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Humanoid-AMP-Walk-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>skrl</strong> (AMP)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Humanoid-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>rl_games</strong> (PPO), <strong>rsl_rl</strong> (PPO), <strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Humanoid-v0</p></td>
+<td></td>
+<td><p>Manager Based</p></td>
+<td><p><strong>rsl_rl</strong> (PPO), <strong>rl_games</strong> (PPO), <strong>skrl</strong> (PPO), <strong>sb3</strong> (PPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Lift-Cube-Franka-IK-Abs-v0</p></td>
+<td></td>
+<td><p>Manager Based</p></td>
+<td></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Lift-Cube-Franka-IK-Rel-v0</p></td>
+<td></td>
+<td><p>Manager Based</p></td>
+<td></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Lift-Cube-Franka-v0</p></td>
+<td><p>Isaac-Lift-Cube-Franka-Play-v0</p></td>
+<td><p>Manager Based</p></td>
+<td><p><strong>rsl_rl</strong> (PPO), <strong>skrl</strong> (PPO), <strong>rl_games</strong> (PPO), <strong>sb3</strong> (PPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Lift-Teddy-Bear-Franka-IK-Abs-v0</p></td>
+<td></td>
+<td><p>Manager Based</p></td>
+<td></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Tracking-LocoManip-Digit-v0</p></td>
+<td><p>Isaac-Tracking-LocoManip-Digit-Play-v0</p></td>
+<td><p>Manager Based</p></td>
+<td><p><strong>rsl_rl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Navigation-Flat-Anymal-C-v0</p></td>
+<td><p>Isaac-Navigation-Flat-Anymal-C-Play-v0</p></td>
+<td><p>Manager Based</p></td>
+<td><p><strong>rsl_rl</strong> (PPO), <strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Open-Drawer-Franka-IK-Abs-v0</p></td>
+<td></td>
+<td><p>Manager Based</p></td>
+<td></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Open-Drawer-Franka-IK-Rel-v0</p></td>
+<td></td>
+<td><p>Manager Based</p></td>
+<td></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Open-Drawer-Franka-v0</p></td>
+<td><p>Isaac-Open-Drawer-Franka-Play-v0</p></td>
+<td><p>Manager Based</p></td>
+<td><p><strong>rsl_rl</strong> (PPO), <strong>rl_games</strong> (PPO), <strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Quadcopter-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>rl_games</strong> (PPO), <strong>rsl_rl</strong> (PPO), <strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Reach-Franka-IK-Abs-v0</p></td>
+<td></td>
+<td><p>Manager Based</p></td>
+<td></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Reach-Franka-IK-Rel-v0</p></td>
+<td></td>
+<td><p>Manager Based</p></td>
+<td></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Reach-Franka-OSC-v0</p></td>
+<td><p>Isaac-Reach-Franka-OSC-Play-v0</p></td>
+<td><p>Manager Based</p></td>
+<td><p><strong>rsl_rl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Reach-Franka-v0</p></td>
+<td><p>Isaac-Reach-Franka-Play-v0</p></td>
+<td><p>Manager Based</p></td>
+<td><p><strong>rl_games</strong> (PPO), <strong>rsl_rl</strong> (PPO), <strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Reach-UR10-v0</p></td>
+<td><p>Isaac-Reach-UR10-Play-v0</p></td>
+<td><p>Manager Based</p></td>
+<td><p><strong>rl_games</strong> (PPO), <strong>rsl_rl</strong> (PPO), <strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Deploy-Reach-UR10e-v0</p></td>
+<td><p>Isaac-Deploy-Reach-UR10e-Play-v0</p></td>
+<td><p>Manager Based</p></td>
+<td><p><strong>rsl_rl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Repose-Cube-Allegro-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>rl_games</strong> (PPO), <strong>rsl_rl</strong> (PPO), <strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Repose-Cube-Allegro-NoVelObs-v0</p></td>
+<td><p>Isaac-Repose-Cube-Allegro-NoVelObs-Play-v0</p></td>
+<td><p>Manager Based</p></td>
+<td><p><strong>rsl_rl</strong> (PPO), <strong>rl_games</strong> (PPO), <strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Repose-Cube-Allegro-v0</p></td>
+<td><p>Isaac-Repose-Cube-Allegro-Play-v0</p></td>
+<td><p>Manager Based</p></td>
+<td><p><strong>rsl_rl</strong> (PPO), <strong>rl_games</strong> (PPO), <strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Repose-Cube-Shadow-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>rl_games</strong> (PPO), <strong>rsl_rl</strong> (PPO), <strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Repose-Cube-Shadow-OpenAI-FF-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>rl_games</strong> (FF), <strong>rsl_rl</strong> (PPO), <strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Repose-Cube-Shadow-OpenAI-LSTM-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>rl_games</strong> (LSTM)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Repose-Cube-Shadow-Vision-Direct-v0 (Requires running with <code class="docutils literal notranslate"><span class="pre">--enable_cameras</span></code>)</p></td>
+<td><p>Isaac-Repose-Cube-Shadow-Vision-Direct-Play-v0 (Requires running with <code class="docutils literal notranslate"><span class="pre">--enable_cameras</span></code>)</p></td>
+<td><p>Direct</p></td>
+<td><p><strong>rsl_rl</strong> (PPO), <strong>rl_games</strong> (VISION)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Shadow-Hand-Over-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>rl_games</strong> (PPO), <strong>skrl</strong> (IPPO, PPO, MAPPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Stack-Cube-Franka-IK-Rel-v0</p></td>
+<td></td>
+<td><p>Manager Based</p></td>
+<td></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Stack-Cube-Franka-v0</p></td>
+<td></td>
+<td><p>Manager Based</p></td>
+<td></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Stack-Cube-Instance-Randomize-Franka-IK-Rel-v0</p></td>
+<td></td>
+<td><p>Manager Based</p></td>
+<td></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Stack-Cube-Instance-Randomize-Franka-v0</p></td>
+<td></td>
+<td><p>Manager Based</p></td>
+<td></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Stack-Cube-UR10-Long-Suction-IK-Rel-v0</p></td>
+<td></td>
+<td><p>Manager Based</p></td>
+<td></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Stack-Cube-UR10-Short-Suction-IK-Rel-v0</p></td>
+<td></td>
+<td><p>Manager Based</p></td>
+<td></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Velocity-Flat-Anymal-B-v0</p></td>
+<td><p>Isaac-Velocity-Flat-Anymal-B-Play-v0</p></td>
+<td><p>Manager Based</p></td>
+<td><p><strong>rsl_rl</strong> (PPO), <strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Velocity-Flat-Anymal-C-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>rl_games</strong> (PPO), <strong>rsl_rl</strong> (PPO), <strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Velocity-Flat-Anymal-C-v0</p></td>
+<td><p>Isaac-Velocity-Flat-Anymal-C-Play-v0</p></td>
+<td><p>Manager Based</p></td>
+<td><p><strong>rsl_rl</strong> (PPO), <strong>rl_games</strong> (PPO), <strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Velocity-Flat-Anymal-D-v0</p></td>
+<td><p>Isaac-Velocity-Flat-Anymal-D-Play-v0</p></td>
+<td><p>Manager Based</p></td>
+<td><p><strong>rsl_rl</strong> (PPO), <strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Velocity-Flat-Cassie-v0</p></td>
+<td><p>Isaac-Velocity-Flat-Cassie-Play-v0</p></td>
+<td><p>Manager Based</p></td>
+<td><p><strong>rsl_rl</strong> (PPO), <strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Velocity-Flat-Digit-v0</p></td>
+<td><p>Isaac-Velocity-Flat-Digit-Play-v0</p></td>
+<td><p>Manager Based</p></td>
+<td><p><strong>rsl_rl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Velocity-Flat-G1-v0</p></td>
+<td><p>Isaac-Velocity-Flat-G1-Play-v0</p></td>
+<td><p>Manager Based</p></td>
+<td><p><strong>rsl_rl</strong> (PPO), <strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Velocity-Flat-H1-v0</p></td>
+<td><p>Isaac-Velocity-Flat-H1-Play-v0</p></td>
+<td><p>Manager Based</p></td>
+<td><p><strong>rsl_rl</strong> (PPO), <strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Velocity-Flat-Spot-v0</p></td>
+<td><p>Isaac-Velocity-Flat-Spot-Play-v0</p></td>
+<td><p>Manager Based</p></td>
+<td><p><strong>rsl_rl</strong> (PPO), <strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Velocity-Flat-Unitree-A1-v0</p></td>
+<td><p>Isaac-Velocity-Flat-Unitree-A1-Play-v0</p></td>
+<td><p>Manager Based</p></td>
+<td><p><strong>rsl_rl</strong> (PPO), <strong>skrl</strong> (PPO), <strong>sb3</strong> (PPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Velocity-Flat-Unitree-Go1-v0</p></td>
+<td><p>Isaac-Velocity-Flat-Unitree-Go1-Play-v0</p></td>
+<td><p>Manager Based</p></td>
+<td><p><strong>rsl_rl</strong> (PPO), <strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Velocity-Flat-Unitree-Go2-v0</p></td>
+<td><p>Isaac-Velocity-Flat-Unitree-Go2-Play-v0</p></td>
+<td><p>Manager Based</p></td>
+<td><p><strong>rsl_rl</strong> (PPO), <strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Velocity-Rough-Anymal-B-v0</p></td>
+<td><p>Isaac-Velocity-Rough-Anymal-B-Play-v0</p></td>
+<td><p>Manager Based</p></td>
+<td><p><strong>rsl_rl</strong> (PPO), <strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Velocity-Rough-Anymal-C-Direct-v0</p></td>
+<td></td>
+<td><p>Direct</p></td>
+<td><p><strong>rl_games</strong> (PPO), <strong>rsl_rl</strong> (PPO), <strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Velocity-Rough-Anymal-C-v0</p></td>
+<td><p>Isaac-Velocity-Rough-Anymal-C-Play-v0</p></td>
+<td><p>Manager Based</p></td>
+<td><p><strong>rl_games</strong> (PPO), <strong>rsl_rl</strong> (PPO), <strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Velocity-Rough-Anymal-D-v0</p></td>
+<td><p>Isaac-Velocity-Rough-Anymal-D-Play-v0</p></td>
+<td><p>Manager Based</p></td>
+<td><p><strong>rsl_rl</strong> (PPO), <strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Velocity-Rough-Cassie-v0</p></td>
+<td><p>Isaac-Velocity-Rough-Cassie-Play-v0</p></td>
+<td><p>Manager Based</p></td>
+<td><p><strong>rsl_rl</strong> (PPO), <strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Velocity-Rough-Digit-v0</p></td>
+<td><p>Isaac-Velocity-Rough-Digit-Play-v0</p></td>
+<td><p>Manager Based</p></td>
+<td><p><strong>rsl_rl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Velocity-Rough-G1-v0</p></td>
+<td><p>Isaac-Velocity-Rough-G1-Play-v0</p></td>
+<td><p>Manager Based</p></td>
+<td><p><strong>rsl_rl</strong> (PPO), <strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Velocity-Rough-H1-v0</p></td>
+<td><p>Isaac-Velocity-Rough-H1-Play-v0</p></td>
+<td><p>Manager Based</p></td>
+<td><p><strong>rsl_rl</strong> (PPO), <strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Velocity-Rough-Unitree-A1-v0</p></td>
+<td><p>Isaac-Velocity-Rough-Unitree-A1-Play-v0</p></td>
+<td><p>Manager Based</p></td>
+<td><p><strong>rsl_rl</strong> (PPO), <strong>skrl</strong> (PPO), <strong>sb3</strong> (PPO)</p></td>
+</tr>
+<tr class="row-even"><td><p>Isaac-Velocity-Rough-Unitree-Go1-v0</p></td>
+<td><p>Isaac-Velocity-Rough-Unitree-Go1-Play-v0</p></td>
+<td><p>Manager Based</p></td>
+<td><p><strong>rsl_rl</strong> (PPO), <strong>skrl</strong> (PPO)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isaac-Velocity-Rough-Unitree-Go2-v0</p></td>
+<td><p>Isaac-Velocity-Rough-Unitree-Go2-Play-v0</p></td>
+<td><p>Manager Based</p></td>
+<td><p><strong>rsl_rl</strong> (PPO), <strong>skrl</strong> (PPO)</p></td>
+</tr>
+</tbody>
+</table>
+</div>
 </section>
 
 
@@ -1430,7 +1954,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Sep 07, 2025.
+  Last updated on Sep 08, 2025.
   <br/>
 </p>
   </div>

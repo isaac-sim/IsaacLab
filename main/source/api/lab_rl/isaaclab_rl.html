@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.2.1" />
-    <meta name="docbuild:last-update" content="Sep 07, 2025"/>
+    <meta name="docbuild:last-update" content="Sep 08, 2025"/>
   </head>
   
   
@@ -393,9 +393,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.app.html">isaaclab.app</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.actuators.html">isaaclab.actuators</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.assets.html">isaaclab.assets</a></li>
-<li class="toctree-l2 has-children"><a class="reference internal" href="../lab/isaaclab.controllers.html">isaaclab.controllers</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="simple">
-</ul>
-</details></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.controllers.html">isaaclab.controllers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.devices.html">isaaclab.devices</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.envs.html">isaaclab.envs</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.managers.html">isaaclab.managers</a></li>
@@ -979,12 +977,12 @@ to the actor and critic observations respectively.</p>
 <p>To use asymmetric actor-critic, map privileged observation groups under <code class="docutils literal notranslate"><span class="pre">&quot;states&quot;</span></code> (e.g. <code class="docutils literal notranslate"><span class="pre">[&quot;critic&quot;]</span></code>).</p>
 <p>The wrapper supports <strong>either</strong> concatenated tensors (default) <strong>or</strong> Dict inputs:
 when wrapper is concate mode, rl-games sees {“obs”: Tensor, (optional)”states”: Tensor}
-when wrapper is not concate mode, rl-games sees {“obs”: dict[str, Tensor], (optional)”states”: dict[str, Tensor]}
-- Concatenated mode (<code class="docutils literal notranslate"><span class="pre">concate_obs_group=True</span></code>): <code class="docutils literal notranslate"><span class="pre">observation_space</span></code>/<code class="docutils literal notranslate"><span class="pre">state_space</span></code> are <code class="docutils literal notranslate"><span class="pre">gym.spaces.Box</span></code>.
-- Dict mode (<code class="docutils literal notranslate"><span class="pre">concate_obs_group=False</span></code>): <code class="docutils literal notranslate"><span class="pre">observation_space</span></code>/<code class="docutils literal notranslate"><span class="pre">state_space</span></code> are <code class="docutils literal notranslate"><span class="pre">gym.spaces.Dict</span></code> keyed by</p>
-<blockquote>
-<div><p>the requested groups. When no <code class="docutils literal notranslate"><span class="pre">&quot;states&quot;</span></code> groups are provided, the states Dict is omitted at runtime.</p>
-</div></blockquote>
+when wrapper is not concate mode, rl-games sees {“obs”: dict[str, Tensor], (optional)”states”: dict[str, Tensor]}</p>
+<ul class="simple">
+<li><p>Concatenated mode (<code class="docutils literal notranslate"><span class="pre">concate_obs_group=True</span></code>): <code class="docutils literal notranslate"><span class="pre">observation_space</span></code>/<code class="docutils literal notranslate"><span class="pre">state_space</span></code> are <code class="docutils literal notranslate"><span class="pre">gym.spaces.Box</span></code>.</p></li>
+<li><p>Dict mode (<code class="docutils literal notranslate"><span class="pre">concate_obs_group=False</span></code>): <code class="docutils literal notranslate"><span class="pre">observation_space</span></code>/<code class="docutils literal notranslate"><span class="pre">state_space</span></code> are <code class="docutils literal notranslate"><span class="pre">gym.spaces.Dict</span></code> keyed by
+the requested groups. When no <code class="docutils literal notranslate"><span class="pre">&quot;states&quot;</span></code> groups are provided, the states Dict is omitted at runtime.</p></li>
+</ul>
 <div class="admonition caution">
 <p class="admonition-title">Caution</p>
 <p>This class must be the last wrapper in the wrapper chain. This is because the wrapper does not follow
@@ -1131,7 +1129,7 @@ True for backward compatible.</p></li>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="isaaclab_rl.rl_games.make_concat_plan">
-<span class="sig-prename descclassname"><span class="pre">isaaclab_rl.rl_games.</span></span><span class="sig-name descname"><span class="pre">make_concat_plan</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">shapes</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.13)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Callable" title="(in Python v3.13)"><span class="pre">collections.abc.Callable</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../../../_modules/isaaclab_rl/rl_games.html#make_concat_plan"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_rl.rl_games.make_concat_plan" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">isaaclab_rl.rl_games.</span></span><span class="sig-name descname"><span class="pre">make_concat_plan</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">shapes</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.13)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://trimesh.org/trimesh.typed.html#trimesh.typed.Callable" title="(in trimesh)"><span class="pre">collections.abc.Callable</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../../../_modules/isaaclab_rl/rl_games.html#make_concat_plan"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_rl.rl_games.make_concat_plan" title="Permalink to this definition">#</a></dt>
 <dd><dl class="simple">
 <dt>Given per-sample shapes (no batch dim), return:</dt><dd><ul class="simple">
 <li><p>the concatenated per-sample shape</p></li>
@@ -3796,7 +3794,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Sep 07, 2025.
+  Last updated on Sep 08, 2025.
   <br/>
 </p>
   </div>

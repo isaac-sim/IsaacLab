@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.2.1" />
-    <meta name="docbuild:last-update" content="Sep 07, 2025"/>
+    <meta name="docbuild:last-update" content="Sep 08, 2025"/>
   </head>
   
   
@@ -393,9 +393,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.app.html">isaaclab.app</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.actuators.html">isaaclab.actuators</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.assets.html">isaaclab.assets</a></li>
-<li class="toctree-l2 has-children"><a class="reference internal" href="../api/lab/isaaclab.controllers.html">isaaclab.controllers</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="simple">
-</ul>
-</details></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.controllers.html">isaaclab.controllers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.devices.html">isaaclab.devices</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.envs.html">isaaclab.envs</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.managers.html">isaaclab.managers</a></li>
@@ -797,10 +795,10 @@ exit the script after the conversion is complete.</p>
 <h2>Using MJCF Importer<a class="headerlink" href="#using-mjcf-importer" title="Permalink to this heading">#</a></h2>
 <p>Similar to the URDF Importer, the MJCF Importer also has a GUI interface. Please check the documentation at
 <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/robot_setup/import_mjcf.html">MJCF importer</a> for more details. For using the MJCF importer from Python scripts, we include a utility tool
-called <code class="docutils literal notranslate"><span class="pre">convert_mjcf.py</span></code>. This script creates an instance of <code class="xref py py-class docutils literal notranslate"><span class="pre">MjcfConverterCfg</span></code>
-which is then passed to the <code class="xref py py-class docutils literal notranslate"><span class="pre">MjcfConverter</span></code> class.</p>
+called <code class="docutils literal notranslate"><span class="pre">convert_mjcf.py</span></code>. This script creates an instance of <a class="reference internal" href="../api/lab/isaaclab.sim.converters.html#isaaclab.sim.converters.MjcfConverterCfg" title="isaaclab.sim.converters.MjcfConverterCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">MjcfConverterCfg</span></code></a>
+which is then passed to the <a class="reference internal" href="../api/lab/isaaclab.sim.converters.html#isaaclab.sim.converters.MjcfConverter" title="isaaclab.sim.converters.MjcfConverter"><code class="xref py py-class docutils literal notranslate"><span class="pre">MjcfConverter</span></code></a> class.</p>
 <p>The default values for the importer’s configuration parameters are specified in the
-<code class="xref py py-class docutils literal notranslate"><span class="pre">MjcfConverterCfg</span></code> class. The configuration parameters are listed below.
+<a class="reference internal" href="../api/lab/isaaclab.sim.converters.html#isaaclab.sim.converters.MjcfConverterCfg" title="isaaclab.sim.converters.MjcfConverterCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">MjcfConverterCfg</span></code></a> class. The configuration parameters are listed below.
 We made a few commonly modified settings to be available as command-line arguments when calling the
 <code class="docutils literal notranslate"><span class="pre">convert_mjcf.py</span></code>, and they are marked with <code class="docutils literal notranslate"><span class="pre">*</span></code> in the list. For a comprehensive list of the configuration
 parameters, please check the the documentation at <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/robot_setup/import_mjcf.html">MJCF importer</a>.</p>
@@ -1031,7 +1029,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Sep 07, 2025.
+  Last updated on Sep 08, 2025.
   <br/>
 </p>
   </div>
