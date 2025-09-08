@@ -9,9 +9,9 @@ import torch
 from typing import TYPE_CHECKING
 
 from isaaclab.assets.articulation import Articulation
-from isaaclab.controllers.utils import load_torchscript_model
 from isaaclab.managers.action_manager import ActionTerm
 from isaaclab.utils.assets import retrieve_file_path
+from isaaclab.utils.io.torchscript import load_torchscript_model
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv

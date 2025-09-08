@@ -20,8 +20,9 @@ import torch
 
 import pytest
 
-from isaaclab.controllers.utils import change_revolute_to_fixed, change_revolute_to_fixed_regex, load_torchscript_model
+from isaaclab.controllers.utils import change_revolute_to_fixed, change_revolute_to_fixed_regex
 from isaaclab.utils.assets import retrieve_file_path
+from isaaclab.utils.io.torchscript import load_torchscript_model
 
 
 @pytest.fixture
