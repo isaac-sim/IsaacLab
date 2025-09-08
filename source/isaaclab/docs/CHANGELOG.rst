@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.45.13 (2025-09-08)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed memory leak of gymnasium video recording wrapper in the :class:`~isaaclab.utils.recorder.RecordVideo` class.
+
+
 0.45.12 (2025-09-05)
 ~~~~~~~~~~~~~~~~~~~~
 
