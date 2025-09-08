@@ -594,9 +594,11 @@
 <span class="sd">.. _Omniverse Nucleus: https://docs.omniverse.nvidia.com/nucleus/latest/overview/overview.html</span>
 <span class="sd">&quot;&quot;&quot;</span>
 
+<span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">io</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">tempfile</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Literal</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">carb</span>
@@ -708,6 +710,81 @@
         <span class="k">return</span> <span class="n">io</span><span class="o">.</span><span class="n">BytesIO</span><span class="p">(</span><span class="nb">memoryview</span><span class="p">(</span><span class="n">file_content</span><span class="p">)</span><span class="o">.</span><span class="n">tobytes</span><span class="p">())</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="k">raise</span> <span class="ne">FileNotFoundError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Unable to find the file: </span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span></div>
+
+
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Nucleus Connection.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+
+<div class="viewcode-block" id="check_usd_path_with_timeout"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.utils.html#isaaclab.utils.assets.check_usd_path_with_timeout">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">check_usd_path_with_timeout</span><span class="p">(</span><span class="n">usd_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">timeout</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">300</span><span class="p">,</span> <span class="n">log_interval</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">30</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Checks whether the given USD file path is available on the NVIDIA Nucleus server.</span>
+
+<span class="sd">    This function synchronously runs an asynchronous USD path availability check,</span>
+<span class="sd">    logging progress periodically until it completes. The file is available on the server</span>
+<span class="sd">    if the HTTP status code is 200. Otherwise, the file is not available on the server.</span>
+
+<span class="sd">    This is useful for checking server responsiveness before attempting to load a remote</span>
+<span class="sd">    asset. It will block execution until the check completes or times out.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        usd_path: The remote USD file path to check.</span>
+<span class="sd">        timeout: Maximum time (in seconds) to wait for the server check.</span>
+<span class="sd">        log_interval: Interval (in seconds) at which progress is logged.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        Whether the given USD path is available on the server.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">start_time</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+    <span class="n">loop</span> <span class="o">=</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">get_event_loop</span><span class="p">()</span>
+
+    <span class="n">coroutine</span> <span class="o">=</span> <span class="n">_is_usd_path_available</span><span class="p">(</span><span class="n">usd_path</span><span class="p">,</span> <span class="n">timeout</span><span class="p">)</span>
+    <span class="n">task</span> <span class="o">=</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">ensure_future</span><span class="p">(</span><span class="n">coroutine</span><span class="p">)</span>
+
+    <span class="n">next_log_time</span> <span class="o">=</span> <span class="n">start_time</span> <span class="o">+</span> <span class="n">log_interval</span>
+
+    <span class="n">first_log</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="k">while</span> <span class="ow">not</span> <span class="n">task</span><span class="o">.</span><span class="n">done</span><span class="p">():</span>
+        <span class="n">now</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">now</span> <span class="o">&gt;=</span> <span class="n">next_log_time</span><span class="p">:</span>
+            <span class="n">elapsed</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">now</span> <span class="o">-</span> <span class="n">start_time</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">first_log</span><span class="p">:</span>
+                <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Checking server availability for USD path: </span><span class="si">{</span><span class="n">usd_path</span><span class="si">}</span><span class="s2"> (timeout: </span><span class="si">{</span><span class="n">timeout</span><span class="si">}</span><span class="s2">s)&quot;</span><span class="p">)</span>
+                <span class="n">first_log</span> <span class="o">=</span> <span class="kc">False</span>
+            <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Waiting for server response... (</span><span class="si">{</span><span class="n">elapsed</span><span class="si">}</span><span class="s2">s elapsed)&quot;</span><span class="p">)</span>
+            <span class="n">next_log_time</span> <span class="o">+=</span> <span class="n">log_interval</span>
+        <span class="n">loop</span><span class="o">.</span><span class="n">run_until_complete</span><span class="p">(</span><span class="n">asyncio</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mf">0.1</span><span class="p">))</span>  <span class="c1"># Yield to allow async work</span>
+
+    <span class="k">return</span> <span class="n">task</span><span class="o">.</span><span class="n">result</span><span class="p">()</span></div>
+
+
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Helper functions.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_is_usd_path_available</span><span class="p">(</span><span class="n">usd_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">timeout</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Checks whether the given USD path is available on the Omniverse Nucleus server.</span>
+
+<span class="sd">    This function is a asynchronous routine to check the availability of the given USD path on the Omniverse Nucleus server.</span>
+<span class="sd">    It will return True if the USD path is available on the server, False otherwise.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        usd_path: The remote or local USD file path to check.</span>
+<span class="sd">        timeout: Timeout in seconds for the async stat call.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        Whether the given USD path is available on the server.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">result</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">wait_for</span><span class="p">(</span><span class="n">omni</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">stat_async</span><span class="p">(</span><span class="n">usd_path</span><span class="p">),</span> <span class="n">timeout</span><span class="o">=</span><span class="n">timeout</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">result</span> <span class="o">==</span> <span class="n">omni</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">Result</span><span class="o">.</span><span class="n">OK</span>
+    <span class="k">except</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">TimeoutError</span><span class="p">:</span>
+        <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Timed out after </span><span class="si">{</span><span class="n">timeout</span><span class="si">}</span><span class="s2">s while checking for USD: </span><span class="si">{</span><span class="n">usd_path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="kc">False</span>
+    <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">ex</span><span class="p">:</span>
+        <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Exception during USD file check: </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">ex</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">ex</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="kc">False</span>
 </pre></div>
 
                 </article>

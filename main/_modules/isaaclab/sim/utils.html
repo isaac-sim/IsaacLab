@@ -588,13 +588,11 @@
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
 
-<span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">contextlib</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">functools</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">inspect</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">re</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Callable</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Callable</span><span class="p">,</span> <span class="n">Generator</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span><span class="p">,</span> <span class="n">Any</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">carb</span>
@@ -1411,97 +1409,6 @@
 
 
 <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">Stage management.</span>
-<span class="sd">&quot;&quot;&quot;</span>
-
-
-<div class="viewcode-block" id="attach_stage_to_usd_context"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.sim.html#isaaclab.sim.utils.attach_stage_to_usd_context">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">attach_stage_to_usd_context</span><span class="p">(</span><span class="n">attaching_early</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Attaches stage in memory to usd context.</span>
-
-<span class="sd">    This function should be called during or after scene is created and before stage is simulated or rendered.</span>
-
-<span class="sd">    Note:</span>
-<span class="sd">        If the stage is not in memory or rendering is not enabled, this function will return without attaching.</span>
-
-<span class="sd">    Args:</span>
-<span class="sd">        attaching_early: Whether to attach the stage to the usd context before stage is created. Defaults to False.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-
-    <span class="kn">from</span><span class="w"> </span><span class="nn">isaacsim.core.simulation_manager</span><span class="w"> </span><span class="kn">import</span> <span class="n">SimulationManager</span>
-
-    <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim.simulation_context</span><span class="w"> </span><span class="kn">import</span> <span class="n">SimulationContext</span>
-
-    <span class="c1"># if Isaac Sim version is less than 5.0, stage in memory is not supported</span>
-    <span class="n">isaac_sim_version</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="s2">&quot;.&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">get_version</span><span class="p">()[</span><span class="mi">2</span><span class="p">]))</span>
-    <span class="k">if</span> <span class="n">isaac_sim_version</span> <span class="o">&lt;</span> <span class="mi">5</span><span class="p">:</span>
-        <span class="k">return</span>
-
-    <span class="c1"># if stage is not in memory, we can return early</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="n">is_current_stage_in_memory</span><span class="p">():</span>
-        <span class="k">return</span>
-
-    <span class="c1"># attach stage to physx</span>
-    <span class="n">stage_id</span> <span class="o">=</span> <span class="n">get_current_stage_id</span><span class="p">()</span>
-    <span class="n">physx_sim_interface</span> <span class="o">=</span> <span class="n">omni</span><span class="o">.</span><span class="n">physx</span><span class="o">.</span><span class="n">get_physx_simulation_interface</span><span class="p">()</span>
-    <span class="n">physx_sim_interface</span><span class="o">.</span><span class="n">attach_stage</span><span class="p">(</span><span class="n">stage_id</span><span class="p">)</span>
-
-    <span class="c1"># this carb flag is equivalent to if rendering is enabled</span>
-    <span class="n">carb_setting</span> <span class="o">=</span> <span class="n">carb</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">get_settings</span><span class="p">()</span>
-    <span class="n">is_rendering_enabled</span> <span class="o">=</span> <span class="n">get_carb_setting</span><span class="p">(</span><span class="n">carb_setting</span><span class="p">,</span> <span class="s2">&quot;/physics/fabricUpdateTransformations&quot;</span><span class="p">)</span>
-
-    <span class="c1"># if rendering is not enabled, we don&#39;t need to attach it</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="n">is_rendering_enabled</span><span class="p">:</span>
-        <span class="k">return</span>
-
-    <span class="c1"># early attach warning msg</span>
-    <span class="k">if</span> <span class="n">attaching_early</span><span class="p">:</span>
-        <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
-            <span class="s2">&quot;Attaching stage in memory to USD context early to support an operation which doesn&#39;t support stage in&quot;</span>
-            <span class="s2">&quot; memory.&quot;</span>
-        <span class="p">)</span>
-
-    <span class="c1"># skip this callback to avoid wiping the stage after attachment</span>
-    <span class="n">SimulationContext</span><span class="o">.</span><span class="n">instance</span><span class="p">()</span><span class="o">.</span><span class="n">skip_next_stage_open_callback</span><span class="p">()</span>
-
-    <span class="c1"># disable stage open callback to avoid clearing callbacks</span>
-    <span class="n">SimulationManager</span><span class="o">.</span><span class="n">enable_stage_open_callback</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span>
-
-    <span class="c1"># enable physics fabric</span>
-    <span class="n">SimulationContext</span><span class="o">.</span><span class="n">instance</span><span class="p">()</span><span class="o">.</span><span class="n">_physics_context</span><span class="o">.</span><span class="n">enable_fabric</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
-
-    <span class="c1"># attach stage to usd context</span>
-    <span class="n">omni</span><span class="o">.</span><span class="n">usd</span><span class="o">.</span><span class="n">get_context</span><span class="p">()</span><span class="o">.</span><span class="n">attach_stage_with_callback</span><span class="p">(</span><span class="n">stage_id</span><span class="p">)</span>
-
-    <span class="c1"># attach stage to physx</span>
-    <span class="n">physx_sim_interface</span> <span class="o">=</span> <span class="n">omni</span><span class="o">.</span><span class="n">physx</span><span class="o">.</span><span class="n">get_physx_simulation_interface</span><span class="p">()</span>
-    <span class="n">physx_sim_interface</span><span class="o">.</span><span class="n">attach_stage</span><span class="p">(</span><span class="n">stage_id</span><span class="p">)</span>
-
-    <span class="c1"># re-enable stage open callback</span>
-    <span class="n">SimulationManager</span><span class="o">.</span><span class="n">enable_stage_open_callback</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span></div>
-
-
-<div class="viewcode-block" id="is_current_stage_in_memory"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.sim.html#isaaclab.sim.utils.is_current_stage_in_memory">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">is_current_stage_in_memory</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;This function checks if the current stage is in memory.</span>
-
-<span class="sd">    Compares the stage id of the current stage with the stage id of the context stage.</span>
-
-<span class="sd">    Returns:</span>
-<span class="sd">        If the current stage is in memory.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-
-    <span class="c1"># grab current stage id</span>
-    <span class="n">stage_id</span> <span class="o">=</span> <span class="n">get_current_stage_id</span><span class="p">()</span>
-
-    <span class="c1"># grab context stage id</span>
-    <span class="n">context_stage</span> <span class="o">=</span> <span class="n">omni</span><span class="o">.</span><span class="n">usd</span><span class="o">.</span><span class="n">get_context</span><span class="p">()</span><span class="o">.</span><span class="n">get_stage</span><span class="p">()</span>
-    <span class="k">with</span> <span class="n">use_stage</span><span class="p">(</span><span class="n">context_stage</span><span class="p">):</span>
-        <span class="n">context_stage_id</span> <span class="o">=</span> <span class="n">get_current_stage_id</span><span class="p">()</span>
-
-    <span class="c1"># check if stage ids are the same</span>
-    <span class="k">return</span> <span class="n">stage_id</span> <span class="o">!=</span> <span class="n">context_stage_id</span></div>
-
-
-<span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">USD Variants.</span>
 <span class="sd">&quot;&quot;&quot;</span>
 
@@ -1582,84 +1489,107 @@
 
 
 <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">Nucleus Connection</span>
+<span class="sd">Stage management.</span>
 <span class="sd">&quot;&quot;&quot;</span>
 
 
-<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_is_usd_path_available</span><span class="p">(</span><span class="n">usd_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">timeout</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Asynchronously checks whether the given USD path is available on the server.</span>
+<div class="viewcode-block" id="attach_stage_to_usd_context"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.sim.html#isaaclab.sim.utils.attach_stage_to_usd_context">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">attach_stage_to_usd_context</span><span class="p">(</span><span class="n">attaching_early</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Attaches the current USD stage in memory to the USD context.</span>
+
+<span class="sd">    This function should be called during or after scene is created and before stage is simulated or rendered.</span>
+
+<span class="sd">    Note:</span>
+<span class="sd">        If the stage is not in memory or rendering is not enabled, this function will return without attaching.</span>
 
 <span class="sd">    Args:</span>
-<span class="sd">        usd_path: The remote or local USD file path to check.</span>
-<span class="sd">        timeout: Timeout in seconds for the async stat call.</span>
+<span class="sd">        attaching_early: Whether to attach the stage to the usd context before stage is created. Defaults to False.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="kn">from</span><span class="w"> </span><span class="nn">isaacsim.core.simulation_manager</span><span class="w"> </span><span class="kn">import</span> <span class="n">SimulationManager</span>
+
+    <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim.simulation_context</span><span class="w"> </span><span class="kn">import</span> <span class="n">SimulationContext</span>
+
+    <span class="c1"># if Isaac Sim version is less than 5.0, stage in memory is not supported</span>
+    <span class="n">isaac_sim_version</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="s2">&quot;.&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">get_version</span><span class="p">()[</span><span class="mi">2</span><span class="p">]))</span>
+    <span class="k">if</span> <span class="n">isaac_sim_version</span> <span class="o">&lt;</span> <span class="mi">5</span><span class="p">:</span>
+        <span class="k">return</span>
+
+    <span class="c1"># if stage is not in memory, we can return early</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">is_current_stage_in_memory</span><span class="p">():</span>
+        <span class="k">return</span>
+
+    <span class="c1"># attach stage to physx</span>
+    <span class="n">stage_id</span> <span class="o">=</span> <span class="n">get_current_stage_id</span><span class="p">()</span>
+    <span class="n">physx_sim_interface</span> <span class="o">=</span> <span class="n">omni</span><span class="o">.</span><span class="n">physx</span><span class="o">.</span><span class="n">get_physx_simulation_interface</span><span class="p">()</span>
+    <span class="n">physx_sim_interface</span><span class="o">.</span><span class="n">attach_stage</span><span class="p">(</span><span class="n">stage_id</span><span class="p">)</span>
+
+    <span class="c1"># this carb flag is equivalent to if rendering is enabled</span>
+    <span class="n">carb_setting</span> <span class="o">=</span> <span class="n">carb</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">get_settings</span><span class="p">()</span>
+    <span class="n">is_rendering_enabled</span> <span class="o">=</span> <span class="n">get_carb_setting</span><span class="p">(</span><span class="n">carb_setting</span><span class="p">,</span> <span class="s2">&quot;/physics/fabricUpdateTransformations&quot;</span><span class="p">)</span>
+
+    <span class="c1"># if rendering is not enabled, we don&#39;t need to attach it</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">is_rendering_enabled</span><span class="p">:</span>
+        <span class="k">return</span>
+
+    <span class="c1"># early attach warning msg</span>
+    <span class="k">if</span> <span class="n">attaching_early</span><span class="p">:</span>
+        <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+            <span class="s2">&quot;Attaching stage in memory to USD context early to support an operation which doesn&#39;t support stage in&quot;</span>
+            <span class="s2">&quot; memory.&quot;</span>
+        <span class="p">)</span>
+
+    <span class="c1"># skip this callback to avoid wiping the stage after attachment</span>
+    <span class="n">SimulationContext</span><span class="o">.</span><span class="n">instance</span><span class="p">()</span><span class="o">.</span><span class="n">skip_next_stage_open_callback</span><span class="p">()</span>
+
+    <span class="c1"># disable stage open callback to avoid clearing callbacks</span>
+    <span class="n">SimulationManager</span><span class="o">.</span><span class="n">enable_stage_open_callback</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span>
+
+    <span class="c1"># enable physics fabric</span>
+    <span class="n">SimulationContext</span><span class="o">.</span><span class="n">instance</span><span class="p">()</span><span class="o">.</span><span class="n">_physics_context</span><span class="o">.</span><span class="n">enable_fabric</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
+
+    <span class="c1"># attach stage to usd context</span>
+    <span class="n">omni</span><span class="o">.</span><span class="n">usd</span><span class="o">.</span><span class="n">get_context</span><span class="p">()</span><span class="o">.</span><span class="n">attach_stage_with_callback</span><span class="p">(</span><span class="n">stage_id</span><span class="p">)</span>
+
+    <span class="c1"># attach stage to physx</span>
+    <span class="n">physx_sim_interface</span> <span class="o">=</span> <span class="n">omni</span><span class="o">.</span><span class="n">physx</span><span class="o">.</span><span class="n">get_physx_simulation_interface</span><span class="p">()</span>
+    <span class="n">physx_sim_interface</span><span class="o">.</span><span class="n">attach_stage</span><span class="p">(</span><span class="n">stage_id</span><span class="p">)</span>
+
+    <span class="c1"># re-enable stage open callback</span>
+    <span class="n">SimulationManager</span><span class="o">.</span><span class="n">enable_stage_open_callback</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="is_current_stage_in_memory"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.sim.html#isaaclab.sim.utils.is_current_stage_in_memory">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">is_current_stage_in_memory</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Checks if the current stage is in memory.</span>
+
+<span class="sd">    This function compares the stage id of the current USD stage with the stage id of the USD context stage.</span>
 
 <span class="sd">    Returns:</span>
-<span class="sd">        True if the server responds with OK, False otherwise.</span>
+<span class="sd">        Whether the current stage is in memory.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="k">try</span><span class="p">:</span>
-        <span class="n">result</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">wait_for</span><span class="p">(</span><span class="n">omni</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">stat_async</span><span class="p">(</span><span class="n">usd_path</span><span class="p">),</span> <span class="n">timeout</span><span class="o">=</span><span class="n">timeout</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">result</span> <span class="o">==</span> <span class="n">omni</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">Result</span><span class="o">.</span><span class="n">OK</span>
-    <span class="k">except</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">TimeoutError</span><span class="p">:</span>
-        <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Timed out after </span><span class="si">{</span><span class="n">timeout</span><span class="si">}</span><span class="s2">s while checking for USD: </span><span class="si">{</span><span class="n">usd_path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-        <span class="k">return</span> <span class="kc">False</span>
-    <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">ex</span><span class="p">:</span>
-        <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Exception during USD file check: </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">ex</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">ex</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-        <span class="k">return</span> <span class="kc">False</span>
 
+    <span class="c1"># grab current stage id</span>
+    <span class="n">stage_id</span> <span class="o">=</span> <span class="n">get_current_stage_id</span><span class="p">()</span>
 
-<div class="viewcode-block" id="check_usd_path_with_timeout"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.sim.html#isaaclab.sim.utils.check_usd_path_with_timeout">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">check_usd_path_with_timeout</span><span class="p">(</span><span class="n">usd_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">timeout</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">300</span><span class="p">,</span> <span class="n">log_interval</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">30</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Synchronously runs an asynchronous USD path availability check,</span>
-<span class="sd">    logging progress periodically until it completes.</span>
+    <span class="c1"># grab context stage id</span>
+    <span class="n">context_stage</span> <span class="o">=</span> <span class="n">omni</span><span class="o">.</span><span class="n">usd</span><span class="o">.</span><span class="n">get_context</span><span class="p">()</span><span class="o">.</span><span class="n">get_stage</span><span class="p">()</span>
+    <span class="k">with</span> <span class="n">use_stage</span><span class="p">(</span><span class="n">context_stage</span><span class="p">):</span>
+        <span class="n">context_stage_id</span> <span class="o">=</span> <span class="n">get_current_stage_id</span><span class="p">()</span>
 
-<span class="sd">    This is useful for checking server responsiveness before attempting to load a remote asset.</span>
-<span class="sd">    It will block execution until the check completes or times out.</span>
-
-<span class="sd">    Args:</span>
-<span class="sd">        usd_path: The remote USD file path to check.</span>
-<span class="sd">        timeout: Maximum time (in seconds) to wait for the server check.</span>
-<span class="sd">        log_interval: Interval (in seconds) at which progress is logged.</span>
-
-<span class="sd">    Returns:</span>
-<span class="sd">        True if the file is available (HTTP 200 / OK), False otherwise.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">start_time</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
-    <span class="n">loop</span> <span class="o">=</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">get_event_loop</span><span class="p">()</span>
-
-    <span class="n">coroutine</span> <span class="o">=</span> <span class="n">_is_usd_path_available</span><span class="p">(</span><span class="n">usd_path</span><span class="p">,</span> <span class="n">timeout</span><span class="p">)</span>
-    <span class="n">task</span> <span class="o">=</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">ensure_future</span><span class="p">(</span><span class="n">coroutine</span><span class="p">)</span>
-
-    <span class="n">next_log_time</span> <span class="o">=</span> <span class="n">start_time</span> <span class="o">+</span> <span class="n">log_interval</span>
-
-    <span class="n">first_log</span> <span class="o">=</span> <span class="kc">True</span>
-    <span class="k">while</span> <span class="ow">not</span> <span class="n">task</span><span class="o">.</span><span class="n">done</span><span class="p">():</span>
-        <span class="n">now</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
-        <span class="k">if</span> <span class="n">now</span> <span class="o">&gt;=</span> <span class="n">next_log_time</span><span class="p">:</span>
-            <span class="n">elapsed</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">now</span> <span class="o">-</span> <span class="n">start_time</span><span class="p">)</span>
-            <span class="k">if</span> <span class="n">first_log</span><span class="p">:</span>
-                <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Checking server availability for USD path: </span><span class="si">{</span><span class="n">usd_path</span><span class="si">}</span><span class="s2"> (timeout: </span><span class="si">{</span><span class="n">timeout</span><span class="si">}</span><span class="s2">s)&quot;</span><span class="p">)</span>
-                <span class="n">first_log</span> <span class="o">=</span> <span class="kc">False</span>
-            <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Waiting for server response... (</span><span class="si">{</span><span class="n">elapsed</span><span class="si">}</span><span class="s2">s elapsed)&quot;</span><span class="p">)</span>
-            <span class="n">next_log_time</span> <span class="o">+=</span> <span class="n">log_interval</span>
-        <span class="n">loop</span><span class="o">.</span><span class="n">run_until_complete</span><span class="p">(</span><span class="n">asyncio</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mf">0.1</span><span class="p">))</span>  <span class="c1"># Yield to allow async work</span>
-
-    <span class="k">return</span> <span class="n">task</span><span class="o">.</span><span class="n">result</span><span class="p">()</span></div>
-
-
-<span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">Isaac Sim stage utils wrappers to enable backwards compatibility to Isaac Sim 4.5</span>
-<span class="sd">&quot;&quot;&quot;</span>
+    <span class="c1"># check if stage ids are the same</span>
+    <span class="k">return</span> <span class="n">stage_id</span> <span class="o">!=</span> <span class="n">context_stage_id</span></div>
 
 
 <div class="viewcode-block" id="use_stage"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.sim.html#isaaclab.sim.utils.use_stage">[docs]</a><span class="nd">@contextlib</span><span class="o">.</span><span class="n">contextmanager</span>
-<span class="k">def</span><span class="w"> </span><span class="nf">use_stage</span><span class="p">(</span><span class="n">stage</span><span class="p">:</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Stage</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">use_stage</span><span class="p">(</span><span class="n">stage</span><span class="p">:</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Stage</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Generator</span><span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">]:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Context manager that sets a thread-local stage, if supported.</span>
 
 <span class="sd">    In Isaac Sim &lt; 5.0, this is a no-op to maintain compatibility.</span>
 
 <span class="sd">    Args:</span>
-<span class="sd">        stage (Usd.Stage): The stage to set temporarily.</span>
+<span class="sd">        stage: The stage to set temporarily.</span>
+
+<span class="sd">    Yields:</span>
+<span class="sd">        None</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">isaac_sim_version</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="s2">&quot;.&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">get_version</span><span class="p">()[</span><span class="mi">2</span><span class="p">]))</span>
     <span class="k">if</span> <span class="n">isaac_sim_version</span> <span class="o">&lt;</span> <span class="mi">5</span><span class="p">:</span>
@@ -1671,10 +1601,10 @@
 
 
 <div class="viewcode-block" id="create_new_stage_in_memory"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.sim.html#isaaclab.sim.utils.create_new_stage_in_memory">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">create_new_stage_in_memory</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Stage</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Create a new stage in memory, if supported.</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Creates a new stage in memory, if supported.</span>
 
 <span class="sd">    Returns:</span>
-<span class="sd">        The new stage.</span>
+<span class="sd">        The new stage in memory.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">isaac_sim_version</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="s2">&quot;.&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">get_version</span><span class="p">()[</span><span class="mi">2</span><span class="p">]))</span>
     <span class="k">if</span> <span class="n">isaac_sim_version</span> <span class="o">&lt;</span> <span class="mi">5</span><span class="p">:</span>
@@ -1688,12 +1618,13 @@
 
 
 <div class="viewcode-block" id="get_current_stage_id"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.sim.html#isaaclab.sim.utils.get_current_stage_id">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">get_current_stage_id</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Get the current open stage id.</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Gets the current open stage id.</span>
 
-<span class="sd">    Reimplementation of stage_utils.get_current_stage_id() for Isaac Sim &lt; 5.0.</span>
+<span class="sd">    This function is a reimplementation of :meth:`isaacsim.core.utils.stage.get_current_stage_id` for</span>
+<span class="sd">    backwards compatibility to Isaac Sim &lt; 5.0.</span>
 
 <span class="sd">    Returns:</span>
-<span class="sd">        int: The stage id.</span>
+<span class="sd">        The current open stage id.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">stage</span> <span class="o">=</span> <span class="n">get_current_stage</span><span class="p">()</span>
     <span class="n">stage_cache</span> <span class="o">=</span> <span class="n">UsdUtils</span><span class="o">.</span><span class="n">StageCache</span><span class="o">.</span><span class="n">Get</span><span class="p">()</span>

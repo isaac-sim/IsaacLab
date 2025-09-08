@@ -670,6 +670,7 @@
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.assets.check_file_path"><code class="docutils literal notranslate"><span class="pre">check_file_path()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.assets.retrieve_file_path"><code class="docutils literal notranslate"><span class="pre">retrieve_file_path()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.assets.read_file"><code class="docutils literal notranslate"><span class="pre">read_file()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.assets.check_usd_path_with_timeout"><code class="docutils literal notranslate"><span class="pre">check_usd_path_with_timeout()</span></code></a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-isaaclab.utils.buffers">Buffer operations</a><ul class="nav section-nav flex-column">
@@ -1257,6 +1258,9 @@ distribution of the assets easier and makes the repository smaller in size code-
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.utils.assets.read_file" title="isaaclab.utils.assets.read_file"><code class="xref py py-obj docutils literal notranslate"><span class="pre">read_file</span></code></a>(path)</p></td>
 <td><p>Reads a file from the Nucleus Server or locally.</p></td>
 </tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.utils.assets.check_usd_path_with_timeout" title="isaaclab.utils.assets.check_usd_path_with_timeout"><code class="xref py py-obj docutils literal notranslate"><span class="pre">check_usd_path_with_timeout</span></code></a>(usd_path[, ...])</p></td>
+<td><p>Checks whether the given USD file path is available on the NVIDIA Nucleus server.</p></td>
+</tr>
 </tbody>
 </table>
 </div>
@@ -1347,6 +1351,29 @@ the local file if it exists. Defaults to True.</p></li>
 </dd>
 <dt class="field-odd">Returns<span class="colon">:</span></dt>
 <dd class="field-odd"><p>The content of the file.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="isaaclab.utils.assets.check_usd_path_with_timeout">
+<span class="sig-prename descclassname"><span class="pre">isaaclab.utils.assets.</span></span><span class="sig-name descname"><span class="pre">check_usd_path_with_timeout</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">usd_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">timeout</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">300</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">log_interval</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">30</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab/utils/assets.html#check_usd_path_with_timeout"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.utils.assets.check_usd_path_with_timeout" title="Permalink to this definition">#</a></dt>
+<dd><p>Checks whether the given USD file path is available on the NVIDIA Nucleus server.</p>
+<p>This function synchronously runs an asynchronous USD path availability check,
+logging progress periodically until it completes. The file is available on the server
+if the HTTP status code is 200. Otherwise, the file is not available on the server.</p>
+<p>This is useful for checking server responsiveness before attempting to load a remote
+asset. It will block execution until the check completes or times out.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>usd_path</strong> – The remote USD file path to check.</p></li>
+<li><p><strong>timeout</strong> – Maximum time (in seconds) to wait for the server check.</p></li>
+<li><p><strong>log_interval</strong> – Interval (in seconds) at which progress is logged.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Whether the given USD path is available on the server.</p>
 </dd>
 </dl>
 </dd></dl>
@@ -4934,6 +4961,7 @@ The returned tensor contains <code class="xref py py-obj docutils literal notran
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.assets.check_file_path"><code class="docutils literal notranslate"><span class="pre">check_file_path()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.assets.retrieve_file_path"><code class="docutils literal notranslate"><span class="pre">retrieve_file_path()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.assets.read_file"><code class="docutils literal notranslate"><span class="pre">read_file()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.utils.assets.check_usd_path_with_timeout"><code class="docutils literal notranslate"><span class="pre">check_usd_path_with_timeout()</span></code></a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-isaaclab.utils.buffers">Buffer operations</a><ul class="nav section-nav flex-column">
