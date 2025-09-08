@@ -3,12 +3,19 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import contextlib
 import numpy as np
 from time import time
 
 import carb
 from isaacsim.core.utils.extensions import enable_extension
-from omni.kit.xr.core import XRCore, XRPoseValidityFlags
+
+# For testing purposes, we need to mock the XRCore
+XRCore, XRPoseValidityFlags = None, None
+
+with contextlib.suppress(ModuleNotFoundError):
+    from omni.kit.xr.core import XRCore, XRPoseValidityFlags
+
 from pxr import Gf
 
 # Mapping from Manus joint index (0-24) to joint name. Palm (25) is calculated from middle metacarpal and proximal.
