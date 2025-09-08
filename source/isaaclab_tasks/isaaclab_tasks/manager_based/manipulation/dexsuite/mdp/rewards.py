@@ -9,12 +9,11 @@ import torch
 from typing import TYPE_CHECKING
 
 from isaaclab.assets import RigidObject
-from isaaclab.managers import ManagerTermBase, SceneEntityCfg
+from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import ContactSensor
 from isaaclab.utils import math as math_utils
 from isaaclab.utils.math import combine_frame_transforms, compute_pose_error
 
-from .utils import sample_object_point_cloud
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
@@ -48,48 +47,6 @@ def object_ee_distance(
     return 1 - torch.tanh(object_ee_distance / std)
 
 
-class lifted(ManagerTermBase):
-    """Reward for lifting an object above a minimum height while maintaining contact."""
-
-    def __init__(self, cfg, env: ManagerBasedRLEnv):
-        super().__init__(cfg, env)
-        self.object: RigidObject = env.scene[cfg.params.get("object_cfg", SceneEntityCfg("object")).name]
-        num_points: int = cfg.params.get("num_points", 10)
-
-        if cfg.params.get("visualize", True):
-            from isaaclab.markers import VisualizationMarkers
-            from isaaclab.markers.config import RAY_CASTER_MARKER_CFG
-
-            ray_cfg = RAY_CASTER_MARKER_CFG.replace(prim_path="/Visuals/RewardPointCloud")
-            ray_cfg.markers["hit"].radius = 0.001
-            self.visualizer = VisualizationMarkers(ray_cfg)
-
-        self.points_local = sample_object_point_cloud(env.num_envs, num_points, self.object.cfg.prim_path).to(
-            env.device
-        )
-
-    def __call__(
-        self,
-        env: ManagerBasedRLEnv,
-        min_height: float,
-        object_cfg: SceneEntityCfg = SceneEntityCfg("object"),
-        num_points: int = 10,
-        visualize: bool = True,
-    ):
-        """Reward if the object is lifted above ``min_height`` and good contact is maintained."""
-
-        object_pos_w = self.object.data.root_pos_w.unsqueeze(1).repeat(1, num_points, 1)
-        object_rot_w = self.object.data.root_quat_w.unsqueeze(1).repeat(1, num_points, 1)
-
-        # apply rotation + translation
-        object_point_cloud_w = math_utils.quat_apply(object_rot_w, self.points_local) + object_pos_w
-
-        if visualize:
-            self.visualizer.visualize(translations=object_point_cloud_w.reshape(-1, 3))
-        self.lifted = (contacts(env, 1.0)) & (torch.all(object_point_cloud_w[..., 2] > min_height, dim=1))
-        return self.lifted.float()
-
-
 def contacts(env: ManagerBasedRLEnv, threshold: float) -> torch.Tensor:
     """Penalize undesired contacts as the number of violations that are above a threshold."""
 
@@ -112,18 +69,6 @@ def contacts(env: ManagerBasedRLEnv, threshold: float) -> torch.Tensor:
     )
 
     return good_contact_cond1
-
-
-def contacts_sum(env: ManagerBasedRLEnv, threshold: float, sensors: list[str]) -> torch.Tensor:
-    """Count the number of contacts across multiple sensors above a force threshold."""
-
-    contacts_sum = torch.zeros(env.num_envs, device=env.device)
-    for sensor_name in sensors:
-        contact_sensor: ContactSensor = env.scene.sensors[sensor_name]
-        contact_force_w = contact_sensor.data.force_matrix_w.view(env.num_envs, 3)
-        contact_force_mag = torch.norm(contact_force_w, dim=-1)
-        contacts_sum += (contact_force_mag > threshold).float()
-    return contacts_sum
 
 
 def success_reward(
