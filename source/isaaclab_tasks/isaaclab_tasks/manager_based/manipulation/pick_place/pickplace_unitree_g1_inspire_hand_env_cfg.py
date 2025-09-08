@@ -29,7 +29,6 @@ from isaaclab.sim.schemas.schemas_cfg import MassPropertiesCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
-from isaaclab.sim.schemas.schemas_cfg import MassPropertiesCfg
 
 from . import mdp
 
