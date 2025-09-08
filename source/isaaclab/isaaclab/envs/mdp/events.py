@@ -716,18 +716,14 @@ class randomize_joint_parameters(ManagerTermBase):
             # ensure the friction coefficient is non-negative
             friction_coeff = torch.clamp(friction_coeff, min=0.0)
 
+            # Always set static friction (indexed once)
+            static_friction_coeff = friction_coeff[env_ids[:, None], joint_ids]
+
             # if isaacsim version is lower than 5.0.0 we can set only the static friction coefficient
             major_version = int(env.sim.get_version()[0])
-
-            # Always set static friction (indexed once)
-            static_fc = friction_coeff[env_ids[:, None], joint_ids]
-
-            dyn_fc = None
-            visc_fc = None
-
             if major_version >= 5:
                 # Randomize raw tensors
-                dyn_raw = _randomize_prop_by_op(
+                dynamic_friction_coeff = _randomize_prop_by_op(
                     self.asset.data.default_joint_dynamic_friction_coeff.clone(),
                     friction_distribution_params,
                     env_ids,
@@ -735,7 +731,7 @@ class randomize_joint_parameters(ManagerTermBase):
                     operation=operation,
                     distribution=distribution,
                 )
-                visc_raw = _randomize_prop_by_op(
+                viscous_friction_coeff = _randomize_prop_by_op(
                     self.asset.data.default_joint_viscous_friction_coeff.clone(),
                     friction_distribution_params,
                     env_ids,
@@ -745,21 +741,25 @@ class randomize_joint_parameters(ManagerTermBase):
                 )
 
                 # Clamp to non-negative
-                dyn_raw = torch.clamp(dyn_raw, min=0.0)
-                visc_raw = torch.clamp(visc_raw, min=0.0)
+                dynamic_friction_coeff = torch.clamp(dynamic_friction_coeff, min=0.0)
+                viscous_friction_coeff = torch.clamp(viscous_friction_coeff, min=0.0)
 
                 # Ensure dynamic ≤ static (same shape before indexing)
-                dyn_raw = torch.minimum(dyn_raw, friction_coeff)
+                dynamic_friction_coeff = torch.minimum(dynamic_friction_coeff, friction_coeff)
 
                 # Index once at the end
-                dyn_fc = dyn_raw[env_ids[:, None], joint_ids]
-                visc_fc = visc_raw[env_ids[:, None], joint_ids]
+                dynamic_friction_coeff = dynamic_friction_coeff[env_ids[:, None], joint_ids]
+                viscous_friction_coeff = viscous_friction_coeff[env_ids[:, None], joint_ids]
+            else:
+                # For versions < 5.0.0, we do not set these values
+                dynamic_friction_coeff = None
+                viscous_friction_coeff = None
 
             # Single write call for all versions
             self.asset.write_joint_friction_coefficient_to_sim(
-                joint_friction_coeff=static_fc,
-                joint_dynamic_friction_coeff=dyn_fc,
-                joint_viscous_friction_coeff=visc_fc,
+                joint_friction_coeff=static_friction_coeff,
+                joint_dynamic_friction_coeff=dynamic_friction_coeff,
+                joint_viscous_friction_coeff=viscous_friction_coeff,
                 joint_ids=joint_ids,
                 env_ids=env_ids,
             )
