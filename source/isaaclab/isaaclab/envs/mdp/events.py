@@ -605,7 +605,7 @@ class randomize_actuator_gains(ManagerTermBase):
                 global_indices = torch.tensor(self.asset_cfg.joint_ids, device=self.asset.device)
             else:
                 # we take the intersection of the actuator joints and the asset config joints
-                actuator_joint_indices = actuator.joint_indices.to(self.asset.device)
+                actuator_joint_indices = actuator.joint_indices
                 asset_joint_ids = torch.tensor(self.asset_cfg.joint_ids, device=self.asset.device)
                 # the indices of the joints in the actuator that have to be randomized
                 actuator_indices = torch.nonzero(torch.isin(actuator_joint_indices, asset_joint_ids)).view(-1)
