@@ -159,7 +159,6 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
             "-c",
             f"{workspace_root}/pytest.ini",
             f"--junitxml=tests/test-reports-{str(file_name)}.xml",
-            "--verbose",
             "--tb=short",
         ]
 

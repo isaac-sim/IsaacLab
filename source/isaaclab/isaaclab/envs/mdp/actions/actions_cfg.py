@@ -9,7 +9,14 @@ from isaaclab.controllers import DifferentialIKControllerCfg, OperationalSpaceCo
 from isaaclab.managers.action_manager import ActionTerm, ActionTermCfg
 from isaaclab.utils import configclass
 
-from . import binary_joint_actions, joint_actions, joint_actions_to_limits, non_holonomic_actions, task_space_actions
+from . import (
+    binary_joint_actions,
+    joint_actions,
+    joint_actions_to_limits,
+    non_holonomic_actions,
+    surface_gripper_actions,
+    task_space_actions,
+)
 
 ##
 # Joint actions.
@@ -310,3 +317,25 @@ class OperationalSpaceControllerActionCfg(ActionTermCfg):
     Note: Functional only when ``nullspace_control`` is set to ``"position"`` within the
         ``OperationalSpaceControllerCfg``.
     """
+
+
+##
+# Surface Gripper actions.
+##
+
+
+@configclass
+class SurfaceGripperBinaryActionCfg(ActionTermCfg):
+    """Configuration for the binary surface gripper action term.
+
+    See :class:`SurfaceGripperBinaryAction` for more details.
+    """
+
+    asset_name: str = MISSING
+    """Name of the surface gripper asset in the scene."""
+    open_command: float = -1.0
+    """The command value to open the gripper. Defaults to -1.0."""
+    close_command: float = 1.0
+    """The command value to close the gripper. Defaults to 1.0."""
+
+    class_type: type[ActionTerm] = surface_gripper_actions.SurfaceGripperBinaryAction

@@ -358,6 +358,11 @@ class DeformableObject(AssetBase):
         # update the deformable body data
         self.update(0.0)
 
+        # Initialize debug visualization handle
+        if self._debug_vis_handle is None:
+            # set initial state of debug visualization
+            self.set_debug_vis(self.cfg.debug_vis)
+
     def _create_buffers(self):
         """Create buffers for storing data."""
         # constants

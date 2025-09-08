@@ -3,12 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import argparse
-
-import ray
-import util
-from ray.util.scheduling_strategies import NodeAffinitySchedulingStrategy
-
 """
 This script dispatches sub-job(s) (individual jobs, use :file:`tuner.py` for tuning jobs)
 to worker(s) on GPU-enabled node(s) of a specific cluster as part of an resource-wrapped aggregate
@@ -64,6 +58,10 @@ Usage:
     ./isaaclab.sh -p scripts/reinforcement_learning/ray/wrap_resources.py -h
 """
 
+import argparse
+
+import util
+
 
 def wrap_resources_to_jobs(jobs: list[str], args: argparse.Namespace) -> None:
     """
@@ -75,9 +73,14 @@ def wrap_resources_to_jobs(jobs: list[str], args: argparse.Namespace) -> None:
         args: The arguments for resource allocation
 
     """
-    if not ray.is_initialized():
-        ray.init(address=args.ray_address, log_to_driver=True)
-    job_results = []
+    job_objs = []
+    util.ray_init(
+        ray_address=args.ray_address,
+        runtime_env={
+            "py_modules": None if not args.py_modules else args.py_modules,
+        },
+        log_to_driver=False,
+    )
     gpu_node_resources = util.get_gpu_node_resources(include_id=True, include_gb_ram=True)
 
     if any([args.gpu_per_worker, args.cpu_per_worker, args.ram_gb_per_worker]) and args.num_workers:
@@ -97,7 +100,7 @@ def wrap_resources_to_jobs(jobs: list[str], args: argparse.Namespace) -> None:
         jobs = ["nvidia-smi"] * num_nodes
     for i, job in enumerate(jobs):
         gpu_node = gpu_node_resources[i % num_nodes]
-        print(f"[INFO]: Submitting job {i + 1} of {len(jobs)} with job '{job}' to node {gpu_node}")
+        print(f"[INFO]: Creating job {i + 1} of {len(jobs)} with job '{job}' to node {gpu_node}")
         print(
             f"[INFO]: Resource parameters: GPU: {args.gpu_per_worker[i]}"
             f" CPU: {args.cpu_per_worker[i]} RAM {args.ram_gb_per_worker[i]}"
@@ -106,19 +109,19 @@ def wrap_resources_to_jobs(jobs: list[str], args: argparse.Namespace) -> None:
         num_gpus = args.gpu_per_worker[i] / args.num_workers[i]
         num_cpus = args.cpu_per_worker[i] / args.num_workers[i]
         memory = (args.ram_gb_per_worker[i] * 1024**3) / args.num_workers[i]
-        print(f"[INFO]: Requesting {num_gpus=} {num_cpus=} {memory=} id={gpu_node['id']}")
-        job = util.remote_execute_job.options(
-            num_gpus=num_gpus,
-            num_cpus=num_cpus,
-            memory=memory,
-            scheduling_strategy=NodeAffinitySchedulingStrategy(gpu_node["id"], soft=False),
-        ).remote(job, f"Job {i}", args.test)
-        job_results.append(job)
-
-    results = ray.get(job_results)
-    for i, result in enumerate(results):
-        print(f"[INFO]: Job {i} result: {result}")
-    print("[INFO]: All jobs completed.")
+        job_objs.append(
+            util.Job(
+                cmd=job,
+                name=f"Job-{i + 1}",
+                resources=util.JobResource(num_gpus=num_gpus, num_cpus=num_cpus, memory=memory),
+                node=util.JobNode(
+                    specific="node_id",
+                    node_id=gpu_node["id"],
+                ),
+            )
+        )
+    # submit jobs
+    util.submit_wrapped_jobs(jobs=job_objs, test_mode=args.test, concurrent=False)
 
 
 if __name__ == "__main__":
@@ -132,6 +135,15 @@ if __name__ == "__main__":
             "Run nvidia-smi test instead of the arbitrary job,"
             "can use as a sanity check prior to any jobs to check "
             "that GPU resources are correctly isolated."
+        ),
+    )
+    parser.add_argument(
+        "--py_modules",
+        type=str,
+        nargs="*",
+        default=[],
+        help=(
+            "List of python modules or paths to add before running the job. Example: --py_modules my_package/my_package"
         ),
     )
     parser.add_argument(
