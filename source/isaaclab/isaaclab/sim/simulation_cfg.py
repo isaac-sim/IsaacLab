@@ -9,7 +9,7 @@ This module defines the general configuration of the environment. It includes pa
 configuring the environment instances, viewer settings, and simulation parameters.
 """
 
-from typing import Literal
+from typing import Any, Literal
 
 from isaaclab.utils import configclass
 
@@ -165,9 +165,14 @@ class PhysxCfg:
 class RenderCfg:
     """Configuration for Omniverse RTX Renderer.
 
-    These parameters are used to configure the Omniverse RTX Renderer. The defaults for IsaacLab are set in the
-    experience files: `apps/isaaclab.python.rendering.kit` and `apps/isaaclab.python.headless.rendering.kit`. Setting any
-    value here will override the defaults of the experience files.
+    These parameters are used to configure the Omniverse RTX Renderer.
+
+    The defaults for IsaacLab are set in the experience files:
+
+    * ``apps/isaaclab.python.rendering.kit``: Setting used when running the simulation with the GUI enabled.
+    * ``apps/isaaclab.python.headless.rendering.kit``: Setting used when running the simulation in headless mode.
+
+    Setting any value here will override the defaults of the experience files.
 
     For more information, see the `Omniverse RTX Renderer documentation`_.
 
@@ -177,88 +182,109 @@ class RenderCfg:
     enable_translucency: bool | None = None
     """Enables translucency for specular transmissive surfaces such as glass at the cost of some performance. Default is False.
 
-    Set variable: /rtx/translucency/enabled
+    This is set by the variable: ``/rtx/translucency/enabled``.
     """
 
     enable_reflections: bool | None = None
     """Enables reflections at the cost of some performance. Default is False.
 
-    Set variable: /rtx/reflections/enabled
+    This is set by the variable: ``/rtx/reflections/enabled``.
     """
 
     enable_global_illumination: bool | None = None
     """Enables Diffused Global Illumination at the cost of some performance. Default is False.
 
-    Set variable: /rtx/indirectDiffuse/enabled
+    This is set by the variable: ``/rtx/indirectDiffuse/enabled``.
     """
 
     antialiasing_mode: Literal["Off", "FXAA", "DLSS", "TAA", "DLAA"] | None = None
     """Selects the anti-aliasing mode to use. Defaults to DLSS.
-       - DLSS: Boosts performance by using AI to output higher resolution frames from a lower resolution input. DLSS samples multiple lower resolution images and uses motion data and feedback from prior frames to reconstruct native quality images.
-       - DLAA: Provides higher image quality with an AI-based anti-aliasing technique. DLAA uses the same Super Resolution technology developed for DLSS, reconstructing a native resolution image to maximize image quality.
 
-    Set variable: /rtx/post/dlss/execMode
+    - **DLSS**: Boosts performance by using AI to output higher resolution frames from a lower resolution input.
+      DLSS samples multiple lower resolution images and uses motion data and feedback from prior frames to reconstruct
+      native quality images.
+    - **DLAA**: Provides higher image quality with an AI-based anti-aliasing technique. DLAA uses the same Super Resolution
+      technology developed for DLSS, reconstructing a native resolution image to maximize image quality.
+
+    This is set by the variable: ``/rtx/post/dlss/execMode``.
     """
 
     enable_dlssg: bool | None = None
-    """"Enables the use of DLSS-G.
-        DLSS Frame Generation boosts performance by using AI to generate more frames.
-        DLSS analyzes sequential frames and motion data to create additional high quality frames.
-        This feature requires an Ada Lovelace architecture GPU.
-        Enabling this feature also enables additional thread-related activities, which can hurt performance.
-        Default is False.
+    """"Enables the use of DLSS-G. Default is False.
 
-    Set variable: /rtx-transient/dlssg/enabled
+    DLSS Frame Generation boosts performance by using AI to generate more frames. DLSS analyzes sequential frames
+    and motion data to create additional high quality frames.
+
+    .. note::
+
+        This feature requires an Ada Lovelace architecture GPU. Enabling this feature also enables additional
+        thread-related activities, which can hurt performance.
+
+    This is set by the variable: ``/rtx-transient/dlssg/enabled``.
     """
 
     enable_dl_denoiser: bool | None = None
     """Enables the use of a DL denoiser.
-       The DL denoiser can help improve the quality of renders, but comes at a cost of performance.
 
-    Set variable: /rtx-transient/dldenoiser/enabled
+    The DL denoiser can help improve the quality of renders, but comes at a cost of performance.
+
+    This is set by the variable: ``/rtx-transient/dldenoiser/enabled``.
     """
 
     dlss_mode: Literal[0, 1, 2, 3] | None = None
-    """For DLSS anti-aliasing, selects the performance/quality tradeoff mode.
-       Valid values are 0 (Performance), 1 (Balanced), 2 (Quality), or 3 (Auto). Default is 0.
+    """For DLSS anti-aliasing, selects the performance/quality tradeoff mode. Default is 0.
 
-    Set variable: /rtx/post/dlss/execMode
+    Valid values are:
+
+    * 0 (Performance)
+    * 1 (Balanced)
+    * 2 (Quality)
+    * 3 (Auto)
+
+    This is set by the variable: ``/rtx/post/dlss/execMode``.
     """
 
     enable_direct_lighting: bool | None = None
-    """Enable direct light contributions from lights.
+    """Enable direct light contributions from lights. Default is False.
 
-    Set variable: /rtx/directLighting/enabled
+    This is set by the variable: ``/rtx/directLighting/enabled``.
     """
 
     samples_per_pixel: int | None = None
-    """Defines the Direct Lighting samples per pixel.
-       Higher values increase the direct lighting quality at the cost of performance. Default is 1.
+    """Defines the Direct Lighting samples per pixel. Default is 1.
 
-    Set variable: /rtx/directLighting/sampledLighting/samplesPerPixel"""
+    A higher value increases the direct lighting quality at the cost of performance.
+
+    This is set by the variable: ``/rtx/directLighting/sampledLighting/samplesPerPixel``.
+    """
 
     enable_shadows: bool | None = None
-    """Enables shadows at the cost of performance. When disabled, lights will not cast shadows. Defaults to True.
+    """Enables shadows at the cost of performance. Defaults to True.
 
-    Set variable: /rtx/shadows/enabled
+    When disabled, lights will not cast shadows.
+
+    This is set by the variable: ``/rtx/shadows/enabled``.
     """
 
     enable_ambient_occlusion: bool | None = None
     """Enables ambient occlusion at the cost of some performance. Default is False.
 
-    Set variable: /rtx/ambientOcclusion/enabled
+    This is set by the variable: ``/rtx/ambientOcclusion/enabled``.
     """
 
-    carb_settings: dict | None = None
-    """Provides a general dictionary for users to supply all carb rendering settings with native names.
-        - Name strings can be formatted like a carb setting, .kit file setting, or python variable.
-        - For instance, a key value pair can be
-            /rtx/translucency/enabled: False # carb
-             rtx.translucency.enabled: False # .kit
-             rtx_translucency_enabled: False # python"""
+    carb_settings: dict[str, Any] | None = None
+    """A general dictionary for users to supply all carb rendering settings with native names.
+
+    The keys of the dictionary can be formatted like a carb setting, .kit file setting, or python variable.
+    For instance, a key value pair can be ``/rtx/translucency/enabled: False`` (carb), ``rtx.translucency.enabled: False`` (.kit),
+    or ``rtx_translucency_enabled: False`` (python).
+    """
 
     rendering_mode: Literal["performance", "balanced", "quality"] | None = None
-    """Sets the rendering mode. Behaves the same as the CLI arg '--rendering_mode'"""
+    """The rendering mode.
+
+    This behaves the same as the passing the CLI arg ``--rendering_mode`` to an executable script.
+    """
 
 
 @configclass

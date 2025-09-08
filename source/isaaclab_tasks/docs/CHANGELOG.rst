@@ -1,6 +1,23 @@
 Changelog
 ---------
 
+0.10.49 (2025-09-05)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added suction gripper stacking environments with UR10 that can be used with teleoperation.
+
+0.10.48 (2025-09-03)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``Isaac-Deploy-Reach-UR10e-v0`` environment.
+
+
 0.10.47 (2025-07-25)
 ~~~~~~~~~~~~~~~~~~~~
 
