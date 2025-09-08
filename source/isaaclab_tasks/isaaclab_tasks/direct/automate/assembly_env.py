@@ -355,7 +355,7 @@ class AssemblyEnv(DirectRLEnv):
                 keypoint_offset.repeat(self.num_envs, 1),
             )[1]
 
-        self.keypoint_dist = torch.norm(self.keypoints_held - self.keypoints_fixed, p=2, dim=-1).mean(-1)
+        self.keypoint_dist = torch.linalg.norm(self.keypoints_held - self.keypoints_fixed, p=2, dim=-1).mean(-1)
         self.last_update_timestamp = self._robot._data._sim_timestamp
 
     def _get_observations(self):
@@ -420,7 +420,7 @@ class AssemblyEnv(DirectRLEnv):
         rot_actions = actions[:, 3:6]
 
         # Convert to quat and set rot target
-        angle = torch.norm(rot_actions, p=2, dim=-1)
+        angle = torch.linalg.norm(rot_actions, p=2, dim=-1)
         axis = rot_actions / angle.unsqueeze(-1)
 
         rot_actions_quat = torch_utils.quat_from_angle_axis(angle, axis)
@@ -472,7 +472,7 @@ class AssemblyEnv(DirectRLEnv):
         self.ctrl_target_fingertip_midpoint_pos = self.fixed_pos_action_frame + pos_error_clipped
 
         # Convert to quat and set rot target
-        angle = torch.norm(rot_actions, p=2, dim=-1)
+        angle = torch.linalg.norm(rot_actions, p=2, dim=-1)
         axis = rot_actions / angle.unsqueeze(-1)
 
         rot_actions_quat = torch_utils.quat_from_angle_axis(angle, axis)

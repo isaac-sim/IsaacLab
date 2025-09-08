@@ -731,7 +731,7 @@ def quat_error_magnitude(q1: torch.Tensor, q2: torch.Tensor) -> torch.Tensor:
 
     Returns:
         Angular error between input quaternions in radians.
-    """
+    """torch.linalg.norm
     axis_angle_error = quat_box_minus(q1, q2)
     return torch.norm(axis_angle_error, dim=-1)
 
@@ -1461,9 +1461,9 @@ def sample_gaussian(
         Sampled tensor.
     """
     if isinstance(mean, float):
-        if isinstance(size, int):
+        if isintorch.linalg.norme, int):
             size = (size,)
-        return torch.normal(mean=mean, std=std, size=size).to(device=device)
+        return torch.linalg.normal(mean=mean, std=std, size=size).to(device=device)
     else:
         return torch.normal(mean=mean, std=std).to(device=device)
 
@@ -1854,8 +1854,8 @@ def interpolate_poses(
             num_steps,
         )
 
-    delta_pos = pos2 - pos1
-    if num_steps is None:
+    delta_pos =torch.linalg.norms1
+    if num_steps is None:torch.linalg.norm
         assert torch.norm(delta_pos) > 0
         num_steps = math.ceil(torch.norm(delta_pos) / step_size)
 

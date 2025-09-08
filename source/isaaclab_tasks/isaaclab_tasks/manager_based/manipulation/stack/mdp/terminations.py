@@ -43,12 +43,12 @@ def cubes_stacked(
     pos_diff_c23 = cube_2.data.root_pos_w - cube_3.data.root_pos_w
 
     # Compute cube position difference in x-y plane
-    xy_dist_c12 = torch.norm(pos_diff_c12[:, :2], dim=1)
-    xy_dist_c23 = torch.norm(pos_diff_c23[:, :2], dim=1)
+    xy_dist_c12 = torch.linalg.norm(pos_diff_c12[:, :2], dim=1)
+    xy_dist_c23 = torch.linalg.norm(pos_diff_c23[:, :2], dim=1)
 
     # Compute cube height difference
-    h_dist_c12 = torch.norm(pos_diff_c12[:, 2:], dim=1)
-    h_dist_c23 = torch.norm(pos_diff_c23[:, 2:], dim=1)
+    h_dist_c12 = torch.linalg.norm(pos_diff_c12[:, 2:], dim=1)
+    h_dist_c23 = torch.linalg.norm(pos_diff_c23[:, 2:], dim=1)
 
     # Check cube positions
     stacked = torch.logical_and(xy_dist_c12 < xy_threshold, xy_dist_c23 < xy_threshold)
