@@ -141,11 +141,11 @@ def main():
     _ = TerrainImporter(terrain_importer_cfg)
 
     mesh_targets: list[MultiMeshRayCasterCfg.RaycastTargetCfg] = [
-        MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr="/World/ground", is_global=True),
+        MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr="/World/ground", track_mesh_transforms=False),
     ]
     if args_cli.num_objects != 0:
         mesh_targets.append(
-            MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr="/World/envs/env_.*/object_.*", is_global=False)
+            MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr="/World/envs/env_.*/object_.*", track_mesh_transforms=True)
         )
     # Create a ray-caster sensor
     ray_caster_cfg = MultiMeshRayCasterCfg(
@@ -154,7 +154,6 @@ def main():
         pattern_cfg=patterns.GridPatternCfg(resolution=0.1, size=(1.6, 1.0)),
         attach_yaw_only=True,
         debug_vis=not args_cli.headless,
-        track_mesh_transforms=args_cli.num_objects != 0,
     )
     ray_caster = MultiMeshRayCaster(cfg=ray_caster_cfg)
     # Create a view over all the balls
