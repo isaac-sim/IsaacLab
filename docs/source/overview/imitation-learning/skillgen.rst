@@ -1,9 +1,9 @@
 .. _skillgen:
 
-SkillGen
-========
+SkillGen for Automated Demonstration Generation
+===============================================
 
-SkillGen is an advanced demonstration generation system that enhances Isaac Lab Mimic by integrating cuRobo motion planning. It generates high-quality, adaptive, collision-free robot demonstrations by combining human-provided subtask segments with automated motion planning.
+SkillGen is an advanced demonstration generation system that enhances Isaac Lab Mimic by integrating motion planning. It generates high-quality, adaptive, collision-free robot demonstrations by combining human-provided subtask segments with automated motion planning.
 
 What is SkillGen?
 ~~~~~~~~~~~~~~~~~
@@ -134,35 +134,37 @@ Download and Setup
 
    A major advantage of SkillGen is that the same annotated dataset can be reused across multiple related tasks (e.g., basic stacking and adaptive bin stacking). This avoids collecting and annotating new data per variant.
 
-.. note::
+.. admonition:: {Optional for the tasks in this tutorial} Collect a fresh dataset (source + annotated)
 
-   **SkillGen-specific data collection and annotation**
+      If you want to collect a fresh source dataset and then create an annotated dataset for SkillGen, follow these commands. The user is expected to have knowledge of the Isaac Lab Mimic workflow.
 
-   * Using the provided annotated dataset is the fastest path to get started with SkillGen
-   * If you create your own dataset, SkillGen requires manual annotation of both subtask start and termination boundaries (no auto-annotation)
-   * Start boundary signals are mandatory for SkillGen; use ``--annotate_subtask_start_signals`` during annotation or data generation will fail
-   * Keep your subtask definitions (``object_ref``, ``subtask_term_signal``) consistent with the SkillGen environment config
+   **Important pointers before you begin**
 
-Record demonstrations (any teleop device is supported; replace ``spacemouse`` if needed):
+   * Using the provided annotated dataset is the fastest path to get started with SkillGen tasks in this tutorial.
+   * If you create your own dataset, SkillGen requires manual annotation of both subtask start and termination boundaries (no auto-annotation).
+   * Start boundary signals are mandatory for SkillGen; use ``--annotate_subtask_start_signals`` during annotation or data generation will fail.
+   * Keep your subtask definitions (``object_ref``, ``subtask_term_signal``) consistent with the SkillGen environment config.
 
-.. code:: bash
+   **Record demonstrations** (any teleop device is supported; replace ``spacemouse`` if needed):
 
-   ./isaaclab.sh -p scripts/tools/record_demos.py \
-   --task Isaac-Stack-Cube-Franka-IK-Rel-Skillgen-v0 \
-   --teleop_device spacemouse \
-   --dataset_file ./datasets/dataset_skillgen.hdf5 \
-   --num_demos 10
+   .. code:: bash
 
-Annotate demonstrations for SkillGen (writes both term and start boundaries):
+      ./isaaclab.sh -p scripts/tools/record_demos.py \
+      --task Isaac-Stack-Cube-Franka-IK-Rel-Skillgen-v0 \
+      --teleop_device spacemouse \
+      --dataset_file ./datasets/dataset_skillgen.hdf5 \
+      --num_demos 10
 
-.. code:: bash
+   **Annotate demonstrations for SkillGen** (writes both term and start boundaries):
 
-   ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/annotate_demos.py \
-   --device cpu \
-   --task Isaac-Stack-Cube-Franka-IK-Rel-Skillgen-v0 \
-   --input_file ./datasets/dataset_skillgen.hdf5 \
-   --output_file ./datasets/annotated_dataset_skillgen.hdf5 \
-   --annotate_subtask_start_signals
+   .. code:: bash
+
+      ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/annotate_demos.py \
+      --device cpu \
+      --task Isaac-Stack-Cube-Franka-IK-Rel-Skillgen-v0 \
+      --input_file ./datasets/dataset_skillgen.hdf5 \
+      --output_file ./datasets/annotated_dataset_skillgen.hdf5 \
+      --annotate_subtask_start_signals
 
 Understanding Dataset Annotation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -178,27 +180,17 @@ Subtasks in SkillGen
 * ``subtask_term_signal``: the binary termination signal name (transitions 0 to 1 when the subtask completes)
 * ``subtask_start_signal``: the binary start signal name (transitions 0 to 1 when the subtask begins; required for SkillGen)
 
-The localization process performs:
+The subtask localization process performs:
 
 * detection of signal transition points (0 to 1) to identify subtask boundaries ``[t_start, t_end]``;
 * extraction of the subtask segment between boundaries;
 * computation of end-effector trajectories and key poses in an object- or task-relative frame (using ``object_ref`` if provided);
-* optional time-normalization of progress and extraction of gripper/contact mode signals.
 
 This converts absolute, scene-specific motions into object-relative skill segments that can be adapted to new object placements and scene configurations during data generation.
 
 Manual Annotation Workflow
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 Contrary to the Isaac Lab Mimic workflow, SkillGen requires manual annotation of subtask start and termination boundaries. For example, for grasping a cube, the start signal is right before the gripper closes and the termination signal is right after the object is grasped. You can adjust the start and termination signals to fit your subtask definition.
-
-.. code:: bash
-
-   ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/annotate_demos.py \
-   --device cpu \
-   --task Isaac-Stack-Cube-Franka-IK-Rel-Mimic-v0 \
-   --input_file ./datasets/raw_dataset.hdf5 \
-   --output_file ./datasets/annotated_dataset_skillgen.hdf5 \
-   --annotate_subtask_start_signals
 
 .. tip::
 
@@ -214,7 +206,7 @@ Contrary to the Isaac Lab Mimic workflow, SkillGen requires manual annotation of
 Data Generation with SkillGen
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-SkillGen transforms annotated demonstrations into diverse, high-quality datasets using advanced motion planning.
+SkillGen transforms annotated demonstrations into diverse, high-quality datasets using motion planning.
 
 How SkillGen Works
 ^^^^^^^^^^^^^^^^^^
@@ -237,8 +229,6 @@ Key parameters for SkillGen data generation:
 * ``--num_envs``: Parallel environments (tune based on GPU memory)
 * ``--device``: Computation device (cpu/cuda). Use cpu for stable physics
 * ``--headless``: Disable visualization for faster generation
-
-Note: cuRobo planner interface and configurations are described in :ref:`cuRobo-interface-features`.
 
 Task 1: Basic Cube Stacking
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -286,10 +276,10 @@ Once satisfied with small-scale results, generate a full training dataset:
 
 .. note::
 
-   * Use ``--device cuda`` for faster generation if you have a compatible GPU
-   * Use ``--headless`` to disable visualization for faster generation.
-   * Adjust ``--num_envs`` based on your GPU memory (start with 5, increase gradually). The performance gain is not very significant when num_envs is greater than 1.
-   * Generation time: ~30-60 minutes for 1000 demonstrations on modern GPUs
+   * Use ``--headless`` to disable visualization for faster generation. Rerun visualization can be enabled by setting ``visualize_plan = True`` in the cuRobo planner configuration with ``--headless`` enabled as well for debugging.
+   * Adjust ``--num_envs`` based on your GPU memory (start with 1, increase gradually). The performance gain is not very significant when num_envs is greater than 1. A value of 5 seems to be a sweet spot for most GPUs to balance performance and memory usage between cuRobo instances and simulation environments.
+   * Generation time: ~90 to 120 minutes for one environment for 1000 demonstrations on modern GPUs. Time depends on the GPU, the number of environments, and the success rate of the demonstrations (which depends on quality of the annotated dataset).
+   * cuRobo planner interface and configurations are described in :ref:`cuRobo-interface-features`.
 
 Task 2: Adaptive Cube Stacking in a Bin
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -330,7 +320,7 @@ Generate the complete adaptive stacking dataset:
 
 .. warning::
 
-   Adaptive tasks typically have lower success rates due to increased complexity. The time taken to generate the dataset is also longer due to lower success rates than vanilla cube stacking and difficult planning problems.
+   Adaptive tasks typically have lower success rates and higher data generation time due to increased complexity. The time taken to generate the dataset is also longer due to lower success rates than vanilla cube stacking and difficult planning problems.
 
 
 Learning Policies from SkillGen Data
@@ -428,9 +418,9 @@ cuRobo Planner (GPU, collision-aware)
 
 * Tests:
 
-  * ``motion_planners/curobo/test/test_curobo_planner_cube_stack.py``
-  * ``motion_planners/curobo/test/test_curobo_planner_franka.py``
-  * ``isaaclab_mimic/test/test_generate_dataset_skillgen.py``
+  * ``source/isaaclab_mimic/test/test_curobo_planner_cube_stack.py``
+  * ``source/isaaclab_mimic/test/test_curobo_planner_franka.py``
+  * ``source/isaaclab_mimic/test/test_generate_dataset_skillgen.py``
 
 These tests can also serve as a reference for how to use cuRobo as a standalone motion planner.
 
@@ -443,24 +433,23 @@ Generation Pipeline Integration
 
 When ``--use_skillgen`` is enabled in ``generate_dataset.py``, the following pipeline is executed:
 
-1. Randomize subtask boundaries
-   Randomize per-demo start and termination indices for each subtask using task-configured offset ranges.
+1. **Randomize subtask boundaries**: Randomize per-demo start and termination indices for each subtask using task-configured offset ranges.
 
-2. Build per-subtask trajectories
+2. **Build per-subtask trajectories**:
    For each end-effector and subtask:
+
    - Select a source demonstration segment (strategy-driven; respects coordination/sequential constraints)
    - Transform the segment to the current scene (object-relative or coordination delta; optional first-pose interpolation)
    - Wrap the transformed segment into a waypoint trajectory
 
-3. Transition between subtasks
-   - If ``use_skillgen``: before executing the next subtask, plan a collision-aware transition with cuRobo to the subtask’s first waypoint (world sync, optional attach/detach), execute the planned waypoints, then resume the subtask trajectory
-   - Otherwise: interpolate and merge directly into the subtask trajectory
+3. **Transition between subtasks**:
+   - Plan a collision-aware transition with cuRobo to the subtask's first waypoint (world sync, optional attach/detach), execute the planned waypoints, then resume the subtask trajectory
 
-4. Execute with constraints
-   Execute waypoints step-by-step across end-effectors while enforcing subtask constraints (sequential, coordination with synchronous steps); optionally update planner visualization if enabled
+4. **Execute with constraints**:
+   - Execute waypoints step-by-step across end-effectors while enforcing subtask constraints (sequential, coordination with synchronous steps); optionally update planner visualization if enabled
 
-5. Record and export
-   Accumulate states/observations/actions, set the episode success flag, and export the episode (the outer pipeline filters/consumes successes)
+5. **Record and export**:
+   - Accumulate states/observations/actions, set the episode success flag, and export the episode (the outer pipeline filters/consumes successes)
 
 .. note::
 

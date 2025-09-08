@@ -20,7 +20,12 @@ import torch
 import weakref
 from typing import TYPE_CHECKING, Any, Optional
 
-import rerun as rr
+# Check if rerun is installed
+try:
+    import rerun as rr
+except ImportError:
+    raise ImportError("Rerun is not installed!")
+
 from curobo.types.state import JointState
 
 import isaaclab.utils.math as PoseUtils
@@ -170,10 +175,6 @@ class PlanVisualizer:
                 signal.signal(signal.SIGINT, self._original_sigint_handler)
             elif signum == signal.SIGTERM:
                 signal.signal(signal.SIGTERM, self._original_sigterm_handler)
-
-            # Re-raise the signal so Isaac Lab can handle it normally
-            import os
-
             os.kill(os.getpid(), signum)
 
         signal.signal(signal.SIGINT, signal_handler)

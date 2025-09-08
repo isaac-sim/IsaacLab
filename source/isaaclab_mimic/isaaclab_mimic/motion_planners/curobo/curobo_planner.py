@@ -25,6 +25,8 @@ import isaaclab.utils.math as PoseUtils
 from isaaclab.assets import Articulation
 from isaaclab.envs.manager_based_env import ManagerBasedEnv
 from isaaclab.managers import SceneEntityCfg
+from isaaclab.sim.spawners.materials import PreviewSurfaceCfg
+from isaaclab.sim.spawners.meshes import MeshSphereCfg, spawn_mesh_sphere
 
 from isaaclab_mimic.motion_planners.curobo.curobo_planner_cfg import CuroboPlannerCfg
 from isaaclab_mimic.motion_planners.motion_planner_base import MotionPlannerBase
@@ -860,11 +862,8 @@ class CuroboPlanner(MotionPlannerBase):
             # Find object path and re-enable it in the world
             object_path = object_mappings.get(object_name)
             if object_path:
-                try:
-                    self.motion_gen.world_coll_checker.enable_obstacle(object_path, enable=True)
-                    self.logger.debug(f"Re-enabled obstacle {object_path}")
-                except Exception as e:
-                    self.logger.debug(f"ERROR re-enabling obstacle {object_path}: {e}")
+                self.motion_gen.world_coll_checker.enable_obstacle(object_path, enable=True)  # type: ignore
+                self.logger.debug(f"Re-enabled obstacle {object_path}")
 
             # Collect the link that will need re-enabling
             detached_links.add(attachment.parent)
@@ -1585,8 +1584,6 @@ class CuroboPlanner(MotionPlannerBase):
         Args:
             force_update: True to recreate all spheres, False to update existing positions only
         """
-        from isaaclab.sim.spawners.meshes import spawn_mesh_sphere
-
         # Get current sphere data
         cu_js = self._get_current_joint_state_for_curobo()
         sphere_position = self._to_curobo_device(
@@ -1686,8 +1683,6 @@ class CuroboPlanner(MotionPlannerBase):
         Returns:
             Dictionary containing 'position' (world coordinates) and 'cfg' (MeshSphereCfg)
         """
-        from isaaclab.sim.spawners.materials import PreviewSurfaceCfg
-        from isaaclab.sim.spawners.meshes import MeshSphereCfg
 
         is_attached = sphere_idx >= robot_link_count
         color = (1.0, 0.5, 0.0) if is_attached else (0.0, 1.0, 0.0)
