@@ -28,9 +28,9 @@ class PinkKinematicsConfiguration(Configuration):
 
     def __init__(
         self,
-        urdf_path: str,
-        mesh_path: str,
         controlled_joint_names: list[str],
+        urdf_path: str,
+        mesh_path: str = None,
         copy_data: bool = True,
         forward_kinematics: bool = True,
     ):
@@ -51,7 +51,7 @@ class PinkKinematicsConfiguration(Configuration):
         self._controlled_joint_names = controlled_joint_names
 
         # Build robot model with all joints
-        if mesh_path is not None:
+        if mesh_path:
             self.robot_wrapper = RobotWrapper.BuildFromURDF(urdf_path, mesh_path)
         else:
             self.robot_wrapper = RobotWrapper.BuildFromURDF(urdf_path)
@@ -59,6 +59,7 @@ class PinkKinematicsConfiguration(Configuration):
         self.full_data = self.robot_wrapper.data
         self.full_q = self.robot_wrapper.q0
 
+        # import pdb; pdb.set_trace()
         self._all_joint_names = self.full_model.names.tolist()[1:]
         # controlled_joint_indices: indices in all_joint_names for joints that are in controlled_joint_names, preserving all_joint_names order
         self._controlled_joint_indices = [

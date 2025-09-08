@@ -3,7 +3,18 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Unit tests for PinkKinematicsConfiguration class."""
+"""Test cases for PinkKinematicsConfiguration class."""
+# Import pinocchio in the main script to force the use of the dependencies installed by IsaacLab and not the one installed by Isaac Sim
+# pinocchio is required by the Pink IK controller
+import sys
+
+if sys.platform != "win32":
+    import pinocchio  # noqa: F401
+
+from isaaclab.app import AppLauncher
+
+# launch omniverse app
+simulation_app = AppLauncher(headless=True).app
 
 import numpy as np
 from pathlib import Path
