@@ -501,5 +501,3 @@ Users can visualize the planned trajectories and debug for collisions using Reru
 .. note::
 
    Check cuRobo usage license in ``docs/licenses/dependencies/cuRobo-license.txt``
-
-
