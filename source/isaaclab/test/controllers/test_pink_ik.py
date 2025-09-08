@@ -35,6 +35,7 @@ from isaaclab.utils.math import axis_angle_from_quat, matrix_from_quat, quat_fro
 
 import isaaclab_tasks  # noqa: F401
 import isaaclab_tasks.manager_based.manipulation.pick_place  # noqa: F401
+import isaaclab_tasks.manager_based.locomanipulation.pick_place  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
 
