@@ -879,7 +879,7 @@ class Articulation(AssetBase):
         # set into simulation
         if int(get_version()[2]) < 5:
             self.root_physx_view.set_dof_friction_coefficients(
-                self._data.joint_friction_coeff.cpu(), indices=pysx_envs_ids_cpu
+                self._data.joint_friction_coeff.cpu(), indices=physx_envs_ids_cpu
             )
         else:
             friction_props = self.root_physx_view.get_dof_friction_properties()
