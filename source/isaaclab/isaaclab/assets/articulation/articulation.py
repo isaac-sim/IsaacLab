@@ -874,7 +874,7 @@ class Articulation(AssetBase):
             self._data.joint_viscous_friction_coeff[env_ids, joint_ids] = joint_viscous_friction_coeff
 
         # move the indices to cpu
-        pysx_envs_ids_cpu = physx_env_ids.cpu()
+        physx_envs_ids_cpu = physx_env_ids.cpu()
 
         # set into simulation
         if int(get_version()[2]) < 5:
