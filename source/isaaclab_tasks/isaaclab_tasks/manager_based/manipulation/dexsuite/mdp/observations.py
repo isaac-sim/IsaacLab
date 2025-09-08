@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 
 from isaaclab.assets import Articulation, RigidObject
 from isaaclab.managers import ManagerTermBase, SceneEntityCfg
-from isaaclab.utils.math import quat_apply, quat_apply_inverse, quat_inv, quat_mul, subtract_frame_transforms
+from isaaclab.utils.math import quat_apply, subtract_frame_transforms, quat_apply_inverse, quat_inv, quat_mul
 
 from .utils import sample_object_point_cloud
 
@@ -35,7 +35,7 @@ def object_pos_b(
     """
     robot: RigidObject = env.scene[robot_cfg.name]
     object: RigidObject = env.scene[object_cfg.name]
-    return quat_apply(quat_inv(robot.data.root_quat_w), object.data.root_pos_w - robot.data.root_pos_w)
+    return quat_apply_inverse(robot.data.root_quat_w, object.data.root_pos_w - robot.data.root_pos_w)
 
 
 def object_quat_b(
@@ -79,10 +79,10 @@ def body_state_b(
     body_asset: Articulation = env.scene[body_asset_cfg.name]
     base_asset: Articulation = env.scene[base_asset_cfg.name]
     # get world pose of bodies
-    body_pos_w = body_asset.data.body_pos_w[:, body_asset_cfg.body_ids].clone().view(-1, 3)
-    body_quat_w = body_asset.data.body_quat_w[:, body_asset_cfg.body_ids].clone().view(-1, 4)
-    body_lin_vel_w = body_asset.data.body_lin_vel_w[:, body_asset_cfg.body_ids].clone().view(-1, 3)
-    body_ang_vel_w = body_asset.data.body_ang_vel_w[:, body_asset_cfg.body_ids].clone().view(-1, 3)
+    body_pos_w = body_asset.data.body_pos_w[:, body_asset_cfg.body_ids].view(-1, 3)
+    body_quat_w = body_asset.data.body_quat_w[:, body_asset_cfg.body_ids].view(-1, 4)
+    body_lin_vel_w = body_asset.data.body_lin_vel_w[:, body_asset_cfg.body_ids].view(-1, 3)
+    body_ang_vel_w = body_asset.data.body_ang_vel_w[:, body_asset_cfg.body_ids].view(-1, 3)
     num_bodies = int(body_pos_w.shape[0] / env.num_envs)
     # get world pose of base frame
     root_pos_w = base_asset.data.root_link_pos_w.unsqueeze(1).repeat_interleave(num_bodies, dim=1).view(-1, 3)
@@ -175,12 +175,12 @@ class object_point_cloud_b(ManagerTermBase):
         return object_point_cloud_pos_b.view(env.num_envs, -1) if flatten else object_point_cloud_pos_b
 
 
-def fingers_contact_force_w(
+def fingers_contact_force_b(
     env: ManagerBasedRLEnv,
     contact_sensor_names: list[str],
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
 ) -> torch.Tensor:
-    """World-frame contact forces from listed sensors, concatenated per env.
+    """base-frame contact forces from listed sensors, concatenated per env.
 
     Args:
         env: The environment.

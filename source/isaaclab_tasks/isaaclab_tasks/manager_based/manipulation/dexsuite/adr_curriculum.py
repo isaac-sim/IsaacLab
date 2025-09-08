@@ -13,6 +13,7 @@ from . import mdp
 class CurriculumCfg:
     """Curriculum terms for the MDP."""
 
+    # adr stands for automatic/adaptive domain randomization
     adr = CurrTerm(
         func=mdp.DifficultyScheduler, params={"init_difficulty": 0, "min_difficulty": 0, "max_difficulty": 10}
     )
@@ -22,7 +23,7 @@ class CurriculumCfg:
         params={
             "address": "observations.proprio.joint_pos.noise.n_min",
             "modify_fn": mdp.initial_final_interpolate_fn,
-            "modify_params": {"iv": 0.0, "fv": -0.1, "difficulty_term_str": "adr"},
+            "modify_params": {"initial_value": 0.0, "final_value": -0.1, "difficulty_term_str": "adr"},
         },
     )
 
@@ -31,7 +32,7 @@ class CurriculumCfg:
         params={
             "address": "observations.proprio.joint_pos.noise.n_max",
             "modify_fn": mdp.initial_final_interpolate_fn,
-            "modify_params": {"iv": 0.0, "fv": 0.1, "difficulty_term_str": "adr"},
+            "modify_params": {"initial_value": 0.0, "final_value": 0.1, "difficulty_term_str": "adr"},
         },
     )
 
@@ -40,7 +41,7 @@ class CurriculumCfg:
         params={
             "address": "observations.proprio.joint_vel.noise.n_min",
             "modify_fn": mdp.initial_final_interpolate_fn,
-            "modify_params": {"iv": 0.0, "fv": -0.2, "difficulty_term_str": "adr"},
+            "modify_params": {"initial_value": 0.0, "final_value": -0.2, "difficulty_term_str": "adr"},
         },
     )
 
@@ -49,7 +50,7 @@ class CurriculumCfg:
         params={
             "address": "observations.proprio.joint_vel.noise.n_max",
             "modify_fn": mdp.initial_final_interpolate_fn,
-            "modify_params": {"iv": 0.0, "fv": 0.2, "difficulty_term_str": "adr"},
+            "modify_params": {"initial_value": 0.0, "final_value": 0.2, "difficulty_term_str": "adr"},
         },
     )
 
@@ -58,7 +59,7 @@ class CurriculumCfg:
         params={
             "address": "observations.proprio.hand_tips_state_b.noise.n_min",
             "modify_fn": mdp.initial_final_interpolate_fn,
-            "modify_params": {"iv": 0.0, "fv": -0.01, "difficulty_term_str": "adr"},
+            "modify_params": {"initial_value": 0.0, "final_value": -0.01, "difficulty_term_str": "adr"},
         },
     )
 
@@ -67,7 +68,7 @@ class CurriculumCfg:
         params={
             "address": "observations.proprio.hand_tips_state_b.noise.n_max",
             "modify_fn": mdp.initial_final_interpolate_fn,
-            "modify_params": {"iv": 0.0, "fv": 0.01, "difficulty_term_str": "adr"},
+            "modify_params": {"initial_value": 0.0, "final_value": 0.01, "difficulty_term_str": "adr"},
         },
     )
 
@@ -76,7 +77,7 @@ class CurriculumCfg:
         params={
             "address": "observations.policy.object_quat_b.noise.n_min",
             "modify_fn": mdp.initial_final_interpolate_fn,
-            "modify_params": {"iv": 0.0, "fv": -0.03, "difficulty_term_str": "adr"},
+            "modify_params": {"initial_value": 0.0, "final_value": -0.03, "difficulty_term_str": "adr"},
         },
     )
 
@@ -85,7 +86,7 @@ class CurriculumCfg:
         params={
             "address": "observations.policy.object_quat_b.noise.n_max",
             "modify_fn": mdp.initial_final_interpolate_fn,
-            "modify_params": {"iv": 0.0, "fv": 0.03, "difficulty_term_str": "adr"},
+            "modify_params": {"initial_value": 0.0, "final_value": 0.03, "difficulty_term_str": "adr"},
         },
     )
 
@@ -94,7 +95,7 @@ class CurriculumCfg:
         params={
             "address": "observations.perception.object_point_cloud.noise.n_min",
             "modify_fn": mdp.initial_final_interpolate_fn,
-            "modify_params": {"iv": 0.0, "fv": -0.01, "difficulty_term_str": "adr"},
+            "modify_params": {"initial_value": 0.0, "final_value": -0.01, "difficulty_term_str": "adr"},
         },
     )
 
@@ -103,7 +104,7 @@ class CurriculumCfg:
         params={
             "address": "observations.perception.object_point_cloud.noise.n_max",
             "modify_fn": mdp.initial_final_interpolate_fn,
-            "modify_params": {"iv": 0.0, "fv": -0.01, "difficulty_term_str": "adr"},
+            "modify_params": {"initial_value": 0.0, "final_value": -0.01, "difficulty_term_str": "adr"},
         },
     )
 
@@ -113,8 +114,8 @@ class CurriculumCfg:
             "address": "events.variable_gravity.params.gravity_distribution_params",
             "modify_fn": mdp.initial_final_interpolate_fn,
             "modify_params": {
-                "iv": ((0.0, 0.0, 0.0), (0.0, 0.0, 0.0)),
-                "fv": ((0.0, 0.0, -9.81), (0.0, 0.0, -9.81)),
+                "initial_value": ((0.0, 0.0, 0.0), (0.0, 0.0, 0.0)),
+                "final_value": ((0.0, 0.0, -9.81), (0.0, 0.0, -9.81)),
                 "difficulty_term_str": "adr",
             },
         },

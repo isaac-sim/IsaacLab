@@ -18,7 +18,7 @@ if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
 
 
-def initial_final_interpolate_fn(env: ManagerBasedRLEnv, env_id, data, iv, fv, difficulty_term_str):
+def initial_final_interpolate_fn(env: ManagerBasedRLEnv, env_id, data, initial_value, final_value, difficulty_term_str):
     """
     Interpolate between initial value iv and final value fv, for any arbitrarily
     nested structure of lists/tuples in 'data'. Scalars (int/float) are handled
@@ -28,20 +28,21 @@ def initial_final_interpolate_fn(env: ManagerBasedRLEnv, env_id, data, iv, fv, d
     difficulty_term: DifficultyScheduler = getattr(env.curriculum_manager.cfg, difficulty_term_str).func
     frac = difficulty_term.difficulty_frac
     if frac < 0.1:
+        # no-op during start, since the difficulty fraction near 0 is wasting of resource.
         return mdp.modify_env_param.NO_CHANGE
 
     # convert iv/fv to tensors, but we'll peel them apart in recursion
-    iv_t = torch.tensor(iv, device=env.device)
-    fv_t = torch.tensor(fv, device=env.device)
+    initial_value_tensor = torch.tensor(initial_value, device=env.device)
+    final_value_tensor = torch.tensor(final_value, device=env.device)
 
-    return recurse(iv_t.tolist(), fv_t.tolist(), data, frac)
+    return _recurse(initial_value_tensor.tolist(), final_value_tensor.tolist(), data, frac)
 
 
-def recurse(iv_elem, fv_elem, data_elem, frac):
+def _recurse(iv_elem, fv_elem, data_elem, frac):
     # If it's a sequence, rebuild the same type with each element recursed
     if isinstance(data_elem, Sequence) and not isinstance(data_elem, (str, bytes)):
-        # Note: we assume iv_elem and fv_elem have the same structure as data_elem
-        return type(data_elem)(recurse(iv_e, fv_e, d_e, frac) for iv_e, fv_e, d_e in zip(iv_elem, fv_elem, data_elem))
+        # Note: we assume initial value element and final value element have the same structure as data
+        return type(data_elem)(_recurse(iv_e, fv_e, d_e, frac) for iv_e, fv_e, d_e in zip(iv_elem, fv_elem, data_elem))
     # Otherwise it's a leaf scalar: do the interpolation
     new_val = frac * (fv_elem - iv_elem) + iv_elem
     if isinstance(data_elem, int):

@@ -140,7 +140,7 @@ class KukaAllegroMixinCfg:
                 ),
             )
         self.observations.proprio.contact = ObsTerm(
-            func=mdp.fingers_contact_force_w,
+            func=mdp.fingers_contact_force_b,
             params={"contact_sensor_names": [f"{link}_object_s" for link in finger_tip_body_list]},
             clip=(-20.0, 20.0),  # contact force in finger tips is under 20N normally
         )
