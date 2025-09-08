@@ -1,9 +1,13 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 from __future__ import annotations
 
 import gc
-import os
-
 import gymnasium as gym
+import os
 from gymnasium import error, logger
 
 
@@ -28,7 +32,7 @@ class RecordVideo(gym.wrappers.RecordVideo):
             moviepy_logger = None if self.disable_logger else "bar"
             path = os.path.join(self.video_folder, f"{self._video_name}.mp4")
             clip.write_videofile(path, logger=moviepy_logger)
-            
+
             del clip
 
         del self.recorded_frames
