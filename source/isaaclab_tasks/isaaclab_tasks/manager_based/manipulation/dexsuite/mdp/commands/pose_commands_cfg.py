@@ -5,13 +5,13 @@
 
 from dataclasses import MISSING
 
+import isaaclab.sim as sim_utils
 from isaaclab.managers import CommandTermCfg
 from isaaclab.markers import VisualizationMarkersCfg
-import isaaclab.sim as sim_utils
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-from . import pose_commands as dex_cmd
 
+from . import pose_commands as dex_cmd
 
 ALIGN_MARKER_CFG = VisualizationMarkersCfg(
     markers={
@@ -29,6 +29,7 @@ ALIGN_MARKER_CFG = VisualizationMarkersCfg(
         ),
     }
 )
+
 
 @configclass
 class ObjectUniformPoseCommandCfg(CommandTermCfg):
@@ -88,4 +89,4 @@ class ObjectUniformPoseCommandCfg(CommandTermCfg):
 
     # success markers
     success_visualizer_cfg = VisualizationMarkersCfg(prim_path="/Visuals/SuccessMarkers", markers={})
-    """The configuration for the success visualzation marker. User needs to add the markers"""
+    """The configuration for the success visualization marker. User needs to add the markers"""

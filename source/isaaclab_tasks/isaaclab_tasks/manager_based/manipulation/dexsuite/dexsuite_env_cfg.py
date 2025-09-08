@@ -72,7 +72,7 @@ class SceneCfg(InteractiveSceneCfg):
             rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
             collision_props=sim_utils.CollisionPropertiesCfg(),
             # trick: we let visualizer's color to show the table with success coloring
-            visible=False
+            visible=False,
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(-0.55, 0.0, 0.235), rot=(1.0, 0.0, 0.0, 0.0)),
     )

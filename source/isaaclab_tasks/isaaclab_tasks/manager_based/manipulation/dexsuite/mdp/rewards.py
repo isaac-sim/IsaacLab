@@ -14,7 +14,6 @@ from isaaclab.sensors import ContactSensor
 from isaaclab.utils import math as math_utils
 from isaaclab.utils.math import combine_frame_transforms, compute_pose_error
 
-
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
 
