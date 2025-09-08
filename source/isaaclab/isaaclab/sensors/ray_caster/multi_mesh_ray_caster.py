@@ -97,7 +97,7 @@ class MultiMeshRayCaster(RayCaster):
             # Legacy support for string targets. Treat them as global targets.
             if isinstance(target, str):
                 self._raycast_targets_cfg.append(
-                    cfg.RaycastTargetCfg(target_prim_expr=target, is_global=True, track_mesh_transforms=False)
+                    cfg.RaycastTargetCfg(target_prim_expr=target, track_mesh_transforms=False)
                 )
             else:
                 self._raycast_targets_cfg.append(target)
@@ -226,6 +226,10 @@ class MultiMeshRayCaster(RayCaster):
             if len(target_prims) == 0:
                 raise RuntimeError(f"Failed to find a prim at path expression: {target_prim_path}")
 
+            is_global_prim = (
+                len(target_prims) == 1
+            )  # If only one prim is found, treat it as a global prim. Either it's a single global object (e.g. ground) or we are only using one env.
+
             loaded_vertices: list[np.ndarray | None] = []
             wp_mesh_ids = []
 
@@ -325,7 +329,7 @@ class MultiMeshRayCaster(RayCaster):
                         f" {len(trimesh_mesh.vertices)} vertices and {len(trimesh_mesh.faces)} faces."
                     )
 
-            if target_cfg.is_global:
+            if is_global_prim:
                 # reference the mesh for each environment to ray cast against
                 multi_mesh_ids[target_prim_path] = [wp_mesh_ids] * self._num_envs
                 self._num_meshes_per_env[target_prim_path] = len(wp_mesh_ids)
@@ -424,7 +428,7 @@ class MultiMeshRayCaster(RayCaster):
                 ori_w = quat_mul(ori_offset.expand(ori_w.shape[0], -1), ori_w)
 
             count = view.count
-            if not target_cfg.is_global:
+            if count != 1:  # Mesh is not global, i.e. we have different meshes for each env
                 count = count // self._num_envs
                 pos_w = pos_w.view(self._num_envs, count, 3)
                 ori_w = ori_w.view(self._num_envs, count, 4)

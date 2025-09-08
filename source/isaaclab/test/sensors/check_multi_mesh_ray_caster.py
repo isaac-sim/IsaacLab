@@ -145,7 +145,9 @@ def main():
     ]
     if args_cli.num_objects != 0:
         mesh_targets.append(
-            MultiMeshRayCasterCfg.RaycastTargetCfg(target_prim_expr="/World/envs/env_.*/object_.*", track_mesh_transforms=True)
+            MultiMeshRayCasterCfg.RaycastTargetCfg(
+                target_prim_expr="/World/envs/env_.*/object_.*", track_mesh_transforms=True
+            )
         )
     # Create a ray-caster sensor
     ray_caster_cfg = MultiMeshRayCasterCfg(
