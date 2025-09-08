@@ -136,7 +136,8 @@ class KukaAllegroMixinCfg:
                 self.scene,
                 f"{link_name}_object_s",
                 ContactSensorCfg(
-                    prim_path="{ENV_REGEX_NS}/Robot/" + link_name, filter_prim_paths_expr=["{ENV_REGEX_NS}/Object"]
+                    prim_path="{ENV_REGEX_NS}/Robot/ee_link/" + link_name,
+                    filter_prim_paths_expr=["{ENV_REGEX_NS}/Object"],
                 ),
             )
         self.observations.proprio.contact = ObsTerm(
