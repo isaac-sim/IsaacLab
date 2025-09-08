@@ -29,6 +29,8 @@ Before using SkillGen, you must understand:
 
    Review the :ref:`teleoperation-imitation-learning` documentation thoroughly before proceeding with SkillGen.
 
+.. _skillgen-installation:
+
 Installation
 ~~~~~~~~~~~~
 
@@ -239,6 +241,13 @@ Generate demonstrations for the standard Isaac Lab Mimic cube stacking task. In 
 2. Pick up the green cube and place it on the red cube
 3. Final stack order: blue (bottom), red (middle), green (top).
 
+.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/cube_stack_data_gen_skillgen.gif
+   :width: 75%
+   :align: center
+   :alt: Cube stacking task generated with SkillGen
+   :figclass: align-center
+
+   Cube stacking dataset example.
 
 Small-Scale Generation
 ^^^^^^^^^^^^^^^^^^^^^^
@@ -284,6 +293,14 @@ Once satisfied with small-scale results, generate a full training dataset:
 Task 2: Adaptive Cube Stacking in a Bin
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 SkillGen can also be used to generate datasets for adaptive tasks. In this example, we generate a dataset for adaptive cube stacking in a narrow bin. The bin is placed at a fixed position and orientation in the workspace and a blue cube is placed at the center of the bin. The robot must generate successful demonstrations for stacking the red and green cubes on the blue cube without colliding with the bin.
+
+.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/bin_cube_stack_data_gen_skillgen.gif
+   :width: 75%
+   :align: center
+   :alt: Adaptive bin cube stacking task generated with SkillGen
+   :figclass: align-center
+
+   Adaptive bin stacking data generation example.
 
 Small-Scale Generation
 ^^^^^^^^^^^^^^^^^^^^^^
@@ -422,6 +439,23 @@ cuRobo Planner (GPU, collision-aware)
   * ``source/isaaclab_mimic/test/test_curobo_planner_franka.py``
   * ``source/isaaclab_mimic/test/test_generate_dataset_skillgen.py``
 
+.. list-table::
+   :widths: 50 50
+   :header-rows: 0
+
+   * - .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/cube_stack_end_to_end_curobo.gif
+         :height: 260px
+         :align: center
+         :alt: cuRobo planner test on cube stack using Franka Panda robot
+
+         Cube stack planner test.
+     - .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/obstacle_avoidance_curobo.gif
+         :height: 260px
+         :align: center
+         :alt: cuRobo planner test on obstacle avoidance using Franka Panda robot
+
+         Franka planner test.
+
 These tests can also serve as a reference for how to use cuRobo as a standalone motion planner.
 
 .. note::
@@ -451,10 +485,21 @@ When ``--use_skillgen`` is enabled in ``generate_dataset.py``, the following pip
 5. **Record and export**:
    - Accumulate states/observations/actions, set the episode success flag, and export the episode (the outer pipeline filters/consumes successes)
 
+Visualization and Debugging
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Users can visualize the planned trajectories and debug for collisions using Rerun-based plan visualizer. This can be enabled by setting ``visualize_plan = True`` in the cuRobo planner configuration. Note that rerun needs to be installed to visualize the planned trajectories. Refer to Step 3 in :ref:`skillgen-installation` for installation instructions.
+
+.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/rerun_cube_stack.gif
+   :width: 80%
+   :align: center
+   :alt: Rerun visualization of planned trajectories and collisions
+   :figclass: align-center
+
+   Rerun integration: planned trajectories with collision spheres.
+
 .. note::
 
-   Check cuRobo usage license and the updated Isaac Sim license per project guidelines
+   Check cuRobo usage license in ``docs/licenses/dependencies/cuRobo-license.txt``
 
-.. note::
 
-   SkillGen is an advanced system that builds on Isaac Lab Mimic. Ensure you're comfortable with the base system before tackling complex SkillGen workflows.
