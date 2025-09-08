@@ -105,7 +105,6 @@ from isaaclab.envs import DirectRLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
 from isaaclab.envs.ui import EmptyWindow
 from isaaclab.managers import DatasetExportMode
-from isaaclab.ui.xr_widgets import TeleopVisualizationManager, XRVisualization
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
@@ -515,14 +514,15 @@ def main() -> None:
     # if handtracking is selected, rate limiting is achieved via OpenXR
     if args_cli.xr:
         rate_limiter = None
+        from isaaclab.ui.xr_widgets import TeleopVisualizationManager, XRVisualization
+
+        # Assign the teleop visualization manager to the visualization system
+        XRVisualization.assign_manager(TeleopVisualizationManager)
     else:
         rate_limiter = RateLimiter(args_cli.step_hz)
 
     # Set up output directories
     output_dir, output_file_name = setup_output_directories()
-
-    # Assign the teleop visualization manager to the visualization system
-    XRVisualization.assign_manager(TeleopVisualizationManager)
 
     # Create and configure environment
     global env_cfg  # Make env_cfg available to setup_teleop_device
