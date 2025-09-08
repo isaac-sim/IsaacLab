@@ -13,6 +13,8 @@
     MeshConverterCfg
     UrdfConverter
     UrdfConverterCfg
+    MjcfConverter
+    MjcfConverterCfg
 
 Asset Converter Base
 --------------------
@@ -48,6 +50,20 @@ URDF Converter
     :show-inheritance:
 
 .. autoclass:: UrdfConverterCfg
+    :members:
+    :inherited-members:
+    :show-inheritance:
+    :exclude-members: __init__
+
+MJCF Converter
+--------------
+
+.. autoclass:: MjcfConverter
+    :members:
+    :inherited-members:
+    :show-inheritance:
+
+.. autoclass:: MjcfConverterCfg
     :members:
     :inherited-members:
     :show-inheritance:
