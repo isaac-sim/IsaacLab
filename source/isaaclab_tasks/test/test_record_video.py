@@ -21,6 +21,8 @@ import omni.usd
 import pytest
 from env_test_utils import setup_environment
 
+from isaaclab.utils.recorder import RecordVideo
+
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import parse_env_cfg
 
@@ -53,7 +55,7 @@ def test_record_video(task_name, setup_video_params):
     # directory to save videos
     task_videos_dir = os.path.join(videos_dir, task_name)
     # wrap environment to record videos
-    env = gym.wrappers.RecordVideo(
+    env = RecordVideo(
         env,
         task_videos_dir,
         step_trigger=step_trigger,
