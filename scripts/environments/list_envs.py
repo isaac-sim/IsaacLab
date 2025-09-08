@@ -15,7 +15,15 @@ with `Isaac` in their name.
 
 """Launch Isaac Sim Simulator first."""
 
+import argparse
+
 from isaaclab.app import AppLauncher
+
+# add argparse arguments
+parser = argparse.ArgumentParser(description="Random agent for Isaac Lab environments.")
+parser.add_argument("--keyword", type=str, default=None, help="Keyword to filter environments.")
+# parse the arguments
+args_cli = parser.parse_args()
 
 # launch omniverse app
 app_launcher = AppLauncher(headless=True)
