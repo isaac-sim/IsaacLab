@@ -22,7 +22,7 @@ Added
 Changed
 ^^^^^^^
 
-* Added AssetBase inheritance for :class:`~isaaclab.assets.surface_gripper.SurfaceGripper`
+* Added AssetBase inheritance for :class:`~isaaclab.assets.surface_gripper.SurfaceGripper`.
 
 
 0.45.11 (2025-09-04)
@@ -46,7 +46,7 @@ Added
 
 
 0.45.10 (2025-09-02)
-~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~
 
 Fixed
 ^^^^^
@@ -102,7 +102,7 @@ Added
 
 
 0.45.6 (2025-08-22)
-~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~
 
 Fixed
 ^^^^^
@@ -111,7 +111,7 @@ Fixed
 
 
 0.45.5 (2025-08-21)
-~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~
 
 Fixed
 ^^^^^
@@ -123,7 +123,7 @@ Fixed
 
 
 0.45.4 (2025-08-21)
-~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~
 
 Added
 ^^^^^
@@ -208,9 +208,9 @@ Fixed
 Fixed
 ^^^^^
 
-* Fixed the old termination manager in :class:`~isaaclab.managers.TerminationManager` term_done logging that logs the
-instantaneous term done count at reset. This let to inaccurate aggregation of termination count, obscuring the what really
-happeningduring the traing. Instead we log the episodic term done.
+* Fixed the old termination manager in :class:`~isaaclab.managers.TerminationManager` term_done logging that
+  logs the instantaneous term done count at reset. This let to inaccurate aggregation of termination count,
+  obscuring the what really happening during the training. Instead we log the episodic term done.
 
 
 0.44.9 (2025-07-30)

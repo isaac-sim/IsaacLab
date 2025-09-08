@@ -66,6 +66,7 @@ class RlGamesVecEnvWrapper(IVecEnv):
     The wrapper supports **either** concatenated tensors (default) **or** Dict inputs:
     when wrapper is concate mode, rl-games sees {"obs": Tensor, (optional)"states": Tensor}
     when wrapper is not concate mode, rl-games sees {"obs": dict[str, Tensor], (optional)"states": dict[str, Tensor]}
+
     - Concatenated mode (``concate_obs_group=True``): ``observation_space``/``state_space`` are ``gym.spaces.Box``.
     - Dict mode (``concate_obs_group=False``): ``observation_space``/``state_space`` are ``gym.spaces.Dict`` keyed by
       the requested groups. When no ``"states"`` groups are provided, the states Dict is omitted at runtime.
