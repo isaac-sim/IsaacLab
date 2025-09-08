@@ -140,6 +140,9 @@ class UR10LongSuctionCubeStackEnvCfg(UR10CubeStackEnvCfg):
         # post init of parent
         super().__post_init__()
 
+        # Suction grippers currently require CPU simulation
+        self.device = "cpu"
+
         # Set events
         self.events = EventCfgLongSuction()
 
@@ -177,6 +180,9 @@ class UR10ShortSuctionCubeStackEnvCfg(UR10CubeStackEnvCfg):
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
+
+        # Suction grippers currently require CPU simulation
+        self.device = "cpu"
 
         # Set UR10 as robot
         self.scene.robot = UR10_SHORT_SUCTION_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
