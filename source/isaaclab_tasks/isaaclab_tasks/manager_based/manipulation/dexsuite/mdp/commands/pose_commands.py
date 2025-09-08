@@ -75,6 +75,9 @@ class ObjectUniformPoseCommand(CommandTerm):
         self.metrics["position_error"] = torch.zeros(self.num_envs, device=self.device)
         self.metrics["orientation_error"] = torch.zeros(self.num_envs, device=self.device)
 
+        self.success_visualizer = VisualizationMarkers(self.cfg.success_visualizer_cfg)
+        self.success_visualizer.set_visibility(True)
+
     def __str__(self) -> str:
         msg = "UniformPoseCommand:\n"
         msg += f"\tCommand dimension: {tuple(self.command.shape[1:])}\n"
@@ -115,6 +118,11 @@ class ObjectUniformPoseCommand(CommandTerm):
         self.metrics["position_error"] = torch.norm(pos_error, dim=-1)
         self.metrics["orientation_error"] = torch.norm(rot_error, dim=-1)
 
+        success_id = self.metrics["position_error"] < 0.05
+        if not self.cfg.position_only:
+            success_id &= self.metrics["orientation_error"] < 0.5
+        self.success_visualizer.visualize(self.success_vis_asset.data.root_pos_w, marker_indices=success_id.int())
+
     def _resample_command(self, env_ids: Sequence[int]):
         # sample new pose targets
         # -- position
@@ -138,27 +146,17 @@ class ObjectUniformPoseCommand(CommandTerm):
         # create markers if necessary for the first tome
         if debug_vis:
             if not hasattr(self, "goal_visualizer"):
-                if self.cfg.position_only:
-                    # -- goal pose
-                    self.goal_visualizer = VisualizationMarkers(self.cfg.goal_pos_visualizer_cfg)
-                    # -- current body pose
-                    self.curr_visualizer = VisualizationMarkers(self.cfg.current_pos_visualizer_cfg)
-                else:
-                    # -- goal pose
-                    self.goal_visualizer = VisualizationMarkers(self.cfg.goal_pose_visualizer_cfg)
-                    # -- current body pose
-                    self.curr_visualizer = VisualizationMarkers(self.cfg.current_pose_visualizer_cfg)
-
-                self.success_visualizer = VisualizationMarkers(self.cfg.success_visualizer_cfg)
+                # -- goal pose
+                self.goal_visualizer = VisualizationMarkers(self.cfg.goal_pose_visualizer_cfg)
+                # -- current body pose
+                self.curr_visualizer = VisualizationMarkers(self.cfg.curr_pose_visualizer_cfg)
             # set their visibility to true
             self.goal_visualizer.set_visibility(True)
             self.curr_visualizer.set_visibility(True)
-            self.success_visualizer.set_visibility(True)
         else:
             if hasattr(self, "goal_visualizer"):
                 self.goal_visualizer.set_visibility(False)
                 self.curr_visualizer.set_visibility(False)
-                self.success_visualizer.set_visibility(False)
 
     def _debug_vis_callback(self, event):
         # check if robot is initialized
@@ -171,20 +169,11 @@ class ObjectUniformPoseCommand(CommandTerm):
             self.goal_visualizer.visualize(self.pose_command_w[:, :3], self.pose_command_w[:, 3:])
             # -- current object pose
             self.curr_visualizer.visualize(self.object.data.root_pos_w, self.object.data.root_quat_w)
-
-            pos_error, rot_error = compute_pose_error(
-                self.pose_command_w[:, :3],
-                self.pose_command_w[:, 3:],
-                self.object.data.root_state_w[:, :3],
-                self.object.data.root_state_w[:, 3:7],
-            )
-            indices = torch.where((torch.norm(pos_error, dim=1) < 0.05) & (torch.norm(rot_error, dim=1) < 0.5), 1, 0)
         else:
             distance = torch.norm(self.pose_command_w[:, :3] - self.object.data.root_pos_w[:, :3], dim=1)
-            indices = torch.where(distance < 0.05, 1, 0)
+            success_id = (distance < 0.05).int()
+            # note: since marker indices for position is 1(far) and 2(near), we can simply shift the success_id by 1.
             # -- goal position
-            self.goal_visualizer.visualize(self.pose_command_w[:, :3], marker_indices=indices)
+            self.goal_visualizer.visualize(self.pose_command_w[:, :3], marker_indices=success_id + 1)
             # -- current object position
-            self.curr_visualizer.visualize(self.object.data.root_pos_w, marker_indices=indices)
-
-        self.success_visualizer.visualize(self.success_vis_asset.data.root_pos_w, marker_indices=indices)
+            self.curr_visualizer.visualize(self.object.data.root_pos_w, marker_indices=success_id + 1)

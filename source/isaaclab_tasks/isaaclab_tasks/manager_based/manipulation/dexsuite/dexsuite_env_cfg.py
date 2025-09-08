@@ -71,6 +71,8 @@ class SceneCfg(InteractiveSceneCfg):
             size=(0.8, 1.5, 0.04),
             rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
             collision_props=sim_utils.CollisionPropertiesCfg(),
+            # trick: we let visualizer's color to show the table with success coloring
+            visible=False
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(-0.55, 0.0, 0.235), rot=(1.0, 0.0, 0.0, 0.0)),
     )
@@ -410,12 +412,11 @@ class DexsuiteReorientEnvCfg(ManagerBasedEnvCfg):
         self.commands.object_pose.resampling_time_range = (10.0, 10.0)
         self.commands.object_pose.position_only = False
         self.commands.object_pose.success_visualizer_cfg.markers["failure"] = self.scene.table.spawn.replace(
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.25, 0.15, 0.15), roughness=0.25)
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.25, 0.15, 0.15), roughness=0.25), visible=True
         )
         self.commands.object_pose.success_visualizer_cfg.markers["success"] = self.scene.table.spawn.replace(
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.15, 0.25, 0.15), roughness=0.25)
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.15, 0.25, 0.15), roughness=0.25), visible=True
         )
-        self.scene.table.spawn.visible = False  # we let success visualizer to color the table
 
         self.episode_length_s = 4.0
         self.is_finite_horizon = True

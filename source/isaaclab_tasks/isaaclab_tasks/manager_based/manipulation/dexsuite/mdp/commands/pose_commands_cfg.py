@@ -7,11 +7,28 @@ from dataclasses import MISSING
 
 from isaaclab.managers import CommandTermCfg
 from isaaclab.markers import VisualizationMarkersCfg
-from isaaclab.markers.config import FRAME_MARKER_CFG, POSITION_GOAL_MARKER_CFG
+import isaaclab.sim as sim_utils
 from isaaclab.utils import configclass
-
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from . import pose_commands as dex_cmd
 
+
+ALIGN_MARKER_CFG = VisualizationMarkersCfg(
+    markers={
+        "frame": sim_utils.UsdFileCfg(
+            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/UIElements/frame_prim.usd",
+            scale=(0.1, 0.1, 0.1),
+        ),
+        "position_far": sim_utils.SphereCfg(
+            radius=0.01,
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0)),
+        ),
+        "position_near": sim_utils.SphereCfg(
+            radius=0.01,
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 0.0)),
+        ),
+    }
+)
 
 @configclass
 class ObjectUniformPoseCommandCfg(CommandTermCfg):
@@ -60,32 +77,15 @@ class ObjectUniformPoseCommandCfg(CommandTermCfg):
     """Command goal position only. Command includes goal quat if False"""
 
     # Pose Markers
-    goal_pose_visualizer_cfg: VisualizationMarkersCfg = FRAME_MARKER_CFG.replace(prim_path="/Visuals/Command/goal_pose")
+    goal_pose_visualizer_cfg: VisualizationMarkersCfg = ALIGN_MARKER_CFG.replace(prim_path="/Visuals/Command/goal_pose")
     """The configuration for the goal pose visualization marker. Defaults to FRAME_MARKER_CFG."""
 
-    current_pose_visualizer_cfg: VisualizationMarkersCfg = FRAME_MARKER_CFG.replace(
-        prim_path="/Visuals/Command/body_pose"
-    )
+    curr_pose_visualizer_cfg: VisualizationMarkersCfg = ALIGN_MARKER_CFG.replace(prim_path="/Visuals/Command/body_pose")
     """The configuration for the current pose visualization marker. Defaults to FRAME_MARKER_CFG."""
-
-    # Set the scale of the visualization markers to (0.1, 0.1, 0.1)
-    goal_pose_visualizer_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
-    current_pose_visualizer_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
-
-    # Position Markers
-    goal_pos_visualizer_cfg: VisualizationMarkersCfg = POSITION_GOAL_MARKER_CFG.replace(
-        prim_path="/Visuals/Command/goal_pos"
-    )
-    """The configuration for the goal pose visualization marker. Defaults to POSITION_GOAL_MARKER_CFG."""
-
-    current_pos_visualizer_cfg: VisualizationMarkersCfg = POSITION_GOAL_MARKER_CFG.replace(
-        prim_path="/Visuals/Command/object_pos"
-    )
-
-    """The configuration for the current position visualization marker. Defaults to POSITION_GOAL_MARKER_CFG."""
 
     success_vis_asset_name: str = MISSING
     """Name of the asset in the environment for which the success color are indicated."""
 
     # success markers
-    success_visualizer_cfg = VisualizationMarkersCfg(prim_path="/Visuals/myMarkers", markers={})
+    success_visualizer_cfg = VisualizationMarkersCfg(prim_path="/Visuals/SuccessMarkers", markers={})
+    """The configuration for the success visualzation marker. User needs to add the markers"""
