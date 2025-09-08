@@ -303,7 +303,6 @@ class NutPourGR1T2BaseEnvCfg(ManagerBasedRLEnvCfg):
 
     # Temporary directory for URDF files
     temp_urdf_dir = tempfile.gettempdir()
-    robot_name = "Fourier_GR1T2"
 
     # Idle action to hold robot in default pose
     # Action format: [left arm pos (3), left arm quat (4), right arm pos (3),

@@ -20,5 +20,5 @@ retargeting:
   - L_ring_proximal_joint
   - L_pinky_proximal_joint
   type: DexPilot
-  urdf_path: /workspace/isaaclab/usecase/humanoid_teleop/g1_29dof_rev_1_0_with_inspire_hand_FTP/retarget_inspire_white_left_hand.urdf
+  urdf_path: /tmp/retarget_inspire_white_left_hand.urdf
   wrist_link_name: L_hand_base_link

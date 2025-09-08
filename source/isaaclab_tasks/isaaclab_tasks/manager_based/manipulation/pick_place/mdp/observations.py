@@ -14,6 +14,8 @@ if TYPE_CHECKING:
 
 def object_obs(
     env: ManagerBasedRLEnv,
+    left_eef_name: str = "left_hand_roll_link",
+    right_eef_name: str = "right_hand_roll_link",
 ) -> torch.Tensor:
     """
     Object observations (in world frame):
@@ -24,12 +26,8 @@ def object_obs(
     """
 
     body_pos_w = env.scene["robot"].data.body_pos_w
-    if env.unwrapped.cfg.robot_name == "Unitree_G1":
-        left_eef_idx = env.scene["robot"].data.body_names.index("left_wrist_yaw_link")
-        right_eef_idx = env.scene["robot"].data.body_names.index("right_wrist_yaw_link")
-    else:
-        left_eef_idx = env.scene["robot"].data.body_names.index("left_hand_roll_link")
-        right_eef_idx = env.scene["robot"].data.body_names.index("right_hand_roll_link")
+    left_eef_idx = env.scene["robot"].data.body_names.index(left_eef_name)
+    right_eef_idx = env.scene["robot"].data.body_names.index(right_eef_name)
     left_eef_pos = body_pos_w[:, left_eef_idx] - env.scene.env_origins
     right_eef_pos = body_pos_w[:, right_eef_idx] - env.scene.env_origins
 
@@ -52,12 +50,10 @@ def object_obs(
 
 def get_left_eef_pos(
     env: ManagerBasedRLEnv,
+    left_eef_name: str = "left_hand_roll_link",
 ) -> torch.Tensor:
     body_pos_w = env.scene["robot"].data.body_pos_w
-    if env.unwrapped.cfg.robot_name == "Unitree_G1":
-        left_eef_idx = env.scene["robot"].data.body_names.index("left_wrist_yaw_link")
-    else:
-        left_eef_idx = env.scene["robot"].data.body_names.index("left_hand_roll_link")
+    left_eef_idx = env.scene["robot"].data.body_names.index(left_eef_name)
     left_eef_pos = body_pos_w[:, left_eef_idx] - env.scene.env_origins
 
     return left_eef_pos
@@ -65,12 +61,10 @@ def get_left_eef_pos(
 
 def get_left_eef_quat(
     env: ManagerBasedRLEnv,
+    left_eef_name: str = "left_hand_roll_link",
 ) -> torch.Tensor:
     body_quat_w = env.scene["robot"].data.body_quat_w
-    if env.unwrapped.cfg.robot_name == "Unitree_G1":
-        left_eef_idx = env.scene["robot"].data.body_names.index("left_wrist_yaw_link")
-    else:
-        left_eef_idx = env.scene["robot"].data.body_names.index("left_hand_roll_link")
+    left_eef_idx = env.scene["robot"].data.body_names.index(left_eef_name)
     left_eef_quat = body_quat_w[:, left_eef_idx]
 
     return left_eef_quat
@@ -78,12 +72,10 @@ def get_left_eef_quat(
 
 def get_right_eef_pos(
     env: ManagerBasedRLEnv,
+    right_eef_name: str = "right_hand_roll_link",
 ) -> torch.Tensor:
     body_pos_w = env.scene["robot"].data.body_pos_w
-    if env.unwrapped.cfg.robot_name == "Unitree_G1":
-        right_eef_idx = env.scene["robot"].data.body_names.index("right_wrist_yaw_link")
-    else:
-        right_eef_idx = env.scene["robot"].data.body_names.index("right_hand_roll_link")
+    right_eef_idx = env.scene["robot"].data.body_names.index(right_eef_name)
     right_eef_pos = body_pos_w[:, right_eef_idx] - env.scene.env_origins
 
     return right_eef_pos
@@ -91,12 +83,10 @@ def get_right_eef_pos(
 
 def get_right_eef_quat(
     env: ManagerBasedRLEnv,
+    right_eef_name: str = "right_hand_roll_link",
 ) -> torch.Tensor:
     body_quat_w = env.scene["robot"].data.body_quat_w
-    if env.unwrapped.cfg.robot_name == "Unitree_G1":
-        right_eef_idx = env.scene["robot"].data.body_names.index("right_wrist_yaw_link")
-    else:
-        right_eef_idx = env.scene["robot"].data.body_names.index("right_hand_roll_link")
+    right_eef_idx = env.scene["robot"].data.body_names.index(right_eef_name)
     right_eef_quat = body_quat_w[:, right_eef_idx]
 
     return right_eef_quat
@@ -104,11 +94,9 @@ def get_right_eef_quat(
 
 def get_hand_state(
     env: ManagerBasedRLEnv,
+    hand_joints_num: int = 22,
 ) -> torch.Tensor:
-    if env.unwrapped.cfg.robot_name == "Unitree_G1":
-        hand_joint_states = env.scene["robot"].data.joint_pos[:, -24:]
-    else:
-        hand_joint_states = env.scene["robot"].data.joint_pos[:, -22:]
+    hand_joint_states = env.scene["robot"].data.joint_pos[:, -hand_joints_num:]
     return hand_joint_states
 
 

@@ -74,8 +74,10 @@ class UnitreeG1DexRetargeting:
         hand_joint_names: list[str],
         right_hand_config_filename: str = "unitree_hand_right_dexpilot.yml",
         left_hand_config_filename: str = "unitree_hand_left_dexpilot.yml",
-        left_hand_urdf_path: str = "omniverse://isaac-dev.ov.nvidia.com/Projects/agile/Robots/Collected_g1_29dof/g1_29dof_rev_1_0_retarget_left_hand.urdf",
-        right_hand_urdf_path: str = "omniverse://isaac-dev.ov.nvidia.com/Projects/agile/Robots/Collected_g1_29dof/g1_29dof_rev_1_0_retarget_right_hand.urdf",
+        # left_hand_urdf_path: str = "/workspace/isaaclab/G1_Nucleus/G1_inspire_assets/retarget_inspire_white_left_hand.urdf",
+        # right_hand_urdf_path: str = "/workspace/isaaclab/G1_Nucleus/G1_inspire_assets/retarget_inspire_white_right_hand.urdf",
+		left_hand_urdf_path: str = f"{ISAACLAB_NUCLEUS_DIR}/Mimic/G1_inspire_assets/retarget_inspire_white_left_hand.urdf",
+        right_hand_urdf_path: str = f"{ISAACLAB_NUCLEUS_DIR}/Mimic/G1_inspire_assets/retarget_inspire_white_right_hand.urdf",
     ):
         """Initialize the hand retargeting.
 

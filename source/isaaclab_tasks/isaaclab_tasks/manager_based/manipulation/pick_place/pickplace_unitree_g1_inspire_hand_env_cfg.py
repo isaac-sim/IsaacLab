@@ -6,13 +6,13 @@
 import tempfile
 import torch
 
-from pink.tasks import FrameTask
+from pink.tasks import DampingTask, FrameTask
 
 import isaaclab.controllers.utils as ControllerUtils
 import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
-from isaaclab.controllers.pink_ik_cfg import PinkIKControllerCfg
+from isaaclab.controllers.pink_ik import NullSpacePostureTask, PinkIKControllerCfg
 from isaaclab.devices.device_base import DevicesCfg
 from isaaclab.devices.openxr import OpenXRDeviceCfg, XrCfg
 from isaaclab.devices.openxr.retargeters.humanoid.unitree.unitree_g1_retargeter import UnitreeG1RetargeterCfg
@@ -202,40 +202,92 @@ class ActionsCfg:
             "L_thumb_distal_joint", 
             "R_thumb_distal_joint"
         ],
+        target_eef_link_names={
+            "left_wrist": "left_wrist_yaw_link",
+            "right_wrist": "right_wrist_yaw_link",
+        },
         # the robot in the sim scene we are controlling
         asset_name="robot",
         # Configuration for the IK controller
         # The frames names are the ones present in the URDF file
         # The urdf has to be generated from the USD that is being used in the scene
+        # controller=PinkIKControllerCfg(
+        #     articulation_name="robot",
+        #     base_link_name="pelvis",
+        #     num_hand_joints=24,
+        #     show_ik_warnings=False,
+        #     variable_input_tasks=[
+        #         FrameTask(
+        #             "g1_29dof_rev_1_0_left_wrist_yaw_link",
+        #             position_cost=1.0,  # [cost] / [m]
+        #             orientation_cost=1.0,  # [cost] / [rad]
+        #             lm_damping=10,  # dampening for solver for step jumps
+        #             gain=0.1,
+        #         ),
+        #         FrameTask(
+        #             "g1_29dof_rev_1_0_right_wrist_yaw_link",
+        #             position_cost=1.0,  # [cost] / [m]
+        #             orientation_cost=1.0,  # [cost] / [rad]
+        #             lm_damping=10,  # dampening for solver for step jumps
+        #             gain=0.1,
+        #         ),
+        #     ],
+        #     fixed_input_tasks=[
+        #         # COMMENT OUT IF LOCKING WAIST/HEAD
+        #         # FrameTask(
+        #         #     "GR1T2_fourier_hand_6dof_head_yaw_link",
+        #         #     position_cost=1.0,  # [cost] / [m]
+        #         #     orientation_cost=0.05,  # [cost] / [rad]
+        #         # ),
+        #     ],
+        # ),
         controller=PinkIKControllerCfg(
             articulation_name="robot",
             base_link_name="pelvis",
             num_hand_joints=24,
             show_ik_warnings=False,
+            fail_on_joint_limit_violation=False,
             variable_input_tasks=[
                 FrameTask(
                     "g1_29dof_rev_1_0_left_wrist_yaw_link",
-                    position_cost=1.0,  # [cost] / [m]
+                    position_cost=8.0,  # [cost] / [m]
                     orientation_cost=1.0,  # [cost] / [rad]
                     lm_damping=10,  # dampening for solver for step jumps
-                    gain=0.1,
+                    gain=0.5,
                 ),
                 FrameTask(
                     "g1_29dof_rev_1_0_right_wrist_yaw_link",
-                    position_cost=1.0,  # [cost] / [m]
+                    position_cost=8.0,  # [cost] / [m]
                     orientation_cost=1.0,  # [cost] / [rad]
                     lm_damping=10,  # dampening for solver for step jumps
-                    gain=0.1,
+                    gain=0.5,
+                ),
+                DampingTask(
+                    cost=0.5,  # [cost] * [s] / [rad]
+                ),
+                NullSpacePostureTask(
+                    cost=0.5,
+                    lm_damping=1,
+                    controlled_frames=[
+                        "g1_29dof_rev_1_0_left_wrist_yaw_link",
+                        "g1_29dof_rev_1_0_right_wrist_yaw_link",
+                    ],
+                    controlled_joints=[
+                        "left_shoulder_pitch_joint",
+                        "left_shoulder_roll_joint",
+                        "left_shoulder_yaw_joint",
+                        "left_elbow_pitch_joint",
+                        "right_shoulder_pitch_joint",
+                        "right_shoulder_roll_joint",
+                        "right_shoulder_yaw_joint",
+                        "right_elbow_pitch_joint",
+                        "waist_yaw_joint",
+                        "waist_pitch_joint",
+                        "waist_roll_joint",
+                    ],
                 ),
             ],
-            fixed_input_tasks=[
-                # COMMENT OUT IF LOCKING WAIST/HEAD
-                # FrameTask(
-                #     "GR1T2_fourier_hand_6dof_head_yaw_link",
-                #     position_cost=1.0,  # [cost] / [m]
-                #     orientation_cost=0.05,  # [cost] / [rad]
-                # ),
-            ],
+            fixed_input_tasks=[],
         ),
     )
 
@@ -259,15 +311,18 @@ class ObservationsCfg:
         object_rot = ObsTerm(func=base_mdp.root_quat_w, params={"asset_cfg": SceneEntityCfg("object")})
         robot_links_state = ObsTerm(func=mdp.get_all_robot_link_state)
 
-        left_eef_pos = ObsTerm(func=mdp.get_left_eef_pos)
-        left_eef_quat = ObsTerm(func=mdp.get_left_eef_quat)
-        right_eef_pos = ObsTerm(func=mdp.get_right_eef_pos)
-        right_eef_quat = ObsTerm(func=mdp.get_right_eef_quat)
+        left_eef_pos = ObsTerm(func=mdp.get_left_eef_pos, params={"left_eef_name": "left_wrist_yaw_link"})
+        left_eef_quat = ObsTerm(func=mdp.get_left_eef_quat, params={"left_eef_name": "left_wrist_yaw_link"})
+        right_eef_pos = ObsTerm(func=mdp.get_right_eef_pos, params={"right_eef_name": "right_wrist_yaw_link"})
+        right_eef_quat = ObsTerm(func=mdp.get_right_eef_quat, params={"right_eef_name": "right_wrist_yaw_link"})
 
-        hand_joint_state = ObsTerm(func=mdp.get_hand_state)
-        # head_joint_state = ObsTerm(func=mdp.get_head_state)   # For unitree g1, no head joint
+        hand_joint_state = ObsTerm(func=mdp.get_hand_state, params={"hand_joints_num": 24})
 
-        object = ObsTerm(func=mdp.object_obs)
+        object = ObsTerm(func=mdp.object_obs,
+                         params={
+                             "left_eef_name": "left_wrist_yaw_link",
+                             "right_eef_name": "right_wrist_yaw_link"
+                         })
 
         def __post_init__(self):
             self.enable_corruption = False
@@ -287,7 +342,7 @@ class TerminationsCfg:
         func=mdp.root_height_below_minimum, params={"minimum_height": 0.5, "asset_cfg": SceneEntityCfg("object")}
     )
 
-    success = DoneTerm(func=mdp.task_done_pick_place)
+    success = DoneTerm(func=mdp.task_done_pick_place, params={"right_eef_name": "right_wrist_yaw_link"})
 
 
 @configclass
@@ -334,9 +389,11 @@ class PickPlaceG1InspireFTPEnvCfg(ManagerBasedRLEnvCfg):
         anchor_rot=(1.0, 0.0, 0.0, 0.0),
     )
 
+    # OpenXR hand tracking has 26 joints per hand
+    NUM_OPENXR_HAND_JOINTS = 26
+
     # Temporary directory for URDF files
     temp_urdf_dir = tempfile.gettempdir()
-    robot_name = "Unitree_G1"
 
     # Idle action to hold robot in default pose
     # Action format: [left arm pos (3), left arm quat (4), right arm pos (3), right arm quat (4),
@@ -344,20 +401,19 @@ class PickPlaceG1InspireFTPEnvCfg(ManagerBasedRLEnvCfg):
     idle_action = torch.tensor([
         # 14 hand joints for EEF control
         -0.1487,
-        0.0538 + 0.15,  # y - left hand
-        1.0952,  # z - left hand
+        0.2038,
+        1.0952,
         0.707,
         0.0,
         0.0,
         0.707,
         0.1487,
-        0.0538 + 0.15,  # y - right hand
-        1.0952,  # z - right hand
+        0.2038,
+        1.0952,
         0.707,
         0.0,
         0.0,
         0.707,
-        # 12 hand positive joints + 12 hand passive joints
         0.0,
         0.0,
         0.0,
@@ -411,8 +467,8 @@ class PickPlaceG1InspireFTPEnvCfg(ManagerBasedRLEnvCfg):
                     retargeters=[
                         UnitreeG1RetargeterCfg(
                             enable_visualization=True,
-                            # OpenXR hand tracking has 26 joints per hand
-                            num_open_xr_hand_joints=2 * 26,
+                            # number of joints in both hands
+                            num_open_xr_hand_joints=2 * self.NUM_OPENXR_HAND_JOINTS,
                             sim_device=self.sim.device,
                             # Please confirm that self.actions.pink_ik_cfg.hand_joint_names is consistent with robot.joint_names[-24:]
                             # The order of the joints does matter as it will be used for converting pink_ik actions to final control actions in IsaacLab.

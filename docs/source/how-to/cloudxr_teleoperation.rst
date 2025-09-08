@@ -549,6 +549,12 @@ Isaac Lab provides three main retargeters for hand tracking:
    * Handles both left and right hands, converting hand poses to joint angles for the GR1T2 robot's hands
    * Supports visualization of tracked hand joints
 
+.. dropdown:: UnitreeG1Retargeter (:class:`isaaclab.devices.openxr.retargeters.UnitreeG1Retargeter`)
+
+   * Retargets OpenXR hand tracking data to Unitree G1 using Inspire 5-finger hand end-effector commands
+   * Handles both left and right hands, converting hand poses to joint angles for the G1 robot's hands
+   * Supports visualization of tracked hand joints
+
 Retargeters can be combined to control different robot functions simultaneously.
 
 Using Retargeters with Hand Tracking
@@ -589,6 +595,23 @@ Here's an example of setting up hand tracking:
            break
 
 .. _control-robot-with-xr-callbacks:
+
+Here's a diagram for the dataflow and algorithm used in humanoid teleoperation. Using Apple Vision Pro, we collect 26 keypoints for each hand.
+The wrist keypoint is used to control the hand end-effector, while the remaining hand keypoints are used for hand retargeting.
+
+.. figure:: ../_static/teleop/teleop_diagram.jpg
+  :align: center
+  :figwidth: 80%
+  :alt: teleop_diagram
+
+For dex-retargeting, we are currently using the Dexpilot optimizer, which relies on the five fingertips and the palm for retargeting. It is essential
+that the links used for retargeting are defined exactly at the fingertips—not in the middle of the fingers—to ensure accurate optimization.Please refer
+to the image below for hand asset selection, find a suitable hand asset, or add fingertip links in IsaacLab as needed.
+
+.. figure:: ../_static/teleop/hand_asset.jpg
+  :align: center
+  :figwidth: 60%
+  :alt: hand_asset
 
 Adding Callbacks for XR UI Events
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

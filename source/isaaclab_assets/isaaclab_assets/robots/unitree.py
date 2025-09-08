@@ -22,7 +22,7 @@ Reference: https://github.com/unitreerobotics/unitree_ros
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ActuatorNetMLPCfg, DCMotorCfg, ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
-from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
+from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, ISAAC_NUCLEUS_DIR
 
 ##
 # Configuration - Actuators.
@@ -393,7 +393,13 @@ Necessary modifications should be made to ensure the correct parent–child rela
 """
 G1_INSPIRE_FTP_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        usd_path="omniverse://isaac-dev.ov.nvidia.com/Projects/agile/Robots/Collected_g1_29dof/g1_29dof_rev_1_0_with_inspire_hand.usd",
+        # usd_path="/workspace/isaaclab/g1_29dof_rev_1_0_with_inspire_hand_FTP/g1_29dof_rev_1_0_with_inspire_hand_retarget_inspire_white.usd",
+        usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/Unitree/G1/g1.usd",
+        variants={
+            "left_hand": "Inspire",
+            "right_hand": "Inspire",
+            "Physics": "PhysX",
+        },
         activate_contact_sensors=True,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=True,
