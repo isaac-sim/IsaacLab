@@ -138,7 +138,6 @@ gym.register(
     entry_point="isaaclab_mimic.envs:RmpFlowGalbotCubeStackAbsMimicEnv",
     kwargs={
         "env_cfg_entry_point": galbot_stack_rmp_abs_mimic_env_cfg.RmpFlowGalbotRightArmSuctionCubeStackAbsMimicEnvCfg,
-
     },
     disable_env_checker=True,
 )
