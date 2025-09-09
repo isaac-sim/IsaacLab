@@ -96,6 +96,11 @@ is_docker() {
     [[ "$(hostname)" == *"."* ]]
 }
 
+# check if running on ARM architecture
+is_arm() {
+    [[ "$(uname -m)" == "aarch64" ]] || [[ "$(uname -m)" == "arm64" ]]
+}
+
 ensure_cuda_torch() {
   local py="$1"
   local -r TORCH_VER="2.7.0"
@@ -110,13 +115,23 @@ ensure_cuda_torch() {
     if [[ "$torch_ver" != "${TORCH_VER}+${CUDA_TAG}" ]]; then
       echo "[INFO] Replacing PyTorch ${torch_ver} → ${TORCH_VER}+${CUDA_TAG}..."
       "$py" -m pip uninstall -y torch torchvision torchaudio >/dev/null 2>&1 || true
-      "$py" -m pip install "torch==${TORCH_VER}" "torchvision==${TV_VER}" --index-url "${PYTORCH_INDEX}"
+      if is_arm; then
+        echo "[INFO] Detected ARM architecture, using ARM-specific PyTorch installation..."
+        "$py" -m pip install --pre torch torchvision --index-url https://download.pytorch.org/whl/nightly/cu130
+      else
+        "$py" -m pip install "torch==${TORCH_VER}" "torchvision==${TV_VER}" --index-url "${PYTORCH_INDEX}"
+      fi
     else
       echo "[INFO] PyTorch ${TORCH_VER}+${CUDA_TAG} already installed."
     fi
   else
     echo "[INFO] Installing PyTorch ${TORCH_VER}+${CUDA_TAG}..."
-    "$py" -m pip install "torch==${TORCH_VER}" "torchvision==${TV_VER}" --index-url "${PYTORCH_INDEX}"
+    if is_arm; then
+      echo "[INFO] Detected ARM architecture, using ARM-specific PyTorch installation..."
+      "$py" -m pip install --pre torch torchvision --index-url https://download.pytorch.org/whl/nightly/cu130
+    else
+      "$py" -m pip install "torch==${TORCH_VER}" "torchvision==${TV_VER}" --index-url "${PYTORCH_INDEX}"
+    fi
   fi
 }
 
