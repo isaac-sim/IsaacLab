@@ -9,3 +9,4 @@ with Isaac Lab.
 
   augmented_imitation
   teleop_imitation
+  skillgen

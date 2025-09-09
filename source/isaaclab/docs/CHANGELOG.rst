@@ -1,6 +1,48 @@
 Changelog
 ---------
 
+0.45.15 (2025-09-05)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added action terms for using RMPFlow in Manager-Based environments.
+
+
+0.45.14 (2025-09-08)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab.ui.xr_widgets.TeleopVisualizationManager` and :class:`~isaaclab.ui.xr_widgets.XRVisualization`
+  classes to provide real-time visualization of teleoperation and inverse kinematics status in XR environments.
+
+
+0.45.13 (2025-09-08)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab.devices.openxr.manus_vive.ManusVive` to support teleoperation with Manus gloves and Vive trackers.
+
+
+0.45.12 (2025-09-05)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab.envs.mdp.actions.SurfaceGripperBinaryAction` for supporting surface grippers in Manager-Based workflows.
+
+Changed
+^^^^^^^
+
+* Added AssetBase inheritance for :class:`~isaaclab.assets.surface_gripper.SurfaceGripper`.
+
+
 0.45.11 (2025-09-04)
 ~~~~~~~~~~~~~~~~~~~~
 
@@ -22,7 +64,7 @@ Added
 
 
 0.45.10 (2025-09-02)
-~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~
 
 Fixed
 ^^^^^
@@ -78,7 +120,7 @@ Added
 
 
 0.45.6 (2025-08-22)
-~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~
 
 Fixed
 ^^^^^
@@ -87,7 +129,7 @@ Fixed
 
 
 0.45.5 (2025-08-21)
-~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~
 
 Fixed
 ^^^^^
@@ -99,7 +141,7 @@ Fixed
 
 
 0.45.4 (2025-08-21)
-~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~
 
 Added
 ^^^^^
@@ -184,9 +226,9 @@ Fixed
 Fixed
 ^^^^^
 
-* Fixed the old termination manager in :class:`~isaaclab.managers.TerminationManager` term_done logging that logs the
-instantaneous term done count at reset. This let to inaccurate aggregation of termination count, obscuring the what really
-happeningduring the traing. Instead we log the episodic term done.
+* Fixed the old termination manager in :class:`~isaaclab.managers.TerminationManager` term_done logging that
+  logs the instantaneous term done count at reset. This let to inaccurate aggregation of termination count,
+  obscuring the what really happening during the training. Instead we log the episodic term done.
 
 
 0.44.9 (2025-07-30)

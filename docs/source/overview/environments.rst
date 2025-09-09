@@ -3,7 +3,7 @@
 Available Environments
 ======================
 
-The following lists comprises of all the RL tasks implementations that are available in Isaac Lab.
+The following lists comprises of all the RL and IL tasks implementations that are available in Isaac Lab.
 While we try to keep this list up-to-date, you can always get the latest list of environments by
 running the following command:
 
@@ -116,6 +116,10 @@ for the lift-cube environment:
     |                      |                           | Blueprint env used for the NVIDIA Isaac GR00T blueprint for synthetic       |
     |                      | |stack-cube-bp-link|      | manipulation motion generation                                              |
     +----------------------+---------------------------+-----------------------------------------------------------------------------+
+    | |surface-gripper|    | |long-suction-link|       | Stack three cubes (bottom to top: blue, red, green)                         |
+    |                      |                           | with the UR10 arm and long surface gripper                                  |
+    |                      | |short-suction-link|      | or short surface gripper.                                                   |
+    +----------------------+---------------------------+-----------------------------------------------------------------------------+
     | |cabi-franka|        | |cabi-franka-link|        | Grasp the handle of a cabinet's drawer and open it with the Franka robot    |
     |                      |                           |                                                                             |
     |                      | |franka-direct-link|      |                                                                             |
@@ -138,6 +142,9 @@ for the lift-cube environment:
     | |gr1_pp_waist|       | |gr1_pp_waist-link|       | Pick up and place an object in a basket with a GR-1 humanoid robot          |
     |                      |                           | with waist degrees-of-freedom enables that provides a wider reach space.    |
     +----------------------+---------------------------+-----------------------------------------------------------------------------+
+    | |galbot_stack|       | |galbot_stack-link|       | Stack three cubes (bottom to top: blue, red, green) with the left arm of    |
+    |                      |                           | a Galbot humanoid robot                                                     |
+    +----------------------+---------------------------+-----------------------------------------------------------------------------+
 
 .. |reach-franka| image:: ../_static/tasks/manipulation/franka_reach.jpg
 .. |reach-ur10| image:: ../_static/tasks/manipulation/ur10_reach.jpg
@@ -148,7 +155,10 @@ for the lift-cube environment:
 .. |cube-shadow| image:: ../_static/tasks/manipulation/shadow_cube.jpg
 .. |stack-cube| image:: ../_static/tasks/manipulation/franka_stack.jpg
 .. |gr1_pick_place| image:: ../_static/tasks/manipulation/gr-1_pick_place.jpg
+.. |surface-gripper| image:: ../_static/tasks/manipulation/ur10_stack_surface_gripper.jpg
 .. |gr1_pp_waist| image:: ../_static/tasks/manipulation/gr-1_pick_place_waist.jpg
+.. |surface-gripper| image:: ../_static/tasks/manipulation/ur10_stack_surface_gripper.jpg
+.. |galbot_stack| image:: ../_static/tasks/manipulation/galbot_stack_cube.jpg
 
 .. |reach-franka-link| replace:: `Isaac-Reach-Franka-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/reach/config/franka/joint_pos_env_cfg.py>`__
 .. |reach-ur10-link| replace:: `Isaac-Reach-UR10-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/reach/config/ur_10/joint_pos_env_cfg.py>`__
@@ -163,7 +173,12 @@ for the lift-cube environment:
 .. |stack-cube-link| replace:: `Isaac-Stack-Cube-Franka-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/stack/config/franka/stack_joint_pos_env_cfg.py>`__
 .. |stack-cube-bp-link| replace:: `Isaac-Stack-Cube-Franka-IK-Rel-Blueprint-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/stack/config/franka/stack_ik_rel_blueprint_env_cfg.py>`__
 .. |gr1_pick_place-link| replace:: `Isaac-PickPlace-GR1T2-Abs-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/pick_place/pickplace_gr1t2_env_cfg.py>`__
+.. |long-suction-link| replace:: `Isaac-Stack-Cube-UR10-Long-Suction-IK-Rel-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/stack/config/ur10_gripper/stack_ik_rel_env_cfg.py>`__
+.. |short-suction-link| replace:: `Isaac-Stack-Cube-UR10-Short-Suction-IK-Rel-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/stack/config/ur10_gripper/stack_ik_rel_env_cfg.py>`__
 .. |gr1_pp_waist-link| replace:: `Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/pick_place/pickplace_gr1t2_waist_enabled_env_cfg.py>`__
+.. |galbot_stack-link| replace:: `Isaac-Stack-Cube-Galbot-Left-Arm-Gripper-RmpFlow-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/stack/config/galbot/stack_rmp_rel_env_cfg.py>`__
+.. |long-suction-link| replace:: `Isaac-Stack-Cube-UR10-Long-Suction-IK-Rel-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/stack/config/ur10_gripper/stack_ik_rel_env_cfg.py>`__
+.. |short-suction-link| replace:: `Isaac-Stack-Cube-UR10-Short-Suction-IK-Rel-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/stack/config/ur10_gripper/stack_ik_rel_env_cfg.py>`__
 
 .. |cube-shadow-link| replace:: `Isaac-Repose-Cube-Shadow-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/shadow_hand/shadow_hand_env_cfg.py>`__
 .. |cube-shadow-ff-link| replace:: `Isaac-Repose-Cube-Shadow-OpenAI-FF-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/shadow_hand/shadow_hand_env_cfg.py>`__
@@ -791,7 +806,7 @@ inferencing, including reading from an already trained checkpoint and disabling 
       -
       - Direct
       -
-      * - Isaac-Forge-GearMesh-Direct-v0
+    * - Isaac-Forge-GearMesh-Direct-v0
       -
       - Direct
       - **rl_games** (PPO)
@@ -937,6 +952,26 @@ inferencing, including reading from an already trained checkpoint and disabling 
       -
     * - Isaac-Stack-Cube-Instance-Randomize-Franka-v0
       -
+      - Manager Based
+      -
+    * - Isaac-Stack-Cube-UR10-Long-Suction-IK-Rel-v0
+      -
+      - Manager Based
+      -
+    * - Isaac-Stack-Cube-UR10-Short-Suction-IK-Rel-v0
+      -
+      - Manager Based
+      -
+    * - Isaac-Stack-Cube-Galbot-Left-Arm-Gripper-RmpFlow-v0
+      -
+      - Manager Based
+      -
+    * - Isaac-Stack-Cube-Galbot-Right-Arm-Suction-RmpFlow-v0
+      -
+      - Manager Based
+      -
+    * - Isaac-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor-v0
+      - Isaac-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor-Play-v0
       - Manager Based
       -
     * - Isaac-Velocity-Flat-Anymal-B-v0
