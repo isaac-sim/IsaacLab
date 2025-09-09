@@ -21,9 +21,7 @@ import isaacsim.core.utils.stage as stage_utils
 import omni
 import omni.kit.commands
 import omni.log
-import omni.physics.tensors.impl.api as physx
 from isaacsim.core.cloner import Cloner
-from isaacsim.core.prims import XFormPrim
 from isaacsim.core.utils.carb import get_carb_setting
 from isaacsim.core.utils.stage import get_current_stage
 from isaacsim.core.version import get_version
@@ -35,9 +33,6 @@ try:
 except ModuleNotFoundError:
     from pxr import Semantics
 
-import torch
-
-from isaaclab.utils.math import convert_quat, subtract_frame_transforms
 from isaaclab.utils.string import to_camel_case
 
 from . import schemas
@@ -203,7 +198,7 @@ def apply_nested(func: Callable) -> Callable:
             # if successful, do not look at children
             # this is based on the physics behavior that nested schemas are not allowed
             if not success:
-                all_prims += child_prim.GetFilteredChildren(Usd.TraverseInstanceProxies())
+                all_prims += child_prim.GetChildren()
             else:
                 count_success += 1
         # check if we were successful in applying the function to any prim
@@ -575,72 +570,7 @@ def make_uninstanceable(prim_path: str | Sdf.Path, stage: Usd.Stage | None = Non
             # make the prim uninstanceable
             child_prim.SetInstanceable(False)
         # add children to list
-        all_prims += child_prim.GetFilteredChildren(Usd.TraverseInstanceProxies())
-
-
-def resolve_world_scale(prim: Usd.Prim) -> tuple[float, float, float]:
-    """Resolve the world scale of a prim.
-
-    Args:
-        prim: The USD prim to resolve the world scale for.
-
-    Returns:
-        The world scale of the prim in the x, y, and z directions.
-    """
-
-    xform = UsdGeom.Xformable(prim)
-    world_transform = xform.ComputeLocalToWorldTransform(Usd.TimeCode.Default())
-    return tuple([*(v.GetLength() for v in world_transform.ExtractRotationMatrix())])
-
-
-def resolve_world_pose(prim: Usd.Prim) -> tuple[list[float], list[float]]:
-    """Resolve the world pose (position and orientation) of a prim.
-
-    Args:
-        prim: The USD prim to resolve the world pose for.
-
-    Returns:
-        A tuple containing the world position (as a 3D vector) and the world orientation (as a quaternion, format wxyz).
-    """
-
-    xform = UsdGeom.Xformable(prim)
-    world_transform = xform.ComputeLocalToWorldTransform(Usd.TimeCode.Default())
-    world_position = [*world_transform.ExtractTranslation()]
-    world_orientation = [
-        world_transform.ExtractRotation().GetQuaternion().GetNormalized().real,
-        *world_transform.ExtractRotation().GetQuaternion().GetNormalized().imaginary,
-    ]
-    return world_position, world_orientation
-
-
-def resolve_relative_pose(
-    prim: Usd.Prim, relative_to: Usd.Prim | None = None, device: torch.device | None = None
-) -> tuple[torch.Tensor, torch.Tensor]:
-    """Resolve the relative pose (position and orientation) of a prim with respect to another prim.
-
-    Args:
-        prim: The USD prim to resolve the relative pose for.
-        relative_to: The USD prim to resolve the relative pose with respect to. If None, the world frame is used.
-            Defaults to None.
-        device: The torch device to use for tensor operations. If None, the default device is used.
-            Defaults to None.
-
-    Returns:
-        A tuple containing the relative position (as a 3D vector) and the relative orientation (as a quaternion, format wxyz).
-    """
-
-    prim_pos, prim_quat = resolve_world_pose(prim)
-    if relative_to is None:
-        return torch.tensor(prim_pos, device=device), torch.tensor(prim_quat, device=device)
-
-    relative_to_pos, relative_to_quat = resolve_world_pose(relative_to)
-    relative_pos, relative_quat = subtract_frame_transforms(
-        torch.tensor(prim_pos, dtype=torch.float32),
-        torch.tensor(prim_quat, dtype=torch.float32),
-        torch.tensor(relative_to_pos, dtype=torch.float32),
-        torch.tensor(relative_to_quat, dtype=torch.float32),
-    )
-    return relative_pos, relative_quat
+        all_prims += child_prim.GetChildren()
 
 
 """
@@ -687,7 +617,7 @@ def get_first_matching_child_prim(
         if predicate(child_prim):
             return child_prim
         # add children to list
-        all_prims += child_prim.GetFilteredChildren(Usd.TraverseInstanceProxies())
+        all_prims += child_prim.GetChildren()
     return None
 
 
@@ -743,9 +673,7 @@ def get_all_matching_child_prims(
             output_prims.append(child_prim)
         # add children to list
         if depth is None or current_depth < depth:
-            all_prims_queue += [
-                (child, current_depth + 1) for child in child_prim.GetFilteredChildren(Usd.TraverseInstanceProxies())
-            ]
+            all_prims_queue += [(child, current_depth + 1) for child in child_prim.GetChildren()]
 
     return output_prims
 
