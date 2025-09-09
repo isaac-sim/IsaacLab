@@ -1,8 +1,8 @@
 Changelog
 ---------
 
-0.10.50 (2025-09-08)
-~~~~~~~~~~~~~~~~~~~~
+0.11.0 (2025-09-08)
+~~~~~~~~~~~~~~~~~~~
 
 Added
 ^^^^^
@@ -12,6 +12,16 @@ Added
 * Added bin cube stacking environment for SkillGen/Mimic:
   * :class:`FrankaBinStackEnvCfg`; Gym ID ``Isaac-Stack-Cube-Bin-Franka-IK-Rel-Mimic-v0``.
 
+
+0.10.50 (2025-09-05)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added stacking environments for Galbot with suction grippers.
+
+
 0.10.49 (2025-09-05)
 ~~~~~~~~~~~~~~~~~~~~
 
@@ -19,6 +29,7 @@ Added
 ^^^^^
 
 * Added suction gripper stacking environments with UR10 that can be used with teleoperation.
+
 
 0.10.48 (2025-09-03)
 ~~~~~~~~~~~~~~~~~~~~
