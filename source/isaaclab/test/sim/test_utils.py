@@ -140,7 +140,6 @@ def test_resolve_prim_pose():
     # sample random scales for x, y, z
     rand_scales = np.random.uniform(0.5, 1.5, size=(num_objects, 3, 3))
     rand_widths = np.random.uniform(0.1, 10.0, size=(num_objects,))
-    rand_widths[:] = 1.0
     # sample random positions
     rand_positions = np.random.uniform(-100, 100, size=(num_objects, 3, 3))
     # sample random rotations
