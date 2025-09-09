@@ -1,13 +1,23 @@
 Changelog
 ---------
 
-0.45.13 (2025-09-05)
+0.45.14 (2025-09-05)
 ~~~~~~~~~~~~~~~~~~~~
 
 Added
 ^^^^^
 
 * Added action terms for using RMPFlow in Manager-Based environments.
+
+
+0.45.13 (2025-09-08)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab.devices.openxr.manus_vive.ManusVive` to support teleoperation with Manus gloves and Vive trackers.
+
 
 0.45.12 (2025-09-05)
 ~~~~~~~~~~~~~~~~~~~~
