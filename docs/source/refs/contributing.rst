@@ -254,8 +254,8 @@ In a Python file, we follow the following structure:
    # Constants
    # Functions (public)
    # Classes (public)
-   # Functions (private)
-   # Classes (private)
+   # _Functions (private)
+   # _Classes (private)
 
 Imports are sorted by the pre-commit hooks. Unless there is a good reason to do otherwise, please do not
 import the modules inside functions or classes. To deal with circular imports, we use the
