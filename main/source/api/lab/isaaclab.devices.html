@@ -63,7 +63,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.2.1" />
-    <meta name="docbuild:last-update" content="Sep 08, 2025"/>
+    <meta name="docbuild:last-update" content="Sep 09, 2025"/>
   </head>
   
   
@@ -729,6 +729,17 @@
 </li>
 </ul>
 </li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#manus-vive">Manus + Vive</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.devices.ManusVive"><code class="docutils literal notranslate"><span class="pre">ManusVive</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.devices.ManusVive.TrackingTarget"><code class="docutils literal notranslate"><span class="pre">ManusVive.TrackingTarget</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.devices.ManusVive.__init__"><code class="docutils literal notranslate"><span class="pre">ManusVive.__init__()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.devices.ManusVive.reset"><code class="docutils literal notranslate"><span class="pre">ManusVive.reset()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.devices.ManusVive.add_callback"><code class="docutils literal notranslate"><span class="pre">ManusVive.add_callback()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.devices.ManusVive.advance"><code class="docutils literal notranslate"><span class="pre">ManusVive.advance()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#retargeters">Retargeters</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.devices.openxr.retargeters.GripperRetargeter"><code class="docutils literal notranslate"><span class="pre">GripperRetargeter</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.devices.openxr.retargeters.GripperRetargeter.__init__"><code class="docutils literal notranslate"><span class="pre">GripperRetargeter.__init__()</span></code></a></li>
@@ -808,16 +819,19 @@ the peripheral device.</p>
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.devices.OpenXRDevice" title="isaaclab.devices.OpenXRDevice"><code class="xref py py-obj docutils literal notranslate"><span class="pre">OpenXRDevice</span></code></a></p></td>
 <td><p>An OpenXR-powered device for teleoperation and interaction.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.devices.openxr.retargeters.GripperRetargeter" title="isaaclab.devices.openxr.retargeters.GripperRetargeter"><code class="xref py py-obj docutils literal notranslate"><span class="pre">isaaclab.devices.openxr.retargeters.GripperRetargeter</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.devices.ManusVive" title="isaaclab.devices.ManusVive"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ManusVive</span></code></a></p></td>
+<td><p>Manus gloves and Vive trackers for teleoperation and interaction.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.devices.openxr.retargeters.GripperRetargeter" title="isaaclab.devices.openxr.retargeters.GripperRetargeter"><code class="xref py py-obj docutils literal notranslate"><span class="pre">isaaclab.devices.openxr.retargeters.GripperRetargeter</span></code></a></p></td>
 <td><p>Retargeter specifically for gripper control based on hand tracking data.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.devices.openxr.retargeters.Se3AbsRetargeter" title="isaaclab.devices.openxr.retargeters.Se3AbsRetargeter"><code class="xref py py-obj docutils literal notranslate"><span class="pre">isaaclab.devices.openxr.retargeters.Se3AbsRetargeter</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.devices.openxr.retargeters.Se3AbsRetargeter" title="isaaclab.devices.openxr.retargeters.Se3AbsRetargeter"><code class="xref py py-obj docutils literal notranslate"><span class="pre">isaaclab.devices.openxr.retargeters.Se3AbsRetargeter</span></code></a></p></td>
 <td><p>Retargets OpenXR hand tracking data to end-effector commands using absolute positioning.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.devices.openxr.retargeters.Se3RelRetargeter" title="isaaclab.devices.openxr.retargeters.Se3RelRetargeter"><code class="xref py py-obj docutils literal notranslate"><span class="pre">isaaclab.devices.openxr.retargeters.Se3RelRetargeter</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.devices.openxr.retargeters.Se3RelRetargeter" title="isaaclab.devices.openxr.retargeters.Se3RelRetargeter"><code class="xref py py-obj docutils literal notranslate"><span class="pre">isaaclab.devices.openxr.retargeters.Se3RelRetargeter</span></code></a></p></td>
 <td><p>Retargets OpenXR hand tracking data to end-effector commands using relative positioning.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.devices.openxr.retargeters.GR1T2Retargeter" title="isaaclab.devices.openxr.retargeters.GR1T2Retargeter"><code class="xref py py-obj docutils literal notranslate"><span class="pre">isaaclab.devices.openxr.retargeters.GR1T2Retargeter</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.devices.openxr.retargeters.GR1T2Retargeter" title="isaaclab.devices.openxr.retargeters.GR1T2Retargeter"><code class="xref py py-obj docutils literal notranslate"><span class="pre">isaaclab.devices.openxr.retargeters.GR1T2Retargeter</span></code></a></p></td>
 <td><p>Retargets OpenXR hand tracking data to GR1T2 hand end-effector commands.</p></td>
 </tr>
 </tbody>
@@ -1645,20 +1659,26 @@ take any arguments.</p></li>
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab.devices.</span></span><span class="sig-name descname"><span class="pre">OpenXRDevice</span></span><a class="reference internal" href="../../../_modules/isaaclab/devices/openxr/openxr_device.html#OpenXRDevice"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.devices.OpenXRDevice" title="Permalink to this definition">#</a></dt>
 <dd><p>Bases: <a class="reference internal" href="#isaaclab.devices.DeviceBase" title="isaaclab.devices.device_base.DeviceBase"><code class="xref py py-class docutils literal notranslate"><span class="pre">DeviceBase</span></code></a></p>
 <p>An OpenXR-powered device for teleoperation and interaction.</p>
-<p>This device tracks hand joints using OpenXR and makes them available as:
-1. A dictionary of tracking data (when used without retargeters)
-2. Retargeted commands for robot control (when retargeters are provided)</p>
-<p>Raw data format (_get_raw_data output):
-* A dictionary with keys matching TrackingTarget enum values (HAND_LEFT, HAND_RIGHT, HEAD)
-* Each hand tracking entry contains a dictionary of joint poses
-* Each joint pose is a 7D vector (x, y, z, qw, qx, qy, qz) in meters and quaternion units
-* Joint names are defined in HAND_JOINT_NAMES from isaaclab.devices.openxr.common
-* Supported joints include palm, wrist, and joints for thumb, index, middle, ring and little fingers</p>
+<p>This device tracks hand joints using OpenXR and makes them available as:</p>
+<ol class="arabic simple">
+<li><p>A dictionary of tracking data (when used without retargeters)</p></li>
+<li><p>Retargeted commands for robot control (when retargeters are provided)</p></li>
+</ol>
+<p>Raw data format (_get_raw_data output):</p>
+<ul class="simple">
+<li><p>A dictionary with keys matching TrackingTarget enum values (HAND_LEFT, HAND_RIGHT, HEAD)</p></li>
+<li><p>Each hand tracking entry contains a dictionary of joint poses</p></li>
+<li><p>Each joint pose is a 7D vector (x, y, z, qw, qx, qy, qz) in meters and quaternion units</p></li>
+<li><p>Joint names are defined in HAND_JOINT_NAMES from isaaclab.devices.openxr.common</p></li>
+<li><p>Supported joints include palm, wrist, and joints for thumb, index, middle, ring and little fingers</p></li>
+</ul>
 <p>Teleop commands:
-The device responds to several teleop commands that can be subscribed to via add_callback():
-* “START”: Resume hand tracking data flow
-* “STOP”: Pause hand tracking data flow
-* “RESET”: Reset the tracking and signal simulation reset</p>
+The device responds to several teleop commands that can be subscribed to via add_callback():</p>
+<ul class="simple">
+<li><p>“START”: Resume hand tracking data flow</p></li>
+<li><p>“STOP”: Pause hand tracking data flow</p></li>
+<li><p>“RESET”: Reset the tracking and signal simulation reset</p></li>
+</ul>
 <p>The device tracks the left hand, right hand, head position, or any combination of these
 based on the TrackingTarget enum values. When retargeters are provided, the raw tracking
 data is transformed into robot control commands suitable for teleoperation.</p>
@@ -1752,6 +1772,120 @@ take any arguments.</p></li>
 <dl class="py method">
 <dt class="sig sig-object py" id="isaaclab.devices.OpenXRDevice.advance">
 <span class="sig-name descname"><span class="pre">advance</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.8)"><span class="pre">torch.Tensor</span></a></span></span><a class="headerlink" href="#isaaclab.devices.OpenXRDevice.advance" title="Permalink to this definition">#</a></dt>
+<dd><p>Process current device state and return control commands.</p>
+<p>This method retrieves raw data from the device and optionally applies
+retargeting to convert it to robot commands.</p>
+<p>Derived classes can either:
+1. Override _get_raw_data() and use this base implementation, or
+2. Override this method completely for custom command processing</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>When no retargeters are configured, returns raw device data in its native format.
+When retargeters are configured, returns a torch.Tensor containing the concatenated
+outputs from all retargeters.</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="manus-vive">
+<h2>Manus + Vive<a class="headerlink" href="#manus-vive" title="Permalink to this heading">#</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="isaaclab.devices.ManusVive">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab.devices.</span></span><span class="sig-name descname"><span class="pre">ManusVive</span></span><a class="reference internal" href="../../../_modules/isaaclab/devices/openxr/manus_vive.html#ManusVive"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.devices.ManusVive" title="Permalink to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#isaaclab.devices.DeviceBase" title="isaaclab.devices.device_base.DeviceBase"><code class="xref py py-class docutils literal notranslate"><span class="pre">DeviceBase</span></code></a></p>
+<p>Manus gloves and Vive trackers for teleoperation and interaction.</p>
+<p>This device tracks hand joints using Manus gloves and Vive trackers and makes them available as:</p>
+<ol class="arabic simple">
+<li><p>A dictionary of tracking data (when used without retargeters)</p></li>
+<li><p>Retargeted commands for robot control (when retargeters are provided)</p></li>
+</ol>
+<p>The user needs to install the Manus SDK and add <cite>{path_to_manus_sdk}/manus_sdk/lib</cite> to <cite>LD_LIBRARY_PATH</cite>.
+Data are acquired by <cite>ManusViveIntegration</cite> from <cite>isaaclab.devices.openxr.manus_vive_utils</cite>, including</p>
+<ul class="simple">
+<li><p>Vive tracker poses in scene frame, calibrated from AVP wrist poses.</p></li>
+<li><p>Hand joints calculated from Vive wrist joints and Manus hand joints (relative to wrist).</p></li>
+<li><p>Vive trackers are automatically mapped to the left and right wrist joints.</p></li>
+</ul>
+<p>Raw data format (_get_raw_data output): consistent with <a class="reference internal" href="#isaaclab.devices.OpenXRDevice" title="isaaclab.devices.OpenXRDevice"><code class="xref py py-class docutils literal notranslate"><span class="pre">OpenXRDevice</span></code></a>.
+Joint names are defined in <cite>HAND_JOINT_MAP</cite> from <cite>isaaclab.devices.openxr.manus_vive_utils</cite>.</p>
+<p>Teleop commands: consistent with <a class="reference internal" href="#isaaclab.devices.OpenXRDevice" title="isaaclab.devices.OpenXRDevice"><code class="xref py py-class docutils literal notranslate"><span class="pre">OpenXRDevice</span></code></a>.</p>
+<p>The device tracks the left hand, right hand, head position, or any combination of these
+based on the TrackingTarget enum values. When retargeters are provided, the raw tracking
+data is transformed into robot control commands suitable for teleoperation.</p>
+<p><strong>Classes:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.devices.ManusVive.TrackingTarget" title="isaaclab.devices.ManusVive.TrackingTarget"><code class="xref py py-obj docutils literal notranslate"><span class="pre">TrackingTarget</span></code></a></p></td>
+<td><p>Enum class specifying what to track with Manus+Vive.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Methods:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.devices.ManusVive.__init__" title="isaaclab.devices.ManusVive.__init__"><code class="xref py py-obj docutils literal notranslate"><span class="pre">__init__</span></code></a>(cfg[, retargeters])</p></td>
+<td><p>Initialize the Manus+Vive device.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.devices.ManusVive.reset" title="isaaclab.devices.ManusVive.reset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">reset</span></code></a>()</p></td>
+<td><p>Reset cached joint and head poses.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.devices.ManusVive.add_callback" title="isaaclab.devices.ManusVive.add_callback"><code class="xref py py-obj docutils literal notranslate"><span class="pre">add_callback</span></code></a>(key, func)</p></td>
+<td><p>Register a callback for a given key.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.devices.ManusVive.advance" title="isaaclab.devices.ManusVive.advance"><code class="xref py py-obj docutils literal notranslate"><span class="pre">advance</span></code></a>()</p></td>
+<td><p>Process current device state and return control commands.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<dl class="py class">
+<dt class="sig sig-object py" id="isaaclab.devices.ManusVive.TrackingTarget">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">TrackingTarget</span></span><a class="reference internal" href="../../../_modules/isaaclab/devices/openxr/manus_vive.html#ManusVive.TrackingTarget"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.devices.ManusVive.TrackingTarget" title="Permalink to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/enum.html#enum.Enum" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Enum</span></code></a></p>
+<p>Enum class specifying what to track with Manus+Vive. Consistent with <a class="reference internal" href="#isaaclab.devices.OpenXRDevice.TrackingTarget" title="isaaclab.devices.OpenXRDevice.TrackingTarget"><code class="xref py py-class docutils literal notranslate"><span class="pre">OpenXRDevice.TrackingTarget</span></code></a>.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab.devices.ManusVive.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ManusViveCfg</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">retargeters</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.13)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#isaaclab.devices.RetargeterBase" title="isaaclab.devices.retargeter_base.RetargeterBase"><span class="pre">isaaclab.devices.retargeter_base.RetargeterBase</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab/devices/openxr/manus_vive.html#ManusVive.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.devices.ManusVive.__init__" title="Permalink to this definition">#</a></dt>
+<dd><p>Initialize the Manus+Vive device.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>cfg</strong> – Configuration object for Manus+Vive settings.</p></li>
+<li><p><strong>retargeters</strong> – List of retargeter instances to use for transforming raw tracking data.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab.devices.ManusVive.reset">
+<span class="sig-name descname"><span class="pre">reset</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab/devices/openxr/manus_vive.html#ManusVive.reset"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.devices.ManusVive.reset" title="Permalink to this definition">#</a></dt>
+<dd><p>Reset cached joint and head poses.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab.devices.ManusVive.add_callback">
+<span class="sig-name descname"><span class="pre">add_callback</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">key</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">func</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://trimesh.org/trimesh.typed.html#trimesh.typed.Callable" title="(in trimesh)"><span class="pre">Callable</span></a></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab/devices/openxr/manus_vive.html#ManusVive.add_callback"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.devices.ManusVive.add_callback" title="Permalink to this definition">#</a></dt>
+<dd><p>Register a callback for a given key.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>key</strong> – The message key to bind (‘START’, ‘STOP’, ‘RESET’).</p></li>
+<li><p><strong>func</strong> – The function to invoke when the message key is received.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab.devices.ManusVive.advance">
+<span class="sig-name descname"><span class="pre">advance</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.8)"><span class="pre">torch.Tensor</span></a></span></span><a class="headerlink" href="#isaaclab.devices.ManusVive.advance" title="Permalink to this definition">#</a></dt>
 <dd><p>Process current device state and return control commands.</p>
 <p>This method retrieves raw data from the device and optionally applies
 retargeting to convert it to robot commands.</p>
@@ -2154,6 +2288,17 @@ Retargeted hand joint angles</p>
 </li>
 </ul>
 </li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#manus-vive">Manus + Vive</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.devices.ManusVive"><code class="docutils literal notranslate"><span class="pre">ManusVive</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.devices.ManusVive.TrackingTarget"><code class="docutils literal notranslate"><span class="pre">ManusVive.TrackingTarget</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.devices.ManusVive.__init__"><code class="docutils literal notranslate"><span class="pre">ManusVive.__init__()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.devices.ManusVive.reset"><code class="docutils literal notranslate"><span class="pre">ManusVive.reset()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.devices.ManusVive.add_callback"><code class="docutils literal notranslate"><span class="pre">ManusVive.add_callback()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.devices.ManusVive.advance"><code class="docutils literal notranslate"><span class="pre">ManusVive.advance()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#retargeters">Retargeters</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.devices.openxr.retargeters.GripperRetargeter"><code class="docutils literal notranslate"><span class="pre">GripperRetargeter</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.devices.openxr.retargeters.GripperRetargeter.__init__"><code class="docutils literal notranslate"><span class="pre">GripperRetargeter.__init__()</span></code></a></li>
@@ -2210,7 +2355,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Sep 08, 2025.
+  Last updated on Sep 09, 2025.
   <br/>
 </p>
   </div>

@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.2.1" />
-    <meta name="docbuild:last-update" content="Sep 08, 2025"/>
+    <meta name="docbuild:last-update" content="Sep 09, 2025"/>
   </head>
   
   
@@ -648,6 +648,7 @@
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#use-apple-vision-pro-for-teleoperation">Use Apple Vision Pro for Teleoperation</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#build-and-install-the-isaac-xr-teleop-sample-client-app-for-apple-vision-pro">Build and Install the Isaac XR Teleop Sample Client App for Apple Vision Pro</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#teleoperate-an-isaac-lab-robot-with-apple-vision-pro">Teleoperate an Isaac Lab Robot with Apple Vision Pro</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#manus-vive-hand-tracking">Manus + Vive Hand Tracking</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#develop-for-xr-in-isaac-lab">Develop for XR in Isaac Lab</a><ul class="nav section-nav flex-column">
@@ -1020,6 +1021,31 @@ controller.</p>
 <p class="admonition-title">Learn More about Teleoperation and Imitation Learning in Isaac Lab</p>
 <p>See <a class="reference internal" href="../overview/imitation-learning/teleop_imitation.html#teleoperation-imitation-learning"><span class="std std-ref">Teleoperation and Imitation Learning with Isaac Lab Mimic</span></a> to learn how to record teleoperated demonstrations
 and build teleoperation and imitation learning workflows with Isaac Lab.</p>
+</div>
+</section>
+<section id="manus-vive-hand-tracking">
+<span id="manus-vive-handtracking"></span><h3>Manus + Vive Hand Tracking<a class="headerlink" href="#manus-vive-hand-tracking" title="Permalink to this heading">#</a></h3>
+<p>Manus gloves and HTC Vive trackers can provide hand tracking when optical hand tracking from a headset is occluded.
+This setup expects Manus gloves with a Manus SDK license and Vive trackers attached to the gloves.
+Requires Isaac Sim &gt;=5.1.</p>
+<p>Run the teleoperation example with Manus + Vive tracking:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/environments/teleoperation/teleop_se3_agent.py<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--task<span class="w"> </span>Isaac-PickPlace-GR1T2-Abs-v0<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--teleop_device<span class="w"> </span>manusvive<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--xr<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--enable_pinocchio
+</pre></div>
+</div>
+<p>Begin the session with your palms facing up.
+This is necessary for calibrating Vive tracker poses using Apple Vision Pro wrist poses from a few initial frames,
+as the Vive trackers attached to the back of the hands occlude the optical hand tracking.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>To avoid resource contention and crashes, ensure Manus and Vive devices are connected to different USB controllers/buses.
+Use <code class="docutils literal notranslate"><span class="pre">lsusb</span> <span class="pre">-t</span></code> to identify different buses and connect devices accordingly.</p>
+<p>Vive trackers are automatically calculated to map to the left and right wrist joints.
+This auto-mapping calculation supports up to 2 Vive trackers;
+if more than 2 Vive trackers are detected, it uses the first two trackers detected for calibration, which may not be correct.</p>
 </div>
 </section>
 </section>
@@ -1568,6 +1594,7 @@ typically be ignored.</p>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#use-apple-vision-pro-for-teleoperation">Use Apple Vision Pro for Teleoperation</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#build-and-install-the-isaac-xr-teleop-sample-client-app-for-apple-vision-pro">Build and Install the Isaac XR Teleop Sample Client App for Apple Vision Pro</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#teleoperate-an-isaac-lab-robot-with-apple-vision-pro">Teleoperate an Isaac Lab Robot with Apple Vision Pro</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#manus-vive-hand-tracking">Manus + Vive Hand Tracking</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#develop-for-xr-in-isaac-lab">Develop for XR in Isaac Lab</a><ul class="nav section-nav flex-column">
@@ -1622,7 +1649,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Sep 08, 2025.
+  Last updated on Sep 09, 2025.
   <br/>
 </p>
   </div>

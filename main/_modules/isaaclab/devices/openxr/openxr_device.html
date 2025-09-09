@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.2.1" />
-    <meta name="docbuild:last-update" content="Sep 08, 2025"/>
+    <meta name="docbuild:last-update" content="Sep 09, 2025"/>
   </head>
   
   
@@ -621,10 +621,12 @@
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;An OpenXR-powered device for teleoperation and interaction.</span>
 
 <span class="sd">    This device tracks hand joints using OpenXR and makes them available as:</span>
+
 <span class="sd">    1. A dictionary of tracking data (when used without retargeters)</span>
 <span class="sd">    2. Retargeted commands for robot control (when retargeters are provided)</span>
 
 <span class="sd">    Raw data format (_get_raw_data output):</span>
+
 <span class="sd">    * A dictionary with keys matching TrackingTarget enum values (HAND_LEFT, HAND_RIGHT, HEAD)</span>
 <span class="sd">    * Each hand tracking entry contains a dictionary of joint poses</span>
 <span class="sd">    * Each joint pose is a 7D vector (x, y, z, qw, qx, qy, qz) in meters and quaternion units</span>
@@ -633,6 +635,7 @@
 
 <span class="sd">    Teleop commands:</span>
 <span class="sd">    The device responds to several teleop commands that can be subscribed to via add_callback():</span>
+
 <span class="sd">    * &quot;START&quot;: Resume hand tracking data flow</span>
 <span class="sd">    * &quot;STOP&quot;: Pause hand tracking data flow</span>
 <span class="sd">    * &quot;RESET&quot;: Reset the tracking and signal simulation reset</span>
@@ -928,7 +931,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Sep 08, 2025.
+  Last updated on Sep 09, 2025.
   <br/>
 </p>
   </div>
