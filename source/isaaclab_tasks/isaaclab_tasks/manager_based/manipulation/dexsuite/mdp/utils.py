@@ -130,7 +130,7 @@ def sample_object_point_cloud(num_envs: int, num_points: int, prim_path: str, de
 
                 # FPS to num_points on chosen device
                 tensor_pts = torch.from_numpy(samples_np.astype(np.float32)).to(device)
-                prim_idxs = fps(tensor_pts, num_points)
+                prim_idxs = farthest_point_sampling(tensor_pts, num_points)
                 local_pts = tensor_pts[prim_idxs]
 
                 # prim -> root transform
@@ -155,7 +155,7 @@ def sample_object_point_cloud(num_envs: int, num_points: int, prim_path: str, de
             samples_final = torch.from_numpy(all_samples_np[0]).to(device)
         else:
             combined = torch.from_numpy(np.concatenate(all_samples_np, axis=0)).to(device)
-            idxs = fps(combined, num_points)
+            idxs = farthest_point_sampling(combined, num_points)
             samples_final = combined[idxs]
 
         # store env-level cache in root frame (CPU)
@@ -203,7 +203,7 @@ def create_primitive_mesh(prim) -> trimesh.Trimesh:
         raise KeyError(f"{prim_type} is not a valid primitive mesh type")
 
 
-def fps(points: torch.Tensor, n_samples: int, memory_threashold=2 * 1024**3) -> torch.Tensor:  # 2 GiB
+def farthest_point_sampling(points: torch.Tensor, n_samples: int, memory_threashold=2 * 1024**3) -> torch.Tensor:  # 2 GiB
     """
     Farthest Point Sampling (FPS) for point sets.
 
