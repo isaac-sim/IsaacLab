@@ -219,9 +219,9 @@ Attaching IO Descriptors to Custom Action Terms
 
 In this section, we will cover how to attach IO descriptors to custom action terms. Action terms are classes that
 inherit from the :class:`managers.ActionTerm` class. To add an IO descriptor to an action term, we need to expand
-upon its :meth:`ActionTerm.IO_descriptor` property.
+upon its :meth:`~managers.ActionTerm.IO_descriptor` property.
 
-By default, the :meth:`ActionTerm.IO_descriptor` property returns the base descriptor and fills the following fields:
+By default, the :meth:`~managers.ActionTerm.IO_descriptor` property returns the base descriptor and fills the following fields:
 - ``name``: The name of the action term.
 - ``full_path``: The full path of the action term.
 - ``description``: The description of the action term.
@@ -238,7 +238,7 @@ By default, the :meth:`ActionTerm.IO_descriptor` property returns the base descr
        self._IO_descriptor.export = self.export_IO_descriptor
        return self._IO_descriptor
 
-To add more information to the descriptor, we need to override the :meth:`ActionTerm.IO_descriptor` property.
+To add more information to the descriptor, we need to override the :meth:`~managers.ActionTerm.IO_descriptor` property.
 Let's take a look at an example on how to add the joint names, scale, offset, and clip to the descriptor.
 
 .. code-block:: python
