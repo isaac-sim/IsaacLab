@@ -21,7 +21,14 @@ _UNINITIALIZED_VALUE = float(-1e9)
 
 
 class PbtAlgoObserver(AlgoObserver):
+    """rl_games observer that implements Population-Based Training for a single policy process."""
     def __init__(self, params, args_cli):
+        """Initialize observer, print the mutation table, and allocate the restart flag.
+
+        Args:
+            params (dict): Full agent/task params (Hydra style).
+            args_cli: Parsed CLI args used to reconstruct a restart command.
+        """
         super().__init__()
         self.printer = pbt_utils.PbtTablePrinter()
         self.dir = params["pbt"]["directory"]
@@ -42,6 +49,11 @@ class PbtAlgoObserver(AlgoObserver):
         self.restart_flag = torch.tensor([0], device=self.device)
 
     def after_init(self, algo):
+        """Capture training directories on rank 0 and create this policy's workspace folder.
+
+        Args:
+            algo: rl_games algorithm object (provides writer, train_dir, frame counter, etc.).
+        """
         if self.distributed_args.rank != 0:
             return
 
@@ -52,9 +64,25 @@ class PbtAlgoObserver(AlgoObserver):
         os.makedirs(self.curr_policy_dir, exist_ok=True)
 
     def process_infos(self, infos, done_indices):
+        """Extract the scalar objective from environment infos and store in `self.score`.
+
+        Notes:
+            Expects the objective to be at `infos["episode"][self.cfg.objective]`.
+        """
         self.score = infos["episode"][self.cfg.objective]
 
     def after_steps(self):
+        """Main PBT tick executed every train step.
+
+        Flow:
+            1) Non-zero ranks: exit immediately if `restart_flag == 1`, else return.
+            2) Rank 0: if `restart_flag == 1`, restart this process with new params.
+            3) Rank 0: on PBT cadence boundary (`interval_steps`), save checkpoint,
+               load population checkpoints, compute bands, and if this policy is an
+               underperformer, select a replacement (random leader or self), mutate
+               whitelisted params, set `restart_flag`, broadcast (if distributed),
+               and print a mutation diff table.
+        """
         if self.distributed_args.rank != 0:
             if self.restart_flag.cpu().item() == 1:
                 os._exit(0)
@@ -131,7 +159,14 @@ class PbtAlgoObserver(AlgoObserver):
             self.printer.print_mutation_diff(cur_params, self.new_params)
 
     def _restart_with_new_params(self, new_params, restart_from_checkpoint):
+        """Re-exec the current process with a filtered/augmented CLI to apply new params.
 
+        Notes:
+            - Filters out existing Hydra-style overrides that will be replaced,
+              and appends `--checkpoint=<path>` and new param overrides.
+            - On distributed runs, assigns a fresh master port and forwards
+              distributed args to the python.sh launcher.
+        """
         cli_args = sys.argv
         print(f"previous command line args: {cli_args}")
 
