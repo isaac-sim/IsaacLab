@@ -153,8 +153,6 @@ class MultiMeshRayCaster(RayCaster):
 
         while prim_view is None:
             # create view based on the type of prim
-            pos, orientation = sim_utils.resolve_relative_pose(mesh_prim, current_prim)
-
             if current_prim.HasAPI(UsdPhysics.ArticulationRootAPI):
                 prim_view = self._physics_sim_view.create_articulation_view(current_path_expr.replace(".*", "*"))
                 omni.log.info(f"Created articulation view for mesh prim at path: {target_prim_path}")
@@ -188,9 +186,9 @@ class MultiMeshRayCaster(RayCaster):
         positions = []
         quaternions = []
         for mesh, target in zip(mesh_prims, target_prims):
-            pos, orientation = sim_utils.resolve_relative_pose(mesh, target)
-            positions.append(pos)
-            quaternions.append(orientation)
+            pos, orientation = sim_utils.resolve_prim_pose(mesh, target)
+            positions.append(torch.tensor(pos, dtype=torch.float32, device=self.device))
+            quaternions.append(torch.tensor(orientation, dtype=torch.float32, device=self.device))
 
         positions = torch.stack(positions).to(device=self.device, dtype=torch.float32)
         quaternions = torch.stack(quaternions).to(device=self.device, dtype=torch.float32)
@@ -276,17 +274,19 @@ class MultiMeshRayCaster(RayCaster):
                         mesh = trimesh.Trimesh(points, faces)
                     else:
                         mesh = create_mesh_from_geom_shape(mesh_prim)
-                    scale = sim_utils.resolve_world_scale(mesh_prim)
+                    scale = sim_utils.resolve_prim_scale(mesh_prim)
                     mesh.apply_scale(scale)
 
-                    mesh_prim_pos, mesh_prim_quat = sim_utils.resolve_world_pose(mesh_prim)
-                    target_prim_pos, target_prim_quat = sim_utils.resolve_world_pose(target_prim)
-                    relative_pos, relative_quat = subtract_frame_transforms(
-                        torch.tensor(target_prim_pos, dtype=torch.float32),
-                        torch.tensor(target_prim_quat, dtype=torch.float32),
-                        torch.tensor(mesh_prim_pos, dtype=torch.float32),
-                        torch.tensor(mesh_prim_quat, dtype=torch.float32),
-                    )
+                    # mesh_prim_pos, mesh_prim_quat = sim_utils.resolve_prim_pose(mesh_prim)
+                    relative_pos, relative_quat = sim_utils.resolve_prim_pose(mesh_prim, target_prim)
+                    relative_pos = torch.tensor(relative_pos, dtype=torch.float32)
+                    relative_quat = torch.tensor(relative_quat, dtype=torch.float32)
+                    # relative_pos, relative_quat = subtract_frame_transforms(
+                    #     torch.tensor(target_prim_pos, dtype=torch.float32),
+                    #     torch.tensor(target_prim_quat, dtype=torch.float32),
+                    #     torch.tensor(mesh_prim_pos, dtype=torch.float32),
+                    #     torch.tensor(mesh_prim_quat, dtype=torch.float32),
+                    # )
                     rotation = matrix_from_quat(relative_quat)
                     transform = np.eye(4)
                     transform[:3, :3] = rotation.numpy()
@@ -368,7 +368,7 @@ class MultiMeshRayCaster(RayCaster):
             # update position of the target meshes
             pos_w, ori_w = [], []
             for prim in sim_utils.find_matching_prims(target_cfg.target_prim_expr):
-                translation, quat = sim_utils.resolve_world_pose(prim)
+                translation, quat = sim_utils.resolve_prim_pose(prim)
                 pos_w.append(translation)
                 ori_w.append(quat)
             pos_w = torch.tensor(pos_w, device=self.device, dtype=torch.float32).view(-1, n_meshes, 3)

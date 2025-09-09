@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.46.0 (2025-09-06)
+0.46.1 (2025-09-06)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -9,6 +9,16 @@ Added
 
 * Added :meth:`~isaaclab.sim.utils.resolve_prim_pose` to resolve the pose of a prim with respect to another prim.
 * Added :meth:`~isaaclab.sim.utils.resolve_prim_scale` to resolve the scale of a prim in the world frame.
+
+0.46.0 (2025-09-06)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Added parsing of instanced prims in :meth:`~isaaclab.sim.utils.get_all_matching_child_prims` and :meth:`~isaaclab.sim.utils.get_first_matching_child_prim`.
+  Earlier, instanced prims were skipped since :meth:`Usd.Prim.GetChildren` does not return instanced prims.
+* Added parsing of instanced prims in :meth:`~isaaclab.sim.utils.make_uninstanceable` to make all prims uninstanceable.
 
 
 0.45.12 (2025-09-05)

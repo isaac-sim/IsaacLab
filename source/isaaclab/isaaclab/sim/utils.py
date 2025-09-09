@@ -11,6 +11,7 @@ import contextlib
 import functools
 import inspect
 import re
+import torch
 from collections.abc import Callable, Generator
 from typing import TYPE_CHECKING, Any
 
@@ -19,11 +20,15 @@ import isaacsim.core.utils.stage as stage_utils
 import omni
 import omni.kit.commands
 import omni.log
+import omni.physics.tensors.impl.api as physx
 from isaacsim.core.cloner import Cloner
+from isaacsim.core.prims import XFormPrim
 from isaacsim.core.utils.carb import get_carb_setting
 from isaacsim.core.utils.stage import get_current_stage
 from isaacsim.core.version import get_version
 from pxr import PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics, UsdShade, UsdUtils
+
+from isaaclab.utils.math import convert_quat
 
 # from Isaac Sim 4.2 onwards, pxr.Semantics is deprecated
 try:
@@ -568,7 +573,7 @@ def make_uninstanceable(prim_path: str | Sdf.Path, stage: Usd.Stage | None = Non
             # make the prim uninstanceable
             child_prim.SetInstanceable(False)
         # add children to list
-        all_prims += child_prim.GetChildren()
+        all_prims += child_prim.GetFilteredChildren(Usd.TraverseInstanceProxies())
 
 
 def resolve_prim_pose(
@@ -701,7 +706,7 @@ def get_first_matching_child_prim(
         if predicate(child_prim):
             return child_prim
         # add children to list
-        all_prims += child_prim.GetChildren()
+        all_prims += child_prim.GetFilteredChildren(Usd.TraverseInstanceProxies())
     return None
 
 
@@ -757,7 +762,9 @@ def get_all_matching_child_prims(
             output_prims.append(child_prim)
         # add children to list
         if depth is None or current_depth < depth:
-            all_prims_queue += [(child, current_depth + 1) for child in child_prim.GetChildren()]
+            all_prims_queue += [
+                (child, current_depth + 1) for child in child_prim.GetFilteredChildren(Usd.TraverseInstanceProxies())
+            ]
 
     return output_prims
 
