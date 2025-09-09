@@ -104,6 +104,8 @@ for the lift-cube environment:
     | World                | Environment ID            | Description                                                                 |
     +======================+===========================+=============================================================================+
     | |reach-franka|       | |reach-franka-link|       | Move the end-effector to a sampled target pose with the Franka robot        |
+    |                      |                           |                                                                             |
+    |                      | |reach-franka-direct-link||                                                                             |
     +----------------------+---------------------------+-----------------------------------------------------------------------------+
     | |reach-ur10|         | |reach-ur10-link|         | Move the end-effector to a sampled target pose with the UR10 robot          |
     +----------------------+---------------------------+-----------------------------------------------------------------------------+
@@ -161,6 +163,7 @@ for the lift-cube environment:
 .. |galbot_stack| image:: ../_static/tasks/manipulation/galbot_stack_cube.jpg
 
 .. |reach-franka-link| replace:: `Isaac-Reach-Franka-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/reach/config/franka/joint_pos_env_cfg.py>`__
+.. |reach-franka-direct-link| replace:: `Isaac-Franka-Reach-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/franka_reach/franka_reach_env.py>`__
 .. |reach-ur10-link| replace:: `Isaac-Reach-UR10-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/reach/config/ur_10/joint_pos_env_cfg.py>`__
 .. |deploy-reach-ur10e-link| replace:: `Isaac-Deploy-Reach-UR10e-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/deploy/reach/config/ur_10e/joint_pos_env_cfg.py>`__
 .. |lift-cube-link| replace:: `Isaac-Lift-Cube-Franka-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/lift/config/franka/joint_pos_env_cfg.py>`__
