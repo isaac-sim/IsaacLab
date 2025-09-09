@@ -22,6 +22,7 @@ _UNINITIALIZED_VALUE = float(-1e9)
 
 class PbtAlgoObserver(AlgoObserver):
     """rl_games observer that implements Population-Based Training for a single policy process."""
+
     def __init__(self, params, args_cli):
         """Initialize observer, print the mutation table, and allocate the restart flag.
 
