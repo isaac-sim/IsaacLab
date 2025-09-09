@@ -23,7 +23,7 @@ from .galbot_stack_rmp_abs_mimic_env_cfg import (
 )
 from .galbot_stack_rmp_rel_mimic_env import RmpFlowGalbotCubeStackRelMimicEnv
 from .galbot_stack_rmp_rel_mimic_env_cfg import RmpFlowGalbotLeftArmGripperCubeStackRelMimicEnvCfg
-from .pick_place_mimic_env import PickPlaceAbsMimicEnv, PickPlaceRelMimicEnv
+from .pick_place_mimic_env import PickPlaceRelMimicEnv
 
 ##
 # Inverse Kinematics - Relative Pose Control
