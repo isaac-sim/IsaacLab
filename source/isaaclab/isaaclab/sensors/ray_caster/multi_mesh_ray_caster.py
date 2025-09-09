@@ -24,8 +24,8 @@ from isaacsim.core.prims import XFormPrim
 from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
-from isaaclab.utils.math import matrix_from_quat, quat_mul, subtract_frame_transforms
-from isaaclab.utils.mesh import PRIMITIVE_MESH_TYPES, create_mesh_from_geom_shape, create_trimesh_from_geom_mesh
+from isaaclab.utils.math import matrix_from_quat, quat_mul
+from isaaclab.utils.mesh import PRIMITIVE_MESH_TYPES, create_trimesh_from_geom_mesh, create_trimesh_from_geom_shape
 from isaaclab.utils.warp import convert_to_warp_mesh, raycast_dynamic_meshes
 
 from .multi_mesh_ray_caster_data import MultiMeshRayCasterData
@@ -270,10 +270,9 @@ class MultiMeshRayCaster(RayCaster):
                         raise RuntimeError(f"Invalid mesh prim path: {target_prim}")
 
                     if mesh_prim.GetTypeName() == "Mesh":
-                        points, faces = create_trimesh_from_geom_mesh(mesh_prim)
-                        mesh = trimesh.Trimesh(points, faces)
+                        mesh = create_trimesh_from_geom_mesh(mesh_prim)
                     else:
-                        mesh = create_mesh_from_geom_shape(mesh_prim)
+                        mesh = create_trimesh_from_geom_shape(mesh_prim)
                     scale = sim_utils.resolve_prim_scale(mesh_prim)
                     mesh.apply_scale(scale)
 

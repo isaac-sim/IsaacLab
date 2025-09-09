@@ -12,7 +12,7 @@ import trimesh
 from pxr import Usd, UsdGeom
 
 
-def create_trimesh_from_geom_mesh(mesh_prim: Usd.Prim) -> tuple[np.ndarray, np.ndarray]:
+def create_trimesh_from_geom_mesh(mesh_prim: Usd.Prim) -> trimesh.Trimesh:
     """Reads the vertices and faces of a mesh prim.
 
     The function reads the vertices and faces of a mesh prim and returns it. If the underlying mesh is a quad mesh,
@@ -37,34 +37,10 @@ def create_trimesh_from_geom_mesh(mesh_prim: Usd.Prim) -> tuple[np.ndarray, np.n
     # Load faces and convert to triangle if needed. (Default is quads)
     num_vertex_per_face = np.asarray(mesh.GetFaceVertexCountsAttr().Get())
     indices = np.asarray(mesh.GetFaceVertexIndicesAttr().Get())
-    return points, convert_faces_to_triangles(indices, num_vertex_per_face)
+    return trimesh.Trimesh(points, convert_faces_to_triangles(indices, num_vertex_per_face))
 
 
-def _create_plane_trimesh(prim: Usd.Prim) -> trimesh.Trimesh:
-    """Creates a trimesh for a plane primitive."""
-    size = (2e6, 2e6)
-    vertices = np.array([[size[0], size[1], 0], [size[0], 0.0, 0], [0.0, size[1], 0], [0.0, 0.0, 0]]) - np.array(
-        [size[0] / 2.0, size[1] / 2.0, 0.0]
-    )
-    faces = np.array([[1, 0, 2], [2, 3, 1]])
-    return trimesh.Trimesh(vertices=vertices, faces=faces)
-
-
-def _create_cube_trimesh(prim: Usd.Prim) -> trimesh.Trimesh:
-    """Creates a trimesh for a cube primitive."""
-    size = prim.GetAttribute("size").Get()
-    extends = [size, size, size]
-    return trimesh.creation.box(extends)
-
-
-def _create_sphere_trimesh(prim: Usd.Prim, subdivisions: int = 2) -> trimesh.Trimesh:
-    """Creates a trimesh for a sphere primitive."""
-    radius = prim.GetAttribute("radius").Get()
-    mesh = trimesh.creation.icosphere(radius=radius, subdivisions=subdivisions)
-    return mesh
-
-
-def create_mesh_from_geom_shape(prim: Usd.Prim) -> trimesh.Trimesh:
+def create_trimesh_from_geom_shape(prim: Usd.Prim) -> trimesh.Trimesh:
     """Converts a primitive object to a trimesh.
 
     Args:
@@ -120,6 +96,30 @@ def convert_faces_to_triangles(faces: np.ndarray, point_counts: np.ndarray) -> n
 
         vertex_counter += num_points
     return np.asarray(all_faces)
+
+
+def _create_plane_trimesh(prim: Usd.Prim) -> trimesh.Trimesh:
+    """Creates a trimesh for a plane primitive."""
+    size = (2e6, 2e6)
+    vertices = np.array([[size[0], size[1], 0], [size[0], 0.0, 0], [0.0, size[1], 0], [0.0, 0.0, 0]]) - np.array(
+        [size[0] / 2.0, size[1] / 2.0, 0.0]
+    )
+    faces = np.array([[1, 0, 2], [2, 3, 1]])
+    return trimesh.Trimesh(vertices=vertices, faces=faces)
+
+
+def _create_cube_trimesh(prim: Usd.Prim) -> trimesh.Trimesh:
+    """Creates a trimesh for a cube primitive."""
+    size = prim.GetAttribute("size").Get()
+    extends = [size, size, size]
+    return trimesh.creation.box(extends)
+
+
+def _create_sphere_trimesh(prim: Usd.Prim, subdivisions: int = 2) -> trimesh.Trimesh:
+    """Creates a trimesh for a sphere primitive."""
+    radius = prim.GetAttribute("radius").Get()
+    mesh = trimesh.creation.icosphere(radius=radius, subdivisions=subdivisions)
+    return mesh
 
 
 _MESH_CONVERTERS_CALLBACKS: dict[str, callable] = {
