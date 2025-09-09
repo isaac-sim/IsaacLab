@@ -47,6 +47,8 @@ isaac-mimic:
   - changed-files:
     - any-glob-to-any-file:
       - source/isaaclab_mimic/**
+      - source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/stack**
+      - source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/pick_and_place**
       - scripts/imitation_learning/**
 
 # Isaac Lab team related changes.
@@ -58,7 +60,7 @@ isaac-lab:
     - all-globs-to-all-files:
       - '!source/isaaclab_assets/**'
       - '!source/isaaclab_mimic/**'
-      - '!source/imitation_learning/**'
+      - '!scripts/imitation_learning/**'
 
 # Add 'enhancement' label to any PR where the head branch name
 # starts with `feature` or has a `feature` section in the name
