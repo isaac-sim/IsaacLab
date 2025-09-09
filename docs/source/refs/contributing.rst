@@ -280,9 +280,9 @@ Similarly, within Python classes, we follow the following structure:
    # Instance methods (public)
    # Class methods (public)
    # Static methods (public)
-   # Instance methods (private)
-   # Class methods (private)
-   # Static methods (private)
+   # _Instance methods (private)
+   # _Class methods (private)
+   # _Static methods (private)
 
 The rule of thumb is that the functions within the classes are ordered in the way a user would
 expect to use them. For instance, if the class contains the method :meth:`initialize`, :meth:`reset`,
