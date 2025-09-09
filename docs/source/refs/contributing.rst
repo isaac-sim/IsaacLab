@@ -470,15 +470,47 @@ We summarize the key points below:
 
 
 Unit Testing
-^^^^^^^^^^^^
+------------
 
 We use `pytest <https://docs.pytest.org>`__ for unit testing.
 Good tests not only cover the basic functionality of the code but also the edge cases.
 They should be able to catch regressions and ensure that the code is working as expected.
 Please make sure that you add tests for your changes.
 
+.. tab-set::
+   :sync-group: os
+
+   .. tab-item:: :icon:`fa-brands fa-linux` Linux
+      :sync: linux
+
+      .. code-block:: bash
+
+         # Run all tests
+         ./isaaclab.sh --test  # or "./isaaclab.sh -t"
+
+         # Run all tests in a particular file
+         ./isaaclab.sh -p -m pytest source/isaaclab/test/deps/test_torch.py
+
+         # Run a particular test
+         ./isaaclab.sh -p -m pytest source/isaaclab/test/deps/test_torch.py::test_array_slicing
+
+   .. tab-item:: :icon:`fa-brands fa-windows` Windows
+      :sync: windows
+
+      .. code-block:: bash
+
+         # Run all tests
+         isaaclab.bat --test  # or "isaaclab.bat -t"
+
+         # Run all tests in a particular file
+         isaaclab.bat -p -m pytest source/isaaclab/test/deps/test_torch.py
+
+         # Run a particular test
+         isaaclab.bat -p -m pytest source/isaaclab/test/deps/test_torch.py::test_array_slicing
+
+
 Tools
-^^^^^
+-----
 
 We use the following tools for maintaining code quality:
 
@@ -491,6 +523,19 @@ Please check `here <https://pre-commit.com/#install>`__ for instructions
 to set these up. To run over the entire repository, please execute the
 following command in the terminal:
 
-.. code:: bash
+.. tab-set::
+   :sync-group: os
 
-   ./isaaclab.sh --format  # or "./isaaclab.sh -f"
+   .. tab-item:: :icon:`fa-brands fa-linux` Linux
+      :sync: linux
+
+      .. code-block:: bash
+
+         ./isaaclab.sh --format  # or "./isaaclab.sh -f"
+
+   .. tab-item:: :icon:`fa-brands fa-windows` Windows
+      :sync: windows
+
+      .. code-block:: bash
+
+         isaaclab.bat --format  # or "isaaclab.bat -f"
