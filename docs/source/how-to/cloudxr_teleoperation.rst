@@ -389,7 +389,7 @@ Back on your Apple Vision Pro:
 
       .. figure:: ../_static/setup/cloudxr_avp_ik_error.jpg
          :align: center
-         :figwidth: 50%
+         :figwidth: 80%
          :alt: IK Error Message Display in XR Device
 
 
