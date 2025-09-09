@@ -7,8 +7,6 @@
 
 import gymnasium as gym
 
-from .agibot_place_toy2box_mimic_env_cfg import RmpFlowAgibotPlaceToy2BoxMimicEnvCfg
-from .agibot_place_upright_mug_mimic_env_cfg import RmpFlowAgibotPlaceUprightMugMimicEnvCfg
 from .franka_bin_stack_ik_rel_mimic_env_cfg import FrankaBinStackIKRelMimicEnvCfg
 from .franka_stack_ik_abs_mimic_env import FrankaCubeStackIKAbsMimicEnv
 from .franka_stack_ik_abs_mimic_env_cfg import FrankaCubeStackIKAbsMimicEnvCfg
@@ -18,7 +16,6 @@ from .franka_stack_ik_rel_mimic_env_cfg import FrankaCubeStackIKRelMimicEnvCfg
 from .franka_stack_ik_rel_skillgen_env_cfg import FrankaCubeStackIKRelSkillgenEnvCfg
 from .franka_stack_ik_rel_visuomotor_cosmos_mimic_env_cfg import FrankaCubeStackIKRelVisuomotorCosmosMimicEnvCfg
 from .franka_stack_ik_rel_visuomotor_mimic_env_cfg import FrankaCubeStackIKRelVisuomotorMimicEnvCfg
-from .pick_place_mimic_env import PickPlaceRelMimicEnv
 
 ##
 # Inverse Kinematics - Relative Pose Control
@@ -151,9 +148,11 @@ gym.register(
 ##
 gym.register(
     id="Isaac-Place-Mug-Agibot-Left-Arm-RmpFlow-Rel-Mimic-v0",
-    entry_point="isaaclab_mimic.envs:PickPlaceRelMimicEnv",
+    entry_point=f"{__name__}.pick_place_mimic_env:PickPlaceRelMimicEnv",
     kwargs={
-        "env_cfg_entry_point": agibot_place_upright_mug_mimic_env_cfg.RmpFlowAgibotPlaceUprightMugMimicEnvCfg,
+        "env_cfg_entry_point": (
+            f"{__name__}.agibot_place_upright_mug_mimic_env_cfg:RmpFlowAgibotPlaceUprightMugMimicEnvCfg"
+        ),
     },
     disable_env_checker=True,
 )
@@ -162,9 +161,9 @@ gym.register(
 ##
 gym.register(
     id="Isaac-Place-Toy2Box-Agibot-Right-Arm-RmpFlow-Rel-Mimic-v0",
-    entry_point="isaaclab_mimic.envs:PickPlaceRelMimicEnv",
+    entry_point=f"{__name__}.pick_place_mimic_env:PickPlaceRelMimicEnv",
     kwargs={
-        "env_cfg_entry_point": agibot_place_toy2box_mimic_env_cfg.RmpFlowAgibotPlaceToy2BoxMimicEnvCfg,
+        "env_cfg_entry_point": f"{__name__}.agibot_place_toy2box_mimic_env_cfg:RmpFlowAgibotPlaceToy2BoxMimicEnvCfg",
     },
     disable_env_checker=True,
 )
