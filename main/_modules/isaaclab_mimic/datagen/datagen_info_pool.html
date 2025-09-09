@@ -344,6 +344,7 @@
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../../source/overview/imitation-learning/index.html">Imitation Learning</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/overview/imitation-learning/augmented_imitation.html">Augmented Imitation Learning</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/overview/imitation-learning/teleop_imitation.html">Teleoperation and Imitation Learning with Isaac Lab Mimic</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/overview/imitation-learning/skillgen.html">SkillGen for Automated Demonstration Generation</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../source/overview/showroom.html">Showroom Demos</a></li>
@@ -620,9 +621,14 @@
         <span class="c1"># Subtask termination infos for the given environment</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">subtask_term_signal_names</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{}</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">subtask_term_offset_ranges</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]]]</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">subtask_start_offset_ranges</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]]]</span> <span class="o">=</span> <span class="p">{}</span>
+
         <span class="k">for</span> <span class="n">eef_name</span><span class="p">,</span> <span class="n">eef_subtask_configs</span> <span class="ow">in</span> <span class="n">env_cfg</span><span class="o">.</span><span class="n">subtask_configs</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">subtask_term_signal_names</span><span class="p">[</span><span class="n">eef_name</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span>
                 <span class="n">subtask_config</span><span class="o">.</span><span class="n">subtask_term_signal</span> <span class="k">for</span> <span class="n">subtask_config</span> <span class="ow">in</span> <span class="n">eef_subtask_configs</span>
+            <span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">subtask_start_offset_ranges</span><span class="p">[</span><span class="n">eef_name</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span>
+                <span class="n">subtask_config</span><span class="o">.</span><span class="n">subtask_start_offset_range</span> <span class="k">for</span> <span class="n">subtask_config</span> <span class="ow">in</span> <span class="n">eef_subtask_configs</span>
             <span class="p">]</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">subtask_term_offset_ranges</span><span class="p">[</span><span class="n">eef_name</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span>
                 <span class="n">subtask_config</span><span class="o">.</span><span class="n">subtask_term_offset_range</span> <span class="k">for</span> <span class="n">subtask_config</span> <span class="ow">in</span> <span class="n">eef_subtask_configs</span>
@@ -666,16 +672,22 @@
 <span class="sd">        Add a datagen info from the given episode.</span>
 
 <span class="sd">        Args:</span>
-<span class="sd">            episode (EpisodeData): episode to add</span>
+<span class="sd">            episode: Episode to add.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            ValueError: Episode lacks &#39;datagen_info&#39; annotations in observations.</span>
+<span class="sd">            ValueError: Subtask termination signal is not increasing.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">ep_grp</span> <span class="o">=</span> <span class="n">episode</span><span class="o">.</span><span class="n">data</span>
 
-        <span class="c1"># extract datagen info</span>
+        <span class="c1"># Extract datagen info</span>
         <span class="k">if</span> <span class="s2">&quot;datagen_info&quot;</span> <span class="ow">in</span> <span class="n">ep_grp</span><span class="p">[</span><span class="s2">&quot;obs&quot;</span><span class="p">]:</span>
             <span class="n">eef_pose</span> <span class="o">=</span> <span class="n">ep_grp</span><span class="p">[</span><span class="s2">&quot;obs&quot;</span><span class="p">][</span><span class="s2">&quot;datagen_info&quot;</span><span class="p">][</span><span class="s2">&quot;eef_pose&quot;</span><span class="p">]</span>
             <span class="n">object_poses_dict</span> <span class="o">=</span> <span class="n">ep_grp</span><span class="p">[</span><span class="s2">&quot;obs&quot;</span><span class="p">][</span><span class="s2">&quot;datagen_info&quot;</span><span class="p">][</span><span class="s2">&quot;object_pose&quot;</span><span class="p">]</span>
             <span class="n">target_eef_pose</span> <span class="o">=</span> <span class="n">ep_grp</span><span class="p">[</span><span class="s2">&quot;obs&quot;</span><span class="p">][</span><span class="s2">&quot;datagen_info&quot;</span><span class="p">][</span><span class="s2">&quot;target_eef_pose&quot;</span><span class="p">]</span>
             <span class="n">subtask_term_signals_dict</span> <span class="o">=</span> <span class="n">ep_grp</span><span class="p">[</span><span class="s2">&quot;obs&quot;</span><span class="p">][</span><span class="s2">&quot;datagen_info&quot;</span><span class="p">][</span><span class="s2">&quot;subtask_term_signals&quot;</span><span class="p">]</span>
+            <span class="c1"># subtask_start_signals is optional</span>
+            <span class="n">subtask_start_signals_dict</span> <span class="o">=</span> <span class="n">ep_grp</span><span class="p">[</span><span class="s2">&quot;obs&quot;</span><span class="p">][</span><span class="s2">&quot;datagen_info&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;subtask_start_signals&quot;</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Episode to be loaded to DatagenInfo pool lacks datagen_info annotations&quot;</span><span class="p">)</span>
 
@@ -685,63 +697,90 @@
         <span class="n">ep_datagen_info_obj</span> <span class="o">=</span> <span class="n">DatagenInfo</span><span class="p">(</span>
             <span class="n">eef_pose</span><span class="o">=</span><span class="n">eef_pose</span><span class="p">,</span>
             <span class="n">object_poses</span><span class="o">=</span><span class="n">object_poses_dict</span><span class="p">,</span>
+            <span class="n">subtask_start_signals</span><span class="o">=</span><span class="n">subtask_start_signals_dict</span><span class="p">,</span>
             <span class="n">subtask_term_signals</span><span class="o">=</span><span class="n">subtask_term_signals_dict</span><span class="p">,</span>
             <span class="n">target_eef_pose</span><span class="o">=</span><span class="n">target_eef_pose</span><span class="p">,</span>
             <span class="n">gripper_action</span><span class="o">=</span><span class="n">gripper_actions</span><span class="p">,</span>
         <span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_datagen_infos</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ep_datagen_info_obj</span><span class="p">)</span>
 
-        <span class="c1"># parse subtask ranges using subtask termination signals and store</span>
+        <span class="c1"># Parse subtask ranges using subtask termination signals and store</span>
         <span class="c1"># the start and end indices of each subtask for each eef</span>
         <span class="k">for</span> <span class="n">eef_name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">subtask_term_signal_names</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
             <span class="k">if</span> <span class="n">eef_name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_subtask_boundaries</span><span class="p">:</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">_subtask_boundaries</span><span class="p">[</span><span class="n">eef_name</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
-            <span class="n">prev_subtask_term_ind</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="n">prev_subtask_term_index</span> <span class="o">=</span> <span class="mi">0</span>
             <span class="n">eef_subtask_boundaries</span> <span class="o">=</span> <span class="p">[]</span>
-            <span class="k">for</span> <span class="n">subtask_term_signal_name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">subtask_term_signal_names</span><span class="p">[</span><span class="n">eef_name</span><span class="p">]:</span>
-                <span class="k">if</span> <span class="n">subtask_term_signal_name</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-                    <span class="c1"># None refers to the final subtask, so finishes at end of demo</span>
-                    <span class="n">subtask_term_ind</span> <span class="o">=</span> <span class="n">ep_grp</span><span class="p">[</span><span class="s2">&quot;actions&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">eef_subtask_index</span><span class="p">,</span> <span class="n">eef_subtask_signal_name</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">subtask_term_signal_names</span><span class="p">[</span><span class="n">eef_name</span><span class="p">]):</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">env_cfg</span><span class="o">.</span><span class="n">datagen_config</span><span class="o">.</span><span class="n">use_skillgen</span><span class="p">:</span>
+                    <span class="c1"># For skillgen, the start of a subtask is explicitly defined in the demonstration data.</span>
+                    <span class="k">if</span> <span class="n">ep_datagen_info_obj</span><span class="o">.</span><span class="n">subtask_start_signals</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                            <span class="s2">&quot;subtask_start_signals field is not present in datagen_info for subtask&quot;</span>
+                            <span class="sa">f</span><span class="s2">&quot; </span><span class="si">{</span><span class="n">eef_subtask_signal_name</span><span class="si">}</span><span class="s2"> in the loaded episode when use_skillgen is enabled&quot;</span>
+                        <span class="p">)</span>
+                    <span class="c1"># Find the first time step where the start signal transitions from 0 to 1.</span>
+                    <span class="n">subtask_start_indicators</span> <span class="o">=</span> <span class="p">(</span>
+                        <span class="n">ep_datagen_info_obj</span><span class="o">.</span><span class="n">subtask_start_signals</span><span class="p">[</span><span class="n">eef_subtask_signal_name</span><span class="p">]</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span><span class="o">.</span><span class="n">int</span><span class="p">()</span>
+                    <span class="p">)</span>
+                    <span class="c1"># Compute the difference between consecutive elements to find the transition point.</span>
+                    <span class="n">diffs</span> <span class="o">=</span> <span class="n">subtask_start_indicators</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span> <span class="o">-</span> <span class="n">subtask_start_indicators</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+                    <span class="c1"># The first non-zero element&#39;s index gives the start of the subtask.</span>
+                    <span class="n">start_index</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">diffs</span><span class="o">.</span><span class="n">nonzero</span><span class="p">()[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">])</span> <span class="o">+</span> <span class="mi">1</span>
                 <span class="k">else</span><span class="p">:</span>
-                    <span class="c1"># trick to detect index where first 0 -&gt; 1 transition occurs - this will be the end of the subtask</span>
-                    <span class="n">subtask_indicators</span> <span class="o">=</span> <span class="p">(</span>
-                        <span class="n">ep_datagen_info_obj</span><span class="o">.</span><span class="n">subtask_term_signals</span><span class="p">[</span><span class="n">subtask_term_signal_name</span><span class="p">]</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span><span class="o">.</span><span class="n">int</span><span class="p">()</span>
-                    <span class="p">)</span>
-                    <span class="n">diffs</span> <span class="o">=</span> <span class="n">subtask_indicators</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span> <span class="o">-</span> <span class="n">subtask_indicators</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
-                    <span class="n">end_ind</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">diffs</span><span class="o">.</span><span class="n">nonzero</span><span class="p">()[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">])</span> <span class="o">+</span> <span class="mi">1</span>
-                    <span class="n">subtask_term_ind</span> <span class="o">=</span> <span class="n">end_ind</span> <span class="o">+</span> <span class="mi">1</span>  <span class="c1"># increment to support indexing like demo[start:end]</span>
+                    <span class="c1"># Without skillgen, subtasks are assumed to be sequential.</span>
+                    <span class="n">start_index</span> <span class="o">=</span> <span class="n">prev_subtask_term_index</span>
 
-                <span class="k">if</span> <span class="n">subtask_term_ind</span> <span class="o">&lt;=</span> <span class="n">prev_subtask_term_ind</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">eef_subtask_index</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">subtask_term_signal_names</span><span class="p">[</span><span class="n">eef_name</span><span class="p">])</span> <span class="o">-</span> <span class="mi">1</span><span class="p">:</span>
+                    <span class="c1"># Last subtask has no termination signal from the datagen_info</span>
+                    <span class="n">end_index</span> <span class="o">=</span> <span class="n">ep_grp</span><span class="p">[</span><span class="s2">&quot;actions&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="c1"># Trick to detect index where first 0 -&gt; 1 transition occurs - this will be the end of the subtask</span>
+                    <span class="n">subtask_term_indicators</span> <span class="o">=</span> <span class="p">(</span>
+                        <span class="n">ep_datagen_info_obj</span><span class="o">.</span><span class="n">subtask_term_signals</span><span class="p">[</span><span class="n">eef_subtask_signal_name</span><span class="p">]</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span><span class="o">.</span><span class="n">int</span><span class="p">()</span>
+                    <span class="p">)</span>
+                    <span class="n">diffs</span> <span class="o">=</span> <span class="n">subtask_term_indicators</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span> <span class="o">-</span> <span class="n">subtask_term_indicators</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+                    <span class="n">end_index</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">diffs</span><span class="o">.</span><span class="n">nonzero</span><span class="p">()[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">])</span> <span class="o">+</span> <span class="mi">1</span>
+                    <span class="n">end_index</span> <span class="o">=</span> <span class="n">end_index</span> <span class="o">+</span> <span class="mi">1</span>  <span class="c1"># increment to support indexing like demo[start:end]</span>
+
+                <span class="k">if</span> <span class="n">end_index</span> <span class="o">&lt;=</span> <span class="n">start_index</span><span class="p">:</span>
                     <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
-                        <span class="sa">f</span><span class="s2">&quot;subtask termination signal is not increasing: </span><span class="si">{</span><span class="n">subtask_term_ind</span><span class="si">}</span><span class="s2"> should be greater than&quot;</span>
-                        <span class="sa">f</span><span class="s2">&quot; </span><span class="si">{</span><span class="n">prev_subtask_term_ind</span><span class="si">}</span><span class="s2">&quot;</span>
+                        <span class="sa">f</span><span class="s2">&quot;subtask termination signal is not increasing: </span><span class="si">{</span><span class="n">end_index</span><span class="si">}</span><span class="s2"> should be greater than&quot;</span>
+                        <span class="sa">f</span><span class="s2">&quot; </span><span class="si">{</span><span class="n">start_index</span><span class="si">}</span><span class="s2">&quot;</span>
                     <span class="p">)</span>
-                <span class="n">eef_subtask_boundaries</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">prev_subtask_term_ind</span><span class="p">,</span> <span class="n">subtask_term_ind</span><span class="p">))</span>
-                <span class="n">prev_subtask_term_ind</span> <span class="o">=</span> <span class="n">subtask_term_ind</span>
+                <span class="n">eef_subtask_boundaries</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">start_index</span><span class="p">,</span> <span class="n">end_index</span><span class="p">))</span>
+                <span class="n">prev_subtask_term_index</span> <span class="o">=</span> <span class="n">end_index</span>
 
-            <span class="c1"># run sanity check on subtask_term_offset_range in task spec to make sure we can never</span>
-            <span class="c1"># get an empty subtask in the worst case when sampling subtask bounds:</span>
-            <span class="c1">#</span>
-            <span class="c1">#   end index of subtask i + max offset of subtask i &lt; end index of subtask i + 1 + min offset of subtask i + 1</span>
-            <span class="c1">#</span>
-            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">eef_subtask_boundaries</span><span class="p">)):</span>
-                <span class="n">prev_max_offset_range</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">subtask_term_offset_ranges</span><span class="p">[</span><span class="n">eef_name</span><span class="p">][</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span>
-                <span class="k">assert</span> <span class="p">(</span>
-                    <span class="n">eef_subtask_boundaries</span><span class="p">[</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">prev_max_offset_range</span>
-                    <span class="o">&lt;</span> <span class="n">eef_subtask_boundaries</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">subtask_term_offset_ranges</span><span class="p">[</span><span class="n">eef_name</span><span class="p">][</span><span class="n">i</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
-                <span class="p">),</span> <span class="p">(</span>
-                    <span class="s2">&quot;subtask sanity check violation in demo with subtask </span><span class="si">{}</span><span class="s2"> end ind </span><span class="si">{}</span><span class="s2">, subtask </span><span class="si">{}</span><span class="s2"> max offset </span><span class="si">{}</span><span class="s2">,&quot;</span>
-                    <span class="s2">&quot; subtask </span><span class="si">{}</span><span class="s2"> end ind </span><span class="si">{}</span><span class="s2">, and subtask </span><span class="si">{}</span><span class="s2"> min offset </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
-                        <span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span>
-                        <span class="n">eef_subtask_boundaries</span><span class="p">[</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">][</span><span class="mi">1</span><span class="p">],</span>
-                        <span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span>
-                        <span class="n">prev_max_offset_range</span><span class="p">,</span>
-                        <span class="n">i</span><span class="p">,</span>
-                        <span class="n">eef_subtask_boundaries</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="mi">1</span><span class="p">],</span>
-                        <span class="n">i</span><span class="p">,</span>
-                        <span class="bp">self</span><span class="o">.</span><span class="n">subtask_term_offset_ranges</span><span class="p">[</span><span class="n">eef_name</span><span class="p">][</span><span class="n">i</span><span class="p">][</span><span class="mi">0</span><span class="p">],</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">env_cfg</span><span class="o">.</span><span class="n">datagen_config</span><span class="o">.</span><span class="n">use_skillgen</span><span class="p">:</span>
+                <span class="c1"># With skillgen, both start and end boundaries can be randomized.</span>
+                <span class="c1"># This checks if the randomized boundaries could result in an invalid (e.g., empty) subtask.</span>
+                <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">eef_subtask_boundaries</span><span class="p">)):</span>
+                    <span class="c1"># Ensure that a subtask is not empty in the worst-case randomization scenario.</span>
+                    <span class="k">assert</span> <span class="p">(</span>
+                        <span class="n">eef_subtask_boundaries</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">subtask_start_offset_ranges</span><span class="p">[</span><span class="n">eef_name</span><span class="p">][</span><span class="n">i</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span>
+                        <span class="o">&lt;</span> <span class="n">eef_subtask_boundaries</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">subtask_term_offset_ranges</span><span class="p">[</span><span class="n">eef_name</span><span class="p">][</span><span class="n">i</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+                    <span class="p">),</span> <span class="sa">f</span><span class="s2">&quot;subtask </span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2"> is empty in the worst case&quot;</span>
+                    <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">eef_subtask_boundaries</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">:</span>
+                        <span class="k">break</span>
+                    <span class="c1"># Make sure that subtasks are not overlapped with the largest offsets</span>
+                    <span class="k">assert</span> <span class="p">(</span>
+                        <span class="n">eef_subtask_boundaries</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">subtask_term_offset_ranges</span><span class="p">[</span><span class="n">eef_name</span><span class="p">][</span><span class="n">i</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span>
+                        <span class="o">&lt;</span> <span class="n">eef_subtask_boundaries</span><span class="p">[</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">subtask_start_offset_ranges</span><span class="p">[</span><span class="n">eef_name</span><span class="p">][</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+                    <span class="p">),</span> <span class="sa">f</span><span class="s2">&quot;subtasks </span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2"> and </span><span class="si">{</span><span class="n">i</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="si">}</span><span class="s2"> are overlapped with the largest offsets&quot;</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># Run sanity check on subtask_term_offset_range in task spec</span>
+                <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">eef_subtask_boundaries</span><span class="p">)):</span>
+                    <span class="n">prev_max_offset_range</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">subtask_term_offset_ranges</span><span class="p">[</span><span class="n">eef_name</span><span class="p">][</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span>
+                    <span class="c1"># Make sure that subtasks are not overlapped with the largest offsets</span>
+                    <span class="k">assert</span> <span class="p">(</span>
+                        <span class="n">eef_subtask_boundaries</span><span class="p">[</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">prev_max_offset_range</span>
+                        <span class="o">&lt;</span> <span class="n">eef_subtask_boundaries</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">subtask_term_offset_ranges</span><span class="p">[</span><span class="n">eef_name</span><span class="p">][</span><span class="n">i</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+                    <span class="p">),</span> <span class="p">(</span>
+                        <span class="sa">f</span><span class="s2">&quot;subtask sanity check violation in demo with subtask </span><span class="si">{</span><span class="n">i</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="si">}</span><span class="s2"> end ind&quot;</span>
+                        <span class="sa">f</span><span class="s2">&quot; </span><span class="si">{</span><span class="n">eef_subtask_boundaries</span><span class="p">[</span><span class="n">i</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s2">, subtask </span><span class="si">{</span><span class="n">i</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="si">}</span><span class="s2"> max offset </span><span class="si">{</span><span class="n">prev_max_offset_range</span><span class="si">}</span><span class="s2">,&quot;</span>
+                        <span class="sa">f</span><span class="s2">&quot; subtask </span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2"> end ind </span><span class="si">{</span><span class="n">eef_subtask_boundaries</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s2">, and subtask </span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2"> min offset&quot;</span>
+                        <span class="sa">f</span><span class="s2">&quot; </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">subtask_term_offset_ranges</span><span class="p">[</span><span class="n">eef_name</span><span class="p">][</span><span class="n">i</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span>
                     <span class="p">)</span>
-                <span class="p">)</span>
 
             <span class="bp">self</span><span class="o">.</span><span class="n">_subtask_boundaries</span><span class="p">[</span><span class="n">eef_name</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">eef_subtask_boundaries</span><span class="p">)</span>
 

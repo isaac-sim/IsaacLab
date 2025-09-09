@@ -344,6 +344,7 @@
 <li class="toctree-l1 has-children"><a class="reference internal" href="source/overview/imitation-learning/index.html">Imitation Learning</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="source/overview/imitation-learning/augmented_imitation.html">Augmented Imitation Learning</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/overview/imitation-learning/teleop_imitation.html">Teleoperation and Imitation Learning with Isaac Lab Mimic</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/overview/imitation-learning/skillgen.html">SkillGen for Automated Demonstration Generation</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="source/overview/showroom.html">Showroom Demos</a></li>
@@ -3415,6 +3416,8 @@
 </li>
       <li><a href="source/api/lab_mimic/isaaclab_mimic.datagen.html#isaaclab_mimic.datagen.DataGenerator.generate">generate() (isaaclab_mimic.datagen.DataGenerator method)</a>
 </li>
+      <li><a href="source/api/lab_mimic/isaaclab_mimic.datagen.html#isaaclab_mimic.datagen.DataGenerator.generate_eef_subtask_trajectory">generate_eef_subtask_trajectory() (isaaclab_mimic.datagen.DataGenerator method)</a>
+</li>
       <li><a href="source/api/lab/isaaclab.utils.html#isaaclab.utils.math.generate_random_rotation">generate_random_rotation() (in module isaaclab.utils.math)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.utils.html#isaaclab.utils.math.generate_random_transformation_matrix">generate_random_transformation_matrix() (in module isaaclab.utils.math)</a>
@@ -3422,8 +3425,6 @@
       <li><a href="source/api/lab/isaaclab.utils.html#isaaclab.utils.math.generate_random_translation">generate_random_translation() (in module isaaclab.utils.math)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.envs.html#isaaclab.envs.SubTaskConstraintConfig.generate_runtime_subtask_constraints">generate_runtime_subtask_constraints() (isaaclab.envs.SubTaskConstraintConfig method)</a>
-</li>
-      <li><a href="source/api/lab_mimic/isaaclab_mimic.datagen.html#isaaclab_mimic.datagen.DataGenerator.generate_trajectory">generate_trajectory() (isaaclab_mimic.datagen.DataGenerator method)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.observations.generated_commands">generated_commands() (in module isaaclab.envs.mdp.observations)</a>
 </li>
@@ -3504,6 +3505,8 @@
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab/isaaclab.scene.html#isaaclab.scene.InteractiveScene.get_state">get_state() (isaaclab.scene.InteractiveScene method)</a>
+</li>
+      <li><a href="source/api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedRLMimicEnv.get_subtask_start_signals">get_subtask_start_signals() (isaaclab.envs.ManagerBasedRLMimicEnv method)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedRLMimicEnv.get_subtask_term_signals">get_subtask_term_signals() (isaaclab.envs.ManagerBasedRLMimicEnv method)</a>
 </li>
@@ -5049,6 +5052,8 @@
       <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.commands.commands_cfg.NormalVelocityCommandCfg.Ranges.mean_vel">mean_vel (isaaclab.envs.mdp.commands.commands_cfg.NormalVelocityCommandCfg.Ranges attribute)</a>
 </li>
       <li><a href="source/api/lab_mimic/isaaclab_mimic.datagen.html#isaaclab_mimic.datagen.WaypointTrajectory.merge">merge() (isaaclab_mimic.datagen.WaypointTrajectory method)</a>
+</li>
+      <li><a href="source/api/lab_mimic/isaaclab_mimic.datagen.html#isaaclab_mimic.datagen.DataGenerator.merge_eef_subtask_trajectory">merge_eef_subtask_trajectory() (isaaclab_mimic.datagen.DataGenerator method)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.sim.converters.html#isaaclab.sim.converters.UrdfConverterCfg.merge_fixed_joints">merge_fixed_joints (isaaclab.sim.converters.UrdfConverterCfg attribute)</a>
 
@@ -7609,8 +7614,6 @@
 </li>
       <li><a href="source/api/lab/isaaclab.controllers.html#isaaclab.controllers.pink_ik.PinkIKControllerCfg.show_ik_warnings">show_ik_warnings (isaaclab.controllers.pink_ik.PinkIKControllerCfg attribute)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab/isaaclab.envs.html#isaaclab.envs.DirectMARLEnvCfg.sim">sim (isaaclab.envs.DirectMARLEnvCfg attribute)</a>
 
       <ul>
@@ -7621,6 +7624,8 @@
         <li><a href="source/api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedRLEnvCfg.sim">(isaaclab.envs.ManagerBasedRLEnvCfg attribute)</a>
 </li>
       </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.DeformableObjectData.sim_element_deform_gradient_w">sim_element_deform_gradient_w (isaaclab.assets.DeformableObjectData property)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.DeformableObjectData.sim_element_quat_w">sim_element_quat_w (isaaclab.assets.DeformableObjectData property)</a>
@@ -8006,6 +8011,8 @@
       <li><a href="source/api/lab/isaaclab.terrains.html#isaaclab.terrains.TerrainGeneratorCfg.sub_terrains">sub_terrains (isaaclab.terrains.TerrainGeneratorCfg attribute)</a>
 </li>
       <li><a href="source/api/lab_mimic/isaaclab_mimic.datagen.html#isaaclab_mimic.datagen.DataGenInfoPool.subtask_boundaries">subtask_boundaries (isaaclab_mimic.datagen.DataGenInfoPool property)</a>
+</li>
+      <li><a href="source/api/lab/isaaclab.envs.html#isaaclab.envs.SubTaskConfig.subtask_start_offset_range">subtask_start_offset_range (isaaclab.envs.SubTaskConfig attribute)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.envs.html#isaaclab.envs.SubTaskConfig.subtask_term_offset_range">subtask_term_offset_range (isaaclab.envs.SubTaskConfig attribute)</a>
 </li>

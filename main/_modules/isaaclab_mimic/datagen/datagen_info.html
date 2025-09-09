@@ -344,6 +344,7 @@
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../../source/overview/imitation-learning/index.html">Imitation Learning</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/overview/imitation-learning/augmented_imitation.html">Augmented Imitation Learning</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/overview/imitation-learning/teleop_imitation.html">Teleoperation and Imitation Learning with Isaac Lab Mimic</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/overview/imitation-learning/skillgen.html">SkillGen for Automated Demonstration Generation</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../source/overview/showroom.html">Showroom Demos</a></li>
@@ -600,6 +601,7 @@
 <span class="sd">    Core Elements:</span>
 <span class="sd">    - **eef_pose**: Captures the current 6 dimensional poses of the robot&#39;s end-effector.</span>
 <span class="sd">    - **object_poses**: Captures the 6 dimensional poses of relevant objects in the scene.</span>
+<span class="sd">    - **subtask_start_signals**: Captures subtask start signals. Used by skillgen to identify the precise start of a subtask from a demonstration.</span>
 <span class="sd">    - **subtask_term_signals**: Captures subtask completions signals.</span>
 <span class="sd">    - **target_eef_pose**: Captures the target 6 dimensional poses for robot&#39;s end effector at each time step.</span>
 <span class="sd">    - **gripper_action**:  Captures the gripper&#39;s state.</span>
@@ -610,6 +612,7 @@
         <span class="n">eef_pose</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
         <span class="n">object_poses</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
         <span class="n">subtask_term_signals</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">subtask_start_signals</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
         <span class="n">target_eef_pose</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
         <span class="n">gripper_action</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
     <span class="p">):</span>
@@ -618,6 +621,9 @@
 <span class="sd">            eef_pose (torch.Tensor or None): robot end effector poses of shape [..., 4, 4]</span>
 <span class="sd">            object_poses (dict or None): dictionary mapping object name to object poses</span>
 <span class="sd">                of shape [..., 4, 4]</span>
+<span class="sd">            subtask_start_signals (dict or None): dictionary mapping subtask name to a binary</span>
+<span class="sd">                indicator (0 or 1) on whether subtask has started. This is required when using skillgen.</span>
+<span class="sd">                Each value in the dictionary could be an int, float, or torch.Tensor of shape [..., 1].</span>
 <span class="sd">            subtask_term_signals (dict or None): dictionary mapping subtask name to a binary</span>
 <span class="sd">                indicator (0 or 1) on whether subtask has been completed. Each value in the</span>
 <span class="sd">                dictionary could be an int, float, or torch.Tensor of shape [..., 1].</span>
@@ -632,6 +638,17 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">object_poses</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="k">if</span> <span class="n">object_poses</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">object_poses</span> <span class="o">=</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">object_poses</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">object_poses</span><span class="p">}</span>
+
+        <span class="c1"># When using skillgen, demonstrations must be annotated with subtask start signals.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">subtask_start_signals</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="n">subtask_start_signals</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">subtask_start_signals</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
+            <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">subtask_start_signals</span><span class="p">:</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">subtask_start_signals</span><span class="p">[</span><span class="n">k</span><span class="p">],</span> <span class="p">(</span><span class="nb">float</span><span class="p">,</span> <span class="nb">int</span><span class="p">)):</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">subtask_start_signals</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">subtask_start_signals</span><span class="p">[</span><span class="n">k</span><span class="p">]</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="c1"># Only create torch tensor if value is not a single value</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">subtask_start_signals</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">subtask_start_signals</span><span class="p">[</span><span class="n">k</span><span class="p">]</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">subtask_term_signals</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="k">if</span> <span class="n">subtask_term_signals</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
@@ -660,6 +677,8 @@
             <span class="n">ret</span><span class="p">[</span><span class="s2">&quot;eef_pose&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">eef_pose</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">object_poses</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">ret</span><span class="p">[</span><span class="s2">&quot;object_poses&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">deepcopy</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">object_poses</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">subtask_start_signals</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">ret</span><span class="p">[</span><span class="s2">&quot;subtask_start_signals&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">deepcopy</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">subtask_start_signals</span><span class="p">)</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">subtask_term_signals</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">ret</span><span class="p">[</span><span class="s2">&quot;subtask_term_signals&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">deepcopy</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">subtask_term_signals</span><span class="p">)</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">target_eef_pose</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>

@@ -344,6 +344,7 @@
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../../source/overview/imitation-learning/index.html">Imitation Learning</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/overview/imitation-learning/augmented_imitation.html">Augmented Imitation Learning</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/overview/imitation-learning/teleop_imitation.html">Teleoperation and Imitation Learning with Isaac Lab Mimic</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/overview/imitation-learning/skillgen.html">SkillGen for Automated Demonstration Generation</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../source/overview/showroom.html">Showroom Demos</a></li>
@@ -696,6 +697,22 @@
                 <span class="n">obj_state</span><span class="p">[</span><span class="s2">&quot;root_pose&quot;</span><span class="p">][</span><span class="n">env_ids</span><span class="p">,</span> <span class="p">:</span><span class="mi">3</span><span class="p">],</span> <span class="n">PoseUtils</span><span class="o">.</span><span class="n">matrix_from_quat</span><span class="p">(</span><span class="n">obj_state</span><span class="p">[</span><span class="s2">&quot;root_pose&quot;</span><span class="p">][</span><span class="n">env_ids</span><span class="p">,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">7</span><span class="p">])</span>
             <span class="p">)</span>
         <span class="k">return</span> <span class="n">object_pose_matrix</span></div>
+
+<div class="viewcode-block" id="ManagerBasedRLMimicEnv.get_subtask_start_signals"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedRLMimicEnv.get_subtask_start_signals">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">get_subtask_start_signals</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Gets a dictionary of start signal flags for each subtask in a task. The flag is 1</span>
+<span class="sd">        when the subtask has started and 0 otherwise. The implementation of this method is</span>
+<span class="sd">        required if intending to enable automatic subtask start signal annotation when running the</span>
+<span class="sd">        dataset annotation tool. This method can be kept unimplemented if intending to use manual</span>
+<span class="sd">        subtask start signal annotation.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            env_ids: Environment indices to get the start signals for. If None, all envs are considered.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            A dictionary start signal flags (False or True) for each subtask.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span></div>
 
 <div class="viewcode-block" id="ManagerBasedRLMimicEnv.get_subtask_term_signals"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedRLMimicEnv.get_subtask_term_signals">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">get_subtask_term_signals</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>

@@ -344,6 +344,7 @@
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../../source/overview/imitation-learning/index.html">Imitation Learning</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/overview/imitation-learning/augmented_imitation.html">Augmented Imitation Learning</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/overview/imitation-learning/teleop_imitation.html">Teleoperation and Imitation Learning with Isaac Lab Mimic</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/overview/imitation-learning/skillgen.html">SkillGen for Automated Demonstration Generation</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../source/overview/showroom.html">Showroom Demos</a></li>
@@ -653,6 +654,9 @@
     <span class="n">generation_interpolate_from_last_target_pose</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to interpolate from last target pose.&quot;&quot;&quot;</span>
 
+    <span class="n">use_skillgen</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to use skillgen to generate motion trajectories.&quot;&quot;&quot;</span>
+
 
 <div class="viewcode-block" id="SubTaskConfig"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.envs.html#isaaclab.envs.SubTaskConfig">[docs]</a><span class="nd">@configclass</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">SubTaskConfig</span><span class="p">:</span>
@@ -694,6 +698,12 @@
 
     <span class="n">first_subtask_start_offset_range</span><span class="p">:</span> <span class="nb">tuple</span> <span class="o">=</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Range for start offset of the first subtask.&quot;&quot;&quot;</span>
+
+    <span class="n">subtask_start_offset_range</span><span class="p">:</span> <span class="nb">tuple</span> <span class="o">=</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Range for start offset of the subtask (only used if use_skillgen is True)</span>
+
+<span class="sd">    Note: This value overrides the first_subtask_start_offset_range when skillgen is enabled</span>
+<span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">subtask_term_offset_range</span><span class="p">:</span> <span class="nb">tuple</span> <span class="o">=</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Range for offsetting subtask termination.&quot;&quot;&quot;</span>

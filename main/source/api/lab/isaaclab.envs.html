@@ -345,6 +345,7 @@
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../overview/imitation-learning/index.html">Imitation Learning</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../overview/imitation-learning/augmented_imitation.html">Augmented Imitation Learning</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../overview/imitation-learning/teleop_imitation.html">Teleoperation and Imitation Learning with Isaac Lab Mimic</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/imitation-learning/skillgen.html">SkillGen for Automated Demonstration Generation</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../../overview/showroom.html">Showroom Demos</a></li>
@@ -847,6 +848,7 @@
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.ManagerBasedRLMimicEnv.action_to_target_eef_pose"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLMimicEnv.action_to_target_eef_pose()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.ManagerBasedRLMimicEnv.actions_to_gripper_actions"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLMimicEnv.actions_to_gripper_actions()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.ManagerBasedRLMimicEnv.get_object_poses"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLMimicEnv.get_object_poses()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.ManagerBasedRLMimicEnv.get_subtask_start_signals"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLMimicEnv.get_subtask_start_signals()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.ManagerBasedRLMimicEnv.get_subtask_term_signals"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLMimicEnv.get_subtask_term_signals()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.ManagerBasedRLMimicEnv.serialize"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLMimicEnv.serialize()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.ManagerBasedRLMimicEnv.__init__"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLMimicEnv.__init__()</span></code></a></li>
@@ -884,6 +886,7 @@
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.SubTaskConfig.selection_strategy"><code class="docutils literal notranslate"><span class="pre">SubTaskConfig.selection_strategy</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.SubTaskConfig.selection_strategy_kwargs"><code class="docutils literal notranslate"><span class="pre">SubTaskConfig.selection_strategy_kwargs</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.SubTaskConfig.first_subtask_start_offset_range"><code class="docutils literal notranslate"><span class="pre">SubTaskConfig.first_subtask_start_offset_range</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.SubTaskConfig.subtask_start_offset_range"><code class="docutils literal notranslate"><span class="pre">SubTaskConfig.subtask_start_offset_range</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.SubTaskConfig.subtask_term_offset_range"><code class="docutils literal notranslate"><span class="pre">SubTaskConfig.subtask_term_offset_range</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.SubTaskConfig.action_noise"><code class="docutils literal notranslate"><span class="pre">SubTaskConfig.action_noise</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.SubTaskConfig.num_interpolation_steps"><code class="docutils literal notranslate"><span class="pre">SubTaskConfig.num_interpolation_steps</span></code></a></li>
@@ -3610,49 +3613,52 @@ pick-and-place and interacting with articulated objects.</p></li>
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLMimicEnv.get_object_poses" title="isaaclab.envs.ManagerBasedRLMimicEnv.get_object_poses"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_object_poses</span></code></a>([env_ids])</p></td>
 <td><p>Gets the pose of each object relevant to Isaac Lab Mimic data generation in the current scene.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLMimicEnv.get_subtask_term_signals" title="isaaclab.envs.ManagerBasedRLMimicEnv.get_subtask_term_signals"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_subtask_term_signals</span></code></a>([env_ids])</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLMimicEnv.get_subtask_start_signals" title="isaaclab.envs.ManagerBasedRLMimicEnv.get_subtask_start_signals"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_subtask_start_signals</span></code></a>([env_ids])</p></td>
+<td><p>Gets a dictionary of start signal flags for each subtask in a task.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLMimicEnv.get_subtask_term_signals" title="isaaclab.envs.ManagerBasedRLMimicEnv.get_subtask_term_signals"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_subtask_term_signals</span></code></a>([env_ids])</p></td>
 <td><p>Gets a dictionary of termination signal flags for each subtask in a task.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLMimicEnv.serialize" title="isaaclab.envs.ManagerBasedRLMimicEnv.serialize"><code class="xref py py-obj docutils literal notranslate"><span class="pre">serialize</span></code></a>()</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLMimicEnv.serialize" title="isaaclab.envs.ManagerBasedRLMimicEnv.serialize"><code class="xref py py-obj docutils literal notranslate"><span class="pre">serialize</span></code></a>()</p></td>
 <td><p>Save all information needed to re-instantiate this environment in a dictionary.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLMimicEnv.__init__" title="isaaclab.envs.ManagerBasedRLMimicEnv.__init__"><code class="xref py py-obj docutils literal notranslate"><span class="pre">__init__</span></code></a>(cfg[, render_mode])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLMimicEnv.__init__" title="isaaclab.envs.ManagerBasedRLMimicEnv.__init__"><code class="xref py py-obj docutils literal notranslate"><span class="pre">__init__</span></code></a>(cfg[, render_mode])</p></td>
 <td><p>Initialize the environment.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLMimicEnv.close" title="isaaclab.envs.ManagerBasedRLMimicEnv.close"><code class="xref py py-obj docutils literal notranslate"><span class="pre">close</span></code></a>()</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLMimicEnv.close" title="isaaclab.envs.ManagerBasedRLMimicEnv.close"><code class="xref py py-obj docutils literal notranslate"><span class="pre">close</span></code></a>()</p></td>
 <td><p>Cleanup for the environment.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLMimicEnv.export_IO_descriptors" title="isaaclab.envs.ManagerBasedRLMimicEnv.export_IO_descriptors"><code class="xref py py-obj docutils literal notranslate"><span class="pre">export_IO_descriptors</span></code></a>([output_dir])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLMimicEnv.export_IO_descriptors" title="isaaclab.envs.ManagerBasedRLMimicEnv.export_IO_descriptors"><code class="xref py py-obj docutils literal notranslate"><span class="pre">export_IO_descriptors</span></code></a>([output_dir])</p></td>
 <td><p>Export the IO descriptors for the environment.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLMimicEnv.get_wrapper_attr" title="isaaclab.envs.ManagerBasedRLMimicEnv.get_wrapper_attr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_wrapper_attr</span></code></a>(name)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLMimicEnv.get_wrapper_attr" title="isaaclab.envs.ManagerBasedRLMimicEnv.get_wrapper_attr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_wrapper_attr</span></code></a>(name)</p></td>
 <td><p>Gets the attribute <cite>name</cite> from the environment.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLMimicEnv.has_wrapper_attr" title="isaaclab.envs.ManagerBasedRLMimicEnv.has_wrapper_attr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">has_wrapper_attr</span></code></a>(name)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLMimicEnv.has_wrapper_attr" title="isaaclab.envs.ManagerBasedRLMimicEnv.has_wrapper_attr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">has_wrapper_attr</span></code></a>(name)</p></td>
 <td><p>Checks if the attribute <cite>name</cite> exists in the environment.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLMimicEnv.load_managers" title="isaaclab.envs.ManagerBasedRLMimicEnv.load_managers"><code class="xref py py-obj docutils literal notranslate"><span class="pre">load_managers</span></code></a>()</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLMimicEnv.load_managers" title="isaaclab.envs.ManagerBasedRLMimicEnv.load_managers"><code class="xref py py-obj docutils literal notranslate"><span class="pre">load_managers</span></code></a>()</p></td>
 <td><p>Load the managers for the environment.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLMimicEnv.render" title="isaaclab.envs.ManagerBasedRLMimicEnv.render"><code class="xref py py-obj docutils literal notranslate"><span class="pre">render</span></code></a>([recompute])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLMimicEnv.render" title="isaaclab.envs.ManagerBasedRLMimicEnv.render"><code class="xref py py-obj docutils literal notranslate"><span class="pre">render</span></code></a>([recompute])</p></td>
 <td><p>Run rendering without stepping through the physics.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLMimicEnv.reset" title="isaaclab.envs.ManagerBasedRLMimicEnv.reset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">reset</span></code></a>([seed, env_ids, options])</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLMimicEnv.reset" title="isaaclab.envs.ManagerBasedRLMimicEnv.reset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">reset</span></code></a>([seed, env_ids, options])</p></td>
 <td><p>Resets the specified environments and returns observations.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLMimicEnv.reset_to" title="isaaclab.envs.ManagerBasedRLMimicEnv.reset_to"><code class="xref py py-obj docutils literal notranslate"><span class="pre">reset_to</span></code></a>(state, env_ids[, seed, is_relative])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLMimicEnv.reset_to" title="isaaclab.envs.ManagerBasedRLMimicEnv.reset_to"><code class="xref py py-obj docutils literal notranslate"><span class="pre">reset_to</span></code></a>(state, env_ids[, seed, is_relative])</p></td>
 <td><p>Resets specified environments to provided states.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLMimicEnv.seed" title="isaaclab.envs.ManagerBasedRLMimicEnv.seed"><code class="xref py py-obj docutils literal notranslate"><span class="pre">seed</span></code></a>([seed])</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLMimicEnv.seed" title="isaaclab.envs.ManagerBasedRLMimicEnv.seed"><code class="xref py py-obj docutils literal notranslate"><span class="pre">seed</span></code></a>([seed])</p></td>
 <td><p>Set the seed for the environment.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLMimicEnv.set_wrapper_attr" title="isaaclab.envs.ManagerBasedRLMimicEnv.set_wrapper_attr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set_wrapper_attr</span></code></a>(name, value, *[, force])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLMimicEnv.set_wrapper_attr" title="isaaclab.envs.ManagerBasedRLMimicEnv.set_wrapper_attr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set_wrapper_attr</span></code></a>(name, value, *[, force])</p></td>
 <td><p>Sets the attribute <cite>name</cite> on the environment with <cite>value</cite>, see <cite>Wrapper.set_wrapper_attr</cite> for more info.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLMimicEnv.setup_manager_visualizers" title="isaaclab.envs.ManagerBasedRLMimicEnv.setup_manager_visualizers"><code class="xref py py-obj docutils literal notranslate"><span class="pre">setup_manager_visualizers</span></code></a>()</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLMimicEnv.setup_manager_visualizers" title="isaaclab.envs.ManagerBasedRLMimicEnv.setup_manager_visualizers"><code class="xref py py-obj docutils literal notranslate"><span class="pre">setup_manager_visualizers</span></code></a>()</p></td>
 <td><p>Creates live visualizers for manager terms.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLMimicEnv.step" title="isaaclab.envs.ManagerBasedRLMimicEnv.step"><code class="xref py py-obj docutils literal notranslate"><span class="pre">step</span></code></a>(action)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLMimicEnv.step" title="isaaclab.envs.ManagerBasedRLMimicEnv.step"><code class="xref py py-obj docutils literal notranslate"><span class="pre">step</span></code></a>(action)</p></td>
 <td><p>Execute one time-step of the environment's dynamics and reset terminated environments.</p></td>
 </tr>
 </tbody>
@@ -3781,6 +3787,24 @@ from a demonstration trajectory using the recorded actions.</p>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><p>A dictionary that maps object names to object pose matrix (4x4 torch.Tensor)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab.envs.ManagerBasedRLMimicEnv.get_subtask_start_signals">
+<span class="sig-name descname"><span class="pre">get_subtask_start_signals</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env_ids</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://trimesh.org/trimesh.typed.html#trimesh.typed.Sequence" title="(in trimesh)"><span class="pre">Sequence</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.8)"><span class="pre">torch.Tensor</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../../../_modules/isaaclab/envs/manager_based_rl_mimic_env.html#ManagerBasedRLMimicEnv.get_subtask_start_signals"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.envs.ManagerBasedRLMimicEnv.get_subtask_start_signals" title="Permalink to this definition">#</a></dt>
+<dd><p>Gets a dictionary of start signal flags for each subtask in a task. The flag is 1
+when the subtask has started and 0 otherwise. The implementation of this method is
+required if intending to enable automatic subtask start signal annotation when running the
+dataset annotation tool. This method can be kept unimplemented if intending to use manual
+subtask start signal annotation.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>env_ids</strong> – Environment indices to get the start signals for. If None, all envs are considered.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A dictionary start signal flags (False or True) for each subtask.</p>
 </dd>
 </dl>
 </dd></dl>
@@ -4142,25 +4166,28 @@ Isaac Lab Mimic data generation pipeline.</p>
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.SubTaskConfig.first_subtask_start_offset_range" title="isaaclab.envs.SubTaskConfig.first_subtask_start_offset_range"><code class="xref py py-obj docutils literal notranslate"><span class="pre">first_subtask_start_offset_range</span></code></a></p></td>
 <td><p>Range for start offset of the first subtask.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.SubTaskConfig.subtask_term_offset_range" title="isaaclab.envs.SubTaskConfig.subtask_term_offset_range"><code class="xref py py-obj docutils literal notranslate"><span class="pre">subtask_term_offset_range</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.SubTaskConfig.subtask_start_offset_range" title="isaaclab.envs.SubTaskConfig.subtask_start_offset_range"><code class="xref py py-obj docutils literal notranslate"><span class="pre">subtask_start_offset_range</span></code></a></p></td>
+<td><p>Range for start offset of the subtask (only used if use_skillgen is True)</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.SubTaskConfig.subtask_term_offset_range" title="isaaclab.envs.SubTaskConfig.subtask_term_offset_range"><code class="xref py py-obj docutils literal notranslate"><span class="pre">subtask_term_offset_range</span></code></a></p></td>
 <td><p>Range for offsetting subtask termination.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.SubTaskConfig.action_noise" title="isaaclab.envs.SubTaskConfig.action_noise"><code class="xref py py-obj docutils literal notranslate"><span class="pre">action_noise</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.SubTaskConfig.action_noise" title="isaaclab.envs.SubTaskConfig.action_noise"><code class="xref py py-obj docutils literal notranslate"><span class="pre">action_noise</span></code></a></p></td>
 <td><p>Amplitude of action noise applied.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.SubTaskConfig.num_interpolation_steps" title="isaaclab.envs.SubTaskConfig.num_interpolation_steps"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_interpolation_steps</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.SubTaskConfig.num_interpolation_steps" title="isaaclab.envs.SubTaskConfig.num_interpolation_steps"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_interpolation_steps</span></code></a></p></td>
 <td><p>Number of steps for interpolation between waypoints.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.SubTaskConfig.num_fixed_steps" title="isaaclab.envs.SubTaskConfig.num_fixed_steps"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_fixed_steps</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.SubTaskConfig.num_fixed_steps" title="isaaclab.envs.SubTaskConfig.num_fixed_steps"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_fixed_steps</span></code></a></p></td>
 <td><p>Number of fixed steps for the subtask.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.SubTaskConfig.apply_noise_during_interpolation" title="isaaclab.envs.SubTaskConfig.apply_noise_during_interpolation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">apply_noise_during_interpolation</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.SubTaskConfig.apply_noise_during_interpolation" title="isaaclab.envs.SubTaskConfig.apply_noise_during_interpolation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">apply_noise_during_interpolation</span></code></a></p></td>
 <td><p>Whether to apply noise during interpolation.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.SubTaskConfig.description" title="isaaclab.envs.SubTaskConfig.description"><code class="xref py py-obj docutils literal notranslate"><span class="pre">description</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.SubTaskConfig.description" title="isaaclab.envs.SubTaskConfig.description"><code class="xref py py-obj docutils literal notranslate"><span class="pre">description</span></code></a></p></td>
 <td><p>Description of the subtask</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.SubTaskConfig.next_subtask_description" title="isaaclab.envs.SubTaskConfig.next_subtask_description"><code class="xref py py-obj docutils literal notranslate"><span class="pre">next_subtask_description</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.SubTaskConfig.next_subtask_description" title="isaaclab.envs.SubTaskConfig.next_subtask_description"><code class="xref py py-obj docutils literal notranslate"><span class="pre">next_subtask_description</span></code></a></p></td>
 <td><p>Instructions for the next subtask</p></td>
 </tr>
 </tbody>
@@ -4211,6 +4238,13 @@ Arguments will be passed through to the <cite>select_source_demo</cite> method.<
 <dt class="sig sig-object py" id="isaaclab.envs.SubTaskConfig.first_subtask_start_offset_range">
 <span class="sig-name descname"><span class="pre">first_subtask_start_offset_range</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a></em><a class="headerlink" href="#isaaclab.envs.SubTaskConfig.first_subtask_start_offset_range" title="Permalink to this definition">#</a></dt>
 <dd><p>Range for start offset of the first subtask.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab.envs.SubTaskConfig.subtask_start_offset_range">
+<span class="sig-name descname"><span class="pre">subtask_start_offset_range</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a></em><a class="headerlink" href="#isaaclab.envs.SubTaskConfig.subtask_start_offset_range" title="Permalink to this definition">#</a></dt>
+<dd><p>Range for start offset of the subtask (only used if use_skillgen is True)</p>
+<p>Note: This value overrides the first_subtask_start_offset_range when skillgen is enabled</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -4734,6 +4768,7 @@ Default is (1280, 720).</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.ManagerBasedRLMimicEnv.action_to_target_eef_pose"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLMimicEnv.action_to_target_eef_pose()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.ManagerBasedRLMimicEnv.actions_to_gripper_actions"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLMimicEnv.actions_to_gripper_actions()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.ManagerBasedRLMimicEnv.get_object_poses"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLMimicEnv.get_object_poses()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.ManagerBasedRLMimicEnv.get_subtask_start_signals"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLMimicEnv.get_subtask_start_signals()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.ManagerBasedRLMimicEnv.get_subtask_term_signals"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLMimicEnv.get_subtask_term_signals()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.ManagerBasedRLMimicEnv.serialize"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLMimicEnv.serialize()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.ManagerBasedRLMimicEnv.__init__"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLMimicEnv.__init__()</span></code></a></li>
@@ -4771,6 +4806,7 @@ Default is (1280, 720).</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.SubTaskConfig.selection_strategy"><code class="docutils literal notranslate"><span class="pre">SubTaskConfig.selection_strategy</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.SubTaskConfig.selection_strategy_kwargs"><code class="docutils literal notranslate"><span class="pre">SubTaskConfig.selection_strategy_kwargs</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.SubTaskConfig.first_subtask_start_offset_range"><code class="docutils literal notranslate"><span class="pre">SubTaskConfig.first_subtask_start_offset_range</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.SubTaskConfig.subtask_start_offset_range"><code class="docutils literal notranslate"><span class="pre">SubTaskConfig.subtask_start_offset_range</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.SubTaskConfig.subtask_term_offset_range"><code class="docutils literal notranslate"><span class="pre">SubTaskConfig.subtask_term_offset_range</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.SubTaskConfig.action_noise"><code class="docutils literal notranslate"><span class="pre">SubTaskConfig.action_noise</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.SubTaskConfig.num_interpolation_steps"><code class="docutils literal notranslate"><span class="pre">SubTaskConfig.num_interpolation_steps</span></code></a></li>

@@ -1,0 +1,1326 @@
+
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+
+    <title>SkillGen for Automated Demonstration Generation &#8212; Isaac Lab Documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css" />
+    <link rel="stylesheet" href="../../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.11.13/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/custom.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.4cbf315f70debaebd550c87a6162cf0f.min.css" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
+    <script src="../../../_static/doctools.js"></script>
+    <script src="../../../_static/sphinx_highlight.js"></script>
+    <script src="/opt/hostedtoolcache/Python/3.11.13/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
+    <script src="../../../_static/clipboard.min.js"></script>
+    <script src="../../../_static/copybutton.js"></script>
+    <script src="../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
+    <script src="../../../_static/design-tabs.js"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'source/overview/imitation-learning/skillgen';</script>
+    <link rel="icon" href="../../../_static/favicon.ico"/>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+    <link rel="next" title="Showroom Demos" href="../showroom.html" />
+    <link rel="prev" title="Teleoperation and Imitation Learning with Isaac Lab Mimic" href="teleop_imitation.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="2.2.1" />
+    <meta name="docbuild:last-update" content="Sep 09, 2025"/>
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../../_static/NVIDIA-logo-white.png" class="logo__image only-light" alt=""/>
+    <img src="../../../_static/NVIDIA-logo-black.png" class="logo__image only-dark pst-js-only" alt=""/>
+  
+  
+    <p class="title logo__title">Isaac Lab Documentation</p>
+  
+</a></div>
+        <div class="sidebar-primary-item">
+<nav class="bd-links bd-docs-nav">
+    <div class="bd-toc-item navbar-nav">
+      <ul class="nav bd-sidenav">
+        <li class="toctree-l1 has-children" style="display: flex; justify-content: center; align-items: center; flex-direction: column;">
+          <div  style ="text-align:center;">
+            <label for="version-select" style="font-weight: bold; display: block;">Version</label>
+          </div>
+          <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
+            <option value="skillgen.html" selected>main</option>
+            <option value="../../../../v2.2.1/index.html" >v2.2.1</option>
+            <option value="../../../../v2.2.0/index.html" >v2.2.0</option>
+            <option value="../../../../v2.1.1/index.html" >v2.1.1</option>
+            <option value="../../../../v2.1.0/index.html" >v2.1.0</option>
+            <option value="../../../../v2.0.2/index.html" >v2.0.2</option>
+            <option value="../../../../v2.0.1/index.html" >v2.0.1</option>
+            <option value="../../../../v2.0.0/index.html" >v2.0.0</option>
+            <option value="../../../../v1.4.1/index.html" >v1.4.1</option>
+            <option value="../../../../v1.4.0/index.html" >v1.4.0</option>
+            <option value="../../../../v1.3.0/index.html" >v1.3.0</option>
+            <option value="../../../../v1.2.0/index.html" >v1.2.0</option>
+            <option value="../../../../v1.1.0/index.html" >v1.1.0</option>
+            <option value="../../../../v1.0.0/index.html" >v1.0.0</option>
+          </select>
+        </li>
+      </ul>
+    </div>
+</nav>
+</div>
+        <div class="sidebar-primary-item"><ul class="navbar-icon-links"
+    aria-label="Quick Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/isaac-sim/IsaacLab" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.0.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://img.shields.io/github/stars/isaac-sim/IsaacLab?color=fedcba" title="Stars" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/github/stars/isaac-sim/IsaacLab?color=fedcba" class="icon-link-image" alt="Stars"/></a>
+        </li>
+</ul></div>
+        <div class="sidebar-primary-item">
+<form class="bd-search d-flex align-items-center"
+      action="../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+        <div class="sidebar-primary-item"><nav class="bd-links" id="bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Isaac Lab</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../setup/ecosystem.html">Isaac Lab Ecosystem</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../setup/installation/index.html">Local Installation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/pip_installation.html">Pip installation (recommended)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/binaries_installation.html">Binary installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/isaaclab_pip_installation.html">Advanced installation (Isaac Lab pip)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/asset_caching.html">Asset caching</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../deployment/index.html">Container Deployment</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../deployment/docker.html">Docker Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../deployment/cluster.html">Cluster Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../deployment/cloudxr_teleoperation_cluster.html">Deploying CloudXR Teleoperation on Kubernetes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../deployment/run_docker_example.html">Running an example with Docker</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../../refs/reference_architecture/index.html">Reference Architecture</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../setup/quickstart.html">Quickstart Guide</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../own-project/index.html">Build your Own Project or Task</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../own-project/template.html">Create new project or task</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../own-project/project_structure.html">Project Structure</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../setup/walkthrough/index.html">Walkthrough</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/walkthrough/concepts_env_design.html">Environment Design Background</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/walkthrough/api_env_design.html">Classes and Configs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/walkthrough/technical_env_design.html">Environment Design</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/walkthrough/training_jetbot_gt.html">Training the Jetbot: Ground Truth</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/walkthrough/training_jetbot_reward_exploration.html">Exploring the RL problem</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../tutorials/index.html">Tutorials</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/00_sim/create_empty.html">Creating an empty scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/00_sim/spawn_prims.html">Spawning prims into the scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/00_sim/launch_app.html">Deep-dive into AppLauncher</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/01_assets/add_new_robot.html">Adding a New Robot to Isaac Lab</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/01_assets/run_rigid_object.html">Interacting with a rigid object</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/01_assets/run_articulation.html">Interacting with an articulation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/01_assets/run_deformable_object.html">Interacting with a deformable object</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/01_assets/run_surface_gripper.html">Interacting with a surface gripper</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/02_scene/create_scene.html">Using the Interactive Scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/03_envs/create_manager_base_env.html">Creating a Manager-Based Base Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/03_envs/create_manager_rl_env.html">Creating a Manager-Based RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/03_envs/create_direct_rl_env.html">Creating a Direct Workflow RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/03_envs/register_rl_env_gym.html">Registering an Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/03_envs/run_rl_training.html">Training with an RL Agent</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/03_envs/configuring_rl_training.html">Configuring an RL Agent</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/03_envs/modify_direct_rl_env.html">Modifying an existing Direct RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/03_envs/policy_inference_in_usd.html">Policy Inference in USD Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/04_sensors/add_sensors_on_robot.html">Adding sensors on a robot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/05_controllers/run_diff_ik.html">Using a task-space controller</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/05_controllers/run_osc.html">Using an operational space controller</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../how-to/index.html">How-to Guides</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/import_new_asset.html">Importing a New Asset</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/write_articulation_cfg.html">Writing an Asset Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/make_fixed_prim.html">Making a physics prim fixed in the simulation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/multi_asset_spawning.html">Spawning Multiple Assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/save_camera_output.html">Saving rendered images and 3D re-projection</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/estimate_how_many_cameras_can_run.html">Find How Many/What Cameras You Should Train With</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/configure_rendering.html">Configuring Rendering Settings</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/draw_markers.html">Creating Visualization Markers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/wrap_rl_env.html">Wrapping environments</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/add_own_library.html">Adding your own learning library</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/record_animation.html">Recording Animations of Simulations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/record_video.html">Recording video clips during training</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/curriculums.html">Curriculum Utilities</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/master_omniverse.html">Mastering Omniverse for Robotics</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/cloudxr_teleoperation.html">Setting up CloudXR Teleoperation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/simulation_performance.html">Simulation Performance</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/optimize_stage_creation.html">Optimize Stage Creation</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../developer-guide/index.html">Developer’s Guide</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../developer-guide/vs_code.html">Setting up Visual Studio Code</a></li>
+
+<li class="toctree-l2"><a class="reference internal" href="../developer-guide/repo_structure.html">Repository organization</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../developer-guide/development.html">Extension Development</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Overview</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../core-concepts/index.html">Core Concepts</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../core-concepts/task_workflows.html">Task Design Workflows</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../core-concepts/actuators.html">Actuators</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../core-concepts/sensors/index.html">Sensors</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3"><a class="reference internal" href="../core-concepts/sensors/camera.html">Camera</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../core-concepts/sensors/contact_sensor.html">Contact Sensor</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../core-concepts/sensors/frame_transformer.html">Frame Transformer</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../core-concepts/sensors/imu.html">Inertial Measurement Unit (IMU)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../core-concepts/sensors/ray_caster.html">Ray Caster</a></li>
+</ul>
+</details></li>
+<li class="toctree-l2"><a class="reference internal" href="../core-concepts/motion_generators.html">Motion Generators</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../environments.html">Available Environments</a></li>
+
+<li class="toctree-l1 has-children"><a class="reference internal" href="../reinforcement-learning/index.html">Reinforcement Learning</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../reinforcement-learning/rl_existing_scripts.html">Reinforcement Learning Scripts</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../reinforcement-learning/rl_frameworks.html">Reinforcement Learning Library Comparison</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../reinforcement-learning/performance_benchmarks.html">Performance Benchmarks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../reinforcement-learning/training_guide.html">Debugging and Training Guide</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 current active has-children"><a class="reference internal" href="index.html">Imitation Learning</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="augmented_imitation.html">Augmented Imitation Learning</a></li>
+<li class="toctree-l2"><a class="reference internal" href="teleop_imitation.html">Teleoperation and Imitation Learning with Isaac Lab Mimic</a></li>
+<li class="toctree-l2 current active"><a class="current reference internal" href="#">SkillGen for Automated Demonstration Generation</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../showroom.html">Showroom Demos</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../simple_agents.html">Simple Agents</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Features</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../features/hydra.html">Hydra Configuration System</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../features/multi_gpu.html">Multi-GPU and Multi-Node Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../core-concepts/sensors/camera.html">Tiled Rendering</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../features/ray.html">Ray Job Dispatch and Tuning</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../features/reproducibility.html">Reproducibility and Determinism</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Experimental Features</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../experimental-features/bleeding-edge.html">Welcome to the bleeding edge!</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../experimental-features/newton-physics-integration/index.html">Newton Physics Integration</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../experimental-features/newton-physics-integration/installation.html">Installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../experimental-features/newton-physics-integration/training-environments.html">Training Environments</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../experimental-features/newton-physics-integration/newton-visualizer.html">Newton Visualizer</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../experimental-features/newton-physics-integration/limitations-and-known-bugs.html">Limitations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../experimental-features/newton-physics-integration/solver-transitioning.html">Solver Transitioning</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../experimental-features/newton-physics-integration/sim-to-sim.html">Sim-to-Sim Policy Transfer</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../experimental-features/newton-physics-integration/sim-to-real.html">Sim-to-Real Policy Transfer</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../setup/installation/cloud_installation.html">Running Isaac Lab in the Cloud</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../policy_deployment/index.html">Sim2Real Deployment of Policies Trained in Isaac Lab</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../policy_deployment/00_hover/hover_policy.html">Training &amp; Deploying HOVER Policy</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../policy_deployment/01_io_descriptors/io_descriptors_101.html">IO Descriptors 101</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Migration Guides</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../migration/migrating_from_isaacgymenvs.html">From IsaacGymEnvs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../migration/migrating_from_omniisaacgymenvs.html">From OmniIsaacGymEnvs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../migration/migrating_from_orbit.html">From Orbit</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Source API</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../api/index.html">API Reference</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.app.html">isaaclab.app</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.actuators.html">isaaclab.actuators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.assets.html">isaaclab.assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.controllers.html">isaaclab.controllers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.devices.html">isaaclab.devices</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.envs.html">isaaclab.envs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.managers.html">isaaclab.managers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.markers.html">isaaclab.markers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.scene.html">isaaclab.scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sensors.html">isaaclab.sensors</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sim.html">isaaclab.sim</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.terrains.html">isaaclab.terrains</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.utils.html">isaaclab.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.envs.mdp.html">isaaclab.envs.mdp</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.envs.ui.html">isaaclab.envs.ui</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sensors.patterns.html">isaaclab.sensors.patterns</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sim.converters.html">isaaclab.sim.converters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sim.schemas.html">isaaclab.sim.schemas</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab/isaaclab.sim.spawners.html">isaaclab.sim.spawners</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab_rl/isaaclab_rl.html">isaaclab_rl</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab_mimic/isaaclab_mimic.datagen.html">isaaclab_mimic.datagen</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/lab_tasks/isaaclab_tasks.utils.html">isaaclab_tasks.utils</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../refs/additional_resources.html">Additional Resources</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../refs/contributing.html">Contribution Guidelines</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../refs/troubleshooting.html">Tricks and Troubleshooting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../refs/migration.html">Migration Guide (Isaac Sim)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../refs/issues.html">Known Issues</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../refs/release_notes.html">Release Notes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../refs/changelog.html">Extensions Changelog</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../refs/license.html">License</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../refs/bibliography.html">Bibliography</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Project Links</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference external" href="https://github.com/isaac-sim/IsaacLab">GitHub</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/index.html">NVIDIA Isaac Sim</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/index.html">NVIDIA PhysX</a></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><label class="sidebar-toggle primary-toggle btn btn-sm" for="__primary" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</label></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-source-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Source repositories">
+    <i class="fab fa-github"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="https://github.com/isaac-sim/IsaacLab" target="_blank"
+   class="btn btn-sm btn-source-repository-button dropdown-item"
+   title="Source repository"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fab fa-github"></i>
+  </span>
+<span class="btn__text-container">Repository</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li><a href="https://github.com/isaac-sim/IsaacLab/edit/main/docs/source/overview/imitation-learning/skillgen.rst" target="_blank"
+   class="btn btn-sm btn-source-edit-button dropdown-item"
+   title="Suggest edit"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-pencil-alt"></i>
+  </span>
+<span class="btn__text-container">Suggest edit</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li><a href="https://github.com/isaac-sim/IsaacLab/issues/new?title=Issue%20on%20page%20%2Fsource/overview/imitation-learning/skillgen.html&body=Your%20issue%20content%20here." target="_blank"
+   class="btn btn-sm btn-source-issues-button dropdown-item"
+   title="Open an issue"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-lightbulb"></i>
+  </span>
+<span class="btn__text-container">Open issue</span>
+</a>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+
+
+<div class="dropdown dropdown-download-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Download this page">
+    <i class="fas fa-download"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="../../../_sources/source/overview/imitation-learning/skillgen.rst" target="_blank"
+   class="btn btn-sm btn-download-source-button dropdown-item"
+   title="Download source file"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="btn__text-container">.rst</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li>
+<button onclick="window.print()"
+  class="btn btn-sm btn-download-pdf-button dropdown-item"
+  title="Print to PDF"
+  data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="btn__text-container">.pdf</span>
+</button>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button>
+
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+<label class="sidebar-toggle secondary-toggle btn btn-sm" for="__secondary"title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</label>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>SkillGen for Automated Demonstration Generation</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#what-is-skillgen">What is SkillGen?</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prerequisites">Prerequisites</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#installation">Installation</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#step-1-install-and-verify-isaac-sim-and-isaac-lab">Step 1: Install and verify Isaac Sim and Isaac Lab</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#step-2-install-curobo">Step 2: Install cuRobo</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#step-3-install-rerun">Step 3: Install Rerun</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#step-4-verify-installation">Step 4: Verify Installation</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#download-the-skillgen-dataset">Download the SkillGen Dataset</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataset-contents">Dataset Contents</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#download-and-setup">Download and Setup</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#understanding-dataset-annotation">Understanding Dataset Annotation</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#subtasks-in-skillgen">Subtasks in SkillGen</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#manual-annotation-workflow">Manual Annotation Workflow</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#data-generation-with-skillgen">Data Generation with SkillGen</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#how-skillgen-works">How SkillGen Works</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#usage-parameters">Usage Parameters</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#task-1-basic-cube-stacking">Task 1: Basic Cube Stacking</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#small-scale-generation">Small-Scale Generation</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#full-scale-generation">Full-Scale Generation</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#task-2-adaptive-cube-stacking-in-a-bin">Task 2: Adaptive Cube Stacking in a Bin</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id1">Small-Scale Generation</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id2">Full-Scale Generation</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#learning-policies-from-skillgen-data">Learning Policies from SkillGen Data</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#basic-cube-stacking-policy">Basic Cube Stacking Policy</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#adaptive-bin-stacking-policy">Adaptive Bin Stacking Policy</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#evaluating-trained-policies">Evaluating Trained Policies</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#curobo-interface-features">cuRobo Interface Features</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#base-motion-planner-extensible">Base Motion Planner (Extensible)</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#curobo-planner-gpu-collision-aware">cuRobo Planner (GPU, collision-aware)</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#generation-pipeline-integration">Generation Pipeline Integration</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#visualization-and-debugging">Visualization and Debugging</a></li>
+</ul>
+</li>
+</ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="skillgen-for-automated-demonstration-generation">
+<span id="skillgen"></span><h1>SkillGen for Automated Demonstration Generation<a class="headerlink" href="#skillgen-for-automated-demonstration-generation" title="Permalink to this heading">#</a></h1>
+<p>SkillGen is an advanced demonstration generation system that enhances Isaac Lab Mimic by integrating motion planning. It generates high-quality, adaptive, collision-free robot demonstrations by combining human-provided subtask segments with automated motion planning.</p>
+<section id="what-is-skillgen">
+<h2>What is SkillGen?<a class="headerlink" href="#what-is-skillgen" title="Permalink to this heading">#</a></h2>
+<p>SkillGen addresses key limitations in traditional demonstration generation:</p>
+<ul class="simple">
+<li><p><strong>Motion Quality</strong>: Uses cuRobo’s GPU-accelerated motion planner to generate smooth, collision-free trajectories</p></li>
+<li><p><strong>Validity</strong>: Generates kinematically feasible plans between skill segments</p></li>
+<li><p><strong>Diversity</strong>: Generates varied demonstrations through configurable sampling and planning parameters</p></li>
+<li><p><strong>Adaptability</strong>: Generates demonstrations that can be adapted to new object placements and scene configurations during data generation</p></li>
+</ul>
+<p>The system works by taking manually annotated human demonstrations, extracting localized subtask skills (see <a class="reference internal" href="#subtasks-in-skillgen">Subtasks in SkillGen</a>), and using cuRobo to plan feasible motions between these skill segments while respecting robot kinematics and collision constraints.</p>
+</section>
+<section id="prerequisites">
+<h2>Prerequisites<a class="headerlink" href="#prerequisites" title="Permalink to this heading">#</a></h2>
+<p>Before using SkillGen, you must understand:</p>
+<ol class="arabic simple">
+<li><p><strong>Teleoperation</strong>: How to control robots and record demonstrations using keyboard, SpaceMouse, or hand tracking</p></li>
+<li><p><strong>Isaac Lab Mimic</strong>: The complete workflow including data collection, annotation, generation, and policy training</p></li>
+</ol>
+<div class="admonition important">
+<p class="admonition-title">Important</p>
+<p>Review the <a class="reference internal" href="teleop_imitation.html#teleoperation-imitation-learning"><span class="std std-ref">Teleoperation and Imitation Learning with Isaac Lab Mimic</span></a> documentation thoroughly before proceeding with SkillGen.</p>
+</div>
+</section>
+<section id="installation">
+<span id="skillgen-installation"></span><h2>Installation<a class="headerlink" href="#installation" title="Permalink to this heading">#</a></h2>
+<p>SkillGen requires Isaac Lab, Isaac Sim, and cuRobo. Follow these steps in your Isaac Lab conda environment.</p>
+<section id="step-1-install-and-verify-isaac-sim-and-isaac-lab">
+<h3>Step 1: Install and verify Isaac Sim and Isaac Lab<a class="headerlink" href="#step-1-install-and-verify-isaac-sim-and-isaac-lab" title="Permalink to this heading">#</a></h3>
+<p>Follow the official Isaac Sim and Isaac Lab installation guide <a class="reference external" href="https://isaac-sim.github.io/IsaacLab/main/source/setup/installation/pip_installation.html#installing-isaac-lab">here</a>.</p>
+</section>
+<section id="step-2-install-curobo">
+<h3>Step 2: Install cuRobo<a class="headerlink" href="#step-2-install-curobo" title="Permalink to this heading">#</a></h3>
+<p>cuRobo provides the motion planning capabilities for SkillGen. This installation is tested to work with Isaac Lab’s PyTorch and CUDA requirements:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># One line installation of cuRobo (formatted for readability)</span>
+conda<span class="w"> </span>install<span class="w"> </span>-c<span class="w"> </span>nvidia<span class="w"> </span>cuda-toolkit<span class="o">=</span><span class="m">12</span>.8<span class="w"> </span>-y<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="se">\</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">CUDA_HOME</span><span class="o">=</span><span class="s2">&quot;</span><span class="nv">$CONDA_PREFIX</span><span class="s2">&quot;</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="se">\</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">PATH</span><span class="o">=</span><span class="s2">&quot;</span><span class="nv">$CUDA_HOME</span><span class="s2">/bin:</span><span class="nv">$PATH</span><span class="s2">&quot;</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="se">\</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">LD_LIBRARY_PATH</span><span class="o">=</span><span class="s2">&quot;</span><span class="nv">$CUDA_HOME</span><span class="s2">/lib:</span><span class="nv">$LD_LIBRARY_PATH</span><span class="s2">&quot;</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="se">\</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">TORCH_CUDA_ARCH_LIST</span><span class="o">=</span><span class="s2">&quot;8.0+PTX&quot;</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="se">\</span>
+pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span><span class="s2">&quot;git+https://github.com/NVlabs/curobo.git@ebb71702f3f70e767f40fd8e050674af0288abe8#egg=nvidia-curobo&quot;</span><span class="w"> </span>--no-build-isolation
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<ul class="simple">
+<li><p>The commit hash <code class="docutils literal notranslate"><span class="pre">ebb71702f3f70e767f40fd8e050674af0288abe8</span></code> is tested with Isaac Lab - using other versions may cause compatibility issues. This commit has the support for quad face mesh triangulation, required for cuRobo to parse usds as collision objects.</p></li>
+<li><p>cuRobo is installed from source and is editable installed. This means that the cuRobo source code will be cloned in the current directory under <code class="docutils literal notranslate"><span class="pre">src/nvidia-curobo</span></code>. Users can choose their working directory to install cuRobo.</p></li>
+</ul>
+</div>
+</section>
+<section id="step-3-install-rerun">
+<h3>Step 3: Install Rerun<a class="headerlink" href="#step-3-install-rerun" title="Permalink to this heading">#</a></h3>
+<p>For trajectory visualization during development:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>rerun-sdk<span class="o">==</span><span class="m">0</span>.23
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><strong>Rerun Visualization Setup:</strong></p>
+<ul class="simple">
+<li><p>Rerun is optional but highly recommended for debugging and validating planned trajectories during development</p></li>
+<li><p>Enable trajectory visualization by setting <code class="docutils literal notranslate"><span class="pre">visualize_plan</span> <span class="pre">=</span> <span class="pre">True</span></code> in the cuRobo planner configuration</p></li>
+<li><p>When enabled, cuRobo planner interface will stream planned end-effector trajectories, waypoints, and collision data to Rerun for interactive inspection</p></li>
+<li><p>Visualization helps identify planning issues, collision problems, and trajectory smoothness before full dataset generation</p></li>
+<li><p>Can also be ran with <code class="docutils literal notranslate"><span class="pre">--headless</span></code> to disable isaacsim visualization but still visualize and debug end effector trajectories</p></li>
+</ul>
+</div>
+</section>
+<section id="step-4-verify-installation">
+<h3>Step 4: Verify Installation<a class="headerlink" href="#step-4-verify-installation" title="Permalink to this heading">#</a></h3>
+<p>Test that cuRobo works with Isaac Lab:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># This should run without import errors</span>
+python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;import curobo; print(&#39;cuRobo installed successfully&#39;)&quot;</span>
+</pre></div>
+</div>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>If you run into <code class="docutils literal notranslate"><span class="pre">libstdc++.so.6:</span> <span class="pre">version</span> <span class="pre">'GLIBCXX_3.4.30'</span> <span class="pre">not</span> <span class="pre">found</span></code> error, you can try these commands to fix it:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>config<span class="w"> </span>--env<span class="w"> </span>--set<span class="w"> </span>channel_priority<span class="w"> </span>strict
+conda<span class="w"> </span>config<span class="w"> </span>--env<span class="w"> </span>--add<span class="w"> </span>channels<span class="w"> </span>conda-forge
+conda<span class="w"> </span>install<span class="w"> </span>-y<span class="w"> </span>-c<span class="w"> </span>conda-forge<span class="w"> </span><span class="s2">&quot;libstdcxx-ng&gt;=12&quot;</span><span class="w"> </span><span class="s2">&quot;libgcc-ng&gt;=12&quot;</span>
+</pre></div>
+</div>
+</div>
+</section>
+</section>
+<section id="download-the-skillgen-dataset">
+<h2>Download the SkillGen Dataset<a class="headerlink" href="#download-the-skillgen-dataset" title="Permalink to this heading">#</a></h2>
+<p>We provide a pre-annotated dataset to help you get started quickly with SkillGen.</p>
+<section id="dataset-contents">
+<h3>Dataset Contents<a class="headerlink" href="#dataset-contents" title="Permalink to this heading">#</a></h3>
+<p>The dataset contains:</p>
+<ul class="simple">
+<li><p>Human demonstrations of Franka arm cube stacking</p></li>
+<li><p>Manually annotated subtask boundaries for each demonstration</p></li>
+<li><p>Compatible with both basic cube stacking and adaptive bin stacking tasks</p></li>
+</ul>
+</section>
+<section id="download-and-setup">
+<h3>Download and Setup<a class="headerlink" href="#download-and-setup" title="Permalink to this heading">#</a></h3>
+<ol class="arabic simple">
+<li><p>Download the pre-annotated dataset by clicking <a class="reference external" href="https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.0/Isaac/IsaacLab/Mimic/franka_stack_datasets/annotated_dataset_skillgen.hdf5">here</a>.</p></li>
+<li><p>Prepare the datasets directory and move the downloaded file:</p></li>
+</ol>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Make sure you are in the root directory of your Isaac Lab workspace</span>
+<span class="nb">cd</span><span class="w"> </span>/path/to/your/isaaclab/root
+
+<span class="c1"># Create the datasets directory if it does not exist</span>
+mkdir<span class="w"> </span>-p<span class="w"> </span>datasets
+
+<span class="c1"># Move the downloaded dataset into the datasets directory</span>
+mv<span class="w"> </span>/path/to/annotated_dataset_skillgen.hdf5<span class="w"> </span>datasets/annotated_dataset_skillgen.hdf5
+</pre></div>
+</div>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>A major advantage of SkillGen is that the same annotated dataset can be reused across multiple related tasks (e.g., basic stacking and adaptive bin stacking). This avoids collecting and annotating new data per variant.</p>
+</div>
+<div class="admonition-optional-for-the-tasks-in-this-tutorial-collect-a-fresh-dataset-source-annotated admonition">
+<p class="admonition-title">{Optional for the tasks in this tutorial} Collect a fresh dataset (source + annotated)</p>
+<blockquote>
+<div><p>If you want to collect a fresh source dataset and then create an annotated dataset for SkillGen, follow these commands. The user is expected to have knowledge of the Isaac Lab Mimic workflow.</p>
+</div></blockquote>
+<p><strong>Important pointers before you begin</strong></p>
+<ul class="simple">
+<li><p>Using the provided annotated dataset is the fastest path to get started with SkillGen tasks in this tutorial.</p></li>
+<li><p>If you create your own dataset, SkillGen requires manual annotation of both subtask start and termination boundaries (no auto-annotation).</p></li>
+<li><p>Start boundary signals are mandatory for SkillGen; use <code class="docutils literal notranslate"><span class="pre">--annotate_subtask_start_signals</span></code> during annotation or data generation will fail.</p></li>
+<li><p>Keep your subtask definitions (<code class="docutils literal notranslate"><span class="pre">object_ref</span></code>, <code class="docutils literal notranslate"><span class="pre">subtask_term_signal</span></code>) consistent with the SkillGen environment config.</p></li>
+</ul>
+<p><strong>Record demonstrations</strong> (any teleop device is supported; replace <code class="docutils literal notranslate"><span class="pre">spacemouse</span></code> if needed):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/tools/record_demos.py<span class="w"> </span><span class="se">\</span>
+--task<span class="w"> </span>Isaac-Stack-Cube-Franka-IK-Rel-Skillgen-v0<span class="w"> </span><span class="se">\</span>
+--teleop_device<span class="w"> </span>spacemouse<span class="w"> </span><span class="se">\</span>
+--dataset_file<span class="w"> </span>./datasets/dataset_skillgen.hdf5<span class="w"> </span><span class="se">\</span>
+--num_demos<span class="w"> </span><span class="m">10</span>
+</pre></div>
+</div>
+<p><strong>Annotate demonstrations for SkillGen</strong> (writes both term and start boundaries):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/imitation_learning/isaaclab_mimic/annotate_demos.py<span class="w"> </span><span class="se">\</span>
+--device<span class="w"> </span>cpu<span class="w"> </span><span class="se">\</span>
+--task<span class="w"> </span>Isaac-Stack-Cube-Franka-IK-Rel-Skillgen-v0<span class="w"> </span><span class="se">\</span>
+--input_file<span class="w"> </span>./datasets/dataset_skillgen.hdf5<span class="w"> </span><span class="se">\</span>
+--output_file<span class="w"> </span>./datasets/annotated_dataset_skillgen.hdf5<span class="w"> </span><span class="se">\</span>
+--annotate_subtask_start_signals
+</pre></div>
+</div>
+</div>
+</section>
+</section>
+<section id="understanding-dataset-annotation">
+<h2>Understanding Dataset Annotation<a class="headerlink" href="#understanding-dataset-annotation" title="Permalink to this heading">#</a></h2>
+<p>SkillGen requires datasets with annotated subtask start and termination boundaries. Auto-annotation is not supported.</p>
+<section id="subtasks-in-skillgen">
+<h3>Subtasks in SkillGen<a class="headerlink" href="#subtasks-in-skillgen" title="Permalink to this heading">#</a></h3>
+<p><strong>Technical definition:</strong> A subtask is a contiguous demo segment that achieves a manipulation objective, defined via <code class="docutils literal notranslate"><span class="pre">SubTaskConfig</span></code>:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">object_ref</span></code>: the object (or <code class="docutils literal notranslate"><span class="pre">None</span></code>) used as the spatial reference for this subtask</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">subtask_term_signal</span></code>: the binary termination signal name (transitions 0 to 1 when the subtask completes)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">subtask_start_signal</span></code>: the binary start signal name (transitions 0 to 1 when the subtask begins; required for SkillGen)</p></li>
+</ul>
+<p>The subtask localization process performs:</p>
+<ul class="simple">
+<li><p>detection of signal transition points (0 to 1) to identify subtask boundaries <code class="docutils literal notranslate"><span class="pre">[t_start,</span> <span class="pre">t_end]</span></code>;</p></li>
+<li><p>extraction of the subtask segment between boundaries;</p></li>
+<li><p>computation of end-effector trajectories and key poses in an object- or task-relative frame (using <code class="docutils literal notranslate"><span class="pre">object_ref</span></code> if provided);</p></li>
+</ul>
+<p>This converts absolute, scene-specific motions into object-relative skill segments that can be adapted to new object placements and scene configurations during data generation.</p>
+</section>
+<section id="manual-annotation-workflow">
+<h3>Manual Annotation Workflow<a class="headerlink" href="#manual-annotation-workflow" title="Permalink to this heading">#</a></h3>
+<p>Contrary to the Isaac Lab Mimic workflow, SkillGen requires manual annotation of subtask start and termination boundaries. For example, for grasping a cube, the start signal is right before the gripper closes and the termination signal is right after the object is grasped. You can adjust the start and termination signals to fit your subtask definition.</p>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p><strong>Manual Annotation Controls:</strong></p>
+<ul class="simple">
+<li><p>Press <code class="docutils literal notranslate"><span class="pre">N</span></code> to start/continue playback</p></li>
+<li><p>Press <code class="docutils literal notranslate"><span class="pre">B</span></code> to pause</p></li>
+<li><p>Press <code class="docutils literal notranslate"><span class="pre">S</span></code> to mark subtask boundary</p></li>
+<li><p>Press <code class="docutils literal notranslate"><span class="pre">Q</span></code> to skip current demonstration</p></li>
+</ul>
+<p>When annotating the start and end signals for a skill segment (e.g., grasp, stack, etc.), pause the playback using <code class="docutils literal notranslate"><span class="pre">B</span></code> a few steps before the skill, annotate the start signal using <code class="docutils literal notranslate"><span class="pre">S</span></code>, and then resume playback using <code class="docutils literal notranslate"><span class="pre">N</span></code>. After the skill is completed, pause again a few steps later to annotate the end signal using <code class="docutils literal notranslate"><span class="pre">S</span></code>.</p>
+</div>
+</section>
+</section>
+<section id="data-generation-with-skillgen">
+<h2>Data Generation with SkillGen<a class="headerlink" href="#data-generation-with-skillgen" title="Permalink to this heading">#</a></h2>
+<p>SkillGen transforms annotated demonstrations into diverse, high-quality datasets using motion planning.</p>
+<section id="how-skillgen-works">
+<h3>How SkillGen Works<a class="headerlink" href="#how-skillgen-works" title="Permalink to this heading">#</a></h3>
+<p>The SkillGen pipeline uses your annotated dataset and the environment’s Mimic API to synthesize new demonstrations:</p>
+<ol class="arabic simple">
+<li><p><strong>Subtask boundary use</strong>: Reads per-subtask start and termination indices from the annotated dataset</p></li>
+<li><p><strong>Goal sampling</strong>: Samples target poses per subtask according to task constraints and datagen config</p></li>
+<li><p><strong>Trajectory planning</strong>: Plans collision-free motions between subtask segments using cuRobo (when <code class="docutils literal notranslate"><span class="pre">--use_skillgen</span></code>)</p></li>
+<li><p><strong>Trajectory stitching</strong>: Stitches skill segments and planned trajectories into complete demonstrations.</p></li>
+<li><p><strong>Success evaluation</strong>: Validates task success terms; only successful trials are written to the output dataset</p></li>
+</ol>
+</section>
+<section id="usage-parameters">
+<h3>Usage Parameters<a class="headerlink" href="#usage-parameters" title="Permalink to this heading">#</a></h3>
+<p>Key parameters for SkillGen data generation:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">--use_skillgen</span></code>: Enables SkillGen planner (required)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--generation_num_trials</span></code>: Number of demonstrations to generate</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--num_envs</span></code>: Parallel environments (tune based on GPU memory)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--device</span></code>: Computation device (cpu/cuda). Use cpu for stable physics</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--headless</span></code>: Disable visualization for faster generation</p></li>
+</ul>
+</section>
+</section>
+<section id="task-1-basic-cube-stacking">
+<h2>Task 1: Basic Cube Stacking<a class="headerlink" href="#task-1-basic-cube-stacking" title="Permalink to this heading">#</a></h2>
+<p>Generate demonstrations for the standard Isaac Lab Mimic cube stacking task. In this task, the Franka robot must:</p>
+<ol class="arabic simple">
+<li><p>Pick up the red cube and place it on the blue cube</p></li>
+<li><p>Pick up the green cube and place it on the red cube</p></li>
+<li><p>Final stack order: blue (bottom), red (middle), green (top).</p></li>
+</ol>
+<figure class="align-center" id="id4">
+<a class="reference internal image-reference" href="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/cube_stack_data_gen_skillgen.gif"><img alt="Cube stacking task generated with SkillGen" src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/cube_stack_data_gen_skillgen.gif" style="width: 75%;" /></a>
+<figcaption>
+<p><span class="caption-text">Cube stacking dataset example.</span><a class="headerlink" href="#id4" title="Permalink to this image">#</a></p>
+</figcaption>
+</figure>
+<section id="small-scale-generation">
+<h3>Small-Scale Generation<a class="headerlink" href="#small-scale-generation" title="Permalink to this heading">#</a></h3>
+<p>Start with a small dataset to verify everything works:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/imitation_learning/isaaclab_mimic/generate_dataset.py<span class="w"> </span><span class="se">\</span>
+--device<span class="w"> </span>cpu<span class="w"> </span><span class="se">\</span>
+--num_envs<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="se">\</span>
+--generation_num_trials<span class="w"> </span><span class="m">10</span><span class="w"> </span><span class="se">\</span>
+--input_file<span class="w"> </span>./datasets/annotated_dataset_skillgen.hdf5<span class="w"> </span><span class="se">\</span>
+--output_file<span class="w"> </span>./datasets/generated_dataset_small_skillgen_cube_stack.hdf5<span class="w"> </span><span class="se">\</span>
+--task<span class="w"> </span>Isaac-Stack-Cube-Franka-IK-Rel-Skillgen-v0<span class="w"> </span><span class="se">\</span>
+--use_skillgen
+</pre></div>
+</div>
+</section>
+<section id="full-scale-generation">
+<h3>Full-Scale Generation<a class="headerlink" href="#full-scale-generation" title="Permalink to this heading">#</a></h3>
+<p>Once satisfied with small-scale results, generate a full training dataset:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/imitation_learning/isaaclab_mimic/generate_dataset.py<span class="w"> </span><span class="se">\</span>
+--device<span class="w"> </span>cpu<span class="w"> </span><span class="se">\</span>
+--headless<span class="w"> </span><span class="se">\</span>
+--num_envs<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="se">\</span>
+--generation_num_trials<span class="w"> </span><span class="m">1000</span><span class="w"> </span><span class="se">\</span>
+--input_file<span class="w"> </span>./datasets/annotated_dataset_skillgen.hdf5<span class="w"> </span><span class="se">\</span>
+--output_file<span class="w"> </span>./datasets/generated_dataset_skillgen_cube_stack.hdf5<span class="w"> </span><span class="se">\</span>
+--task<span class="w"> </span>Isaac-Stack-Cube-Franka-IK-Rel-Skillgen-v0<span class="w"> </span><span class="se">\</span>
+--use_skillgen<span class="w"> </span><span class="se">\</span>
+--headless
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<ul class="simple">
+<li><p>Use <code class="docutils literal notranslate"><span class="pre">--headless</span></code> to disable visualization for faster generation. Rerun visualization can be enabled by setting <code class="docutils literal notranslate"><span class="pre">visualize_plan</span> <span class="pre">=</span> <span class="pre">True</span></code> in the cuRobo planner configuration with <code class="docutils literal notranslate"><span class="pre">--headless</span></code> enabled as well for debugging.</p></li>
+<li><p>Adjust <code class="docutils literal notranslate"><span class="pre">--num_envs</span></code> based on your GPU memory (start with 1, increase gradually). The performance gain is not very significant when num_envs is greater than 1. A value of 5 seems to be a sweet spot for most GPUs to balance performance and memory usage between cuRobo instances and simulation environments.</p></li>
+<li><p>Generation time: ~90 to 120 minutes for one environment for 1000 demonstrations on modern GPUs. Time depends on the GPU, the number of environments, and the success rate of the demonstrations (which depends on quality of the annotated dataset).</p></li>
+<li><p>cuRobo planner interface and configurations are described in <a class="reference internal" href="#curobo-interface-features"><span class="std std-ref">cuRobo Interface Features</span></a>.</p></li>
+</ul>
+</div>
+</section>
+</section>
+<section id="task-2-adaptive-cube-stacking-in-a-bin">
+<h2>Task 2: Adaptive Cube Stacking in a Bin<a class="headerlink" href="#task-2-adaptive-cube-stacking-in-a-bin" title="Permalink to this heading">#</a></h2>
+<p>SkillGen can also be used to generate datasets for adaptive tasks. In this example, we generate a dataset for adaptive cube stacking in a narrow bin. The bin is placed at a fixed position and orientation in the workspace and a blue cube is placed at the center of the bin. The robot must generate successful demonstrations for stacking the red and green cubes on the blue cube without colliding with the bin.</p>
+<figure class="align-center" id="id5">
+<a class="reference internal image-reference" href="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/bin_cube_stack_data_gen_skillgen.gif"><img alt="Adaptive bin cube stacking task generated with SkillGen" src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/bin_cube_stack_data_gen_skillgen.gif" style="width: 75%;" /></a>
+<figcaption>
+<p><span class="caption-text">Adaptive bin stacking data generation example.</span><a class="headerlink" href="#id5" title="Permalink to this image">#</a></p>
+</figcaption>
+</figure>
+<section id="id1">
+<h3>Small-Scale Generation<a class="headerlink" href="#id1" title="Permalink to this heading">#</a></h3>
+<p>Test the adaptive stacking setup:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/imitation_learning/isaaclab_mimic/generate_dataset.py<span class="w"> </span><span class="se">\</span>
+--device<span class="w"> </span>cpu<span class="w"> </span><span class="se">\</span>
+--num_envs<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="se">\</span>
+--generation_num_trials<span class="w"> </span><span class="m">10</span><span class="w"> </span><span class="se">\</span>
+--input_file<span class="w"> </span>./datasets/annotated_dataset_skillgen.hdf5<span class="w"> </span><span class="se">\</span>
+--output_file<span class="w"> </span>./datasets/generated_dataset_small_skillgen_bin_cube_stack.hdf5<span class="w"> </span><span class="se">\</span>
+--task<span class="w"> </span>Isaac-Stack-Cube-Bin-Franka-IK-Rel-Mimic-v0<span class="w"> </span><span class="se">\</span>
+--use_skillgen
+</pre></div>
+</div>
+</section>
+<section id="id2">
+<h3>Full-Scale Generation<a class="headerlink" href="#id2" title="Permalink to this heading">#</a></h3>
+<p>Generate the complete adaptive stacking dataset:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/imitation_learning/isaaclab_mimic/generate_dataset.py<span class="w"> </span><span class="se">\</span>
+--device<span class="w"> </span>cpu<span class="w"> </span><span class="se">\</span>
+--headless<span class="w"> </span><span class="se">\</span>
+--num_envs<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="se">\</span>
+--generation_num_trials<span class="w"> </span><span class="m">1000</span><span class="w"> </span><span class="se">\</span>
+--input_file<span class="w"> </span>./datasets/annotated_dataset_skillgen.hdf5<span class="w"> </span><span class="se">\</span>
+--output_file<span class="w"> </span>./datasets/generated_dataset_skillgen_bin_cube_stack.hdf5<span class="w"> </span><span class="se">\</span>
+--task<span class="w"> </span>Isaac-Stack-Cube-Bin-Franka-IK-Rel-Mimic-v0<span class="w"> </span><span class="se">\</span>
+--use_skillgen
+</pre></div>
+</div>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>Adaptive tasks typically have lower success rates and higher data generation time due to increased complexity. The time taken to generate the dataset is also longer due to lower success rates than vanilla cube stacking and difficult planning problems.</p>
+</div>
+</section>
+</section>
+<section id="learning-policies-from-skillgen-data">
+<h2>Learning Policies from SkillGen Data<a class="headerlink" href="#learning-policies-from-skillgen-data" title="Permalink to this heading">#</a></h2>
+<p>Similar to the Isaac Lab Mimic workflow, you can train imitation learning policies using the generated SkillGen datasets with Robomimic.</p>
+<section id="basic-cube-stacking-policy">
+<h3>Basic Cube Stacking Policy<a class="headerlink" href="#basic-cube-stacking-policy" title="Permalink to this heading">#</a></h3>
+<p>Train a state-based policy for the basic cube stacking task:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/imitation_learning/robomimic/train.py<span class="w"> </span><span class="se">\</span>
+--task<span class="w"> </span>Isaac-Stack-Cube-Franka-IK-Rel-Skillgen-v0<span class="w"> </span><span class="se">\</span>
+--algo<span class="w"> </span>bc<span class="w"> </span><span class="se">\</span>
+--dataset<span class="w"> </span>./datasets/generated_dataset_skillgen_cube_stack.hdf5
+</pre></div>
+</div>
+</section>
+<section id="adaptive-bin-stacking-policy">
+<h3>Adaptive Bin Stacking Policy<a class="headerlink" href="#adaptive-bin-stacking-policy" title="Permalink to this heading">#</a></h3>
+<p>Train a policy for the more complex adaptive bin stacking:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/imitation_learning/robomimic/train.py<span class="w"> </span><span class="se">\</span>
+--task<span class="w"> </span>Isaac-Stack-Cube-Bin-Franka-IK-Rel-Mimic-v0<span class="w"> </span><span class="se">\</span>
+--algo<span class="w"> </span>bc<span class="w"> </span><span class="se">\</span>
+--dataset<span class="w"> </span>./datasets/generated_dataset_skillgen_bin_cube_stack.hdf5
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The training script will save the model checkpoints in the model directory under <code class="docutils literal notranslate"><span class="pre">IssacLab/logs/robomimic</span></code>.</p>
+</div>
+</section>
+<section id="evaluating-trained-policies">
+<h3>Evaluating Trained Policies<a class="headerlink" href="#evaluating-trained-policies" title="Permalink to this heading">#</a></h3>
+<p>Test your trained policies:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Basic cube stacking evaluation</span>
+./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/imitation_learning/robomimic/play.py<span class="w"> </span><span class="se">\</span>
+--device<span class="w"> </span>cpu<span class="w"> </span><span class="se">\</span>
+--task<span class="w"> </span>Isaac-Stack-Cube-Franka-IK-Rel-Skillgen-v0<span class="w"> </span><span class="se">\</span>
+--num_rollouts<span class="w"> </span><span class="m">50</span><span class="w"> </span><span class="se">\</span>
+--checkpoint<span class="w"> </span>/path/to/model_checkpoint.pth
+</pre></div>
+</div>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Adaptive bin stacking evaluation</span>
+./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/imitation_learning/robomimic/play.py<span class="w"> </span><span class="se">\</span>
+--device<span class="w"> </span>cpu<span class="w"> </span><span class="se">\</span>
+--task<span class="w"> </span>Isaac-Stack-Cube-Bin-Franka-IK-Rel-Mimic-v0<span class="w"> </span><span class="se">\</span>
+--num_rollouts<span class="w"> </span><span class="m">50</span><span class="w"> </span><span class="se">\</span>
+--checkpoint<span class="w"> </span>/path/to/model_checkpoint.pth
+</pre></div>
+</div>
+</section>
+</section>
+<section id="curobo-interface-features">
+<span id="id3"></span><h2>cuRobo Interface Features<a class="headerlink" href="#curobo-interface-features" title="Permalink to this heading">#</a></h2>
+<p>This section summarizes the cuRobo planner interface and features. The SkillGen pipeline uses the cuRobo planner to generate collision-free motions between subtask segments. However, the user can use cuRobo as a standalone motion planner for your own tasks. The user can also implement their own motion planner by subclassing the base motion planner and implementing the same API.</p>
+<section id="base-motion-planner-extensible">
+<h3>Base Motion Planner (Extensible)<a class="headerlink" href="#base-motion-planner-extensible" title="Permalink to this heading">#</a></h3>
+<ul class="simple">
+<li><p>Location: <code class="docutils literal notranslate"><span class="pre">isaaclab_mimic/motion_planners/base_motion_planner.py</span></code></p></li>
+<li><p>Purpose: Uniform interface for all motion planners used by SkillGen</p></li>
+<li><p>Extensibility: New planners can be added by subclassing and implementing the same API; SkillGen consumes the API without code changes</p></li>
+</ul>
+</section>
+<section id="curobo-planner-gpu-collision-aware">
+<h3>cuRobo Planner (GPU, collision-aware)<a class="headerlink" href="#curobo-planner-gpu-collision-aware" title="Permalink to this heading">#</a></h3>
+<ul class="simple">
+<li><p>Location: <code class="docutils literal notranslate"><span class="pre">isaaclab_mimic/motion_planners/curobo</span></code></p></li>
+<li><p>Multi-phase planning:</p>
+<ul>
+<li><p>Approach → Contact → Retreat phases per subtask</p></li>
+<li><p>Configurable collision filtering in contact phases</p></li>
+<li><p>For SkillGen, approach and retreat phases are collision-free. The transit phase is collision-checked.</p></li>
+</ul>
+</li>
+<li><p>World synchronization:</p>
+<ul>
+<li><p>Updates robot state, attached objects, and collision spheres from the Isaac Lab scene each trial</p></li>
+<li><p>Dynamic attach/detach of objects during grasp/place</p></li>
+</ul>
+</li>
+<li><p>Collision representation:</p>
+<ul>
+<li><p>Contact-aware sphere sets with per-phase enables/filters</p></li>
+</ul>
+</li>
+<li><p>Outputs:</p>
+<ul>
+<li><p>Time-parameterized, collision-checked trajectories for stitching</p></li>
+</ul>
+</li>
+<li><p>Tests:</p>
+<ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">source/isaaclab_mimic/test/test_curobo_planner_cube_stack.py</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">source/isaaclab_mimic/test/test_curobo_planner_franka.py</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">source/isaaclab_mimic/test/test_generate_dataset_skillgen.py</span></code></p></li>
+</ul>
+</li>
+</ul>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 50.0%" />
+<col style="width: 50.0%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><figure class="align-center" id="id6">
+<a class="reference internal image-reference" href="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/cube_stack_end_to_end_curobo.gif"><img alt="cuRobo planner test on cube stack using Franka Panda robot" src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/cube_stack_end_to_end_curobo.gif" style="height: 260px;" /></a>
+<figcaption>
+<p><span class="caption-text">Cube stack planner test.</span><a class="headerlink" href="#id6" title="Permalink to this image">#</a></p>
+</figcaption>
+</figure>
+</td>
+<td><figure class="align-center" id="id7">
+<a class="reference internal image-reference" href="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/obstacle_avoidance_curobo.gif"><img alt="cuRobo planner test on obstacle avoidance using Franka Panda robot" src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/obstacle_avoidance_curobo.gif" style="height: 260px;" /></a>
+<figcaption>
+<p><span class="caption-text">Franka planner test.</span><a class="headerlink" href="#id7" title="Permalink to this image">#</a></p>
+</figcaption>
+</figure>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>These tests can also serve as a reference for how to use cuRobo as a standalone motion planner.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>For detailed cuRobo config creation and parameters, please see the file <code class="docutils literal notranslate"><span class="pre">isaaclab_mimic/motion_planners/curobo/curobo_planner_config.py</span></code>.</p>
+</div>
+</section>
+<section id="generation-pipeline-integration">
+<h3>Generation Pipeline Integration<a class="headerlink" href="#generation-pipeline-integration" title="Permalink to this heading">#</a></h3>
+<p>When <code class="docutils literal notranslate"><span class="pre">--use_skillgen</span></code> is enabled in <code class="docutils literal notranslate"><span class="pre">generate_dataset.py</span></code>, the following pipeline is executed:</p>
+<ol class="arabic simple">
+<li><p><strong>Randomize subtask boundaries</strong>: Randomize per-demo start and termination indices for each subtask using task-configured offset ranges.</p></li>
+<li><p><strong>Build per-subtask trajectories</strong>:
+For each end-effector and subtask:</p>
+<ul class="simple">
+<li><p>Select a source demonstration segment (strategy-driven; respects coordination/sequential constraints)</p></li>
+<li><p>Transform the segment to the current scene (object-relative or coordination delta; optional first-pose interpolation)</p></li>
+<li><p>Wrap the transformed segment into a waypoint trajectory</p></li>
+</ul>
+</li>
+<li><p><strong>Transition between subtasks</strong>:
+- Plan a collision-aware transition with cuRobo to the subtask’s first waypoint (world sync, optional attach/detach), execute the planned waypoints, then resume the subtask trajectory</p></li>
+<li><p><strong>Execute with constraints</strong>:
+- Execute waypoints step-by-step across end-effectors while enforcing subtask constraints (sequential, coordination with synchronous steps); optionally update planner visualization if enabled</p></li>
+<li><p><strong>Record and export</strong>:
+- Accumulate states/observations/actions, set the episode success flag, and export the episode (the outer pipeline filters/consumes successes)</p></li>
+</ol>
+</section>
+<section id="visualization-and-debugging">
+<h3>Visualization and Debugging<a class="headerlink" href="#visualization-and-debugging" title="Permalink to this heading">#</a></h3>
+<p>Users can visualize the planned trajectories and debug for collisions using Rerun-based plan visualizer. This can be enabled by setting <code class="docutils literal notranslate"><span class="pre">visualize_plan</span> <span class="pre">=</span> <span class="pre">True</span></code> in the cuRobo planner configuration. Note that rerun needs to be installed to visualize the planned trajectories. Refer to Step 3 in <a class="reference internal" href="#skillgen-installation"><span class="std std-ref">Installation</span></a> for installation instructions.</p>
+<figure class="align-center" id="id8">
+<a class="reference internal image-reference" href="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/rerun_cube_stack.gif"><img alt="Rerun visualization of planned trajectories and collisions" src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/rerun_cube_stack.gif" style="width: 80%;" /></a>
+<figcaption>
+<p><span class="caption-text">Rerun integration: planned trajectories with collision spheres.</span><a class="headerlink" href="#id8" title="Permalink to this image">#</a></p>
+</figcaption>
+</figure>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Check cuRobo usage license in <code class="docutils literal notranslate"><span class="pre">docs/licenses/dependencies/cuRobo-license.txt</span></code></p>
+</div>
+</section>
+</section>
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="teleop_imitation.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Teleoperation and Imitation Learning with Isaac Lab Mimic</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="../showroom.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Showroom Demos</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+  <div class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav class="bd-toc-nav page-toc">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#what-is-skillgen">What is SkillGen?</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prerequisites">Prerequisites</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#installation">Installation</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#step-1-install-and-verify-isaac-sim-and-isaac-lab">Step 1: Install and verify Isaac Sim and Isaac Lab</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#step-2-install-curobo">Step 2: Install cuRobo</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#step-3-install-rerun">Step 3: Install Rerun</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#step-4-verify-installation">Step 4: Verify Installation</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#download-the-skillgen-dataset">Download the SkillGen Dataset</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataset-contents">Dataset Contents</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#download-and-setup">Download and Setup</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#understanding-dataset-annotation">Understanding Dataset Annotation</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#subtasks-in-skillgen">Subtasks in SkillGen</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#manual-annotation-workflow">Manual Annotation Workflow</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#data-generation-with-skillgen">Data Generation with SkillGen</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#how-skillgen-works">How SkillGen Works</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#usage-parameters">Usage Parameters</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#task-1-basic-cube-stacking">Task 1: Basic Cube Stacking</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#small-scale-generation">Small-Scale Generation</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#full-scale-generation">Full-Scale Generation</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#task-2-adaptive-cube-stacking-in-a-bin">Task 2: Adaptive Cube Stacking in a Bin</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id1">Small-Scale Generation</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id2">Full-Scale Generation</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#learning-policies-from-skillgen-data">Learning Policies from SkillGen Data</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#basic-cube-stacking-policy">Basic Cube Stacking Policy</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#adaptive-bin-stacking-policy">Adaptive Bin Stacking Policy</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#evaluating-trained-policies">Evaluating Trained Policies</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#curobo-interface-features">cuRobo Interface Features</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#base-motion-planner-extensible">Base Motion Planner (Extensible)</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#curobo-planner-gpu-collision-aware">cuRobo Planner (GPU, collision-aware)</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#generation-pipeline-integration">Generation Pipeline Integration</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#visualization-and-debugging">Visualization and Debugging</a></li>
+</ul>
+</li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By The Isaac Lab Project Developers.
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2022-2025, The Isaac Lab Project Developers..
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    <p class="last-updated">
+  Last updated on Sep 09, 2025.
+  <br/>
+</p>
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>
