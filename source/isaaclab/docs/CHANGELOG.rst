@@ -4,9 +4,6 @@ Changelog
 0.46.1 (2025-09-06)
 ~~~~~~~~~~~~~~~~~~~
 
-Added
-^^^^^
-
 * Added :meth:`~isaaclab.sim.utils.resolve_prim_pose` to resolve the pose of a prim with respect to another prim.
 * Added :meth:`~isaaclab.sim.utils.resolve_prim_scale` to resolve the scale of a prim in the world frame.
 
@@ -19,6 +16,34 @@ Changed
 * Added parsing of instanced prims in :meth:`~isaaclab.sim.utils.get_all_matching_child_prims` and :meth:`~isaaclab.sim.utils.get_first_matching_child_prim`.
   Earlier, instanced prims were skipped since :meth:`Usd.Prim.GetChildren` does not return instanced prims.
 * Added parsing of instanced prims in :meth:`~isaaclab.sim.utils.make_uninstanceable` to make all prims uninstanceable.
+
+
+0.45.15 (2025-09-05)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added action terms for using RMPFlow in Manager-Based environments.
+
+
+0.45.14 (2025-09-08)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab.ui.xr_widgets.TeleopVisualizationManager` and :class:`~isaaclab.ui.xr_widgets.XRVisualization`
+  classes to provide real-time visualization of teleoperation and inverse kinematics status in XR environments.
+
+
+0.45.13 (2025-09-08)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab.devices.openxr.manus_vive.ManusVive` to support teleoperation with Manus gloves and Vive trackers.
 
 
 0.45.12 (2025-09-05)
