@@ -144,6 +144,7 @@ class Se3SpaceMouse(DeviceBase):
                 if (
                     device["product_string"] == "SpaceMouse Compact"
                     or device["product_string"] == "SpaceMouse Wireless"
+                    or device["product_string"] == "3Dconnexion Universal Receiver"
                 ):
                     # set found flag
                     found = True
@@ -152,6 +153,7 @@ class Se3SpaceMouse(DeviceBase):
                     # connect to the device
                     self._device.close()
                     self._device.open(vendor_id, product_id)
+                    self._device_name = device["product_string"]
             # check if device found
             if not found:
                 time.sleep(1.0)
@@ -166,19 +168,32 @@ class Se3SpaceMouse(DeviceBase):
         # keep running
         while True:
             # read the device data
-            data = self._device.read(7)
+            if self._device_name == "3Dconnexion Universal Receiver":
+                data = self._device.read(7 + 6)
+            else:
+                data = self._device.read(7)
             if data is not None:
                 # readings from 6-DoF sensor
-                if data[0] == 1:
-                    self._delta_pos[1] = self.pos_sensitivity * convert_buffer(data[1], data[2])
-                    self._delta_pos[0] = self.pos_sensitivity * convert_buffer(data[3], data[4])
-                    self._delta_pos[2] = self.pos_sensitivity * convert_buffer(data[5], data[6]) * -1.0
-                elif data[0] == 2 and not self._read_rotation:
-                    self._delta_rot[1] = self.rot_sensitivity * convert_buffer(data[1], data[2])
-                    self._delta_rot[0] = self.rot_sensitivity * convert_buffer(data[3], data[4])
-                    self._delta_rot[2] = self.rot_sensitivity * convert_buffer(data[5], data[6]) * -1.0
+                if self._device_name == "3Dconnexion Universal Receiver":
+                    if data[0] == 1:
+                        self._delta_pos[1] = self.pos_sensitivity * convert_buffer(data[1], data[2])
+                        self._delta_pos[0] = self.pos_sensitivity * convert_buffer(data[3], data[4])
+                        self._delta_pos[2] = self.pos_sensitivity * convert_buffer(data[5], data[6]) * -1.0
+
+                        self._delta_rot[1] = self.rot_sensitivity * convert_buffer(data[1 + 6], data[2 + 6])
+                        self._delta_rot[0] = self.rot_sensitivity * convert_buffer(data[3 + 6], data[4 + 6])
+                        self._delta_rot[2] = self.rot_sensitivity * convert_buffer(data[5 + 6], data[6 + 6]) * -1.0
+                else:
+                    if data[0] == 1:
+                        self._delta_pos[1] = self.pos_sensitivity * convert_buffer(data[1], data[2])
+                        self._delta_pos[0] = self.pos_sensitivity * convert_buffer(data[3], data[4])
+                        self._delta_pos[2] = self.pos_sensitivity * convert_buffer(data[5], data[6]) * -1.0
+                    elif data[0] == 2 and not self._read_rotation:
+                        self._delta_rot[1] = self.rot_sensitivity * convert_buffer(data[1], data[2])
+                        self._delta_rot[0] = self.rot_sensitivity * convert_buffer(data[3], data[4])
+                        self._delta_rot[2] = self.rot_sensitivity * convert_buffer(data[5], data[6]) * -1.0
                 # readings from the side buttons
-                elif data[0] == 3:
+                if data[0] == 3:
                     # press left button
                     if data[1] == 1:
                         # close gripper
