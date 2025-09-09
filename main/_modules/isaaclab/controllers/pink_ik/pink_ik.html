@@ -410,7 +410,6 @@
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.sim.spawners.html">isaaclab.sim.spawners</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab_rl/isaaclab_rl.html">isaaclab_rl</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab_mimic/isaaclab_mimic.datagen.html">isaaclab_mimic.datagen</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab_mimic/isaaclab_mimic.envs.html">isaaclab_mimic.envs</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab_tasks/isaaclab_tasks.utils.html">isaaclab_tasks.utils</a></li>
 </ul>
 </details></li>
@@ -754,6 +753,11 @@
                     <span class="s2">&quot;Warning: IK quadratic solver could not find a solution! Did not update the target joint&quot;</span>
                     <span class="sa">f</span><span class="s2">&quot; positions.</span><span class="se">\n</span><span class="s2">Error: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span>
                 <span class="p">)</span>
+
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">xr_enabled</span><span class="p">:</span>
+                <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.ui.xr_widgets</span><span class="w"> </span><span class="kn">import</span> <span class="n">XRVisualization</span>
+
+                <span class="n">XRVisualization</span><span class="o">.</span><span class="n">push_event</span><span class="p">(</span><span class="s2">&quot;ik_error&quot;</span><span class="p">,</span> <span class="p">{</span><span class="s2">&quot;error&quot;</span><span class="p">:</span> <span class="n">e</span><span class="p">})</span>
             <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">curr_joint_pos</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
 
         <span class="c1"># Discard the first 6 values (for root and universal joints)</span>

@@ -410,7 +410,6 @@
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.sim.spawners.html">isaaclab.sim.spawners</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab_rl/isaaclab_rl.html">isaaclab_rl</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab_mimic/isaaclab_mimic.datagen.html">isaaclab_mimic.datagen</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab_mimic/isaaclab_mimic.envs.html">isaaclab_mimic.envs</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab_tasks/isaaclab_tasks.utils.html">isaaclab_tasks.utils</a></li>
 </ul>
 </details></li>
@@ -642,7 +641,10 @@
     <span class="n">fail_on_joint_limit_violation</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;If True, the Pink IK solver will fail and raise an error if any joint limit is violated during optimization. PinkIKController</span>
 <span class="sd">    will handle the error by setting the last joint positions. If False, the solver will ignore joint limit violations and return the</span>
-<span class="sd">    closest solution found.&quot;&quot;&quot;</span></div>
+<span class="sd">    closest solution found.&quot;&quot;&quot;</span>
+
+    <span class="n">xr_enabled</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;If True, the Pink IK controller will send information to the XRVisualization.&quot;&quot;&quot;</span></div>
 </pre></div>
 
                 </article>

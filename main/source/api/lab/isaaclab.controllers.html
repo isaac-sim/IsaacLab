@@ -413,7 +413,6 @@
 <li class="toctree-l2"><a class="reference internal" href="isaaclab.sim.spawners.html">isaaclab.sim.spawners</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../lab_rl/isaaclab_rl.html">isaaclab_rl</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../lab_mimic/isaaclab_mimic.datagen.html">isaaclab_mimic.datagen</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../lab_mimic/isaaclab_mimic.envs.html">isaaclab_mimic.envs</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../lab_tasks/isaaclab_tasks.utils.html">isaaclab_tasks.utils</a></li>
 </ul>
 </details></li>
@@ -709,6 +708,7 @@
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.controllers.pink_ik.PinkIKControllerCfg.base_link_name"><code class="docutils literal notranslate"><span class="pre">PinkIKControllerCfg.base_link_name</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.controllers.pink_ik.PinkIKControllerCfg.show_ik_warnings"><code class="docutils literal notranslate"><span class="pre">PinkIKControllerCfg.show_ik_warnings</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.controllers.pink_ik.PinkIKControllerCfg.fail_on_joint_limit_violation"><code class="docutils literal notranslate"><span class="pre">PinkIKControllerCfg.fail_on_joint_limit_violation</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.controllers.pink_ik.PinkIKControllerCfg.xr_enabled"><code class="docutils literal notranslate"><span class="pre">PinkIKControllerCfg.xr_enabled</span></code></a></li>
 </ul>
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#available-pink-ik-tasks">Available Pink IK Tasks</a><ul class="nav section-nav flex-column">
@@ -1473,6 +1473,9 @@ If the IK solver fails, returns the current joint positions unchanged to maintai
 <tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.controllers.pink_ik.PinkIKControllerCfg.fail_on_joint_limit_violation" title="isaaclab.controllers.pink_ik.PinkIKControllerCfg.fail_on_joint_limit_violation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">fail_on_joint_limit_violation</span></code></a></p></td>
 <td><p>If True, the Pink IK solver will fail and raise an error if any joint limit is violated during optimization.</p></td>
 </tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.controllers.pink_ik.PinkIKControllerCfg.xr_enabled" title="isaaclab.controllers.pink_ik.PinkIKControllerCfg.xr_enabled"><code class="xref py py-obj docutils literal notranslate"><span class="pre">xr_enabled</span></code></a></p></td>
+<td><p>If True, the Pink IK controller will send information to the XRVisualization.</p></td>
+</tr>
 </tbody>
 </table>
 </div>
@@ -1542,6 +1545,12 @@ This value is currently designed to be automatically populated by the action ter
 <dd><p>If True, the Pink IK solver will fail and raise an error if any joint limit is violated during optimization. PinkIKController
 will handle the error by setting the last joint positions. If False, the solver will ignore joint limit violations and return the
 closest solution found.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab.controllers.pink_ik.PinkIKControllerCfg.xr_enabled">
+<span class="sig-name descname"><span class="pre">xr_enabled</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></em><a class="headerlink" href="#isaaclab.controllers.pink_ik.PinkIKControllerCfg.xr_enabled" title="Permalink to this definition">#</a></dt>
+<dd><p>If True, the Pink IK controller will send information to the XRVisualization.</p>
 </dd></dl>
 
 </dd></dl>
@@ -1760,6 +1769,7 @@ empty, all actuated joints are controlled.</p></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.controllers.pink_ik.PinkIKControllerCfg.base_link_name"><code class="docutils literal notranslate"><span class="pre">PinkIKControllerCfg.base_link_name</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.controllers.pink_ik.PinkIKControllerCfg.show_ik_warnings"><code class="docutils literal notranslate"><span class="pre">PinkIKControllerCfg.show_ik_warnings</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.controllers.pink_ik.PinkIKControllerCfg.fail_on_joint_limit_violation"><code class="docutils literal notranslate"><span class="pre">PinkIKControllerCfg.fail_on_joint_limit_violation</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.controllers.pink_ik.PinkIKControllerCfg.xr_enabled"><code class="docutils literal notranslate"><span class="pre">PinkIKControllerCfg.xr_enabled</span></code></a></li>
 </ul>
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#available-pink-ik-tasks">Available Pink IK Tasks</a><ul class="nav section-nav flex-column">

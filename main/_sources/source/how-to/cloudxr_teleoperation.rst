@@ -382,6 +382,18 @@ Back on your Apple Vision Pro:
       motion of the dots and the robot may be caused by the limits of the robot joints and/or robot
       controller.
 
+   .. note::
+      When the inverse kinematics solver fails to find a valid solution, an error message will appear
+      in the XR device display. To recover from this state, click the **Reset** button to return
+      the robot to its original pose and continue teleoperation.
+
+      .. figure:: ../_static/setup/cloudxr_avp_ik_error.jpg
+         :align: center
+         :figwidth: 80%
+         :alt: IK Error Message Display in XR Device
+
+
+
 #. When you are finished with the example, click **Disconnect** to disconnect from Isaac Lab.
 
 .. admonition:: Learn More about Teleoperation and Imitation Learning in Isaac Lab

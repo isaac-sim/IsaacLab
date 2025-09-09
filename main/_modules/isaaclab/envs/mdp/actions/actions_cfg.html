@@ -410,7 +410,6 @@
 <li class="toctree-l2"><a class="reference internal" href="../../../../../source/api/lab/isaaclab.sim.spawners.html">isaaclab.sim.spawners</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../../source/api/lab_rl/isaaclab_rl.html">isaaclab_rl</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../../source/api/lab_mimic/isaaclab_mimic.datagen.html">isaaclab_mimic.datagen</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../../../../source/api/lab_mimic/isaaclab_mimic.envs.html">isaaclab_mimic.envs</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../../source/api/lab_tasks/isaaclab_tasks.utils.html">isaaclab_tasks.utils</a></li>
 </ul>
 </details></li>
@@ -767,6 +766,41 @@
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">ActionTerm</span><span class="p">]</span> <span class="o">=</span> <span class="n">binary_joint_actions</span><span class="o">.</span><span class="n">BinaryJointVelocityAction</span></div>
+
+
+<div class="viewcode-block" id="AbsBinaryJointPositionActionCfg"><a class="viewcode-back" href="../../../../../source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.actions.actions_cfg.AbsBinaryJointPositionActionCfg">[docs]</a><span class="nd">@configclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">AbsBinaryJointPositionActionCfg</span><span class="p">(</span><span class="n">ActionTermCfg</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for the absolute binary joint position action term.</span>
+
+<span class="sd">    This action term is used for robust grasping by converting continuous gripper joint position actions</span>
+<span class="sd">    into binary open/close commands. Unlike directly applying continuous gripper joint position actions, this class</span>
+<span class="sd">    applies a threshold-based decision mechanism to determine whether to</span>
+<span class="sd">    open or close the gripper.</span>
+
+<span class="sd">    The action works by:</span>
+<span class="sd">    1. Taking a continuous input action value</span>
+<span class="sd">    2. Comparing it against a configurable threshold</span>
+<span class="sd">    3. Mapping the result to either open or close commands based on the threshold comparison</span>
+<span class="sd">    4. Applying the corresponding gripper open/close commands</span>
+
+<span class="sd">    This approach provides more predictable and stable grasping behavior compared to directly applying</span>
+<span class="sd">    continuous gripper joint position actions.</span>
+
+<span class="sd">    See :class:`AbsBinaryJointPositionAction` for more details.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">joint_names</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;List of joint names or regex expressions that the action will be mapped to.&quot;&quot;&quot;</span>
+    <span class="n">open_command_expr</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The joint command to move to *open* configuration.&quot;&quot;&quot;</span>
+    <span class="n">close_command_expr</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The joint command to move to *close* configuration.&quot;&quot;&quot;</span>
+    <span class="n">threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.5</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The threshold for the binary action. Defaults to 0.5.&quot;&quot;&quot;</span>
+    <span class="n">positive_threshold</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to use positive (Open actions &gt; Close actions) threshold. Defaults to True.&quot;&quot;&quot;</span>
+
+    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">ActionTerm</span><span class="p">]</span> <span class="o">=</span> <span class="n">binary_joint_actions</span><span class="o">.</span><span class="n">AbsBinaryJointPositionAction</span></div>
 
 
 <span class="c1">##</span>
