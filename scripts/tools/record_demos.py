@@ -98,6 +98,7 @@ from isaaclab_mimic.ui.instruction_display import InstructionDisplay, show_subta
 
 if args_cli.enable_pinocchio:
     import isaaclab_tasks.manager_based.manipulation.pick_place  # noqa: F401
+    import isaaclab_tasks.manager_based.locomanipulation.pick_place  # noqa: F401
 
 from collections.abc import Callable
 
