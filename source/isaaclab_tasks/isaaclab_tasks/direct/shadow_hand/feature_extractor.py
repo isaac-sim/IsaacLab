@@ -73,7 +73,7 @@ class FeatureExtractor:
     If the train flag is set to True, the CNN is trained during the rollout process.
     """
 
-    def __init__(self, cfg: FeatureExtractorCfg, device: str, log_dir: str = None):
+    def __init__(self, cfg: FeatureExtractorCfg, device: str, log_dir: str | None = None):
         """Initialize the feature extractor model.
 
         Args:
