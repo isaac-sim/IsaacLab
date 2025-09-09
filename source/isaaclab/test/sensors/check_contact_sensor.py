@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -20,7 +20,7 @@ from isaaclab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Contact Sensor Test Script")
-parser.add_argument("--num_robots", type=int, default=64, help="Number of robots to spawn.")
+parser.add_argument("--num_robots", type=int, default=128, help="Number of robots to spawn.")
 
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
@@ -45,6 +45,7 @@ from isaacsim.core.utils.viewports import set_camera_view
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation
 from isaaclab.sensors.contact_sensor import ContactSensor, ContactSensorCfg
+from isaaclab.utils.timer import Timer
 
 ##
 # Pre-defined configs
@@ -63,9 +64,8 @@ def design_scene():
     cfg = sim_utils.GroundPlaneCfg()
     cfg.func("/World/defaultGroundPlane", cfg)
     # Lights
-    cfg = sim_utils.SphereLightCfg()
-    cfg.func("/World/Light/GreySphere", cfg, translation=(4.5, 3.5, 10.0))
-    cfg.func("/World/Light/WhiteSphere", cfg, translation=(-4.5, 3.5, 10.0))
+    cfg = sim_utils.DomeLightCfg(intensity=2000)
+    cfg.func("/World/Light/DomeLight", cfg, translation=(-4.5, 3.5, 10.0))
 
 
 """
@@ -103,7 +103,11 @@ def main():
     robot = Articulation(cfg=robot_cfg)
     # Contact sensor
     contact_sensor_cfg = ContactSensorCfg(
-        prim_path="/World/envs/env_.*/Robot/.*_SHANK", track_air_time=True, debug_vis=not args_cli.headless
+        prim_path="/World/envs/env_.*/Robot/.*_FOOT",
+        track_air_time=True,
+        track_contact_points=True,
+        debug_vis=False,  # not args_cli.headless,
+        filter_prim_paths_expr=["/World/defaultGroundPlane/GroundPlane/CollisionPlane"],
     )
     contact_sensor = ContactSensor(cfg=contact_sensor_cfg)
     # filter collisions within each environment instance
@@ -126,6 +130,7 @@ def main():
     sim_dt = decimation * physics_dt
     sim_time = 0.0
     count = 0
+    dt = []
     # Simulate physics
     while simulation_app.is_running():
         # If simulation is stopped, then exit.
@@ -136,14 +141,20 @@ def main():
             sim.step(render=False)
             continue
         # reset
-        if count % 1000 == 0:
+        if count % 1000 == 0 and count != 0:
             # reset counters
             sim_time = 0.0
             count = 0
+            print("=" * 80)
+            print("avg dt real-time", sum(dt) / len(dt))
+            print("=" * 80)
+
             # reset dof state
             joint_pos, joint_vel = robot.data.default_joint_pos, robot.data.default_joint_vel
             robot.write_joint_state_to_sim(joint_pos, joint_vel)
             robot.reset()
+            dt = []
+
         # perform 4 steps
         for _ in range(decimation):
             # apply actions
@@ -159,6 +170,10 @@ def main():
         count += 1
         # update the buffers
         if sim.is_playing():
+            with Timer() as timer:
+                contact_sensor.update(sim_dt, force_recompute=True)
+                dt.append(timer.time_elapsed)
+
             contact_sensor.update(sim_dt, force_recompute=True)
             if count % 100 == 0:
                 print("Sim-time: ", sim_time)

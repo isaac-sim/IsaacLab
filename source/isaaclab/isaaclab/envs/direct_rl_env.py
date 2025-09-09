@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -20,12 +20,14 @@ from typing import Any, ClassVar
 import isaacsim.core.utils.torch as torch_utils
 import omni.kit.app
 import omni.log
+import omni.physx
 from isaacsim.core.simulation_manager import SimulationManager
 from isaacsim.core.version import get_version
 
 from isaaclab.managers import EventManager
 from isaaclab.scene import InteractiveScene
 from isaaclab.sim import SimulationContext
+from isaaclab.sim.utils import attach_stage_to_usd_context, use_stage
 from isaaclab.utils.noise import NoiseModel
 from isaaclab.utils.timer import Timer
 
@@ -123,8 +125,11 @@ class DirectRLEnv(gym.Env):
 
         # generate scene
         with Timer("[INFO]: Time taken for scene creation", "scene_creation"):
-            self.scene = InteractiveScene(self.cfg.scene)
-            self._setup_scene()
+            # set the stage context for scene creation steps which use the stage
+            with use_stage(self.sim.get_initial_stage()):
+                self.scene = InteractiveScene(self.cfg.scene)
+                self._setup_scene()
+                attach_stage_to_usd_context()
         print("[INFO]: Scene manager: ", self.scene)
 
         # set up camera viewport controller
@@ -141,7 +146,6 @@ class DirectRLEnv(gym.Env):
         #   that must happen before the simulation starts. Example: randomizing mesh scale
         if self.cfg.events:
             self.event_manager = EventManager(self.cfg.events, self)
-            print("[INFO] Event Manager: ", self.event_manager)
 
             # apply USD-related randomization events
             if "prestartup" in self.event_manager.available_modes:
@@ -153,7 +157,10 @@ class DirectRLEnv(gym.Env):
         if builtins.ISAAC_LAUNCHED_FROM_TERMINAL is False:
             print("[INFO]: Starting the simulation. This may take a few seconds. Please wait...")
             with Timer("[INFO]: Time taken for simulation start", "simulation_start"):
-                self.sim.reset()
+                # since the reset can trigger callbacks which use the stage,
+                # we need to set the stage context here
+                with use_stage(self.sim.get_initial_stage()):
+                    self.sim.reset()
                 # update scene to pre populate data buffers for assets and sensors.
                 # this is needed for the observation manager to get valid tensors for initialization.
                 # this shouldn't cause an issue since later on, users do a reset over all the environments so the lazy buffers would be reset.
@@ -202,6 +209,9 @@ class DirectRLEnv(gym.Env):
 
         # perform events at the start of the simulation
         if self.cfg.events:
+            # we print it here to make the logging consistent
+            print("[INFO] Event Manager: ", self.event_manager)
+
             if "startup" in self.event_manager.available_modes:
                 self.event_manager.apply(mode="startup")
 
@@ -327,7 +337,7 @@ class DirectRLEnv(gym.Env):
         action = action.to(self.device)
         # add action noise
         if self.cfg.action_noise_model:
-            action = self._action_noise_model.apply(action)
+            action = self._action_noise_model(action)
 
         # process actions
         self._pre_physics_step(action)
@@ -384,7 +394,7 @@ class DirectRLEnv(gym.Env):
         # add observation noise
         # note: we apply no noise to the state space (since it is used for critic networks)
         if self.cfg.observation_noise_model:
-            self.obs_buf["policy"] = self._observation_noise_model.apply(self.obs_buf["policy"])
+            self.obs_buf["policy"] = self._observation_noise_model(self.obs_buf["policy"])
 
         # return observations, rewards, resets and extras
         return self.obs_buf, self.reward_buf, self.reset_terminated, self.reset_time_outs, self.extras
@@ -415,7 +425,7 @@ class DirectRLEnv(gym.Env):
         By convention, if mode is:
 
         - **human**: Render to the current display and return nothing. Usually for human consumption.
-        - **rgb_array**: Return an numpy.ndarray with shape (x, y, 3), representing RGB values for an
+        - **rgb_array**: Return a numpy.ndarray with shape (x, y, 3), representing RGB values for an
           x-by-y pixel image, suitable for turning into a video.
 
         Args:
@@ -483,9 +493,18 @@ class DirectRLEnv(gym.Env):
             del self.scene
             if self.viewport_camera_controller is not None:
                 del self.viewport_camera_controller
+
             # clear callbacks and instance
+            if float(".".join(get_version()[2])) >= 5:
+                if self.cfg.sim.create_stage_in_memory:
+                    # detach physx stage
+                    omni.physx.get_physx_simulation_interface().detach_stage()
+                    self.sim.stop()
+                    self.sim.clear()
+
             self.sim.clear_all_callbacks()
             self.sim.clear_instance()
+
             # destroy the window
             if self._window is not None:
                 self._window = None

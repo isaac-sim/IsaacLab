@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -22,6 +22,7 @@ def spawn_light(
     cfg: lights_cfg.LightCfg,
     translation: tuple[float, float, float] | None = None,
     orientation: tuple[float, float, float, float] | None = None,
+    **kwargs,
 ) -> Usd.Prim:
     """Create a light prim at the specified prim path with the specified configuration.
 
@@ -39,6 +40,7 @@ def spawn_light(
         translation: The translation of the prim. Defaults to None, in which case this is set to the origin.
         orientation: The orientation of the prim as (w, x, y, z). Defaults to None, in which case this
             is set to identity.
+        **kwargs: Additional keyword arguments, like ``clone_in_fabric``.
 
     Raises:
         ValueError:  When a prim already exists at the specified prim path.

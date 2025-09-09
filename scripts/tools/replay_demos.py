@@ -1,11 +1,11 @@
-# Copyright (c) 2024-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
-
 """Script to replay demonstrations with Isaac Lab environments."""
 
 """Launch Isaac Sim Simulator first."""
+
 
 import argparse
 
@@ -32,12 +32,23 @@ parser.add_argument(
         " --num_envs is 1."
     ),
 )
+parser.add_argument(
+    "--enable_pinocchio",
+    action="store_true",
+    default=False,
+    help="Enable Pinocchio.",
+)
 
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
 args_cli = parser.parse_args()
 # args_cli.headless = True
+
+if args_cli.enable_pinocchio:
+    # Import pinocchio before AppLauncher to force the use of the version installed by IsaacLab and not the one installed by Isaac Sim
+    # pinocchio is required by the Pink IK controllers and the GR1T2 retargeter
+    import pinocchio  # noqa: F401
 
 # launch the simulator
 app_launcher = AppLauncher(args_cli)
@@ -50,8 +61,11 @@ import gymnasium as gym
 import os
 import torch
 
-from isaaclab.devices import Se3Keyboard
+from isaaclab.devices import Se3Keyboard, Se3KeyboardCfg
 from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
+
+if args_cli.enable_pinocchio:
+    import isaaclab_tasks.manager_based.manipulation.pick_place  # noqa: F401
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
@@ -120,7 +134,7 @@ def main():
         episode_indices_to_replay = list(range(episode_count))
 
     if args_cli.task is not None:
-        env_name = args_cli.task
+        env_name = args_cli.task.split(":")[-1]
     if env_name is None:
         raise ValueError("Task/env name was not specified nor found in the dataset.")
 
@@ -133,9 +147,9 @@ def main():
     env_cfg.terminations = {}
 
     # create environment from loaded config
-    env = gym.make(env_name, cfg=env_cfg).unwrapped
+    env = gym.make(args_cli.task, cfg=env_cfg).unwrapped
 
-    teleop_interface = Se3Keyboard(pos_sensitivity=0.1, rot_sensitivity=0.1)
+    teleop_interface = Se3Keyboard(Se3KeyboardCfg(pos_sensitivity=0.1, rot_sensitivity=0.1))
     teleop_interface.add_callback("N", play_cb)
     teleop_interface.add_callback("B", pause_cb)
     print('Press "B" to pause and "N" to resume the replayed actions.')
@@ -146,6 +160,12 @@ def main():
         state_validation_enabled = True
     elif args_cli.validate_states and num_envs > 1:
         print("Warning: State validation is only supported with a single environment. Skipping state validation.")
+
+    # Get idle action (idle actions are applied to envs without next action)
+    if hasattr(env_cfg, "idle_action"):
+        idle_action = env_cfg.idle_action.repeat(num_envs, 1)
+    else:
+        idle_action = torch.zeros(env.action_space.shape)
 
     # reset before starting
     env.reset()
@@ -160,8 +180,8 @@ def main():
             first_loop = True
             has_next_action = True
             while has_next_action:
-                # initialize actions with zeros so those without next action will not move
-                actions = torch.zeros(env.action_space.shape)
+                # initialize actions with idle action so those without next action will not move
+                actions = idle_action
                 has_next_action = False
                 for env_id in range(num_envs):
                     env_next_action = env_episode_data_map[env_id].get_next_action()

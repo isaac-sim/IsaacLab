@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -10,3 +10,4 @@ from .binary_joint_actions import *
 from .joint_actions import *
 from .joint_actions_to_limits import *
 from .non_holonomic_actions import *
+from .surface_gripper_actions import *

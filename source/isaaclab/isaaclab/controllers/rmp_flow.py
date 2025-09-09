@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -8,11 +8,19 @@ from dataclasses import MISSING
 
 import isaacsim.core.utils.prims as prim_utils
 from isaacsim.core.api.simulation_context import SimulationContext
-from isaacsim.core.prims.articulations import Articulation
+from isaacsim.core.prims import SingleArticulation
+
+# enable motion generation extensions
+from isaacsim.core.utils.extensions import enable_extension
+
+enable_extension("isaacsim.robot_motion.lula")
+enable_extension("isaacsim.robot_motion.motion_generation")
+
 from isaacsim.robot_motion.motion_generation import ArticulationMotionPolicy
 from isaacsim.robot_motion.motion_generation.lula.motion_policies import RmpFlow, RmpFlowSmoothed
 
 from isaaclab.utils import configclass
+from isaaclab.utils.assets import retrieve_file_path
 
 
 @configclass
@@ -86,13 +94,19 @@ class RmpFlowController:
         self.articulation_policies = list()
         for prim_path in self._prim_paths:
             # add robot reference
-            robot = Articulation(prim_path)
+            robot = SingleArticulation(prim_path)
             robot.initialize()
+            # download files if they are not local
+
+            local_urdf_file = retrieve_file_path(self.cfg.urdf_file, force_download=True)
+            local_collision_file = retrieve_file_path(self.cfg.collision_file, force_download=True)
+            local_config_file = retrieve_file_path(self.cfg.config_file, force_download=True)
+
             # add controller
             rmpflow = controller_cls(
-                robot_description_path=self.cfg.collision_file,
-                urdf_path=self.cfg.urdf_file,
-                rmpflow_config_path=self.cfg.config_file,
+                robot_description_path=local_collision_file,
+                urdf_path=local_urdf_file,
+                rmpflow_config_path=local_config_file,
                 end_effector_frame_name=self.cfg.frame_name,
                 maximum_substep_size=physics_dt / self.cfg.evaluations_per_frame,
                 ignore_robot_state_updates=self.cfg.ignore_robot_state_updates,

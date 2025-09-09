@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -22,6 +22,71 @@ export ISAACLAB_PATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && p
 # Helper functions
 #==
 
+# install system dependencies
+install_system_deps() {
+    # check if cmake is already installed
+    if command -v cmake &> /dev/null; then
+        echo "[INFO] cmake is already installed."
+    else
+        # check if running as root
+        if [ "$EUID" -ne 0 ]; then
+            echo "[INFO] Installing system dependencies..."
+            sudo apt-get update && sudo apt-get install -y --no-install-recommends \
+                cmake \
+                build-essential
+        else
+            echo "[INFO] Installing system dependencies..."
+            apt-get update && apt-get install -y --no-install-recommends \
+                cmake \
+                build-essential
+        fi
+    fi
+}
+
+# Returns success (exit code 0 / "true") if the detected Isaac Sim version starts with 4.5,
+# otherwise returns non-zero ("false"). Works with both symlinked binary installs and pip installs.
+is_isaacsim_version_4_5() {
+    local version=""
+    local python_exe
+    python_exe=$(extract_python_exe)
+
+    # 0) Fast path: read VERSION file from the symlinked _isaac_sim directory (binary install)
+    # If the repository has _isaac_sim → <IsaacSimRoot> symlink, the VERSION file is the simplest source of truth.
+    if [[ -f "${ISAACLAB_PATH}/_isaac_sim/VERSION" ]]; then
+        # Read first line of the VERSION file; don't fail the whole script on errors.
+        version=$(head -n1 "${ISAACLAB_PATH}/_isaac_sim/VERSION" || true)
+    fi
+
+    # 1) Package-path probe: import isaacsim and walk up to ../../VERSION (pip or nonstandard layouts)
+    # If we still don't know the version, ask Python where the isaacsim package lives
+    if [[ -z "$version" ]]; then
+        local sim_file=""
+        # Print isaacsim.__file__; suppress errors so set -e won't abort.
+        sim_file=$("${python_exe}" -c 'import isaacsim, os; print(isaacsim.__file__)' 2>/dev/null || true)
+        if [[ -n "$sim_file" ]]; then
+            local version_path
+            version_path="$(dirname "$sim_file")/../../VERSION"
+            # If that VERSION file exists, read it.
+            [[ -f "$version_path" ]] && version=$(head -n1 "$version_path" || true)
+        fi
+    fi
+
+    # 2) Fallback: use package metadata via importlib.metadata.version("isaacsim")
+    if [[ -z "$version" ]]; then
+        version=$("${python_exe}" <<'PY' 2>/dev/null || true
+from importlib.metadata import version, PackageNotFoundError
+try:
+    print(version("isaacsim"))
+except PackageNotFoundError:
+    pass
+PY
+)
+    fi
+
+    # Final decision: return success if version begins with "4.5", 0 if match, 1 otherwise.
+    [[ "$version" == 4.5* ]]
+}
+
 # check if running in docker
 is_docker() {
     [ -f /.dockerenv ] || \
@@ -29,6 +94,30 @@ is_docker() {
     [[ $(cat /proc/1/comm) == "containerd-shim" ]] || \
     grep -q docker /proc/mounts || \
     [[ "$(hostname)" == *"."* ]]
+}
+
+ensure_cuda_torch() {
+  local py="$1"
+  local -r TORCH_VER="2.7.0"
+  local -r TV_VER="0.22.0"
+  local -r CUDA_TAG="cu128"
+  local -r PYTORCH_INDEX="https://download.pytorch.org/whl/${CUDA_TAG}"
+  local torch_ver
+
+  if "$py" -m pip show torch >/dev/null 2>&1; then
+    torch_ver="$("$py" -m pip show torch 2>/dev/null | awk -F': ' '/^Version/{print $2}')"
+    echo "[INFO] Found PyTorch version ${torch_ver}."
+    if [[ "$torch_ver" != "${TORCH_VER}+${CUDA_TAG}" ]]; then
+      echo "[INFO] Replacing PyTorch ${torch_ver} → ${TORCH_VER}+${CUDA_TAG}..."
+      "$py" -m pip uninstall -y torch torchvision torchaudio >/dev/null 2>&1 || true
+      "$py" -m pip install "torch==${TORCH_VER}" "torchvision==${TV_VER}" --index-url "${PYTORCH_INDEX}"
+    else
+      echo "[INFO] PyTorch ${TORCH_VER}+${CUDA_TAG} already installed."
+    fi
+  else
+    echo "[INFO] Installing PyTorch ${TORCH_VER}+${CUDA_TAG}..."
+    "$py" -m pip install "torch==${TORCH_VER}" "torchvision==${TV_VER}" --index-url "${PYTORCH_INDEX}"
+  fi
 }
 
 # extract isaac sim path
@@ -136,12 +225,34 @@ setup_conda_env() {
         exit 1
     fi
 
+    # check if _isaac_sim symlink exists and isaacsim-rl is not installed via pip
+    if [ ! -L "${ISAACLAB_PATH}/_isaac_sim" ] && ! python -m pip list | grep -q 'isaacsim-rl'; then
+        echo -e "[WARNING] _isaac_sim symlink not found at ${ISAACLAB_PATH}/_isaac_sim"
+        echo -e "\tThis warning can be ignored if you plan to install Isaac Sim via pip."
+        echo -e "\tIf you are using a binary installation of Isaac Sim, please ensure the symlink is created before setting up the conda environment."
+    fi
+
     # check if the environment exists
     if { conda env list | grep -w ${env_name}; } >/dev/null 2>&1; then
         echo -e "[INFO] Conda environment named '${env_name}' already exists."
     else
         echo -e "[INFO] Creating conda environment named '${env_name}'..."
-        conda create -y --name ${env_name} python=3.10
+        echo -e "[INFO] Installing dependencies from ${ISAACLAB_PATH}/environment.yml"
+
+        # patch Python version if needed, but back up first
+        cp "${ISAACLAB_PATH}/environment.yml"{,.bak}
+        if is_isaacsim_version_4_5; then
+            echo "[INFO] Detected Isaac Sim 4.5 → forcing python=3.10"
+            sed -i 's/^  - python=3\.11/  - python=3.10/' "${ISAACLAB_PATH}/environment.yml"
+        else
+            echo "[INFO] Isaac Sim 5.0, installing python=3.11"
+        fi
+
+        conda env create -y --file ${ISAACLAB_PATH}/environment.yml -n ${env_name}
+        # (optional) restore original environment.yml:
+        if [[ -f "${ISAACLAB_PATH}/environment.yml.bak" ]]; then
+            mv "${ISAACLAB_PATH}/environment.yml.bak" "${ISAACLAB_PATH}/environment.yml"
+        fi
     fi
 
     # cache current paths for later
@@ -208,10 +319,6 @@ setup_conda_env() {
             '' >> ${CONDA_PREFIX}/etc/conda/deactivate.d/unsetenv.sh
     fi
 
-    # install some extra dependencies
-    echo -e "[INFO] Installing extra dependencies (this might take a few minutes)..."
-    conda install -c conda-forge -y importlib_metadata &> /dev/null
-
     # deactivate the environment
     conda deactivate
     # add information to the user about alias
@@ -219,8 +326,8 @@ setup_conda_env() {
     echo -e "[INFO] Created conda environment named '${env_name}'.\n"
     echo -e "\t\t1. To activate the environment, run:                conda activate ${env_name}"
     echo -e "\t\t2. To install Isaac Lab extensions, run:            isaaclab -i"
-    echo -e "\t\t4. To perform formatting, run:                      isaaclab -f"
-    echo -e "\t\t5. To deactivate the environment, run:              conda deactivate"
+    echo -e "\t\t3. To perform formatting, run:                      isaaclab -f"
+    echo -e "\t\t4. To deactivate the environment, run:              conda deactivate"
     echo -e "\n"
 }
 
@@ -248,7 +355,7 @@ print_help () {
     echo -e "\t-f, --format         Run pre-commit to format the code and check lints."
     echo -e "\t-p, --python         Run the python executable provided by Isaac Sim or virtual environment (if active)."
     echo -e "\t-s, --sim            Run the simulator executable (isaac-sim.sh) provided by Isaac Sim."
-    echo -e "\t-t, --test           Run all python unittest tests."
+    echo -e "\t-t, --test           Run all python pytest tests."
     echo -e "\t-o, --docker         Run the docker container helper script (docker/container.sh)."
     echo -e "\t-v, --vscode         Generate the VSCode settings file from template."
     echo -e "\t-d, --docs           Build the documentation from source using sphinx."
@@ -266,7 +373,7 @@ print_help () {
 if [ -z "$*" ]; then
     echo "[Error] No arguments provided." >&2;
     print_help
-    exit 1
+    exit 0
 fi
 
 # pass the arguments
@@ -274,9 +381,14 @@ while [[ $# -gt 0 ]]; do
     # read the key
     case "$1" in
         -i|--install)
+            # install system dependencies first
+            install_system_deps
             # install the python packages in IsaacLab/source directory
             echo "[INFO] Installing extensions inside the Isaac Lab repository..."
             python_exe=$(extract_python_exe)
+            # check if pytorch is installed and its version
+            # install pytorch with cuda 12.8 for blackwell support
+            ensure_cuda_torch ${python_exe}
             # recursively look into directories and install them
             # this does not check dependencies between extensions
             export -f extract_python_exe
@@ -302,6 +414,9 @@ while [[ $# -gt 0 ]]; do
             ${python_exe} -m pip install -e ${ISAACLAB_PATH}/source/isaaclab_rl["${framework_name}"]
             ${python_exe} -m pip install -e ${ISAACLAB_PATH}/source/isaaclab_mimic["${framework_name}"]
 
+            # in some rare cases, torch might not be installed properly by setup.py, add one more check here
+            # can prevent that from happening
+            ensure_cuda_torch ${python_exe}
             # check if we are inside a docker container or are building a docker image
             # in that case don't setup VSCode since it asks for EULA agreement which triggers user interaction
             if is_docker; then
@@ -344,6 +459,7 @@ while [[ $# -gt 0 ]]; do
             if ! command -v pre-commit &>/dev/null; then
                 echo "[INFO] Installing pre-commit..."
                 pip install pre-commit
+                sudo apt-get install -y pre-commit
             fi
             # always execute inside the Isaac Lab directory
             echo "[INFO] Formatting the repository..."
@@ -391,7 +507,7 @@ while [[ $# -gt 0 ]]; do
             # run the python provided by isaacsim
             python_exe=$(extract_python_exe)
             shift # past argument
-            ${python_exe} ${ISAACLAB_PATH}/tools/run_all_tests.py $@
+            ${python_exe} -m pytest ${ISAACLAB_PATH}/tools $@
             # exit neatly
             break
             ;;
@@ -432,7 +548,7 @@ while [[ $# -gt 0 ]]; do
             ;;
         -h|--help)
             print_help
-            exit 1
+            exit 0
             ;;
         *) # unknown option
             echo "[Error] Invalid argument provided: $1"

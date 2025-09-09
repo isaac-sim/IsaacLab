@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -17,6 +17,7 @@ from isaaclab.managers.action_manager import ActionTerm
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
+    from isaaclab.envs.utils.io_descriptors import GenericActionIODescriptor
 
     from . import actions_cfg
 
@@ -122,6 +123,41 @@ class JointAction(ActionTerm):
     @property
     def processed_actions(self) -> torch.Tensor:
         return self._processed_actions
+
+    @property
+    def IO_descriptor(self) -> GenericActionIODescriptor:
+        """The IO descriptor of the action term.
+
+        This descriptor is used to describe the action term of the joint action.
+        It adds the following information to the base descriptor:
+        - joint_names: The names of the joints.
+        - scale: The scale of the action term.
+        - offset: The offset of the action term.
+        - clip: The clip of the action term.
+
+        Returns:
+            The IO descriptor of the action term.
+        """
+        super().IO_descriptor
+        self._IO_descriptor.shape = (self.action_dim,)
+        self._IO_descriptor.dtype = str(self.raw_actions.dtype)
+        self._IO_descriptor.action_type = "JointAction"
+        self._IO_descriptor.joint_names = self._joint_names
+        self._IO_descriptor.scale = self._scale
+        # This seems to be always [4xNum_joints] IDK why. Need to check.
+        if isinstance(self._offset, torch.Tensor):
+            self._IO_descriptor.offset = self._offset[0].detach().cpu().numpy().tolist()
+        else:
+            self._IO_descriptor.offset = self._offset
+        # FIXME: This is not correct. Add list support.
+        if self.cfg.clip is not None:
+            if isinstance(self._clip, torch.Tensor):
+                self._IO_descriptor.clip = self._clip[0].detach().cpu().numpy().tolist()
+            else:
+                self._IO_descriptor.clip = self._clip
+        else:
+            self._IO_descriptor.clip = None
+        return self._IO_descriptor
 
     """
     Operations.

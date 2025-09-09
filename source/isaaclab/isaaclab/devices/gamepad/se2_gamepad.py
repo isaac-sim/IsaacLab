@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -6,13 +6,26 @@
 """Gamepad controller for SE(2) control."""
 
 import numpy as np
+import torch
 import weakref
 from collections.abc import Callable
+from dataclasses import dataclass
 
 import carb
+import carb.input
 import omni
 
-from ..device_base import DeviceBase
+from ..device_base import DeviceBase, DeviceCfg
+
+
+@dataclass
+class Se2GamepadCfg(DeviceCfg):
+    """Configuration for SE2 gamepad devices."""
+
+    v_x_sensitivity: float = 1.0
+    v_y_sensitivity: float = 1.0
+    omega_z_sensitivity: float = 1.0
+    dead_zone: float = 0.01
 
 
 class Se2Gamepad(DeviceBase):
@@ -41,10 +54,7 @@ class Se2Gamepad(DeviceBase):
 
     def __init__(
         self,
-        v_x_sensitivity: float = 1.0,
-        v_y_sensitivity: float = 1.0,
-        omega_z_sensitivity: float = 1.0,
-        dead_zone: float = 0.01,
+        cfg: Se2GamepadCfg,
     ):
         """Initialize the gamepad layer.
 
@@ -59,10 +69,11 @@ class Se2Gamepad(DeviceBase):
         carb_settings_iface = carb.settings.get_settings()
         carb_settings_iface.set_bool("/persistent/app/omniverse/gamepadCameraControl", False)
         # store inputs
-        self.v_x_sensitivity = v_x_sensitivity
-        self.v_y_sensitivity = v_y_sensitivity
-        self.omega_z_sensitivity = omega_z_sensitivity
-        self.dead_zone = dead_zone
+        self.v_x_sensitivity = cfg.v_x_sensitivity
+        self.v_y_sensitivity = cfg.v_y_sensitivity
+        self.omega_z_sensitivity = cfg.omega_z_sensitivity
+        self.dead_zone = cfg.dead_zone
+        self._sim_device = cfg.sim_device
         # acquire omniverse interfaces
         self._appwindow = omni.appwindow.get_default_app_window()
         self._input = carb.input.acquire_input_interface()
@@ -87,7 +98,7 @@ class Se2Gamepad(DeviceBase):
 
     def __del__(self):
         """Unsubscribe from gamepad events."""
-        self._input.unsubscribe_from_gamepad_events(self._gamepad, self._gamepad_sub)
+        self._input.unsubscribe_to_gamepad_events(self._gamepad, self._gamepad_sub)
         self._gamepad_sub = None
 
     def __str__(self) -> str:
@@ -120,13 +131,14 @@ class Se2Gamepad(DeviceBase):
         """
         self._additional_callbacks[key] = func
 
-    def advance(self) -> np.ndarray:
+    def advance(self) -> torch.Tensor:
         """Provides the result from gamepad event state.
 
         Returns:
-            A 3D array containing the linear (x,y) and angular velocity (z).
+            A tensor containing the linear (x,y) and angular velocity (z).
         """
-        return self._resolve_command_buffer(self._base_command_raw)
+        numpy_result = self._resolve_command_buffer(self._base_command_raw)
+        return torch.tensor(numpy_result, dtype=torch.float32, device=self._sim_device)
 
     """
     Internal helpers.

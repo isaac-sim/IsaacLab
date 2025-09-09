@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -192,7 +192,7 @@ class MySceneCfg(InteractiveSceneCfg):
     # lights
     light = AssetBaseCfg(
         prim_path="/World/light",
-        spawn=sim_utils.DistantLightCfg(color=(0.75, 0.75, 0.75), intensity=3000.0),
+        spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), intensity=2000.0),
     )
 
 
@@ -261,6 +261,20 @@ class EventCfg:
         },
     )
 
+    # This event term randomizes the visual color of the cube.
+    # Similar to the scale randomization, this is also a USD-level randomization and requires the flag
+    # 'replicate_physics' to be set to False.
+    randomize_color = EventTerm(
+        func=mdp.randomize_visual_color,
+        mode="prestartup",
+        params={
+            "colors": {"r": (0.0, 1.0), "g": (0.0, 1.0), "b": (0.0, 1.0)},
+            "asset_cfg": SceneEntityCfg("cube"),
+            "mesh_name": "geometry/mesh",
+            "event_name": "rep_cube_randomize_color",
+        },
+    )
+
 
 ##
 # Environment configuration
@@ -290,13 +304,18 @@ class CubeEnvCfg(ManagerBasedEnvCfg):
         self.sim.dt = 0.01
         self.sim.physics_material = self.scene.terrain.physics_material
         self.sim.render_interval = 2  # render interval should be a multiple of decimation
+        self.sim.device = args_cli.device
+        # viewer settings
+        self.viewer.eye = (5.0, 5.0, 5.0)
+        self.viewer.lookat = (0.0, 0.0, 2.0)
 
 
 def main():
     """Main function."""
 
     # setup base environment
-    env = ManagerBasedEnv(cfg=CubeEnvCfg())
+    env_cfg = CubeEnvCfg()
+    env = ManagerBasedEnv(cfg=env_cfg)
 
     # setup target position commands
     target_position = torch.rand(env.num_envs, 3, device=env.device) * 2

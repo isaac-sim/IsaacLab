@@ -1,17 +1,1152 @@
 Changelog
 ---------
 
-0.36.2 (2025-03-12)
+0.45.15 (2025-09-05)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added action terms for using RMPFlow in Manager-Based environments.
+
+
+0.45.14 (2025-09-08)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab.ui.xr_widgets.TeleopVisualizationManager` and :class:`~isaaclab.ui.xr_widgets.XRVisualization`
+  classes to provide real-time visualization of teleoperation and inverse kinematics status in XR environments.
+
+
+0.45.13 (2025-09-08)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab.devices.openxr.manus_vive.ManusVive` to support teleoperation with Manus gloves and Vive trackers.
+
+
+0.45.12 (2025-09-05)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab.envs.mdp.actions.SurfaceGripperBinaryAction` for supporting surface grippers in Manager-Based workflows.
+
+Changed
+^^^^^^^
+
+* Added AssetBase inheritance for :class:`~isaaclab.assets.surface_gripper.SurfaceGripper`.
+
+
+0.45.11 (2025-09-04)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixes a high memory usage and perf slowdown issue in episode data by removing the use of torch.cat when appending to the episode data
+  at each timestep. The use of torch.cat was causing the episode data to be copied at each timestep, which causes high memory usage and
+  significant performance slowdown when recording longer episode data.
+* Patches the configclass to allow validate dict with key is not a string.
+
+Added
+^^^^^
+
+* Added optional episode metadata (ep_meta) to be stored in the HDF5 data attributes.
+* Added option to record data pre-physics step.
+* Added joint_target data to episode data. Joint target data can be optionally recorded by the user and replayed to improve
+  determinism of replay.
+
+
+0.45.10 (2025-09-02)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed regression in reach task configuration where the gripper command was being returned.
+* Added :attr:`~isaaclab.devices.Se3GamepadCfg.gripper_term` to :class:`~isaaclab.devices.Se3GamepadCfg`
+  to control whether the gamepad device should return a gripper command.
+* Added :attr:`~isaaclab.devices.Se3SpaceMouseCfg.gripper_term` to :class:`~isaaclab.devices.Se3SpaceMouseCfg`
+  to control whether the spacemouse device should return a gripper command.
+* Added :attr:`~isaaclab.devices.Se3KeyboardCfg.gripper_term` to :class:`~isaaclab.devices.Se3KeyboardCfg`
+  to control whether the keyboard device should return a gripper command.
+
+
+0.45.9 (2025-08-27)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed removing import of pink_ik controller from isaaclab.controllers which is causing pinocchio import error.
+
+
+0.45.8 (2025-07-25)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
 ^^^^^
 
-* Added a new event mode called "prestartup", which gets called right after the scene design is complete
-  and before the simulation is played.
-* Added a callback to resolve the scene entity configurations separately once the simulation plays,
-  since the scene entities cannot be resolved before the simulation starts playing
-  (as we currently rely on PhysX to provide us with the joint/body ordering)
+* Created :attr:`~isaaclab.controllers.pink_ik.PinkIKControllerCfg.target_eef_link_names` to :class:`~isaaclab.controllers.pink_ik.PinkIKControllerCfg`
+  to specify the target end-effector link names for the pink inverse kinematics controller.
+
+Changed
+^^^^^^^
+
+* Updated pink inverse kinematics controller configuration for the following tasks (Isaac-PickPlace-GR1T2, Isaac-NutPour-GR1T2, Isaac-ExhaustPipe-GR1T2)
+  to increase end-effector tracking accuracy and speed. Also added a null-space regularizer that enables turning on of waist degrees-of-freedom.
+* Improved the test_pink_ik script to more comprehensive test on controller accuracy. Also, migrated to use pytest. With the current IK controller
+  improvements, our unit tests pass position and orientation accuracy test within **(1 mm, 1 degree)**. Previously, the position accuracy tolerances
+  were set to **(30 mm, 10 degrees)**.
+* Included a new config parameter :attr:`fail_on_ik_error` to :class:`~isaaclab.controllers.pink_ik.PinkIKControllerCfg`
+  to control whether the IK controller raise an exception if robot joint limits are exceeded. In the case of an exception, the controller will hold the
+  last joint position. This adds to stability of the controller and avoids operator experiencing what is perceived as sudden large delays in robot control.
+
+
+0.45.7 (2025-08-21)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added periodic logging when checking if a USD path exists on a Nucleus server
+  to improve user experience when the checks takes a while.
+
+
+0.45.6 (2025-08-22)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :meth:`~isaaclab.envs.mdp.events.randomize_rigid_body_com` to broadcasts the environment ids.
+
+
+0.45.5 (2025-08-21)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :meth:`~isaaclab.assets.Articulation.write_joint_friction_coefficient_to_sim` to set the friction coefficients in the simulation.
+* Fixed :meth:`~isaaclab.assets.Articulation.write_joint_dynamic_friction_coefficient_to_sim` to set the friction coefficients in the simulation.* Added :meth:`~isaaclab.envs.ManagerBasedEnvCfg.export_io_descriptors` to toggle the export of the IO descriptors.
+* Fixed :meth:`~isaaclab.assets.Articulation.write_joint_viscous_friction_coefficient_to_sim` to set the friction coefficients in the simulation.
+
+
+
+0.45.4 (2025-08-21)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added unit tests for :class:`~isaaclab.sensor.sensor_base`
+
+
+0.45.3 (2025-08-20)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :meth:`isaaclab.envs.mdp.terminations.joint_effort_out_of_limit` so that it correctly reports whether a joint
+  effort limit has been violated. Previously, the implementation marked a violation when the applied and computed
+  torques were equal; in fact, equality should indicate no violation, and vice versa.
+
+
+0.45.2 (2025-08-18)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :meth:`~isaaclab.managers.ObservationManager.get_IO_descriptors` to export the IO descriptors for the observation manager.
+* Added :meth:`~isaaclab.envs.ManagerBasedEnvCfg.io_descriptors_output_dir` to configure the directory to export the IO descriptors to.
+* Added :meth:`~isaaclab.envs.ManagerBasedEnvCfg.export_io_descriptors` to toggle the export of the IO descriptors.
+* Added the option to export the Observation and Action of the managed environments into a YAML file. This can be used to more easily
+  deploy policies trained in Isaac Lab.
+
+
+0.45.1 (2025-08-16)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added validations for scale-based randomization ranges across mass, actuator, joint, and tendon parameters.
+
+Changed
+^^^^^^^
+
+* Refactored randomization functions into classes with initialization-time checks to avoid runtime overhead.
+
+
+0.45.0 (2025-08-07)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab.sensors.contact_sensor.ContactSensorCfg.track_contact_points` to toggle tracking of contact
+  point locations between sensor bodies and filtered bodies.
+* Added :attr:`~isaaclab.sensors.contact_sensor.ContactSensorCfg.max_contact_data_per_prim` to configure the maximum
+  amount of contacts per sensor body.
+* Added :attr:`~isaaclab.sensors.contact_sensor.ContactSensorData.contact_pos_w` data field for tracking contact point
+  locations.
+
+
+0.44.12 (2025-08-12)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed IndexError in :meth:`isaaclab.envs.mdp.events.reset_joints_by_scale`,
+  :meth:`isaaclab.envs.mdp.events.reset_joints_by_offsets` by adding dimension to env_ids when indexing.
+
+
+0.44.11 (2025-08-11)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed rendering preset mode when an experience CLI arg is provided.
+
+
+0.44.10 (2025-08-06)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the old termination manager in :class:`~isaaclab.managers.TerminationManager` term_done logging that
+  logs the instantaneous term done count at reset. This let to inaccurate aggregation of termination count,
+  obscuring the what really happening during the training. Instead we log the episodic term done.
+
+
+0.44.9 (2025-07-30)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``from __future__ import annotations`` to manager_based_rl_mimic_env.py to fix Sphinx
+  doc warnings for IsaacLab Mimic docs.
+
+
+0.44.8 (2025-07-30)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Improved handling of deprecated flag :attr:`~isaaclab.sensors.RayCasterCfg.attach_yaw_only`.
+  Previously, the flag was only handled if it was set to True. This led to a bug where the yaw was not accounted for
+  when the flag was set to False.
+* Fixed the handling of interval-based events inside :class:`~isaaclab.managers.EventManager` to properly handle
+  their resets. Previously, only class-based events were properly handled.
+
+
+0.44.7 (2025-07-30)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a new argument ``is_global`` to :meth:`~isaaclab.assets.Articulation.set_external_force_and_torque`,
+  :meth:`~isaaclab.assets.RigidObject.set_external_force_and_torque`, and
+  :meth:`~isaaclab.assets.RigidObjectCollection.set_external_force_and_torque` allowing to set external wrenches
+  in the global frame directly from the method call rather than having to set the frame in the configuration.
+
+Removed
+^^^^^^^^
+
+* Removed :attr:`xxx_external_wrench_frame` flag from asset configuration classes in favor of direct argument
+  passed to the :meth:`set_external_force_and_torque` function.
+
+
+0.44.6 (2025-07-28)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Tweak default behavior for rendering preset modes.
+
+
+0.44.5 (2025-07-28)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :meth:`isaaclab.scene.reset_to` to properly accept None as valid argument.
+* Added tests to verify that argument types.
+
+
+0.44.4 (2025-07-22)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added safe callbacks for stage in memory attaching.
+* Remove on prim deletion callback workaround
+
+
+0.44.3 (2025-07-21)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed rendering preset mode regression.
+
+
+0.44.2 (2025-07-22)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated teleop scripts to print to console vs omni log.
+
+
+0.44.1 (2025-07-17)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated test_pink_ik.py test case to pytest format.
+
+
+0.44.0 (2025-07-21)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the way clipping is handled for :class:`~isaaclab.actuator.DCMotor` for torque-speed points in when in
+  negative power regions.
+
+Added
+^^^^^
+
+* Added unit tests for :class:`~isaaclab.actuator.ImplicitActuator`, :class:`~isaaclab.actuator.IdealPDActuator`,
+  and :class:`~isaaclab.actuator.DCMotor` independent of :class:`~isaaclab.assets.Articulation`
+
+
+0.43.0 (2025-07-21)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updates torch version to 2.7.0 and torchvision to 0.22.0.
+  Some dependencies now require torch>=2.6, and given the vulnerabilities in Torch 2.5.1,
+  we are updating the torch version to 2.7.0 to also include Blackwell support. Since Isaac Sim 4.5 has not updated the
+  torch version, we are now overwriting the torch installation step in isaaclab.sh when running ``./isaaclab.sh -i``.
+
+
+0.42.26 (2025-06-29)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added MangerBasedRLEnv support for composite gym observation spaces.
+* A test for the composite gym observation spaces in ManagerBasedRLEnv is added to ensure that the observation spaces
+  are correctly configured base on the clip.
+
+
+0.42.25 (2025-07-11)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab.sensors.ContactSensorData.force_matrix_w_history` that tracks the history of the filtered
+  contact forces in the world frame.
+
+
+0.42.24 (2025-06-25)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added new curriculum mdp :func:`~isaaclab.envs.mdp.curriculums.modify_env_param` and
+  :func:`~isaaclab.envs.mdp.curriculums.modify_env_param` that enables flexible changes to any configurations in the
+  env instance
+
+
+0.42.23 (2025-07-11)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :meth:`isaaclab.envs.mdp.events.reset_joints_by_scale`, :meth:`isaaclab.envs.mdp.events.reset_joints_by_offsets`
+  restricting the resetting joint indices be that user defined joint indices.
+
+
+0.42.22 (2025-07-11)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed missing attribute in :class:`~isaaclab.sensors.ray_caster.RayCasterCamera` class and its reset method when no
+  env_ids are passed.
+
+
+0.42.21 (2025-07-09)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added input param ``update_history`` to :meth:`~isaaclab.managers.ObservationManager.compute`
+  to control whether the history buffer should be updated.
+* Added unit test for :class:`~isaaclab.envs.ManagerBasedEnv`.
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab.envs.ManagerBasedEnv` and :class:`~isaaclab.envs.ManagerBasedRLEnv` to not update the history
+  buffer on recording.
+
+
+0.42.20 (2025-07-10)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added unit tests for multiple math functions:
+  :func:`~isaaclab.utils.math.scale_transform`.
+  :func:`~isaaclab.utils.math.unscale_transform`.
+  :func:`~isaaclab.utils.math.saturate`.
+  :func:`~isaaclab.utils.math.normalize`.
+  :func:`~isaaclab.utils.math.copysign`.
+  :func:`~isaaclab.utils.math.convert_quat`.
+  :func:`~isaaclab.utils.math.quat_conjugate`.
+  :func:`~isaaclab.utils.math.quat_from_euler_xyz`.
+  :func:`~isaaclab.utils.math.quat_from_matrix`.
+  :func:`~isaaclab.utils.math.euler_xyz_from_quat`.
+  :func:`~isaaclab.utils.math.matrix_from_euler`.
+  :func:`~isaaclab.utils.math.quat_from_angle_axis`.
+  :func:`~isaaclab.utils.math.axis_angle_from_quat`.
+  :func:`~isaaclab.utils.math.skew_symmetric_matrix`.
+  :func:`~isaaclab.utils.math.combine_transform`.
+  :func:`~isaaclab.utils.math.subtract_transform`.
+  :func:`~isaaclab.utils.math.compute_pose_error`.
+
+Changed
+^^^^^^^
+
+* Changed the implementation of :func:`~isaaclab.utils.math.copysign` to better reflect the documented functionality.
+
+
+0.42.19 (2025-07-09)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Added clone_in_fabric config flag to :class:`~isaaclab.scene.interactive_scene_cfg.InteractiveSceneCfg`
+* Enable clone_in_fabric for envs which work with limited benchmark_non_rl.py script
+
+
+0.42.18 (2025-07-07)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed texture and color randomization to use new replicator functional APIs.
+
+
+0.42.17 (2025-07-08)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed hanging quat_rotate calls to point to quat_apply in :class:`~isaaclab.assets.articulation.ArticulationData` and
+  :class:`~isaaclab.assets.articulation.RigidObjectCollectionData`
+
+
+0.42.16 (2025-07-08)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ability to set platform height independent of object height for trimesh terrains.
+
+
+0.42.15 (2025-07-01)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`abs_height_noise` and :attr:`rel_height_noise` to give minimum and maximum absolute and relative noise to
+  :class:`isaaclab.terrrains.trimesh.MeshRepeatedObjectsTerrainCfg`
+* Added deprecation warnings to the existing :attr:`max_height_noise` but still functions.
+
+
+0.42.14 (2025-07-03)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed unittest tests that are floating inside pytests for articulation and rendering
+
+
+0.42.13 (2025-07-07)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated gymnasium to v1.2.0. This update includes fixes for a memory leak that appears when recording
+  videos with the ``--video`` flag.
+
+
+0.42.12 (2025-06-27)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added unit test for :func:`~isaaclab.utils.math.quat_inv`.
+
+Fixed
+^^^^^
+
+* Fixed the implementation mistake in :func:`~isaaclab.utils.math.quat_inv`.
+
+
+0.42.11 (2025-06-25)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :func:`~isaaclab.utils.dict.update_class_from_dict` preventing setting flat Iterables with different lengths.
+
+
+0.42.10 (2025-06-25)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``sample_bias_per_component`` flag to :class:`~isaaclab.utils.noise.noise_model.NoiseModelWithAdditiveBias`
+  to enable independent per-component bias sampling, which is now the default behavior. If set to False, the previous
+  behavior of sharing the same bias value across all components is retained.
+
+
+0.42.9 (2025-06-18)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed data inconsistency between read_body, read_link, read_com when write_body, write_com, write_joint performed, in
+  :class:`~isaaclab.assets.Articulation`, :class:`~isaaclab.assets.RigidObject`, and
+  :class:`~isaaclab.assets.RigidObjectCollection`
+* added pytest that check against these data consistencies
+
+
+0.42.8 (2025-06-24)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* :class:`~isaaclab.utils.noise.NoiseModel` support for manager-based workflows.
+
+Changed
+^^^^^^^
+
+* Renamed :func:`~isaaclab.utils.noise.NoiseModel.apply` method to :func:`~isaaclab.utils.noise.NoiseModel.__call__`.
+
+
+0.42.7 (2025-06-12)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed potential issues in :func:`~isaaclab.envs.mdp.events.randomize_visual_texture_material` related to handling
+  visual prims during texture randomization.
+
+
+0.42.6 (2025-06-11)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Remove deprecated usage of quat_rotate from articulation data class and replace with quat_apply.
+
+
+0.42.5 (2025-05-22)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed collision filtering logic for CPU simulation. The automatic collision filtering feature
+  currently has limitations for CPU simulation. Collision filtering needs to be manually enabled when using
+  CPU simulation.
+
+
+0.42.4 (2025-06-03)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Removes the hardcoding to :class:`~isaaclab.terrains.terrain_generator.TerrainGenerator` in
+  :class:`~isaaclab.terrains.terrain_generator.TerrainImporter` and instead the ``class_type`` is used which is
+  passed in the ``TerrainGeneratorCfg``.
+
+
+0.42.3 (2025-03-20)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Made separate data buffers for poses and velocities for the :class:`~isaaclab.assets.Articulation`,
+  :class:`~isaaclab.assets.RigidObject`, and :class:`~isaaclab.assets.RigidObjectCollection` classes.
+  Previously, the two data buffers were stored together in a single buffer requiring an additional
+  concatenation operation when accessing the data.
+* Cleaned up ordering of members inside the data classes for the assets to make them easier
+  to comprehend. This reduced the code duplication within the class and made the class
+  more readable.
+
+
+0.42.2 (2025-05-31)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Updated gymnasium to >= 1.0
+* Added support for specifying module:task_name as task name to avoid module import for ``gym.make``
+
+
+0.42.1 (2025-06-02)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added time observation functions to ~isaaclab.envs.mdp.observations module,
+  :func:`~isaaclab.envs.mdp.observations.current_time_s` and :func:`~isaaclab.envs.mdp.observations.remaining_time_s`.
+
+Changed
+^^^^^^^
+
+* Moved initialization of ``episode_length_buf`` outside of :meth:`load_managers()` of
+  :class:`~isaaclab.envs.ManagerBasedRLEnv` to make it available for mdp functions.
+
+
+0.42.0 (2025-06-02)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added support for stage in memory and cloning in fabric. This will help improve performance for scene setup and lower
+  overall startup time.
+
+
+0.41.0 (2025-05-19)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added simulation schemas for spatial tendons. These can be configured for assets imported
+  from file formats.
+* Added support for spatial tendons.
+
+
+0.40.14 (2025-05-29)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added deprecation warning for :meth:`~isaaclab.utils.math.quat_rotate` and
+  :meth:`~isaaclab.utils.math.quat_rotate_inverse`
+
+Changed
+^^^^^^^
+
+* Changed all calls to :meth:`~isaaclab.utils.math.quat_rotate` and :meth:`~isaaclab.utils.math.quat_rotate_inverse` to
+  :meth:`~isaaclab.utils.math.quat_apply` and :meth:`~isaaclab.utils.math.quat_apply_inverse` for speed.
+
+
+0.40.13 (2025-05-19)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Raising exceptions in step, render and reset if they occurred inside the initialization callbacks
+  of assets and sensors.used from the experience files and the double definition is removed.
+
+
+0.40.12 (2025-01-30)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added method :meth:`omni.isaac.lab.assets.AssetBase.set_visibility` to set the visibility of the asset
+  in the simulation.
+
+
+0.40.11 (2025-05-16)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added support for concatenation of observations along different dimensions in
+  :class:`~isaaclab.managers.observation_manager.ObservationManager`.
+
+Changed
+^^^^^^^
+
+* Updated the :class:`~isaaclab.managers.command_manager.CommandManager` to update the command counter after the
+  resampling call.
+
+
+0.40.10 (2025-05-16)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed penetration issue for negative border height in :class:`~isaaclab.terrains.terrain_generator.TerrainGeneratorCfg`.
+
+
+0.40.9 (2025-05-20)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the implementation of :meth:`~isaaclab.utils.math.quat_box_minus`
+
+Added
+^^^^^
+
+* Added :meth:`~isaaclab.utils.math.quat_box_plus`
+* Added :meth:`~isaaclab.utils.math.rigid_body_twist_transform`
+
+
+0.40.8 (2025-05-15)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :meth:`omni.isaac.lab.sensors.camera.camera.Camera.set_intrinsic_matrices` preventing setting of unused USD
+  camera parameters.
+* Fixed :meth:`omni.isaac.lab.sensors.camera.camera.Camera._update_intrinsic_matrices` preventing unused USD camera
+  parameters from being used to calculate :attr:`omni.isaac.lab.sensors.camera.CameraData.intrinsic_matrices`
+* Fixed :meth:`omni.isaac.lab.spawners.sensors.sensors_cfg.PinholeCameraCfg.from_intrinsic_matrix` preventing setting of
+  unused USD camera parameters.
+
+
+0.40.7 (2025-05-14)
+~~~~~~~~~~~~~~~~~~~
+
+* Added a new attribute :attr:`articulation_root_prim_path` to the :class:`~isaaclab.assets.ArticulationCfg` class
+  to allow explicitly specifying the prim path of the articulation root.
+
+
+0.40.6 (2025-05-14)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Enabled external cameras in XR.
+
+
+0.40.5 (2025-05-23)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added feature for animation recording through baking physics operations into OVD files.
+
+
+0.40.4 (2025-05-17)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed livestreaming options to use ``LIVESTREAM=1`` for WebRTC over public networks and ``LIVESTREAM=2`` for WebRTC over private networks.
+
+
+0.40.3 (2025-05-20)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Made modifications to :func:`isaaclab.envs.mdp.image` to handle image normalization for normal maps.
+
+
+0.40.2 (2025-05-14)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Refactored remove_camera_configs to be a function that can be used in the record_demos and teleop scripts.
+
+
+0.40.1 (2025-05-14)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed spacemouse device add callback function to work with record_demos/teleop_se3_agent scripts.
+
+
+0.40.0 (2025-05-03)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added check in RecorderManager to ensure that the success indicator is only set if the termination manager is present.
+* Added semantic tags in :func:`isaaclab.sim.spawners.from_files.spawn_ground_plane`.
+  This allows for :attr:`semantic_segmentation_mapping` to be used when using the ground plane spawner.
+
+
+0.39.0 (2025-04-01)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the :meth:`~isaaclab.env.mdp.observations.joint_effort`
+
+
+0.38.0 (2025-04-01)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :meth:`~isaaclab.envs.mdp.observations.body_pose_w`
+* Added :meth:`~isaaclab.envs.mdp.observations.body_projected_gravity_b`
+
+
+0.37.5 (2025-05-12)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a new teleop configuration class :class:`~isaaclab.devices.DevicesCfg` to support multiple teleoperation
+  devices declared in the environment configuration file.
+* Implemented a factory function to create teleoperation devices based on the device configuration.
+
+
+0.37.4 (2025-05-12)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Remove isaacsim.xr.openxr from openxr experience file.
+* Use Performance AR profile for XR rendering.
+
+
+0.37.3 (2025-05-08)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Updated PINK task space action to record processed actions.
+* Added new recorder term for recording post step processed actions.
+
+
+0.37.2 (2025-05-06)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Migrated OpenXR device to use the new OpenXR handtracking API from omni.kit.xr.core.
+
+
+0.37.1 (2025-05-05)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Removed xr rendering mode.
+
+
+0.37.0 (2025-04-24)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated pytorch to latest 2.7.0 with cuda 12.8 for Blackwell support.
+  Torch is now installed as part of the isaaclab.sh/bat scripts to ensure the correct version is installed.
+* Removed :attr:`~isaaclab.sim.spawners.PhysicsMaterialCfg.improve_patch_friction` as it has been deprecated and removed from the simulation.
+  The simulation will always behave as if this attribute is set to true.
+
+
+0.36.23 (2025-04-24)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed ``return_latest_camera_pose`` option in :class:`~isaaclab.sensors.TiledCameraCfg` from not being used to the
+  argument ``update_latest_camera_pose`` in :class:`~isaaclab.sensors.CameraCfg` with application in both
+  :class:`~isaaclab.sensors.Camera` and :class:`~isaaclab.sensors.TiledCamera`.
+
+
+0.36.22 (2025-04-23)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^^^
+
+* Adds correct type check for ManagerTermBase class in event_manager.py.
+
+
+0.36.21 (2025-04-15)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Removed direct call of qpsovlers library from pink_ik controller and changed solver from quadprog to osqp.
+
+
+0.36.20 (2025-04-09)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Added call to set cuda device after each ``app.update()`` call in :class:`~isaaclab.sim.SimulationContext`.
+  This is now required for multi-GPU workflows because some underlying logic in ``app.update()`` is modifying
+  the cuda device, which results in NCCL errors on distributed setups.
+
+
+0.36.19 (2025-04-01)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Added check in RecorderManager to ensure that the success indicator is only set if the termination manager is present.
+
+
+0.36.18 (2025-03-26)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a dynamic text instruction widget that provides real-time feedback
+  on the number of successful recordings during demonstration sessions.
+
+
+0.36.17 (2025-03-26)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Added override in AppLauncher to apply patch for ``pxr.Gf.Matrix4d`` to work with Pinocchio 2.7.0.
+
+
+0.36.16 (2025-03-25)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Modified rendering mode default behavior when the launcher arg :attr:`enable_cameras` is not set.
+
+
+0.36.15 (2025-03-25)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added near plane distance configuration for XR device.
+
+
+0.36.14 (2025-03-24)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed default render settings in :class:`~isaaclab.sim.SimulationCfg` to None, which means that
+  the default settings will be used from the experience files and the double definition is removed.
+
+
+0.36.13 (2025-03-24)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added headpose support to OpenXRDevice.
+
+
+0.36.12 (2025-03-19)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added parameter to show warning if Pink IK solver fails to find a solution.
+
+
+0.36.11 (2025-03-19)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed default behavior of :class:`~isaaclab.actuators.ImplicitActuator` if no :attr:`effort_limits_sim` or
+  :attr:`effort_limit` is set.
+
+
+0.36.10 (2025-03-17)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* App launcher to update the cli arguments if conditional defaults are used.
+
+
+0.36.9 (2025-03-18)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^^^
+
+* Xr rendering mode, which is default when xr is used.
+
+
+0.36.8 (2025-03-17)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Removed ``scalar_first`` from scipy function usage to support older versions of scipy.
+
+
+0.36.7 (2025-03-14)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Changed the import structure to only import ``pinocchio`` when ``pink-ik`` or ``dex-retargeting`` is being used.
+  This also solves for the problem that ``pink-ik`` and ``dex-retargeting`` are not supported in windows.
+* Removed ``isaacsim.robot_motion.lula`` and ``isaacsim.robot_motion.motion_generation`` from the default loaded Isaac Sim extensions.
+* Moved pink ik action config to a separate file.
+
+
+0.36.6 (2025-03-13)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Worked around an issue where the render mode is set to ``"RayTracedLighting"`` instead of ``"RaytracedLighting"`` by
+  some dependencies.
+
+
+0.36.5 (2025-03-11)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^^^
+
+* Added 3 rendering mode presets: performance, balanced, and quality.
+* Preset settings are stored in ``apps/rendering_modes``.
+* Presets can be set with cli arg ``--rendering_mode`` or with :class:`RenderCfg`.
+* Preset rendering settings can be overwritten with :class:`RenderCfg`.
+* :class:`RenderCfg` supports all native RTX carb settings.
+
+Changed
+^^^^^^^
+* :class:`RenderCfg` default settings are unset.
+
+
+0.36.4 (2025-03-11)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated the OpenXR kit file ``isaaclab.python.xr.openxr.kit`` to inherit from ``isaaclab.python.kit`` instead of
+  ``isaaclab.python.rendering.kit`` which is not appropriate.
+
+
+0.36.3 (2025-03-10)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Added the PinkIKController controller class that interfaces Isaac Lab with the Pink differential inverse kinematics solver
+  to allow control of multiple links in a robot using a single solver.
+
+
+0.36.2 (2025-03-07)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Allowed users to exit on 1 Ctrl+C instead of consecutive 2 key strokes.
+* Allowed physics reset during simulation through :meth:`reset` in :class:`~isaaclab.sim.SimulationContext`.
 
 
 0.36.1 (2025-03-10)
@@ -78,19 +1213,44 @@ Changed
   * ``set_fixed_tendon_limit`` → ``set_fixed_tendon_position_limit``
 
 
-0.34.9 (2025-03-04)
-~~~~~~~~~~~~~~~~~~~
+0.34.13 (2025-03-06)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a new event mode called "prestartup", which gets called right after the scene design is complete
+  and before the simulation is played.
+* Added a callback to resolve the scene entity configurations separately once the simulation plays,
+  since the scene entities cannot be resolved before the simulation starts playing
+  (as we currently rely on PhysX to provide us with the joint/body ordering)
+
+
+0.34.12 (2025-03-06)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Updated the mimic API :meth:`target_eef_pose_to_action` in :class:`isaaclab.envs.ManagerBasedRLMimicEnv` to take a dictionary of
+  eef noise values instead of a single noise value.
+* Added support for optional subtask constraints based on DexMimicGen to the mimic configuration class :class:`isaaclab.envs.MimicEnvCfg`.
+* Enabled data compression in HDF5 dataset file handler :class:`isaaclab.utils.datasets.hdf5_dataset_file_handler.HDF5DatasetFileHandler`.
+
+
+0.34.11 (2025-03-04)
+~~~~~~~~~~~~~~~~~~~~
 
 Fixed
 ^^^^^
 
-* Fixed issue in :class:`~isaaclab.sensors.TiledCamera` where segmentation outputs only display the first tile
+* Fixed issue in :class:`~isaaclab.sensors.TiledCamera` and :class:`~isaaclab.sensors.Camera` where segmentation outputs only display the first tile
   when scene instancing is enabled. A workaround is added for now to disable instancing when segmentation
   outputs are requested.
 
 
-0.34.8 (2025-03-04)
-~~~~~~~~~~~~~~~~~~~
+0.34.10 (2025-03-04)
+~~~~~~~~~~~~~~~~~~~~
 
 Fixed
 ^^^^^
@@ -99,7 +1259,7 @@ Fixed
   with other modalities such as RGBA and depth.
 
 
-0.34.7 (2025-03-04)
+0.34.9 (2025-03-04)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -111,7 +1271,7 @@ Added
   which didn't allow setting the joint position and velocity separately.
 
 
-0.34.6 (2025-03-02)
+0.34.8 (2025-03-02)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -122,7 +1282,7 @@ Fixed
   was always set to False, which led to incorrect contact sensor settings for the spawned assets.
 
 
-0.34.5 (2025-03-02)
+0.34.7 (2025-03-02)
 ~~~~~~~~~~~~~~~~~~~
 
 Changed
@@ -140,7 +1300,7 @@ Removed
 * Removed the attribute ``disable_contact_processing`` from :class:`~isaaclab.sim.SimulationContact`.
 
 
-0.34.4 (2025-03-01)
+0.34.6 (2025-03-01)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -169,7 +1329,7 @@ Changed
   they should use the :attr:`isaaclab.actuators.ImplicitActuatorCfg.velocity_limit_sim` attribute instead.
 
 
-0.34.3 (2025-02-28)
+0.34.5 (2025-02-28)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -178,6 +1338,26 @@ Added
 * Added IP address support for WebRTC livestream to allow specifying IP address to stream across networks.
   This feature requires an updated livestream extension, which is current only available in the pre-built Isaac Lab 2.0.1 docker image.
   Support for other Isaac Sim builds will become available in Isaac Sim 5.0.
+
+
+0.34.4 (2025-02-27)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Refactored retargeting code from Se3Handtracking class into separate modules for better modularity
+* Added scaffolding for developing additional retargeters (e.g. dex)
+
+
+0.34.3 (2025-02-26)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Enablec specifying the placement of the simulation when viewed in an XR device. This is achieved by
+  adding an ``XrCfg`` environment configuration with ``anchor_pos`` and ``anchor_rot`` parameters.
 
 
 0.34.2 (2025-02-21)
@@ -442,7 +1622,12 @@ Changed
 Changed
 ^^^^^^^
 
-* Previously, physx returns the rigid bodies and articulations velocities in the com of bodies rather than the link frame, while poses are in link frames. We now explicitly provide :attr:`body_link_state` and :attr:`body_com_state` APIs replacing the previous :attr:`body_state` API. Previous APIs are now marked as deprecated. Please update any code using the previous pose and velocity APIs to use the new ``*_link_*`` or ``*_com_*`` APIs in :attr:`isaaclab.assets.RigidBody`, :attr:`isaaclab.assets.RigidBodyCollection`, and :attr:`isaaclab.assets.Articulation`.
+* Previously, physx returns the rigid bodies and articulations velocities in the com of bodies rather than the
+  link frame, while poses are in link frames. We now explicitly provide :attr:`body_link_state` and
+  :attr:`body_com_state` APIs replacing the previous :attr:`body_state` API. Previous APIs are now marked as
+  deprecated. Please update any code using the previous pose and velocity APIs to use the new
+  ``*_link_*`` or ``*_com_*`` APIs in :attr:`isaaclab.assets.RigidBody`,
+  :attr:`isaaclab.assets.RigidBodyCollection`, and :attr:`isaaclab.assets.Articulation`.
 
 
 0.31.0 (2024-12-16)
@@ -460,8 +1645,9 @@ Added
 Fixed
 ^^^^^
 
-* Fixed ordering of logging and resamping in the command manager, where we were logging the metrics after resampling the commands.
-  This leads to incorrect logging of metrics when inside the resample call, the metrics tensors get reset.
+* Fixed ordering of logging and resamping in the command manager, where we were logging the metrics
+  after resampling the commands. This leads to incorrect logging of metrics when inside the resample call,
+  the metrics tensors get reset.
 
 
 0.30.2 (2024-12-16)
@@ -487,8 +1673,9 @@ Added
 Changed
 ^^^^^^^
 
-* Added call to update articulation kinematics after reset to ensure states are updated for non-rendering sensors. Previously, some changes
-  in reset such as modifying joint states would not be reflected in the rigid body states immediately after reset.
+* Added call to update articulation kinematics after reset to ensure states are updated for non-rendering sensors.
+  Previously, some changes in reset such as modifying joint states would not be reflected in the rigid body
+  states immediately after reset.
 
 
 0.30.0 (2024-12-15)
@@ -499,13 +1686,15 @@ Added
 
 * Added UI interface to the Managers in the ManagerBasedEnv and MangerBasedRLEnv classes.
 * Added UI widgets for :class:`LiveLinePlot` and :class:`ImagePlot`.
-* Added ``ManagerLiveVisualizer/Cfg``: Given a ManagerBase (i.e. action_manager, observation_manager, etc) and a config file this class creates
-  the the interface between managers and the UI.
-* Added :class:`EnvLiveVisualizer`: A 'manager' of ManagerLiveVisualizer. This is added to the ManagerBasedEnv but is only called during
-  the initialization of the managers in load_managers
-* Added ``get_active_iterable_terms`` implementation methods to ActionManager, ObservationManager, CommandsManager, CurriculumManager,
-  RewardManager, and TerminationManager. This method exports the active term data and labels for each manager and is called by ManagerLiveVisualizer.
-* Additions to :class:`BaseEnvWindow` and :class:`RLEnvWindow` to register ManagerLiveVisualizer UI interfaces for the chosen managers.
+* Added ``ManagerLiveVisualizer/Cfg``: Given a ManagerBase (i.e. action_manager, observation_manager, etc) and a
+  config file this class creates the the interface between managers and the UI.
+* Added :class:`EnvLiveVisualizer`: A 'manager' of ManagerLiveVisualizer. This is added to the ManagerBasedEnv
+  but is only called during the initialization of the managers in load_managers
+* Added ``get_active_iterable_terms`` implementation methods to ActionManager, ObservationManager, CommandsManager,
+  CurriculumManager, RewardManager, and TerminationManager. This method exports the active term data and labels
+  for each manager and is called by ManagerLiveVisualizer.
+* Additions to :class:`BaseEnvWindow` and :class:`RLEnvWindow` to register ManagerLiveVisualizer UI interfaces
+  for the chosen managers.
 
 
 0.29.0 (2024-12-15)
@@ -545,8 +1734,8 @@ Fixed
 ^^^^^
 
 * Fixed the shape of ``quat_w`` in the ``apply_actions`` method of :attr:`~isaaclab.env.mdp.NonHolonomicAction`
-  (previously (N,B,4), now (N,4) since the number of root bodies B is required to be 1). Previously ``apply_actions`` errored
-  because ``euler_xyz_from_quat`` requires inputs of shape (N,4).
+  (previously (N,B,4), now (N,4) since the number of root bodies B is required to be 1). Previously ``apply_actions``
+  errored because ``euler_xyz_from_quat`` requires inputs of shape (N,4).
 
 
 0.28.1 (2024-12-13)
@@ -555,7 +1744,8 @@ Fixed
 Fixed
 ^^^^^
 
-* Fixed the internal buffers for ``set_external_force_and_torque`` where the buffer values would be stale if zero values are sent to the APIs.
+* Fixed the internal buffers for ``set_external_force_and_torque`` where the buffer values would be stale if zero
+  values are sent to the APIs.
 
 
 0.28.0 (2024-12-12)
@@ -564,8 +1754,8 @@ Fixed
 Changed
 ^^^^^^^
 
-* Adapted the :class:`~isaaclab.sim.converters.UrdfConverter` to use the latest URDF converter API from Isaac Sim 4.5. The
-  physics articulation root can now be set separately, and the joint drive gains can be set on a per joint basis.
+* Adapted the :class:`~isaaclab.sim.converters.UrdfConverter` to use the latest URDF converter API from Isaac Sim 4.5.
+  The physics articulation root can now be set separately, and the joint drive gains can be set on a per joint basis.
 
 
 0.27.33 (2024-12-11)
@@ -574,9 +1764,11 @@ Changed
 Added
 ^^^^^
 
-* Introduced an optional ``sensor_cfg`` parameter to the :meth:`~isaaclab.envs.mdp.rewards.base_height_l2` function, enabling the use of
-  :class:`~isaaclab.sensors.RayCaster` for height adjustments. For flat terrains, the function retains its previous behavior.
-* Improved documentation to clarify the usage of the :meth:`~isaaclab.envs.mdp.rewards.base_height_l2` function in both flat and rough terrain settings.
+* Introduced an optional ``sensor_cfg`` parameter to the :meth:`~isaaclab.envs.mdp.rewards.base_height_l2` function,
+  enabling the use of :class:`~isaaclab.sensors.RayCaster` for height adjustments. For flat terrains, the function
+  retains its previous behavior.
+* Improved documentation to clarify the usage of the :meth:`~isaaclab.envs.mdp.rewards.base_height_l2` function in
+  both flat and rough terrain settings.
 
 
 0.27.32 (2024-12-11)
@@ -596,11 +1788,13 @@ Changed
 ^^^^^^^
 
 * Introduced configuration options in :class:`Se3HandTracking` to:
+
   - Zero out rotation around the x/y axes
   - Apply smoothing and thresholding to position and rotation deltas for reduced jitter
   - Use wrist-based rotation reference as an alternative to fingertip-based rotation
 
-* Switched the default position reference in :class:`Se3HandTracking` to the wrist joint pose, providing more stable relative-based positioning.
+* Switched the default position reference in :class:`Se3HandTracking` to the wrist joint pose, providing more stable
+  relative-based positioning.
 
 
 0.27.30 (2024-12-09)
@@ -688,8 +1882,10 @@ Fixed
 Fixed
 ^^^^^
 
-* Added the attributes :attr:`~isaaclab.envs.DirectRLEnvCfg.wait_for_textures` and :attr:`~isaaclab.envs.ManagerBasedEnvCfg.wait_for_textures`
-  to enable assets loading check during :class:`~isaaclab.DirectRLEnv` and :class:`~isaaclab.ManagerBasedEnv` reset method when rtx sensors are added to the scene.
+* Added the attributes :attr:`~isaaclab.envs.DirectRLEnvCfg.wait_for_textures` and
+  :attr:`~isaaclab.envs.ManagerBasedEnvCfg.wait_for_textures` to enable assets loading check
+  during :class:`~isaaclab.DirectRLEnv` and :class:`~isaaclab.ManagerBasedEnv` reset method when
+  rtx sensors are added to the scene.
 
 
 0.27.22 (2024-12-04)
@@ -698,7 +1894,8 @@ Fixed
 Fixed
 ^^^^^
 
-* Fixed the order of the incoming parameters in :class:`isaaclab.envs.DirectMARLEnv` to correctly use ``NoiseModel`` in marl-envs.
+* Fixed the order of the incoming parameters in :class:`isaaclab.envs.DirectMARLEnv` to correctly use
+  ``NoiseModel`` in marl-envs.
 
 
 0.27.21 (2024-12-04)
@@ -722,7 +1919,8 @@ Added
 Changed
 ^^^^^^^
 
-* Changed :class:`isaaclab.envs.DirectMARLEnv` to inherit from ``Gymnasium.Env`` due to requirement from Gymnasium v1.0.0 requiring all environments to be a subclass of ``Gymnasium.Env`` when using the ``make`` interface.
+* Changed :class:`isaaclab.envs.DirectMARLEnv` to inherit from ``Gymnasium.Env`` due to requirement from Gymnasium
+  v1.0.0 requiring all environments to be a subclass of ``Gymnasium.Env`` when using the ``make`` interface.
 
 
 0.27.19 (2024-12-02)
@@ -750,7 +1948,8 @@ Changed
 Added
 ^^^^^
 
-* Added ``create_new_stage`` setting in :class:`~isaaclab.app.AppLauncher` to avoid creating a default new stage on startup in Isaac Sim. This helps reduce the startup time when launching Isaac Lab.
+* Added ``create_new_stage`` setting in :class:`~isaaclab.app.AppLauncher` to avoid creating a default new
+  stage on startup in Isaac Sim. This helps reduce the startup time when launching Isaac Lab.
 
 
 0.27.16 (2024-11-15)
@@ -768,7 +1967,8 @@ Added
 Fixed
 ^^^^^
 
-* Fixed indexing in :meth:`isaaclab.assets.Articulation.write_joint_limits_to_sim` to correctly process non-None ``env_ids`` and ``joint_ids``.
+* Fixed indexing in :meth:`isaaclab.assets.Articulation.write_joint_limits_to_sim` to correctly process
+  non-None ``env_ids`` and ``joint_ids``.
 
 
 0.27.14 (2024-10-23)
@@ -857,8 +2057,10 @@ Added
 Fixed
 ^^^^^
 
-* Fixed usage of ``meshes`` property in :class:`isaaclab.sensors.RayCasterCamera` to use ``self.meshes`` instead of the undefined ``RayCaster.meshes``.
-* Fixed issue in :class:`isaaclab.envs.ui.BaseEnvWindow` where undefined configs were being accessed when creating debug visualization elements in UI.
+* Fixed usage of ``meshes`` property in :class:`isaaclab.sensors.RayCasterCamera` to use ``self.meshes``
+  instead of the undefined ``RayCaster.meshes``.
+* Fixed issue in :class:`isaaclab.envs.ui.BaseEnvWindow` where undefined configs were being accessed when
+  creating debug visualization elements in UI.
 
 
 0.27.5 (2024-10-25)
@@ -876,7 +2078,8 @@ Added
 Fixed
 ^^^^^
 
-* Updated installation path instructions for Windows in the Isaac Lab documentation to remove redundancy in the use of %USERPROFILE% for path definitions.
+* Updated installation path instructions for Windows in the Isaac Lab documentation to remove redundancy in the
+  use of %USERPROFILE% for path definitions.
 
 
 0.27.3 (2024-10-22)
@@ -895,7 +2098,8 @@ Fixed
 Added
 ^^^^^
 
-* Added ``--kit_args`` to :class:`~isaaclab.app.AppLauncher` to allow passing command line arguments directly to Omniverse Kit SDK.
+* Added ``--kit_args`` to :class:`~isaaclab.app.AppLauncher` to allow passing command line arguments directly to
+  Omniverse Kit SDK.
 
 
 0.27.1 (2024-10-20)
@@ -934,8 +2138,10 @@ Added
 * Added Imu sensor implementation that directly accesses the physx view :class:`isaaclab.sensors.Imu`. The
   sensor comes with a configuration class :class:`isaaclab.sensors.ImuCfg` and data class
   :class:`isaaclab.sensors.ImuData`.
-* Moved and renamed :meth:`isaaclab.sensors.camera.utils.convert_orientation_convention` to :meth:`isaaclab.utils.math.convert_camera_frame_orientation_convention`
-* Moved :meth:`isaaclab.sensors.camera.utils.create_rotation_matrix_from_view` to :meth:`isaaclab.utils.math.create_rotation_matrix_from_view`
+* Moved and renamed :meth:`isaaclab.sensors.camera.utils.convert_orientation_convention` to
+  :meth:`isaaclab.utils.math.convert_camera_frame_orientation_convention`
+* Moved :meth:`isaaclab.sensors.camera.utils.create_rotation_matrix_from_view` to
+  :meth:`isaaclab.utils.math.create_rotation_matrix_from_view`
 
 
 0.25.2 (2024-10-16)

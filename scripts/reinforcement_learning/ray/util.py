@@ -1,16 +1,23 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 import argparse
 import os
 import re
+import select
 import subprocess
+import sys
 import threading
+from collections.abc import Sequence
+from dataclasses import dataclass
 from datetime import datetime
 from math import isclose
+from time import time
+from typing import Any
 
 import ray
+from ray.util.scheduling_strategies import NodeAffinitySchedulingStrategy
 from tensorboard.backend.event_processing.directory_watcher import DirectoryDeletedError
 from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
 
@@ -26,6 +33,12 @@ def load_tensorboard_logs(directory: str) -> dict:
         The latest available scalar values.
     """
 
+    # replace any non-alnum/underscore/dot with "_", then collapse runs of "_"
+    def replace_invalid_chars(t):
+        t2 = re.sub(r"[^0-9A-Za-z_./]", "_", t)
+        t2 = re.sub(r"_+", "_", t2)
+        return t2.strip("_")
+
     # Initialize the event accumulator with a size guidance for only the latest entry
     def get_latest_scalars(path: str) -> dict:
         event_acc = EventAccumulator(path, size_guidance={"scalars": 1})
@@ -33,7 +46,7 @@ def load_tensorboard_logs(directory: str) -> dict:
             event_acc.Reload()
             if event_acc.Tags()["scalars"]:
                 return {
-                    tag: event_acc.Scalars(tag)[-1].value
+                    replace_invalid_chars(tag): event_acc.Scalars(tag)[-1].value
                     for tag in event_acc.Tags()["scalars"]
                     if event_acc.Scalars(tag)
                 }
@@ -98,6 +111,12 @@ def remote_execute_job(
     )
 
 
+class LogExtractionError(Exception):
+    """Raised when we cannot extract experiment_name/logdir from the trainer output."""
+
+    pass
+
+
 def execute_job(
     job_cmd: str,
     identifier_string: str = "job 0",
@@ -105,6 +124,8 @@ def execute_job(
     extract_experiment: bool = False,
     persistent_dir: str | None = None,
     log_all_output: bool = False,
+    max_lines_to_search_logs: int = 1000,
+    max_time_to_search_logs: float = 200.0,
 ) -> str | dict:
     """Issue a job (shell command).
 
@@ -117,6 +138,8 @@ def execute_job(
         persistent_dir: When supplied, change to run the directory in a persistent
             directory. Can be used to avoid losing logs in the /tmp directory. Defaults to None.
         log_all_output: When true, print all output to the console. Defaults to False.
+        max_lines_to_search_logs: Maximum number of lines to search for experiment info. Defaults to 1000.
+        max_time_to_search_logs: Maximum time to wait for experiment info before giving up. Defaults to 200.0 seconds.
     Raises:
         ValueError: If the job is unable to start, or throws an error. Most likely to happen
             due to running out of memory.
@@ -190,6 +213,8 @@ def execute_job(
         process = subprocess.Popen(
             job_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, bufsize=1
         )
+        process_file_descriptor = process.stdout.fileno()
+
         if persistent_dir:
             os.chdir(og_dir)
         experiment_name = None
@@ -205,48 +230,80 @@ def execute_job(
                 if log_all_output:
                     print(f"{identifier_string}: {line}")
 
-        # Read stdout until we find experiment info
+        # Read stdout until we find exp. info, up to max_lines_to_search_logs lines, max_time_to_search_logs, or EOF.
         # Do some careful handling prevent overflowing the pipe reading buffer with error 141
-        for line in iter(process.stdout.readline, ""):
-            line = line.strip()
-            result_details.append(f"{identifier_string}: {line} \n")
-            if log_all_output:
-                print(f"{identifier_string}: {line}")
+        lines_read = 0
+        search_duration = 0.0
+        search_start_time = time()
+        while True:
+            new_line_ready, _, _ = select.select([process_file_descriptor], [], [], 1.0)  # Wait up to 1s for stdout
+            if new_line_ready:
+                line = process.stdout.readline()
+                if not line:  # EOF
+                    break
 
-            if extract_experiment:
-                exp_match = experiment_info_pattern.search(line)
-                log_match = logdir_pattern.search(line)
-                err_match = err_pattern.search(line)
+                lines_read += 1
+                line = line.strip()
+                result_details.append(f"{identifier_string}: {line} \n")
 
-                if err_match:
-                    raise ValueError(f"Encountered an error during trial run. {' '.join(result_details)}")
+                if log_all_output:
+                    print(f"{identifier_string}: {line}")
 
-                if exp_match:
-                    experiment_name = exp_match.group(1)
-                if log_match:
-                    logdir = log_match.group(1)
+                if extract_experiment:
+                    exp_match = experiment_info_pattern.search(line)
+                    log_match = logdir_pattern.search(line)
+                    err_match = err_pattern.search(line)
 
-                if experiment_name and logdir:
-                    # Start stderr reader after finding experiment info
-                    stderr_thread = threading.Thread(
-                        target=stream_reader, args=(process.stderr, identifier_string, result_details)
-                    )
-                    stderr_thread.daemon = True
-                    stderr_thread.start()
+                    if err_match:
+                        raise ValueError(f"Encountered an error during trial run. {' '.join(result_details)}")
 
-                    # Start stdout reader to continue reading to flush buffer
-                    stdout_thread = threading.Thread(
-                        target=stream_reader, args=(process.stdout, identifier_string, result_details)
-                    )
-                    stdout_thread.daemon = True
-                    stdout_thread.start()
+                    if exp_match:
+                        experiment_name = exp_match.group(1)
+                    if log_match:
+                        logdir = log_match.group(1)
 
-                    return {
-                        "experiment_name": experiment_name,
-                        "logdir": logdir,
-                        "proc": process,
-                        "result": " ".join(result_details),
-                    }
+                    if experiment_name and logdir:
+                        # Start stderr reader after finding experiment info
+                        stderr_thread = threading.Thread(
+                            target=stream_reader, args=(process.stderr, identifier_string, result_details)
+                        )
+                        stderr_thread.daemon = True
+                        stderr_thread.start()
+
+                        # Start stdout reader to continue reading to flush buffer
+                        stdout_thread = threading.Thread(
+                            target=stream_reader, args=(process.stdout, identifier_string, result_details)
+                        )
+                        stdout_thread.daemon = True
+                        stdout_thread.start()
+
+                        return {
+                            "experiment_name": experiment_name,
+                            "logdir": logdir,
+                            "proc": process,
+                            "result": " ".join(result_details),
+                        }
+
+            if extract_experiment:  # if we are looking for experiment info, check for timeouts and line limits
+                search_duration = time() - search_start_time
+                if search_duration > max_time_to_search_logs:
+                    print(f"[ERROR]: Could not find experiment logs within {max_time_to_search_logs} seconds.")
+                    break
+                if lines_read >= max_lines_to_search_logs:
+                    print(f"[ERROR]: Could not find experiment logs within first {max_lines_to_search_logs} lines.")
+                    break
+
+        # If we reach here, we didn't find experiment info in the output
+        if extract_experiment and not (experiment_name and logdir):
+            error_msg = (
+                "Could not extract experiment_name/logdir from trainer output "
+                f"(experiment_name={experiment_name!r}, logdir={logdir!r}).\n"
+                "\tMake sure your training script prints the following correctly:\n"
+                "\t\tExact experiment name requested from command line: <name>\n"
+                "\t\t[INFO] Logging experiment in directory: <logdir>\n\n"
+            )
+            print(f"[ERROR]: {error_msg}")
+            raise LogExtractionError("Could not extract experiment_name/logdir from training workflow output.")
         process.wait()
         now = datetime.now().strftime("%H:%M:%S.%f")
         completion_info = f"\n[INFO]: {identifier_string}: Job Started at {start_time}, completed at {now}\n"
@@ -255,12 +312,21 @@ def execute_job(
         return " ".join(result_details)
 
 
+def ray_init(ray_address: str = "auto", runtime_env: dict[str, Any] | None = None, log_to_driver: bool = False):
+    """Initialize Ray with the given address and runtime environment."""
+    if not ray.is_initialized():
+        print(
+            f"[INFO] Initializing Ray with address {ray_address}, log_to_driver={log_to_driver},"
+            f" runtime_env={runtime_env}"
+        )
+        ray.init(address=ray_address, runtime_env=runtime_env, log_to_driver=log_to_driver)
+
+
 def get_gpu_node_resources(
     total_resources: bool = False,
     one_node_only: bool = False,
     include_gb_ram: bool = False,
     include_id: bool = False,
-    ray_address: str = "auto",
 ) -> list[dict] | dict:
     """Get information about available GPU node resources.
 
@@ -277,8 +343,7 @@ def get_gpu_node_resources(
         or simply the resource for a single node if requested.
     """
     if not ray.is_initialized():
-        ray.init(address=ray_address)
-
+        ray_init()
     nodes = ray.nodes()
     node_resources = []
     total_cpus = 0
@@ -429,3 +494,225 @@ def _dicts_equal(d1: dict, d2: dict, tol=1e-9) -> bool:
         elif d1[key] != d2[key]:
             return False
     return True
+
+
+@dataclass
+class JobResource:
+    """A dataclass to represent a resource request for a job."""
+
+    num_gpus: float | None = None
+    num_cpus: float | None = None
+    memory: int | None = None  # in bytes
+
+    def to_opt(self) -> dict[str, Any]:
+        """Convert the resource request to a dictionary."""
+        opt = {}
+        if self.num_gpus is not None:
+            opt["num_gpus"] = self.num_gpus
+        if self.num_cpus is not None:
+            opt["num_cpus"] = self.num_cpus
+        if self.memory is not None:
+            opt["memory"] = self.memory
+        return opt
+
+    def to_pg_resources(self) -> dict[str, Any]:
+        """Convert the resource request to a dictionary suitable for placement groups."""
+        res = {}
+        if self.num_gpus is not None:
+            res["GPU"] = self.num_gpus
+        if self.num_cpus is not None:
+            res["CPU"] = self.num_cpus
+        if self.memory is not None:
+            res["memory"] = self.memory
+        return res
+
+
+@dataclass
+class JobNode:
+    """A dataclass to represent a node for job affinity."""
+
+    specific: str | None = None
+    hostname: str | None = None
+    node_id: str | None = None
+
+    def to_opt(self, nodes: list[dict[str, Any]]) -> dict[str, Any]:
+        """
+        Convert node affinity settings into a dictionary of Ray actor scheduling options.
+
+        Args:
+            nodes (list[dict[str, Any]]): List of node metadata from `ray.nodes()` which looks like this:
+            [{
+                'NodeID': 'xxx',
+                'Alive': True,
+                'NodeManagerAddress': 'x.x.x.x',
+                'NodeManagerHostname': 'ray-head-mjzzf',
+                'NodeManagerPort': 44039,
+                'ObjectManagerPort': 35689,
+                'ObjectStoreSocketName': '/tmp/ray/session_xxx/sockets/plasma_store',
+                'RayletSocketName': '/tmp/ray/session_xxx/sockets/raylet',
+                'MetricsExportPort': 8080,
+                'NodeName': 'x.x.x.x',
+                'RuntimeEnvAgentPort': 63725,
+                'DeathReason': 0,
+                'DeathReasonMessage': '',
+                'alive': True,
+                'Resources': {
+                    'node:__internal_head__': 1.0,
+                    'object_store_memory': 422449279795.0,
+                    'memory': 1099511627776.0,
+                    'GPU': 8.0,
+                    'node:x.x.x.x': 1.0,
+                    'CPU': 192.0,
+                    'accelerator_type:H20': 1.0
+                    },
+                'Labels': {
+                    'ray.io/node_id': 'xxx'
+                    }
+                },...]
+
+        Returns:
+            dict[str, Any]: A dictionary with possible scheduling options:
+                - Empty if no specific placement requirement.
+                - "scheduling_strategy" key set to `NodeAffinitySchedulingStrategy`
+                  if hostname or node_id placement is specified.
+
+        Raises:
+            ValueError: If hostname/node_id is specified but not found in the cluster
+                        or the node is not alive.
+        """
+        opt = {}
+        if self.specific is None or self.specific == "any":
+            return opt
+        elif self.specific == "hostname":
+            if self.hostname is None:
+                raise ValueError("Hostname must be specified when specific is 'hostname'")
+            for node in nodes:
+                if node["NodeManagerHostname"] == self.hostname:
+                    if node["alive"] is False:
+                        raise ValueError(f"Node {node['NodeID']} is not alive")
+                    opt["scheduling_strategy"] = NodeAffinitySchedulingStrategy(node_id=node["NodeID"], soft=False)
+                    return opt
+            raise ValueError(f"Hostname {self.hostname} not found in nodes: {nodes}")
+        elif self.specific == "node_id":
+            if self.node_id is None:
+                raise ValueError("Node ID must be specified when specific is 'node_id'")
+            for node in nodes:
+                if node["NodeID"] == self.node_id:
+                    if node["alive"] is False:
+                        raise ValueError(f"Node {node['NodeID']} is not alive")
+                    opt["scheduling_strategy"] = NodeAffinitySchedulingStrategy(node_id=node["NodeID"], soft=False)
+                    return opt
+            raise ValueError(f"Node ID {self.node_id} not found in nodes: {nodes}")
+        else:
+            raise ValueError(f"Invalid specific value: {self.specific}. Must be 'any', 'hostname', or 'node_id'.")
+
+
+@dataclass
+class Job:
+    """A dataclass to represent a job to be submitted to Ray."""
+
+    # job command
+    cmd: str | None = None
+    py_args: str | None = None
+    # identifier string for the job, e.g., "job 0"
+    name: str = ""
+    # job resources, e.g., {"CPU": 4, "GPU": 1}
+    resources: JobResource | None = None
+    # specify the node to run the job on, if needed to run on a specific node
+    node: JobNode | None = None
+
+    def to_opt(self, nodes: list[dict[str, Any]]) -> dict[str, Any]:
+        """
+        Convert the job definition into a dictionary of Ray scheduling options.
+
+        Args:
+            nodes (list[dict[str, Any]]): Node information from `ray.nodes()`.
+
+        Returns:
+            dict[str, Any]: Combined scheduling options from:
+                - `JobResource.to_opt()` for resource requirements
+                - `JobNode.to_opt()` for node placement constraints
+        """
+        opt = {}
+        if self.resources is not None:
+            opt.update(self.resources.to_opt())
+        if self.node is not None:
+            opt.update(self.node.to_opt(nodes))
+        return opt
+
+
+@ray.remote
+class JobActor:
+    """Actor to run job in Ray cluster."""
+
+    def __init__(self, job: Job, test_mode: bool, log_all_output: bool, extract_experiment: bool = False):
+        self.job = job
+        self.test_mode = test_mode
+        self.log_all_output = log_all_output
+        self.extract_experiment = extract_experiment
+        self.done = True
+
+    def ready(self) -> bool:
+        """Check if the job is ready to run."""
+        return self.done
+
+    def run(self):
+        """Run the job."""
+        cmd = self.job.cmd if self.job.cmd else " ".join([sys.executable, *self.job.py_args.split()])
+        return execute_job(
+            job_cmd=cmd,
+            identifier_string=self.job.name,
+            test_mode=self.test_mode,
+            extract_experiment=self.extract_experiment,
+            log_all_output=self.log_all_output,
+        )
+
+
+def submit_wrapped_jobs(
+    jobs: Sequence[Job],
+    log_realtime: bool = True,
+    test_mode: bool = False,
+    concurrent: bool = False,
+) -> None:
+    """
+    Submit a list of jobs to the Ray cluster and manage their execution.
+
+    Args:
+        jobs (Sequence[Job]): A sequence of Job objects to execute on Ray.
+        log_realtime (bool): Whether to log stdout/stderr in real-time. Defaults to True.
+        test_mode (bool): If True, run in GPU sanity-check mode instead of actual jobs. Defaults to False.
+        concurrent (bool): Whether to launch tasks simultaneously as a batch,
+                           or independently as resources become available. Defaults to False.
+
+    Returns:
+        None
+    """
+    if jobs is None or len(jobs) == 0:
+        print("[WARNING]: No jobs to submit")
+        return
+    if not ray.is_initialized():
+        raise Exception("Ray is not initialized. Please initialize Ray before submitting jobs.")
+    nodes = ray.nodes()
+    actors = []
+    for i, job in enumerate(jobs):
+        opts = job.to_opt(nodes)
+        name = job.name or f"job_{i + 1}"
+        print(f"[INFO] Create {name} with opts={opts}")
+        job_actor = JobActor.options(**opts).remote(job, test_mode, log_realtime)
+        actors.append(job_actor)
+    try:
+        if concurrent:
+            ray.get([actor.ready.remote() for actor in actors])
+            print("[INFO] All actors are ready to run.")
+        future = [actor.run.remote() for actor in actors]
+        while future:
+            ready, not_ready = ray.wait(future, timeout=5)
+            for result in ray.get(ready):
+                print(f"\n{result}\n")
+            future = not_ready
+        print("[INFO] all jobs completed.")
+    except KeyboardInterrupt:
+        print("[INFO] KeyboardInterrupt received, cancelling …")
+        for actor in actors:
+            ray.cancel(actor, force=True)
+        sys.exit(0)

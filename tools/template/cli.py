@@ -1,17 +1,17 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 import enum
-import glob
+import importlib
 import os
 from collections.abc import Callable
 
 import rich.console
 import rich.table
-from common import ROOT_DIR, TEMPLATE_DIR
-from generator import generate
+from common import ROOT_DIR
+from generator import generate, get_algorithms_per_rl_library
 from InquirerPy import inquirer, separator
 
 
@@ -144,32 +144,29 @@ class State(str, enum.Enum):
     No = "[red]no[/red]"
 
 
-def _get_algorithms_per_rl_library():
-    data = {"rl_games": [], "rsl_rl": [], "skrl": [], "sb3": []}
-    for file in glob.glob(os.path.join(TEMPLATE_DIR, "agents", "*_cfg")):
-        for rl_library in data.keys():
-            basename = os.path.basename(file).replace("_cfg", "")
-            if basename.startswith(f"{rl_library}_"):
-                data[rl_library].append(basename.replace(f"{rl_library}_", "").upper())
-    return data
-
-
 def main() -> None:
     """Main function to run template generation from CLI."""
     cli_handler = CLIHandler()
 
-    # project type
-    is_external_project = (
-        cli_handler.input_select(
-            "Task type:",
-            choices=["External", "Internal"],
-            long_instruction=(
-                "External (recommended): task/project is in its own folder/repo outside the Isaac Lab project.\n"
-                "Internal: the task is implemented within the Isaac Lab project (in source/isaaclab_tasks)."
-            ),
-        ).lower()
-        == "external"
-    )
+    lab_module = importlib.import_module("isaaclab")
+    lab_path = os.path.realpath(getattr(lab_module, "__file__", "") or (getattr(lab_module, "__path__", [""])[0]))
+    is_lab_pip_installed = ("site-packages" in lab_path) or ("dist-packages" in lab_path)
+
+    if not is_lab_pip_installed:
+        # project type
+        is_external_project = (
+            cli_handler.input_select(
+                "Task type:",
+                choices=["External", "Internal"],
+                long_instruction=(
+                    "External (recommended): task/project is in its own folder/repo outside the Isaac Lab project.\n"
+                    "Internal: the task is implemented within the Isaac Lab project (in source/isaaclab_tasks)."
+                ),
+            ).lower()
+            == "external"
+        )
+    else:
+        is_external_project = True
 
     # project path (if 'external')
     project_path = None
@@ -207,10 +204,12 @@ def main() -> None:
         default=supported_workflows,
     )
     workflow = [{"name": item.split(" | ")[0].lower(), "type": item.split(" | ")[1].lower()} for item in workflow]
+    single_agent_workflow = [item for item in workflow if item["type"] == "single-agent"]
+    multi_agent_workflow = [item for item in workflow if item["type"] == "multi-agent"]
 
     # RL library
     rl_library_algorithms = []
-    algorithms_per_rl_library = _get_algorithms_per_rl_library()
+    algorithms_per_rl_library = get_algorithms_per_rl_library()
     # - show supported RL libraries and features
     rl_library_table = rich.table.Table(title="Supported RL libraries")
     rl_library_table.add_column("RL/training feature", no_wrap=True)
@@ -219,6 +218,7 @@ def main() -> None:
     rl_library_table.add_column("skrl")
     rl_library_table.add_column("sb3")
     rl_library_table.add_row("ML frameworks", "PyTorch", "PyTorch", "PyTorch, JAX", "PyTorch")
+    rl_library_table.add_row("Relative performance", "~1X", "~1X", "~1X", "~0.03X")
     rl_library_table.add_row(
         "Algorithms",
         ", ".join(algorithms_per_rl_library.get("rl_games", [])),
@@ -226,18 +226,19 @@ def main() -> None:
         ", ".join(algorithms_per_rl_library.get("skrl", [])),
         ", ".join(algorithms_per_rl_library.get("sb3", [])),
     )
-    rl_library_table.add_row("Relative performance", "~1X", "~1X", "~1X", "~0.03X")
+    rl_library_table.add_row("Multi-agent support", State.No, State.No, State.Yes, State.No)
     rl_library_table.add_row("Distributed training", State.Yes, State.No, State.Yes, State.No)
     rl_library_table.add_row("Vectorized training", State.Yes, State.Yes, State.Yes, State.No)
     rl_library_table.add_row("Fundamental/composite spaces", State.No, State.No, State.Yes, State.No)
     cli_handler.output_table(rl_library_table)
     # - prompt for RL libraries
-    supported_rl_libraries = ["rl_games", "rsl_rl", "skrl", "sb3"]
+    supported_rl_libraries = ["rl_games", "rsl_rl", "skrl", "sb3"] if len(single_agent_workflow) else ["skrl"]
     selected_rl_libraries = cli_handler.get_choices(
         cli_handler.input_checkbox("RL library:", choices=[*supported_rl_libraries, "---", "all"]),
         default=supported_rl_libraries,
     )
     # - prompt for algorithms per RL library
+    algorithms_per_rl_library = get_algorithms_per_rl_library(len(single_agent_workflow), len(multi_agent_workflow))
     for rl_library in selected_rl_libraries:
         algorithms = algorithms_per_rl_library.get(rl_library, [])
         if len(algorithms) > 1:

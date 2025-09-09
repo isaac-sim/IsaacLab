@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -8,9 +8,12 @@ from collections.abc import Sequence
 from typing import Any
 
 import carb
+import omni.log
 import omni.usd
 from isaacsim.core.cloner import GridCloner
 from isaacsim.core.prims import XFormPrim
+from isaacsim.core.utils.stage import get_current_stage
+from isaacsim.core.version import get_version
 from pxr import PhysxSchema
 
 import isaaclab.sim as sim_utils
@@ -24,8 +27,12 @@ from isaaclab.assets import (
     RigidObjectCfg,
     RigidObjectCollection,
     RigidObjectCollectionCfg,
+    SurfaceGripper,
+    SurfaceGripperCfg,
 )
 from isaaclab.sensors import ContactSensorCfg, FrameTransformerCfg, SensorBase, SensorBaseCfg
+from isaaclab.sim import SimulationContext
+from isaaclab.sim.utils import get_current_stage_id
 from isaaclab.terrains import TerrainImporter, TerrainImporterCfg
 
 from .interactive_scene_cfg import InteractiveSceneCfg
@@ -117,29 +124,50 @@ class InteractiveScene:
         self._rigid_objects = dict()
         self._rigid_object_collections = dict()
         self._sensors = dict()
+        self._surface_grippers = dict()
         self._extras = dict()
-        # obtain the current stage
-        self.stage = omni.usd.get_context().get_stage()
+        # get stage handle
+        self.sim = SimulationContext.instance()
+        self.stage = get_current_stage()
+        self.stage_id = get_current_stage_id()
         # physics scene path
         self._physics_scene_path = None
         # prepare cloner for environment replication
-        self.cloner = GridCloner(spacing=self.cfg.env_spacing)
+        self.cloner = GridCloner(spacing=self.cfg.env_spacing, stage=self.stage)
         self.cloner.define_base_env(self.env_ns)
         self.env_prim_paths = self.cloner.generate_paths(f"{self.env_ns}/env", self.cfg.num_envs)
         # create source prim
         self.stage.DefinePrim(self.env_prim_paths[0], "Xform")
-
+        # allocate env indices
+        self._ALL_INDICES = torch.arange(self.cfg.num_envs, dtype=torch.long, device=self.device)
         # when replicate_physics=False, we assume heterogeneous environments and clone the xforms first.
         # this triggers per-object level cloning in the spawner.
         if not self.cfg.replicate_physics:
-            # clone the env xform
-            env_origins = self.cloner.clone(
-                source_prim_path=self.env_prim_paths[0],
-                prim_paths=self.env_prim_paths,
-                replicate_physics=False,
-                copy_from_source=True,
-                enable_env_ids=self.cfg.filter_collisions,  # this won't do anything because we are not replicating physics
-            )
+            # check version of Isaac Sim to determine whether clone_in_fabric is valid
+            isaac_sim_version = float(".".join(get_version()[2]))
+            if isaac_sim_version < 5:
+                # clone the env xform
+                env_origins = self.cloner.clone(
+                    source_prim_path=self.env_prim_paths[0],
+                    prim_paths=self.env_prim_paths,
+                    replicate_physics=False,
+                    copy_from_source=True,
+                    enable_env_ids=(
+                        self.cfg.filter_collisions if self.device != "cpu" else False
+                    ),  # this won't do anything because we are not replicating physics
+                )
+            else:
+                # clone the env xform
+                env_origins = self.cloner.clone(
+                    source_prim_path=self.env_prim_paths[0],
+                    prim_paths=self.env_prim_paths,
+                    replicate_physics=False,
+                    copy_from_source=True,
+                    enable_env_ids=(
+                        self.cfg.filter_collisions if self.device != "cpu" else False
+                    ),  # this won't do anything because we are not replicating physics
+                    clone_in_fabric=self.cfg.clone_in_fabric,
+                )
             self._default_env_origins = torch.tensor(env_origins, device=self.device, dtype=torch.float32)
         else:
             # otherwise, environment origins will be initialized during cloning at the end of environment creation
@@ -155,17 +183,30 @@ class InteractiveScene:
             # replicate physics if we have more than one environment
             # this is done to make scene initialization faster at play time
             if self.cfg.replicate_physics and self.cfg.num_envs > 1:
-                self.cloner.replicate_physics(
-                    source_prim_path=self.env_prim_paths[0],
-                    prim_paths=self.env_prim_paths,
-                    base_env_path=self.env_ns,
-                    root_path=self.env_regex_ns.replace(".*", ""),
-                    enable_env_ids=self.cfg.filter_collisions,
-                )
+                # check version of Isaac Sim to determine whether clone_in_fabric is valid
+                isaac_sim_version = float(".".join(get_version()[2]))
+                if isaac_sim_version < 5:
+                    self.cloner.replicate_physics(
+                        source_prim_path=self.env_prim_paths[0],
+                        prim_paths=self.env_prim_paths,
+                        base_env_path=self.env_ns,
+                        root_path=self.env_regex_ns.replace(".*", ""),
+                        enable_env_ids=self.cfg.filter_collisions if self.device != "cpu" else False,
+                    )
+                else:
+                    self.cloner.replicate_physics(
+                        source_prim_path=self.env_prim_paths[0],
+                        prim_paths=self.env_prim_paths,
+                        base_env_path=self.env_ns,
+                        root_path=self.env_regex_ns.replace(".*", ""),
+                        enable_env_ids=self.cfg.filter_collisions if self.device != "cpu" else False,
+                        clone_in_fabric=self.cfg.clone_in_fabric,
+                    )
 
             # since env_ids is only applicable when replicating physics, we have to fallback to the previous method
             # to filter collisions if replicate_physics is not enabled
-            if not self.cfg.replicate_physics and self.cfg.filter_collisions:
+            # additionally, env_ids is only supported in GPU simulation
+            if (not self.cfg.replicate_physics and self.cfg.filter_collisions) or self.device == "cpu":
                 self.filter_collisions(self._global_prim_paths)
 
     def clone_environments(self, copy_from_source: bool = False):
@@ -187,22 +228,43 @@ class InteractiveScene:
                 " This may adversely affect PhysX parsing. We recommend disabling this property."
             )
 
-        # clone the environment
-        env_origins = self.cloner.clone(
-            source_prim_path=self.env_prim_paths[0],
-            prim_paths=self.env_prim_paths,
-            replicate_physics=self.cfg.replicate_physics,
-            copy_from_source=copy_from_source,
-            enable_env_ids=self.cfg.filter_collisions,  # this automatically filters collisions between environments
-        )
+        # check version of Isaac Sim to determine whether clone_in_fabric is valid
+        isaac_sim_version = float(".".join(get_version()[2]))
+        if isaac_sim_version < 5:
+            # clone the environment
+            env_origins = self.cloner.clone(
+                source_prim_path=self.env_prim_paths[0],
+                prim_paths=self.env_prim_paths,
+                replicate_physics=self.cfg.replicate_physics,
+                copy_from_source=copy_from_source,
+                enable_env_ids=(
+                    self.cfg.filter_collisions if self.device != "cpu" else False
+                ),  # this automatically filters collisions between environments
+            )
+        else:
+            # clone the environment
+            env_origins = self.cloner.clone(
+                source_prim_path=self.env_prim_paths[0],
+                prim_paths=self.env_prim_paths,
+                replicate_physics=self.cfg.replicate_physics,
+                copy_from_source=copy_from_source,
+                enable_env_ids=(
+                    self.cfg.filter_collisions if self.device != "cpu" else False
+                ),  # this automatically filters collisions between environments
+                clone_in_fabric=self.cfg.clone_in_fabric,
+            )
 
         # since env_ids is only applicable when replicating physics, we have to fallback to the previous method
         # to filter collisions if replicate_physics is not enabled
-        if not self.cfg.replicate_physics and self.cfg.filter_collisions:
-            omni.log.warn(
-                "Collision filtering can only be automatically enabled when replicate_physics=True."
-                " Please call scene.filter_collisions(global_prim_paths) to filter collisions across environments."
-            )
+        # additionally, env_ids is only supported in GPU simulation
+        if (not self.cfg.replicate_physics and self.cfg.filter_collisions) or self.device == "cpu":
+            # if scene is specified through cfg, this is already taken care of
+            if not self._is_scene_setup_from_cfg():
+                omni.log.warn(
+                    "Collision filtering can only be automatically enabled when replicate_physics=True and using GPU"
+                    " simulation. Please call scene.filter_collisions(global_prim_paths) to filter collisions across"
+                    " environments."
+                )
 
         # in case of heterogeneous cloning, the env origins is specified at init
         if self._default_env_origins is None:
@@ -224,6 +286,10 @@ class InteractiveScene:
         else:
             # remove duplicates in paths
             global_prim_paths = list(set(global_prim_paths))
+
+        # if "/World/collisions" already exists in the stage, we don't filter again
+        if self.stage.GetPrimAtPath("/World/collisions"):
+            return
 
         # set global prim paths list if not previously defined
         if len(self._global_prim_paths) < 1:
@@ -337,6 +403,11 @@ class InteractiveScene:
         return self._sensors
 
     @property
+    def surface_grippers(self) -> dict[str, SurfaceGripper]:
+        """A dictionary of the surface grippers in the scene."""
+        return self._surface_grippers
+
+    @property
     def extras(self) -> dict[str, XFormPrim]:
         """A dictionary of miscellaneous simulation objects that neither inherit from assets nor sensors.
 
@@ -357,53 +428,11 @@ class InteractiveScene:
 
     @property
     def state(self) -> dict[str, dict[str, dict[str, torch.Tensor]]]:
-        """Returns the state of the scene entities.
+        """A dictionary of the state of the scene entities in the simulation world frame.
 
-        Returns:
-            A dictionary of the state of the scene entities.
+        Please refer to :meth:`get_state` for the format.
         """
         return self.get_state(is_relative=False)
-
-    def get_state(self, is_relative: bool = False) -> dict[str, dict[str, dict[str, torch.Tensor]]]:
-        """Returns the state of the scene entities.
-
-        Args:
-            is_relative: If set to True, the state is considered relative to the environment origins.
-
-        Returns:
-            A dictionary of the state of the scene entities.
-        """
-        state = dict()
-        # articulations
-        state["articulation"] = dict()
-        for asset_name, articulation in self._articulations.items():
-            asset_state = dict()
-            asset_state["root_pose"] = articulation.data.root_state_w[:, :7].clone()
-            if is_relative:
-                asset_state["root_pose"][:, :3] -= self.env_origins
-            asset_state["root_velocity"] = articulation.data.root_vel_w.clone()
-            asset_state["joint_position"] = articulation.data.joint_pos.clone()
-            asset_state["joint_velocity"] = articulation.data.joint_vel.clone()
-            state["articulation"][asset_name] = asset_state
-        # deformable objects
-        state["deformable_object"] = dict()
-        for asset_name, deformable_object in self._deformable_objects.items():
-            asset_state = dict()
-            asset_state["nodal_position"] = deformable_object.data.nodal_pos_w.clone()
-            if is_relative:
-                asset_state["nodal_position"][:, :3] -= self.env_origins
-            asset_state["nodal_velocity"] = deformable_object.data.nodal_vel_w.clone()
-            state["deformable_object"][asset_name] = asset_state
-        # rigid objects
-        state["rigid_object"] = dict()
-        for asset_name, rigid_object in self._rigid_objects.items():
-            asset_state = dict()
-            asset_state["root_pose"] = rigid_object.data.root_state_w[:, :7].clone()
-            if is_relative:
-                asset_state["root_pose"][:, :3] -= self.env_origins
-            asset_state["root_velocity"] = rigid_object.data.root_vel_w.clone()
-            state["rigid_object"][asset_name] = asset_state
-        return state
 
     """
     Operations.
@@ -423,11 +452,52 @@ class InteractiveScene:
             deformable_object.reset(env_ids)
         for rigid_object in self._rigid_objects.values():
             rigid_object.reset(env_ids)
+        for surface_gripper in self._surface_grippers.values():
+            surface_gripper.reset(env_ids)
         for rigid_object_collection in self._rigid_object_collections.values():
             rigid_object_collection.reset(env_ids)
         # -- sensors
         for sensor in self._sensors.values():
             sensor.reset(env_ids)
+
+    def write_data_to_sim(self):
+        """Writes the data of the scene entities to the simulation."""
+        # -- assets
+        for articulation in self._articulations.values():
+            articulation.write_data_to_sim()
+        for deformable_object in self._deformable_objects.values():
+            deformable_object.write_data_to_sim()
+        for rigid_object in self._rigid_objects.values():
+            rigid_object.write_data_to_sim()
+        for surface_gripper in self._surface_grippers.values():
+            surface_gripper.write_data_to_sim()
+        for rigid_object_collection in self._rigid_object_collections.values():
+            rigid_object_collection.write_data_to_sim()
+
+    def update(self, dt: float) -> None:
+        """Update the scene entities.
+
+        Args:
+            dt: The amount of time passed from last :meth:`update` call.
+        """
+        # -- assets
+        for articulation in self._articulations.values():
+            articulation.update(dt)
+        for deformable_object in self._deformable_objects.values():
+            deformable_object.update(dt)
+        for rigid_object in self._rigid_objects.values():
+            rigid_object.update(dt)
+        for rigid_object_collection in self._rigid_object_collections.values():
+            rigid_object_collection.update(dt)
+        for surface_gripper in self._surface_grippers.values():
+            surface_gripper.update(dt)
+        # -- sensors
+        for sensor in self._sensors.values():
+            sensor.update(dt, force_recompute=not self.cfg.lazy_sensor_update)
+
+    """
+    Operations: Scene State.
+    """
 
     def reset_to(
         self,
@@ -435,16 +505,18 @@ class InteractiveScene:
         env_ids: Sequence[int] | None = None,
         is_relative: bool = False,
     ):
-        """Resets the scene entities to the given state.
+        """Resets the entities in the scene to the provided state.
 
         Args:
-            state: The state to reset the scene entities to.
-            env_ids: The indices of the environments to reset.
-                Defaults to None (all instances).
+            state: The state to reset the scene entities to. Please refer to :meth:`get_state` for the format.
+            env_ids: The indices of the environments to reset. Defaults to None, in which case
+                all environment instances are reset.
             is_relative: If set to True, the state is considered relative to the environment origins.
+                Defaults to False.
         """
+        # resolve env_ids
         if env_ids is None:
-            env_ids = slice(None)
+            env_ids = self._ALL_INDICES
         # articulations
         for asset_name, articulation in self._articulations.items():
             asset_state = state["articulation"][asset_name]
@@ -459,6 +531,8 @@ class InteractiveScene:
             joint_position = asset_state["joint_position"].clone()
             joint_velocity = asset_state["joint_velocity"].clone()
             articulation.write_joint_state_to_sim(joint_position, joint_velocity, env_ids=env_ids)
+            # FIXME: This is not generic as it assumes PD control over the joints.
+            #   This assumption does not hold for effort controlled joints.
             articulation.set_joint_position_target(joint_position, env_ids=env_ids)
             articulation.set_joint_velocity_target(joint_velocity, env_ids=env_ids)
         # deformable objects
@@ -479,38 +553,101 @@ class InteractiveScene:
             root_velocity = asset_state["root_velocity"].clone()
             rigid_object.write_root_pose_to_sim(root_pose, env_ids=env_ids)
             rigid_object.write_root_velocity_to_sim(root_velocity, env_ids=env_ids)
+        # surface grippers
+        for asset_name, surface_gripper in self._surface_grippers.items():
+            asset_state = state["gripper"][asset_name]
+            surface_gripper.set_grippers_command(asset_state)
+
+        # write data to simulation to make sure initial state is set
+        # this propagates the joint targets to the simulation
         self.write_data_to_sim()
 
-    def write_data_to_sim(self):
-        """Writes the data of the scene entities to the simulation."""
-        # -- assets
-        for articulation in self._articulations.values():
-            articulation.write_data_to_sim()
-        for deformable_object in self._deformable_objects.values():
-            deformable_object.write_data_to_sim()
-        for rigid_object in self._rigid_objects.values():
-            rigid_object.write_data_to_sim()
-        for rigid_object_collection in self._rigid_object_collections.values():
-            rigid_object_collection.write_data_to_sim()
+    def get_state(self, is_relative: bool = False) -> dict[str, dict[str, dict[str, torch.Tensor]]]:
+        """Returns the state of the scene entities.
 
-    def update(self, dt: float) -> None:
-        """Update the scene entities.
+        Based on the type of the entity, the state comprises of different components.
+
+        * For an articulation, the state comprises of the root pose, root velocity, and joint position and velocity.
+        * For a deformable object, the state comprises of the nodal position and velocity.
+        * For a rigid object, the state comprises of the root pose and root velocity.
+
+        The returned state is a dictionary with the following format:
+
+        .. code-block:: python
+
+            {
+                "articulation": {
+                    "entity_1_name": {
+                        "root_pose": torch.Tensor,
+                        "root_velocity": torch.Tensor,
+                        "joint_position": torch.Tensor,
+                        "joint_velocity": torch.Tensor,
+                    },
+                    "entity_2_name": {
+                        "root_pose": torch.Tensor,
+                        "root_velocity": torch.Tensor,
+                        "joint_position": torch.Tensor,
+                        "joint_velocity": torch.Tensor,
+                    },
+                },
+                "deformable_object": {
+                    "entity_3_name": {
+                        "nodal_position": torch.Tensor,
+                        "nodal_velocity": torch.Tensor,
+                    }
+                },
+                "rigid_object": {
+                    "entity_4_name": {
+                        "root_pose": torch.Tensor,
+                        "root_velocity": torch.Tensor,
+                    }
+                },
+            }
+
+        where ``entity_N_name`` is the name of the entity registered in the scene.
 
         Args:
-            dt: The amount of time passed from last :meth:`update` call.
+            is_relative: If set to True, the state is considered relative to the environment origins.
+                Defaults to False.
+
+        Returns:
+            A dictionary of the state of the scene entities.
         """
-        # -- assets
-        for articulation in self._articulations.values():
-            articulation.update(dt)
-        for deformable_object in self._deformable_objects.values():
-            deformable_object.update(dt)
-        for rigid_object in self._rigid_objects.values():
-            rigid_object.update(dt)
-        for rigid_object_collection in self._rigid_object_collections.values():
-            rigid_object_collection.update(dt)
-        # -- sensors
-        for sensor in self._sensors.values():
-            sensor.update(dt, force_recompute=not self.cfg.lazy_sensor_update)
+        state = dict()
+        # articulations
+        state["articulation"] = dict()
+        for asset_name, articulation in self._articulations.items():
+            asset_state = dict()
+            asset_state["root_pose"] = articulation.data.root_pose_w.clone()
+            if is_relative:
+                asset_state["root_pose"][:, :3] -= self.env_origins
+            asset_state["root_velocity"] = articulation.data.root_vel_w.clone()
+            asset_state["joint_position"] = articulation.data.joint_pos.clone()
+            asset_state["joint_velocity"] = articulation.data.joint_vel.clone()
+            state["articulation"][asset_name] = asset_state
+        # deformable objects
+        state["deformable_object"] = dict()
+        for asset_name, deformable_object in self._deformable_objects.items():
+            asset_state = dict()
+            asset_state["nodal_position"] = deformable_object.data.nodal_pos_w.clone()
+            if is_relative:
+                asset_state["nodal_position"][:, :3] -= self.env_origins
+            asset_state["nodal_velocity"] = deformable_object.data.nodal_vel_w.clone()
+            state["deformable_object"][asset_name] = asset_state
+        # rigid objects
+        state["rigid_object"] = dict()
+        for asset_name, rigid_object in self._rigid_objects.items():
+            asset_state = dict()
+            asset_state["root_pose"] = rigid_object.data.root_pose_w.clone()
+            if is_relative:
+                asset_state["root_pose"][:, :3] -= self.env_origins
+            asset_state["root_velocity"] = rigid_object.data.root_vel_w.clone()
+            state["rigid_object"][asset_name] = asset_state
+        # surface grippers
+        state["gripper"] = dict()
+        for asset_name, gripper in self._surface_grippers.items():
+            state["gripper"][asset_name] = gripper.state.clone()
+        return state
 
     """
     Operations: Iteration.
@@ -529,6 +666,7 @@ class InteractiveScene:
             self._rigid_objects,
             self._rigid_object_collections,
             self._sensors,
+            self._surface_grippers,
             self._extras,
         ]:
             all_keys += list(asset_family.keys())
@@ -555,6 +693,7 @@ class InteractiveScene:
             self._rigid_objects,
             self._rigid_object_collections,
             self._sensors,
+            self._surface_grippers,
             self._extras,
         ]:
             out = asset_family.get(key)
@@ -569,7 +708,12 @@ class InteractiveScene:
     Internal methods.
     """
 
-    def _is_scene_setup_from_cfg(self):
+    def _is_scene_setup_from_cfg(self) -> bool:
+        """Check if scene entities are setup from the config or not.
+
+        Returns:
+            True if scene entities are setup from the config, False otherwise.
+        """
         return any(
             not (asset_name in InteractiveSceneCfg.__dataclass_fields__ or asset_cfg is None)
             for asset_name, asset_cfg in self.cfg.__dict__.items()
@@ -608,6 +752,9 @@ class InteractiveScene:
                     if hasattr(rigid_object_cfg, "collision_group") and rigid_object_cfg.collision_group == -1:
                         asset_paths = sim_utils.find_matching_prim_paths(rigid_object_cfg.prim_path)
                         self._global_prim_paths += asset_paths
+            elif isinstance(asset_cfg, SurfaceGripperCfg):
+                # add surface grippers to scene
+                self._surface_grippers[asset_name] = asset_cfg.class_type(asset_cfg)
             elif isinstance(asset_cfg, SensorBaseCfg):
                 # Update target frame path(s)' regex name space for FrameTransformer
                 if isinstance(asset_cfg, FrameTransformerCfg):

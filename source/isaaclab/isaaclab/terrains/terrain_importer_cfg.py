@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -68,9 +68,7 @@ class TerrainImporterCfg:
       This parameter is used only when the ``terrain_type`` is "plane" or "usd".
     """
 
-    visual_material: sim_utils.VisualMaterialCfg | None = sim_utils.PreviewSurfaceCfg(
-        diffuse_color=(0.065, 0.0725, 0.080)
-    )
+    visual_material: sim_utils.VisualMaterialCfg | None = sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 0.0))
     """The visual material of the terrain. Defaults to a dark gray color material.
 
     This parameter is used for both the "generator" and "plane" terrains.

@@ -3,32 +3,41 @@ Recording Animations of Simulations
 
 .. currentmodule:: isaaclab
 
-Omniverse includes tools to record animations of physics simulations. The `Stage Recorder`_ extension
-listens to all the motion and USD property changes within a USD stage and records them to a USD file.
-This file contains the time samples of the changes, which can be played back to render the animation.
+Isaac Lab supports two approaches for recording animations of physics simulations: the **Stage Recorder** and the **OVD Recorder**.
+Both generate USD outputs that can be played back in Omniverse, but they differ in how they work and when you’d use them.
 
-The timeSampled USD file only contains the changes to the stage. It uses the same hierarchy as the original
-stage at the time of recording. This allows adding the animation to the original stage, or to a different
-stage with the same hierarchy. The timeSampled file can be directly added as a sublayer to the original stage
-to play back the animation.
+The `Stage Recorder`_ extension listens to all motion and USD property changes in the stage during simulation
+and records them as **time-sampled data**. The result is a USD file that captures only the animated changes—**not** the
+full scene—and matches the hierarchy of the original stage at the time of recording.
+This makes it easy to add as a sublayer for playback or rendering.
 
-.. note::
-
-  Omniverse only supports playing animation or playing physics on a USD prim at the same time. If you want to
-  play back the animation of a USD prim, you need to disable the physics simulation on the prim.
-
-
-In Isaac Lab, we directly use the `Stage Recorder`_ extension to record the animation of the physics simulation.
-This is available as a feature in the :class:`~isaaclab.envs.ui.BaseEnvWindow` class.
+This method is built into Isaac Lab’s UI through the :class:`~isaaclab.envs.ui.BaseEnvWindow`.
 However, to record the animation of a simulation, you need to disable `Fabric`_ to allow reading and writing
 all the changes (such as motion and USD properties) to the USD stage.
 
+The **OVD Recorder** is designed for more scalable or automated workflows. It uses OmniPVD to capture simulated physics from a played stage
+and then **bakes** that directly into an animated USD file. It works with Fabric enabled and runs with CLI arguments.
+The animated USD can be quickly replayed and reviewed by scrubbing through the timeline window, without simulating expensive physics operations.
+
+.. note::
+
+  Omniverse only supports **either** physics simulation **or** animation playback on a USD prim—never both at once.
+  Disable physics on the prims you want to animate.
+
+
+Stage Recorder
+--------------
+
+In Isaac Lab, the Stage Recorder is integrated into the :class:`~isaaclab.envs.ui.BaseEnvWindow` class.
+It’s the easiest way to capture physics simulations visually and works directly through the UI.
+
+To record, Fabric must be disabled—this allows the recorder to track changes to USD and write them out.
 
 Stage Recorder Settings
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-Isaac Lab integration of the `Stage Recorder`_ extension assumes certain default settings. If you want to change the
-settings, you can directly use the `Stage Recorder`_ extension in the Omniverse Create application.
+Isaac Lab sets up the Stage Recorder with sensible defaults in ``base_env_window.py``. If needed,
+you can override or inspect these by using the Stage Recorder extension directly in Omniverse Create.
 
 .. dropdown:: Settings used in base_env_window.py
   :icon: code
@@ -38,39 +47,79 @@ settings, you can directly use the `Stage Recorder`_ extension in the Omniverse 
     :linenos:
     :pyobject: BaseEnvWindow._toggle_recording_animation_fn
 
-
 Example Usage
 ~~~~~~~~~~~~~
 
-In all environment standalone scripts, Fabric can be disabled by passing the ``--disable_fabric`` flag to the script.
-Here we run the state-machine example and record the animation of the simulation.
+In standalone Isaac Lab environments, pass the ``--disable_fabric`` flag:
 
 .. code-block:: bash
 
   ./isaaclab.sh -p scripts/environments/state_machine/lift_cube_sm.py --num_envs 8 --device cpu --disable_fabric
 
+After launching, the Isaac Lab UI window will display a "Record Animation" button.
+Click to begin recording. Click again to stop.
 
-On running the script, the Isaac Lab UI window opens with the button "Record Animation" in the toolbar.
-Clicking this button starts recording the animation of the simulation. On clicking the button again, the
-recording stops. The recorded animation and the original stage (with all physics disabled) are saved
-to the ``recordings`` folder in the current working directory. The files are stored in the ``usd`` format:
+The following files are saved to the ``recordings/`` folder:
 
-- ``Stage.usd``: The original stage with all physics disabled
-- ``TimeSample_tk001.usd``: The timeSampled file containing the recorded animation
+- ``Stage.usd`` — the original stage with physics disabled
+- ``TimeSample_tk001.usd`` — the animation (time-sampled) layer
 
-You can open Omniverse Isaac Sim application to play back the animation. There are many ways to launch
-the application (such as from terminal or `Omniverse Launcher`_). Here we use the terminal to open the
-application and play the animation.
+To play back:
 
 .. code-block:: bash
 
-  ./isaaclab.sh -s  # Opens Isaac Sim application through _isaac_sim/isaac-sim.sh
+  ./isaaclab.sh -s  # Opens Isaac Sim
 
-On a new stage, add the ``Stage.usd`` as a sublayer and then add the ``TimeSample_tk001.usd`` as a sublayer.
-You can do this by dragging and dropping the files from the file explorer to the stage. Please check out
-the `tutorial on layering in Omniverse`_ for more details.
+Inside the Layers panel, insert both ``Stage.usd`` and ``TimeSample_tk001.usd`` as sublayers.
+The animation will now play back when you hit the play button.
 
-You can then play the animation by pressing the play button.
+See the `tutorial on layering in Omniverse`_ for more on working with layers.
+
+
+OVD Recorder
+------------
+
+The OVD Recorder uses OmniPVD to record simulation data and bake it directly into a new USD stage.
+This method is more scalable and better suited for large-scale training scenarios (e.g. multi-env RL).
+
+It’s not UI-controlled—the whole process is enabled through CLI flags and runs automatically.
+
+
+Workflow Summary
+~~~~~~~~~~~~~~~~
+
+1. User runs Isaac Lab with animation recording enabled via CLI
+2. Isaac Lab starts simulation
+3. OVD data is recorded as the simulation runs
+4. At the specified stop time, the simulation is baked into an outputted USD file, and IsaacLab is closed
+5. The final result is a fully baked, self-contained USD animation
+
+Example Usage
+~~~~~~~~~~~~~
+
+To record an animation:
+
+.. code-block:: bash
+
+  ./isaaclab.sh -p scripts/tutorials/03_envs/run_cartpole_rl_env.py \
+    --anim_recording_enabled \
+    --anim_recording_start_time 1 \
+    --anim_recording_stop_time 3
+
+.. note::
+
+   The provided ``--anim_recording_stop_time`` should be greater than the simulation time.
+
+.. warning::
+
+   Currently, the final recording step can output many warning logs from [omni.usd]. This is a known issue, and these warning messages can be ignored.
+
+After the stop time is reached, a file will be saved to:
+
+.. code-block:: none
+
+  anim_recordings/<timestamp>/baked_animation_recording.usda
+
 
 .. _Stage Recorder: https://docs.omniverse.nvidia.com/extensions/latest/ext_animation_stage-recorder.html
 .. _Fabric: https://docs.omniverse.nvidia.com/kit/docs/usdrt/latest/docs/usd_fabric_usdrt.html

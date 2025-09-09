@@ -1,0 +1,52 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+services:
+  cloudxr-runtime:
+    image: ${CLOUDXR_RUNTIME_BASE_IMAGE_ARG}:${CLOUDXR_RUNTIME_VERSION_ARG}
+    ports:
+      - "48010:48010/tcp" # signaling
+      - "47998:47998/udp" # media
+      - "47999:47999/udp" # media
+      - "48000:48000/udp" # media
+      - "48005:48005/udp" # media
+      - "48008:48008/udp" # media
+      - "48012:48012/udp" # media
+    healthcheck:
+      test: ["CMD", "test", "-S", "/openxr/run/ipc_cloudxr"]
+      interval: 1s
+      timeout: 1s
+      retries: 10
+      start_period: 5s
+    environment:
+      - ACCEPT_EULA=${ACCEPT_EULA}
+    volumes:
+      - openxr-volume:/openxr:rw
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [ gpu ]
+
+  isaac-lab-base:
+    environment:
+      - XDG_RUNTIME_DIR=/openxr/run
+      - XR_RUNTIME_JSON=/openxr/share/openxr/1/openxr_cloudxr.json
+    volumes:
+      - openxr-volume:/openxr:rw
+    depends_on:
+        - cloudxr-runtime
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [ gpu ]
+
+volumes:
+  openxr-volume:

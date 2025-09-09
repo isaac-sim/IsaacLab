@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -19,6 +19,22 @@ class ContactSensorCfg(SensorBaseCfg):
 
     track_pose: bool = False
     """Whether to track the pose of the sensor's origin. Defaults to False."""
+
+    track_contact_points: bool = False
+    """Whether to track the contact point locations. Defaults to False."""
+
+    max_contact_data_count_per_prim: int = 4
+    """The maximum number of contacts across all batches of the sensor to keep track of. Default is 4.
+
+    This parameter sets the total maximum counts of the simulation across all bodies and environments. The total number
+    of contacts allowed is max_contact_data_count_per_prim*num_envs*num_sensor_bodies.
+
+    .. note::
+
+        If the environment is very contact rich it is suggested to increase this parameter to avoid out of bounds memory
+        errors and loss of contact data leading to inaccurate measurements.
+
+        """
 
     track_air_time: bool = False
     """Whether to track the air/contact time of the bodies (time between contacts). Defaults to False."""
@@ -49,6 +65,7 @@ class ContactSensorCfg(SensorBaseCfg):
         single primitive in that environment. If the sensor primitive corresponds to multiple primitives, the
         filtering will not work as expected. Please check :class:`~isaaclab.sensors.contact_sensor.ContactSensor`
         for more details.
+        If track_contact_points is true, then filter_prim_paths_expr cannot be an empty list!
     """
 
     visualizer_cfg: VisualizationMarkersCfg = CONTACT_SENSOR_MARKER_CFG.replace(prim_path="/Visuals/ContactSensor")

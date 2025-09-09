@@ -20,6 +20,8 @@ Guidelines for modifications:
 ---
 
 * Antonio Serrano-Muñoz
+* Ben Johnston
+* Clemens Schwarke
 * David Hoeller
 * Farbod Farshidian
 * Hunter Hansen
@@ -29,26 +31,39 @@ Guidelines for modifications:
 * Matthew Trepte
 * Mayank Mittal
 * Nikita Rudin
+* Octi (Zhengyu) Zhang
 * Pascal Roth
 * Sheikh Dawood
 * Ossama Ahmed
 
 ## Contributors
 
+* Alessandro Assirelli
+* Alex Omar
 * Alice Zhou
 * Amr Mousa
 * Andrej Orsula
 * Anton Bjørndahl Mortensen
+* Antonin Raffin
 * Arjun Bhardwaj
 * Ashwin Varghese Kuruttukulam
+* Bikram Pandit
+* Bingjie Tang
 * Brayden Zhang
+* Brian Bingham
 * Cameron Upright
 * Calvin Yu
+* Cathy Y. Li
 * Cheng-Rong Lai
 * Chenyu Yang
+* Connor Smith
 * CY (Chien-Ying) Chen
 * David Yang
+* Dhananjay Shendre
 * Dorsa Rohani
+* Emily Sturman
+* Fabian Jenelten
+* Felipe Mohr
 * Felix Yu
 * Gary Lvov
 * Giulio Romualdi
@@ -56,46 +71,79 @@ Guidelines for modifications:
 * HoJin Jeon
 * Hongwei Xiong
 * Hongyu Li
+* Huihua Zhao
 * Iretiayo Akinola
 * Jack Zeng
 * Jan Kerner
 * Jean Tampon
+* Jeonghwan Kim
 * Jia Lin Yuan
+* Jiakai Zhang
 * Jinghuan Shang
 * Jingzhou Liu
+* Jinqi Wei
 * Johnson Sun
 * Kaixi Bao
+* Kris Wilson
 * Kourosh Darvish
+* Kousheek Chakraborty
 * Lionel Gulich
+* Lotus Li
 * Louis Le Lay
 * Lorenz Wellhausen
+* Lukas Fröhlich
 * Manuel Schweiger
 * Masoud Moghani
+* Maurice Rahme
 * Michael Gussert
 * Michael Noseworthy
+* Michael Lin
+* Miguel Alonso Jr
+* Mingyu Lee
 * Muhong Guo
+* Neel Anand Jawale
 * Nicola Loi
+* Norbert Cygiert
+* Nuoyan Chen (Alvin)
 * Nuralem Abizov
 * Ori Gadot
 * Oyindamola Omotuyi
 * Özhan Özen
+* Patrick Yin
 * Peter Du
+* Pulkit Goyal
 * Qian Wan
 * Qinxi Yu
+* Rafael Wiltz
+* Renaud Poncelet
 * René Zurbrügg
 * Ritvik Singh
 * Rosario Scalise
 * Ryley McCarroll
 * Shafeef Omar
+* Shaoshu Su
+* Shaurya Dewan
+* Sixiang Chen
 * Shundo Kishi
+* Stefan Van de Mosselaer
 * Stephan Pleines
+* Tyler Lum
+* Victor Khaustov
+* Virgilio Gómez Lambo
 * Vladimir Fokow
 * Wei Yang
 * Xavier Nal
+* Xinpeng Liu
 * Yang Jin
+* Yanzi Zhu
+* Yijie Guo
+* Yohan Choi
 * Yujian Zhang
-* Zhengyu Zhang
+* Yun Liu
 * Ziqi Fan
+* Zoe McCarthy
+* David Leon
+* Song Yi
 
 ## Acknowledgements
 
@@ -105,4 +153,5 @@ Guidelines for modifications:
 * Gavriel State
 * Hammad Mazhar
 * Marco Hutter
+* Yan Chang
 * Yashraj Narang

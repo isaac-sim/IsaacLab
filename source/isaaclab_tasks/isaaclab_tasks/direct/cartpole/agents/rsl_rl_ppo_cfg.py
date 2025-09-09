@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -14,9 +14,10 @@ class CartpolePPORunnerCfg(RslRlOnPolicyRunnerCfg):
     max_iterations = 150
     save_interval = 50
     experiment_name = "cartpole_direct"
-    empirical_normalization = False
     policy = RslRlPpoActorCriticCfg(
         init_noise_std=1.0,
+        actor_obs_normalization=False,
+        critic_obs_normalization=False,
         actor_hidden_dims=[32, 32],
         critic_hidden_dims=[32, 32],
         activation="elu",

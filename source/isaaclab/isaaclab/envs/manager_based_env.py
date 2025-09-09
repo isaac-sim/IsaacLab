@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -10,17 +10,21 @@ from typing import Any
 
 import isaacsim.core.utils.torch as torch_utils
 import omni.log
+import omni.physx
 from isaacsim.core.simulation_manager import SimulationManager
+from isaacsim.core.version import get_version
 
 from isaaclab.managers import ActionManager, EventManager, ObservationManager, RecorderManager
 from isaaclab.scene import InteractiveScene
 from isaaclab.sim import SimulationContext
+from isaaclab.sim.utils import attach_stage_to_usd_context, use_stage
 from isaaclab.ui.widgets import ManagerLiveVisualizer
 from isaaclab.utils.timer import Timer
 
 from .common import VecEnvObs
 from .manager_based_env_cfg import ManagerBasedEnvCfg
 from .ui import ViewportCameraController
+from .utils.io_descriptors import export_articulations_data, export_scene_data
 
 
 class ManagerBasedEnv:
@@ -122,9 +126,15 @@ class ManagerBasedEnv:
         # counter for simulation steps
         self._sim_step_counter = 0
 
+        # allocate dictionary to store metrics
+        self.extras = {}
+
         # generate scene
         with Timer("[INFO]: Time taken for scene creation", "scene_creation"):
-            self.scene = InteractiveScene(self.cfg.scene)
+            # set the stage context for scene creation steps which use the stage
+            with use_stage(self.sim.get_initial_stage()):
+                self.scene = InteractiveScene(self.cfg.scene)
+                attach_stage_to_usd_context()
         print("[INFO]: Scene manager: ", self.scene)
 
         # set up camera viewport controller
@@ -140,7 +150,6 @@ class ManagerBasedEnv:
         # note: this is needed here (rather than after simulation play) to allow USD-related randomization events
         #   that must happen before the simulation starts. Example: randomizing mesh scale
         self.event_manager = EventManager(self.cfg.events, self)
-        print("[INFO] Event Manager: ", self.event_manager)
 
         # apply USD-related randomization events
         if "prestartup" in self.event_manager.available_modes:
@@ -152,7 +161,10 @@ class ManagerBasedEnv:
         if builtins.ISAAC_LAUNCHED_FROM_TERMINAL is False:
             print("[INFO]: Starting the simulation. This may take a few seconds. Please wait...")
             with Timer("[INFO]: Time taken for simulation start", "simulation_start"):
-                self.sim.reset()
+                # since the reset can trigger callbacks which use the stage,
+                # we need to set the stage context here
+                with use_stage(self.sim.get_initial_stage()):
+                    self.sim.reset()
                 # update scene to pre populate data buffers for assets and sensors.
                 # this is needed for the observation manager to get valid tensors for initialization.
                 # this shouldn't cause an issue since later on, users do a reset over all the environments so the lazy buffers would be reset.
@@ -171,11 +183,12 @@ class ManagerBasedEnv:
             # if no window, then we don't need to store the window
             self._window = None
 
-        # allocate dictionary to store metrics
-        self.extras = {}
-
         # initialize observation buffers
         self.obs_buf = {}
+
+        # export IO descriptors if requested
+        if self.cfg.export_io_descriptors:
+            self.export_IO_descriptors()
 
     def __del__(self):
         """Cleanup for the environment."""
@@ -211,6 +224,46 @@ class ManagerBasedEnv:
         """The device on which the environment is running."""
         return self.sim.device
 
+    @property
+    def get_IO_descriptors(self):
+        """Get the IO descriptors for the environment.
+
+        Returns:
+            A dictionary with keys as the group names and values as the IO descriptors.
+        """
+        return {
+            "observations": self.observation_manager.get_IO_descriptors,
+            "actions": self.action_manager.get_IO_descriptors,
+            "articulations": export_articulations_data(self),
+            "scene": export_scene_data(self),
+        }
+
+    def export_IO_descriptors(self, output_dir: str | None = None):
+        """Export the IO descriptors for the environment.
+
+        Args:
+            output_dir: The directory to export the IO descriptors to.
+        """
+        import os
+        import yaml
+
+        IO_descriptors = self.get_IO_descriptors
+
+        if output_dir is None:
+            output_dir = self.cfg.io_descriptors_output_dir
+        if output_dir is None:
+            raise ValueError(
+                "Output directory is not set. Please set the output directory using the `io_descriptors_output_dir`"
+                " configuration."
+            )
+
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir, exist_ok=True)
+
+        with open(os.path.join(output_dir, "IO_descriptors.yaml"), "w") as f:
+            print(f"[INFO]: Exporting IO descriptors to {os.path.join(output_dir, 'IO_descriptors.yaml')}")
+            yaml.safe_dump(IO_descriptors, f)
+
     """
     Operations - Setup.
     """
@@ -232,6 +285,8 @@ class ManagerBasedEnv:
 
         """
         # prepare the managers
+        # -- event manager (we print it here to make the logging consistent)
+        print("[INFO] Event Manager: ", self.event_manager)
         # -- recorder manager
         self.recorder_manager = RecorderManager(self.cfg.recorders, self)
         print("[INFO] Recorder Manager: ", self.recorder_manager)
@@ -304,7 +359,7 @@ class ManagerBasedEnv:
         self.recorder_manager.record_post_reset(env_ids)
 
         # compute observations
-        self.obs_buf = self.observation_manager.compute()
+        self.obs_buf = self.observation_manager.compute(update_history=True)
 
         if self.cfg.wait_for_textures and self.sim.has_rtx_sensors():
             while SimulationManager.assets_loading():
@@ -319,16 +374,23 @@ class ManagerBasedEnv:
         env_ids: Sequence[int] | None,
         seed: int | None = None,
         is_relative: bool = False,
-    ) -> None:
-        """Resets specified environments to known states.
+    ):
+        """Resets specified environments to provided states.
 
-        Note that this is different from reset() function as it resets the environments to specific states
+        This function resets the environments to the provided states. The state is a dictionary
+        containing the state of the scene entities. Please refer to :meth:`InteractiveScene.get_state`
+        for the format.
+
+        The function is different from the :meth:`reset` function as it resets the environments to specific states,
+        instead of using the randomization events for resetting the environments.
 
         Args:
-            state: The state to reset the specified environments to.
+            state: The state to reset the specified environments to. Please refer to
+                :meth:`InteractiveScene.get_state` for the format.
             env_ids: The environment ids to reset. Defaults to None, in which case all environments are reset.
             seed: The seed to use for randomization. Defaults to None, in which case the seed is not set.
-            is_relative: If set to True, the state is considered relative to the environment origins. Defaults to False.
+            is_relative: If set to True, the state is considered relative to the environment origins.
+                Defaults to False.
         """
         # reset all envs in the scene if env_ids is None
         if env_ids is None:
@@ -357,7 +419,7 @@ class ManagerBasedEnv:
         self.recorder_manager.record_post_reset(env_ids)
 
         # compute observations
-        self.obs_buf = self.observation_manager.compute()
+        self.obs_buf = self.observation_manager.compute(update_history=True)
 
         # return observations
         return self.obs_buf, self.extras
@@ -408,7 +470,7 @@ class ManagerBasedEnv:
             self.event_manager.apply(mode="interval", dt=self.step_dt)
 
         # -- compute observations
-        self.obs_buf = self.observation_manager.compute()
+        self.obs_buf = self.observation_manager.compute(update_history=True)
         self.recorder_manager.record_post_step()
 
         # return observations and extras
@@ -444,9 +506,18 @@ class ManagerBasedEnv:
             del self.event_manager
             del self.recorder_manager
             del self.scene
+
             # clear callbacks and instance
+            if float(".".join(get_version()[2])) >= 5:
+                if self.cfg.sim.create_stage_in_memory:
+                    # detach physx stage
+                    omni.physx.get_physx_simulation_interface().detach_stage()
+                    self.sim.stop()
+                    self.sim.clear()
+
             self.sim.clear_all_callbacks()
             self.sim.clear_instance()
+
             # destroy the window
             if self._window is not None:
                 self._window = None

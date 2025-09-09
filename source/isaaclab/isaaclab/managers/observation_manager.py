@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -14,7 +14,7 @@ from collections.abc import Sequence
 from prettytable import PrettyTable
 from typing import TYPE_CHECKING
 
-from isaaclab.utils import modifiers
+from isaaclab.utils import class_to_dict, modifiers, noise
 from isaaclab.utils.buffers import CircularBuffer
 
 from .manager_base import ManagerBase, ManagerTermBase
@@ -88,8 +88,18 @@ class ObservationManager(ManagerBase):
             # otherwise, keep the list of shapes as is
             if self._group_obs_concatenate[group_name]:
                 try:
-                    term_dims = [torch.tensor(dims, device="cpu") for dims in group_term_dims]
-                    self._group_obs_dim[group_name] = tuple(torch.sum(torch.stack(term_dims, dim=0), dim=0).tolist())
+                    term_dims = torch.stack([torch.tensor(dims, device="cpu") for dims in group_term_dims], dim=0)
+                    if len(term_dims.shape) > 1:
+                        if self._group_obs_concatenate_dim[group_name] >= 0:
+                            dim = self._group_obs_concatenate_dim[group_name] - 1  # account for the batch offset
+                        else:
+                            dim = self._group_obs_concatenate_dim[group_name]
+                        dim_sum = torch.sum(term_dims[:, dim], dim=0)
+                        term_dims[0, dim] = dim_sum
+                        term_dims = term_dims[0]
+                    else:
+                        term_dims = torch.sum(term_dims, dim=0)
+                    self._group_obs_dim[group_name] = tuple(term_dims.tolist())
                 except RuntimeError:
                     raise RuntimeError(
                         f"Unable to concatenate observation terms in group '{group_name}'."
@@ -215,6 +225,70 @@ class ObservationManager(ManagerBase):
         """
         return self._group_obs_concatenate
 
+    @property
+    def get_IO_descriptors(self, group_names_to_export: list[str] = ["policy"]):
+        """Get the IO descriptors for the observation manager.
+
+        Returns:
+            A dictionary with keys as the group names and values as the IO descriptors.
+        """
+
+        group_data = {}
+
+        for group_name in self._group_obs_term_names:
+            group_data[group_name] = []
+            # check if group name is valid
+            if group_name not in self._group_obs_term_names:
+                raise ValueError(
+                    f"Unable to find the group '{group_name}' in the observation manager."
+                    f" Available groups are: {list(self._group_obs_term_names.keys())}"
+                )
+            # iterate over all the terms in each group
+            group_term_names = self._group_obs_term_names[group_name]
+            # read attributes for each term
+            obs_terms = zip(group_term_names, self._group_obs_term_cfgs[group_name])
+
+            for term_name, term_cfg in obs_terms:
+                # Call to the observation function to get the IO descriptor with the inspect flag set to True
+                try:
+                    term_cfg.func(self._env, **term_cfg.params, inspect=True)
+                    # Copy the descriptor and update with the term's own extra parameters
+                    desc = term_cfg.func._descriptor.__dict__.copy()
+                    # Create a dictionary to store the overloads
+                    overloads = {}
+                    # Iterate over the term's own parameters and add them to the overloads dictionary
+                    for k, v in term_cfg.__dict__.items():
+                        # For now we do not add the noise modifier
+                        if k in ["modifiers", "clip", "scale", "history_length", "flatten_history_dim"]:
+                            overloads[k] = v
+                    desc.update(overloads)
+                    group_data[group_name].append(desc)
+                except Exception as e:
+                    print(f"Error getting IO descriptor for term '{term_name}' in group '{group_name}': {e}")
+        # Format the data for YAML export
+        formatted_data = {}
+        for group_name, data in group_data.items():
+            formatted_data[group_name] = []
+            for item in data:
+                name = item.pop("name")
+                formatted_item = {"name": name, "overloads": {}, "extras": item.pop("extras")}
+                for k, v in item.items():
+                    # Check if v is a tuple and convert to list
+                    if isinstance(v, tuple):
+                        v = list(v)
+                    # Check if v is a tensor and convert to list
+                    if isinstance(v, torch.Tensor):
+                        v = v.detach().cpu().numpy().tolist()
+                    if k in ["scale", "clip", "history_length", "flatten_history_dim"]:
+                        formatted_item["overloads"][k] = v
+                    elif k in ["modifiers", "description", "units"]:
+                        formatted_item["extras"][k] = v
+                    else:
+                        formatted_item[k] = v
+                formatted_data[group_name].append(formatted_item)
+        formatted_data = {k: v for k, v in formatted_data.items() if k in group_names_to_export}
+        return formatted_data
+
     """
     Operations.
     """
@@ -229,17 +303,22 @@ class ObservationManager(ManagerBase):
                 if term_name in self._group_obs_term_history_buffer[group_name]:
                     self._group_obs_term_history_buffer[group_name][term_name].reset(batch_ids=env_ids)
         # call all modifiers that are classes
-        for mod in self._group_obs_class_modifiers:
+        for mod in self._group_obs_class_instances:
             mod.reset(env_ids=env_ids)
 
         # nothing to log here
         return {}
 
-    def compute(self) -> dict[str, torch.Tensor | dict[str, torch.Tensor]]:
+    def compute(self, update_history: bool = False) -> dict[str, torch.Tensor | dict[str, torch.Tensor]]:
         """Compute the observations per group for all groups.
 
         The method computes the observations for all the groups handled by the observation manager.
         Please check the :meth:`compute_group` on the processing of observations per group.
+
+        Args:
+            update_history: The boolean indicator without return obs should be appended to observation history.
+                Default to False, in which case calling compute_group does not modify history. This input is no-ops
+                if the group's history_length == 0.
 
         Returns:
             A dictionary with keys as the group names and values as the computed observations.
@@ -250,14 +329,14 @@ class ObservationManager(ManagerBase):
         obs_buffer = dict()
         # iterate over all the terms in each group
         for group_name in self._group_obs_term_names:
-            obs_buffer[group_name] = self.compute_group(group_name)
+            obs_buffer[group_name] = self.compute_group(group_name, update_history=update_history)
         # otherwise return a dict with observations of all groups
 
         # Cache the observations.
         self._obs_buffer = obs_buffer
         return obs_buffer
 
-    def compute_group(self, group_name: str) -> torch.Tensor | dict[str, torch.Tensor]:
+    def compute_group(self, group_name: str, update_history: bool = False) -> torch.Tensor | dict[str, torch.Tensor]:
         """Computes the observations for a given group.
 
         The observations for a given group are computed by calling the registered functions for each
@@ -280,6 +359,9 @@ class ObservationManager(ManagerBase):
         Args:
             group_name: The name of the group for which to compute the observations. Defaults to None,
                 in which case observations for all the groups are computed and returned.
+            update_history: The boolean indicator without return obs should be appended to observation group's history.
+                Default to False, in which case calling compute_group does not modify history. This input is no-ops
+                if the group's history_length == 0.
 
         Returns:
             Depending on the group's configuration, the tensors for individual observation terms are
@@ -310,29 +392,65 @@ class ObservationManager(ManagerBase):
             if term_cfg.modifiers is not None:
                 for modifier in term_cfg.modifiers:
                     obs = modifier.func(obs, **modifier.params)
-            if term_cfg.noise:
+            if isinstance(term_cfg.noise, noise.NoiseCfg):
                 obs = term_cfg.noise.func(obs, term_cfg.noise)
+            elif isinstance(term_cfg.noise, noise.NoiseModelCfg) and term_cfg.noise.func is not None:
+                obs = term_cfg.noise.func(obs)
             if term_cfg.clip:
                 obs = obs.clip_(min=term_cfg.clip[0], max=term_cfg.clip[1])
             if term_cfg.scale is not None:
                 obs = obs.mul_(term_cfg.scale)
             # Update the history buffer if observation term has history enabled
             if term_cfg.history_length > 0:
-                self._group_obs_term_history_buffer[group_name][term_name].append(obs)
-                if term_cfg.flatten_history_dim:
-                    group_obs[term_name] = self._group_obs_term_history_buffer[group_name][term_name].buffer.reshape(
-                        self._env.num_envs, -1
+                circular_buffer = self._group_obs_term_history_buffer[group_name][term_name]
+                if update_history:
+                    circular_buffer.append(obs)
+                elif circular_buffer._buffer is None:
+                    # because circular buffer only exits after the simulation steps,
+                    # this guards history buffer from corruption by external calls before simulation start
+                    circular_buffer = CircularBuffer(
+                        max_len=circular_buffer.max_length,
+                        batch_size=circular_buffer.batch_size,
+                        device=circular_buffer.device,
                     )
+                    circular_buffer.append(obs)
+
+                if term_cfg.flatten_history_dim:
+                    group_obs[term_name] = circular_buffer.buffer.reshape(self._env.num_envs, -1)
                 else:
-                    group_obs[term_name] = self._group_obs_term_history_buffer[group_name][term_name].buffer
+                    group_obs[term_name] = circular_buffer.buffer
             else:
                 group_obs[term_name] = obs
 
         # concatenate all observations in the group together
         if self._group_obs_concatenate[group_name]:
-            return torch.cat(list(group_obs.values()), dim=-1)
+            # set the concatenate dimension, account for the batch dimension if positive dimension is given
+            return torch.cat(list(group_obs.values()), dim=self._group_obs_concatenate_dim[group_name])
         else:
             return group_obs
+
+    def serialize(self) -> dict:
+        """Serialize the observation term configurations for all active groups.
+
+        Returns:
+            A dictionary where each group name maps to its serialized observation term configurations.
+        """
+        output = {
+            group_name: {
+                term_name: (
+                    term_cfg.func.serialize()
+                    if isinstance(term_cfg.func, ManagerTermBase)
+                    else {"cfg": class_to_dict(term_cfg)}
+                )
+                for term_name, term_cfg in zip(
+                    self._group_obs_term_names[group_name],
+                    self._group_obs_term_cfgs[group_name],
+                )
+            }
+            for group_name in self.active_terms.keys()
+        }
+
+        return output
 
     """
     Helper functions.
@@ -347,10 +465,20 @@ class ObservationManager(ManagerBase):
         self._group_obs_term_cfgs: dict[str, list[ObservationTermCfg]] = dict()
         self._group_obs_class_term_cfgs: dict[str, list[ObservationTermCfg]] = dict()
         self._group_obs_concatenate: dict[str, bool] = dict()
+        self._group_obs_concatenate_dim: dict[str, int] = dict()
+
         self._group_obs_term_history_buffer: dict[str, dict] = dict()
-        # create a list to store modifiers that are classes
+        # create a list to store classes instances, e.g., for modifiers and noise models
         # we store it as a separate list to only call reset on them and prevent unnecessary calls
-        self._group_obs_class_modifiers: list[modifiers.ModifierBase] = list()
+        self._group_obs_class_instances: list[modifiers.ModifierBase | noise.NoiseModel] = list()
+
+        # make sure the simulation is playing since we compute obs dims which needs asset quantities
+        if not self._env.sim.is_playing():
+            raise RuntimeError(
+                "Simulation is not playing. Observation manager requires the simulation to be playing"
+                " to compute observation dimensions. Please start the simulation before using the"
+                " observation manager."
+            )
 
         # check if config is dict already
         if isinstance(self.cfg, dict):
@@ -376,6 +504,9 @@ class ObservationManager(ManagerBase):
             group_entry_history_buffer: dict[str, CircularBuffer] = dict()
             # read common config for the group
             self._group_obs_concatenate[group_name] = group_cfg.concatenate_terms
+            self._group_obs_concatenate_dim[group_name] = (
+                group_cfg.concatenate_dim + 1 if group_cfg.concatenate_dim >= 0 else group_cfg.concatenate_dim
+            )
             # check if config is dict already
             if isinstance(group_cfg, dict):
                 group_cfg_items = group_cfg.items()
@@ -384,7 +515,13 @@ class ObservationManager(ManagerBase):
             # iterate over all the terms in each group
             for term_name, term_cfg in group_cfg_items:
                 # skip non-obs settings
-                if term_name in ["enable_corruption", "concatenate_terms", "history_length", "flatten_history_dim"]:
+                if term_name in [
+                    "enable_corruption",
+                    "concatenate_terms",
+                    "history_length",
+                    "flatten_history_dim",
+                    "concatenate_dim",
+                ]:
                     continue
                 # check for non config
                 if term_cfg is None:
@@ -407,20 +544,9 @@ class ObservationManager(ManagerBase):
                 # add term config to list to list
                 self._group_obs_term_names[group_name].append(term_name)
                 self._group_obs_term_cfgs[group_name].append(term_cfg)
+
                 # call function the first time to fill up dimensions
                 obs_dims = tuple(term_cfg.func(self._env, **term_cfg.params).shape)
-                # create history buffers and calculate history term dimensions
-                if term_cfg.history_length > 0:
-                    group_entry_history_buffer[term_name] = CircularBuffer(
-                        max_len=term_cfg.history_length, batch_size=self._env.num_envs, device=self._env.device
-                    )
-                    old_dims = list(obs_dims)
-                    old_dims.insert(1, term_cfg.history_length)
-                    obs_dims = tuple(old_dims)
-                    if term_cfg.flatten_history_dim:
-                        obs_dims = (obs_dims[0], np.prod(obs_dims[1:]))
-
-                self._group_obs_term_dim[group_name].append(obs_dims[1:])
 
                 # if scale is set, check if single float or tuple
                 if term_cfg.scale is not None:
@@ -455,7 +581,7 @@ class ObservationManager(ManagerBase):
                                 mod_cfg.func = mod_cfg.func(cfg=mod_cfg, data_dim=obs_dims, device=self._env.device)
 
                                 # add to list of class modifiers
-                                self._group_obs_class_modifiers.append(mod_cfg.func)
+                                self._group_obs_class_instances.append(mod_cfg.func)
                         else:
                             raise TypeError(
                                 f"Modifier configuration '{mod_cfg}' of observation term '{term_name}' is not of"
@@ -484,6 +610,33 @@ class ObservationManager(ManagerBase):
                                     f" mandatory parameters: {args_without_defaults[1:]}"
                                     f" and optional parameters: {args_with_defaults}, but received: {term_params}."
                                 )
+
+                # prepare noise model classes
+                if term_cfg.noise is not None and isinstance(term_cfg.noise, noise.NoiseModelCfg):
+                    noise_model_cls = term_cfg.noise.class_type
+                    if not issubclass(noise_model_cls, noise.NoiseModel):
+                        raise TypeError(
+                            f"Class type for observation term '{term_name}' NoiseModelCfg"
+                            f" is not a subclass of 'NoiseModel'. Received: '{type(noise_model_cls)}'."
+                        )
+                    # initialize func to be the noise model class instance
+                    term_cfg.noise.func = noise_model_cls(
+                        term_cfg.noise, num_envs=self._env.num_envs, device=self._env.device
+                    )
+                    self._group_obs_class_instances.append(term_cfg.noise.func)
+
+                # create history buffers and calculate history term dimensions
+                if term_cfg.history_length > 0:
+                    group_entry_history_buffer[term_name] = CircularBuffer(
+                        max_len=term_cfg.history_length, batch_size=self._env.num_envs, device=self._env.device
+                    )
+                    old_dims = list(obs_dims)
+                    old_dims.insert(1, term_cfg.history_length)
+                    obs_dims = tuple(old_dims)
+                    if term_cfg.flatten_history_dim:
+                        obs_dims = (obs_dims[0], np.prod(obs_dims[1:]))
+
+                self._group_obs_term_dim[group_name].append(obs_dims[1:])
 
                 # add term in a separate list if term is a class
                 if isinstance(term_cfg.func, ManagerTermBase):

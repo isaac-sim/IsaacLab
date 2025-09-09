@@ -43,9 +43,11 @@ class and its derivatives such as :class:`~isaaclab.assets.RigidObject`,
     :maxdepth: 1
     :titlesonly:
 
+    01_assets/add_new_robot
     01_assets/run_rigid_object
     01_assets/run_articulation
     01_assets/run_deformable_object
+    01_assets/run_surface_gripper
 
 Creating a Scene
 ----------------
@@ -77,6 +79,7 @@ different aspects of the framework to create a simulation environment for agent 
     03_envs/create_direct_rl_env
     03_envs/register_rl_env_gym
     03_envs/run_rl_training
+    03_envs/configuring_rl_training
     03_envs/modify_direct_rl_env
     03_envs/policy_inference_in_usd
 

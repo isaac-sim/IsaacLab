@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -10,7 +10,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import isaacsim.core.utils.stage as stage_utils
-import omni.physics.tensors.impl.api as physx
+from isaacsim.core.simulation_manager import SimulationManager
 from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
@@ -96,7 +96,11 @@ class Imu(SensorBase):
         if env_ids is None:
             env_ids = slice(None)
         # reset accumulative data buffers
+        self._data.pos_w[env_ids] = 0.0
         self._data.quat_w[env_ids] = 0.0
+        self._data.quat_w[env_ids, 0] = 1.0
+        self._data.projected_gravity_b[env_ids] = 0.0
+        self._data.projected_gravity_b[env_ids, 2] = -1.0
         self._data.lin_vel_b[env_ids] = 0.0
         self._data.ang_vel_b[env_ids] = 0.0
         self._data.lin_acc_b[env_ids] = 0.0
@@ -123,9 +127,8 @@ class Imu(SensorBase):
         """
         # Initialize parent class
         super()._initialize_impl()
-        # create simulation view
-        self._physics_sim_view = physx.create_simulation_view(self._backend)
-        self._physics_sim_view.set_subspace_roots("/")
+        # obtain global simulation view
+        self._physics_sim_view = SimulationManager.get_physics_sim_view()
         # check if the prim at path is a rigid prim
         prim = sim_utils.find_first_matching_prim(self.cfg.prim_path)
         if prim is None:
@@ -136,25 +139,27 @@ class Imu(SensorBase):
         else:
             raise RuntimeError(f"Failed to find a RigidBodyAPI for the prim paths: {self.cfg.prim_path}")
 
+        # Get world gravity
+        gravity = self._physics_sim_view.get_gravity()
+        gravity_dir = torch.tensor((gravity[0], gravity[1], gravity[2]), device=self.device)
+        gravity_dir = math_utils.normalize(gravity_dir.unsqueeze(0)).squeeze(0)
+        self.GRAVITY_VEC_W = gravity_dir.repeat(self.num_instances, 1)
+
         # Create internal buffers
         self._initialize_buffers_impl()
 
     def _update_buffers_impl(self, env_ids: Sequence[int]):
         """Fills the buffers of the sensor data."""
-        # check if self._dt is set (this is set in the update function)
-        if not hasattr(self, "_dt"):
-            raise RuntimeError(
-                "The update function must be called before the data buffers are accessed the first time."
-            )
+
         # default to all sensors
         if len(env_ids) == self._num_envs:
             env_ids = slice(None)
         # obtain the poses of the sensors
         pos_w, quat_w = self._view.get_transforms()[env_ids].split([3, 4], dim=-1)
-        quat_w = math_utils.convert_quat(quat_w, to="wxyz")
+        quat_w = quat_w.roll(1, dims=-1)
 
         # store the poses
-        self._data.pos_w[env_ids] = pos_w + math_utils.quat_rotate(quat_w, self._offset_pos_b[env_ids])
+        self._data.pos_w[env_ids] = pos_w + math_utils.quat_apply(quat_w, self._offset_pos_b[env_ids])
         self._data.quat_w[env_ids] = math_utils.quat_mul(quat_w, self._offset_quat_b[env_ids])
 
         # get the offset from COM to link origin
@@ -165,18 +170,25 @@ class Imu(SensorBase):
         # if an offset is present or the COM does not agree with the link origin, the linear velocity has to be
         # transformed taking the angular velocity into account
         lin_vel_w += torch.linalg.cross(
-            ang_vel_w, math_utils.quat_rotate(quat_w, self._offset_pos_b[env_ids] - com_pos_b[env_ids]), dim=-1
+            ang_vel_w, math_utils.quat_apply(quat_w, self._offset_pos_b[env_ids] - com_pos_b[env_ids]), dim=-1
         )
 
         # numerical derivative
         lin_acc_w = (lin_vel_w - self._prev_lin_vel_w[env_ids]) / self._dt + self._gravity_bias_w[env_ids]
         ang_acc_w = (ang_vel_w - self._prev_ang_vel_w[env_ids]) / self._dt
-        # store the velocities
-        self._data.lin_vel_b[env_ids] = math_utils.quat_rotate_inverse(self._data.quat_w[env_ids], lin_vel_w)
-        self._data.ang_vel_b[env_ids] = math_utils.quat_rotate_inverse(self._data.quat_w[env_ids], ang_vel_w)
+        # stack data in world frame and batch rotate
+        dynamics_data = torch.stack((lin_vel_w, ang_vel_w, lin_acc_w, ang_acc_w, self.GRAVITY_VEC_W[env_ids]), dim=0)
+        dynamics_data_rot = math_utils.quat_apply_inverse(self._data.quat_w[env_ids].repeat(5, 1), dynamics_data).chunk(
+            5, dim=0
+        )
+        # store the velocities.
+        self._data.lin_vel_b[env_ids] = dynamics_data_rot[0]
+        self._data.ang_vel_b[env_ids] = dynamics_data_rot[1]
         # store the accelerations
-        self._data.lin_acc_b[env_ids] = math_utils.quat_rotate_inverse(self._data.quat_w[env_ids], lin_acc_w)
-        self._data.ang_acc_b[env_ids] = math_utils.quat_rotate_inverse(self._data.quat_w[env_ids], ang_acc_w)
+        self._data.lin_acc_b[env_ids] = dynamics_data_rot[2]
+        self._data.ang_acc_b[env_ids] = dynamics_data_rot[3]
+        # store projected gravity
+        self._data.projected_gravity_b[env_ids] = dynamics_data_rot[4]
 
         self._prev_lin_vel_w[env_ids] = lin_vel_w
         self._prev_ang_vel_w[env_ids] = ang_vel_w
@@ -187,6 +199,7 @@ class Imu(SensorBase):
         self._data.pos_w = torch.zeros(self._view.count, 3, device=self._device)
         self._data.quat_w = torch.zeros(self._view.count, 4, device=self._device)
         self._data.quat_w[:, 0] = 1.0
+        self._data.projected_gravity_b = torch.zeros(self._view.count, 3, device=self._device)
         self._data.lin_vel_b = torch.zeros_like(self._data.pos_w)
         self._data.ang_vel_b = torch.zeros_like(self._data.pos_w)
         self._data.lin_acc_b = torch.zeros_like(self._data.pos_w)
@@ -206,7 +219,7 @@ class Imu(SensorBase):
         # set visibility of markers
         # note: parent only deals with callbacks. not their visibility
         if debug_vis:
-            # create markers if necessary for the first tome
+            # create markers if necessary for the first time
             if not hasattr(self, "acceleration_visualizer"):
                 self.acceleration_visualizer = VisualizationMarkers(self.cfg.visualizer_cfg)
             # set their visibility to true
@@ -233,7 +246,7 @@ class Imu(SensorBase):
         quat_opengl = math_utils.quat_from_matrix(
             math_utils.create_rotation_matrix_from_view(
                 self._data.pos_w,
-                self._data.pos_w + math_utils.quat_rotate(self._data.quat_w, self._data.lin_acc_b),
+                self._data.pos_w + math_utils.quat_apply(self._data.quat_w, self._data.lin_acc_b),
                 up_axis=up_axis,
                 device=self._device,
             )

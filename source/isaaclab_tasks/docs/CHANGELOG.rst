@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.10.26 (2025-03-16)
+0.10.52 (2025-09-09)
 ~~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -9,11 +9,274 @@ Added
 
 * Added ``Isaac-Franka-Reach-Direct-v0`` environment as a direct RL env that implements the Franka Reach task.
 
-0.10.25 (2025-03-10)
+0.10.51 (2025-09-08)
 ~~~~~~~~~~~~~~~~~~~~
 
 Added
 ^^^^^
+
+* Added SkillGen-specific cube stacking environments:
+  * :class:`FrankaCubeStackSkillgenEnvCfg`; Gym ID ``Isaac-Stack-Cube-Franka-IK-Rel-Skillgen-v0``.
+* Added bin cube stacking environment for SkillGen/Mimic:
+  * :class:`FrankaBinStackEnvCfg`; Gym ID ``Isaac-Stack-Cube-Bin-Franka-IK-Rel-Mimic-v0``.
+
+
+0.10.50 (2025-09-05)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added stacking environments for Galbot with suction grippers.
+
+
+0.10.49 (2025-09-05)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added suction gripper stacking environments with UR10 that can be used with teleoperation.
+
+
+0.10.48 (2025-09-03)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``Isaac-Deploy-Reach-UR10e-v0`` environment.
+
+
+0.10.47 (2025-07-25)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* New ``Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0`` environment that enables the waist degrees-of-freedom for the GR1T2 robot.
+
+
+Changed
+^^^^^^^
+
+* Updated pink inverse kinematics controller configuration for the following tasks (``Isaac-PickPlace-GR1T2``, ``Isaac-NutPour-GR1T2``, ``Isaac-ExhaustPipe-GR1T2``)
+  to increase end-effector tracking accuracy and speed. Also added a null-space regularizer that enables turning on of waist degrees-of-freedom without
+  the robot control drifting to a bending posture.
+* Tuned the pink inverse kinematics controller and joint PD controllers for the following tasks (``Isaac-PickPlace-GR1T2``, ``Isaac-NutPour-GR1T2``, ``Isaac-ExhaustPipe-GR1T2``)
+  to improve the end-effector tracking accuracy and speed. Achieving position and orientation accuracy test within **(2 mm, 1 degree)**.
+
+
+0.10.46 (2025-08-16)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added symmetry data augmentation example with RSL-RL for cartpole and anymal locomotion environments.
+* Added :attr:`--agent` to RL workflow scripts to allow switching between different configurations.
+
+
+0.10.45 (2025-07-16)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``from __future__ import annotations`` to isaaclab_tasks files to fix Sphinx
+  doc warnings for IsaacLab Mimic docs.
+
+
+0.10.44 (2025-07-16)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``Isaac-Forge-PegInsert-Direct-v0``, ``Isaac-Forge-GearMesh-Direct-v0``,
+  and ``Isaac-Forge-NutThread-Direct-v0`` environments as direct RL envs. These
+  environments extend ``Isaac-Factory-*-v0`` with force sensing, an excessive force
+  penalty, dynamics randomization, and success prediction.
+
+
+0.10.43 (2025-07-24)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed un-set camera observations in the ``Isaac-Stack-Cube-Instance-Randomize-Franka-v0`` environment.
+
+
+0.10.42 (2025-07-11)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Organized environment unit tests
+
+
+0.10.41 (2025-07-01)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the rendering settings used for the Mimic-Cosmos pipeline.
+
+
+0.10.40 (2025-06-26)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Relaxed upper range pin for protobuf python dependency for more permissive installation.
+
+
+0.10.39 (2025-05-22)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed redundant body_names assignment in rough_env_cfg.py for H1 robot.
+
+
+0.10.38 (2025-06-16)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Show available RL library configs on error message when an entry point key is not available for a given task.
+
+
+0.10.37 (2025-05-15)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``Isaac-Assembly-Direct-v0`` environment as a direct RL env that
+  implements assembly tasks to insert pegs into their corresponding sockets.
+
+
+0.10.36 (2025-05-21)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added unit tests for benchmarking environments with configurable settings. Output KPI payloads
+  can be pushed to a visualization dashboard to track improvements or regressions.
+
+
+0.10.35 (2025-05-21)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos-v0`` stacking environment with multi-modality camera inputs at higher resolution.
+
+Changed
+^^^^^^^
+
+* Updated the ``Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-v0`` stacking environment to support visual domain randomization events during model evaluation.
+* Made the task termination condition for the stacking task more strict.
+
+
+0.10.34 (2025-05-22)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed ``Isaac-PickPlace-GR1T2-Abs-v0`` object asset to a steering wheel.
+
+
+0.10.33 (2025-05-12)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Increase ``Isaac-PickPlace-GR1T2-Abs-v0`` sim dt to 120Hz for improved stability.
+* Fix object initial state in ``Isaac-PickPlace-GR1T2-Abs-v0`` to be above the table.
+
+
+0.10.32 (2025-05-01)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added new GR1 tasks (``Isaac-NutPour-GR1T2-Pink-IK-Abs-v0``, and ``Isaac-ExhaustPipe-GR1T2-Pink-IK-Abs-v0``).
+
+
+0.10.31 (2025-04-02)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Adds an idle action parameter to the ``Isaac-PickPlace-GR1T2-Abs-v0`` environment configuration.
+
+
+0.10.30 (2025-03-25)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed environment test failure for ``Isaac-Stack-Cube-Franka-IK-Rel-Blueprint-v0``.
+
+
+0.10.29 (2025-03-18)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added Gymnasium spaces showcase tasks (``Isaac-Cartpole-Showcase-*-Direct-v0``, and ``Isaac-Cartpole-Camera-Showcase-*-Direct-v0``).
+
+
+0.10.28 (2025-03-19)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated the ``Isaac-PickPlace-GR1T2-Abs-v0`` environment with auto termination when the object falls off the table
+  and refined the success criteria to be more accurate.
+
+
+0.10.27 (2025-03-13)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Blacklisted pick_place task from being imported automatically by isaaclab_tasks. It now has to be imported
+  manually by the script due to dependencies on the pinocchio import.
+
+
+0.10.26 (2025-03-10)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the ``Isaac-PickPlace-GR1T2-Abs-v0`` environment that implements a humanoid arm picking and placing a steering wheel task using the PinkIKController.
+
+
+0.10.25 (2025-03-06)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^^^
 
 * Added ``Isaac-Stack-Cube-Franka-IK-Rel-Blueprint-v0`` stacking environment with camera inputs.
 

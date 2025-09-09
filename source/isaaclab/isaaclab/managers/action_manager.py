@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -8,16 +8,18 @@
 from __future__ import annotations
 
 import inspect
+import re
 import torch
 import weakref
 from abc import abstractmethod
 from collections.abc import Sequence
 from prettytable import PrettyTable
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import omni.kit.app
 
 from isaaclab.assets import AssetBase
+from isaaclab.envs.utils.io_descriptors import GenericActionIODescriptor
 
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import ActionTermCfg
@@ -50,6 +52,8 @@ class ActionTerm(ManagerTermBase):
         super().__init__(cfg, env)
         # parse config to obtain asset to which the term is applied
         self._asset: AssetBase = self._env.scene[self.cfg.asset_name]
+        self._IO_descriptor = GenericActionIODescriptor()
+        self._export_IO_descriptor = True
 
         # add handle for debug visualization (this is set to a valid handle inside set_debug_vis)
         self._debug_vis_handle = None
@@ -90,6 +94,20 @@ class ActionTerm(ManagerTermBase):
         # check if function raises NotImplementedError
         source_code = inspect.getsource(self._set_debug_vis_impl)
         return "NotImplementedError" not in source_code
+
+    @property
+    def IO_descriptor(self) -> GenericActionIODescriptor:
+        """The IO descriptor for the action term."""
+        self._IO_descriptor.name = re.sub(r"([a-z])([A-Z])", r"\1_\2", self.__class__.__name__).lower()
+        self._IO_descriptor.full_path = f"{self.__class__.__module__}.{self.__class__.__name__}"
+        self._IO_descriptor.description = " ".join(self.__class__.__doc__.split())
+        self._IO_descriptor.export = self.export_IO_descriptor
+        return self._IO_descriptor
+
+    @property
+    def export_IO_descriptor(self) -> bool:
+        """Whether to export the IO descriptor for the action term."""
+        return self._export_IO_descriptor
 
     """
     Operations.
@@ -259,6 +277,41 @@ class ActionManager(ManagerBase):
             has_debug_vis |= term.has_debug_vis_implementation
         return has_debug_vis
 
+    @property
+    def get_IO_descriptors(self) -> list[dict[str, Any]]:
+        """Get the IO descriptors for the action manager.
+
+        Returns:
+            A dictionary with keys as the term names and values as the IO descriptors.
+        """
+
+        data = []
+
+        for term_name, term in self._terms.items():
+            try:
+                data.append(term.IO_descriptor.__dict__.copy())
+            except Exception as e:
+                print(f"Error getting IO descriptor for term '{term_name}': {e}")
+
+        formatted_data = []
+        for item in data:
+            name = item.pop("name")
+            formatted_item = {"name": name, "extras": item.pop("extras")}
+            print(item["export"])
+            if not item.pop("export"):
+                continue
+            for k, v in item.items():
+                # Check if v is a tuple and convert to list
+                if isinstance(v, tuple):
+                    v = list(v)
+                if k in ["description", "units"]:
+                    formatted_item["extras"][k] = v
+                else:
+                    formatted_item[k] = v
+            formatted_data.append(formatted_item)
+
+        return formatted_data
+
     """
     Operations.
     """
@@ -357,6 +410,14 @@ class ActionManager(ManagerBase):
             The action term with the specified name.
         """
         return self._terms[name]
+
+    def serialize(self) -> dict:
+        """Serialize the action manager configuration.
+
+        Returns:
+            A dictionary of serialized action term configurations.
+        """
+        return {term_name: term.serialize() for term_name, term in self._terms.items()}
 
     """
     Helper functions.

@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -17,7 +17,3 @@ the initialized environment instance to the wrapper constructor. However, since 
 expect different input and output data structures, their wrapper classes are not compatible with each other.
 Thus, they should always be used in conjunction with the respective learning framework.
 """
-
-from . import rl_games, rsl_rl, sb3, skrl
-
-__all__ = ["sb3", "skrl", "rsl_rl", "rl_games"]

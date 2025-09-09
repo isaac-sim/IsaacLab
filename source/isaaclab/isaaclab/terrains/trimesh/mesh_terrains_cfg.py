@@ -1,8 +1,9 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import warnings
 from dataclasses import MISSING
 from typing import Literal
 
@@ -10,7 +11,7 @@ import isaaclab.terrains.trimesh.mesh_terrains as mesh_terrains
 import isaaclab.terrains.trimesh.utils as mesh_utils_terrains
 from isaaclab.utils import configclass
 
-from ..terrain_generator_cfg import SubTerrainBaseCfg
+from ..sub_terrain_cfg import SubTerrainBaseCfg
 
 """
 Different trimesh terrain configurations.
@@ -35,12 +36,16 @@ class MeshPyramidStairsTerrainCfg(SubTerrainBaseCfg):
 
     The border is a flat terrain with the same height as the terrain.
     """
+
     step_height_range: tuple[float, float] = MISSING
     """The minimum and maximum height of the steps (in m)."""
+
     step_width: float = MISSING
     """The width of the steps (in m)."""
+
     platform_width: float = 1.0
     """The width of the square platform at the center of the terrain. Defaults to 1.0."""
+
     holes: bool = False
     """If True, the terrain will have holes in the steps. Defaults to False.
 
@@ -69,10 +74,13 @@ class MeshRandomGridTerrainCfg(SubTerrainBaseCfg):
 
     grid_width: float = MISSING
     """The width of the grid cells (in m)."""
+
     grid_height_range: tuple[float, float] = MISSING
     """The minimum and maximum height of the grid cells (in m)."""
+
     platform_width: float = 1.0
     """The width of the square platform at the center of the terrain. Defaults to 1.0."""
+
     holes: bool = False
     """If True, the terrain will have holes in the steps. Defaults to False.
 
@@ -89,8 +97,10 @@ class MeshRailsTerrainCfg(SubTerrainBaseCfg):
 
     rail_thickness_range: tuple[float, float] = MISSING
     """The thickness of the inner and outer rails (in m)."""
+
     rail_height_range: tuple[float, float] = MISSING
     """The minimum and maximum height of the rails (in m)."""
+
     platform_width: float = 1.0
     """The width of the square platform at the center of the terrain. Defaults to 1.0."""
 
@@ -103,8 +113,10 @@ class MeshPitTerrainCfg(SubTerrainBaseCfg):
 
     pit_depth_range: tuple[float, float] = MISSING
     """The minimum and maximum height of the pit (in m)."""
+
     platform_width: float = 1.0
     """The width of the square platform at the center of the terrain. Defaults to 1.0."""
+
     double_pit: bool = False
     """If True, the pit contains two levels of stairs. Defaults to False."""
 
@@ -117,8 +129,10 @@ class MeshBoxTerrainCfg(SubTerrainBaseCfg):
 
     box_height_range: tuple[float, float] = MISSING
     """The minimum and maximum height of the box (in m)."""
+
     platform_width: float = 1.0
     """The width of the square platform at the center of the terrain. Defaults to 1.0."""
+
     double_box: bool = False
     """If True, the pit contains two levels of stairs/boxes. Defaults to False."""
 
@@ -131,6 +145,7 @@ class MeshGapTerrainCfg(SubTerrainBaseCfg):
 
     gap_width_range: tuple[float, float] = MISSING
     """The minimum and maximum width of the gap (in m)."""
+
     platform_width: float = 1.0
     """The width of the square platform at the center of the terrain. Defaults to 1.0."""
 
@@ -143,10 +158,13 @@ class MeshFloatingRingTerrainCfg(SubTerrainBaseCfg):
 
     ring_width_range: tuple[float, float] = MISSING
     """The minimum and maximum width of the ring (in m)."""
+
     ring_height_range: tuple[float, float] = MISSING
     """The minimum and maximum height of the ring (in m)."""
+
     ring_thickness: float = MISSING
     """The thickness (along z) of the ring (in m)."""
+
     platform_width: float = 1.0
     """The width of the square platform at the center of the terrain. Defaults to 1.0."""
 
@@ -159,10 +177,13 @@ class MeshStarTerrainCfg(SubTerrainBaseCfg):
 
     num_bars: int = MISSING
     """The number of bars per-side the star. Must be greater than 2."""
+
     bar_width_range: tuple[float, float] = MISSING
     """The minimum and maximum width of the bars in the star (in m)."""
+
     bar_height_range: tuple[float, float] = MISSING
     """The minimum and maximum height of the bars in the star (in m)."""
+
     platform_width: float = 1.0
     """The width of the cylindrical platform at the center of the terrain. Defaults to 1.0."""
 
@@ -189,15 +210,38 @@ class MeshRepeatedObjectsTerrainCfg(SubTerrainBaseCfg):
     ``make_{object_type}`` in the current module scope. If it is a callable, the function will
     use the callable to generate the object.
     """
+
     object_params_start: ObjectCfg = MISSING
     """The object curriculum parameters at the start of the curriculum."""
+
     object_params_end: ObjectCfg = MISSING
     """The object curriculum parameters at the end of the curriculum."""
 
-    max_height_noise: float = 0.0
-    """The maximum amount of noise to add to the height of the objects (in m). Defaults to 0.0."""
+    max_height_noise: float | None = None
+    """"This parameter is deprecated, but stated here to support backward compatibility"""
+
+    abs_height_noise: tuple[float, float] = (0.0, 0.0)
+    """The minimum and maximum amount of additive noise for the height of the objects. Default is set to 0.0, which is no noise."""
+
+    rel_height_noise: tuple[float, float] = (1.0, 1.0)
+    """The minimum and maximum amount of multiplicative noise for the height of the objects. Default is set to 1.0, which is no noise."""
+
     platform_width: float = 1.0
     """The width of the cylindrical platform at the center of the terrain. Defaults to 1.0."""
+
+    platform_height: float = -1.0
+    """The height of the platform. Defaults to -1.0.
+
+    If the value is negative, the height is the same as the object height.
+    """
+
+    def __post_init__(self):
+        if self.max_height_noise is not None:
+            warnings.warn(
+                "MeshRepeatedObjectsTerrainCfg: max_height_noise:float is deprecated and support will be removed in the"
+                " future. Use abs_height_noise:list[float] instead."
+            )
+            self.abs_height_noise = (-self.max_height_noise, self.max_height_noise)
 
 
 @configclass
@@ -219,6 +263,7 @@ class MeshRepeatedPyramidsTerrainCfg(MeshRepeatedObjectsTerrainCfg):
 
     object_params_start: ObjectCfg = MISSING
     """The object curriculum parameters at the start of the curriculum."""
+
     object_params_end: ObjectCfg = MISSING
     """The object curriculum parameters at the end of the curriculum."""
 
@@ -242,6 +287,7 @@ class MeshRepeatedBoxesTerrainCfg(MeshRepeatedObjectsTerrainCfg):
 
     object_params_start: ObjectCfg = MISSING
     """The box curriculum parameters at the start of the curriculum."""
+
     object_params_end: ObjectCfg = MISSING
     """The box curriculum parameters at the end of the curriculum."""
 
@@ -265,5 +311,6 @@ class MeshRepeatedCylindersTerrainCfg(MeshRepeatedObjectsTerrainCfg):
 
     object_params_start: ObjectCfg = MISSING
     """The box curriculum parameters at the start of the curriculum."""
+
     object_params_end: ObjectCfg = MISSING
     """The box curriculum parameters at the end of the curriculum."""

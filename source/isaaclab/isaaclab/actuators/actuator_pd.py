@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -201,8 +201,8 @@ class IdealPDActuator(ActuatorBase):
 class DCMotor(IdealPDActuator):
     r"""Direct control (DC) motor actuator model with velocity-based saturation model.
 
-    It uses the same model as the :class:`IdealActuator` for computing the torques from input commands.
-    However, it implements a saturation model defined by DC motor characteristics.
+    It uses the same model as the :class:`IdealPDActuator` for computing the torques from input commands.
+    However, it implements a saturation model defined by a linear four quadrant DC motor torque-speed curve.
 
     A DC motor is a type of electric motor that is powered by direct current electricity. In most cases,
     the motor is connected to a constant source of voltage supply, and the current is controlled by a rheostat.
@@ -211,23 +211,28 @@ class DCMotor(IdealPDActuator):
 
     A DC motor characteristics are defined by the following parameters:
 
-    * Continuous-rated speed (:math:`\dot{q}_{motor, max}`) : The maximum-rated speed of the motor.
-    * Continuous-stall torque (:math:`\tau_{motor, max}`): The maximum-rated torque produced at 0 speed.
-    * Saturation torque (:math:`\tau_{motor, sat}`): The maximum torque that can be outputted for a short period.
+    * No-load speed (:math:`\dot{q}_{motor, max}`) : The maximum-rated speed of the motor at 0 Torque (:attr:`velocity_limit`).
+    * Stall torque (:math:`\tau_{motor, stall}`): The maximum-rated torque produced at 0 speed (:attr:`saturation_effort`).
+    * Continuous torque (:math:`\tau_{motor, con}`): The maximum torque that can be outputted for a short period. This
+      is often enforced on the current drives for a DC motor to limit overheating, prevent mechanical damage, or
+      enforced by electrical limitations.(:attr:`effort_limit`).
+    * Corner velocity (:math:`V_{c}`): The velocity where the torque-speed curve intersects with continuous torque.
+      Based on these parameters, the instantaneous minimum and maximum torques for velocities between corner velocities
+      (where torque-speed curve intersects with continuous torque) are defined as follows:
 
-    Based on these parameters, the instantaneous minimum and maximum torques are defined as follows:
+    Based on these parameters, the instantaneous minimum and maximum torques for velocities are defined as follows:
 
     .. math::
 
-        \tau_{j, max}(\dot{q}) & = clip \left (\tau_{j, sat} \times \left(1 -
-            \frac{\dot{q}}{\dot{q}_{j, max}}\right), 0.0, \tau_{j, max} \right) \\
-        \tau_{j, min}(\dot{q}) & = clip \left (\tau_{j, sat} \times \left( -1 -
-            \frac{\dot{q}}{\dot{q}_{j, max}}\right), - \tau_{j, max}, 0.0 \right)
+        \tau_{j, max}(\dot{q}) & = clip \left (\tau_{j, stall} \times \left(1 -
+            \frac{\dot{q}}{\dot{q}_{j, max}}\right), -∞, \tau_{j, con} \right) \\
+        \tau_{j, min}(\dot{q}) & = clip \left (\tau_{j, stall} \times \left( -1 -
+            \frac{\dot{q}}{\dot{q}_{j, max}}\right), - \tau_{j, con}, ∞ \right)
 
     where :math:`\gamma` is the gear ratio of the gear box connecting the motor and the actuated joint ends,
-    :math:`\dot{q}_{j, max} = \gamma^{-1} \times  \dot{q}_{motor, max}`, :math:`\tau_{j, max} =
-    \gamma \times \tau_{motor, max}` and :math:`\tau_{j, peak} = \gamma \times \tau_{motor, peak}`
-    are the maximum joint velocity, maximum joint torque and peak torque, respectively. These parameters
+    :math:`\dot{q}_{j, max} = \gamma^{-1} \times  \dot{q}_{motor, max}`, :math:`\tau_{j, con} =
+    \gamma \times \tau_{motor, con}` and :math:`\tau_{j, stall} = \gamma \times \tau_{motor, stall}`
+    are the maximum joint velocity, continuous joint torque and stall torque, respectively. These parameters
     are read from the configuration instance passed to the class.
 
     Using these values, the computed torques are clipped to the minimum and maximum values based on the
@@ -237,6 +242,16 @@ class DCMotor(IdealPDActuator):
 
         \tau_{j, applied} = clip(\tau_{computed}, \tau_{j, min}(\dot{q}), \tau_{j, max}(\dot{q}))
 
+    If the velocity of the joint is outside corner velocities (this would be due to external forces) the
+    applied output torque will be driven to the Continuous Torque (`effort_limit`).
+
+    The figure below demonstrates the clipping action for example (velocity, torque) pairs.
+
+    .. figure:: ../../_static/actuator-group/dc_motor_clipping.jpg
+        :align: center
+        :figwidth: 100%
+        :alt: The effort clipping as a function of joint velocity for a linear DC Motor.
+
     """
 
     cfg: DCMotorCfg
@@ -245,10 +260,11 @@ class DCMotor(IdealPDActuator):
     def __init__(self, cfg: DCMotorCfg, *args, **kwargs):
         super().__init__(cfg, *args, **kwargs)
         # parse configuration
-        if self.cfg.saturation_effort is not None:
-            self._saturation_effort = self.cfg.saturation_effort
-        else:
-            self._saturation_effort = torch.inf
+        if self.cfg.saturation_effort is None:
+            raise ValueError("The saturation_effort must be provided for the DC motor actuator model.")
+        self._saturation_effort = self.cfg.saturation_effort
+        # find the velocity on the torque-speed curve that intersects effort_limit in the second and fourth quadrant
+        self._vel_at_effort_lim = self.velocity_limit * (1 + self.effort_limit / self._saturation_effort)
         # prepare joint vel buffer for max effort computation
         self._joint_vel = torch.zeros_like(self.computed_effort)
         # create buffer for zeros effort
@@ -274,16 +290,18 @@ class DCMotor(IdealPDActuator):
     """
 
     def _clip_effort(self, effort: torch.Tensor) -> torch.Tensor:
+        # save current joint vel
+        self._joint_vel[:] = torch.clip(self._joint_vel, min=-self._vel_at_effort_lim, max=self._vel_at_effort_lim)
         # compute torque limits
+        torque_speed_top = self._saturation_effort * (1.0 - self._joint_vel / self.velocity_limit)
+        torque_speed_bottom = self._saturation_effort * (-1.0 - self._joint_vel / self.velocity_limit)
         # -- max limit
-        max_effort = self._saturation_effort * (1.0 - self._joint_vel / self.velocity_limit)
-        max_effort = torch.clip(max_effort, min=self._zeros_effort, max=self.effort_limit)
+        max_effort = torch.clip(torque_speed_top, max=self.effort_limit)
         # -- min limit
-        min_effort = self._saturation_effort * (-1.0 - self._joint_vel / self.velocity_limit)
-        min_effort = torch.clip(min_effort, min=-self.effort_limit, max=self._zeros_effort)
-
+        min_effort = torch.clip(torque_speed_bottom, min=-self.effort_limit)
         # clip the torques based on the motor limits
-        return torch.clip(effort, min=min_effort, max=max_effort)
+        clamped = torch.clip(effort, min=min_effort, max=max_effort)
+        return clamped
 
 
 class DelayedPDActuator(IdealPDActuator):
@@ -367,6 +385,8 @@ class RemotizedPDActuator(DelayedPDActuator):
         damping: torch.Tensor | float = 0.0,
         armature: torch.Tensor | float = 0.0,
         friction: torch.Tensor | float = 0.0,
+        dynamic_friction: torch.Tensor | float = 0.0,
+        viscous_friction: torch.Tensor | float = 0.0,
         effort_limit: torch.Tensor | float = torch.inf,
         velocity_limit: torch.Tensor | float = torch.inf,
     ):
@@ -375,7 +395,19 @@ class RemotizedPDActuator(DelayedPDActuator):
         cfg.velocity_limit = torch.inf
         # call the base method and set default effort_limit and velocity_limit to inf
         super().__init__(
-            cfg, joint_names, joint_ids, num_envs, device, stiffness, damping, armature, friction, torch.inf, torch.inf
+            cfg,
+            joint_names,
+            joint_ids,
+            num_envs,
+            device,
+            stiffness,
+            damping,
+            armature,
+            friction,
+            dynamic_friction,
+            viscous_friction,
+            effort_limit,
+            velocity_limit,
         )
         self._joint_parameter_lookup = torch.tensor(cfg.joint_parameter_lookup, device=device)
         # define remotized joint torque limit

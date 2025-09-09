@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -29,7 +29,7 @@ class ArticulationRootPropertiesCfg:
     """Solver position iteration counts for the body."""
 
     solver_velocity_iteration_count: int | None = None
-    """Solver position iteration counts for the body."""
+    """Solver velocity iteration counts for the body."""
 
     sleep_threshold: float | None = None
     """Mass-normalized kinetic energy threshold below which an actor may go to sleep."""
@@ -199,6 +199,36 @@ class JointDrivePropertiesCfg:
     then the joint is driven by an acceleration (usually used for kinematic joints).
     """
 
+    max_effort: float | None = None
+    """Maximum effort that can be applied to the joint (in kg-m^2/s^2)."""
+
+    max_velocity: float | None = None
+    """Maximum velocity of the joint.
+
+    The unit depends on the joint model:
+
+    * For linear joints, the unit is m/s.
+    * For angular joints, the unit is rad/s.
+    """
+
+    stiffness: float | None = None
+    """Stiffness of the joint drive.
+
+    The unit depends on the joint model:
+
+    * For linear joints, the unit is kg-m/s^2 (N/m).
+    * For angular joints, the unit is kg-m^2/s^2/rad (N-m/rad).
+    """
+
+    damping: float | None = None
+    """Damping of the joint drive.
+
+    The unit depends on the joint model:
+
+    * For linear joints, the unit is kg-m/s (N-s/m).
+    * For angular joints, the unit is kg-m^2/s/rad (N-m-s/rad).
+    """
+
 
 @configclass
 class FixedTendonPropertiesCfg:
@@ -232,6 +262,37 @@ class FixedTendonPropertiesCfg:
 
     rest_length: float | None = None
     """Spring rest length of the tendon."""
+
+
+@configclass
+class SpatialTendonPropertiesCfg:
+    """Properties to define spatial tendons of an articulation.
+
+    See :meth:`modify_spatial_tendon_properties` for more information.
+
+    .. note::
+        If the values are None, they are not modified. This is useful when you want to set only a subset of
+        the properties and leave the rest as-is.
+    """
+
+    tendon_enabled: bool | None = None
+    """Whether to enable or disable the tendon."""
+
+    stiffness: float | None = None
+    """Spring stiffness term acting on the tendon's length."""
+
+    damping: float | None = None
+    """The damping term acting on both the tendon length and the tendon-length limits."""
+
+    limit_stiffness: float | None = None
+    """Limit stiffness term acting on the tendon's length limits."""
+
+    offset: float | None = None
+    """Length offset term for the tendon.
+
+    It defines an amount to be added to the accumulated length computed for the tendon. This allows the application
+    to actuate the tendon by shortening or lengthening it.
+    """
 
 
 @configclass

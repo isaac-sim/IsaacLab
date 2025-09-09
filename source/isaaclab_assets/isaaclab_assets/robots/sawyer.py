@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -23,7 +23,7 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 SAWYER_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/RethinkRobotics/sawyer_instanceable.usd",
+        usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/RethinkRobotics/Sawyer/sawyer_instanceable.usd",
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=False,
             max_depenetration_velocity=5.0,
@@ -48,15 +48,13 @@ SAWYER_CFG = ArticulationCfg(
     actuators={
         "head": ImplicitActuatorCfg(
             joint_names_expr=["head_pan"],
-            velocity_limit=100.0,
-            effort_limit=8.0,
+            effort_limit_sim=8.0,
             stiffness=800.0,
             damping=40.0,
         ),
         "arm": ImplicitActuatorCfg(
             joint_names_expr=["right_j[0-6]"],
-            velocity_limit=100.0,
-            effort_limit={
+            effort_limit_sim={
                 "right_j[0-1]": 80.0,
                 "right_j[2-3]": 40.0,
                 "right_j[4-6]": 9.0,

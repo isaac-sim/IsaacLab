@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -18,6 +18,7 @@ from isaaclab.utils.math import euler_xyz_from_quat
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
+    from isaaclab.envs.utils.io_descriptors import GenericActionIODescriptor
 
     from . import actions_cfg
 
@@ -133,6 +134,36 @@ class NonHolonomicAction(ActionTerm):
     @property
     def processed_actions(self) -> torch.Tensor:
         return self._processed_actions
+
+    @property
+    def IO_descriptor(self) -> GenericActionIODescriptor:
+        """The IO descriptor of the action term.
+
+        This descriptor is used to describe the action term of the non-holonomic action.
+        It adds the following information to the base descriptor:
+        - scale: The scale of the action term.
+        - offset: The offset of the action term.
+        - clip: The clip of the action term.
+        - body_name: The name of the body.
+        - x_joint_name: The name of the x joint.
+        - y_joint_name: The name of the y joint.
+        - yaw_joint_name: The name of the yaw joint.
+
+        Returns:
+            The IO descriptor of the action term.
+        """
+        super().IO_descriptor
+        self._IO_descriptor.shape = (self.action_dim,)
+        self._IO_descriptor.dtype = str(self.raw_actions.dtype)
+        self._IO_descriptor.action_type = "non holonomic actions"
+        self._IO_descriptor.scale = self._scale
+        self._IO_descriptor.offset = self._offset
+        self._IO_descriptor.clip = self._clip
+        self._IO_descriptor.body_name = self._body_name
+        self._IO_descriptor.x_joint_name = self._joint_names[0]
+        self._IO_descriptor.y_joint_name = self._joint_names[1]
+        self._IO_descriptor.yaw_joint_name = self._joint_names[2]
+        return self._IO_descriptor
 
     """
     Operations.

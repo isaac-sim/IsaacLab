@@ -1,8 +1,7 @@
-# Copyright (c) 2024-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
-
 """Recorder manager for recording data produced from the given world."""
 
 from __future__ import annotations
@@ -124,6 +123,15 @@ class RecorderTerm(ManagerTermBase):
         """
         return None, None
 
+    def record_post_physics_decimation_step(self) -> tuple[str | None, torch.Tensor | dict | None]:
+        """Record data after the physics step is executed in the decimation loop.
+
+        Returns:
+            A tuple of key and value to be recorded.
+            Please refer to the `record_pre_reset` function for more details.
+        """
+        return None, None
+
 
 class RecorderManager(ManagerBase):
     """Manager for recording data from recorder terms."""
@@ -223,6 +231,8 @@ class RecorderManager(ManagerBase):
         Returns:
             The number of successful episodes.
         """
+        if not hasattr(self, "_exported_successful_episode_count"):
+            return 0
         if env_id is not None:
             return self._exported_successful_episode_count.get(env_id, 0)
         return sum(self._exported_successful_episode_count.values())
@@ -237,6 +247,8 @@ class RecorderManager(ManagerBase):
         Returns:
             The number of failed episodes.
         """
+        if not hasattr(self, "_exported_failed_episode_count"):
+            return 0
         if env_id is not None:
             return self._exported_failed_episode_count.get(env_id, 0)
         return sum(self._exported_failed_episode_count.values())
@@ -359,6 +371,16 @@ class RecorderManager(ManagerBase):
             key, value = term.record_post_step()
             self.add_to_episodes(key, value)
 
+    def record_post_physics_decimation_step(self) -> None:
+        """Trigger recorder terms for post-physics step functions in the decimation loop."""
+        # Do nothing if no active recorder terms are provided
+        if len(self.active_terms) == 0:
+            return
+
+        for term in self._terms.values():
+            key, value = term.record_post_physics_decimation_step()
+            self.add_to_episodes(key, value)
+
     def record_pre_reset(self, env_ids: Sequence[int] | None, force_export_or_skip=None) -> None:
         """Trigger recorder terms for pre-reset functions.
 
@@ -381,8 +403,9 @@ class RecorderManager(ManagerBase):
         # Set task success values for the relevant episodes
         success_results = torch.zeros(len(env_ids), dtype=bool, device=self._env.device)
         # Check success indicator from termination terms
-        if "success" in self._env.termination_manager.active_terms:
-            success_results |= self._env.termination_manager.get_term("success")[env_ids]
+        if hasattr(self._env, "termination_manager"):
+            if "success" in self._env.termination_manager.active_terms:
+                success_results |= self._env.termination_manager.get_term("success")[env_ids]
         self.set_success_to_episodes(env_ids, success_results)
 
         if force_export_or_skip or (force_export_or_skip is None and self.cfg.export_in_record_pre_reset):
@@ -402,6 +425,23 @@ class RecorderManager(ManagerBase):
             key, value = term.record_post_reset(env_ids)
             self.add_to_episodes(key, value, env_ids)
 
+    def get_ep_meta(self) -> dict:
+        """Get the episode metadata."""
+        if not hasattr(self._env.cfg, "get_ep_meta"):
+            # Add basic episode metadata
+            ep_meta = dict()
+            ep_meta["sim_args"] = {
+                "dt": self._env.cfg.sim.dt,
+                "decimation": self._env.cfg.decimation,
+                "render_interval": self._env.cfg.sim.render_interval,
+                "num_envs": self._env.cfg.scene.num_envs,
+            }
+            return ep_meta
+
+        # Add custom episode metadata if available
+        ep_meta = self._env.cfg.get_ep_meta()
+        return ep_meta
+
     def export_episodes(self, env_ids: Sequence[int] | None = None) -> None:
         """Concludes and exports the episodes for the given environment ids.
 
@@ -420,8 +460,18 @@ class RecorderManager(ManagerBase):
 
         # Export episode data through dataset exporter
         need_to_flush = False
+
+        if any(env_id in self._episodes and not self._episodes[env_id].is_empty() for env_id in env_ids):
+            ep_meta = self.get_ep_meta()
+            if self._dataset_file_handler is not None:
+                self._dataset_file_handler.add_env_args(ep_meta)
+            if self._failed_episode_dataset_file_handler is not None:
+                self._failed_episode_dataset_file_handler.add_env_args(ep_meta)
+
         for env_id in env_ids:
             if env_id in self._episodes and not self._episodes[env_id].is_empty():
+                self._episodes[env_id].pre_export()
+
                 episode_succeeded = self._episodes[env_id].success
                 target_dataset_file_handler = None
                 if (self.cfg.dataset_export_mode == DatasetExportMode.EXPORT_ALL) or (

@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -18,6 +18,7 @@ from isaaclab.managers.action_manager import ActionTerm
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
+    from isaaclab.envs.utils.io_descriptors import GenericActionIODescriptor
 
     from . import actions_cfg
 
@@ -104,6 +105,37 @@ class JointPositionToLimitsAction(ActionTerm):
     @property
     def processed_actions(self) -> torch.Tensor:
         return self._processed_actions
+
+    @property
+    def IO_descriptor(self) -> GenericActionIODescriptor:
+        """The IO descriptor of the action term.
+
+        This descriptor is used to describe the action term of the joint position to limits action.
+        It adds the following information to the base descriptor:
+        - joint_names: The names of the joints.
+        - scale: The scale of the action term.
+        - offset: The offset of the action term.
+        - clip: The clip of the action term.
+
+        Returns:
+            The IO descriptor of the action term.
+        """
+        super().IO_descriptor
+        self._IO_descriptor.shape = (self.action_dim,)
+        self._IO_descriptor.dtype = str(self.raw_actions.dtype)
+        self._IO_descriptor.action_type = "JointAction"
+        self._IO_descriptor.joint_names = self._joint_names
+        self._IO_descriptor.scale = self._scale
+        # This seems to be always [4xNum_joints] IDK why. Need to check.
+        if isinstance(self._offset, torch.Tensor):
+            self._IO_descriptor.offset = self._offset[0].detach().cpu().numpy().tolist()
+        else:
+            self._IO_descriptor.offset = self._offset
+        if self.cfg.clip is not None:
+            self._IO_descriptor.clip = self._clip
+        else:
+            self._IO_descriptor.clip = None
+        return self._IO_descriptor
 
     """
     Operations.
@@ -194,6 +226,33 @@ class EMAJointPositionToLimitsAction(JointPositionToLimitsAction):
 
         # initialize the previous targets
         self._prev_applied_actions = torch.zeros_like(self.processed_actions)
+
+    @property
+    def IO_descriptor(self) -> GenericActionIODescriptor:
+        """The IO descriptor of the action term.
+
+        This descriptor is used to describe the action term of the EMA joint position to limits action.
+        It adds the following information to the base descriptor:
+        - joint_names: The names of the joints.
+        - scale: The scale of the action term.
+        - offset: The offset of the action term.
+        - clip: The clip of the action term.
+        - alpha: The moving average weight.
+
+        Returns:
+            The IO descriptor of the action term.
+        """
+        super().IO_descriptor
+        if isinstance(self._alpha, float):
+            self._IO_descriptor.alpha = self._alpha
+        elif isinstance(self._alpha, torch.Tensor):
+            self._IO_descriptor.alpha = self._alpha[0].detach().cpu().numpy().tolist()
+        else:
+            raise ValueError(
+                f"Unsupported moving average weight type: {type(self._alpha)}. Supported types are float and"
+                " torch.Tensor."
+            )
+        return self._IO_descriptor
 
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
         # check if specific environment ids are provided

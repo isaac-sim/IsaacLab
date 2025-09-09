@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -9,9 +9,11 @@ This module defines the general configuration of the environment. It includes pa
 configuring the environment instances, viewer settings, and simulation parameters.
 """
 
-from dataclasses import MISSING
+from dataclasses import MISSING, field
 
 import isaaclab.envs.mdp as mdp
+from isaaclab.devices.device_base import DevicesCfg
+from isaaclab.devices.openxr import XrCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import RecorderManagerBaseCfg as DefaultEmptyRecorderManagerCfg
 from isaaclab.scene import InteractiveSceneCfg
@@ -117,3 +119,15 @@ class ManagerBasedEnvCfg:
 
     wait_for_textures: bool = True
     """True to wait for assets to be loaded completely, False otherwise. Defaults to True."""
+
+    xr: XrCfg | None = None
+    """Configuration for viewing and interacting with the environment through an XR device."""
+
+    teleop_devices: DevicesCfg = field(default_factory=DevicesCfg)
+    """Configuration for teleoperation devices."""
+
+    export_io_descriptors: bool = False
+    """Whether to export the IO descriptors for the environment. Defaults to False."""
+
+    io_descriptors_output_dir: str | None = None
+    """The directory to export the IO descriptors to. Defaults to None."""
