@@ -200,6 +200,8 @@ The Isaac Lab framework is released under [BSD-3 License](LICENSE). The `isaacla
 corresponding standalone scripts are released under [Apache 2.0](LICENSE-mimic). The license files of its
 dependencies and assets are present in the [`docs/licenses`](docs/licenses) directory.
 
+Note that Isaac Lab requires Isaac Sim, which includes components under proprietary licensing terms. Please see the [Isaac Sim license](docs/licenses/dependencies/isaacsim-license.txt) for information on Isaac Sim licensing.
+
 ## Acknowledgement
 
 Isaac Lab development initiated from the [Orbit](https://isaac-orbit.github.io/) framework. We would appreciate if
