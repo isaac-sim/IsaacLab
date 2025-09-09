@@ -7,15 +7,10 @@
 documentation:
   - changed-files:
     - any-glob-to-any-file:
-      - docs/**
-      - docs/*
-      - README.md
-
-# Changes to assets (images, models, datasets)
-asset:
-  - changed-files:
-    - any-glob-to-any-file:
-      - source/isaaclab_assets/**
+      - '**/docs/**'
+      - '**/README.md'
+    - all-globs-to-all-files:
+      - '**/CHANGELOG.rst'
 
 # Infrastructure changes
 infrastructure:
@@ -35,6 +30,12 @@ infrastructure:
       - isaaclab.sh
       - isaaclab.bat
 
+# Assets (USD, glTF, etc.) related changes.
+asset:
+  - changed-files:
+    - any-glob-to-any-file:
+      - source/isaaclab_assets/**
+
 # Isaac Sim team related changes.
 isaac-sim:
   - changed-files:
@@ -52,15 +53,12 @@ isaac-mimic:
 isaac-lab:
   - changed-files:
     - any-glob-to-any-file:
-      - source/isaaclab/**
-      - source/isaaclab_tasks/**
-      - source/isaaclab_rl/**
-      - scripts/benchmarks/**
-      - scripts/demos/**
-      - scripts/environments/**
-      - scripts/reinforcement_learning/**
-      - scripts/tutorials/**
-      - scripts/tools/**
+      - source/**
+      - scripts/**
+    - all-globs-to-all-files:
+      - '!source/isaaclab_assets/**'
+      - '!source/isaaclab_mimic/**'
+      - '!source/imitation_learning/**'
 
 # Add 'enhancement' label to any PR where the head branch name
 # starts with `feature` or has a `feature` section in the name
