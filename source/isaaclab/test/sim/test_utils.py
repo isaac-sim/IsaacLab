@@ -158,12 +158,16 @@ def test_resolve_prim_pose():
             attributes={"size": rand_widths[i]},
         )
         # xform hierarchy
+        # NOTE: Enabling scale causes the test to fail because the current implementation of 
+        # resolve_prim_pose does not correctly handle non-identity scales on Xform prims. This is a known 
+        # limitation. Until this is fixed, scale is disabled here to ensure the test passes.
+        # TODO: Fix resolve_prim_pose to support scaled Xform prims.
         xform_prim = prim_utils.create_prim(
             f"/World/Xform/instance_{i:02d}",
             "Xform",
             translation=rand_positions[i, 1],
             orientation=rand_quats[i, 1],
-            # scale=rand_scales[i, 1],  # NOTE: Enabling this line causes the test to fail because the current implementation of resolve_prim_pose does not correctly handle non-identity scales on Xform prims. This is a known limitation (see https://github.com/isaac-sim/IsaacLab/issues/XXX). Until this is fixed, scale is disabled here to ensure the test passes. TODO: Fix resolve_prim_pose to support scaled Xform prims.
+            # scale=rand_scales[i, 1],
         )
         geometry_prim = prim_utils.create_prim(
             f"/World/Xform/instance_{i:02d}/geometry",
