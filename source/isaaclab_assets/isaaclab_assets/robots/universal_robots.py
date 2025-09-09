@@ -9,6 +9,7 @@
 The following configuration parameters are available:
 
 * :obj:`UR10_CFG`: The UR10 arm without a gripper.
+* :obj:`UR10E_ROBOTIQ_GRIPPER_CFG`: The UR10E arm with Robotiq_2f_140 gripper.
 
 Reference: https://github.com/ros-industrial/universal_robot
 """
@@ -122,3 +123,43 @@ UR10_SHORT_SUCTION_CFG = UR10_LONG_SUCTION_CFG.copy()
 UR10_SHORT_SUCTION_CFG.spawn.variants = {"Gripper": "Short_Suction"}
 
 """Configuration of UR10 arm with short suction gripper."""
+
+UR10e_ROBOTIQ_GRIPPER_CFG = UR10e_CFG.copy()
+UR10e_ROBOTIQ_GRIPPER_CFG.spawn.variants = {"Gripper": "Robotiq_2f_140"}
+UR10e_ROBOTIQ_GRIPPER_CFG.spawn.rigid_props.disable_gravity = True
+UR10e_ROBOTIQ_GRIPPER_CFG.init_state.joint_pos["finger_joint"] = 0.0
+UR10e_ROBOTIQ_GRIPPER_CFG.init_state.joint_pos[".*_inner_finger_joint"] = 0.0
+UR10e_ROBOTIQ_GRIPPER_CFG.init_state.joint_pos[".*_inner_finger_pad_joint"] = 0.0
+UR10e_ROBOTIQ_GRIPPER_CFG.init_state.joint_pos[".*_outer_.*_joint"] = 0.0
+# the major actuator joint for gripper
+UR10e_ROBOTIQ_GRIPPER_CFG.actuators["gripper_drive"] = ImplicitActuatorCfg(
+    joint_names_expr=["finger_joint"],
+    effort_limit_sim=10.0,
+    velocity_limit_sim=1.0,
+    stiffness=11.25,
+    damping=0.1,
+    friction=0.0,
+    armature=0.0,
+)
+# the auxiliary actuator joint for gripper
+UR10e_ROBOTIQ_GRIPPER_CFG.actuators["gripper_finger"] = ImplicitActuatorCfg(
+    joint_names_expr=[".*_inner_finger_joint"],
+    effort_limit_sim=1.0,
+    velocity_limit_sim=1.0,
+    stiffness=0.2,
+    damping=0.001,
+    friction=0.0,
+    armature=0.0,
+)
+# the passive joints for gripper
+UR10e_ROBOTIQ_GRIPPER_CFG.actuators["gripper_passive"] = ImplicitActuatorCfg(
+    joint_names_expr=[".*_inner_finger_pad_joint", ".*_outer_finger_joint", "right_outer_knuckle_joint"],
+    effort_limit_sim=1.0,
+    velocity_limit_sim=1.0,
+    stiffness=0.0,
+    damping=0.0,
+    friction=0.0,
+    armature=0.0,
+)
+
+"""Configuration of UR-10E arm with Robotiq_2f_140 gripper."""

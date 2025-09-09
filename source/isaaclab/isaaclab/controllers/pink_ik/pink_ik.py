@@ -173,6 +173,11 @@ class PinkIKController:
                     "Warning: IK quadratic solver could not find a solution! Did not update the target joint"
                     f" positions.\nError: {e}"
                 )
+
+            if self.cfg.xr_enabled:
+                from isaaclab.ui.xr_widgets import XRVisualization
+
+                XRVisualization.push_event("ik_error", {"error": e})
             return torch.tensor(curr_joint_pos, device=self.device, dtype=torch.float32)
 
         # Discard the first 6 values (for root and universal joints)
