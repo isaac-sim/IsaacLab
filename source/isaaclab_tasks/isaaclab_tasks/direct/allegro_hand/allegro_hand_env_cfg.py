@@ -32,20 +32,22 @@ class AllegroHandEnvCfg(DirectRLEnvCfg):
     obs_type = "full"
 
     solver_cfg = MJWarpSolverCfg(
-        njmax=60,
-        ncon_per_env=60,
-        ls_iterations=15,
-        cone="pyramidal",
-        ls_parallel=True,
-        impratio=1,
+        solver="newton",
         integrator="implicit",
+        njmax=200,
+        ncon_per_env=150,
+        impratio=10.0,
+        cone="elliptic",
+        iterations=100,
+        ls_iterations=30,
+        ls_parallel=True,
         #save_to_mjcf="AllegroHand.xml",
     )
 
     newton_cfg = NewtonCfg(
         solver_cfg=solver_cfg,
-        num_substeps=1,
-        debug_mode=True,
+        num_substeps=6,
+        debug_mode=False,
     )
     # simulation
     sim: SimulationCfg = SimulationCfg(
@@ -89,20 +91,13 @@ class AllegroHandEnvCfg(DirectRLEnvCfg):
     object_cfg: ArticulationCfg = ArticulationCfg(
         prim_path="/World/envs/env_.*/object",
         spawn=sim_utils.UsdFileCfg(
-            usd_path="/home/antoiner/Desktop/dex_cube_instanceable.usd",
+            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
             mass_props=sim_utils.MassPropertiesCfg(density=400.0),
             scale=(1.2, 1.2, 1.2),
         ),
         init_state=ArticulationCfg.InitialStateCfg(pos=(0.0, -0.17, 0.56), rot=(1.0, 0.0, 0.0, 0.0)),
-        actuators={
-            "dummy": ImplicitActuatorCfg(
-                control_mode="position",
-                joint_names_expr=[".*"],
-                stiffness=1000.0,
-                damping=1000.0,
-                friction=0.01,
-            ),
-        },
+        actuators={},
+        articulation_root_prim_path="",
     )
     # goal object
     goal_object_cfg: VisualizationMarkersCfg = VisualizationMarkersCfg(
