@@ -88,6 +88,7 @@ Guidelines for modifications:
 * Kourosh Darvish
 * Kousheek Chakraborty
 * Lionel Gulich
+* Lotus Li
 * Louis Le Lay
 * Lorenz Wellhausen
 * Lukas Fröhlich

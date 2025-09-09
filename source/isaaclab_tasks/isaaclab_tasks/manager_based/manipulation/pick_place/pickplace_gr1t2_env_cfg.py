@@ -6,6 +6,7 @@
 import tempfile
 import torch
 
+import carb
 from pink.tasks import DampingTask, FrameTask
 
 import isaaclab.controllers.utils as ControllerUtils
@@ -255,6 +256,7 @@ class ActionsCfg:
                 ),
             ],
             fixed_input_tasks=[],
+            xr_enabled=bool(carb.settings.get_settings().get("/app/xr/enabled")),
         ),
     )
 

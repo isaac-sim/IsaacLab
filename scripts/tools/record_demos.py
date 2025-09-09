@@ -469,15 +469,23 @@ def run_simulation_loop(
                 label_text = f"Recorded {current_recorded_demo_count} successful demonstrations."
                 print(label_text)
 
+            # Check if we've reached the desired number of demos
+            if args_cli.num_demos > 0 and env.recorder_manager.exported_successful_episode_count >= args_cli.num_demos:
+                label_text = f"All {current_recorded_demo_count} demonstrations recorded.\nExiting the app."
+                instruction_display.show_demo(label_text)
+                print(label_text)
+                target_time = time.time() + 0.8
+                while time.time() < target_time:
+                    if rate_limiter:
+                        rate_limiter.sleep(env)
+                    else:
+                        env.sim.render()
+                break
+
             # Handle reset if requested
             if should_reset_recording_instance:
                 success_step_count = handle_reset(env, success_step_count, instruction_display, label_text)
                 should_reset_recording_instance = False
-
-            # Check if we've reached the desired number of demos
-            if args_cli.num_demos > 0 and env.recorder_manager.exported_successful_episode_count >= args_cli.num_demos:
-                print(f"All {args_cli.num_demos} demonstrations recorded. Exiting the app.")
-                break
 
             # Check if simulation is stopped
             if env.sim.is_stopped():
@@ -506,6 +514,10 @@ def main() -> None:
     # if handtracking is selected, rate limiting is achieved via OpenXR
     if args_cli.xr:
         rate_limiter = None
+        from isaaclab.ui.xr_widgets import TeleopVisualizationManager, XRVisualization
+
+        # Assign the teleop visualization manager to the visualization system
+        XRVisualization.assign_manager(TeleopVisualizationManager)
     else:
         rate_limiter = RateLimiter(args_cli.step_hz)
 
