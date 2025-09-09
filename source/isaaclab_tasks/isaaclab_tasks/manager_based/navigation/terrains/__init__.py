@@ -1,0 +1,1 @@
+from .pillar_terrain_cfg import MeshPillarTerrainCfg
