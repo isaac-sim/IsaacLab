@@ -37,5 +37,3 @@ def load_torchscript_model(model_path: str, device: str = "cpu") -> torch.nn.Mod
     except Exception as e:
         print(f"Error loading TorchScript model: {e}")
         return None
-
-
