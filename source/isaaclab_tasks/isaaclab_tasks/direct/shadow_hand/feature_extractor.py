@@ -76,10 +76,10 @@ class FeatureExtractor:
     def __init__(self, cfg: FeatureExtractorCfg, device: str, log_dir: str | None = None):
         """Initialize the feature extractor model.
 
-        Args:
-            cfg (FeatureExtractorCfg): Configuration for the feature extractor model.
-            device (str): Device to run the model on.
-            log_dir (str, optional): Directory to save checkpoints. If None, uses local logs folder.
+       Args:
+           cfg: Configuration for the feature extractor model.
+           device: Device to run the model on.
+            log_dir: Directory to save checkpoints. If None, uses local "logs" folder resolved with respect to this file.
         """
 
         self.cfg = cfg
