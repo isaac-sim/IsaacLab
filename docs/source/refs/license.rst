@@ -10,7 +10,7 @@ The license files for all its dependencies and included assets are available in 
 
 
 The Isaac Lab framework is open-sourced under the
-`BSD-3-Clause license <https://opensource.org/licenses/BSD-3-Clause>`_.
+`BSD-3-Clause license <https://opensource.org/licenses/BSD-3-Clause>`_, with some dependencies licensed under other terms.
 
 
 .. code-block:: text
