@@ -81,7 +81,7 @@ from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.dict import print_dict
 from isaaclab.utils.io import dump_pickle, dump_yaml
 
-from isaaclab_rl.rl_games import RlGamesGpuEnv, RlGamesVecEnvWrapper
+from isaaclab_rl.rl_games import MultiObserver, PbtAlgoObserver, RlGamesGpuEnv, RlGamesVecEnvWrapper
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.hydra import hydra_task_config
@@ -127,7 +127,12 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     # specify directory for logging experiments
     config_name = agent_cfg["params"]["config"]["name"]
     log_root_path = os.path.join("logs", "rl_games", config_name)
-    log_root_path = os.path.abspath(log_root_path)
+    if "pbt" in agent_cfg:
+        if agent_cfg["pbt"]["directory"] == ".":
+            log_root_path = os.path.abspath(log_root_path)
+        else:
+            log_root_path = os.path.join(agent_cfg["pbt"]["directory"], log_root_path)
+
     print(f"[INFO] Logging experiment in directory: {log_root_path}")
     # specify directory for logging runs
     log_dir = agent_cfg["params"]["config"].get("full_experiment_name", datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
@@ -192,7 +197,13 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     # set number of actors into agent config
     agent_cfg["params"]["config"]["num_actors"] = env.unwrapped.num_envs
     # create runner from rl-games
-    runner = Runner(IsaacAlgoObserver())
+
+    if "pbt" in agent_cfg and agent_cfg["pbt"]["enabled"]:
+        observers = MultiObserver([IsaacAlgoObserver(), PbtAlgoObserver(agent_cfg, args_cli)])
+        runner = Runner(observers)
+    else:
+        runner = Runner(IsaacAlgoObserver())
+
     runner.load(agent_cfg)
 
     # reset the agent and env
