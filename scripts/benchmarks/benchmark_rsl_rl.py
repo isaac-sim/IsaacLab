@@ -70,13 +70,14 @@ import gymnasium as gym
 import numpy as np
 import torch
 from datetime import datetime
+from gymnasium.wrappers import RecordVideo
 
 from rsl_rl.runners import OnPolicyRunner
 
 from isaaclab.envs import DirectMARLEnvCfg, DirectRLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.utils.dict import print_dict
 from isaaclab.utils.io import dump_pickle, dump_yaml
-from isaaclab.utils.recorder import RecordVideo
+from isaaclab.utils.recorder import stop_recording
 
 from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlVecEnvWrapper
 
@@ -89,6 +90,7 @@ imports_time_end = time.perf_counter_ns()
 from isaacsim.core.utils.extensions import enable_extension
 
 enable_extension("isaacsim.benchmark.services")
+
 from isaacsim.benchmark.services import BaseIsaacBenchmark
 
 from isaaclab.utils.timer import Timer
@@ -104,6 +106,9 @@ from scripts.benchmarks.utils import (
     log_total_start_time,
     parse_tf_logs,
 )
+
+# monkey-patch the stop_recording function to fix memory leak error (see https://github.com/Farama-Foundation/Gymnasium/pull/1444)
+RecordVideo.stop_recording = stop_recording
 
 torch.backends.cuda.matmul.allow_tf32 = True
 torch.backends.cudnn.allow_tf32 = True

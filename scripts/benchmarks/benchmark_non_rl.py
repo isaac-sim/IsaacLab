@@ -81,13 +81,17 @@ import numpy as np
 import os
 import torch
 from datetime import datetime
+from gymnasium.wrappers import RecordVideo
 
 from isaaclab.envs import DirectMARLEnvCfg, DirectRLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.utils.dict import print_dict
-from isaaclab.utils.recorder import RecordVideo
+from isaaclab.utils.recorder import stop_recording
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.hydra import hydra_task_config
+
+# monkey-patch the stop_recording function to fix memory leak error (see https://github.com/Farama-Foundation/Gymnasium/pull/1444)
+RecordVideo.stop_recording = stop_recording
 
 imports_time_end = time.perf_counter_ns()
 

@@ -77,6 +77,7 @@ import numpy as np
 import os
 import random
 from datetime import datetime
+from gymnasium.wrappers import RecordVideo
 
 import omni
 from stable_baselines3 import PPO
@@ -92,12 +93,15 @@ from isaaclab.envs import (
 )
 from isaaclab.utils.dict import print_dict
 from isaaclab.utils.io import dump_pickle, dump_yaml
-from isaaclab.utils.recorder import RecordVideo
+from isaaclab.utils.recorder import stop_recording
 
 from isaaclab_rl.sb3 import Sb3VecEnvWrapper, process_sb3_cfg
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.hydra import hydra_task_config
+
+# monkey-patch the stop_recording function to fix memory leak error (see https://github.com/Farama-Foundation/Gymnasium/pull/1444)
+RecordVideo.stop_recording = stop_recording
 
 # PLACEHOLDER: Extension template (do not remove this comment)
 

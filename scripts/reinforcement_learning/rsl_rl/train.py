@@ -76,6 +76,7 @@ import gymnasium as gym
 import os
 import torch
 from datetime import datetime
+from gymnasium.wrappers import RecordVideo
 
 import omni
 from rsl_rl.runners import DistillationRunner, OnPolicyRunner
@@ -89,13 +90,16 @@ from isaaclab.envs import (
 )
 from isaaclab.utils.dict import print_dict
 from isaaclab.utils.io import dump_pickle, dump_yaml
-from isaaclab.utils.recorder import RecordVideo
+from isaaclab.utils.recorder import stop_recording
 
 from isaaclab_rl.rsl_rl import RslRlBaseRunnerCfg, RslRlVecEnvWrapper
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import get_checkpoint_path
 from isaaclab_tasks.utils.hydra import hydra_task_config
+
+# monkey-patch the stop_recording function to fix memory leak error (see https://github.com/Farama-Foundation/Gymnasium/pull/1444)
+RecordVideo.stop_recording = stop_recording
 
 # PLACEHOLDER: Extension template (do not remove this comment)
 

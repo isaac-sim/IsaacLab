@@ -66,6 +66,7 @@ import os
 import random
 import time
 import torch
+from gymnasium.wrappers import RecordVideo
 
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import VecNormalize
@@ -79,13 +80,16 @@ from isaaclab.envs import (
 )
 from isaaclab.utils.dict import print_dict
 from isaaclab.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
-from isaaclab.utils.recorder import RecordVideo
+from isaaclab.utils.recorder import stop_recording
 
 from isaaclab_rl.sb3 import Sb3VecEnvWrapper, process_sb3_cfg
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.hydra import hydra_task_config
 from isaaclab_tasks.utils.parse_cfg import get_checkpoint_path
+
+# monkey-patch the stop_recording function to fix memory leak error (see https://github.com/Farama-Foundation/Gymnasium/pull/1444)
+RecordVideo.stop_recording = stop_recording
 
 # PLACEHOLDER: Extension template (do not remove this comment)
 

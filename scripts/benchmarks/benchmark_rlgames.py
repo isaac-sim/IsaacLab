@@ -68,6 +68,7 @@ import os
 import random
 import torch
 from datetime import datetime
+from gymnasium.wrappers import RecordVideo
 
 from rl_games.common import env_configurations, vecenv
 from rl_games.common.algo_observer import IsaacAlgoObserver
@@ -76,7 +77,7 @@ from rl_games.torch_runner import Runner
 from isaaclab.envs import DirectMARLEnvCfg, DirectRLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.utils.dict import print_dict
 from isaaclab.utils.io import dump_pickle, dump_yaml
-from isaaclab.utils.recorder import RecordVideo
+from isaaclab.utils.recorder import stop_recording
 
 from isaaclab_rl.rl_games import RlGamesGpuEnv, RlGamesVecEnvWrapper
 
@@ -86,6 +87,7 @@ from isaaclab_tasks.utils.hydra import hydra_task_config
 imports_time_end = time.perf_counter_ns()
 
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../.."))
+
 
 from isaaclab.utils.timer import Timer
 from scripts.benchmarks.utils import (
@@ -100,6 +102,9 @@ from scripts.benchmarks.utils import (
     log_total_start_time,
     parse_tf_logs,
 )
+
+# monkey-patch the stop_recording function to fix memory leak error (see https://github.com/Farama-Foundation/Gymnasium/pull/1444)
+RecordVideo.stop_recording = stop_recording
 
 torch.backends.cuda.matmul.allow_tf32 = True
 torch.backends.cudnn.allow_tf32 = True

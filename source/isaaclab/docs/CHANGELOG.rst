@@ -7,7 +7,7 @@ Changelog
 Fixed
 ^^^^^
 
-* Fixed memory leak of gymnasium video recording wrapper in the :class:`~isaaclab.utils.recorder.RecordVideo` class.
+* Fixed memory leak of gymnasium video recording wrapper by overwriting the :func:`~isaaclab.utils.recorder.RecordVideo` class.
 
 
 0.45.12 (2025-09-05)

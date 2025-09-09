@@ -16,15 +16,19 @@ simulation_app = app_launcher.app
 import gymnasium as gym
 import os
 import torch
+from gymnasium.wrappers import RecordVideo
 
 import omni.usd
 import pytest
 from env_test_utils import setup_environment
 
-from isaaclab.utils.recorder import RecordVideo
+from isaaclab.utils.recorder import stop_recording
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import parse_env_cfg
+
+# monkey-patch the stop_recording function to fix memory leak error (see https://github.com/Farama-Foundation/Gymnasium/pull/1444)
+RecordVideo.stop_recording = stop_recording
 
 
 @pytest.fixture(scope="function")
