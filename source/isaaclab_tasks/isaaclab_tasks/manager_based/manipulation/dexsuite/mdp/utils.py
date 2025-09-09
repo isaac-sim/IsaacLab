@@ -203,7 +203,9 @@ def create_primitive_mesh(prim) -> trimesh.Trimesh:
         raise KeyError(f"{prim_type} is not a valid primitive mesh type")
 
 
-def farthest_point_sampling(points: torch.Tensor, n_samples: int, memory_threashold=2 * 1024**3) -> torch.Tensor:  # 2 GiB
+def farthest_point_sampling(
+    points: torch.Tensor, n_samples: int, memory_threashold=2 * 1024**3
+) -> torch.Tensor:  # 2 GiB
     """
     Farthest Point Sampling (FPS) for point sets.
 
