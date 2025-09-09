@@ -68,6 +68,7 @@ Guidelines for modifications:
 * Gary Lvov
 * Giulio Romualdi
 * Haoran Zhou
+* Harsh Patel
 * HoJin Jeon
 * Hongwei Xiong
 * Hongyu Li
@@ -111,6 +112,7 @@ Guidelines for modifications:
 * Özhan Özen
 * Patrick Yin
 * Peter Du
+* Philipp Reist
 * Pulkit Goyal
 * Qian Wan
 * Qinxi Yu

@@ -135,7 +135,7 @@ gym.register(
 gym.register(
     id="Isaac-Stack-Cube-Galbot-Right-Arm-Suction-RmpFlow-Abs-Mimic-v0",
     entry_point=f"{__name__}.galbot_stack_rmp_abs_mimic_env:RmpFlowGalbotCubeStackAbsMimicEnv",
-    kwargs={
+      kwargs={
         "env_cfg_entry_point": (
             f"{__name__}.galbot_stack_rmp_abs_mimic_env_cfg:RmpFlowGalbotRightArmSuctionCubeStackAbsMimicEnvCfg"
         ),
