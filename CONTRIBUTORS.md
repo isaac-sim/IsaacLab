@@ -101,6 +101,7 @@ Guidelines for modifications:
 * Miguel Alonso Jr
 * Mingyu Lee
 * Muhong Guo
+* Neel Anand Jawale
 * Nicola Loi
 * Norbert Cygiert
 * Nuoyan Chen (Alvin)
