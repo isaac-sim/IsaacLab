@@ -815,7 +815,7 @@ inferencing, including reading from an already trained checkpoint and disabling 
       -
       - Direct
       -
-      * - Isaac-Forge-GearMesh-Direct-v0
+    * - Isaac-Forge-GearMesh-Direct-v0
       -
       - Direct
       - **rl_games** (PPO)
