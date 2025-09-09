@@ -947,6 +947,14 @@ inferencing, including reading from an already trained checkpoint and disabling 
       -
       - Manager Based
       -
+    * - Isaac-Dexsuite-Kuka-Allegro-Lift-v0
+      - Isaac-Dexsuite-Kuka-Allegro-Lift-Play-v0
+      - Manager Based
+      - **rl_games** (PPO), **rsl_rl** (PPO)
+    * - Isaac-Dexsuite-Kuka-Allegro-Reorient-v0
+      - Isaac-Dexsuite-Kuka-Allegro-Reorient-Play-v0
+      - Manager Based
+      - **rl_games** (PPO), **rsl_rl** (PPO)
     * - Isaac-Stack-Cube-Franka-v0
       -
       - Manager Based
