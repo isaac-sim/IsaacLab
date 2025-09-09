@@ -9,20 +9,15 @@ import gymnasium as gym
 
 from .agibot_place_toy2box_mimic_env_cfg import RmpFlowAgibotPlaceToy2BoxMimicEnvCfg
 from .agibot_place_upright_mug_mimic_env_cfg import RmpFlowAgibotPlaceUprightMugMimicEnvCfg
+from .franka_bin_stack_ik_rel_mimic_env_cfg import FrankaBinStackIKRelMimicEnvCfg
 from .franka_stack_ik_abs_mimic_env import FrankaCubeStackIKAbsMimicEnv
 from .franka_stack_ik_abs_mimic_env_cfg import FrankaCubeStackIKAbsMimicEnvCfg
 from .franka_stack_ik_rel_blueprint_mimic_env_cfg import FrankaCubeStackIKRelBlueprintMimicEnvCfg
 from .franka_stack_ik_rel_mimic_env import FrankaCubeStackIKRelMimicEnv
 from .franka_stack_ik_rel_mimic_env_cfg import FrankaCubeStackIKRelMimicEnvCfg
+from .franka_stack_ik_rel_skillgen_env_cfg import FrankaCubeStackIKRelSkillgenEnvCfg
 from .franka_stack_ik_rel_visuomotor_cosmos_mimic_env_cfg import FrankaCubeStackIKRelVisuomotorCosmosMimicEnvCfg
 from .franka_stack_ik_rel_visuomotor_mimic_env_cfg import FrankaCubeStackIKRelVisuomotorMimicEnvCfg
-from .galbot_stack_rmp_abs_mimic_env import RmpFlowGalbotCubeStackAbsMimicEnv
-from .galbot_stack_rmp_abs_mimic_env_cfg import (
-    RmpFlowGalbotLeftArmGripperCubeStackAbsMimicEnvCfg,
-    RmpFlowGalbotRightArmSuctionCubeStackAbsMimicEnvCfg,
-)
-from .galbot_stack_rmp_rel_mimic_env import RmpFlowGalbotCubeStackRelMimicEnv
-from .galbot_stack_rmp_rel_mimic_env_cfg import RmpFlowGalbotLeftArmGripperCubeStackRelMimicEnvCfg
 from .pick_place_mimic_env import PickPlaceRelMimicEnv
 
 ##
@@ -78,23 +73,49 @@ gym.register(
 
 
 ##
+# SkillGen
+##
+
+gym.register(
+    id="Isaac-Stack-Cube-Franka-IK-Rel-Skillgen-v0",
+    entry_point="isaaclab_mimic.envs:FrankaCubeStackIKRelMimicEnv",
+    kwargs={
+        "env_cfg_entry_point": franka_stack_ik_rel_skillgen_env_cfg.FrankaCubeStackIKRelSkillgenEnvCfg,
+    },
+    disable_env_checker=True,
+)
+
+gym.register(
+    id="Isaac-Stack-Cube-Bin-Franka-IK-Rel-Mimic-v0",
+    entry_point="isaaclab_mimic.envs:FrankaCubeStackIKRelMimicEnv",
+    kwargs={
+        "env_cfg_entry_point": franka_bin_stack_ik_rel_mimic_env_cfg.FrankaBinStackIKRelMimicEnvCfg,
+    },
+    disable_env_checker=True,
+)
+
+##
 # Galbot Stack Cube with RmpFlow - Relative Pose Control
 ##
 
 gym.register(
     id="Isaac-Stack-Cube-Galbot-Left-Arm-Gripper-RmpFlow-Rel-Mimic-v0",
-    entry_point="isaaclab_mimic.envs:RmpFlowGalbotCubeStackRelMimicEnv",
+    entry_point=f"{__name__}.galbot_stack_rmp_rel_mimic_env:RmpFlowGalbotCubeStackRelMimicEnv",
     kwargs={
-        "env_cfg_entry_point": galbot_stack_rmp_rel_mimic_env_cfg.RmpFlowGalbotLeftArmGripperCubeStackRelMimicEnvCfg,
+        "env_cfg_entry_point": (
+            f"{__name__}.galbot_stack_rmp_rel_mimic_env_cfg:RmpFlowGalbotLeftArmGripperCubeStackRelMimicEnvCfg"
+        ),
     },
     disable_env_checker=True,
 )
 
 gym.register(
     id="Isaac-Stack-Cube-Galbot-Right-Arm-Suction-RmpFlow-Rel-Mimic-v0",
-    entry_point="isaaclab_mimic.envs:RmpFlowGalbotCubeStackRelMimicEnv",
+    entry_point=f"{__name__}.galbot_stack_rmp_rel_mimic_env:RmpFlowGalbotCubeStackRelMimicEnv",
     kwargs={
-        "env_cfg_entry_point": galbot_stack_rmp_rel_mimic_env_cfg.RmpFlowGalbotRightArmSuctionCubeStackRelMimicEnvCfg,
+        "env_cfg_entry_point": (
+            f"{__name__}.galbot_stack_rmp_rel_mimic_env_cfg:RmpFlowGalbotRightArmSuctionCubeStackRelMimicEnvCfg"
+        ),
     },
     disable_env_checker=True,
 )
@@ -102,20 +123,25 @@ gym.register(
 ##
 # Galbot Stack Cube with RmpFlow - Absolute Pose Control
 ##
+
 gym.register(
     id="Isaac-Stack-Cube-Galbot-Left-Arm-Gripper-RmpFlow-Abs-Mimic-v0",
-    entry_point="isaaclab_mimic.envs:RmpFlowGalbotCubeStackAbsMimicEnv",
+    entry_point=f"{__name__}.galbot_stack_rmp_abs_mimic_env:RmpFlowGalbotCubeStackAbsMimicEnv",
     kwargs={
-        "env_cfg_entry_point": galbot_stack_rmp_abs_mimic_env_cfg.RmpFlowGalbotLeftArmGripperCubeStackAbsMimicEnvCfg,
+        "env_cfg_entry_point": (
+            f"{__name__}.galbot_stack_rmp_abs_mimic_env_cfg:RmpFlowGalbotLeftArmGripperCubeStackAbsMimicEnvCfg"
+        ),
     },
     disable_env_checker=True,
 )
 
 gym.register(
     id="Isaac-Stack-Cube-Galbot-Right-Arm-Suction-RmpFlow-Abs-Mimic-v0",
-    entry_point="isaaclab_mimic.envs:RmpFlowGalbotCubeStackAbsMimicEnv",
+    entry_point=f"{__name__}.galbot_stack_rmp_abs_mimic_env:RmpFlowGalbotCubeStackAbsMimicEnv",
     kwargs={
-        "env_cfg_entry_point": galbot_stack_rmp_abs_mimic_env_cfg.RmpFlowGalbotRightArmSuctionCubeStackAbsMimicEnvCfg,
+        "env_cfg_entry_point": (
+            f"{__name__}.galbot_stack_rmp_abs_mimic_env_cfg:RmpFlowGalbotRightArmSuctionCubeStackAbsMimicEnvCfg"
+        ),
     },
     disable_env_checker=True,
 )
