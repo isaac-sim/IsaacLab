@@ -56,6 +56,7 @@ def test_non_headless_launch():
     # design scene
     scene_cfg = SensorsSceneCfg(num_envs=1, env_spacing=2.0)
     scene = InteractiveScene(scene_cfg)
+    print(scene)
     # Play the simulator
     sim.reset()
     # Now we are ready!
