@@ -14,6 +14,11 @@
 [![License](https://img.shields.io/badge/license-Apache--2.0-yellow.svg)](https://opensource.org/license/apache-2-0)
 
 
+Please note that this branch is currently under active development in preparation for the Isaac Lab 2.3.0 release.
+Some features may not be fully functional while we continue development.
+Additional features may depend on unreleased Isaac Sim features that will be available in Isaac Sim 5.1.0.
+
+
 **Isaac Lab** is a GPU-accelerated, open-source framework designed to unify and simplify robotics research workflows,
 such as reinforcement learning, imitation learning, and motion planning. Built on [NVIDIA Isaac Sim](https://docs.isaacsim.omniverse.nvidia.com/latest/index.html),
 it combines fast and accurate physics and sensor simulation, making it an ideal choice for sim-to-real
@@ -140,13 +145,13 @@ Isaac Lab is built on top of Isaac Sim and requires specific versions of Isaac S
 release of Isaac Lab. Below, we outline the recent Isaac Lab releases and GitHub branches and their corresponding
 dependency versions for Isaac Sim.
 
-| Isaac Lab Version             | Isaac Sim Version        |
-| ----------------------------- | ------------------------ |
-| `main` branch                 | Isaac Sim 4.5 / 5.0 / 5.1|
-| `v2.3.X`                      | Isaac Sim 4.5 / 5.0 / 5.1|
-| `v2.2.X`                      | Isaac Sim 4.5 / 5.0      |
-| `v2.1.X`                      | Isaac Sim 4.5            |
-| `v2.0.X`                      | Isaac Sim 4.5            |
+| Isaac Lab Version             | Isaac Sim Version         |
+| ----------------------------- | ------------------------- |
+| `main` branch                 | Isaac Sim 4.5 / 5.0       |
+| `v2.3.X`                      | Isaac Sim 4.5 / 5.0 / 5.1 |
+| `v2.2.X`                      | Isaac Sim 4.5 / 5.0       |
+| `v2.1.X`                      | Isaac Sim 4.5             |
+| `v2.0.X`                      | Isaac Sim 4.5             |
 
 
 ## Contributing to Isaac Lab
