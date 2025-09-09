@@ -53,7 +53,7 @@ _RIGHT_HAND_JOINT_NAMES = [
 ]
 
 
-class G1DexRetargeting:
+class G1TriHandDexRetargeting:
     """A class for hand retargeting with G1.
 
     Handles retargeting of OpenXRhand tracking data to G1 robot hand joint angles.

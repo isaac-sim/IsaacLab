@@ -18,11 +18,11 @@ from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
 
 # This import exception is suppressed because g1_dex_retargeting_utils depends on pinocchio which is not available on windows
 with contextlib.suppress(Exception):
-    from .g1_dex_retargeting_utils import G1DexRetargeting
+    from .g1_dex_retargeting_utils import G1TriHandDexRetargeting
 
 
 @dataclass
-class G1UpperBodyRetargeterCfg(RetargeterCfg):
+class G1TriHandUpperBodyRetargeterCfg(RetargeterCfg):
     """Configuration for the G1UpperBody retargeter."""
 
     enable_visualization: bool = False
@@ -30,7 +30,7 @@ class G1UpperBodyRetargeterCfg(RetargeterCfg):
     hand_joint_names: list[str] | None = None  # List of robot hand joint names
 
 
-class G1UpperBodyRetargeter(RetargeterBase):
+class G1TriHandUpperBodyRetargeter(RetargeterBase):
     """Retargets OpenXR data to G1 upper body commands.
 
     This retargeter maps hand tracking data from OpenXR to wrist and hand joint commands for the G1 robot.
@@ -40,7 +40,7 @@ class G1UpperBodyRetargeter(RetargeterBase):
 
     def __init__(
         self,
-        cfg: G1UpperBodyRetargeterCfg,
+        cfg: G1TriHandUpperBodyRetargeterCfg,
     ):
         """Initialize the G1 upper body retargeter.
 
@@ -54,7 +54,7 @@ class G1UpperBodyRetargeter(RetargeterBase):
 
         # Initialize the hands controller
         if cfg.hand_joint_names is not None:
-            self._hands_controller = G1DexRetargeting(cfg.hand_joint_names)
+            self._hands_controller = G1TriHandDexRetargeting(cfg.hand_joint_names)
         else:
             raise ValueError("hand_joint_names must be provided in configuration")
 

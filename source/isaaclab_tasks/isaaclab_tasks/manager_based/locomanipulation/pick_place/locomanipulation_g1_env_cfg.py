@@ -12,7 +12,9 @@ from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.devices.device_base import DevicesCfg
 from isaaclab.devices.openxr import OpenXRDeviceCfg, XrCfg
 from isaaclab.devices.openxr.retargeters.humanoid.unitree.g1_lower_body_standing import G1LowerBodyStandingRetargeterCfg
-from isaaclab.devices.openxr.retargeters.humanoid.unitree.g1_upper_body_retargeter import G1UpperBodyRetargeterCfg
+from isaaclab.devices.openxr.retargeters.humanoid.unitree.trihand.g1_upper_body_retargeter import (
+    G1TriHandUpperBodyRetargeterCfg,
+)
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
@@ -209,7 +211,7 @@ class LocomanipulationG1EnvCfg(ManagerBasedRLEnvCfg):
             devices={
                 "handtracking": OpenXRDeviceCfg(
                     retargeters=[
-                        G1UpperBodyRetargeterCfg(
+                        G1TriHandUpperBodyRetargeterCfg(
                             enable_visualization=True,
                             # OpenXR hand tracking has 26 joints per hand
                             num_open_xr_hand_joints=2 * 26,
