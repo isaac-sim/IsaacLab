@@ -88,7 +88,7 @@ class PickPlaceRelMimicEnv(FrankaCubeStackIKRelMimicEnv):
 
         # Handle multiple grasp signals
         for i in range(0, len(self.cfg.subtask_configs)):
-            grasp_key = f"grasp_{i+1}"
+            grasp_key = f"grasp_{i + 1}"
             if grasp_key in subtask_terms:
                 signals[grasp_key] = subtask_terms[grasp_key][env_ids]
         # final subtask signal is not needed
@@ -171,7 +171,7 @@ class PickPlaceAbsMimicEnv(FrankaCubeStackIKAbsMimicEnv):
 
         # Handle multiple grasp signals
         for i in range(0, len(self.cfg.subtask_configs)):
-            grasp_key = f"grasp_{i+1}"
+            grasp_key = f"grasp_{i + 1}"
             if grasp_key in subtask_terms:
                 signals[grasp_key] = subtask_terms[grasp_key][env_ids]
         # final subtask signal is not needed
