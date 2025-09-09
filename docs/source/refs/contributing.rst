@@ -237,6 +237,62 @@ For documentation, we adopt the `Google Style Guide <https://sphinxcontrib-napol
 for docstrings. We use `Sphinx <https://www.sphinx-doc.org/en/master/>`__ for generating the documentation.
 Please make sure that your code is well-documented and follows the guidelines.
 
+Code Structure
+^^^^^^^^^^^^^^
+
+We follow a specific structure for the codebase. This helps in maintaining the codebase and makes it easier to
+understand.
+
+In a Python file, we follow the following structure:
+
+.. code:: python
+
+   # Imports: These are sorted by the pre-commit hooks.
+   # Constants
+   # Functions (public)
+   # Classes (public)
+   # Functions (private)
+   # Classes (private)
+
+Imports are sorted by the pre-commit hooks. Unless there is a good reason to do otherwise, please do not
+import the modules inside functions or classes. To deal with circular imports, we use the
+:obj:`typing.TYPE_CHECKING` variable. Please refer to the `Circular Imports`_ section for more details.
+
+Python does not have a concept of private and public classes and functions. However, we follow the
+convention of prefixing the private functions and classes with an underscore.
+The public functions and classes are the ones that are intended to be used by the users. The private
+functions and classes are the ones that are intended to be used internally in that file.
+Irrespective of the public or private nature of the functions and classes, we follow the Style Guide
+for the code and make sure that the code and documentation are consistent.
+
+Similarly, within Python classes, we follow the following structure:
+
+.. code:: python
+
+   # Constants
+   # Class variables (public or private): Must have the type hint ClassVar[type]
+   # Dunder methods: __init__, __del__
+   # Representation: __repr__, __str__
+   # Properties: @property
+   # Instance methods (public)
+   # Class methods (public)
+   # Static methods (public)
+   # Instance methods (private)
+   # Class methods (private)
+   # Static methods (private)
+
+The rule of thumb is that the functions within the classes are ordered in the way a user would
+expect to use them. For instance, if the class contains the method :meth:`initialize`, :meth:`reset`,
+:meth:`update`, and :meth:`close`, then they should be listed in the order of their usage.
+The same applies for private functions in the class. Their order is based on the order of call inside the
+class.
+
+.. dropdown:: Code skeleton
+   :icon: code
+
+   .. literalinclude:: snippets/code_skeleton.py
+      :language: python
+
 Circular Imports
 ^^^^^^^^^^^^^^^^
 
