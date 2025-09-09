@@ -405,7 +405,7 @@ class PickPlaceGR1T2EnvCfg(ManagerBasedRLEnvCfg):
                             enable_visualization=True,
                             num_open_xr_hand_joints=2 * 26,
                             sim_device=self.sim.device,
-                            hand_joint_names=self.actions.pink_ik_cfg.hand_joint_names,
+                            hand_joint_names=self.actions.upper_body_ik.hand_joint_names,
                         ),
                     ],
                     sim_device=self.sim.device,
