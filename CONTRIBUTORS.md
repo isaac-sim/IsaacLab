@@ -112,6 +112,7 @@ Guidelines for modifications:
 * Özhan Özen
 * Patrick Yin
 * Peter Du
+* Philipp Reist
 * Pulkit Goyal
 * Qian Wan
 * Qinxi Yu
