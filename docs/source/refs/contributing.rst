@@ -54,6 +54,9 @@ Please ensure that your code is well-formatted, documented and passes all the te
    Large pull requests are difficult to review and may take a long time to merge.
 
 
+More details on the code style and testing can be found in the `Coding Style`_ and `Unit Testing`_ sections.
+
+
 Contributing Documentation
 --------------------------
 
