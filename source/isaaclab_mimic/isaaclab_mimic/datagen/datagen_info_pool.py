@@ -91,7 +91,7 @@ class DataGenInfoPool:
         Add a datagen info from the given episode.
 
         Args:
-            episode (EpisodeData): Episode to add.
+            episode: Episode to add.
 
         Raises:
             ValueError: Episode lacks 'datagen_info' annotations in observations.
