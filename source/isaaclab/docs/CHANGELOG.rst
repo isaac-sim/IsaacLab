@@ -1,14 +1,24 @@
 Changelog
 ---------
 
+0.45.15 (2025-09-05)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added action terms for using RMPFlow in Manager-Based environments.
+
+
 0.45.14 (2025-09-08)
 ~~~~~~~~~~~~~~~~~~~~
 
 Added
 ^^^^^
 
-* * Added :class:`~isaaclab.ui.xr_widgets.TeleopVisualizationManager` and :class:`~isaaclab.ui.xr_widgets.XRVisualization`
+* Added :class:`~isaaclab.ui.xr_widgets.TeleopVisualizationManager` and :class:`~isaaclab.ui.xr_widgets.XRVisualization`
   classes to provide real-time visualization of teleoperation and inverse kinematics status in XR environments.
+
 
 0.45.13 (2025-09-08)
 ~~~~~~~~~~~~~~~~~~~~
