@@ -343,6 +343,7 @@ class DataGenerator:
         based transform to the pose sequence, and returns the result as a `WaypointTrajectory`.
 
         Selection and transforms:
+
         - Source demo selection is controlled by `SubTaskConfig.selection_strategy` (and kwargs) and by
           `datagen_config.generation_select_src_per_subtask` / `generation_select_src_per_arm`.
         - For coordination constraints, the method reuses/sets the selected source demo ID across
@@ -350,6 +351,7 @@ class DataGenerator:
           to ensure consistent relative motion between tasks.
         - Pose transforms are computed either from object poses (`object_ref`) or via a delta pose
           provided by a concurrent task/coordination scheme.
+
 
         Args:
             env_id: Environment index used to query current robot/object poses.
@@ -550,6 +552,7 @@ class DataGenerator:
         previous subtask (if configured) or from the robot's current end-effector pose.
 
         Behavior:
+
         - If `datagen_config.generation_interpolate_from_last_target_pose` is True and
           this is not the first subtask, interpolation starts from the last waypoint of
           `prev_executed_traj`.
