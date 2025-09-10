@@ -123,8 +123,18 @@ def _run_environments(
         "Isaac-Stack-Cube-Franka-IK-Rel-Blueprint-v0",
         "Isaac-Stack-Cube-Instance-Randomize-Franka-IK-Rel-v0",
         "Isaac-Stack-Cube-Instance-Randomize-Franka-v0",
-        "Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-v0",
-        "Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos-v0",
+    ]:
+        return
+
+    # skip these environments as they cannot be run with 32 environments within reasonable VRAM
+    if "Visuomotor" in task_name and num_envs == 32:
+        return
+
+    if task_name in [
+        "Isaac-Stack-Cube-Instance-Randomize-Franka-IK-Rel-v0",
+        "Isaac-Stack-Cube-Instance-Randomize-Franka-v0",
+        "Isaac-Place-Mug-Agibot-Left-Arm-RmpFlow-v0",
+        "Isaac-Place-Toy2Box-Agibot-Right-Arm-RmpFlow-v0",
     ]:
         return
 
