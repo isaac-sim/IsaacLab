@@ -593,6 +593,11 @@ def get_first_matching_child_prim(
     in default traversals unless explicitly handled. This function allows traversing into instances
     when :attr:`traverse_instance_prims` is set to :attr:`True`.
 
+    .. versionchanged:: 2.3.0
+
+        Added :attr:`traverse_instance_prims` to control whether to traverse instance prims.
+        By default, instance prims are now traversed.
+
     Args:
         prim_path: The path of the prim in the stage.
         predicate: The function to test the prims against. It takes a prim as input and returns a boolean.
@@ -651,6 +656,11 @@ def get_all_matching_child_prims(
     USD instance prims are lightweight copies of prototype scene structures and are not included
     in default traversals unless explicitly handled. This function allows traversing into instances
     when :attr:`traverse_instance_prims` is set to :attr:`True`.
+
+    .. versionchanged:: 2.3.0
+
+        Added :attr:`traverse_instance_prims` to control whether to traverse instance prims.
+        By default, instance prims are now traversed.
 
     Args:
         prim_path: The root prim path to start the search from.
