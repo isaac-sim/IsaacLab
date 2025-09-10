@@ -631,7 +631,7 @@ def get_first_matching_child_prim(
         if traverse_instance_prims:
             all_prims += child_prim.GetFilteredChildren(Usd.TraverseInstanceProxies())
         else:
-            all_prims += child_prim.GetAllChildren()
+            all_prims += child_prim.GetChildren()
     return None
 
 
@@ -701,7 +701,7 @@ def get_all_matching_child_prims(
             if traverse_instance_prims:
                 children = child_prim.GetFilteredChildren(Usd.TraverseInstanceProxies())
             else:
-                children = child_prim.GetAllChildren()
+                children = child_prim.GetChildren()
             # add children to list
             all_prims_queue += [(child, current_depth + 1) for child in children]
 
