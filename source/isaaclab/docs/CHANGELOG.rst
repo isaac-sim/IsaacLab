@@ -1,6 +1,14 @@
 Changelog
 ---------
 
+0.45.16 (2025-09-10)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Add support for randomize joint friction coefficients in simulation based on IsaacSim 5.0.0.
+
 0.45.15 (2025-09-05)
 ~~~~~~~~~~~~~~~~~~~~
 
