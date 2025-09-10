@@ -86,7 +86,7 @@ class RayCasterCamera(RayCaster):
             f"Ray-Caster-Camera @ '{self.cfg.prim_path}': \n"
             f"\tview type            : {self._view.__class__}\n"
             f"\tupdate period (s)    : {self.cfg.update_period}\n"
-            f"\tnumber of meshes     : {len(self.meshes)}\n"
+            f"\tnumber of meshes     : {len(RayCaster.meshes)}\n"
             f"\tnumber of sensors    : {self._view.count}\n"
             f"\tnumber of rays/sensor: {self.num_rays}\n"
             f"\ttotal number of rays : {self.num_rays * self._view.count}\n"
@@ -280,7 +280,7 @@ class RayCasterCamera(RayCaster):
         self.ray_hits_w, ray_depth, ray_normal, _ = raycast_mesh(
             ray_starts_w,
             ray_directions_w,
-            mesh=self.meshes[self.cfg.mesh_prim_paths[0]],
+            mesh=RayCaster.meshes[self.cfg.mesh_prim_paths[0]],
             max_dist=1e6,
             return_distance=any(
                 [name in self.cfg.data_types for name in ["distance_to_image_plane", "distance_to_camera"]]

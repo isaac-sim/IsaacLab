@@ -9,8 +9,9 @@ import numpy as np
 import re
 import torch
 from collections.abc import Sequence
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
+import isaacsim.core.utils.stage as stage_utils
 import omni.log
 import omni.physics.tensors.impl.api as physx
 import warp as wp
@@ -51,12 +52,25 @@ class RayCaster(SensorBase):
     cfg: RayCasterCfg
     """The configuration parameters."""
 
+    # Class variables to share meshes and mesh_views across instances
+    meshes: ClassVar[dict[str, wp.Mesh]] = {}
+    """A dictionary to store warp meshes for raycasting, shared across all instances.
+
+    The keys correspond to the prim path for the meshes, and values are the corresponding warp Mesh objects."""
+    mesh_views: ClassVar[dict[str, XFormPrim | physx.ArticulationView | physx.RigidBodyView]] = {}
+    """A dictionary to store mesh views for raycasting, shared across all instances.
+
+    The keys correspond to the prim path for the mesh views, and values are the corresponding view objects."""
+    _instance_count: ClassVar[int] = 0
+    """A counter to track the number of RayCaster instances, used to manage class variable lifecycle."""
+
     def __init__(self, cfg: RayCasterCfg):
         """Initializes the ray-caster object.
 
         Args:
             cfg: The configuration parameters.
         """
+        RayCaster._instance_count += 1
         # check if sensor path is valid
         # note: currently we do not handle environment indices if there is a regex pattern in the leaf
         #   For example, if the prim path is "/World/Sensor_[1,2]".
@@ -71,8 +85,6 @@ class RayCaster(SensorBase):
         super().__init__(cfg)
         # Create empty variables for storing output data
         self._data = RayCasterData()
-        # the warp meshes used for raycasting.
-        self.meshes: dict[str, wp.Mesh] = {}
 
     def __str__(self) -> str:
         """Returns: A string containing information about the instance."""
@@ -80,7 +92,7 @@ class RayCaster(SensorBase):
             f"Ray-caster @ '{self.cfg.prim_path}': \n"
             f"\tview type            : {self._view.__class__}\n"
             f"\tupdate period (s)    : {self.cfg.update_period}\n"
-            f"\tnumber of meshes     : {len(self.meshes)}\n"
+            f"\tnumber of meshes     : {len(RayCaster.meshes)}\n"
             f"\tnumber of sensors    : {self._view.count}\n"
             f"\tnumber of rays/sensor: {self.num_rays}\n"
             f"\ttotal number of rays : {self.num_rays * self._view.count}"
@@ -138,7 +150,10 @@ class RayCaster(SensorBase):
         found_supported_prim_class = False
         prim = sim_utils.find_first_matching_prim(self.cfg.prim_path)
         if prim is None:
-            raise RuntimeError(f"Failed to find a prim at path expression: {self.cfg.prim_path}")
+            available_prims = ",".join([str(p.GetPath()) for p in stage_utils.get_current_stage().Traverse()])
+            raise RuntimeError(
+                f"Failed to find a prim at path expression: {self.cfg.prim_path}. Available prims: {available_prims}"
+            )
         # create view based on the type of prim
         if prim.HasAPI(UsdPhysics.ArticulationRootAPI):
             self._view = self._physics_sim_view.create_articulation_view(self.cfg.prim_path.replace(".*", "*"))
@@ -149,10 +164,17 @@ class RayCaster(SensorBase):
         else:
             self._view = XFormPrim(self.cfg.prim_path, reset_xform_properties=False)
             found_supported_prim_class = True
-            omni.log.warn(f"The prim at path {prim.GetPath().pathString} is not a physics prim! Using XFormPrim.")
+            omni.log.warn(
+                f"The prim at path {prim.GetPath().pathString} is not a physics prim. Defaulting to XFormPrim. \n"
+                " The pose of this prim will most likely not be updated correctly when running in headless mode."
+            )
         # check if prim view class is found
         if not found_supported_prim_class:
-            raise RuntimeError(f"Failed to find a valid prim view class for the prim paths: {self.cfg.prim_path}")
+            available_prims = ",".join([p.GetPath() for p in stage_utils.get_current_stage().Traverse()])
+            raise RuntimeError(
+                f"Failed to find a valid prim view class for the prim paths: {self.cfg.prim_path}. Available prims:"
+                f" {available_prims}"
+            )
 
         # load the meshes by parsing the stage
         self._initialize_warp_meshes()
@@ -168,6 +190,10 @@ class RayCaster(SensorBase):
 
         # read prims to ray-cast
         for mesh_prim_path in self.cfg.mesh_prim_paths:
+            # check if mesh already casted into warp mesh
+            if mesh_prim_path in RayCaster.meshes:
+                continue
+
             # check if the prim is a plane - handle PhysX plane as a special case
             # if a plane exists then we need to create an infinite mesh that is a plane
             mesh_prim = sim_utils.get_first_matching_child_prim(
@@ -201,10 +227,10 @@ class RayCaster(SensorBase):
                 # print info
                 omni.log.info(f"Created infinite plane mesh prim: {mesh_prim.GetPath()}.")
             # add the warp mesh to the list
-            self.meshes[mesh_prim_path] = wp_mesh
+            RayCaster.meshes[mesh_prim_path] = wp_mesh
 
         # throw an error if no meshes are found
-        if all([mesh_prim_path not in self.meshes for mesh_prim_path in self.cfg.mesh_prim_paths]):
+        if all([mesh_prim_path not in RayCaster.meshes for mesh_prim_path in self.cfg.mesh_prim_paths]):
             raise RuntimeError(
                 f"No meshes found for ray-casting! Please check the mesh prim paths: {self.cfg.mesh_prim_paths}"
             )
@@ -225,12 +251,14 @@ class RayCaster(SensorBase):
         self.drift = torch.zeros(self._view.count, 3, device=self.device)
         self.ray_cast_drift = torch.zeros(self._view.count, 3, device=self.device)
         # fill the data buffer
-        self._data.pos_w = torch.zeros(self._view.count, 3, device=self._device)
-        self._data.quat_w = torch.zeros(self._view.count, 4, device=self._device)
-        self._data.ray_hits_w = torch.zeros(self._view.count, self.num_rays, 3, device=self._device)
+        self._data.pos_w = torch.zeros(self._view.count, 3, device=self.device)
+        self._data.quat_w = torch.zeros(self._view.count, 4, device=self.device)
+        self._data.ray_hits_w = torch.zeros(self._view.count, self.num_rays, 3, device=self.device)
+        self._ray_starts_w = torch.zeros(self._view.count, self.num_rays, 3, device=self.device)
+        self._ray_directions_w = torch.zeros(self._view.count, self.num_rays, 3, device=self.device)
 
-    def _update_buffers_impl(self, env_ids: Sequence[int]):
-        """Fills the buffers of the sensor data."""
+    def _update_ray_infos(self, env_ids: Sequence[int]):
+        """Updates the ray information buffers."""
         # obtain the poses of the sensors
         if isinstance(self._view, XFormPrim):
             pos_w, quat_w = self._view.get_world_poses(env_ids)
@@ -291,13 +319,20 @@ class RayCaster(SensorBase):
         else:
             raise RuntimeError(f"Unsupported ray_alignment type: {self.cfg.ray_alignment}.")
 
+        self._ray_starts_w[env_ids] = ray_starts_w
+        self._ray_directions_w[env_ids] = ray_directions_w
+
+    def _update_buffers_impl(self, env_ids: Sequence[int]):
+        """Fills the buffers of the sensor data."""
+        self._update_ray_infos(env_ids)
+
         # ray cast and store the hits
         # TODO: Make this work for multiple meshes?
         self._data.ray_hits_w[env_ids] = raycast_mesh(
-            ray_starts_w,
-            ray_directions_w,
+            self._ray_starts_w[env_ids],
+            self._ray_directions_w[env_ids],
             max_dist=self.cfg.max_distance,
-            mesh=self.meshes[self.cfg.mesh_prim_paths[0]],
+            mesh=RayCaster.meshes[self.cfg.mesh_prim_paths[0]],
         )[0]
 
         # apply vertical drift to ray starting position in ray caster frame
@@ -316,10 +351,12 @@ class RayCaster(SensorBase):
                 self.ray_visualizer.set_visibility(False)
 
     def _debug_vis_callback(self, event):
+        if self._data.ray_hits_w is None:
+            return
         # remove possible inf values
         viz_points = self._data.ray_hits_w.reshape(-1, 3)
         viz_points = viz_points[~torch.any(torch.isinf(viz_points), dim=1)]
-        # show ray hit positions
+
         self.ray_visualizer.visualize(viz_points)
 
     """
@@ -332,3 +369,9 @@ class RayCaster(SensorBase):
         super()._invalidate_initialize_callback(event)
         # set all existing views to None to invalidate them
         self._view = None
+
+    def __del__(self):
+        RayCaster._instance_count -= 1
+        if RayCaster._instance_count == 0:
+            RayCaster.meshes.clear()
+            RayCaster.mesh_views.clear()
