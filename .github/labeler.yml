@@ -10,7 +10,7 @@ documentation:
       - '**/docs/**'
       - '**/README.md'
     - all-globs-to-all-files:
-      - '**/CHANGELOG.rst'
+      - '!**/CHANGELOG.rst'
 
 # Infrastructure changes
 infrastructure:
