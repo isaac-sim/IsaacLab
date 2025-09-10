@@ -580,7 +580,7 @@ def get_first_matching_child_prim(
     prim_path: str | Sdf.Path,
     predicate: Callable[[Usd.Prim], bool],
     stage: Usd.Stage | None = None,
-    traverse_instance_prims: bool = True,   
+    traverse_instance_prims: bool = True,
 ) -> Usd.Prim | None:
     """Recursively get the first USD Prim at the path string that passes the predicate function.
 
