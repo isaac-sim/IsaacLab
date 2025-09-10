@@ -2015,6 +2015,40 @@ def test_write_joint_frictions_to_sim(sim, num_articulations, device, add_ground
         assert torch.allclose(articulation.data.joint_viscous_friction_coeff, viscous_friction)
     assert torch.allclose(articulation.data.joint_friction_coeff, friction)
 
+    # For Isaac Sim >= 5.0: also test the combined API that can set dynamic and viscous via
+    # write_joint_friction_coefficient_to_sim; reset the sim to isolate this path.
+    if int(get_version()[2]) >= 5:
+        # Reset simulator to ensure a clean state for the alternative API path
+        sim.reset()
+
+        # Warm up a few steps to populate buffers
+        for _ in range(100):
+            sim.step()
+            articulation.update(sim.cfg.dt)
+
+        # New random coefficients
+        dynamic_friction_2 = torch.rand(num_articulations, articulation.num_joints, device=device)
+        viscous_friction_2 = torch.rand(num_articulations, articulation.num_joints, device=device)
+        friction_2 = torch.rand(num_articulations, articulation.num_joints, device=device)
+
+        # Use the combined setter to write all three at once
+        articulation.write_joint_friction_coefficient_to_sim(
+            joint_friction_coeff=friction_2,
+            joint_dynamic_friction_coeff=dynamic_friction_2,
+            joint_viscous_friction_coeff=viscous_friction_2,
+        )
+        articulation.write_data_to_sim()
+
+        # Step to let sim ingest new params and refresh data buffers
+        for _ in range(100):
+            sim.step()
+            articulation.update(sim.cfg.dt)
+
+        # Validate values propagated
+        assert torch.allclose(articulation.data.joint_dynamic_friction_coeff, dynamic_friction_2)
+        assert torch.allclose(articulation.data.joint_viscous_friction_coeff, viscous_friction_2)
+        assert torch.allclose(articulation.data.joint_friction_coeff, friction_2)
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "--maxfail=1"])
