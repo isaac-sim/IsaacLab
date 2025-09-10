@@ -650,6 +650,9 @@ class SimulationContext(_SimulationContext):
         if "cuda" in self.device:
             torch.cuda.set_device(self.device)
 
+        if render and self._draw_interface is not None:
+            self._draw_interface.update()
+
     def render(self, mode: RenderMode | None = None):
         """Refreshes the rendering components including UI elements and view-ports depending on the render mode.
 

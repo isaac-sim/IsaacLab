@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import numpy as np
+import torch
 from dataclasses import dataclass
 
 import carb
@@ -158,157 +159,10 @@ class DrawingInterface:
         points_to_draw.sizes.extend(size)
         self._dirty = True
 
-    def _number_to_seven_segment(self, number: float, size=0.02, direction="y", start_pt=(0, 0, 0)) -> None:
-        # convert to string
-        number_str = f"{number:.2f}" if isinstance(number, float) else str(number)
-
-        points = []
-        lines = []
-
-        if direction == "x":
-            TOP_LINE = [[0, 0, 2 * size], [1 * size, 0, 2 * size]]
-            TOP_RIGHT_LINE = [[1 * size, 0, 2 * size], [1 * size, 0, 1 * size]]
-            BOTTOM_RIGHT_LINE = [[1 * size, 0, 1 * size], [1 * size, 0, 0]]
-            BOTTOM_LINE = [[0, 0, 0], [1 * size, 0, 0]]
-            BOTTOM_LEFT_LINE = [[0, 0, 0], [0, 0, 1 * size]]
-            TOP_LEFT_LINE = [[0, 0, 1 * size], [0, 0, 2 * size]]
-            MIDDLE_LINE = [[0, 0, 1 * size], [1 * size, 0, 1 * size]]
-        elif direction == "y":
-            TOP_LINE = [[0, 0, 2 * size], [0.0, 1 * size, 2 * size]]
-            TOP_RIGHT_LINE = [[0, 1 * size, 2 * size], [0, 1 * size, 1 * size]]
-            BOTTOM_RIGHT_LINE = [[0, 1 * size, 1 * size], [0, 1 * size, 0]]
-            BOTTOM_LINE = [[0, 0, 0], [0, 1 * size, 0]]
-            BOTTOM_LEFT_LINE = [[0, 0, 0], [0, 0, 1 * size]]
-            TOP_LEFT_LINE = [[0, 0, 1 * size], [0, 0, 2 * size]]
-            MIDDLE_LINE = [[0, 0, 1 * size], [0, 1 * size, 1 * size]]
-
-        numbers_to_lines = {
-            "0": [
-                TOP_LINE,
-                TOP_RIGHT_LINE,
-                BOTTOM_RIGHT_LINE,
-                BOTTOM_LINE,
-                BOTTOM_LEFT_LINE,
-                TOP_LEFT_LINE,
-            ],
-            "1": [TOP_RIGHT_LINE, BOTTOM_RIGHT_LINE],
-            "2": [TOP_LINE, TOP_RIGHT_LINE, MIDDLE_LINE, BOTTOM_LEFT_LINE, BOTTOM_LINE],
-            "3": [
-                TOP_LINE,
-                TOP_RIGHT_LINE,
-                MIDDLE_LINE,
-                BOTTOM_RIGHT_LINE,
-                BOTTOM_LINE,
-            ],
-            "4": [TOP_LEFT_LINE, MIDDLE_LINE, TOP_RIGHT_LINE, BOTTOM_RIGHT_LINE],
-            "5": [TOP_LINE, TOP_LEFT_LINE, MIDDLE_LINE, BOTTOM_RIGHT_LINE, BOTTOM_LINE],
-            "6": [
-                TOP_LINE,
-                TOP_LEFT_LINE,
-                MIDDLE_LINE,
-                BOTTOM_RIGHT_LINE,
-                BOTTOM_LINE,
-                BOTTOM_LEFT_LINE,
-            ],
-            "7": [TOP_LINE, TOP_RIGHT_LINE, BOTTOM_RIGHT_LINE],
-            "8": [
-                TOP_LINE,
-                TOP_RIGHT_LINE,
-                BOTTOM_RIGHT_LINE,
-                BOTTOM_LINE,
-                BOTTOM_LEFT_LINE,
-                TOP_LEFT_LINE,
-                MIDDLE_LINE,
-            ],
-            "9": [
-                TOP_LINE,
-                TOP_RIGHT_LINE,
-                BOTTOM_RIGHT_LINE,
-                BOTTOM_LINE,
-                TOP_LEFT_LINE,
-                MIDDLE_LINE,
-            ],
-            "-": [MIDDLE_LINE],
-        }
-
-        spacing = 0.5 * size
-        direction_idx = ord(direction) - ord("x")
-        for idx, digit in enumerate(number_str):
-            spacer = idx * size + idx * spacing
-
-            if digit == ".":
-                pt = [s for s in start_pt]
-                pt[direction_idx] += spacer
-                points.append(pt)
-                continue
-            if digit not in numbers_to_lines:
-                continue
-
-            for line in numbers_to_lines[digit]:
-                start, end = line[0], line[1]
-                pts = [
-                    [
-                        start[0] + start_pt[0],
-                        start[1] + start_pt[1],
-                        start[2] + start_pt[2],
-                    ],
-                    [end[0] + start_pt[0], end[1] + start_pt[1], end[2] + start_pt[2]],
-                ]
-                pts[0][direction_idx] += spacer
-                pts[1][direction_idx] += spacer
-                lines.append(pts)
-
-        return points, lines
-
-    def draw_numbers(
-        self,
-        points: list[tuple[float, float, float]],
-        numbers: list[float],
-        color: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 1.0),
-        size: float = 2.0,
-        persistent: bool = False,
-        up="z",
-        direction="x",
-    ) -> None:
-        axes = {
-            "x": np.array([1, 0, 0]),
-            "y": np.array([0, 1, 0]),
-            "z": np.array([0, 0, 1]),
-        }
-        x3 = axes[direction]
-        x1 = axes[up]
-        x2 = np.cross(x3, x1)
-        rotmat = np.array([x1, x2, x3]).T
-
-        for idx, (number, point) in enumerate(zip(numbers, points)):
-            pts, lines = self._number_to_seven_segment(number, size, start_pt=point)
-            if len(pts) == 0:
-                continue
-
-            pts_np = np.array(pts) - point  # Shape: (n, 3)
-            lines_np = np.array(lines) - point  # Shape: (n, 2, 3)
-            pts = ((rotmat @ pts_np[..., None]).squeeze(-1) + point).tolist()
-            lines = ((rotmat @ lines_np[..., None]).squeeze(-1) + point).tolist()
-
-            # rotate them to match convention
-
-            if isinstance(color[0], list):
-                col = color[idx]
-            else:
-                col = color
-            self.plot_points(pts, col, 4.0, persistent)
-            self.plot_lines(
-                [line[0] for line in lines],
-                [line[1] for line in lines],
-                col,
-                4.0,
-                persistent,
-            )
-
     def plot_lines(
         self,
-        start_pts: list[tuple[float, float, float]],
-        end_pts: list[tuple[float, float, float]],
+        start_pts: list[tuple[float, float, float]] | torch.Tensor | np.ndarray,
+        end_pts: list[tuple[float, float, float]] | torch.Tensor | np.ndarray,
         color: tuple[float, float, float, float] | list[tuple[float, float, float, float]] = (0.0, 0.0, 0.0, 1.0),
         size: float | list[float] = 2.0,
         persistent: bool = False,
@@ -316,8 +170,8 @@ class DrawingInterface:
         """Plots lines between given start and end points.
         This function only caches the requested lines, `update` needs to be called to actually write it to sim.
         Args:
-            start_pts: A list of tuples representing the starting points of lines (x,y,z).
-            end_pts: A list of tuples representing the ending points of lines (x, y, z).
+            start_pts: A list of tuples representing the starting points of lines (x,y,z). If a tensor or array is provided, it will be converted to a list.
+            end_pts: A list of tuples representing the ending points of lines (x, y, z). If a tensor or array is provided, it will be converted to a list.
             color: A tuple or a list of tuples representing the colors of lines in RGBA format.
             size: A float or a list of floats representing the sizes of lines.
             persistent: A boolean indicating whether the plotted lines are persistent.
@@ -332,8 +186,14 @@ class DrawingInterface:
             carb.log_warn(f"Number of start and end-points to plot lines do not match! {n_pts} != {len(end_pts)}.")
             return
 
+        if isinstance(start_pts, torch.Tensor):
+            start_pts = start_pts.view(-1, 3).detach().cpu().numpy()
+        if isinstance(end_pts, torch.Tensor):
+            end_pts = end_pts.view(-1, 3).detach().cpu().numpy()
+
         if isinstance(end_pts, np.ndarray):
             end_pts = end_pts.tolist()
+        if isinstance(start_pts, np.ndarray):
             start_pts = start_pts.tolist()
 
         if isinstance(color[0], float):

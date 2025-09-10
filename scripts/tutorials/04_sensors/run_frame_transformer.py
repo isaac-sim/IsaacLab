@@ -35,8 +35,6 @@ simulation_app = app_launcher.app
 import math
 import torch
 
-import isaacsim.util.debug_draw._debug_draw as omni_debug_draw
-
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.assets import Articulation
@@ -113,7 +111,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
         cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
         transform_visualizer = VisualizationMarkers(cfg)
         # debug drawing for lines connecting the frame
-        draw_interface = omni_debug_draw.acquire_debug_draw_interface()
+        draw_interface = SimulationContext.instance().draw_interface
     else:
         transform_visualizer = None
         draw_interface = None
@@ -153,12 +151,13 @@ def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
             transform_visualizer.visualize(
                 torch.cat([source_pos, target_pos], dim=0), torch.cat([source_quat, target_quat], dim=0)
             )
+
             # draw the line connecting the frames
-            draw_interface.clear_lines()
-            # plain color for lines
             lines_colors = [[1.0, 1.0, 0.0, 1.0]] * source_pos.shape[0]
             line_thicknesses = [5.0] * source_pos.shape[0]
-            draw_interface.draw_lines(source_pos.tolist(), target_pos.tolist(), lines_colors, line_thicknesses)
+            draw_interface.plot_lines(
+                source_pos, target_pos, lines_colors, line_thicknesses
+            )
 
 
 def main():
