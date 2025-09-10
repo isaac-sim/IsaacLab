@@ -54,15 +54,46 @@ def main(argv: list[str] | None = None) -> None:
     _all_algos_map = get_algorithms_per_rl_library(True, True)
     rl_algo_choices = sorted({algo.lower() for algos in _all_algos_map.values() for algo in algos})
 
-    parser.add_argument("--task-type", "--task_type", type=str, required=True, choices=["External", "Internal"])
-    parser.add_argument("--project-path", "--project_path", type=str)
-    parser.add_argument("--project-name", "--project_name", type=str, required=True)
+    parser.add_argument(
+        "--task-type",
+        "--task_type",
+        type=str,
+        required=True,
+        choices=["External", "Internal"],
+        help=(
+            "Where to create the project: 'External' (requires --project-path and must be outside this repo) "
+            "or 'Internal' (generated within the Isaac Lab repo)."
+        ),
+    )
+    parser.add_argument(
+        "--project-path",
+        "--project_path",
+        type=str,
+        help=(
+            "Destination path for an external project. Required when --task-type External. "
+            "Must not be within the Isaac Lab project."
+        ),
+    )
+    parser.add_argument(
+        "--project-name",
+        "--project_name",
+        type=str,
+        required=True,
+        help=(
+            "Project identifier used in generated files (letters, digits, underscores)"
+        ),
+    )
     parser.add_argument(
         "--workflow",
         action="append",
         required=True,
         type=str.lower,
         choices=[*([w.lower() for w in supported_workflows]), "all"],
+        help=(
+            "Workflow(s) to generate. Repeat this flag to include multiple, or use 'all'. "
+            "Allowed values: direct_single_agent, direct_multi_agent, manager-based_single_agent. "
+            "Values are case-insensitive; underscores in the type are normalized (e.g., single_agent → single-agent)."
+        ),
     )
     parser.add_argument(
         "--rl-library",
@@ -70,6 +101,10 @@ def main(argv: list[str] | None = None) -> None:
         type=str.lower,
         required=True,
         choices=[*supported_rl_libraries, "all"],
+        help=(
+            "RL library to target or 'all'. Choices are filtered by the selected workflows; libraries without "
+            "supported algorithms under those workflows are omitted."
+        ),
     )
     parser.add_argument(
         "--rl-algorithm",
@@ -79,8 +114,8 @@ def main(argv: list[str] | None = None) -> None:
         default=None,
         choices=[*rl_algo_choices, "all"],
         help=(
-            "RL algorithm to use. If omitted, the tool auto-selects when exactly one algorithm "
-            "is valid for the chosen workflows and library."
+            "RL algorithm to use. If skipped, auto-selects when exactly one algorithm is valid for the chosen "
+            "workflows and library. Use 'all' to include every supported algorithm per selected library."
         ),
     )
 
