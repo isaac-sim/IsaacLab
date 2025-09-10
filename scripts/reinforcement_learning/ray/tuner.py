@@ -11,10 +11,12 @@ from time import sleep, time
 
 import ray
 import util
+import random
 from ray import air, tune
 from ray.tune.search.optuna import OptunaSearch
 from ray.tune.search.repeater import Repeater
 from ray.tune.stopper import CombinedStopper
+from ray.tune import Callback
 
 """
 This script breaks down an aggregate tuning job, as defined by a hyperparameter sweep configuration,
@@ -61,7 +63,7 @@ WORKFLOW = "scripts/reinforcement_learning/rl_games/train.py"
 NUM_WORKERS_PER_NODE = 1  # needed for local parallelism
 PROCESS_RESPONSE_TIMEOUT = 200.0  # seconds to wait before killing the process when it stops responding
 MAX_LINES_TO_SEARCH_EXPERIMENT_LOGS = 1000  # maximum number of lines to read from the training process logs
-MAX_LOG_EXTRACTION_ERRORS = 2  # maximum allowed LogExtractionErrors before we abort the whole training
+MAX_LOG_EXTRACTION_ERRORS = 10  # maximum allowed LogExtractionErrors before we abort the whole training
 
 
 class IsaacLabTuneTrainable(tune.Trainable):
@@ -106,7 +108,7 @@ class IsaacLabTuneTrainable(tune.Trainable):
                 }
                 return self.data
             self.experiment = experiment
-            print(f"[INFO]: Tuner recovered experiment info {experiment}")
+            # print(f"[INFO]: Tuner recovered experiment info {experiment}")
             self.proc = experiment["proc"]
             self.experiment_name = experiment["experiment_name"]
             self.isaac_logdir = experiment["logdir"]
@@ -143,7 +145,7 @@ class IsaacLabTuneTrainable(tune.Trainable):
                     if self.time_since_last_proc_response > PROCESS_RESPONSE_TIMEOUT:
                         self.time_since_last_proc_response = 0.0
                         print("[WARNING]: Training workflow process is not responding, terminating...")
-                        self.proc.terminate()
+                        self.proc.terminate(9)
                         try:
                             self.proc.wait(timeout=20)
                         except subprocess.TimeoutExpired:
@@ -203,6 +205,25 @@ class LogExtractionErrorStopper(tune.Stopper):
         else:
             return False
 
+class ProcessCleanupCallback(Callback):
+    """Callback to clean up processes when trials are stopped."""
+
+    def on_trial_error(self, iteration, trials, trial, error, **info):
+        """Called when a trial encounters an error."""
+        self._cleanup_trial(trial)
+
+    def on_trial_complete(self, iteration, trials, trial, **info):
+        """Called when a trial completes."""
+        self._cleanup_trial(trial)
+
+    def _cleanup_trial(self, trial):
+        """Clean up processes for a trial using SIGKILL."""
+        try:
+            subprocess.run(["pkill", "-9", "-f", f"rid {trial.config['runner_args']['-rid']}"], check=False)
+            sleep(5)
+        except Exception as e:
+            print(f"[ERROR]: Failed to cleanup trial {trial.trial_id}: {e}")
+            
 
 def invoke_tuning_run(
     cfg: dict,
@@ -253,6 +274,7 @@ def invoke_tuning_run(
         run_config = air.RunConfig(
             storage_path="/tmp/ray",
             name=f"IsaacRay-{args.cfg_class}-tune",
+            callbacks=[ProcessCleanupCallback()],
             verbose=1,
             checkpoint_config=air.CheckpointConfig(
                 checkpoint_frequency=0,  # Disable periodic checkpointing
@@ -272,13 +294,14 @@ def invoke_tuning_run(
         run_config = ray.train.RunConfig(
             name="mlflow",
             storage_path="/tmp/ray",
-            callbacks=[mlflow_callback],
+            callbacks=[ProcessCleanupCallback(), mlflow_callback],
             checkpoint_config=ray.train.CheckpointConfig(checkpoint_frequency=0, checkpoint_at_end=False),
             stop=stoppers,
         )
     else:
         raise ValueError("Unrecognized run mode.")
-
+    # RID isn't optimized as it is sampled from, but useful for cleanup later
+    cfg["runner_args"]["-rid"] = tune.sample_from(lambda _: str(random.randint(int(1e9), int(1e10) - 1)))
     # Configure the tuning job
     tuner = tune.Tuner(
         IsaacLabTuneTrainable,
