@@ -668,14 +668,32 @@ USD Stage traversal.
 
 
 def get_first_matching_child_prim(
-    prim_path: str | Sdf.Path, predicate: Callable[[Usd.Prim], bool], stage: Usd.Stage | None = None
+    prim_path: str | Sdf.Path,
+    predicate: Callable[[Usd.Prim], bool],
+    stage: Usd.Stage | None = None,
+    traverse_instance_prims: bool = True,
 ) -> Usd.Prim | None:
-    """Recursively get the first USD Prim at the path string that passes the predicate function
+    """Recursively get the first USD Prim at the path string that passes the predicate function.
+
+    This function performs a depth-first traversal of the prim hierarchy starting from
+    :attr:`prim_path`, returning the first prim that satisfies the provided :attr:`predicate`.
+    It optionally supports traversal through instance prims, which are normally skipped in standard USD
+    traversals.
+
+    USD instance prims are lightweight copies of prototype scene structures and are not included
+    in default traversals unless explicitly handled. This function allows traversing into instances
+    when :attr:`traverse_instance_prims` is set to :attr:`True`.
+
+    .. versionchanged:: 2.3.0
+
+        Added :attr:`traverse_instance_prims` to control whether to traverse instance prims.
+        By default, instance prims are now traversed.
 
     Args:
         prim_path: The path of the prim in the stage.
         predicate: The function to test the prims against. It takes a prim as input and returns a boolean.
         stage: The stage where the prim exists. Defaults to None, in which case the current stage is used.
+        traverse_instance_prims: Whether to traverse instance prims. Defaults to True.
 
     Returns:
         The first prim on the path that passes the predicate. If no prim passes the predicate, it returns None.
@@ -715,8 +733,22 @@ def get_all_matching_child_prims(
     predicate: Callable[[Usd.Prim], bool] = lambda _: True,
     depth: int | None = None,
     stage: Usd.Stage | None = None,
+    traverse_instance_prims: bool = True,
 ) -> list[Usd.Prim]:
     """Performs a search starting from the root and returns all the prims matching the predicate.
+
+    This function performs a depth-first traversal of the prim hierarchy starting from
+    :attr:`prim_path`, returning all prims that satisfy the provided :attr:`predicate`. It optionally
+    supports traversal through instance prims, which are normally skipped in standard USD traversals.
+
+    USD instance prims are lightweight copies of prototype scene structures and are not included
+    in default traversals unless explicitly handled. This function allows traversing into instances
+    when :attr:`traverse_instance_prims` is set to :attr:`True`.
+
+    .. versionchanged:: 2.3.0
+
+        Added :attr:`traverse_instance_prims` to control whether to traverse instance prims.
+        By default, instance prims are now traversed.
 
     Args:
         prim_path: The root prim path to start the search from.
@@ -725,6 +757,7 @@ def get_all_matching_child_prims(
         depth: The maximum depth for traversal, should be bigger than zero if specified.
             Defaults to None (i.e: traversal happens till the end of the tree).
         stage: The stage where the prim exists. Defaults to None, in which case the current stage is used.
+        traverse_instance_prims: Whether to traverse instance prims. Defaults to True.
 
     Returns:
         A list containing all the prims matching the predicate.
