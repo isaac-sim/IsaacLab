@@ -7,7 +7,7 @@ import contextlib
 import numpy as np
 from time import time
 
-import carb
+import omni.log
 from isaacsim.core.utils.extensions import enable_extension
 
 # For testing purposes, we need to mock the XRCore
@@ -144,7 +144,7 @@ class ManusViveIntegration:
             if self.scene_T_lighthouse_static is None:
                 self._initialize_coordinate_transformation()
         except Exception as e:
-            carb.log_error(f"Vive tracker update failed: {e}")
+            omni.log.error(f"Vive tracker update failed: {e}")
 
     def _initialize_coordinate_transformation(self):
         """
@@ -216,7 +216,7 @@ class ManusViveIntegration:
                     choose_A = False
                 elif len(self._pairA_trans_errs) % 10 == 0 or len(self._pairB_trans_errs) % 10 == 0:
                     print("Computing pairing of Vive trackers with wrists")
-                    carb.log_info(
+                    omni.log.info(
                         f"Pairing Vive trackers with wrists: error of pairing A: {errA}, error of pairing B: {errB}"
                     )
             if choose_A is None:
@@ -245,7 +245,7 @@ class ManusViveIntegration:
                     )
 
         except Exception as e:
-            carb.log_error(f"Failed to initialize coordinate transformation: {e}")
+            omni.log.error(f"Failed to initialize coordinate transformation: {e}")
 
     def _transform_vive_data(self, device_data: dict) -> dict:
         """Transform Vive tracker poses to scene coordinates.
@@ -433,7 +433,7 @@ def get_openxr_wrist_matrix(hand: str) -> Gf.Matrix4d:
             return None
         return joint.pose_matrix
     except Exception as e:
-        carb.log_warn(f"OpenXR {hand} wrist fetch failed: {e}")
+        omni.log.warn(f"OpenXR {hand} wrist fetch failed: {e}")
         return None
 
 
