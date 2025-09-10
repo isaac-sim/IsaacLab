@@ -43,7 +43,13 @@ def main(argv: list[str] | None = None) -> None:
     This avoids any interactive prompts or dependencies on Inquirer-based flow.
     """
 
-    parser = argparse.ArgumentParser(add_help=False)
+    parser = argparse.ArgumentParser(
+        description=(
+            "Non-interactive template generator for Isaac Lab. Use flags to choose workflows, RL libraries, "
+            "and algorithms."
+        ),
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
     supported_workflows = [
         "direct_single_agent",
         "direct_multi_agent",
