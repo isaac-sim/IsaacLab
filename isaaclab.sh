@@ -97,26 +97,27 @@ is_docker() {
 }
 
 ensure_cuda_torch() {
-  local py="$1"
+  local pip_command="$1"
+  local pip_uninstall_command="$2"
   local -r TORCH_VER="2.7.0"
   local -r TV_VER="0.22.0"
   local -r CUDA_TAG="cu128"
   local -r PYTORCH_INDEX="https://download.pytorch.org/whl/${CUDA_TAG}"
   local torch_ver
 
-  if "$py" -m pip show torch >/dev/null 2>&1; then
-    torch_ver="$("$py" -m pip show torch 2>/dev/null | awk -F': ' '/^Version/{print $2}')"
+  if "$pip_command" show torch >/dev/null 2>&1; then
+    torch_ver="$("$pip_command" show torch 2>/dev/null | awk -F': ' '/^Version/{print $2}')"
     echo "[INFO] Found PyTorch version ${torch_ver}."
     if [[ "$torch_ver" != "${TORCH_VER}+${CUDA_TAG}" ]]; then
       echo "[INFO] Replacing PyTorch ${torch_ver} → ${TORCH_VER}+${CUDA_TAG}..."
-      "$py" -m pip uninstall -y torch torchvision torchaudio >/dev/null 2>&1 || true
-      "$py" -m pip install "torch==${TORCH_VER}" "torchvision==${TV_VER}" --index-url "${PYTORCH_INDEX}"
+      "$pip_uninstall_command" torch torchvision torchaudio >/dev/null 2>&1 || true
+      "$pip_install" "torch==${TORCH_VER}" "torchvision==${TV_VER}" --index-url "${PYTORCH_INDEX}"
     else
       echo "[INFO] PyTorch ${TORCH_VER}+${CUDA_TAG} already installed."
     fi
   else
     echo "[INFO] Installing PyTorch ${TORCH_VER}+${CUDA_TAG}..."
-    "$py" -m pip install "torch==${TORCH_VER}" "torchvision==${TV_VER}" --index-url "${PYTORCH_INDEX}"
+    "$pip_install" "torch==${TORCH_VER}" "torchvision==${TV_VER}" --index-url "${PYTORCH_INDEX}"
   fi
 }
 
@@ -206,22 +207,43 @@ extract_isaacsim_exe() {
     echo ${isaacsim_exe}
 }
 
+# find pip command based on virtualization
+extract_pip_command() {
+    # detect if we're in a uv environment
+    if [ -n "${VIRTUAL_ENV}" ] && [ -f "${VIRTUAL_ENV}/pyvenv.cfg" ] && grep -q "uv" "${VIRTUAL_ENV}/pyvenv.cfg"; then
+        pip_command="uv pip install"
+    else
+        # retrieve the python executable
+        python_exe=$(extract_python_exe)
+        pip_command="${python_exe} -m pip install"
+    fi
+
+    echo ${pip_command}
+}
+
+extract_pip_uninstall_command() {
+    # detect if we're in a uv environment
+    if [ -n "${VIRTUAL_ENV}" ] && [ -f "${VIRTUAL_ENV}/pyvenv.cfg" ] && grep -q "uv" "${VIRTUAL_ENV}/pyvenv.cfg"; then
+        pip_uninstall_command="uv pip uninstall"
+    else
+        # retrieve the python executable
+        python_exe=$(extract_python_exe)
+        pip_uninstall_command="${python_exe} -m pip uninstall -y"
+    fi
+
+    echo ${pip_uninstall_command}
+}
+
 # check if input directory is a python extension and install the module
 install_isaaclab_extension() {
     # retrieve the python executable
     python_exe=$(extract_python_exe)
-
-    # detect if we're in a uv environment
-    if [ -n "${VIRTUAL_ENV}" ] && [ -f "${VIRTUAL_ENV}/pyvenv.cfg" ] && grep -q "uv" "${VIRTUAL_ENV}/pyvenv.cfg"; then
-        pip_cmd="uv pip install"
-    else
-        pip_cmd="${python_exe} -m pip install"
-    fi
+    pip_command=$(extract_pip_command)
 
     # if the directory contains setup.py then install the python module
     if [ -f "$1/setup.py" ]; then
         echo -e "\t module: $1"
-        $pip_cmd --editable "$1"
+        $pip_command --editable "$1"
     fi
 }
 
@@ -459,40 +481,18 @@ while [[ $# -gt 0 ]]; do
             install_system_deps
             # install the python packages in IsaacLab/source directory
             echo "[INFO] Installing extensions inside the Isaac Lab repository..."
-            # detect if uv is active
-            use_uv=false
-            if [ -n "${VIRTUAL_ENV}" ] && [ -f "${VIRTUAL_ENV}/pyvenv.cfg" ] && grep -q "uv" "${VIRTUAL_ENV}/pyvenv.cfg"; then
-                use_uv=true
-                echo "[INFO] Detected active uv environment: $VIRTUAL_ENV"
-                python_exe="${VIRTUAL_ENV}/bin/python"
-                pip_cmd="uv pip"
-                pip_uninstall_cmd="uv pip uninstall"
-            else
-                python_exe=$(extract_python_exe)
-                pip_cmd="${python_exe} -m pip"
-                pip_uninstall_cmd="${python_exe} -m pip uninstall -y"
-            fi
+            python_exe=$(extract_python_exe)
+            pip_command=$(extract_pip_command)
+            pip_uninstall_command=$(extract_pip_uninstall_command)
 
             # check if pytorch is installed and its version
             # install pytorch with cuda 12.8 for blackwell support
-            if ${pip_cmd} list 2>/dev/null | grep -q "torch"; then
-                torch_version=$(${python_exe} -m pip show torch 2>/dev/null | grep "Version:" | awk '{print $2}')
-                echo "[INFO] Found PyTorch version ${torch_version} installed."
-                if [[ "${torch_version}" != "2.7.0+cu128" ]]; then
-                    echo "[INFO] Uninstalling PyTorch version ${torch_version}..."
-                    ${pip_uninstall_cmd} torch torchvision torchaudio
-                    echo "[INFO] Installing PyTorch 2.7.0 with CUDA 12.8 support..."
-                    ${pip_cmd} install torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
-                else
-                    echo "[INFO] PyTorch 2.7.0 is already installed."
-                fi
-            else
-                echo "[INFO] Installing PyTorch 2.7.0 with CUDA 12.8 support..."
-                ${pip_cmd} install torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
-            fi
+            ensure_cuda_torch ${pip_command} ${pip_uninstall_command}
             # recursively look into directories and install them
             # this does not check dependencies between extensions
             export -f extract_python_exe
+            export -f extract_pip_command
+            export -f extract_pip_uninstall_command
             export -f install_isaaclab_extension
             # source directory
             find -L "${ISAACLAB_PATH}/source" -mindepth 1 -maxdepth 1 -type d -exec bash -c 'install_isaaclab_extension "{}"' \;
@@ -512,12 +512,12 @@ while [[ $# -gt 0 ]]; do
                 shift # past argument
             fi
             # install the learning frameworks specified
-            ${pip_cmd} install -e "${ISAACLAB_PATH}/source/isaaclab_rl[${framework_name}]"
-            ${pip_cmd} install -e "${ISAACLAB_PATH}/source/isaaclab_mimic[${framework_name}]"
+            ${pip_command} install -e "${ISAACLAB_PATH}/source/isaaclab_rl[${framework_name}]"
+            ${pip_command} install -e "${ISAACLAB_PATH}/source/isaaclab_mimic[${framework_name}]"
 
             # in some rare cases, torch might not be installed properly by setup.py, add one more check here
             # can prevent that from happening
-            ensure_cuda_torch ${python_exe}
+            ensure_cuda_torch ${pip_command} ${pip_uninstall_command}
             # check if we are inside a docker container or are building a docker image
             # in that case don't setup VSCode since it asks for EULA agreement which triggers user interaction
             if is_docker; then
@@ -530,9 +530,11 @@ while [[ $# -gt 0 ]]; do
 
              # unset local variables
             unset extract_python_exe
+            unset extract_pip_command
+            unset extract_pip_uninstall_command
             unset install_isaaclab_extension
             shift # past argument
-            ;;   
+            ;;
         -c|--conda)
             # use default name if not provided
             if [ -z "$2" ]; then
@@ -573,7 +575,8 @@ while [[ $# -gt 0 ]]; do
             # check if pre-commit is installed
             if ! command -v pre-commit &>/dev/null; then
                 echo "[INFO] Installing pre-commit..."
-                pip install pre-commit
+                pip_command=$(extract_pip_command)
+                ${pip_command} pre-commit
                 sudo apt-get install -y pre-commit
             fi
             # always execute inside the Isaac Lab directory
@@ -610,9 +613,10 @@ while [[ $# -gt 0 ]]; do
         -n|--new)
             # run the template generator script
             python_exe=$(extract_python_exe)
+            pip_command=$(extract_pip_command)
             shift # past argument
             echo "[INFO] Installing template dependencies..."
-            ${python_exe} -m pip install -q -r ${ISAACLAB_PATH}/tools/template/requirements.txt
+            ${pip_command} -q -r ${ISAACLAB_PATH}/tools/template/requirements.txt
             echo -e "\n[INFO] Running template generator...\n"
             ${python_exe} ${ISAACLAB_PATH}/tools/template/cli.py $@
             # exit neatly
@@ -647,9 +651,10 @@ while [[ $# -gt 0 ]]; do
             echo "[INFO] Building documentation..."
             # retrieve the python executable
             python_exe=$(extract_python_exe)
+            pip_command=$(extract_pip_command)
             # install pip packages
             cd ${ISAACLAB_PATH}/docs
-            ${python_exe} -m pip install -r requirements.txt > /dev/null
+            ${pip_command} -r requirements.txt > /dev/null
             # build the documentation
             ${python_exe} -m sphinx -b html -d _build/doctrees . _build/current
             # open the documentation

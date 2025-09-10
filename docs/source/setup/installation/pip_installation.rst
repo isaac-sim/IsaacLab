@@ -121,7 +121,7 @@ If you encounter any issues, please report them to the
 
 .. note::
 
-   If you use uv, replace `pip` with `uv pip`.
+   If you use uv, replace ``pip`` with ``uv pip``.
 
 -  Next, install a CUDA-enabled PyTorch 2.7.0 build.
 
