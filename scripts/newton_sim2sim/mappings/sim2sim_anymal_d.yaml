@@ -32,3 +32,18 @@ source_joint_names:
   - "LH_KFE"
   - "RF_KFE"
   - "RH_KFE"
+
+# Joint names in the intermediate representation (e.g. Robot Schema)
+robot_schema_joint_names:
+  - "RF_HAA"
+  - "RF_HFE"
+  - "RF_KFE"
+  - "RH_HAA"
+  - "RH_HFE"
+  - "RH_KFE"
+  - "LF_HAA"
+  - "LF_HFE"
+  - "LF_KFE"
+  - "LH_HAA"
+  - "LH_HFE"
+  - "LH_KFE"
