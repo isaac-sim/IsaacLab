@@ -98,7 +98,7 @@ is_docker() {
 
 ensure_cuda_torch() {
   local pip_command=$(extract_pip_command)
-  local pip_uninstall_command=$(extract_pip_command)
+  local pip_uninstall_command=$(extract_pip_uninstall_command)
   local -r TORCH_VER="2.7.0"
   local -r TV_VER="0.22.0"
   local -r CUDA_TAG="cu128"
