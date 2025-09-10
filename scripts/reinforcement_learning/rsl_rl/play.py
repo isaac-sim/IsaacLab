@@ -42,37 +42,16 @@ parser.add_argument(
     help="Import policy from schema joint order representation to current engine representation.",
 )
 parser.add_argument(
-    "--import_schema_joint_order_file",
-    type=str,
-    default=None,
-    help="Path to YAML file containing joint order to treat as schema order for importing (uses key 'source_joint_names' by default).",
-)
-parser.add_argument(
-    "--import_schema_joint_order_key",
-    type=str,
-    default="source_joint_names",
-    help="Key inside YAML to read schema joint order from for importing (default: source_joint_names).",
-)
-parser.add_argument(
     "--export_schema_joint_order",
     action="store_true",
     default=False,
     help="Export additional JIT policies using USD Isaac Robot Schema joint order.",
 )
 parser.add_argument(
-    "--export_schema_joint_order_file",
+    "--schema_joint_order_file",
     type=str,
     default=None,
-    help=(
-        "Path to YAML file containing joint order to treat as schema order "
-        "(uses key 'target_joint_names' by default)."
-    ),
-)
-parser.add_argument(
-    "--export_schema_joint_order_key",
-    type=str,
-    default="target_joint_names",
-    help="Key inside YAML to read schema joint order from (default: target_joint_names).",
+    help="Path to YAML file containing joint order to treat as schema order for import/export (uses key 'robot_schema_joint_names' by default).",
 )
 # append RSL-RL cli arguments
 cli_args.add_rsl_rl_args(parser)
@@ -135,20 +114,15 @@ except Exception:
     TensorDictBase = tuple()  # fallback: isinstance(obs, TensorDictBase) will be False
 
 
-class _SchemaPermutationHelper:
-    """Compute observation/action reordering between Schema and Simulator joint orders."""
+class _SchemaJointOrderHelperBase:
+    """Base class for schema joint order helpers with common functionality."""
 
-    def __init__(self, base_env, policy_module, normalizer, schema_override_names: list[str] | None = None):
+    def __init__(self, base_env, schema_override_names: list[str] | None = None):
         self.base_env = base_env
-        self.policy_module = policy_module
-        self.normalizer = normalizer
-        self.is_recurrent = getattr(policy_module, "is_recurrent", False)
-        # filled by compute()
-        self.obs_perm = None  # 1D LongTensor of size num_obs to map schema-ordered obs -> sim-ordered obs
-        self.action_out_indices = None  # 1D LongTensor of size num_actions to map sim actions -> schema order
         self._schema_override_names = list(schema_override_names) if schema_override_names else None
 
     def _get_scene_articulation_and_joint_names(self):
+        """Get articulation and joint names from the current environment."""
         scene = self.base_env.scene
         # Prefer common key 'robot', else fallback to the first articulation
         if hasattr(scene, "articulations") and isinstance(scene.articulations, dict) and len(scene.articulations) > 0:
@@ -160,6 +134,7 @@ class _SchemaPermutationHelper:
         return None, None
 
     def _get_schema_joint_names(self, art) -> list[str] | None:
+        """Get joint names from USD Isaac Robot Schema."""
         try:
             # Resolve the robot prim in the first environment
             first_robot_prim = sim_utils.find_first_matching_prim(art.cfg.prim_path)
@@ -184,76 +159,134 @@ class _SchemaPermutationHelper:
         except Exception:
             return None
 
-    def _build_joint_index_mappings(self, sim_joint_names: list[str], schema_joint_names: list[str]):
-        # Filter schema list to only those joints that exist in simulator
-        schema_filtered = [n for n in schema_joint_names if n in sim_joint_names]
-        if len(schema_filtered) != len(sim_joint_names):
-            return None, None
-        sim_index = {n: i for i, n in enumerate(sim_joint_names)}
-        schema_to_sim = [sim_index[n] for n in schema_filtered]
-        # Build inverse mapping: sim index -> schema index
-        sim_to_schema = [0] * len(schema_to_sim)
-        for schema_idx, sim_idx in enumerate(schema_to_sim):
-            sim_to_schema[sim_idx] = schema_idx
-        return schema_to_sim, sim_to_schema
-
-    def compute(self) -> bool:
-        # Get sim joint names
-        art, sim_joint_names = self._get_scene_articulation_and_joint_names()
-        if art is None or not sim_joint_names:
-            return False
-        # Get schema joint names
-        schema_joint_names = self._schema_override_names if self._schema_override_names is not None else self._get_schema_joint_names(art)
-        if not schema_joint_names:
-            return False
-        # Build index mappings
-        schema_to_sim, sim_to_schema = self._build_joint_index_mappings(sim_joint_names, schema_joint_names)
-        if schema_to_sim is None:
-            return False
-        # Observation term offsets and sizes
+    def _get_observation_terms_info(self):
+        """Extract observation manager information."""
         if hasattr(self.base_env, "observation_manager"):
             obs_mgr = self.base_env.observation_manager
             if ("policy" not in obs_mgr.active_terms) or ("policy" not in obs_mgr.group_obs_term_dim):
-                return False
+                return None, None
             term_names = list(obs_mgr.active_terms["policy"])  # list[str]
             term_dims = [int(np.prod(d)) for d in obs_mgr.group_obs_term_dim["policy"]]
-        else:
-            return False
+            return term_names, term_dims
+        return None, None
 
-        # Required terms
+    def _validate_joint_terms(self, joint_names: list[str], term_names: list[str], term_dims: list[int]):
+        """Validate joint-related observation terms."""
         try:
             idx_joint_pos = term_names.index("joint_pos")
             idx_joint_vel = term_names.index("joint_vel")
             idx_actions_obs = term_names.index("actions")
         except ValueError:
-            return False
+            return None
 
         # Validate sizes match number of joints
-        num_joints = len(sim_joint_names)
+        num_joints = len(joint_names)
         if (
             term_dims[idx_joint_pos] != num_joints
             or term_dims[idx_joint_vel] != num_joints
             or term_dims[idx_actions_obs] != num_joints
         ):
-            return False
+            return None
 
-        # Build flat observation permutation that maps schema-ordered obs -> sim-ordered obs
+        return idx_joint_pos, idx_joint_vel, idx_actions_obs
+
+    def _build_joint_index_mappings(self, engine_joint_names: list[str], schema_joint_names: list[str]):
+        """Build bidirectional mappings between engine and schema joint orders."""
+        # Filter schema list to only those joints that exist in engine
+        schema_filtered = [n for n in schema_joint_names if n in engine_joint_names]
+        if len(schema_filtered) != len(engine_joint_names):
+            return None, None
+        
+        engine_index = {n: i for i, n in enumerate(engine_joint_names)}
+        schema_index = {n: i for i, n in enumerate(schema_filtered)}
+        
+        # engine_to_schema: for each engine joint index, what schema index should it map to
+        engine_to_schema = [schema_index[n] for n in engine_joint_names]
+        # schema_to_engine: for each schema joint index, what engine index should it map to  
+        schema_to_engine = [engine_index[n] for n in schema_filtered]
+        
+        return engine_to_schema, schema_to_engine
+
+    def _compute_observation_permutation(self, mappings, term_names: list[str], term_dims: list[int], term_indices, for_import: bool):
+        """Compute observation permutation. Direction controlled by for_import parameter."""
+        engine_to_schema, schema_to_engine = mappings
+        idx_joint_pos, idx_joint_vel, idx_actions_obs = term_indices
+
+        # Build flat observation permutation
         offsets = np.cumsum([0] + term_dims[:-1]).tolist()
         total_obs = int(np.sum(term_dims))
         obs_perm = np.arange(total_obs)
 
-        # For each joint-related slice, set perm so that xs = x[:, obs_perm]
+        # For each joint-related slice, set the appropriate permutation
         for term_index in (idx_joint_pos, idx_joint_vel, idx_actions_obs):
             start = offsets[term_index]
             length = term_dims[term_index]
-            # inv permutation: for sim order i_sim, pick from schema index inv[i_sim]
-            inv = np.array(sim_to_schema, dtype=np.int64)
-            obs_perm[start : start + length] = start + inv
+            
+            if for_import:
+                # For importing: build schema-ordered obs by selecting engine indices per schema index
+                # Original import used: schema_to_engine
+                perm_slice = np.array(schema_to_engine, dtype=np.int64)
+            else:
+                # For exporting: build sim-ordered obs using inverse mapping (engine index -> schema index)  
+                # Original export used: sim_to_schema (which maps sim_index -> schema_index)
+                # This is equivalent to our engine_to_schema
+                perm_slice = np.array(engine_to_schema, dtype=np.int64)
+            
+            obs_perm[start : start + length] = start + perm_slice
 
-        self.obs_perm = torch.as_tensor(obs_perm, dtype=torch.long)
-        self.action_out_indices = torch.as_tensor(schema_to_sim, dtype=torch.long)
-        print("obs_perm", self.obs_perm)
-        print("action_out_indices", self.action_out_indices)
+        return torch.as_tensor(obs_perm, dtype=torch.long), engine_to_schema, schema_to_engine
+
+
+class _SchemaPermutationHelper(_SchemaJointOrderHelperBase):
+    """Compute observation/action reordering between Schema and Simulator joint orders for export."""
+
+    def __init__(self, base_env, policy_module, normalizer, schema_override_names: list[str] | None = None):
+        super().__init__(base_env, schema_override_names)
+        self.policy_module = policy_module
+        self.normalizer = normalizer
+        self.is_recurrent = getattr(policy_module, "is_recurrent", False)
+        # filled by compute()
+        self.obs_perm = None  # 1D LongTensor of size num_obs to map schema-ordered obs -> sim-ordered obs
+        self.action_out_indices = None  # 1D LongTensor of size num_actions to map sim actions -> schema order
+
+
+    def compute(self) -> bool:
+        """Compute permutations for export."""
+        # Get sim joint names
+        art, sim_joint_names = self._get_scene_articulation_and_joint_names()
+        if art is None or not sim_joint_names:
+            return False
+        
+        # Get schema joint names
+        schema_joint_names = self._schema_override_names if self._schema_override_names is not None else self._get_schema_joint_names(art)
+        if not schema_joint_names:
+            return False
+        
+        # Build index mappings
+        mappings = self._build_joint_index_mappings(sim_joint_names, schema_joint_names)
+        if mappings[0] is None:
+            return False
+        
+        # Get observation terms info
+        term_names, term_dims = self._get_observation_terms_info()
+        if term_names is None or term_dims is None:
+            return False
+
+        # Validate joint terms
+        term_indices = self._validate_joint_terms(sim_joint_names, term_names, term_dims)
+        if term_indices is None:
+            return False
+
+        # Compute observation permutation (for export, for_import=False)
+        self.obs_perm, engine_to_schema, schema_to_engine = self._compute_observation_permutation(
+            mappings, term_names, term_dims, term_indices, for_import=False
+        )
+        # For export: action_out_indices maps sim actions -> schema order
+        # Original used: schema_to_sim, which is equivalent to our schema_to_engine
+        self.action_out_indices = torch.as_tensor(schema_to_engine, dtype=torch.long)
+        
+        # print("obs_perm", self.obs_perm)
+        # print("action_out_indices", self.action_out_indices)
         return True
 
 
@@ -303,70 +336,15 @@ class _SchemaOrderedTorchPolicyExporter(torch.nn.Module):
         pass
 
 
-class _SchemaImportHelper:
+class _SchemaImportHelper(_SchemaJointOrderHelperBase):
     """Helper to import policies from schema joint order representation to engine representation."""
     
     def __init__(self, base_env, schema_override_names: list[str] | None = None):
-        self.base_env = base_env
-        self._schema_override_names = list(schema_override_names) if schema_override_names else None
+        super().__init__(base_env, schema_override_names)
         # filled by compute()
         self.obs_perm = None  # 1D LongTensor to map engine obs -> schema obs (for input to policy)
         self.action_perm = None  # 1D LongTensor to map schema actions -> engine actions (for output from policy)
         
-    def _get_scene_articulation_and_joint_names(self):
-        """Get articulation and joint names from the current environment."""
-        scene = self.base_env.scene
-        # Prefer common key 'robot', else fallback to the first articulation
-        if hasattr(scene, "articulations") and isinstance(scene.articulations, dict) and len(scene.articulations) > 0:
-            if "robot" in scene.articulations:
-                art = scene.articulations["robot"]
-            else:
-                art = next(iter(scene.articulations.values()))
-            return art, list(art.joint_names)
-        return None, None
-    
-    def _get_schema_joint_names(self, art) -> list[str] | None:
-        """Get joint names from USD Isaac Robot Schema."""
-        try:
-            # Resolve the robot prim in the first environment
-            first_robot_prim = sim_utils.find_first_matching_prim(art.cfg.prim_path)
-            if first_robot_prim is None:
-                return None
-            stage = omni.usd.get_context().get_stage()
-            prim = first_robot_prim
-            # Import here to avoid hard dependency if schema package is unavailable
-            from usd.schema.isaac import robot_schema  # type: ignore
-
-            joints = robot_schema.utils.GetAllRobotJoints(stage, prim, False)
-            schema_joint_names = []
-            for j in joints:
-                # joints may be prims or have GetPrim(); robustly extract name
-                try:
-                    p = j.GetPrim() if hasattr(j, "GetPrim") else j
-                    name = p.GetPath().pathString.rsplit("/", 1)[-1]
-                except Exception:
-                    name = str(j)
-                schema_joint_names.append(name)
-            return schema_joint_names
-        except Exception:
-            return None
-    
-    def _build_joint_index_mappings(self, engine_joint_names: list[str], schema_joint_names: list[str]):
-        """Build mappings between engine and schema joint orders."""
-        # Filter schema list to only those joints that exist in engine
-        schema_filtered = [n for n in schema_joint_names if n in engine_joint_names]
-        if len(schema_filtered) != len(engine_joint_names):
-            return None, None
-        
-        engine_index = {n: i for i, n in enumerate(engine_joint_names)}
-        schema_index = {n: i for i, n in enumerate(schema_filtered)}
-        
-        # engine_to_schema: for each engine joint index, what schema index should it map to
-        engine_to_schema = [schema_index[n] for n in engine_joint_names]
-        # schema_to_engine: for each schema joint index, what engine index should it map to  
-        schema_to_engine = [engine_index[n] for n in schema_filtered]
-        
-        return engine_to_schema, schema_to_engine
     
     def compute(self) -> bool:
         """Compute the permutation mappings for importing from schema representation."""
@@ -381,57 +359,32 @@ class _SchemaImportHelper:
             return False
             
         # Build index mappings
-        engine_to_schema, schema_to_engine = self._build_joint_index_mappings(engine_joint_names, schema_joint_names)
-        if engine_to_schema is None:
+        mappings = self._build_joint_index_mappings(engine_joint_names, schema_joint_names)
+        if mappings[0] is None:
             return False
         
-        print("engine_to_schema", engine_to_schema)
-        print("schema_to_engine", schema_to_engine)
+        # print("engine_to_schema", mappings[0])
+        # print("schema_to_engine", mappings[1])
         
-        # Observation term offsets and sizes
-        if hasattr(self.base_env, "observation_manager"):
-            obs_mgr = self.base_env.observation_manager
-            if ("policy" not in obs_mgr.active_terms) or ("policy" not in obs_mgr.group_obs_term_dim):
-                return False
-            term_names = list(obs_mgr.active_terms["policy"])  # list[str]
-            term_dims = [int(np.prod(d)) for d in obs_mgr.group_obs_term_dim["policy"]]
-        else:
+        # Get observation terms info
+        term_names, term_dims = self._get_observation_terms_info()
+        if term_names is None or term_dims is None:
             return False
 
-        # Required terms
-        try:
-            idx_joint_pos = term_names.index("joint_pos")
-            idx_joint_vel = term_names.index("joint_vel")
-            idx_actions_obs = term_names.index("actions")
-        except ValueError:
+        # Validate joint terms
+        term_indices = self._validate_joint_terms(engine_joint_names, term_names, term_dims)
+        if term_indices is None:
             return False
 
-        # Validate sizes match number of joints
-        num_joints = len(engine_joint_names)
-        if (
-            term_dims[idx_joint_pos] != num_joints
-            or term_dims[idx_joint_vel] != num_joints
-            or term_dims[idx_actions_obs] != num_joints
-        ):
-            return False
-
-        # Build flat observation permutation that maps engine obs -> schema obs (for policy input)
-        offsets = np.cumsum([0] + term_dims[:-1]).tolist()
-        total_obs = int(np.sum(term_dims))
-        obs_perm = np.arange(total_obs)
-
-        # For each joint-related slice, set perm so that schema_obs = engine_obs[:, obs_perm]
-        for term_index in (idx_joint_pos, idx_joint_vel, idx_actions_obs):
-            start = offsets[term_index]
-            length = term_dims[term_index]
-            # For importing: build schema-ordered obs by selecting engine indices per schema index
-            perm_slice = np.array(schema_to_engine, dtype=np.int64)
-            obs_perm[start : start + length] = start + perm_slice
-
-        self.obs_perm = torch.as_tensor(obs_perm, dtype=torch.long)
+        # Compute observation permutation (for import, for_import=True)
+        self.obs_perm, engine_to_schema, schema_to_engine = self._compute_observation_permutation(
+            mappings, term_names, term_dims, term_indices, for_import=True
+        )
+        # For import: action_perm maps schema actions -> engine actions
         self.action_perm = torch.as_tensor(engine_to_schema, dtype=torch.long)
-        print("obs_perm", self.obs_perm)
-        print("action_perm", self.action_perm)
+        
+        # print("obs_perm", self.obs_perm)
+        # print("action_perm", self.action_perm)
         return True
 
 
@@ -445,8 +398,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     --task=Isaac-Velocity-Flat-Anymal-D-v0 \
     --num_envs=32 \
     --export_schema_joint_order \
-    --export_schema_joint_order_file ../IsaacLab/scripts/newton_sim2sim/mappings/sim2sim_anymal_d.yaml \
-    --export_schema_joint_order_key robot_schema_joint_names
+    --schema_joint_order_file ../IsaacLab/scripts/newton_sim2sim/mappings/sim2sim_anymal_d.yaml
 
     This will save JIT and runner checkpoint in the exported directory. You can use this to import the policy to the physX-based Isaac Lab.
     To import a policy from schema order, you can use the following command:
@@ -455,8 +407,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     --task=Isaac-Velocity-Flat-Anymal-D-v0 \
     --num_envs=32 \
     --import_schema_joint_order \
-    --import_schema_joint_order_file ../IsaacLab/scripts/newton_sim2sim/mappings/sim2sim_anymal_d.yaml \
-    --import_schema_joint_order_key robot_schema_joint_names
+    --schema_joint_order_file ../IsaacLab/scripts/newton_sim2sim/mappings/sim2sim_anymal_d.yaml \
     --checkpoint /path/to/exported/policy_runner_schema_order.pt
     """
     # grab task name for checkpoint path
@@ -549,13 +500,13 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     if args_cli.export_schema_joint_order:
         try:
             schema_override = None
-            if args_cli.export_schema_joint_order_file:
-                with open(args_cli.export_schema_joint_order_file) as f:
+            if args_cli.schema_joint_order_file:
+                with open(args_cli.schema_joint_order_file) as f:
                     cfg_yaml = yaml.safe_load(f)
-                key = args_cli.export_schema_joint_order_key or "source_joint_names"
+                key = "robot_schema_joint_names"
                 if key not in cfg_yaml:
                     raise KeyError(
-                        f"Key '{key}' not found in YAML {args_cli.export_schema_joint_order_file}"
+                        f"Key '{key}' not found in YAML {args_cli.schema_joint_order_file}"
                     )
                 schema_override = list(cfg_yaml[key])
 
@@ -685,12 +636,12 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     if args_cli.import_schema_joint_order:
         try:
             schema_override = None
-            if args_cli.import_schema_joint_order_file:
-                with open(args_cli.import_schema_joint_order_file) as f:
+            if args_cli.schema_joint_order_file:
+                with open(args_cli.schema_joint_order_file) as f:
                     cfg_yaml = yaml.safe_load(f)
-                key = args_cli.import_schema_joint_order_key or "target_joint_names"
+                key = "robot_schema_joint_names"
                 if key not in cfg_yaml:
-                    raise KeyError(f"Key '{key}' not found in YAML {args_cli.import_schema_joint_order_file}")
+                    raise KeyError(f"Key '{key}' not found in YAML {args_cli.schema_joint_order_file}")
                 schema_override = list(cfg_yaml[key])
 
             import_helper = _SchemaImportHelper(env.unwrapped, schema_override_names=schema_override)
@@ -738,8 +689,6 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
 
     # reset environment
     obs = env.get_observations()
-    print("obs", obs)
-    print("obs['policy'].device", obs['policy'].device)
     # Align runner/policy devices with observation device
     try:
         if isinstance(obs, dict) or (hasattr(obs, "__getitem__") and "policy" in obs):
