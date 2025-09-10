@@ -1,6 +1,24 @@
 Changelog
 ---------
 
+0.4.0 (2025-09-09)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Introduced PBT to rl-games.
+
+
+0.3.0 (2025-09-03)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Enhanced rl-games wrapper to allow dict observation.
+
+
 0.2.4 (2025-08-07)
 ~~~~~~~~~~~~~~~~~~
 
