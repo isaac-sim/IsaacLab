@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.2.1" />
-    <meta name="docbuild:last-update" content="Sep 09, 2025"/>
+    <meta name="docbuild:last-update" content="Sep 10, 2025"/>
   </head>
   
   
@@ -355,6 +355,7 @@
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../../features/hydra.html">Hydra Configuration System</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../features/multi_gpu.html">Multi-GPU and Multi-Node Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../features/population_based_training.html">Population Based Training</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../overview/core-concepts/sensors/camera.html">Tiled Rendering</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../features/ray.html">Ray Job Dispatch and Tuning</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../features/reproducibility.html">Reproducibility and Determinism</a></li>
@@ -412,6 +413,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.sim.spawners.html">isaaclab.sim.spawners</a></li>
 <li class="toctree-l2 current active"><a class="current reference internal" href="#">isaaclab_rl</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../lab_mimic/isaaclab_mimic.datagen.html">isaaclab_mimic.datagen</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab_mimic/isaaclab_mimic.envs.html">isaaclab_mimic.envs</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../lab_tasks/isaaclab_tasks.utils.html">isaaclab_tasks.utils</a></li>
 </ul>
 </details></li>
@@ -642,30 +644,7 @@
             </div>
             <nav aria-label="Page">
                 <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-isaaclab_rl.rl_games">RL-Games Wrapper</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rl_games.RlGamesVecEnvWrapper"><code class="docutils literal notranslate"><span class="pre">RlGamesVecEnvWrapper</span></code></a><ul class="nav section-nav flex-column">
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rl_games.RlGamesVecEnvWrapper.__init__"><code class="docutils literal notranslate"><span class="pre">RlGamesVecEnvWrapper.__init__()</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rl_games.RlGamesVecEnvWrapper.render_mode"><code class="docutils literal notranslate"><span class="pre">RlGamesVecEnvWrapper.render_mode</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rl_games.RlGamesVecEnvWrapper.observation_space"><code class="docutils literal notranslate"><span class="pre">RlGamesVecEnvWrapper.observation_space</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rl_games.RlGamesVecEnvWrapper.action_space"><code class="docutils literal notranslate"><span class="pre">RlGamesVecEnvWrapper.action_space</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rl_games.RlGamesVecEnvWrapper.class_name"><code class="docutils literal notranslate"><span class="pre">RlGamesVecEnvWrapper.class_name()</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rl_games.RlGamesVecEnvWrapper.unwrapped"><code class="docutils literal notranslate"><span class="pre">RlGamesVecEnvWrapper.unwrapped</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rl_games.RlGamesVecEnvWrapper.num_envs"><code class="docutils literal notranslate"><span class="pre">RlGamesVecEnvWrapper.num_envs</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rl_games.RlGamesVecEnvWrapper.device"><code class="docutils literal notranslate"><span class="pre">RlGamesVecEnvWrapper.device</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rl_games.RlGamesVecEnvWrapper.state_space"><code class="docutils literal notranslate"><span class="pre">RlGamesVecEnvWrapper.state_space</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rl_games.RlGamesVecEnvWrapper.get_number_of_agents"><code class="docutils literal notranslate"><span class="pre">RlGamesVecEnvWrapper.get_number_of_agents()</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rl_games.RlGamesVecEnvWrapper.get_env_info"><code class="docutils literal notranslate"><span class="pre">RlGamesVecEnvWrapper.get_env_info()</span></code></a></li>
-</ul>
-</li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rl_games.make_concat_plan"><code class="docutils literal notranslate"><span class="pre">make_concat_plan()</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rl_games.RlGamesGpuEnv"><code class="docutils literal notranslate"><span class="pre">RlGamesGpuEnv</span></code></a><ul class="nav section-nav flex-column">
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rl_games.RlGamesGpuEnv.__init__"><code class="docutils literal notranslate"><span class="pre">RlGamesGpuEnv.__init__()</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rl_games.RlGamesGpuEnv.get_number_of_agents"><code class="docutils literal notranslate"><span class="pre">RlGamesGpuEnv.get_number_of_agents()</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rl_games.RlGamesGpuEnv.get_env_info"><code class="docutils literal notranslate"><span class="pre">RlGamesGpuEnv.get_env_info()</span></code></a></li>
-</ul>
-</li>
-</ul>
-</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-isaaclab_rl.rl_games">RL-Games Wrapper</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-isaaclab_rl.rsl_rl">RSL-RL Wrapper</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.export_policy_as_jit"><code class="docutils literal notranslate"><span class="pre">export_policy_as_jit()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.export_policy_as_onnx"><code class="docutils literal notranslate"><span class="pre">export_policy_as_onnx()</span></code></a></li>
@@ -918,293 +897,7 @@ expect different input and output data structures, their wrapper classes are not
 Thus, they should always be used in conjunction with the respective learning framework.</p>
 <section id="module-isaaclab_rl.rl_games">
 <span id="rl-games-wrapper"></span><h2>RL-Games Wrapper<a class="headerlink" href="#module-isaaclab_rl.rl_games" title="Permalink to this heading">#</a></h2>
-<p>Wrapper to configure an environment instance to RL-Games vectorized environment.</p>
-<p>The following example shows how to wrap an environment for RL-Games and register the environment construction
-for RL-Games <code class="xref py py-class docutils literal notranslate"><span class="pre">Runner</span></code> class:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">rl_games.common</span><span class="w"> </span><span class="kn">import</span> <span class="n">env_configurations</span><span class="p">,</span> <span class="n">vecenv</span>
-
-<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_rl.rl_games</span><span class="w"> </span><span class="kn">import</span> <span class="n">RlGamesGpuEnv</span><span class="p">,</span> <span class="n">RlGamesVecEnvWrapper</span>
-
-<span class="c1"># configuration parameters</span>
-<span class="n">rl_device</span> <span class="o">=</span> <span class="s2">&quot;cuda:0&quot;</span>
-<span class="n">clip_obs</span> <span class="o">=</span> <span class="mf">10.0</span>
-<span class="n">clip_actions</span> <span class="o">=</span> <span class="mf">1.0</span>
-
-<span class="c1"># wrap around environment for rl-games</span>
-<span class="n">env</span> <span class="o">=</span> <span class="n">RlGamesVecEnvWrapper</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">rl_device</span><span class="p">,</span> <span class="n">clip_obs</span><span class="p">,</span> <span class="n">clip_actions</span><span class="p">)</span>
-
-<span class="c1"># register the environment to rl-games registry</span>
-<span class="c1"># note: in agents configuration: environment name must be &quot;rlgpu&quot;</span>
-<span class="n">vecenv</span><span class="o">.</span><span class="n">register</span><span class="p">(</span>
-    <span class="s2">&quot;IsaacRlgWrapper&quot;</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">config_name</span><span class="p">,</span> <span class="n">num_actors</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">:</span> <span class="n">RlGamesGpuEnv</span><span class="p">(</span><span class="n">config_name</span><span class="p">,</span> <span class="n">num_actors</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
-<span class="p">)</span>
-<span class="n">env_configurations</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="s2">&quot;rlgpu&quot;</span><span class="p">,</span> <span class="p">{</span><span class="s2">&quot;vecenv_type&quot;</span><span class="p">:</span> <span class="s2">&quot;IsaacRlgWrapper&quot;</span><span class="p">,</span> <span class="s2">&quot;env_creator&quot;</span><span class="p">:</span> <span class="k">lambda</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">:</span> <span class="n">env</span><span class="p">})</span>
-</pre></div>
-</div>
-<p><strong>Classes:</strong></p>
-<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
-<tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_rl.rl_games.RlGamesVecEnvWrapper" title="isaaclab_rl.rl_games.RlGamesVecEnvWrapper"><code class="xref py py-obj docutils literal notranslate"><span class="pre">RlGamesVecEnvWrapper</span></code></a></p></td>
-<td><p>Wraps around Isaac Lab environment for RL-Games.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_rl.rl_games.RlGamesGpuEnv" title="isaaclab_rl.rl_games.RlGamesGpuEnv"><code class="xref py py-obj docutils literal notranslate"><span class="pre">RlGamesGpuEnv</span></code></a></p></td>
-<td><p>Thin wrapper to create instance of the environment to fit RL-Games runner.</p></td>
-</tr>
-</tbody>
-</table>
-</div>
-<p><strong>Functions:</strong></p>
-<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
-<tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_rl.rl_games.make_concat_plan" title="isaaclab_rl.rl_games.make_concat_plan"><code class="xref py py-obj docutils literal notranslate"><span class="pre">make_concat_plan</span></code></a>(shapes)</p></td>
-<td><p>Given per-sample shapes (no batch dim), return:</p></td>
-</tr>
-</tbody>
-</table>
-</div>
-<dl class="py class">
-<dt class="sig sig-object py" id="isaaclab_rl.rl_games.RlGamesVecEnvWrapper">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab_rl.rl_games.</span></span><span class="sig-name descname"><span class="pre">RlGamesVecEnvWrapper</span></span><a class="reference internal" href="../../../_modules/isaaclab_rl/rl_games.html#RlGamesVecEnvWrapper"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_rl.rl_games.RlGamesVecEnvWrapper" title="Permalink to this definition">#</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">IVecEnv</span></code></p>
-<p>Wraps around Isaac Lab environment for RL-Games.</p>
-<p>This class wraps around the Isaac Lab environment. Since RL-Games works directly on
-GPU buffers, the wrapper handles moving of buffers from the simulation environment
-to the same device as the learning agent. Additionally, it performs clipping of
-observations and actions.</p>
-<p>For algorithms like asymmetric actor-critic, RL-Games expects a dictionary for
-observations. This dictionary contains “obs” and “states” which typically correspond
-to the actor and critic observations respectively.</p>
-<p>To use asymmetric actor-critic, map privileged observation groups under <code class="docutils literal notranslate"><span class="pre">&quot;states&quot;</span></code> (e.g. <code class="docutils literal notranslate"><span class="pre">[&quot;critic&quot;]</span></code>).</p>
-<p>The wrapper supports <strong>either</strong> concatenated tensors (default) <strong>or</strong> Dict inputs:
-when wrapper is concate mode, rl-games sees {“obs”: Tensor, (optional)”states”: Tensor}
-when wrapper is not concate mode, rl-games sees {“obs”: dict[str, Tensor], (optional)”states”: dict[str, Tensor]}</p>
-<ul class="simple">
-<li><p>Concatenated mode (<code class="docutils literal notranslate"><span class="pre">concate_obs_group=True</span></code>): <code class="docutils literal notranslate"><span class="pre">observation_space</span></code>/<code class="docutils literal notranslate"><span class="pre">state_space</span></code> are <code class="docutils literal notranslate"><span class="pre">gym.spaces.Box</span></code>.</p></li>
-<li><p>Dict mode (<code class="docutils literal notranslate"><span class="pre">concate_obs_group=False</span></code>): <code class="docutils literal notranslate"><span class="pre">observation_space</span></code>/<code class="docutils literal notranslate"><span class="pre">state_space</span></code> are <code class="docutils literal notranslate"><span class="pre">gym.spaces.Dict</span></code> keyed by
-the requested groups. When no <code class="docutils literal notranslate"><span class="pre">&quot;states&quot;</span></code> groups are provided, the states Dict is omitted at runtime.</p></li>
-</ul>
-<div class="admonition caution">
-<p class="admonition-title">Caution</p>
-<p>This class must be the last wrapper in the wrapper chain. This is because the wrapper does not follow
-the <code class="xref py py-class docutils literal notranslate"><span class="pre">gym.Wrapper</span></code> interface. Any subsequent wrappers will need to be modified to work with this
-wrapper.</p>
-</div>
-<dl class="simple">
-<dt>Reference:</dt><dd><p><a class="github reference external" href="https://github.com/Denys88/rl_games/blob/master/rl_games/common/ivecenv.py">Denys88/rl_games</a>
-<a class="github reference external" href="https://github.com/NVIDIA-Omniverse/IsaacGymEnvs">NVIDIA-Omniverse/IsaacGymEnvs</a></p>
-</dd>
-</dl>
-<p><strong>Methods:</strong></p>
-<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
-<tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_rl.rl_games.RlGamesVecEnvWrapper.__init__" title="isaaclab_rl.rl_games.RlGamesVecEnvWrapper.__init__"><code class="xref py py-obj docutils literal notranslate"><span class="pre">__init__</span></code></a>(env, rl_device, clip_obs, clip_actions)</p></td>
-<td><p>Initializes the wrapper instance.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_rl.rl_games.RlGamesVecEnvWrapper.class_name" title="isaaclab_rl.rl_games.RlGamesVecEnvWrapper.class_name"><code class="xref py py-obj docutils literal notranslate"><span class="pre">class_name</span></code></a>()</p></td>
-<td><p>Returns the class name of the wrapper.</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_rl.rl_games.RlGamesVecEnvWrapper.get_number_of_agents" title="isaaclab_rl.rl_games.RlGamesVecEnvWrapper.get_number_of_agents"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_number_of_agents</span></code></a>()</p></td>
-<td><p>Returns number of actors in the environment.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_rl.rl_games.RlGamesVecEnvWrapper.get_env_info" title="isaaclab_rl.rl_games.RlGamesVecEnvWrapper.get_env_info"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_env_info</span></code></a>()</p></td>
-<td><p>Returns the Gym spaces for the environment.</p></td>
-</tr>
-</tbody>
-</table>
-</div>
-<p><strong>Attributes:</strong></p>
-<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
-<tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_rl.rl_games.RlGamesVecEnvWrapper.render_mode" title="isaaclab_rl.rl_games.RlGamesVecEnvWrapper.render_mode"><code class="xref py py-obj docutils literal notranslate"><span class="pre">render_mode</span></code></a></p></td>
-<td><p>Returns the <code class="xref py py-attr docutils literal notranslate"><span class="pre">Env</span></code> <a class="reference internal" href="#isaaclab_rl.rl_games.RlGamesVecEnvWrapper.render_mode" title="isaaclab_rl.rl_games.RlGamesVecEnvWrapper.render_mode"><code class="xref py py-attr docutils literal notranslate"><span class="pre">render_mode</span></code></a>.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_rl.rl_games.RlGamesVecEnvWrapper.observation_space" title="isaaclab_rl.rl_games.RlGamesVecEnvWrapper.observation_space"><code class="xref py py-obj docutils literal notranslate"><span class="pre">observation_space</span></code></a></p></td>
-<td><p>Returns the <code class="xref py py-attr docutils literal notranslate"><span class="pre">Env</span></code> <a class="reference internal" href="#isaaclab_rl.rl_games.RlGamesVecEnvWrapper.observation_space" title="isaaclab_rl.rl_games.RlGamesVecEnvWrapper.observation_space"><code class="xref py py-attr docutils literal notranslate"><span class="pre">observation_space</span></code></a> (<code class="docutils literal notranslate"><span class="pre">Box</span></code> if concatenated, otherwise <code class="docutils literal notranslate"><span class="pre">Dict</span></code>).</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_rl.rl_games.RlGamesVecEnvWrapper.action_space" title="isaaclab_rl.rl_games.RlGamesVecEnvWrapper.action_space"><code class="xref py py-obj docutils literal notranslate"><span class="pre">action_space</span></code></a></p></td>
-<td><p>Returns the <code class="xref py py-attr docutils literal notranslate"><span class="pre">Env</span></code> <a class="reference internal" href="#isaaclab_rl.rl_games.RlGamesVecEnvWrapper.action_space" title="isaaclab_rl.rl_games.RlGamesVecEnvWrapper.action_space"><code class="xref py py-attr docutils literal notranslate"><span class="pre">action_space</span></code></a>.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_rl.rl_games.RlGamesVecEnvWrapper.unwrapped" title="isaaclab_rl.rl_games.RlGamesVecEnvWrapper.unwrapped"><code class="xref py py-obj docutils literal notranslate"><span class="pre">unwrapped</span></code></a></p></td>
-<td><p>Returns the base environment of the wrapper.</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_rl.rl_games.RlGamesVecEnvWrapper.num_envs" title="isaaclab_rl.rl_games.RlGamesVecEnvWrapper.num_envs"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_envs</span></code></a></p></td>
-<td><p>Returns the number of sub-environment instances.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_rl.rl_games.RlGamesVecEnvWrapper.device" title="isaaclab_rl.rl_games.RlGamesVecEnvWrapper.device"><code class="xref py py-obj docutils literal notranslate"><span class="pre">device</span></code></a></p></td>
-<td><p>Returns the base environment simulation device.</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_rl.rl_games.RlGamesVecEnvWrapper.state_space" title="isaaclab_rl.rl_games.RlGamesVecEnvWrapper.state_space"><code class="xref py py-obj docutils literal notranslate"><span class="pre">state_space</span></code></a></p></td>
-<td><p>Returns the privileged observation space for the critic (<code class="docutils literal notranslate"><span class="pre">Box</span></code> if concatenated, otherwise <code class="docutils literal notranslate"><span class="pre">Dict</span></code>).</p></td>
-</tr>
-</tbody>
-</table>
-</div>
-<dl class="py method">
-<dt class="sig sig-object py" id="isaaclab_rl.rl_games.RlGamesVecEnvWrapper.__init__">
-<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="../lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedRLEnv" title="isaaclab.envs.manager_based_rl_env.ManagerBasedRLEnv"><span class="pre">ManagerBasedRLEnv</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference internal" href="../lab/isaaclab.envs.html#isaaclab.envs.DirectRLEnv" title="isaaclab.envs.direct_rl_env.DirectRLEnv"><span class="pre">DirectRLEnv</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">rl_device</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">clip_obs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">clip_actions</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">obs_groups</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.13)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">concate_obs_group</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab_rl/rl_games.html#RlGamesVecEnvWrapper.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_rl.rl_games.RlGamesVecEnvWrapper.__init__" title="Permalink to this definition">#</a></dt>
-<dd><p>Initializes the wrapper instance.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>env</strong> – The environment to wrap around.</p></li>
-<li><p><strong>rl_device</strong> – The device on which agent computations are performed.</p></li>
-<li><p><strong>clip_obs</strong> – The clipping value for observations.</p></li>
-<li><p><strong>clip_actions</strong> – The clipping value for actions.</p></li>
-<li><p><strong>obs_groups</strong> – The remapping from isaaclab observation to rl-games, default to None for backward compatible.</p></li>
-<li><p><strong>concate_obs_group</strong> – The boolean value indicates if input to rl-games network is dict or tensor. Default to
-True for backward compatible.</p></li>
-</ul>
-</dd>
-<dt class="field-even">Raises<span class="colon">:</span></dt>
-<dd class="field-even"><ul class="simple">
-<li><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.13)"><strong>ValueError</strong></a> – The environment is not inherited from <code class="xref py py-class docutils literal notranslate"><span class="pre">ManagerBasedRLEnv</span></code> or <code class="xref py py-class docutils literal notranslate"><span class="pre">DirectRLEnv</span></code>.</p></li>
-<li><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.13)"><strong>ValueError</strong></a> – If specified, the privileged observations (critic) are not of type <code class="xref py py-obj docutils literal notranslate"><span class="pre">gym.spaces.Box</span></code>.</p></li>
-</ul>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py property">
-<dt class="sig sig-object py" id="isaaclab_rl.rl_games.RlGamesVecEnvWrapper.render_mode">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">render_mode</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab_rl.rl_games.RlGamesVecEnvWrapper.render_mode" title="Permalink to this definition">#</a></dt>
-<dd><p>Returns the <code class="xref py py-attr docutils literal notranslate"><span class="pre">Env</span></code> <a class="reference internal" href="#isaaclab_rl.rl_games.RlGamesVecEnvWrapper.render_mode" title="isaaclab_rl.rl_games.RlGamesVecEnvWrapper.render_mode"><code class="xref py py-attr docutils literal notranslate"><span class="pre">render_mode</span></code></a>.</p>
-</dd></dl>
-
-<dl class="py property">
-<dt class="sig sig-object py" id="isaaclab_rl.rl_games.RlGamesVecEnvWrapper.observation_space">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">observation_space</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">gym.spaces.Box</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">gym.spaces.Dict</span></em><a class="headerlink" href="#isaaclab_rl.rl_games.RlGamesVecEnvWrapper.observation_space" title="Permalink to this definition">#</a></dt>
-<dd><p>Returns the <code class="xref py py-attr docutils literal notranslate"><span class="pre">Env</span></code> <a class="reference internal" href="#isaaclab_rl.rl_games.RlGamesVecEnvWrapper.observation_space" title="isaaclab_rl.rl_games.RlGamesVecEnvWrapper.observation_space"><code class="xref py py-attr docutils literal notranslate"><span class="pre">observation_space</span></code></a> (<code class="docutils literal notranslate"><span class="pre">Box</span></code> if concatenated, otherwise <code class="docutils literal notranslate"><span class="pre">Dict</span></code>).</p>
-</dd></dl>
-
-<dl class="py property">
-<dt class="sig sig-object py" id="isaaclab_rl.rl_games.RlGamesVecEnvWrapper.action_space">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">action_space</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">gym.Space</span></em><a class="headerlink" href="#isaaclab_rl.rl_games.RlGamesVecEnvWrapper.action_space" title="Permalink to this definition">#</a></dt>
-<dd><p>Returns the <code class="xref py py-attr docutils literal notranslate"><span class="pre">Env</span></code> <a class="reference internal" href="#isaaclab_rl.rl_games.RlGamesVecEnvWrapper.action_space" title="isaaclab_rl.rl_games.RlGamesVecEnvWrapper.action_space"><code class="xref py py-attr docutils literal notranslate"><span class="pre">action_space</span></code></a>.</p>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="isaaclab_rl.rl_games.RlGamesVecEnvWrapper.class_name">
-<em class="property"><span class="pre">classmethod</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">class_name</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab_rl/rl_games.html#RlGamesVecEnvWrapper.class_name"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_rl.rl_games.RlGamesVecEnvWrapper.class_name" title="Permalink to this definition">#</a></dt>
-<dd><p>Returns the class name of the wrapper.</p>
-</dd></dl>
-
-<dl class="py property">
-<dt class="sig sig-object py" id="isaaclab_rl.rl_games.RlGamesVecEnvWrapper.unwrapped">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">unwrapped</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="../lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedRLEnv" title="isaaclab.envs.manager_based_rl_env.ManagerBasedRLEnv"><span class="pre">ManagerBasedRLEnv</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference internal" href="../lab/isaaclab.envs.html#isaaclab.envs.DirectRLEnv" title="isaaclab.envs.direct_rl_env.DirectRLEnv"><span class="pre">DirectRLEnv</span></a></em><a class="headerlink" href="#isaaclab_rl.rl_games.RlGamesVecEnvWrapper.unwrapped" title="Permalink to this definition">#</a></dt>
-<dd><p>Returns the base environment of the wrapper.</p>
-<p>This will be the bare <a class="reference external" href="https://gymnasium.farama.org/api/env/#gymnasium.Env" title="(in Gymnasium)"><code class="xref py py-class docutils literal notranslate"><span class="pre">gymnasium.Env</span></code></a> environment, underneath all layers of wrappers.</p>
-</dd></dl>
-
-<dl class="py property">
-<dt class="sig sig-object py" id="isaaclab_rl.rl_games.RlGamesVecEnvWrapper.num_envs">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">num_envs</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a></em><a class="headerlink" href="#isaaclab_rl.rl_games.RlGamesVecEnvWrapper.num_envs" title="Permalink to this definition">#</a></dt>
-<dd><p>Returns the number of sub-environment instances.</p>
-</dd></dl>
-
-<dl class="py property">
-<dt class="sig sig-object py" id="isaaclab_rl.rl_games.RlGamesVecEnvWrapper.device">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">device</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></em><a class="headerlink" href="#isaaclab_rl.rl_games.RlGamesVecEnvWrapper.device" title="Permalink to this definition">#</a></dt>
-<dd><p>Returns the base environment simulation device.</p>
-</dd></dl>
-
-<dl class="py property">
-<dt class="sig sig-object py" id="isaaclab_rl.rl_games.RlGamesVecEnvWrapper.state_space">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">state_space</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">gym.spaces.Box</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">gym.spaces.Dict</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab_rl.rl_games.RlGamesVecEnvWrapper.state_space" title="Permalink to this definition">#</a></dt>
-<dd><p>Returns the privileged observation space for the critic (<code class="docutils literal notranslate"><span class="pre">Box</span></code> if concatenated, otherwise <code class="docutils literal notranslate"><span class="pre">Dict</span></code>).</p>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="isaaclab_rl.rl_games.RlGamesVecEnvWrapper.get_number_of_agents">
-<span class="sig-name descname"><span class="pre">get_number_of_agents</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab_rl/rl_games.html#RlGamesVecEnvWrapper.get_number_of_agents"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_rl.rl_games.RlGamesVecEnvWrapper.get_number_of_agents" title="Permalink to this definition">#</a></dt>
-<dd><p>Returns number of actors in the environment.</p>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="isaaclab_rl.rl_games.RlGamesVecEnvWrapper.get_env_info">
-<span class="sig-name descname"><span class="pre">get_env_info</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><span class="pre">dict</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab_rl/rl_games.html#RlGamesVecEnvWrapper.get_env_info"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_rl.rl_games.RlGamesVecEnvWrapper.get_env_info" title="Permalink to this definition">#</a></dt>
-<dd><p>Returns the Gym spaces for the environment.</p>
-</dd></dl>
-
-</dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="isaaclab_rl.rl_games.make_concat_plan">
-<span class="sig-prename descclassname"><span class="pre">isaaclab_rl.rl_games.</span></span><span class="sig-name descname"><span class="pre">make_concat_plan</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">shapes</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.13)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://trimesh.org/trimesh.typed.html#trimesh.typed.Callable" title="(in trimesh)"><span class="pre">collections.abc.Callable</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../../../_modules/isaaclab_rl/rl_games.html#make_concat_plan"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_rl.rl_games.make_concat_plan" title="Permalink to this definition">#</a></dt>
-<dd><dl class="simple">
-<dt>Given per-sample shapes (no batch dim), return:</dt><dd><ul class="simple">
-<li><p>the concatenated per-sample shape</p></li>
-<li><p>a function that concatenates a list of batch tensors accordingly.</p></li>
-</ul>
-</dd>
-<dt>Rules:</dt><dd><ol class="arabic simple" start="0">
-<li><p>Empty -&gt; (0,), No-op</p></li>
-<li><p>All 1D -&gt; concat features (dim=1).</p></li>
-<li><p>Same rank &gt; 1:
-2a) If all s[:-1] equal -&gt; concat along last dim (channels-last, dim=-1).
-2b) If all s[1:] equal  -&gt; concat along first dim (channels-first, dim=1).</p></li>
-</ol>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py class">
-<dt class="sig sig-object py" id="isaaclab_rl.rl_games.RlGamesGpuEnv">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab_rl.rl_games.</span></span><span class="sig-name descname"><span class="pre">RlGamesGpuEnv</span></span><a class="reference internal" href="../../../_modules/isaaclab_rl/rl_games.html#RlGamesGpuEnv"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_rl.rl_games.RlGamesGpuEnv" title="Permalink to this definition">#</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">IVecEnv</span></code></p>
-<p>Thin wrapper to create instance of the environment to fit RL-Games runner.</p>
-<p><strong>Methods:</strong></p>
-<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
-<tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_rl.rl_games.RlGamesGpuEnv.__init__" title="isaaclab_rl.rl_games.RlGamesGpuEnv.__init__"><code class="xref py py-obj docutils literal notranslate"><span class="pre">__init__</span></code></a>(config_name, num_actors, **kwargs)</p></td>
-<td><p>Initialize the environment.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_rl.rl_games.RlGamesGpuEnv.get_number_of_agents" title="isaaclab_rl.rl_games.RlGamesGpuEnv.get_number_of_agents"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_number_of_agents</span></code></a>()</p></td>
-<td><p>Get number of agents in the environment.</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_rl.rl_games.RlGamesGpuEnv.get_env_info" title="isaaclab_rl.rl_games.RlGamesGpuEnv.get_env_info"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_env_info</span></code></a>()</p></td>
-<td><p>Get the Gym spaces for the environment.</p></td>
-</tr>
-</tbody>
-</table>
-</div>
-<dl class="py method">
-<dt class="sig sig-object py" id="isaaclab_rl.rl_games.RlGamesGpuEnv.__init__">
-<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">config_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_actors</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab_rl/rl_games.html#RlGamesGpuEnv.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_rl.rl_games.RlGamesGpuEnv.__init__" title="Permalink to this definition">#</a></dt>
-<dd><p>Initialize the environment.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>config_name</strong> – The name of the environment configuration.</p></li>
-<li><p><strong>num_actors</strong> – The number of actors in the environment. This is not used in this wrapper.</p></li>
-</ul>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="isaaclab_rl.rl_games.RlGamesGpuEnv.get_number_of_agents">
-<span class="sig-name descname"><span class="pre">get_number_of_agents</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab_rl/rl_games.html#RlGamesGpuEnv.get_number_of_agents"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_rl.rl_games.RlGamesGpuEnv.get_number_of_agents" title="Permalink to this definition">#</a></dt>
-<dd><p>Get number of agents in the environment.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Returns<span class="colon">:</span></dt>
-<dd class="field-odd"><p>The number of agents in the environment.</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="isaaclab_rl.rl_games.RlGamesGpuEnv.get_env_info">
-<span class="sig-name descname"><span class="pre">get_env_info</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><span class="pre">dict</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab_rl/rl_games.html#RlGamesGpuEnv.get_env_info"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_rl.rl_games.RlGamesGpuEnv.get_env_info" title="Permalink to this definition">#</a></dt>
-<dd><p>Get the Gym spaces for the environment.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Returns<span class="colon">:</span></dt>
-<dd class="field-odd"><p>The Gym spaces for the environment.</p>
-</dd>
-</dl>
-</dd></dl>
-
-</dd></dl>
-
+<p>Wrappers and utilities to configure an environment for rl-games library.</p>
 </section>
 <section id="module-isaaclab_rl.rsl_rl">
 <span id="rsl-rl-wrapper"></span><h2>RSL-RL Wrapper<a class="headerlink" href="#module-isaaclab_rl.rsl_rl" title="Permalink to this heading">#</a></h2>
@@ -3511,30 +3204,7 @@ wrapper.</p>
   </div>
   <nav class="bd-toc-nav page-toc">
     <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-isaaclab_rl.rl_games">RL-Games Wrapper</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rl_games.RlGamesVecEnvWrapper"><code class="docutils literal notranslate"><span class="pre">RlGamesVecEnvWrapper</span></code></a><ul class="nav section-nav flex-column">
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rl_games.RlGamesVecEnvWrapper.__init__"><code class="docutils literal notranslate"><span class="pre">RlGamesVecEnvWrapper.__init__()</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rl_games.RlGamesVecEnvWrapper.render_mode"><code class="docutils literal notranslate"><span class="pre">RlGamesVecEnvWrapper.render_mode</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rl_games.RlGamesVecEnvWrapper.observation_space"><code class="docutils literal notranslate"><span class="pre">RlGamesVecEnvWrapper.observation_space</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rl_games.RlGamesVecEnvWrapper.action_space"><code class="docutils literal notranslate"><span class="pre">RlGamesVecEnvWrapper.action_space</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rl_games.RlGamesVecEnvWrapper.class_name"><code class="docutils literal notranslate"><span class="pre">RlGamesVecEnvWrapper.class_name()</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rl_games.RlGamesVecEnvWrapper.unwrapped"><code class="docutils literal notranslate"><span class="pre">RlGamesVecEnvWrapper.unwrapped</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rl_games.RlGamesVecEnvWrapper.num_envs"><code class="docutils literal notranslate"><span class="pre">RlGamesVecEnvWrapper.num_envs</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rl_games.RlGamesVecEnvWrapper.device"><code class="docutils literal notranslate"><span class="pre">RlGamesVecEnvWrapper.device</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rl_games.RlGamesVecEnvWrapper.state_space"><code class="docutils literal notranslate"><span class="pre">RlGamesVecEnvWrapper.state_space</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rl_games.RlGamesVecEnvWrapper.get_number_of_agents"><code class="docutils literal notranslate"><span class="pre">RlGamesVecEnvWrapper.get_number_of_agents()</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rl_games.RlGamesVecEnvWrapper.get_env_info"><code class="docutils literal notranslate"><span class="pre">RlGamesVecEnvWrapper.get_env_info()</span></code></a></li>
-</ul>
-</li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rl_games.make_concat_plan"><code class="docutils literal notranslate"><span class="pre">make_concat_plan()</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rl_games.RlGamesGpuEnv"><code class="docutils literal notranslate"><span class="pre">RlGamesGpuEnv</span></code></a><ul class="nav section-nav flex-column">
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rl_games.RlGamesGpuEnv.__init__"><code class="docutils literal notranslate"><span class="pre">RlGamesGpuEnv.__init__()</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rl_games.RlGamesGpuEnv.get_number_of_agents"><code class="docutils literal notranslate"><span class="pre">RlGamesGpuEnv.get_number_of_agents()</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rl_games.RlGamesGpuEnv.get_env_info"><code class="docutils literal notranslate"><span class="pre">RlGamesGpuEnv.get_env_info()</span></code></a></li>
-</ul>
-</li>
-</ul>
-</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-isaaclab_rl.rl_games">RL-Games Wrapper</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-isaaclab_rl.rsl_rl">RSL-RL Wrapper</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.export_policy_as_jit"><code class="docutils literal notranslate"><span class="pre">export_policy_as_jit()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_rl.rsl_rl.export_policy_as_onnx"><code class="docutils literal notranslate"><span class="pre">export_policy_as_onnx()</span></code></a></li>
@@ -3794,7 +3464,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Sep 09, 2025.
+  Last updated on Sep 10, 2025.
   <br/>
 </p>
   </div>

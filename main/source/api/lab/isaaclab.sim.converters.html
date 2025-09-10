@@ -63,7 +63,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.2.1" />
-    <meta name="docbuild:last-update" content="Sep 09, 2025"/>
+    <meta name="docbuild:last-update" content="Sep 10, 2025"/>
   </head>
   
   
@@ -357,6 +357,7 @@
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../../features/hydra.html">Hydra Configuration System</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../features/multi_gpu.html">Multi-GPU and Multi-Node Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../features/population_based_training.html">Population Based Training</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../overview/core-concepts/sensors/camera.html">Tiled Rendering</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../features/ray.html">Ray Job Dispatch and Tuning</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../features/reproducibility.html">Reproducibility and Determinism</a></li>
@@ -414,6 +415,7 @@
 <li class="toctree-l2"><a class="reference internal" href="isaaclab.sim.spawners.html">isaaclab.sim.spawners</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../lab_rl/isaaclab_rl.html">isaaclab_rl</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../lab_mimic/isaaclab_mimic.datagen.html">isaaclab_mimic.datagen</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab_mimic/isaaclab_mimic.envs.html">isaaclab_mimic.envs</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../lab_tasks/isaaclab_tasks.utils.html">isaaclab_tasks.utils</a></li>
 </ul>
 </details></li>
@@ -682,7 +684,7 @@
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.converters.MeshConverterCfg.usd_file_name"><code class="docutils literal notranslate"><span class="pre">MeshConverterCfg.usd_file_name</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.converters.MeshConverterCfg.force_usd_conversion"><code class="docutils literal notranslate"><span class="pre">MeshConverterCfg.force_usd_conversion</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.converters.MeshConverterCfg.make_instanceable"><code class="docutils literal notranslate"><span class="pre">MeshConverterCfg.make_instanceable</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.converters.MeshConverterCfg.collision_approximation"><code class="docutils literal notranslate"><span class="pre">MeshConverterCfg.collision_approximation</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.converters.MeshConverterCfg.mesh_collision_props"><code class="docutils literal notranslate"><span class="pre">MeshConverterCfg.mesh_collision_props</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.converters.MeshConverterCfg.translation"><code class="docutils literal notranslate"><span class="pre">MeshConverterCfg.translation</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.converters.MeshConverterCfg.rotation"><code class="docutils literal notranslate"><span class="pre">MeshConverterCfg.rotation</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.converters.MeshConverterCfg.scale"><code class="docutils literal notranslate"><span class="pre">MeshConverterCfg.scale</span></code></a></li>
@@ -1117,8 +1119,8 @@ difficult to move the USD asset to a different location.</p>
 <tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.converters.MeshConverterCfg.make_instanceable" title="isaaclab.sim.converters.MeshConverterCfg.make_instanceable"><code class="xref py py-obj docutils literal notranslate"><span class="pre">make_instanceable</span></code></a></p></td>
 <td><p>Make the generated USD file instanceable.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.converters.MeshConverterCfg.collision_approximation" title="isaaclab.sim.converters.MeshConverterCfg.collision_approximation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">collision_approximation</span></code></a></p></td>
-<td><p>Collision approximation method to use.</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.converters.MeshConverterCfg.mesh_collision_props" title="isaaclab.sim.converters.MeshConverterCfg.mesh_collision_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">mesh_collision_props</span></code></a></p></td>
+<td><p>Mesh approximation properties to apply to all collision meshes in the USD.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.converters.MeshConverterCfg.translation" title="isaaclab.sim.converters.MeshConverterCfg.translation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">translation</span></code></a></p></td>
 <td><p>The translation of the mesh to the origin.</p></td>
@@ -1134,7 +1136,7 @@ difficult to move the USD asset to a different location.</p>
 </div>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab.sim.converters.MeshConverterCfg.mass_props">
-<span class="sig-name descname"><span class="pre">mass_props</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="isaaclab.sim.schemas.html#isaaclab.sim.schemas.MassPropertiesCfg" title="isaaclab.sim.schemas.schemas_cfg.MassPropertiesCfg"><span class="pre">MassPropertiesCfg</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab.sim.converters.MeshConverterCfg.mass_props" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">mass_props</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="isaaclab.sim.schemas.html#isaaclab.sim.schemas.MassPropertiesCfg" title="isaaclab.sim.schemas.schemas_cfg.MassPropertiesCfg"><span class="pre">MassPropertiesCfg</span></a></em><a class="headerlink" href="#isaaclab.sim.converters.MeshConverterCfg.mass_props" title="Permalink to this definition">#</a></dt>
 <dd><p>Mass properties to apply to the USD. Defaults to None.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
@@ -1144,7 +1146,7 @@ difficult to move the USD asset to a different location.</p>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab.sim.converters.MeshConverterCfg.rigid_props">
-<span class="sig-name descname"><span class="pre">rigid_props</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="isaaclab.sim.schemas.html#isaaclab.sim.schemas.RigidBodyPropertiesCfg" title="isaaclab.sim.schemas.schemas_cfg.RigidBodyPropertiesCfg"><span class="pre">RigidBodyPropertiesCfg</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab.sim.converters.MeshConverterCfg.rigid_props" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">rigid_props</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="isaaclab.sim.schemas.html#isaaclab.sim.schemas.RigidBodyPropertiesCfg" title="isaaclab.sim.schemas.schemas_cfg.RigidBodyPropertiesCfg"><span class="pre">RigidBodyPropertiesCfg</span></a></em><a class="headerlink" href="#isaaclab.sim.converters.MeshConverterCfg.rigid_props" title="Permalink to this definition">#</a></dt>
 <dd><p>Rigid body properties to apply to the USD. Defaults to None.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
@@ -1154,7 +1156,7 @@ difficult to move the USD asset to a different location.</p>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab.sim.converters.MeshConverterCfg.collision_props">
-<span class="sig-name descname"><span class="pre">collision_props</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="isaaclab.sim.schemas.html#isaaclab.sim.schemas.CollisionPropertiesCfg" title="isaaclab.sim.schemas.schemas_cfg.CollisionPropertiesCfg"><span class="pre">CollisionPropertiesCfg</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab.sim.converters.MeshConverterCfg.collision_props" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">collision_props</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="isaaclab.sim.schemas.html#isaaclab.sim.schemas.CollisionPropertiesCfg" title="isaaclab.sim.schemas.schemas_cfg.CollisionPropertiesCfg"><span class="pre">CollisionPropertiesCfg</span></a></em><a class="headerlink" href="#isaaclab.sim.converters.MeshConverterCfg.collision_props" title="Permalink to this definition">#</a></dt>
 <dd><p>Collision properties to apply to the USD. Defaults to None.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
@@ -1206,13 +1208,10 @@ used in the scene. For more information, please check the USD documentation on
 </dd></dl>
 
 <dl class="py attribute">
-<dt class="sig sig-object py" id="isaaclab.sim.converters.MeshConverterCfg.collision_approximation">
-<span class="sig-name descname"><span class="pre">collision_approximation</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></em><a class="headerlink" href="#isaaclab.sim.converters.MeshConverterCfg.collision_approximation" title="Permalink to this definition">#</a></dt>
-<dd><p>Collision approximation method to use. Defaults to “convexDecomposition”.</p>
-<p>Valid options are:
-“convexDecomposition”, “convexHull”, “boundingCube”,
-“boundingSphere”, “meshSimplification”, or “none”</p>
-<p>“none” causes no collision mesh to be added.</p>
+<dt class="sig sig-object py" id="isaaclab.sim.converters.MeshConverterCfg.mesh_collision_props">
+<span class="sig-name descname"><span class="pre">mesh_collision_props</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">MeshCollisionPropertiesCfg</span></em><a class="headerlink" href="#isaaclab.sim.converters.MeshConverterCfg.mesh_collision_props" title="Permalink to this definition">#</a></dt>
+<dd><p>Mesh approximation properties to apply to all collision meshes in the USD.
+.. note:: If None, then no mesh approximation properties will be added.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -1952,7 +1951,7 @@ used in the scene. For more information, please check the USD documentation on
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.converters.MeshConverterCfg.usd_file_name"><code class="docutils literal notranslate"><span class="pre">MeshConverterCfg.usd_file_name</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.converters.MeshConverterCfg.force_usd_conversion"><code class="docutils literal notranslate"><span class="pre">MeshConverterCfg.force_usd_conversion</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.converters.MeshConverterCfg.make_instanceable"><code class="docutils literal notranslate"><span class="pre">MeshConverterCfg.make_instanceable</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.converters.MeshConverterCfg.collision_approximation"><code class="docutils literal notranslate"><span class="pre">MeshConverterCfg.collision_approximation</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.converters.MeshConverterCfg.mesh_collision_props"><code class="docutils literal notranslate"><span class="pre">MeshConverterCfg.mesh_collision_props</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.converters.MeshConverterCfg.translation"><code class="docutils literal notranslate"><span class="pre">MeshConverterCfg.translation</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.converters.MeshConverterCfg.rotation"><code class="docutils literal notranslate"><span class="pre">MeshConverterCfg.rotation</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.converters.MeshConverterCfg.scale"><code class="docutils literal notranslate"><span class="pre">MeshConverterCfg.scale</span></code></a></li>
@@ -2064,7 +2063,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Sep 09, 2025.
+  Last updated on Sep 10, 2025.
   <br/>
 </p>
   </div>

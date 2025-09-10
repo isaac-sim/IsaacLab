@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.2.1" />
-    <meta name="docbuild:last-update" content="Sep 09, 2025"/>
+    <meta name="docbuild:last-update" content="Sep 10, 2025"/>
   </head>
   
   
@@ -354,6 +354,7 @@
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../../../../source/features/hydra.html">Hydra Configuration System</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../source/features/multi_gpu.html">Multi-GPU and Multi-Node Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/features/population_based_training.html">Population Based Training</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../source/overview/core-concepts/sensors/camera.html">Tiled Rendering</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../source/features/ray.html">Ray Job Dispatch and Tuning</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../source/features/reproducibility.html">Reproducibility and Determinism</a></li>
@@ -411,6 +412,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.sim.spawners.html">isaaclab.sim.spawners</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab_rl/isaaclab_rl.html">isaaclab_rl</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab_mimic/isaaclab_mimic.datagen.html">isaaclab_mimic.datagen</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab_mimic/isaaclab_mimic.envs.html">isaaclab_mimic.envs</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab_tasks/isaaclab_tasks.utils.html">isaaclab_tasks.utils</a></li>
 </ul>
 </details></li>
@@ -584,7 +586,10 @@
 <span class="c1">#</span>
 <span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
 
+<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">MISSING</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Literal</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">pxr</span><span class="w"> </span><span class="kn">import</span> <span class="n">PhysxSchema</span><span class="p">,</span> <span class="n">UsdPhysics</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">configclass</span>
 
@@ -1007,6 +1012,202 @@
 
     <span class="n">max_depenetration_velocity</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Maximum depenetration velocity permitted to be introduced by the solver (in m/s).&quot;&quot;&quot;</span></div>
+
+
+<span class="nd">@configclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">MeshCollisionPropertiesCfg</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Properties to apply to a mesh in regards to collision.</span>
+<span class="sd">    See :meth:`set_mesh_collision_properties` for more information.</span>
+
+<span class="sd">    .. note::</span>
+<span class="sd">        If the values are MISSING, they are not modified. This is useful when you want to set only a subset of</span>
+<span class="sd">        the properties and leave the rest as-is.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">usd_func</span><span class="p">:</span> <span class="nb">callable</span> <span class="o">=</span> <span class="n">MISSING</span>
+
+    <span class="n">physx_func</span><span class="p">:</span> <span class="nb">callable</span> <span class="o">=</span> <span class="n">MISSING</span>
+
+
+<span class="nd">@configclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">BoundingCubePropertiesCfg</span><span class="p">(</span><span class="n">MeshCollisionPropertiesCfg</span><span class="p">):</span>
+    <span class="n">usd_func</span><span class="p">:</span> <span class="nb">callable</span> <span class="o">=</span> <span class="n">UsdPhysics</span><span class="o">.</span><span class="n">MeshCollisionAPI</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Original USD Documentation:</span>
+<span class="sd">    https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_usd_physics_mesh_collision_a_p_i.html</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+
+<span class="nd">@configclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">BoundingSpherePropertiesCfg</span><span class="p">(</span><span class="n">MeshCollisionPropertiesCfg</span><span class="p">):</span>
+    <span class="n">usd_func</span><span class="p">:</span> <span class="nb">callable</span> <span class="o">=</span> <span class="n">UsdPhysics</span><span class="o">.</span><span class="n">MeshCollisionAPI</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Original USD Documentation:</span>
+<span class="sd">    https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_usd_physics_mesh_collision_a_p_i.html</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+
+<span class="nd">@configclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">ConvexDecompositionPropertiesCfg</span><span class="p">(</span><span class="n">MeshCollisionPropertiesCfg</span><span class="p">):</span>
+    <span class="n">usd_func</span><span class="p">:</span> <span class="nb">callable</span> <span class="o">=</span> <span class="n">UsdPhysics</span><span class="o">.</span><span class="n">MeshCollisionAPI</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Original USD Documentation:</span>
+<span class="sd">    https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_usd_physics_mesh_collision_a_p_i.html</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">physx_func</span><span class="p">:</span> <span class="nb">callable</span> <span class="o">=</span> <span class="n">PhysxSchema</span><span class="o">.</span><span class="n">PhysxConvexDecompositionCollisionAPI</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Original PhysX Documentation:</span>
+<span class="sd">    https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_physx_schema_physx_convex_decomposition_collision_a_p_i.html</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">hull_vertex_limit</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Convex hull vertex limit used for convex hull cooking.</span>
+
+<span class="sd">    Defaults to 64.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">max_convex_hulls</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Maximum of convex hulls created during convex decomposition.</span>
+<span class="sd">    Default value is 32.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">min_thickness</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Convex hull min thickness.</span>
+
+<span class="sd">    Range: [0, inf). Units are distance. Default value is 0.001.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">voxel_resolution</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Voxel resolution used for convex decomposition.</span>
+
+<span class="sd">    Defaults to 500,000 voxels.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">error_percentage</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Convex decomposition error percentage parameter.</span>
+
+<span class="sd">    Defaults to 10 percent. Units are percent.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">shrink_wrap</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Attempts to adjust the convex hull points so that they are projected onto the surface of the original graphics</span>
+<span class="sd">    mesh.</span>
+
+<span class="sd">    Defaults to False.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+
+<span class="nd">@configclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">ConvexHullPropertiesCfg</span><span class="p">(</span><span class="n">MeshCollisionPropertiesCfg</span><span class="p">):</span>
+    <span class="n">usd_func</span><span class="p">:</span> <span class="nb">callable</span> <span class="o">=</span> <span class="n">UsdPhysics</span><span class="o">.</span><span class="n">MeshCollisionAPI</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Original USD Documentation:</span>
+<span class="sd">    https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_usd_physics_mesh_collision_a_p_i.html</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">physx_func</span><span class="p">:</span> <span class="nb">callable</span> <span class="o">=</span> <span class="n">PhysxSchema</span><span class="o">.</span><span class="n">PhysxConvexHullCollisionAPI</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Original PhysX Documentation:</span>
+<span class="sd">    https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_physx_schema_physx_convex_hull_collision_a_p_i.html</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">hull_vertex_limit</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Convex hull vertex limit used for convex hull cooking.</span>
+
+<span class="sd">    Defaults to 64.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">min_thickness</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Convex hull min thickness.</span>
+
+<span class="sd">    Range: [0, inf). Units are distance. Default value is 0.001.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+
+<span class="nd">@configclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">TriangleMeshPropertiesCfg</span><span class="p">(</span><span class="n">MeshCollisionPropertiesCfg</span><span class="p">):</span>
+    <span class="n">physx_func</span><span class="p">:</span> <span class="nb">callable</span> <span class="o">=</span> <span class="n">PhysxSchema</span><span class="o">.</span><span class="n">PhysxTriangleMeshCollisionAPI</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Triangle mesh is only supported by PhysX API.</span>
+
+<span class="sd">    Original PhysX Documentation:</span>
+<span class="sd">    https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_physx_schema_physx_triangle_mesh_collision_a_p_i.html</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">weld_tolerance</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Mesh weld tolerance, controls the distance at which vertices are welded.</span>
+
+<span class="sd">    Default -inf will autocompute the welding tolerance based on the mesh size. Zero value will disable welding.</span>
+<span class="sd">    Range: [0, inf) Units: distance</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+
+<span class="nd">@configclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">TriangleMeshSimplificationPropertiesCfg</span><span class="p">(</span><span class="n">MeshCollisionPropertiesCfg</span><span class="p">):</span>
+    <span class="n">usd_func</span><span class="p">:</span> <span class="nb">callable</span> <span class="o">=</span> <span class="n">UsdPhysics</span><span class="o">.</span><span class="n">MeshCollisionAPI</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Original USD Documentation:</span>
+<span class="sd">    https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_usd_physics_mesh_collision_a_p_i.html</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">physx_func</span><span class="p">:</span> <span class="nb">callable</span> <span class="o">=</span> <span class="n">PhysxSchema</span><span class="o">.</span><span class="n">PhysxTriangleMeshSimplificationCollisionAPI</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Original PhysX Documentation:</span>
+<span class="sd">    https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_physx_schema_physx_triangle_mesh_simplification_collision_a_p_i.html</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">simplification_metric</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Mesh simplification accuracy.</span>
+
+<span class="sd">    Defaults to 0.55.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">weld_tolerance</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Mesh weld tolerance, controls the distance at which vertices are welded.</span>
+
+<span class="sd">    Default -inf will autocompute the welding tolerance based on the mesh size. Zero value will disable welding.</span>
+<span class="sd">    Range: [0, inf) Units: distance</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+
+<span class="nd">@configclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">SDFMeshPropertiesCfg</span><span class="p">(</span><span class="n">MeshCollisionPropertiesCfg</span><span class="p">):</span>
+    <span class="n">physx_func</span><span class="p">:</span> <span class="nb">callable</span> <span class="o">=</span> <span class="n">PhysxSchema</span><span class="o">.</span><span class="n">PhysxSDFMeshCollisionAPI</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;SDF mesh is only supported by PhysX API.</span>
+
+<span class="sd">    Original PhysX documentation:</span>
+<span class="sd">    https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_physx_schema_physx_s_d_f_mesh_collision_a_p_i.html</span>
+
+<span class="sd">    More details and steps for optimizing SDF results can be found here:</span>
+<span class="sd">    https://nvidia-omniverse.github.io/PhysX/physx/5.2.1/docs/RigidBodyCollision.html#dynamic-triangle-meshes-with-sdfs</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">sdf_margin</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Margin to increase the size of the SDF relative to the bounding box diagonal length of the mesh.</span>
+
+
+<span class="sd">    A sdf margin value of 0.01 means the sdf boundary will be enlarged in any direction by 1% of the mesh&#39;s bounding</span>
+<span class="sd">    box diagonal length. Representing the margin relative to the bounding box diagonal length ensures that it is scale</span>
+<span class="sd">    independent. Margins allow for precise distance queries in a region slightly outside of the mesh&#39;s bounding box.</span>
+
+<span class="sd">    Default value is 0.01.</span>
+<span class="sd">    Range: [0, inf) Units: dimensionless</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">sdf_narrow_band_thickness</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Size of the narrow band around the mesh surface where high resolution SDF samples are available.</span>
+
+<span class="sd">    Outside of the narrow band, only low resolution samples are stored. Representing the narrow band thickness as a</span>
+<span class="sd">    fraction of the mesh&#39;s bounding box diagonal length ensures that it is scale independent. A value of 0.01 is</span>
+<span class="sd">    usually large enough. The smaller the narrow band thickness, the smaller the memory consumption of the sparse SDF.</span>
+
+<span class="sd">    Default value is 0.01.</span>
+<span class="sd">    Range: [0, 1] Units: dimensionless</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">sdf_resolution</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The spacing of the uniformly sampled SDF is equal to the largest AABB extent of the mesh, divided by the resolution.</span>
+
+<span class="sd">    Choose the lowest possible resolution that provides acceptable performance; very high resolution results in large</span>
+<span class="sd">    memory consumption, and slower cooking and simulation performance.</span>
+
+<span class="sd">    Default value is 256.</span>
+<span class="sd">    Range: (1, inf)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">sdf_subgrid_resolution</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;A positive subgrid resolution enables sparsity on signed-distance-fields (SDF) while a value of 0 leads to the</span>
+<span class="sd">    usage of a dense SDF.</span>
+
+<span class="sd">    A value in the range of 4 to 8 is a reasonable compromise between block size and the overhead introduced by block</span>
+<span class="sd">    addressing. The smaller a block, the more memory is spent on the address table. The bigger a block, the less</span>
+<span class="sd">    precisely the sparse SDF can adapt to the mesh&#39;s surface. In most cases sparsity reduces the memory consumption of</span>
+<span class="sd">    a SDF significantly.</span>
+
+<span class="sd">    Default value is 6.</span>
+<span class="sd">    Range: [0, inf)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
 </pre></div>
 
                 </article>
@@ -1054,7 +1255,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Sep 09, 2025.
+  Last updated on Sep 10, 2025.
   <br/>
 </p>
   </div>

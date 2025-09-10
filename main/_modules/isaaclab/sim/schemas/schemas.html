@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.2.1" />
-    <meta name="docbuild:last-update" content="Sep 09, 2025"/>
+    <meta name="docbuild:last-update" content="Sep 10, 2025"/>
   </head>
   
   
@@ -354,6 +354,7 @@
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../../../../source/features/hydra.html">Hydra Configuration System</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../source/features/multi_gpu.html">Multi-GPU and Multi-Node Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/features/population_based_training.html">Population Based Training</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../source/overview/core-concepts/sensors/camera.html">Tiled Rendering</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../source/features/ray.html">Ray Job Dispatch and Tuning</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../source/features/reproducibility.html">Reproducibility and Determinism</a></li>
@@ -411,6 +412,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab/isaaclab.sim.spawners.html">isaaclab.sim.spawners</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab_rl/isaaclab_rl.html">isaaclab_rl</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab_mimic/isaaclab_mimic.datagen.html">isaaclab_mimic.datagen</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab_mimic/isaaclab_mimic.envs.html">isaaclab_mimic.envs</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab_tasks/isaaclab_tasks.utils.html">isaaclab_tasks.utils</a></li>
 </ul>
 </details></li>
@@ -606,6 +608,22 @@
 <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">Articulation root properties.</span>
 <span class="sd">&quot;&quot;&quot;</span>
+
+<span class="n">PHYSX_MESH_COLLISION_CFGS</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="n">schemas_cfg</span><span class="o">.</span><span class="n">ConvexDecompositionPropertiesCfg</span><span class="p">,</span>
+    <span class="n">schemas_cfg</span><span class="o">.</span><span class="n">ConvexHullPropertiesCfg</span><span class="p">,</span>
+    <span class="n">schemas_cfg</span><span class="o">.</span><span class="n">TriangleMeshPropertiesCfg</span><span class="p">,</span>
+    <span class="n">schemas_cfg</span><span class="o">.</span><span class="n">TriangleMeshSimplificationPropertiesCfg</span><span class="p">,</span>
+    <span class="n">schemas_cfg</span><span class="o">.</span><span class="n">SDFMeshPropertiesCfg</span><span class="p">,</span>
+<span class="p">]</span>
+
+<span class="n">USD_MESH_COLLISION_CFGS</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="n">schemas_cfg</span><span class="o">.</span><span class="n">BoundingCubePropertiesCfg</span><span class="p">,</span>
+    <span class="n">schemas_cfg</span><span class="o">.</span><span class="n">BoundingSpherePropertiesCfg</span><span class="p">,</span>
+    <span class="n">schemas_cfg</span><span class="o">.</span><span class="n">ConvexDecompositionPropertiesCfg</span><span class="p">,</span>
+    <span class="n">schemas_cfg</span><span class="o">.</span><span class="n">ConvexHullPropertiesCfg</span><span class="p">,</span>
+    <span class="n">schemas_cfg</span><span class="o">.</span><span class="n">TriangleMeshSimplificationPropertiesCfg</span><span class="p">,</span>
+<span class="p">]</span>
 
 
 <div class="viewcode-block" id="define_articulation_root_properties"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.sim.schemas.html#isaaclab.sim.schemas.define_articulation_root_properties">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">define_articulation_root_properties</span><span class="p">(</span>
@@ -1515,6 +1533,124 @@
 
     <span class="c1"># success</span>
     <span class="k">return</span> <span class="kc">True</span></div>
+
+
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Collision mesh properties.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">extract_mesh_collision_api_and_attrs</span><span class="p">(</span><span class="n">cfg</span><span class="p">):</span>
+    <span class="c1"># We use the number of user set attributes outside of the API function</span>
+    <span class="c1"># to determine which API to use in ambiguous cases, so collect them here</span>
+    <span class="n">custom_attrs</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="n">key</span><span class="p">:</span> <span class="n">value</span>
+        <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">cfg</span><span class="o">.</span><span class="n">to_dict</span><span class="p">()</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;usd_func&quot;</span><span class="p">,</span> <span class="s2">&quot;physx_func&quot;</span><span class="p">]</span>
+    <span class="p">}</span>
+
+    <span class="n">use_usd_api</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">use_phsyx_api</span> <span class="o">=</span> <span class="kc">False</span>
+
+    <span class="c1"># We have some custom attributes and allow them</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">custom_attrs</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="nb">type</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span> <span class="ow">in</span> <span class="n">PHYSX_MESH_COLLISION_CFGS</span><span class="p">:</span>
+        <span class="n">use_phsyx_api</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="c1"># We have no custom attributes</span>
+    <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">custom_attrs</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span> <span class="ow">in</span> <span class="n">USD_MESH_COLLISION_CFGS</span><span class="p">:</span>
+            <span class="c1"># Use the USD API</span>
+            <span class="n">use_usd_api</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># Use the PhysX API</span>
+            <span class="n">use_phsyx_api</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">custom_attrs</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">type</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span> <span class="ow">in</span> <span class="n">USD_MESH_COLLISION_CFGS</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Args are specified but the USD Mesh API doesn&#39;t support them!&quot;</span><span class="p">)</span>
+
+    <span class="n">mesh_collision_appx_type</span> <span class="o">=</span> <span class="nb">type</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="o">.</span><span class="n">partition</span><span class="p">(</span><span class="s2">&quot;PropertiesCfg&quot;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+
+    <span class="k">if</span> <span class="n">use_usd_api</span><span class="p">:</span>
+        <span class="c1"># Add approximation to the attributes as this is how USD collision mesh API is configured</span>
+        <span class="n">api_func</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">usd_func</span>
+        <span class="c1"># Approximation needs to be formatted with camelCase</span>
+        <span class="n">custom_attrs</span><span class="p">[</span><span class="s2">&quot;Approximation&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">mesh_collision_appx_type</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="o">+</span> <span class="n">mesh_collision_appx_type</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span>
+    <span class="k">elif</span> <span class="n">use_phsyx_api</span><span class="p">:</span>
+        <span class="n">api_func</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">physx_func</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Either USD or PhysX API should be used for mesh collision approximation!&quot;</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">api_func</span><span class="p">,</span> <span class="n">custom_attrs</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">define_mesh_collision_properties</span><span class="p">(</span>
+    <span class="n">prim_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">schemas_cfg</span><span class="o">.</span><span class="n">MeshCollisionPropertiesCfg</span><span class="p">,</span> <span class="n">stage</span><span class="p">:</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Stage</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Apply the mesh collision schema on the input prim and set its properties.</span>
+<span class="sd">    See :func:`modify_collision_mesh_properties` for more details on how the properties are set.</span>
+<span class="sd">    Args:</span>
+<span class="sd">        prim_path : The prim path where to apply the mesh collision schema.</span>
+<span class="sd">        cfg : The configuration for the mesh collision properties.</span>
+<span class="sd">        stage : The stage where to find the prim. Defaults to None, in which case the</span>
+<span class="sd">            current stage is used.</span>
+<span class="sd">    Raises:</span>
+<span class="sd">        ValueError: When the prim path is not valid.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># obtain stage</span>
+    <span class="k">if</span> <span class="n">stage</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">stage</span> <span class="o">=</span> <span class="n">get_current_stage</span><span class="p">()</span>
+    <span class="c1"># get USD prim</span>
+    <span class="n">prim</span> <span class="o">=</span> <span class="n">stage</span><span class="o">.</span><span class="n">GetPrimAtPath</span><span class="p">(</span><span class="n">prim_path</span><span class="p">)</span>
+    <span class="c1"># check if prim path is valid</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">prim</span><span class="o">.</span><span class="n">IsValid</span><span class="p">():</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Prim path &#39;</span><span class="si">{</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">&#39; is not valid.&quot;</span><span class="p">)</span>
+
+    <span class="n">api_func</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">extract_mesh_collision_api_and_attrs</span><span class="p">(</span><span class="n">cfg</span><span class="o">=</span><span class="n">cfg</span><span class="p">)</span>
+
+    <span class="c1"># Only enable if not already enabled</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">api_func</span><span class="p">(</span><span class="n">prim</span><span class="p">):</span>
+        <span class="n">api_func</span><span class="o">.</span><span class="n">Apply</span><span class="p">(</span><span class="n">prim</span><span class="p">)</span>
+
+    <span class="n">modify_mesh_collision_properties</span><span class="p">(</span><span class="n">prim_path</span><span class="o">=</span><span class="n">prim_path</span><span class="p">,</span> <span class="n">cfg</span><span class="o">=</span><span class="n">cfg</span><span class="p">,</span> <span class="n">stage</span><span class="o">=</span><span class="n">stage</span><span class="p">)</span>
+
+
+<span class="nd">@apply_nested</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">modify_mesh_collision_properties</span><span class="p">(</span>
+    <span class="n">prim_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">schemas_cfg</span><span class="o">.</span><span class="n">MeshCollisionPropertiesCfg</span><span class="p">,</span> <span class="n">stage</span><span class="p">:</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Stage</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Set properties for the mesh collision of a prim.</span>
+<span class="sd">    These properties are based on either the `Phsyx the `UsdPhysics.MeshCollisionAPI` schema.</span>
+<span class="sd">    .. note::</span>
+<span class="sd">        This function is decorated with :func:`apply_nested` that sets the properties to all the prims</span>
+<span class="sd">        (that have the schema applied on them) under the input prim path.</span>
+<span class="sd">    .. UsdPhysics.MeshCollisionAPI: https://openusd.org/release/api/class_usd_physics_mesh_collision_a_p_i.html</span>
+<span class="sd">    Args:</span>
+<span class="sd">        prim_path : The prim path of the rigid body. This prim should be a Mesh prim.</span>
+<span class="sd">        cfg : The configuration for the mesh collision properties.</span>
+<span class="sd">        stage : The stage where to find the prim. Defaults to None, in which case the</span>
+<span class="sd">            current stage is used.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># obtain stage</span>
+    <span class="k">if</span> <span class="n">stage</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">stage</span> <span class="o">=</span> <span class="n">get_current_stage</span><span class="p">()</span>
+    <span class="c1"># get USD prim</span>
+    <span class="n">prim</span> <span class="o">=</span> <span class="n">stage</span><span class="o">.</span><span class="n">GetPrimAtPath</span><span class="p">(</span><span class="n">prim_path</span><span class="p">)</span>
+
+    <span class="n">api_func</span><span class="p">,</span> <span class="n">custom_attrs</span> <span class="o">=</span> <span class="n">extract_mesh_collision_api_and_attrs</span><span class="p">(</span><span class="n">cfg</span><span class="o">=</span><span class="n">cfg</span><span class="p">)</span>
+
+    <span class="c1"># retrieve the mesh collision API</span>
+    <span class="n">mesh_collision_api</span> <span class="o">=</span> <span class="n">api_func</span><span class="p">(</span><span class="n">prim</span><span class="p">)</span>
+
+    <span class="c1"># set custom attributes into mesh collision API</span>
+    <span class="k">for</span> <span class="n">attr_name</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">custom_attrs</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="c1"># Only &quot;Attribute&quot; attr should be in format &quot;boundingSphere&quot;, so set camel_case to be False</span>
+        <span class="k">if</span> <span class="n">attr_name</span> <span class="o">==</span> <span class="s2">&quot;Attribute&quot;</span><span class="p">:</span>
+            <span class="n">camel_case</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">camel_case</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="n">safe_set_attribute_on_usd_schema</span><span class="p">(</span><span class="n">mesh_collision_api</span><span class="p">,</span> <span class="n">attr_name</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">camel_case</span><span class="o">=</span><span class="n">camel_case</span><span class="p">)</span>
+
+    <span class="c1"># success</span>
+    <span class="k">return</span> <span class="kc">True</span>
 </pre></div>
 
                 </article>
@@ -1562,7 +1698,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Sep 09, 2025.
+  Last updated on Sep 10, 2025.
   <br/>
 </p>
   </div>
