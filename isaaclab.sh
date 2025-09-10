@@ -512,8 +512,8 @@ while [[ $# -gt 0 ]]; do
                 shift # past argument
             fi
             # install the learning frameworks specified
-            ${pip_command} install -e "${ISAACLAB_PATH}/source/isaaclab_rl[${framework_name}]"
-            ${pip_command} install -e "${ISAACLAB_PATH}/source/isaaclab_mimic[${framework_name}]"
+            ${pip_command} -e "${ISAACLAB_PATH}/source/isaaclab_rl[${framework_name}]"
+            ${pip_command} -e "${ISAACLAB_PATH}/source/isaaclab_mimic[${framework_name}]"
 
             # in some rare cases, torch might not be installed properly by setup.py, add one more check here
             # can prevent that from happening
