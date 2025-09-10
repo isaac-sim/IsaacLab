@@ -116,6 +116,7 @@ Table of Contents
 
    source/features/hydra
    source/features/multi_gpu
+   source/features/population_based_training
    Tiled Rendering</source/overview/core-concepts/sensors/camera>
    source/features/ray
    source/features/reproducibility

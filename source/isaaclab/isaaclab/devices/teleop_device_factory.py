@@ -29,7 +29,7 @@ from isaaclab.devices.spacemouse import Se2SpaceMouse, Se2SpaceMouseCfg, Se3Spac
 
 with contextlib.suppress(ModuleNotFoundError):
     # May fail if xr is not in use
-    from isaaclab.devices.openxr import OpenXRDevice, OpenXRDeviceCfg
+    from isaaclab.devices.openxr import ManusVive, ManusViveCfg, OpenXRDevice, OpenXRDeviceCfg
 
 # Map device types to their constructor and expected config type
 DEVICE_MAP: dict[type[DeviceCfg], type[DeviceBase]] = {
@@ -40,6 +40,7 @@ DEVICE_MAP: dict[type[DeviceCfg], type[DeviceBase]] = {
     Se2GamepadCfg: Se2Gamepad,
     Se2SpaceMouseCfg: Se2SpaceMouse,
     OpenXRDeviceCfg: OpenXRDevice,
+    ManusViveCfg: ManusVive,
 }
 
 
