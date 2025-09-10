@@ -1,7 +1,8 @@
 .. _template-generator:
 
-Build your Own Project or Task
-==============================
+
+Create new project or task
+==========================
 
 Traditionally, building new projects that utilize Isaac Lab's features required creating your own
 extensions within the Isaac Lab repository. However, this approach can obscure project visibility and
