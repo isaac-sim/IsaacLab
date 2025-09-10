@@ -97,8 +97,8 @@ is_docker() {
 }
 
 ensure_cuda_torch() {
-  local pip_command="$1"
-  local pip_uninstall_command="$2"
+  local pip_command=$(extract_pip_command)
+  local pip_uninstall_command=$(extract_pip_command)
   local -r TORCH_VER="2.7.0"
   local -r TV_VER="0.22.0"
   local -r CUDA_TAG="cu128"
@@ -111,13 +111,13 @@ ensure_cuda_torch() {
     if [[ "$torch_ver" != "${TORCH_VER}+${CUDA_TAG}" ]]; then
       echo "[INFO] Replacing PyTorch ${torch_ver} → ${TORCH_VER}+${CUDA_TAG}..."
       "$pip_uninstall_command" torch torchvision torchaudio >/dev/null 2>&1 || true
-      "$pip_install" "torch==${TORCH_VER}" "torchvision==${TV_VER}" --index-url "${PYTORCH_INDEX}"
+      "$pip_command" "torch==${TORCH_VER}" "torchvision==${TV_VER}" --index-url "${PYTORCH_INDEX}"
     else
       echo "[INFO] PyTorch ${TORCH_VER}+${CUDA_TAG} already installed."
     fi
   else
     echo "[INFO] Installing PyTorch ${TORCH_VER}+${CUDA_TAG}..."
-    "$pip_install" "torch==${TORCH_VER}" "torchvision==${TV_VER}" --index-url "${PYTORCH_INDEX}"
+    ${pip_command} "torch==${TORCH_VER}" "torchvision==${TV_VER}" --index-url "${PYTORCH_INDEX}"
   fi
 }
 
@@ -487,7 +487,7 @@ while [[ $# -gt 0 ]]; do
 
             # check if pytorch is installed and its version
             # install pytorch with cuda 12.8 for blackwell support
-            ensure_cuda_torch ${pip_command} ${pip_uninstall_command}
+            ensure_cuda_torch
             # recursively look into directories and install them
             # this does not check dependencies between extensions
             export -f extract_python_exe
@@ -517,7 +517,7 @@ while [[ $# -gt 0 ]]; do
 
             # in some rare cases, torch might not be installed properly by setup.py, add one more check here
             # can prevent that from happening
-            ensure_cuda_torch ${pip_command} ${pip_uninstall_command}
+            ensure_cuda_torch
             # check if we are inside a docker container or are building a docker image
             # in that case don't setup VSCode since it asks for EULA agreement which triggers user interaction
             if is_docker; then
