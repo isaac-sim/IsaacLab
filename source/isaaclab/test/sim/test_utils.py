@@ -17,7 +17,7 @@ import numpy as np
 import isaacsim.core.utils.prims as prim_utils
 import isaacsim.core.utils.stage as stage_utils
 import pytest
-from pxr import Sdf, Usd, UsdGeom
+from pxr import Sdf, Usd, UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
@@ -41,19 +41,65 @@ def test_get_all_matching_child_prims():
     """Test get_all_matching_child_prims() function."""
     # create scene
     prim_utils.create_prim("/World/Floor")
-    prim_utils.create_prim(
-        "/World/Floor/thefloor", "Cube", position=np.array([75, 75, -150.1]), attributes={"size": 300}
-    )
-    prim_utils.create_prim("/World/Room", "Sphere", attributes={"radius": 1e3})
+    prim_utils.create_prim("/World/Floor/Box", "Cube", position=np.array([75, 75, -150.1]), attributes={"size": 300})
+    prim_utils.create_prim("/World/Wall", "Sphere", attributes={"radius": 1e3})
 
     # test
     isaac_sim_result = prim_utils.get_all_matching_child_prims("/World")
     isaaclab_result = sim_utils.get_all_matching_child_prims("/World")
     assert isaac_sim_result == isaaclab_result
 
+    # add articulation root prim -- this asset has instanced prims
+    # note: isaac sim function does not support instanced prims so we add it here
+    #  after the above test for the above test to still pass.
+    prim_utils.create_prim(
+        "/World/Franka", "Xform", usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd"
+    )
+
+    # test with predicate
+    isaaclab_result = sim_utils.get_all_matching_child_prims("/World", predicate=lambda x: x.GetTypeName() == "Cube")
+    assert len(isaaclab_result) == 1
+    assert isaaclab_result[0].GetPrimPath() == "/World/Floor/Box"
+
+    # test with predicate and instanced prims
+    isaaclab_result = sim_utils.get_all_matching_child_prims(
+        "/World/Franka/panda_hand/visuals", predicate=lambda x: x.GetTypeName() == "Mesh"
+    )
+    assert len(isaaclab_result) == 1
+    assert isaaclab_result[0].GetPrimPath() == "/World/Franka/panda_hand/visuals/panda_hand"
+
     # test valid path
     with pytest.raises(ValueError):
         sim_utils.get_all_matching_child_prims("World/Room")
+
+
+def test_get_first_matching_child_prim():
+    """Test get_first_matching_child_prim() function."""
+    # create scene
+    prim_utils.create_prim("/World/Floor")
+    prim_utils.create_prim(
+        "/World/env_1/Franka", "Xform", usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd"
+    )
+    prim_utils.create_prim(
+        "/World/env_2/Franka", "Xform", usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd"
+    )
+    prim_utils.create_prim(
+        "/World/env_0/Franka", "Xform", usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd"
+    )
+
+    # test
+    isaaclab_result = sim_utils.get_first_matching_child_prim(
+        "/World", predicate=lambda prim: prim.HasAPI(UsdPhysics.ArticulationRootAPI)
+    )
+    assert isaaclab_result is not None
+    assert isaaclab_result.GetPrimPath() == "/World/env_1/Franka"
+
+    # test with instanced prims
+    isaaclab_result = sim_utils.get_first_matching_child_prim(
+        "/World/env_1/Franka", predicate=lambda prim: prim.GetTypeName() == "Mesh"
+    )
+    assert isaaclab_result is not None
+    assert isaaclab_result.GetPrimPath() == "/World/env_1/Franka/panda_link0/visuals/panda_link0"
 
 
 def test_find_matching_prim_paths():
