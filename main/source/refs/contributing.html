@@ -649,13 +649,14 @@
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#contributing-assets">Contributing assets</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#maintaining-a-changelog-and-extension-toml">Maintaining a changelog and extension.toml</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#coding-style">Coding Style</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#code-structure">Code Structure</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#circular-imports">Circular Imports</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#type-hinting">Type-hinting</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#documenting-the-code">Documenting the code</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#unit-testing">Unit Testing</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#tools">Tools</a></li>
 </ul>
 </li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#unit-testing">Unit Testing</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#tools">Tools</a></li>
 </ul>
             </nav>
         </div>
@@ -717,6 +718,7 @@ sure that the changes are aligned with the roadmap of the project.</p></li>
 maintainers to review your code. If you are making multiple changes, please send multiple pull requests.
 Large pull requests are difficult to review and may take a long time to merge.</p>
 </div>
+<p>More details on the code style and testing can be found in the <a class="reference internal" href="#coding-style">Coding Style</a> and <a class="reference internal" href="#unit-testing">Unit Testing</a> sections.</p>
 </section>
 <section id="contributing-documentation">
 <h2>Contributing Documentation<a class="headerlink" href="#contributing-documentation" title="Permalink to this heading">#</a></h2>
@@ -875,6 +877,209 @@ type-hinting.</p>
 <p>For documentation, we adopt the <a class="reference external" href="https://sphinxcontrib-napoleon.readthedocs.io/en/latest/example_google.html">Google Style Guide</a>
 for docstrings. We use <a class="reference external" href="https://www.sphinx-doc.org/en/master/">Sphinx</a> for generating the documentation.
 Please make sure that your code is well-documented and follows the guidelines.</p>
+<section id="code-structure">
+<h3>Code Structure<a class="headerlink" href="#code-structure" title="Permalink to this heading">#</a></h3>
+<p>We follow a specific structure for the codebase. This helps in maintaining the codebase and makes it easier to
+understand.</p>
+<p>In a Python file, we follow the following structure:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Imports: These are sorted by the pre-commit hooks.</span>
+<span class="c1"># Constants</span>
+<span class="c1"># Functions (public)</span>
+<span class="c1"># Classes (public)</span>
+<span class="c1"># _Functions (private)</span>
+<span class="c1"># _Classes (private)</span>
+</pre></div>
+</div>
+<p>Imports are sorted by the pre-commit hooks. Unless there is a good reason to do otherwise, please do not
+import the modules inside functions or classes. To deal with circular imports, we use the
+<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.TYPE_CHECKING" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.TYPE_CHECKING</span></code></a> variable. Please refer to the <a class="reference internal" href="#circular-imports">Circular Imports</a> section for more details.</p>
+<p>Python does not have a concept of private and public classes and functions. However, we follow the
+convention of prefixing the private functions and classes with an underscore.
+The public functions and classes are the ones that are intended to be used by the users. The private
+functions and classes are the ones that are intended to be used internally in that file.
+Irrespective of the public or private nature of the functions and classes, we follow the Style Guide
+for the code and make sure that the code and documentation are consistent.</p>
+<p>Similarly, within Python classes, we follow the following structure:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Constants</span>
+<span class="c1"># Class variables (public or private): Must have the type hint ClassVar[type]</span>
+<span class="c1"># Dunder methods: __init__, __del__</span>
+<span class="c1"># Representation: __repr__, __str__</span>
+<span class="c1"># Properties: @property</span>
+<span class="c1"># Instance methods (public)</span>
+<span class="c1"># Class methods (public)</span>
+<span class="c1"># Static methods (public)</span>
+<span class="c1"># _Instance methods (private)</span>
+<span class="c1"># _Class methods (private)</span>
+<span class="c1"># _Static methods (private)</span>
+</pre></div>
+</div>
+<p>The rule of thumb is that the functions within the classes are ordered in the way a user would
+expect to use them. For instance, if the class contains the method <code class="xref py py-meth docutils literal notranslate"><span class="pre">initialize()</span></code>, <code class="xref py py-meth docutils literal notranslate"><span class="pre">reset()</span></code>,
+<code class="xref py py-meth docutils literal notranslate"><span class="pre">update()</span></code>, and <code class="xref py py-meth docutils literal notranslate"><span class="pre">close()</span></code>, then they should be listed in the order of their usage.
+The same applies for private functions in the class. Their order is based on the order of call inside the
+class.</p>
+<details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
+<summary class="sd-summary-title sd-card-header">
+<span class="sd-summary-icon"><svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-code" viewBox="0 0 16 16" aria-hidden="true"><path d="m11.28 3.22 4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.749.749 0 0 1-1.275-.326.749.749 0 0 1 .215-.734L13.94 8l-3.72-3.72a.749.749 0 0 1 .326-1.275.749.749 0 0 1 .734.215Zm-6.56 0a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042L2.06 8l3.72 3.72a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L.47 8.53a.75.75 0 0 1 0-1.06Z"></path></svg></span><span class="sd-summary-text">Code skeleton</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).</span>
+<span class="c1"># All rights reserved.</span>
+<span class="c1">#</span>
+<span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">sys</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">ClassVar</span>
+
+
+<span class="n">DEFAULT_TIMEOUT</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">30</span>
+<span class="sd">&quot;&quot;&quot;Default timeout for the task.&quot;&quot;&quot;</span>
+
+<span class="n">_MAX_RETRIES</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">3</span>  <span class="c1"># private constant (note the underscore)</span>
+<span class="sd">&quot;&quot;&quot;Maximum number of retries for the task.&quot;&quot;&quot;</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">run_task</span><span class="p">(</span><span class="n">task_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Run a task by name.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        task_name: The name of the task to run.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Running task: </span><span class="si">{</span><span class="n">task_name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">TaskRunner</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Runs and manages tasks.&quot;&quot;&quot;</span>
+
+    <span class="n">DEFAULT_NAME</span><span class="p">:</span> <span class="n">ClassVar</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;runner&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Default name for the runner.&quot;&quot;&quot;</span>
+
+    <span class="n">_registry</span><span class="p">:</span> <span class="n">ClassVar</span><span class="p">[</span><span class="nb">dict</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Registry of runners.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Initialize the runner.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            name: The name of the runner.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">name</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_tasks</span> <span class="o">=</span> <span class="p">[]</span>  <span class="c1"># private instance variable</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__del__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Clean up the runner.&quot;&quot;&quot;</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Cleaning up </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;TaskRunner(name=</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">!r}</span><span class="s2">)&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;TaskRunner: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">&quot;</span>
+
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Properties.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">task_count</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+        <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_tasks</span><span class="p">)</span>
+
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Operations.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">initialize</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Initialize the runner.&quot;&quot;&quot;</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Initializing runner...&quot;</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">update</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">task</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Update the runner with a new task.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            task: The task to add.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_tasks</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">task</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Added task: </span><span class="si">{</span><span class="n">task</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">close</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Close the runner.&quot;&quot;&quot;</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Closing runner...&quot;</span><span class="p">)</span>
+
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Operations: Registration.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">register</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">runner</span><span class="p">:</span> <span class="s2">&quot;TaskRunner&quot;</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Register a runner.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            name: The name of the runner.</span>
+<span class="sd">            runner: The runner to register.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">name</span> <span class="ow">in</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_registry</span><span class="p">:</span>
+            <span class="n">_log_error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Runner </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2"> already registered. Skipping registration.&quot;</span><span class="p">)</span>
+            <span class="k">return</span>
+        <span class="bp">cls</span><span class="o">.</span><span class="n">_registry</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">runner</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">validate_task</span><span class="p">(</span><span class="n">task</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Validate a task.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            task: The task to validate.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            True if the task is valid, False otherwise.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">bool</span><span class="p">(</span><span class="n">task</span> <span class="ow">and</span> <span class="n">task</span><span class="o">.</span><span class="n">strip</span><span class="p">())</span>
+
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Internal operations.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_reset</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Reset the runner.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_tasks</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_get_registry</span><span class="p">(</span><span class="bp">cls</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Get the registry.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_registry</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_internal_helper</span><span class="p">():</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Internal helper.&quot;&quot;&quot;</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Internal helper called.&quot;</span><span class="p">)</span>
+
+
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Helper operations.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_log_error</span><span class="p">(</span><span class="n">message</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Internal helper to log errors.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        message: The message to log.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[ERROR] </span><span class="si">{</span><span class="n">message</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">_TaskHelper</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Private utility class for internal task logic.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">compute</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Compute the result.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            The result of the computation.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="mi">42</span>
+</pre></div>
+</div>
+</div>
+</details></section>
 <section id="circular-imports">
 <h3>Circular Imports<a class="headerlink" href="#circular-imports" title="Permalink to this heading">#</a></h3>
 <p>Circular imports happen when two modules import each other, which is a common issue in Python.
@@ -1023,15 +1228,46 @@ We summarize the key points below:</p>
 <li><p>Say exactly what you mean. Don’t avoid writing the uncomfortable truth.</p></li>
 </ul>
 </section>
+</section>
 <section id="unit-testing">
-<h3>Unit Testing<a class="headerlink" href="#unit-testing" title="Permalink to this heading">#</a></h3>
+<h2>Unit Testing<a class="headerlink" href="#unit-testing" title="Permalink to this heading">#</a></h2>
 <p>We use <a class="reference external" href="https://docs.pytest.org">pytest</a> for unit testing.
 Good tests not only cover the basic functionality of the code but also the edge cases.
 They should be able to catch regressions and ensure that the code is working as expected.
 Please make sure that you add tests for your changes.</p>
+<div class="sd-tab-set docutils">
+<input checked="checked" id="sd-tab-item-0" name="sd-tab-set-0" type="radio">
+<label class="sd-tab-label" data-sync-group="os" data-sync-id="linux" for="sd-tab-item-0">
+<i class="fa-brands fa-linux"></i> Linux</label><div class="sd-tab-content docutils">
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Run all tests</span>
+./isaaclab.sh<span class="w"> </span>--test<span class="w">  </span><span class="c1"># or &quot;./isaaclab.sh -t&quot;</span>
+
+<span class="c1"># Run all tests in a particular file</span>
+./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>-m<span class="w"> </span>pytest<span class="w"> </span>source/isaaclab/test/deps/test_torch.py
+
+<span class="c1"># Run a particular test</span>
+./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>-m<span class="w"> </span>pytest<span class="w"> </span>source/isaaclab/test/deps/test_torch.py::test_array_slicing
+</pre></div>
+</div>
+</div>
+<input id="sd-tab-item-1" name="sd-tab-set-0" type="radio">
+<label class="sd-tab-label" data-sync-group="os" data-sync-id="windows" for="sd-tab-item-1">
+<i class="fa-brands fa-windows"></i> Windows</label><div class="sd-tab-content docutils">
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Run all tests</span>
+isaaclab.bat<span class="w"> </span>--test<span class="w">  </span><span class="c1"># or &quot;isaaclab.bat -t&quot;</span>
+
+<span class="c1"># Run all tests in a particular file</span>
+isaaclab.bat<span class="w"> </span>-p<span class="w"> </span>-m<span class="w"> </span>pytest<span class="w"> </span>source/isaaclab/test/deps/test_torch.py
+
+<span class="c1"># Run a particular test</span>
+isaaclab.bat<span class="w"> </span>-p<span class="w"> </span>-m<span class="w"> </span>pytest<span class="w"> </span>source/isaaclab/test/deps/test_torch.py::test_array_slicing
+</pre></div>
+</div>
+</div>
+</div>
 </section>
 <section id="tools">
-<h3>Tools<a class="headerlink" href="#tools" title="Permalink to this heading">#</a></h3>
+<h2>Tools<a class="headerlink" href="#tools" title="Permalink to this heading">#</a></h2>
 <p>We use the following tools for maintaining code quality:</p>
 <ul class="simple">
 <li><p><a class="reference external" href="https://pre-commit.com/">pre-commit</a>: Runs a list of formatters and linters over the codebase.</p></li>
@@ -1042,10 +1278,22 @@ McCabe complexity checker.</p></li>
 <p>Please check <a class="reference external" href="https://pre-commit.com/#install">here</a> for instructions
 to set these up. To run over the entire repository, please execute the
 following command in the terminal:</p>
+<div class="sd-tab-set docutils">
+<input checked="checked" id="sd-tab-item-2" name="sd-tab-set-1" type="radio">
+<label class="sd-tab-label" data-sync-group="os" data-sync-id="linux" for="sd-tab-item-2">
+<i class="fa-brands fa-linux"></i> Linux</label><div class="sd-tab-content docutils">
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>--format<span class="w">  </span><span class="c1"># or &quot;./isaaclab.sh -f&quot;</span>
 </pre></div>
 </div>
-</section>
+</div>
+<input id="sd-tab-item-3" name="sd-tab-set-1" type="radio">
+<label class="sd-tab-label" data-sync-group="os" data-sync-id="windows" for="sd-tab-item-3">
+<i class="fa-brands fa-windows"></i> Windows</label><div class="sd-tab-content docutils">
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>isaaclab.bat<span class="w"> </span>--format<span class="w">  </span><span class="c1"># or &quot;isaaclab.bat -f&quot;</span>
+</pre></div>
+</div>
+</div>
+</div>
 </section>
 </section>
 
@@ -1100,13 +1348,14 @@ following command in the terminal:</p>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#contributing-assets">Contributing assets</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#maintaining-a-changelog-and-extension-toml">Maintaining a changelog and extension.toml</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#coding-style">Coding Style</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#code-structure">Code Structure</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#circular-imports">Circular Imports</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#type-hinting">Type-hinting</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#documenting-the-code">Documenting the code</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#unit-testing">Unit Testing</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#tools">Tools</a></li>
 </ul>
 </li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#unit-testing">Unit Testing</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#tools">Tools</a></li>
 </ul>
   </nav></div>
 
