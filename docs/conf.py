@@ -96,8 +96,6 @@ nitpick_ignore_regex = [
     (r"py:.*", r"trimesh.*"),  # we don't have intersphinx mapping for trimesh
 ]
 
-# emoji style
-sphinxemoji_style = "twemoji"  # options: "twemoji" or "unicode"
 # put type hints inside the signature instead of the description (easier to maintain)
 autodoc_typehints = "signature"
 # autodoc_typehints_format = "fully-qualified"
@@ -124,8 +122,8 @@ intersphinx_mapping = {
     "python": ("https://docs.python.org/3", None),
     "numpy": ("https://numpy.org/doc/stable/", None),
     "trimesh": ("https://trimesh.org/", None),
-    "torch": ("https://pytorch.org/docs/stable/", None),
-    "isaacsim": ("https://docs.isaacsim.omniverse.nvidia.com/5.1.0/py/", None),
+    "torch": ("https://docs.pytorch.org/docs/stable", None),
+    "isaacsim": ("https://docs.isaacsim.omniverse.nvidia.com/5.0.0/py/", None),
     "gymnasium": ("https://gymnasium.farama.org/", None),
     "warp": ("https://nvidia.github.io/warp/", None),
     "dev-guide": ("https://docs.omniverse.nvidia.com/dev-guide/latest", None),
@@ -164,6 +162,7 @@ autodoc_mock_imports = [
     "isaacsim.core.api",
     "isaacsim.core.cloner",
     "isaacsim.core.version",
+    "isaacsim.core.utils",
     "isaacsim.robot_motion.motion_generation",
     "isaacsim.gui.components",
     "isaacsim.asset.importer.urdf",
@@ -261,7 +260,7 @@ html_theme_options = {
         {
             "name": "Isaac Sim",
             "url": "https://developer.nvidia.com/isaac-sim",
-            "icon": "https://img.shields.io/badge/IsaacSim-5.1.0-silver.svg",
+            "icon": "https://img.shields.io/badge/IsaacSim-5.0.0-silver.svg",
             "type": "url",
         },
         {
@@ -281,7 +280,7 @@ templates_path = [
 # Whitelist pattern for remotes
 smv_remote_whitelist = r"^.*$"
 # Whitelist pattern for branches (set to None to ignore all branches)
-smv_branch_whitelist = os.getenv("SMV_BRANCH_WHITELIST", r"^(main|devel|release/.*)$")
+smv_branch_whitelist = os.getenv("SMV_BRANCH_WHITELIST", r"^(main|devel)$")
 # Whitelist pattern for tags (set to None to ignore all tags)
 smv_tag_whitelist = os.getenv("SMV_TAG_WHITELIST", r"^v[1-9]\d*\.\d+\.\d+$")
 html_sidebars = {
