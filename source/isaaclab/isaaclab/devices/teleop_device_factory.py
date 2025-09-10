@@ -21,6 +21,8 @@ from isaaclab.devices.openxr.retargeters import (
     G1TriHandUpperBodyRetargeterCfg,
     GR1T2Retargeter,
     GR1T2RetargeterCfg,
+    UnitreeG1RetargeterCfg,
+    UnitreeG1Retargeter,
     GripperRetargeter,
     GripperRetargeterCfg,
     Se3AbsRetargeter,
@@ -56,6 +58,7 @@ RETARGETER_MAP: dict[type[RetargeterCfg], type[RetargeterBase]] = {
     GR1T2RetargeterCfg: GR1T2Retargeter,
     G1TriHandUpperBodyRetargeterCfg: G1TriHandUpperBodyRetargeter,
     G1LowerBodyStandingRetargeterCfg: G1LowerBodyStandingRetargeter,
+    UnitreeG1RetargeterCfg: UnitreeG1Retargeter,
 }
 
 
