@@ -85,9 +85,7 @@ def main(argv: list[str] | None = None) -> None:
         "--project_name",
         type=str,
         required=True,
-        help=(
-            "Project identifier used in generated files (letters, digits, underscores)"
-        ),
+        help="Project identifier used in generated files (letters, digits, underscores)",
     )
     parser.add_argument(
         "--workflow",
