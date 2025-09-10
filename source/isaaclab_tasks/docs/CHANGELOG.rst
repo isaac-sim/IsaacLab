@@ -1,6 +1,73 @@
 Changelog
 ---------
 
+0.11.0 (2025-09-07)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added dextrous lifting and dextrous reorientation manipulation rl environments.
+
+
+0.10.51 (2025-09-08)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added SkillGen-specific cube stacking environments:
+  * :class:`FrankaCubeStackSkillgenEnvCfg`; Gym ID ``Isaac-Stack-Cube-Franka-IK-Rel-Skillgen-v0``.
+* Added bin cube stacking environment for SkillGen/Mimic:
+  * :class:`FrankaBinStackEnvCfg`; Gym ID ``Isaac-Stack-Cube-Bin-Franka-IK-Rel-Mimic-v0``.
+
+
+0.10.50 (2025-09-05)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added stacking environments for Galbot with suction grippers.
+
+
+0.10.49 (2025-09-05)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added suction gripper stacking environments with UR10 that can be used with teleoperation.
+
+
+0.10.48 (2025-09-03)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``Isaac-Deploy-Reach-UR10e-v0`` environment.
+
+
+0.10.47 (2025-07-25)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* New ``Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0`` environment that enables the waist degrees-of-freedom for the GR1T2 robot.
+
+
+Changed
+^^^^^^^
+
+* Updated pink inverse kinematics controller configuration for the following tasks (``Isaac-PickPlace-GR1T2``, ``Isaac-NutPour-GR1T2``, ``Isaac-ExhaustPipe-GR1T2``)
+  to increase end-effector tracking accuracy and speed. Also added a null-space regularizer that enables turning on of waist degrees-of-freedom without
+  the robot control drifting to a bending posture.
+* Tuned the pink inverse kinematics controller and joint PD controllers for the following tasks (``Isaac-PickPlace-GR1T2``, ``Isaac-NutPour-GR1T2``, ``Isaac-ExhaustPipe-GR1T2``)
+  to improve the end-effector tracking accuracy and speed. Achieving position and orientation accuracy test within **(2 mm, 1 degree)**.
+
+
 0.10.46 (2025-08-16)
 ~~~~~~~~~~~~~~~~~~~~
 

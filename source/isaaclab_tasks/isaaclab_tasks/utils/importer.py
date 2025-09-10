@@ -41,6 +41,11 @@ def import_packages(package_name: str, blacklist_pkgs: list[str] | None = None):
         pass
 
 
+"""
+Internal helpers.
+"""
+
+
 def _walk_packages(
     path: str | None = None,
     prefix: str = "",
@@ -51,8 +56,9 @@ def _walk_packages(
 
     Note:
         This function is a modified version of the original ``pkgutil.walk_packages`` function. It adds
-        the `blacklist_pkgs` argument to skip blacklisted packages. Please refer to the original
+        the ``blacklist_pkgs`` argument to skip blacklisted packages. Please refer to the original
         ``pkgutil.walk_packages`` function for more details.
+
     """
     if blacklist_pkgs is None:
         blacklist_pkgs = []

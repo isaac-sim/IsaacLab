@@ -273,6 +273,20 @@ On your Mac:
 
       git clone git@github.com:isaac-sim/isaac-xr-teleop-sample-client-apple.git
 
+#. Check out the version tag corresponding to your Isaac Lab version:
+
+   +-------------------+---------------------+
+   | Isaac Lab Version | Client Version Tag  |
+   +-------------------+---------------------+
+   | 2.2.x             | v2.2.0              |
+   +-------------------+---------------------+
+   | 2.1.x             | v1.0.0              |
+   +-------------------+---------------------+
+
+   .. code-block:: bash
+
+      git checkout <version_tag>
+
 #. Follow the README in the repository to build and install the app on your Apple Vision Pro.
 
 
@@ -368,6 +382,18 @@ Back on your Apple Vision Pro:
       motion of the dots and the robot may be caused by the limits of the robot joints and/or robot
       controller.
 
+   .. note::
+      When the inverse kinematics solver fails to find a valid solution, an error message will appear
+      in the XR device display. To recover from this state, click the **Reset** button to return
+      the robot to its original pose and continue teleoperation.
+
+      .. figure:: ../_static/setup/cloudxr_avp_ik_error.jpg
+         :align: center
+         :figwidth: 80%
+         :alt: IK Error Message Display in XR Device
+
+
+
 #. When you are finished with the example, click **Disconnect** to disconnect from Isaac Lab.
 
 .. admonition:: Learn More about Teleoperation and Imitation Learning in Isaac Lab
@@ -375,6 +401,38 @@ Back on your Apple Vision Pro:
    See :ref:`teleoperation-imitation-learning` to learn how to record teleoperated demonstrations
    and build teleoperation and imitation learning workflows with Isaac Lab.
 
+
+.. _manus-vive-handtracking:
+
+Manus + Vive Hand Tracking
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Manus gloves and HTC Vive trackers can provide hand tracking when optical hand tracking from a headset is occluded.
+This setup expects Manus gloves with a Manus SDK license and Vive trackers attached to the gloves.
+Requires Isaac Sim >=5.1.
+
+Run the teleoperation example with Manus + Vive tracking:
+
+.. code-block:: bash
+
+   ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
+       --task Isaac-PickPlace-GR1T2-Abs-v0 \
+       --teleop_device manusvive \
+       --xr \
+       --enable_pinocchio
+
+Begin the session with your palms facing up.
+This is necessary for calibrating Vive tracker poses using Apple Vision Pro wrist poses from a few initial frames,
+as the Vive trackers attached to the back of the hands occlude the optical hand tracking.
+
+.. note::
+
+   To avoid resource contention and crashes, ensure Manus and Vive devices are connected to different USB controllers/buses.
+   Use ``lsusb -t`` to identify different buses and connect devices accordingly.
+
+   Vive trackers are automatically calculated to map to the left and right wrist joints.
+   This auto-mapping calculation supports up to 2 Vive trackers;
+   if more than 2 Vive trackers are detected, it uses the first two trackers detected for calibration, which may not be correct.
 
 .. _develop-xr-isaac-lab:
 
