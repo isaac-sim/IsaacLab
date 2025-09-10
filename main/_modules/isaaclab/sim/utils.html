@@ -1151,7 +1151,7 @@
             <span class="c1"># make the prim uninstanceable</span>
             <span class="n">child_prim</span><span class="o">.</span><span class="n">SetInstanceable</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span>
         <span class="c1"># add children to list</span>
-        <span class="n">all_prims</span> <span class="o">+=</span> <span class="n">child_prim</span><span class="o">.</span><span class="n">GetChildren</span><span class="p">()</span></div>
+        <span class="n">all_prims</span> <span class="o">+=</span> <span class="n">child_prim</span><span class="o">.</span><span class="n">GetFilteredChildren</span><span class="p">(</span><span class="n">Usd</span><span class="o">.</span><span class="n">TraverseInstanceProxies</span><span class="p">())</span></div>
 
 
 <span class="sd">&quot;&quot;&quot;</span>
@@ -1160,14 +1160,32 @@
 
 
 <div class="viewcode-block" id="get_first_matching_child_prim"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.sim.html#isaaclab.sim.utils.get_first_matching_child_prim">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">get_first_matching_child_prim</span><span class="p">(</span>
-    <span class="n">prim_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Sdf</span><span class="o">.</span><span class="n">Path</span><span class="p">,</span> <span class="n">predicate</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">Usd</span><span class="o">.</span><span class="n">Prim</span><span class="p">],</span> <span class="nb">bool</span><span class="p">],</span> <span class="n">stage</span><span class="p">:</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Stage</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">prim_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Sdf</span><span class="o">.</span><span class="n">Path</span><span class="p">,</span>
+    <span class="n">predicate</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">Usd</span><span class="o">.</span><span class="n">Prim</span><span class="p">],</span> <span class="nb">bool</span><span class="p">],</span>
+    <span class="n">stage</span><span class="p">:</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Stage</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">traverse_instance_prims</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Prim</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Recursively get the first USD Prim at the path string that passes the predicate function</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Recursively get the first USD Prim at the path string that passes the predicate function.</span>
+
+<span class="sd">    This function performs a depth-first traversal of the prim hierarchy starting from</span>
+<span class="sd">    :attr:`prim_path`, returning the first prim that satisfies the provided :attr:`predicate`.</span>
+<span class="sd">    It optionally supports traversal through instance prims, which are normally skipped in standard USD</span>
+<span class="sd">    traversals.</span>
+
+<span class="sd">    USD instance prims are lightweight copies of prototype scene structures and are not included</span>
+<span class="sd">    in default traversals unless explicitly handled. This function allows traversing into instances</span>
+<span class="sd">    when :attr:`traverse_instance_prims` is set to :attr:`True`.</span>
+
+<span class="sd">    .. versionchanged:: 2.3.0</span>
+
+<span class="sd">        Added :attr:`traverse_instance_prims` to control whether to traverse instance prims.</span>
+<span class="sd">        By default, instance prims are now traversed.</span>
 
 <span class="sd">    Args:</span>
 <span class="sd">        prim_path: The path of the prim in the stage.</span>
 <span class="sd">        predicate: The function to test the prims against. It takes a prim as input and returns a boolean.</span>
 <span class="sd">        stage: The stage where the prim exists. Defaults to None, in which case the current stage is used.</span>
+<span class="sd">        traverse_instance_prims: Whether to traverse instance prims. Defaults to True.</span>
 
 <span class="sd">    Returns:</span>
 <span class="sd">        The first prim on the path that passes the predicate. If no prim passes the predicate, it returns None.</span>
@@ -1198,7 +1216,10 @@
         <span class="k">if</span> <span class="n">predicate</span><span class="p">(</span><span class="n">child_prim</span><span class="p">):</span>
             <span class="k">return</span> <span class="n">child_prim</span>
         <span class="c1"># add children to list</span>
-        <span class="n">all_prims</span> <span class="o">+=</span> <span class="n">child_prim</span><span class="o">.</span><span class="n">GetChildren</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">traverse_instance_prims</span><span class="p">:</span>
+            <span class="n">all_prims</span> <span class="o">+=</span> <span class="n">child_prim</span><span class="o">.</span><span class="n">GetFilteredChildren</span><span class="p">(</span><span class="n">Usd</span><span class="o">.</span><span class="n">TraverseInstanceProxies</span><span class="p">())</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">all_prims</span> <span class="o">+=</span> <span class="n">child_prim</span><span class="o">.</span><span class="n">GetChildren</span><span class="p">()</span>
     <span class="k">return</span> <span class="kc">None</span></div>
 
 
@@ -1207,8 +1228,22 @@
     <span class="n">predicate</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">Usd</span><span class="o">.</span><span class="n">Prim</span><span class="p">],</span> <span class="nb">bool</span><span class="p">]</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">_</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
     <span class="n">depth</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">stage</span><span class="p">:</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Stage</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">traverse_instance_prims</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">Usd</span><span class="o">.</span><span class="n">Prim</span><span class="p">]:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Performs a search starting from the root and returns all the prims matching the predicate.</span>
+
+<span class="sd">    This function performs a depth-first traversal of the prim hierarchy starting from</span>
+<span class="sd">    :attr:`prim_path`, returning all prims that satisfy the provided :attr:`predicate`. It optionally</span>
+<span class="sd">    supports traversal through instance prims, which are normally skipped in standard USD traversals.</span>
+
+<span class="sd">    USD instance prims are lightweight copies of prototype scene structures and are not included</span>
+<span class="sd">    in default traversals unless explicitly handled. This function allows traversing into instances</span>
+<span class="sd">    when :attr:`traverse_instance_prims` is set to :attr:`True`.</span>
+
+<span class="sd">    .. versionchanged:: 2.3.0</span>
+
+<span class="sd">        Added :attr:`traverse_instance_prims` to control whether to traverse instance prims.</span>
+<span class="sd">        By default, instance prims are now traversed.</span>
 
 <span class="sd">    Args:</span>
 <span class="sd">        prim_path: The root prim path to start the search from.</span>
@@ -1217,6 +1252,7 @@
 <span class="sd">        depth: The maximum depth for traversal, should be bigger than zero if specified.</span>
 <span class="sd">            Defaults to None (i.e: traversal happens till the end of the tree).</span>
 <span class="sd">        stage: The stage where the prim exists. Defaults to None, in which case the current stage is used.</span>
+<span class="sd">        traverse_instance_prims: Whether to traverse instance prims. Defaults to True.</span>
 
 <span class="sd">    Returns:</span>
 <span class="sd">        A list containing all the prims matching the predicate.</span>
@@ -1254,7 +1290,13 @@
             <span class="n">output_prims</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">child_prim</span><span class="p">)</span>
         <span class="c1"># add children to list</span>
         <span class="k">if</span> <span class="n">depth</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">current_depth</span> <span class="o">&lt;</span> <span class="n">depth</span><span class="p">:</span>
-            <span class="n">all_prims_queue</span> <span class="o">+=</span> <span class="p">[(</span><span class="n">child</span><span class="p">,</span> <span class="n">current_depth</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="k">for</span> <span class="n">child</span> <span class="ow">in</span> <span class="n">child_prim</span><span class="o">.</span><span class="n">GetChildren</span><span class="p">()]</span>
+            <span class="c1"># resolve prims under the current prim</span>
+            <span class="k">if</span> <span class="n">traverse_instance_prims</span><span class="p">:</span>
+                <span class="n">children</span> <span class="o">=</span> <span class="n">child_prim</span><span class="o">.</span><span class="n">GetFilteredChildren</span><span class="p">(</span><span class="n">Usd</span><span class="o">.</span><span class="n">TraverseInstanceProxies</span><span class="p">())</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">children</span> <span class="o">=</span> <span class="n">child_prim</span><span class="o">.</span><span class="n">GetChildren</span><span class="p">()</span>
+            <span class="c1"># add children to list</span>
+            <span class="n">all_prims_queue</span> <span class="o">+=</span> <span class="p">[(</span><span class="n">child</span><span class="p">,</span> <span class="n">current_depth</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="k">for</span> <span class="n">child</span> <span class="ow">in</span> <span class="n">children</span><span class="p">]</span>
 
     <span class="k">return</span> <span class="n">output_prims</span></div>
 
