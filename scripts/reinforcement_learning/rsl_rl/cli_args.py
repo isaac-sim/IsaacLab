@@ -124,9 +124,10 @@ def update_rsl_rl_cfg(agent_cfg: RslRlBaseRunnerCfg, args_cli: argparse.Namespac
             wandb_username=args_cli.wandb_username,
         )
         agent_cfg.experiment_name = os.path.abspath(os.path.dirname(os.path.dirname(checkpoint_folder)))
-        agent_cfg.run_name = os.path.dirname(checkpoint_folder)
+        agent_cfg.run_name = os.path.basename(os.path.dirname(checkpoint_folder))
         agent_cfg.load_checkpoint = os.path.basename(checkpoint_folder)
         agent_cfg.run_id = args_cli.wandb_run_id
+        agent_cfg.load_run = os.path.basename(os.path.dirname(checkpoint_folder))
         print(f"[INFO] Loading run from Weights & Biases: {agent_cfg.load_run}")
 
     return agent_cfg
