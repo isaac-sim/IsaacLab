@@ -16,7 +16,7 @@ from isaaclab.controllers.pink_ik import NullSpacePostureTask, PinkIKControllerC
 from isaaclab.controllers.pink_ik.local_frame_task import LocalFrameTask
 from isaaclab.devices.device_base import DevicesCfg
 from isaaclab.devices.openxr import ManusViveCfg, OpenXRDeviceCfg, XrCfg
-from isaaclab.devices.openxr.retargeters.humanoid.unitree.g1_retargeter import UnitreeG1RetargeterCfg
+from isaaclab.devices.openxr.retargeters.humanoid.unitree.inspire.g1_upper_body_retargeter import UnitreeG1RetargeterCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.envs.mdp.actions.pink_actions_cfg import PinkInverseKinematicsActionCfg
 from isaaclab.managers import EventTermCfg as EventTerm
