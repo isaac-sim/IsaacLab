@@ -149,6 +149,10 @@ for the lift-cube environment:
     | |galbot_stack|          | |galbot_stack-link|          | Stack three cubes (bottom to top: blue, red, green) with the left arm of    |
     |                         |                              | a Galbot humanoid robot                                                     |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+
+    | |agibot_place_mug|      | |agibot_place_mug-link|      | Pick up and place a mug upright with a Agibot A2D humanoid robot            |
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+
+    | |agibot_place_toy|      | |agibot_place_toy-link|      | Pick up and place an object in a box with a Agibot A2D humanoid robot       |
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+
 
 .. |reach-franka| image:: ../_static/tasks/manipulation/franka_reach.jpg
 .. |reach-ur10| image:: ../_static/tasks/manipulation/ur10_reach.jpg
@@ -162,6 +166,8 @@ for the lift-cube environment:
 .. |surface-gripper| image:: ../_static/tasks/manipulation/ur10_stack_surface_gripper.jpg
 .. |gr1_pp_waist| image:: ../_static/tasks/manipulation/gr-1_pick_place_waist.jpg
 .. |galbot_stack| image:: ../_static/tasks/manipulation/galbot_stack_cube.jpg
+.. |agibot_place_mug| image:: ../_static/tasks/manipulation/agibot_place_mug.jpg
+.. |agibot_place_toy| image:: ../_static/tasks/manipulation/agibot_place_toy.jpg
 .. |kuka-allegro-lift| image:: ../_static/tasks/manipulation/kuka_allegro_lift.jpg
 .. |kuka-allegro-reorient| image:: ../_static/tasks/manipulation/kuka_allegro_reorient.jpg
 
@@ -189,6 +195,9 @@ for the lift-cube environment:
 .. |cube-shadow-ff-link| replace:: `Isaac-Repose-Cube-Shadow-OpenAI-FF-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/shadow_hand/shadow_hand_env_cfg.py>`__
 .. |cube-shadow-lstm-link| replace:: `Isaac-Repose-Cube-Shadow-OpenAI-LSTM-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/shadow_hand/shadow_hand_env_cfg.py>`__
 .. |cube-shadow-vis-link| replace:: `Isaac-Repose-Cube-Shadow-Vision-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/shadow_hand/shadow_hand_vision_env.py>`__
+
+.. |agibot_place_mug-link| replace:: `Isaac-Place-Mug-Agibot-Left-Arm-RmpFlow-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/place/config/agibot/place_upright_mug_rmp_rel_env_cfg.py>`__
+.. |agibot_place_toy-link| replace:: `Isaac-Place-Toy2Box-Agibot-Right-Arm-RmpFlow-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/place/config/agibot/place_toy2box_rmp_rel_env_cfg.py>`__
 
 Contact-rich Manipulation
 ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -987,6 +996,35 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Isaac-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor-Play-v0
       - Manager Based
       -
+    * - Isaac-Place-Mug-Agibot-Left-Arm-RmpFlow-v0
+      -
+      - Manager Based
+      -
+    * - Isaac-Place-Toy2Box-Agibot-Right-Arm-RmpFlow-v0
+      -
+      - Manager Based
+      -
+    * - Isaac-Stack-Cube-Galbot-Left-Arm-Gripper-RmpFlow-v0
+      -
+      - Manager Based
+      -
+    * - Isaac-Stack-Cube-Galbot-Right-Arm-Suction-RmpFlow-v0
+      -
+      - Manager Based
+      -
+    * - Isaac-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor-v0
+      - Isaac-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor-Play-v0
+      - Manager Based
+      -
+    * - Isaac-Place-Mug-Agibot-Left-Arm-RmpFlow-v0
+      -
+      - Manager Based
+      -
+    * - Isaac-Place-Toy2Box-Agibot-Right-Arm-RmpFlow-v0
+      -
+      - Manager Based
+      -
+
     * - Isaac-Velocity-Flat-Anymal-B-v0
       - Isaac-Velocity-Flat-Anymal-B-Play-v0
       - Manager Based
