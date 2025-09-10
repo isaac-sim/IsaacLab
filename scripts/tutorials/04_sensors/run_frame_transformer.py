@@ -155,9 +155,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
             # draw the line connecting the frames
             lines_colors = [[1.0, 1.0, 0.0, 1.0]] * source_pos.shape[0]
             line_thicknesses = [5.0] * source_pos.shape[0]
-            draw_interface.plot_lines(
-                source_pos, target_pos, lines_colors, line_thicknesses
-            )
+            draw_interface.plot_lines(source_pos, target_pos, lines_colors, line_thicknesses)
 
 
 def main():

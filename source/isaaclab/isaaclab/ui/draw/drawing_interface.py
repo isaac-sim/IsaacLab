@@ -3,10 +3,40 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+"""
+Drawing interface utilities for Isaac Lab.
+
+This module provides a higher-level abstraction over the low-level
+`debug_draw` interface of Isaac Sim. It introduces a singleton
+`DrawingInterface` that caches, manages, and renders visualization
+primitives such as points and lines. The interface ensures that
+drawings can be updated consistently across simulation steps without
+requiring each component to manually manage the raw draw API.
+
+Typical Usage:
+    The `DrawingInterface` should not be instantiated directly.
+    Instead, it is exposed through the simulation context:
+
+    ```python
+    draw_interface = SimulationContext.instance().draw_interface
+    draw_interface.plot_points(points, color=(1, 0, 0, 1), size=2.0)
+    draw_interface.update()
+    ```
+
+Internal Helpers:
+    - `_PointsInfo`: Stores point positions, colors, and sizes
+    - `_LinesInfo`: Stores line start/end points, colors, and sizes
+
+This module is primarily intended for debugging and visualization
+purposes (e.g., displaying sensor data, raycasts, or intermediate
+results) inside Isaac Sim.
+"""
+
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
+
 
 from __future__ import annotations
 
@@ -22,36 +52,6 @@ try:
     DRAW_INTERFACE_AVAILABLE = True
 except ImportError:
     DRAW_INTERFACE_AVAILABLE = False
-
-
-@dataclass
-class _PointsInfo:
-    """Internal dataclass to store information about points to be plotted.
-    Attributes:
-        start_pts: A list of tuples representing the positions of points.
-        colors: A list of tuples representing the colors of points in RGBA format.
-        sizes: A list of floats representing the sizes of points.
-    """
-
-    xyz: list[tuple[float, float, float]]
-    colors: list[tuple[float, float, float, float]]
-    sizes: list[float]
-
-
-@dataclass
-class _LinesInfo:
-    """Internal dataclass to store information about lines to be plotted.
-    Attributes:
-        start_pts: A list of tuples representing the starting points of lines.
-        end_pts: A list of tuples representing the ending points of lines.
-        colors: A list of tuples representing the colors of lines in RGBA format.
-        sizes: A list of floats representing the sizes of lines.
-    """
-
-    start_pts: list[tuple[float, float, float]]
-    end_pts: list[tuple[float, float, float]]
-    colors: list[tuple[float, float, float, float]]
-    sizes: list[float]
 
 
 class DrawingInterface:
@@ -265,3 +265,33 @@ class DrawingInterface:
         self._draw_lines(self._persistent_lines)
         self._draw_points(self._points_to_draw)
         self._draw_points(self._persistent_points)
+
+
+@dataclass
+class _PointsInfo:
+    """Internal dataclass to store information about points to be plotted.
+    Attributes:
+        start_pts: A list of tuples representing the positions of points.
+        colors: A list of tuples representing the colors of points in RGBA format.
+        sizes: A list of floats representing the sizes of points.
+    """
+
+    xyz: list[tuple[float, float, float]]
+    colors: list[tuple[float, float, float, float]]
+    sizes: list[float]
+
+
+@dataclass
+class _LinesInfo:
+    """Internal dataclass to store information about lines to be plotted.
+    Attributes:
+        start_pts: A list of tuples representing the starting points of lines.
+        end_pts: A list of tuples representing the ending points of lines.
+        colors: A list of tuples representing the colors of lines in RGBA format.
+        sizes: A list of floats representing the sizes of lines.
+    """
+
+    start_pts: list[tuple[float, float, float]]
+    end_pts: list[tuple[float, float, float]]
+    colors: list[tuple[float, float, float, float]]
+    sizes: list[float]
