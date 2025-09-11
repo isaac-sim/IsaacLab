@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import gymnasium as gym
 import torch
-from typing import Dict, Literal, TypeVar
+from typing import Callable, Dict, Literal, TypeVar
 
 from isaaclab.utils import configclass
 
@@ -17,14 +17,42 @@ from isaaclab.utils import configclass
 
 
 @configclass
+class ViewerOriginTracking:
+    x: bool = True
+    y: bool = True
+    z: bool = True
+    pitch: bool = False
+    roll: bool = False
+    yaw: bool = False
+
+
+@configclass
 class ViewerCfg:
     """Configuration of the scene viewport camera."""
 
-    eye: tuple[float, float, float] = (7.5, 7.5, 7.5)
-    """Initial camera position (in m). Default is (7.5, 7.5, 7.5)."""
+    eye: tuple[float, float, float] | Callable[[int], tuple[float, float, float]] = (7.5, 7.5, 7.5)
+    """Initial camera position (in meters).
 
-    lookat: tuple[float, float, float] = (0.0, 0.0, 0.0)
-    """Initial camera target position (in m). Default is (0.0, 0.0, 0.0)."""
+    This can be either:
+        - A static 3D position, e.g., (7.5, 7.5, 7.5)
+        - A callable function that takes the current time index (int) and returns a 3D position.
+          This allows dynamic camera tracking during simulation rollouts.
+
+    Example:
+        eye = lambda t: (7.5, 7.5, 7.5 - 0.1 * t)  # slowly zooms in over time
+    """
+
+    lookat: tuple[float, float, float] | Callable[[int], tuple[float, float, float]] = (0.0, 0.0, 0.0)
+    """Initial camera target position (in meters).
+
+    This can be either:
+        - A static 3D target, e.g., (0.0, 0.0, 0.0)
+        - A callable function that takes the current time index (int) and returns a 3D target position.
+          This allows the camera to dynamically track a moving object.
+
+    Example:
+        lookat = lambda t: (0.0, 0.0, np.sin(0.1 * t))  # follow an oscillating target
+    """
 
     cam_prim_path: str = "/OmniverseKit_Persp"
     """The camera prim path to record images from. Default is "/OmniverseKit_Persp",
@@ -63,6 +91,17 @@ class ViewerCfg:
     """The name of the body in :attr:`asset_name` in the interactive scene for the frame origin. Default is None.
 
     This quantity is only effective if :attr:`origin` is set to "asset_body".
+    """
+
+    viewer_origin_tracking: ViewerOriginTracking | None = None
+    """Follow specific DoF of asset's root. Default is None.
+
+    This quantity is only effective if :attr:`origin_type` is set to "asset_root".
+
+    Example:
+        viewer_origin_tracking = ViewerOriginTracking(
+            x=True, y=True, z=True, pitch=False, roll=False, yaw=True
+        )
     """
 
 
