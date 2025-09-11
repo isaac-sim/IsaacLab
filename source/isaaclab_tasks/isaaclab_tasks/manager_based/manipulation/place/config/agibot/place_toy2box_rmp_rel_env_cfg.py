@@ -292,7 +292,7 @@ class RmpFlowAgibotPlaceToy2BoxEnvCfg(PlaceToy2BoxEnvCfg):
         )
 
         self.scene.box = RigidObjectCfg(
-            prim_path="{ENV_REGEX_NS}/Box/Aligned",
+            prim_path="{ENV_REGEX_NS}/Box",
             init_state=RigidObjectCfg.InitialStateCfg(),
             spawn=UsdFileCfg(
                 usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Objects/Box/box_167.usd",

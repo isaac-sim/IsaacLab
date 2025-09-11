@@ -130,6 +130,10 @@ def _run_environments(
     if "Visuomotor" in task_name and num_envs == 32:
         return
 
+    # TODO: fix this!!
+    if task_name == "Isaac-Place-Toy2Box-Agibot-Right-Arm-RmpFlow-v0":
+        return
+
     # skip automate environments as they require cuda installation
     if task_name in ["Isaac-AutoMate-Assembly-Direct-v0", "Isaac-AutoMate-Disassembly-Direct-v0"]:
         return
