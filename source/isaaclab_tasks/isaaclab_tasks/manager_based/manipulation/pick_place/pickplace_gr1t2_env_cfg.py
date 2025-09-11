@@ -6,6 +6,7 @@
 import tempfile
 import torch
 
+import carb
 from pink.tasks import DampingTask, FrameTask
 
 import isaaclab.controllers.utils as ControllerUtils
@@ -14,7 +15,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.controllers.pink_ik import NullSpacePostureTask, PinkIKControllerCfg
 from isaaclab.devices.device_base import DevicesCfg
-from isaaclab.devices.openxr import OpenXRDeviceCfg, XrCfg
+from isaaclab.devices.openxr import ManusViveCfg, OpenXRDeviceCfg, XrCfg
 from isaaclab.devices.openxr.retargeters.humanoid.fourier.gr1t2_retargeter import GR1T2RetargeterCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.envs.mdp.actions.pink_actions_cfg import PinkInverseKinematicsActionCfg
@@ -255,6 +256,7 @@ class ActionsCfg:
                 ),
             ],
             fixed_input_tasks=[],
+            xr_enabled=bool(carb.settings.get_settings().get("/app/xr/enabled")),
         ),
     )
 
@@ -430,6 +432,18 @@ class PickPlaceGR1T2EnvCfg(ManagerBasedRLEnvCfg):
                             enable_visualization=True,
                             # number of joints in both hands
                             num_open_xr_hand_joints=2 * self.NUM_OPENXR_HAND_JOINTS,
+                            sim_device=self.sim.device,
+                            hand_joint_names=self.actions.pink_ik_cfg.hand_joint_names,
+                        ),
+                    ],
+                    sim_device=self.sim.device,
+                    xr_cfg=self.xr,
+                ),
+                "manusvive": ManusViveCfg(
+                    retargeters=[
+                        GR1T2RetargeterCfg(
+                            enable_visualization=True,
+                            num_open_xr_hand_joints=2 * 26,
                             sim_device=self.sim.device,
                             hand_joint_names=self.actions.pink_ik_cfg.hand_joint_names,
                         ),
