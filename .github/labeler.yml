@@ -7,10 +7,11 @@
 documentation:
   - changed-files:
     - any-glob-to-any-file:
-      - '**/docs/**'
+      - 'docs/**'
       - '**/README.md'
     - all-globs-to-all-files:
       - '!**/CHANGELOG.rst'
+      - '!docs/licenses/**'
 
 # Infrastructure changes
 infrastructure:
@@ -28,6 +29,7 @@ infrastructure:
       - .flake8
       - isaaclab.sh
       - isaaclab.bat
+      - docs/licenses/**
 
 # Assets (USD, glTF, etc.) related changes.
 asset:
