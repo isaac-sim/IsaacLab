@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.46.1 (2025-09-10)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Moved IO descriptors output directory to a subfolder under the task log directory.
+
+
 0.46.0 (2025-09-06)
 ~~~~~~~~~~~~~~~~~~~
 

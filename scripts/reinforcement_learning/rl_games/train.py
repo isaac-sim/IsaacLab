@@ -156,10 +156,9 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     obs_groups = agent_cfg["params"]["env"].get("obs_groups")
     concate_obs_groups = agent_cfg["params"]["env"].get("concate_obs_groups", True)
 
-    # set the IO descriptors output directory if requested
+    # set the IO descriptors export flag if requested
     if isinstance(env_cfg, ManagerBasedRLEnvCfg):
         env_cfg.export_io_descriptors = args_cli.export_io_descriptors
-        env_cfg.io_descriptors_output_dir = os.path.join(log_root_path, log_dir)
     else:
         omni.log.warn(
             "IO descriptors are only supported for manager based RL environments. No IO descriptors will be exported."
