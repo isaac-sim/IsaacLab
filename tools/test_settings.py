@@ -29,7 +29,6 @@ PER_TEST_TIMEOUTS = {
     "test_environments_training.py": 6000,
     "test_simulation_render_config.py": 500,
     "test_operational_space.py": 500,
-    "test_non_headless_launch.py": 1000,
 }
 """A dictionary of tests and their timeouts in seconds.
 
