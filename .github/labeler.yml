@@ -11,7 +11,7 @@ documentation:
         - 'docs/**'
         - '**/README.md'
       - all-globs-to-all-files:
-        - '!docs/licenses/**'      
+        - '!docs/licenses/**'
 
 # Infrastructure changes
 infrastructure:
