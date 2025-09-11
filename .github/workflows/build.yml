@@ -121,11 +121,19 @@ jobs:
         retention-days: 1
         compression-level: 9
 
-    - name: Fail on Test Failure for Fork PRs
-      if: github.event.pull_request.head.repo.full_name != github.repository && steps.run-general-tests.outcome == 'failure'
+    - name: Check Test Results for Fork PRs
+      if: github.event.pull_request.head.repo.full_name != github.repository
       run: |
-        echo "Tests failed for PR from fork. The test report is in the logs. Failing the job."
-        exit 1
+        if [ -f "reports/general-tests-report.xml" ]; then
+          # Check if the test results contain any failures
+          if grep -q 'failures="[1-9]' reports/general-tests-report.xml || grep -q 'errors="[1-9]' reports/general-tests-report.xml; then
+            echo "Tests failed for PR from fork. The test report is in the logs. Failing the job."
+            exit 1
+          fi
+        else
+          echo "No test results file found. This might indicate test execution failed."
+          exit 1
+        fi
 
   combine-results:
     needs: [test-isaaclab-tasks, test-general]

@@ -15,7 +15,7 @@ If you encounter any issues, please report them to the
 
 .. attention::
 
-   Installing Isaac Sim with pip requires GLIBC 2.34+ version compatibility.
+   Installing Isaac Sim with pip requires GLIBC 2.35+ version compatibility.
    To check the GLIBC version on your system, use command ``ldd --version``.
 
    This may pose compatibility issues with some Linux distributions. For instance, Ubuntu 20.04 LTS has GLIBC 2.31
@@ -48,6 +48,31 @@ If you encounter any issues, please report them to the
 
             conda create -n env_isaaclab python=3.11
             conda activate env_isaaclab
+
+      .. tab-item:: uv environment
+
+         .. tab-set::
+            :sync-group: os
+
+            .. tab-item:: :icon:`fa-brands fa-linux` Linux
+               :sync: linux
+
+               .. code-block:: bash
+
+                  # create a virtual environment named env_isaaclab with python3.11
+                  uv venv --python 3.11 env_isaaclab
+                  # activate the virtual environment
+                  source env_isaaclab/bin/activate
+
+            .. tab-item:: :icon:`fa-brands fa-windows` Windows
+               :sync: windows
+
+               .. code-block:: batch
+
+                  # create a virtual environment named env_isaaclab with python3.11
+                  uv venv --python 3.11 env_isaaclab
+                  # activate the virtual environment
+                  env_isaaclab\Scripts\activate
 
       .. tab-item:: venv environment
 
@@ -94,6 +119,9 @@ If you encounter any issues, please report them to the
 
             python -m pip install --upgrade pip
 
+.. note::
+
+   If you use uv, replace ``pip`` with ``uv pip``.
 
 -  Next, install a CUDA-enabled PyTorch 2.7.0 build.
 
@@ -216,6 +244,7 @@ Clone the Isaac Lab repository into your workspace:
                -d, --docs           Build the documentation from source using sphinx.
                -n, --new            Create a new external project or internal task from template.
                -c, --conda [NAME]   Create the conda environment for Isaac Lab. Default name is 'env_isaaclab'.
+               -u, --uv [NAME]      Create the uv environment for Isaac Lab. Default name is 'env_isaaclab'.
 
       .. tab-item:: :icon:`fa-brands fa-windows` Windows
          :sync: windows
@@ -237,6 +266,7 @@ Clone the Isaac Lab repository into your workspace:
                -d, --docs           Build the documentation from source using sphinx.
                -n, --new            Create a new external project or internal task from template.
                -c, --conda [NAME]   Create the conda environment for Isaac Lab. Default name is 'env_isaaclab'.
+               -u, --uv [NAME]      Create the uv environment for Isaac Lab. Default name is 'env_isaaclab'.
 
 Installation
 ~~~~~~~~~~~~

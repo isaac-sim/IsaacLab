@@ -3,15 +3,14 @@
 License
 ========
 
-NVIDIA Isaac Sim is available freely under `individual license
-<https://www.nvidia.com/en-us/omniverse/download/>`_. For more information
-about its license terms, please check `here <https://docs.omniverse.nvidia.com/app_isaacsim/common/NVIDIA_Omniverse_License_Agreement.html#software-support-supplement>`_.
+NVIDIA Isaac Sim is licensed under Apache 2.0. For more information
+about its license terms, please check `here <https://github.com/isaac-sim/IsaacLab/blob/main/docs/licenses/dependencies/isaacsim-license.txt>`_.
 The license files for all its dependencies and included assets are available in its
 `documentation <https://docs.isaacsim.omniverse.nvidia.com/latest/common/licenses.html>`_.
 
 
 The Isaac Lab framework is open-sourced under the
-`BSD-3-Clause license <https://opensource.org/licenses/BSD-3-Clause>`_.
+`BSD-3-Clause license <https://opensource.org/licenses/BSD-3-Clause>`_, with some dependencies licensed under other terms.
 
 
 .. code-block:: text

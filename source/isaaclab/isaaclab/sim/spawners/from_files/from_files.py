@@ -24,11 +24,11 @@ from isaaclab.sim import converters, schemas
 from isaaclab.sim.utils import (
     bind_physics_material,
     bind_visual_material,
-    check_usd_path_with_timeout,
     clone,
     is_current_stage_in_memory,
     select_usd_variants,
 )
+from isaaclab.utils.assets import check_usd_path_with_timeout
 
 if TYPE_CHECKING:
     from . import from_files_cfg
