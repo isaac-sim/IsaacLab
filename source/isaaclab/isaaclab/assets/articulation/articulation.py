@@ -840,6 +840,7 @@ class Articulation(AssetBase):
 
         For Isaac Sim versions 5.0 and above, the static, dynamic, and viscous friction coefficients
         are set. The model combines Coulomb (static & dynamic) friction with a viscous term:
+
         - Static friction :math:`\mu_s` defines the maximum effort that prevents motion at rest.
         - Dynamic friction :math:`\mu_d` applies once motion begins and remains constant during motion.
         - Viscous friction :math:`c_v` is a velocity-proportional resistive term.
