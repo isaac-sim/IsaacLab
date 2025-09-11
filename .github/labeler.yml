@@ -29,7 +29,7 @@ infrastructure:
       - .flake8
       - isaaclab.sh
       - isaaclab.bat
-      - docs/licenses
+      - docs/licenses/**
 
 # Assets (USD, glTF, etc.) related changes.
 asset:
