@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.2.1" />
-    <meta name="docbuild:last-update" content="Sep 10, 2025"/>
+    <meta name="docbuild:last-update" content="Sep 11, 2025"/>
   </head>
   
   
@@ -679,6 +679,7 @@
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.ManagerBasedEnvCfg.teleop_devices"><code class="docutils literal notranslate"><span class="pre">ManagerBasedEnvCfg.teleop_devices</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.ManagerBasedEnvCfg.export_io_descriptors"><code class="docutils literal notranslate"><span class="pre">ManagerBasedEnvCfg.export_io_descriptors</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.ManagerBasedEnvCfg.io_descriptors_output_dir"><code class="docutils literal notranslate"><span class="pre">ManagerBasedEnvCfg.io_descriptors_output_dir</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.ManagerBasedEnvCfg.log_dir"><code class="docutils literal notranslate"><span class="pre">ManagerBasedEnvCfg.log_dir</span></code></a></li>
 </ul>
 </li>
 </ul>
@@ -733,6 +734,7 @@
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.ManagerBasedRLEnvCfg.teleop_devices"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnvCfg.teleop_devices</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.ManagerBasedRLEnvCfg.export_io_descriptors"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnvCfg.export_io_descriptors</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.ManagerBasedRLEnvCfg.io_descriptors_output_dir"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnvCfg.io_descriptors_output_dir</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.ManagerBasedRLEnvCfg.log_dir"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnvCfg.log_dir</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.ManagerBasedRLEnvCfg.terminations"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnvCfg.terminations</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.ManagerBasedRLEnvCfg.curriculum"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnvCfg.curriculum</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.ManagerBasedRLEnvCfg.commands"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnvCfg.commands</span></code></a></li>
@@ -786,6 +788,7 @@
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.DirectRLEnvCfg.rerender_on_reset"><code class="docutils literal notranslate"><span class="pre">DirectRLEnvCfg.rerender_on_reset</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.DirectRLEnvCfg.wait_for_textures"><code class="docutils literal notranslate"><span class="pre">DirectRLEnvCfg.wait_for_textures</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.DirectRLEnvCfg.xr"><code class="docutils literal notranslate"><span class="pre">DirectRLEnvCfg.xr</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.DirectRLEnvCfg.log_dir"><code class="docutils literal notranslate"><span class="pre">DirectRLEnvCfg.log_dir</span></code></a></li>
 </ul>
 </li>
 </ul>
@@ -839,6 +842,7 @@
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.DirectMARLEnvCfg.action_noise_model"><code class="docutils literal notranslate"><span class="pre">DirectMARLEnvCfg.action_noise_model</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.DirectMARLEnvCfg.possible_agents"><code class="docutils literal notranslate"><span class="pre">DirectMARLEnvCfg.possible_agents</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.DirectMARLEnvCfg.xr"><code class="docutils literal notranslate"><span class="pre">DirectMARLEnvCfg.xr</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.DirectMARLEnvCfg.log_dir"><code class="docutils literal notranslate"><span class="pre">DirectMARLEnvCfg.log_dir</span></code></a></li>
 </ul>
 </li>
 </ul>
@@ -1350,6 +1354,9 @@ Based on these parameters, the environment time-step is computed as the product 
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedEnvCfg.io_descriptors_output_dir" title="isaaclab.envs.ManagerBasedEnvCfg.io_descriptors_output_dir"><code class="xref py py-obj docutils literal notranslate"><span class="pre">io_descriptors_output_dir</span></code></a></p></td>
 <td><p>The directory to export the IO descriptors to.</p></td>
 </tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedEnvCfg.log_dir" title="isaaclab.envs.ManagerBasedEnvCfg.log_dir"><code class="xref py py-obj docutils literal notranslate"><span class="pre">log_dir</span></code></a></p></td>
+<td><p>Directory for logging experiment artifacts.</p></td>
+</tr>
 </tbody>
 </table>
 </div>
@@ -1476,6 +1483,12 @@ step will be performed after each time an environment is reset.</p></li>
 <dt class="sig sig-object py" id="isaaclab.envs.ManagerBasedEnvCfg.io_descriptors_output_dir">
 <span class="sig-name descname"><span class="pre">io_descriptors_output_dir</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab.envs.ManagerBasedEnvCfg.io_descriptors_output_dir" title="Permalink to this definition">#</a></dt>
 <dd><p>The directory to export the IO descriptors to. Defaults to None.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab.envs.ManagerBasedEnvCfg.log_dir">
+<span class="sig-name descname"><span class="pre">log_dir</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab.envs.ManagerBasedEnvCfg.log_dir" title="Permalink to this definition">#</a></dt>
+<dd><p>Directory for logging experiment artifacts. Defaults to None, in which case no specific log directory is set.</p>
 </dd></dl>
 
 </dd></dl>
@@ -1971,13 +1984,16 @@ Defaults to False.</p></li>
 <tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLEnvCfg.io_descriptors_output_dir" title="isaaclab.envs.ManagerBasedRLEnvCfg.io_descriptors_output_dir"><code class="xref py py-obj docutils literal notranslate"><span class="pre">io_descriptors_output_dir</span></code></a></p></td>
 <td><p>The directory to export the IO descriptors to.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLEnvCfg.terminations" title="isaaclab.envs.ManagerBasedRLEnvCfg.terminations"><code class="xref py py-obj docutils literal notranslate"><span class="pre">terminations</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLEnvCfg.log_dir" title="isaaclab.envs.ManagerBasedRLEnvCfg.log_dir"><code class="xref py py-obj docutils literal notranslate"><span class="pre">log_dir</span></code></a></p></td>
+<td><p>Directory for logging experiment artifacts.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLEnvCfg.terminations" title="isaaclab.envs.ManagerBasedRLEnvCfg.terminations"><code class="xref py py-obj docutils literal notranslate"><span class="pre">terminations</span></code></a></p></td>
 <td><p>Termination settings.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLEnvCfg.curriculum" title="isaaclab.envs.ManagerBasedRLEnvCfg.curriculum"><code class="xref py py-obj docutils literal notranslate"><span class="pre">curriculum</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLEnvCfg.curriculum" title="isaaclab.envs.ManagerBasedRLEnvCfg.curriculum"><code class="xref py py-obj docutils literal notranslate"><span class="pre">curriculum</span></code></a></p></td>
 <td><p>Curriculum settings.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLEnvCfg.commands" title="isaaclab.envs.ManagerBasedRLEnvCfg.commands"><code class="xref py py-obj docutils literal notranslate"><span class="pre">commands</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.ManagerBasedRLEnvCfg.commands" title="isaaclab.envs.ManagerBasedRLEnvCfg.commands"><code class="xref py py-obj docutils literal notranslate"><span class="pre">commands</span></code></a></p></td>
 <td><p>Command settings.</p></td>
 </tr>
 </tbody>
@@ -2140,6 +2156,12 @@ step will be performed after each time an environment is reset.</p></li>
 <dt class="sig sig-object py" id="isaaclab.envs.ManagerBasedRLEnvCfg.io_descriptors_output_dir">
 <span class="sig-name descname"><span class="pre">io_descriptors_output_dir</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab.envs.ManagerBasedRLEnvCfg.io_descriptors_output_dir" title="Permalink to this definition">#</a></dt>
 <dd><p>The directory to export the IO descriptors to. Defaults to None.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab.envs.ManagerBasedRLEnvCfg.log_dir">
+<span class="sig-name descname"><span class="pre">log_dir</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab.envs.ManagerBasedRLEnvCfg.log_dir" title="Permalink to this definition">#</a></dt>
+<dd><p>Directory for logging experiment artifacts. Defaults to None, in which case no specific log directory is set.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -2580,6 +2602,9 @@ the seed will take the value -1.</p>
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.DirectRLEnvCfg.xr" title="isaaclab.envs.DirectRLEnvCfg.xr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">xr</span></code></a></p></td>
 <td><p>Configuration for viewing and interacting with the environment through an XR device.</p></td>
 </tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.DirectRLEnvCfg.log_dir" title="isaaclab.envs.DirectRLEnvCfg.log_dir"><code class="xref py py-obj docutils literal notranslate"><span class="pre">log_dir</span></code></a></p></td>
+<td><p>Directory for logging experiment artifacts.</p></td>
+</tr>
 </tbody>
 </table>
 </div>
@@ -2847,6 +2872,12 @@ step will be performed after each time an environment is reset.</p></li>
 <dt class="sig sig-object py" id="isaaclab.envs.DirectRLEnvCfg.xr">
 <span class="sig-name descname"><span class="pre">xr</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">XrCfg</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab.envs.DirectRLEnvCfg.xr" title="Permalink to this definition">#</a></dt>
 <dd><p>Configuration for viewing and interacting with the environment through an XR device.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab.envs.DirectRLEnvCfg.log_dir">
+<span class="sig-name descname"><span class="pre">log_dir</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab.envs.DirectRLEnvCfg.log_dir" title="Permalink to this definition">#</a></dt>
+<dd><p>Directory for logging experiment artifacts. Defaults to None, in which case no specific log directory is set.</p>
 </dd></dl>
 
 </dd></dl>
@@ -3305,6 +3336,9 @@ the seed will take the value -1.</p>
 <tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.envs.DirectMARLEnvCfg.xr" title="isaaclab.envs.DirectMARLEnvCfg.xr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">xr</span></code></a></p></td>
 <td><p>Configuration for viewing and interacting with the environment through an XR device.</p></td>
 </tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.envs.DirectMARLEnvCfg.log_dir" title="isaaclab.envs.DirectMARLEnvCfg.log_dir"><code class="xref py py-obj docutils literal notranslate"><span class="pre">log_dir</span></code></a></p></td>
+<td><p>Directory for logging experiment artifacts.</p></td>
+</tr>
 </tbody>
 </table>
 </div>
@@ -3565,6 +3599,12 @@ specification of the space is desired) or basic Python data types (for simplicit
 <dt class="sig sig-object py" id="isaaclab.envs.DirectMARLEnvCfg.xr">
 <span class="sig-name descname"><span class="pre">xr</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">XrCfg</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab.envs.DirectMARLEnvCfg.xr" title="Permalink to this definition">#</a></dt>
 <dd><p>Configuration for viewing and interacting with the environment through an XR device.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab.envs.DirectMARLEnvCfg.log_dir">
+<span class="sig-name descname"><span class="pre">log_dir</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab.envs.DirectMARLEnvCfg.log_dir" title="Permalink to this definition">#</a></dt>
+<dd><p>Directory for logging experiment artifacts. Defaults to None, in which case no specific log directory is set.</p>
 </dd></dl>
 
 </dd></dl>
@@ -4599,6 +4639,7 @@ Default is (1280, 720).</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.ManagerBasedEnvCfg.teleop_devices"><code class="docutils literal notranslate"><span class="pre">ManagerBasedEnvCfg.teleop_devices</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.ManagerBasedEnvCfg.export_io_descriptors"><code class="docutils literal notranslate"><span class="pre">ManagerBasedEnvCfg.export_io_descriptors</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.ManagerBasedEnvCfg.io_descriptors_output_dir"><code class="docutils literal notranslate"><span class="pre">ManagerBasedEnvCfg.io_descriptors_output_dir</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.ManagerBasedEnvCfg.log_dir"><code class="docutils literal notranslate"><span class="pre">ManagerBasedEnvCfg.log_dir</span></code></a></li>
 </ul>
 </li>
 </ul>
@@ -4653,6 +4694,7 @@ Default is (1280, 720).</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.ManagerBasedRLEnvCfg.teleop_devices"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnvCfg.teleop_devices</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.ManagerBasedRLEnvCfg.export_io_descriptors"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnvCfg.export_io_descriptors</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.ManagerBasedRLEnvCfg.io_descriptors_output_dir"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnvCfg.io_descriptors_output_dir</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.ManagerBasedRLEnvCfg.log_dir"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnvCfg.log_dir</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.ManagerBasedRLEnvCfg.terminations"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnvCfg.terminations</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.ManagerBasedRLEnvCfg.curriculum"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnvCfg.curriculum</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.ManagerBasedRLEnvCfg.commands"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnvCfg.commands</span></code></a></li>
@@ -4706,6 +4748,7 @@ Default is (1280, 720).</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.DirectRLEnvCfg.rerender_on_reset"><code class="docutils literal notranslate"><span class="pre">DirectRLEnvCfg.rerender_on_reset</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.DirectRLEnvCfg.wait_for_textures"><code class="docutils literal notranslate"><span class="pre">DirectRLEnvCfg.wait_for_textures</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.DirectRLEnvCfg.xr"><code class="docutils literal notranslate"><span class="pre">DirectRLEnvCfg.xr</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.DirectRLEnvCfg.log_dir"><code class="docutils literal notranslate"><span class="pre">DirectRLEnvCfg.log_dir</span></code></a></li>
 </ul>
 </li>
 </ul>
@@ -4759,6 +4802,7 @@ Default is (1280, 720).</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.DirectMARLEnvCfg.action_noise_model"><code class="docutils literal notranslate"><span class="pre">DirectMARLEnvCfg.action_noise_model</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.DirectMARLEnvCfg.possible_agents"><code class="docutils literal notranslate"><span class="pre">DirectMARLEnvCfg.possible_agents</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.DirectMARLEnvCfg.xr"><code class="docutils literal notranslate"><span class="pre">DirectMARLEnvCfg.xr</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.envs.DirectMARLEnvCfg.log_dir"><code class="docutils literal notranslate"><span class="pre">DirectMARLEnvCfg.log_dir</span></code></a></li>
 </ul>
 </li>
 </ul>
@@ -4878,7 +4922,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Sep 10, 2025.
+  Last updated on Sep 11, 2025.
   <br/>
 </p>
   </div>
