@@ -6,7 +6,7 @@ import tempfile
 import torch
 
 import carb
-from pink.tasks import DampingTask, FrameTask
+from pink.tasks import FrameTask
 
 import isaaclab.controllers.utils as ControllerUtils
 import isaaclab.envs.mdp as base_mdp
