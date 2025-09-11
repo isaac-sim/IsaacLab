@@ -652,6 +652,7 @@
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#installing-isaac-lab">Installing Isaac Lab</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#cloning-isaac-lab">Cloning Isaac Lab</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#creating-the-isaac-sim-symbolic-link">Creating the Isaac Sim Symbolic Link</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#setting-up-the-uv-environment-optional">Setting up the uv environment (optional)</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#setting-up-the-conda-environment-optional">Setting up the conda environment (optional)</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#installation">Installation</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#verifying-the-isaac-lab-installation">Verifying the Isaac Lab installation</a></li>
@@ -861,6 +862,7 @@ optional arguments:
    -d, --docs           Build the documentation from source using sphinx.
    -n, --new            Create a new external project or internal task from template.
    -c, --conda [NAME]   Create the conda environment for Isaac Lab. Default name is &#39;env_isaaclab&#39;.
+   -u, --uv [NAME]      Create the uv environment for Isaac Lab. Default name is &#39;env_isaaclab&#39;.
 </pre></div>
 </div>
 </div>
@@ -882,6 +884,7 @@ optional arguments:
    -d, --docs           Build the documentation from source using sphinx.
    -n, --new            Create a new external project or internal task from template.
    -c, --conda [NAME]   Create the conda environment for Isaac Lab. Default name is &#39;env_isaaclab&#39;.
+   -u, --uv [NAME]      Create the uv environment for Isaac Lab. Default name is &#39;env_isaaclab&#39;.
 </pre></div>
 </div>
 </div>
@@ -918,6 +921,51 @@ ln<span class="w"> </span>-s<span class="w"> </span>path_to_isaac_sim<span class
 </div>
 </div>
 </section>
+<section id="setting-up-the-uv-environment-optional">
+<h3>Setting up the uv environment (optional)<a class="headerlink" href="#setting-up-the-uv-environment-optional" title="Permalink to this heading">#</a></h3>
+<div class="admonition attention">
+<p class="admonition-title">Attention</p>
+<p>This step is optional. If you are using the bundled python with Isaac Sim, you can skip this step.</p>
+</div>
+<p>The executable <code class="docutils literal notranslate"><span class="pre">isaaclab.sh</span></code> automatically fetches the python bundled with Isaac
+Sim, using <code class="docutils literal notranslate"><span class="pre">./isaaclab.sh</span> <span class="pre">-p</span></code> command (unless inside a virtual environment). This executable
+behaves like a python executable, and can be used to run any python script or
+module with the simulator. For more information, please refer to the
+<a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/python_scripting/manual_standalone_python.html">documentation</a>.</p>
+<p>To install <code class="docutils literal notranslate"><span class="pre">uv</span></code>, please follow the instructions <a class="reference external" href="https://docs.astral.sh/uv/getting-started/installation/">here</a>.
+You can create the Isaac Lab environment using the following commands.</p>
+<div class="sd-tab-set docutils">
+<input checked="checked" id="sd-tab-item-16" name="sd-tab-set-8" type="radio">
+<label class="sd-tab-label" data-sync-group="os" data-sync-id="linux" for="sd-tab-item-16">
+<i class="fa-brands fa-linux"></i> Linux</label><div class="sd-tab-content docutils">
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Option 1: Default name for uv environment is &#39;env_isaaclab&#39;</span>
+./isaaclab.sh<span class="w"> </span>--uv<span class="w">  </span><span class="c1"># or &quot;./isaaclab.sh -u&quot;</span>
+<span class="c1"># Option 2: Custom name for uv environment</span>
+./isaaclab.sh<span class="w"> </span>--uv<span class="w"> </span>my_env<span class="w">  </span><span class="c1"># or &quot;./isaaclab.sh -u my_env&quot;</span>
+</pre></div>
+</div>
+</div>
+<input id="sd-tab-item-17" name="sd-tab-set-8" type="radio">
+<label class="sd-tab-label" data-sync-group="os" data-sync-id="windows" for="sd-tab-item-17">
+<i class="fa-brands fa-windows"></i> Windows</label><div class="sd-tab-content docutils">
+<div class="highlight-batch notranslate"><div class="highlight"><pre><span></span><span class="p">:</span><span class="c1">: Option 1: Default name for uv environment is &#39;env_isaaclab&#39;</span>
+isaaclab.bat --uv  :: or <span class="s2">&quot;isaaclab.bat -u&quot;</span>
+<span class="p">:</span><span class="c1">: Option 2: Custom name for uv environment</span>
+isaaclab.bat --uv my_env  :: or <span class="s2">&quot;isaaclab.bat -u my_env&quot;</span>
+</pre></div>
+</div>
+</div>
+</div>
+<p>Once created, be sure to activate the environment before proceeding!</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">source</span><span class="w"> </span>./env_isaaclab/bin/activate<span class="w">  </span><span class="c1"># or &quot;source ./my_env/bin/activate&quot;</span>
+</pre></div>
+</div>
+<p>Once you are in the virtual environment, you do not need to use <code class="docutils literal notranslate"><span class="pre">./isaaclab.sh</span> <span class="pre">-p</span></code> / <code class="docutils literal notranslate"><span class="pre">isaaclab.bat</span> <span class="pre">-p</span></code>
+to run python scripts. You can use the default python executable in your environment
+by running <code class="docutils literal notranslate"><span class="pre">python</span></code> or <code class="docutils literal notranslate"><span class="pre">python3</span></code>. However, for the rest of the documentation,
+we will assume that you are using <code class="docutils literal notranslate"><span class="pre">./isaaclab.sh</span> <span class="pre">-p</span></code> / <code class="docutils literal notranslate"><span class="pre">isaaclab.bat</span> <span class="pre">-p</span></code> to run python scripts. This command
+is equivalent to running <code class="docutils literal notranslate"><span class="pre">python</span></code> or <code class="docutils literal notranslate"><span class="pre">python3</span></code> in your virtual environment.</p>
+</section>
 <section id="setting-up-the-conda-environment-optional">
 <h3>Setting up the conda environment (optional)<a class="headerlink" href="#setting-up-the-conda-environment-optional" title="Permalink to this heading">#</a></h3>
 <div class="admonition attention">
@@ -936,8 +984,8 @@ module with the simulator. For more information, please refer to the
 <p>To install <code class="docutils literal notranslate"><span class="pre">conda</span></code>, please follow the instructions <a class="reference external" href="https://docs.conda.io/projects/conda/en/latest/user-guide/install/index.html">here</a>.
 You can create the Isaac Lab environment using the following commands.</p>
 <div class="sd-tab-set docutils">
-<input checked="checked" id="sd-tab-item-16" name="sd-tab-set-8" type="radio">
-<label class="sd-tab-label" data-sync-group="os" data-sync-id="linux" for="sd-tab-item-16">
+<input checked="checked" id="sd-tab-item-18" name="sd-tab-set-9" type="radio">
+<label class="sd-tab-label" data-sync-group="os" data-sync-id="linux" for="sd-tab-item-18">
 <i class="fa-brands fa-linux"></i> Linux</label><div class="sd-tab-content docutils">
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Option 1: Default name for conda environment is &#39;env_isaaclab&#39;</span>
 ./isaaclab.sh<span class="w"> </span>--conda<span class="w">  </span><span class="c1"># or &quot;./isaaclab.sh -c&quot;</span>
@@ -946,8 +994,8 @@ You can create the Isaac Lab environment using the following commands.</p>
 </pre></div>
 </div>
 </div>
-<input id="sd-tab-item-17" name="sd-tab-set-8" type="radio">
-<label class="sd-tab-label" data-sync-group="os" data-sync-id="windows" for="sd-tab-item-17">
+<input id="sd-tab-item-19" name="sd-tab-set-9" type="radio">
+<label class="sd-tab-label" data-sync-group="os" data-sync-id="windows" for="sd-tab-item-19">
 <i class="fa-brands fa-windows"></i> Windows</label><div class="sd-tab-content docutils">
 <div class="highlight-batch notranslate"><div class="highlight"><pre><span></span><span class="p">:</span><span class="c1">: Option 1: Default name for conda environment is &#39;env_isaaclab&#39;</span>
 isaaclab.bat --conda  :: or <span class="s2">&quot;isaaclab.bat -c&quot;</span>
@@ -980,15 +1028,15 @@ sudo<span class="w"> </span>apt<span class="w"> </span>install<span class="w"> <
 using pip (with <code class="docutils literal notranslate"><span class="pre">--editable</span></code> flag):</p></li>
 </ul>
 <div class="sd-tab-set docutils">
-<input checked="checked" id="sd-tab-item-18" name="sd-tab-set-9" type="radio">
-<label class="sd-tab-label" data-sync-group="os" data-sync-id="linux" for="sd-tab-item-18">
+<input checked="checked" id="sd-tab-item-20" name="sd-tab-set-10" type="radio">
+<label class="sd-tab-label" data-sync-group="os" data-sync-id="linux" for="sd-tab-item-20">
 <i class="fa-brands fa-linux"></i> Linux</label><div class="sd-tab-content docutils">
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>--install<span class="w"> </span><span class="c1"># or &quot;./isaaclab.sh -i&quot;</span>
 </pre></div>
 </div>
 </div>
-<input id="sd-tab-item-19" name="sd-tab-set-9" type="radio">
-<label class="sd-tab-label" data-sync-group="os" data-sync-id="windows" for="sd-tab-item-19">
+<input id="sd-tab-item-21" name="sd-tab-set-10" type="radio">
+<label class="sd-tab-label" data-sync-group="os" data-sync-id="windows" for="sd-tab-item-21">
 <i class="fa-brands fa-windows"></i> Windows</label><div class="sd-tab-content docutils">
 <div class="highlight-batch notranslate"><div class="highlight"><pre><span></span>isaaclab.bat --install :: or <span class="s2">&quot;isaaclab.bat -i&quot;</span>
 </pre></div>
@@ -1000,15 +1048,15 @@ using pip (with <code class="docutils literal notranslate"><span class="pre">--e
 <p>By default, the above will install all the learning frameworks. If you want to install only a specific framework, you can
 pass the name of the framework as an argument. For example, to install only the <code class="docutils literal notranslate"><span class="pre">rl_games</span></code> framework, you can run</p>
 <div class="sd-tab-set docutils">
-<input checked="checked" id="sd-tab-item-20" name="sd-tab-set-10" type="radio">
-<label class="sd-tab-label" data-sync-group="os" data-sync-id="linux" for="sd-tab-item-20">
+<input checked="checked" id="sd-tab-item-22" name="sd-tab-set-11" type="radio">
+<label class="sd-tab-label" data-sync-group="os" data-sync-id="linux" for="sd-tab-item-22">
 <i class="fa-brands fa-linux"></i> Linux</label><div class="sd-tab-content docutils">
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>--install<span class="w"> </span>rl_games<span class="w">  </span><span class="c1"># or &quot;./isaaclab.sh -i rl_games&quot;</span>
 </pre></div>
 </div>
 </div>
-<input id="sd-tab-item-21" name="sd-tab-set-10" type="radio">
-<label class="sd-tab-label" data-sync-group="os" data-sync-id="windows" for="sd-tab-item-21">
+<input id="sd-tab-item-23" name="sd-tab-set-11" type="radio">
+<label class="sd-tab-label" data-sync-group="os" data-sync-id="windows" for="sd-tab-item-23">
 <i class="fa-brands fa-windows"></i> Windows</label><div class="sd-tab-content docutils">
 <div class="highlight-batch notranslate"><div class="highlight"><pre><span></span>isaaclab.bat --install rl_games :: or <span class="s2">&quot;isaaclab.bat -i rl_games&quot;</span>
 </pre></div>
@@ -1023,8 +1071,8 @@ pass the name of the framework as an argument. For example, to install only the 
 <p>To verify that the installation was successful, run the following command from the
 top of the repository:</p>
 <div class="sd-tab-set docutils">
-<input checked="checked" id="sd-tab-item-22" name="sd-tab-set-11" type="radio">
-<label class="sd-tab-label" data-sync-group="os" data-sync-id="linux" for="sd-tab-item-22">
+<input checked="checked" id="sd-tab-item-24" name="sd-tab-set-12" type="radio">
+<label class="sd-tab-label" data-sync-group="os" data-sync-id="linux" for="sd-tab-item-24">
 <i class="fa-brands fa-linux"></i> Linux</label><div class="sd-tab-content docutils">
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Option 1: Using the isaaclab.sh executable</span>
 <span class="c1"># note: this works for both the bundled python and the virtual environment</span>
@@ -1035,8 +1083,8 @@ python<span class="w"> </span>scripts/tutorials/00_sim/create_empty.py
 </pre></div>
 </div>
 </div>
-<input id="sd-tab-item-23" name="sd-tab-set-11" type="radio">
-<label class="sd-tab-label" data-sync-group="os" data-sync-id="windows" for="sd-tab-item-23">
+<input id="sd-tab-item-25" name="sd-tab-set-12" type="radio">
+<label class="sd-tab-label" data-sync-group="os" data-sync-id="windows" for="sd-tab-item-25">
 <i class="fa-brands fa-windows"></i> Windows</label><div class="sd-tab-content docutils">
 <div class="highlight-batch notranslate"><div class="highlight"><pre><span></span><span class="p">:</span><span class="c1">: Option 1: Using the isaaclab.bat executable</span>
 <span class="p">:</span><span class="c1">: note: this works for both the bundled python and the virtual environment</span>
@@ -1056,23 +1104,23 @@ On Windows machines, please terminate the process from Command Prompt using
 <img alt="Simulator with a black window." src="../../../_images/verify_install.jpg" />
 </figure>
 <p>If you see this, then the installation was successful! 🎉</p>
-<p>If you see an error <code class="docutils literal notranslate"><span class="pre">ModuleNotFoundError:</span> <span class="pre">No</span> <span class="pre">module</span> <span class="pre">named</span> <span class="pre">'isaacsim'</span></code>, ensure that the conda environment is activated
-and <code class="docutils literal notranslate"><span class="pre">source</span> <span class="pre">_isaac_sim/setup_conda_env.sh</span></code> has been executed.</p>
+<p>If you see an error <code class="docutils literal notranslate"><span class="pre">ModuleNotFoundError:</span> <span class="pre">No</span> <span class="pre">module</span> <span class="pre">named</span> <span class="pre">'isaacsim'</span></code>, ensure that the conda or uv environment is activated
+and <code class="docutils literal notranslate"><span class="pre">source</span> <span class="pre">_isaac_sim/setup_conda_env.sh</span></code> has been executed (for uv as well).</p>
 </section>
 <section id="train-a-robot">
 <h3>Train a robot!<a class="headerlink" href="#train-a-robot" title="Permalink to this heading">#</a></h3>
 <p>You can now use Isaac Lab to train a robot through Reinforcement Learning! The quickest way to use Isaac Lab is through the predefined workflows using one of our <strong>Batteries-included</strong> robot tasks. Execute the following command to quickly train an ant to walk!
 We recommend adding <code class="docutils literal notranslate"><span class="pre">--headless</span></code> for faster training.</p>
 <div class="sd-tab-set docutils">
-<input checked="checked" id="sd-tab-item-24" name="sd-tab-set-12" type="radio">
-<label class="sd-tab-label" data-sync-group="os" data-sync-id="linux" for="sd-tab-item-24">
+<input checked="checked" id="sd-tab-item-26" name="sd-tab-set-13" type="radio">
+<label class="sd-tab-label" data-sync-group="os" data-sync-id="linux" for="sd-tab-item-26">
 <i class="fa-brands fa-linux"></i> Linux</label><div class="sd-tab-content docutils">
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/reinforcement_learning/rsl_rl/train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Ant-v0<span class="w"> </span>--headless
 </pre></div>
 </div>
 </div>
-<input id="sd-tab-item-25" name="sd-tab-set-12" type="radio">
-<label class="sd-tab-label" data-sync-group="os" data-sync-id="windows" for="sd-tab-item-25">
+<input id="sd-tab-item-27" name="sd-tab-set-13" type="radio">
+<label class="sd-tab-label" data-sync-group="os" data-sync-id="windows" for="sd-tab-item-27">
 <i class="fa-brands fa-windows"></i> Windows</label><div class="sd-tab-content docutils">
 <div class="highlight-batch notranslate"><div class="highlight"><pre><span></span>isaaclab.bat -p scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Ant-v0 --headless
 </pre></div>
@@ -1081,15 +1129,15 @@ We recommend adding <code class="docutils literal notranslate"><span class="pre"
 </div>
 <p>… Or a robot dog!</p>
 <div class="sd-tab-set docutils">
-<input checked="checked" id="sd-tab-item-26" name="sd-tab-set-13" type="radio">
-<label class="sd-tab-label" data-sync-group="os" data-sync-id="linux" for="sd-tab-item-26">
+<input checked="checked" id="sd-tab-item-28" name="sd-tab-set-14" type="radio">
+<label class="sd-tab-label" data-sync-group="os" data-sync-id="linux" for="sd-tab-item-28">
 <i class="fa-brands fa-linux"></i> Linux</label><div class="sd-tab-content docutils">
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/reinforcement_learning/rsl_rl/train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Velocity-Rough-Anymal-C-v0<span class="w"> </span>--headless
 </pre></div>
 </div>
 </div>
-<input id="sd-tab-item-27" name="sd-tab-set-13" type="radio">
-<label class="sd-tab-label" data-sync-group="os" data-sync-id="windows" for="sd-tab-item-27">
+<input id="sd-tab-item-29" name="sd-tab-set-14" type="radio">
+<label class="sd-tab-label" data-sync-group="os" data-sync-id="windows" for="sd-tab-item-29">
 <i class="fa-brands fa-windows"></i> Windows</label><div class="sd-tab-content docutils">
 <div class="highlight-batch notranslate"><div class="highlight"><pre><span></span>isaaclab.bat -p scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Velocity-Rough-Anymal-C-v0 --headless
 </pre></div>
@@ -1158,6 +1206,7 @@ We recommend adding <code class="docutils literal notranslate"><span class="pre"
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#installing-isaac-lab">Installing Isaac Lab</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#cloning-isaac-lab">Cloning Isaac Lab</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#creating-the-isaac-sim-symbolic-link">Creating the Isaac Sim Symbolic Link</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#setting-up-the-uv-environment-optional">Setting up the uv environment (optional)</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#setting-up-the-conda-environment-optional">Setting up the conda environment (optional)</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#installation">Installation</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#verifying-the-isaac-lab-installation">Verifying the Isaac Lab installation</a></li>
