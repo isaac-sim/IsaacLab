@@ -5,12 +5,16 @@
 
 # Documentation-related changes
 documentation:
-  - changed-files:
-    - any-glob-to-any-file:
-      - 'docs/**'
-      - '**/README.md'
-    - all-globs-to-all-files:
-      - '!docs/licenses/**'
+  - all:
+    - changed-files:
+      - any-glob-to-any-file:
+        - 'docs/**'
+      - all-globs-to-all-files:
+        - '!docs/licenses/**'
+  - any:
+    - changed-files:
+      - any-glob-to-any-file:
+        - '**/README.md'
 
 # Infrastructure changes
 infrastructure:
@@ -54,14 +58,20 @@ isaac-mimic:
 
 # Isaac Lab team related changes.
 isaac-lab:
-  - changed-files:
-    - any-glob-to-any-file:
-      - source/**
-      - scripts/**
-    - all-globs-to-all-files:
-      - '!source/isaaclab_assets/**'
-      - '!source/isaaclab_mimic/**'
-      - '!scripts/imitation_learning/**'
+  - all:
+    - changed-files:
+      - any-glob-to-any-file:
+        - source/**
+      - all-globs-to-all-files:
+        - '!source/isaaclab_assets/**'
+        - '!source/isaaclab_mimic/**'
+        - '!source/isaaclab/isaaclab/devices'
+  - all:
+    - changed-files:
+      - any-glob-to-any-file:
+        - scripts/**
+      - all-globs-to-all-files:
+        - '!scripts/imitation_learning/**'
 
 # Add 'enhancement' label to any PR where the head branch name
 # starts with `feature` or has a `feature` section in the name
