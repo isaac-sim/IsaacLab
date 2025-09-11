@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.11.0 (2025-09-07)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added dextrous lifting and dextrous reorientation manipulation rl environments.
+
+
 0.10.51 (2025-09-08)
 ~~~~~~~~~~~~~~~~~~~~
 
