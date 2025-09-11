@@ -295,8 +295,8 @@ including file path, simulation parameters, actuator properties, and initial sta
        actuators={
            "cart_actuator": ImplicitActuatorCfg(
                joint_names_expr=["slider_to_cart"],
-               effort_limit=400.0,
-               velocity_limit=100.0,
+               effort_limit_sim=400.0,
+               velocity_limit_sim=100.0,
                stiffness=0.0,
                damping=10.0,
            ),

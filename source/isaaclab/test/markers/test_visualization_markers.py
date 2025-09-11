@@ -37,8 +37,8 @@ def sim():
     yield sim_context
     # Cleanup
     sim_context.stop()
-    stage_utils.close_stage()
     sim_context.clear_instance()
+    stage_utils.close_stage()
 
 
 def test_instantiation(sim):

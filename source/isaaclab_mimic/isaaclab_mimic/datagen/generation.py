@@ -3,11 +3,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-# Copyright (c) 2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: Apache-2.0
-
 import asyncio
 import contextlib
 import torch
@@ -36,6 +31,7 @@ async def run_data_generator(
     data_generator: DataGenerator,
     success_term: TerminationTermCfg,
     pause_subtask: bool = False,
+    motion_planner: Any = None,
 ):
     """Run mimic data generation from the given data generator in the specified environment index.
 
@@ -47,6 +43,7 @@ async def run_data_generator(
         data_generator: The data generator instance to use.
         success_term: The success termination term to use.
         pause_subtask: Whether to pause the subtask during generation.
+        motion_planner: The motion planner to use.
     """
     global num_success, num_failures, num_attempts
     while True:
@@ -56,6 +53,7 @@ async def run_data_generator(
             env_reset_queue=env_reset_queue,
             env_action_queue=env_action_queue,
             pause_subtask=pause_subtask,
+            motion_planner=motion_planner,
         )
         if bool(results["success"]):
             num_success += 1
@@ -195,7 +193,12 @@ def setup_env_config(
 
 
 def setup_async_generation(
-    env: Any, num_envs: int, input_file: str, success_term: Any, pause_subtask: bool = False
+    env: Any,
+    num_envs: int,
+    input_file: str,
+    success_term: Any,
+    pause_subtask: bool = False,
+    motion_planners: Any = None,
 ) -> dict[str, Any]:
     """Setup async data generation tasks.
 
@@ -205,6 +208,7 @@ def setup_async_generation(
         input_file: Path to input dataset file
         success_term: Success termination condition
         pause_subtask: Whether to pause after subtasks
+        motion_planners: Motion planner instances for all environments
 
     Returns:
         List of asyncio tasks for data generation
@@ -221,9 +225,17 @@ def setup_async_generation(
     data_generator = DataGenerator(env=env, src_demo_datagen_info_pool=shared_datagen_info_pool)
     data_generator_asyncio_tasks = []
     for i in range(num_envs):
+        env_motion_planner = motion_planners[i] if motion_planners else None
         task = asyncio_event_loop.create_task(
             run_data_generator(
-                env, i, env_reset_queue, env_action_queue, data_generator, success_term, pause_subtask=pause_subtask
+                env,
+                i,
+                env_reset_queue,
+                env_action_queue,
+                data_generator,
+                success_term,
+                pause_subtask=pause_subtask,
+                motion_planner=env_motion_planner,
             )
         )
         data_generator_asyncio_tasks.append(task)

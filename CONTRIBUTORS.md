@@ -20,6 +20,8 @@ Guidelines for modifications:
 ---
 
 * Antonio Serrano-Muñoz
+* Ben Johnston
+* Clemens Schwarke
 * David Hoeller
 * Farbod Farshidian
 * Hunter Hansen
@@ -37,6 +39,7 @@ Guidelines for modifications:
 ## Contributors
 
 * Alessandro Assirelli
+* Alex Omar
 * Alice Zhou
 * Amr Mousa
 * Andrej Orsula
@@ -50,23 +53,26 @@ Guidelines for modifications:
 * Brian Bingham
 * Cameron Upright
 * Calvin Yu
+* Cathy Y. Li
 * Cheng-Rong Lai
 * Chenyu Yang
-* Clemens Schwarke
 * Connor Smith
 * CY (Chien-Ying) Chen
 * David Yang
 * Dhananjay Shendre
 * Dorsa Rohani
+* Emily Sturman
 * Fabian Jenelten
 * Felipe Mohr
 * Felix Yu
 * Gary Lvov
 * Giulio Romualdi
 * Haoran Zhou
+* Harsh Patel
 * HoJin Jeon
 * Hongwei Xiong
 * Hongyu Li
+* Huihua Zhao
 * Iretiayo Akinola
 * Jack Zeng
 * Jan Kerner
@@ -83,16 +89,20 @@ Guidelines for modifications:
 * Kourosh Darvish
 * Kousheek Chakraborty
 * Lionel Gulich
+* Lotus Li
 * Louis Le Lay
 * Lorenz Wellhausen
 * Lukas Fröhlich
 * Manuel Schweiger
 * Masoud Moghani
+* Maurice Rahme
 * Michael Gussert
 * Michael Noseworthy
+* Michael Lin
 * Miguel Alonso Jr
 * Mingyu Lee
 * Muhong Guo
+* Neel Anand Jawale
 * Nicola Loi
 * Norbert Cygiert
 * Nuoyan Chen (Alvin)
@@ -102,6 +112,7 @@ Guidelines for modifications:
 * Özhan Özen
 * Patrick Yin
 * Peter Du
+* Philipp Reist
 * Pulkit Goyal
 * Qian Wan
 * Qinxi Yu
@@ -113,6 +124,8 @@ Guidelines for modifications:
 * Ryley McCarroll
 * Shafeef Omar
 * Shaoshu Su
+* Shaurya Dewan
+* Sixiang Chen
 * Shundo Kishi
 * Stefan Van de Mosselaer
 * Stephan Pleines
@@ -122,14 +135,17 @@ Guidelines for modifications:
 * Vladimir Fokow
 * Wei Yang
 * Xavier Nal
+* Xinpeng Liu
 * Yang Jin
 * Yanzi Zhu
 * Yijie Guo
+* Yohan Choi
 * Yujian Zhang
 * Yun Liu
 * Ziqi Fan
 * Zoe McCarthy
 * David Leon
+* Song Yi
 
 ## Acknowledgements
 
@@ -139,4 +155,5 @@ Guidelines for modifications:
 * Gavriel State
 * Hammad Mazhar
 * Marco Hutter
+* Yan Chang
 * Yashraj Narang

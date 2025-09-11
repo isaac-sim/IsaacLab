@@ -28,11 +28,7 @@ To check the minimum system requirements, refer to the documentation
 
       .. note::
 
-         We have tested Isaac Lab with Isaac Sim 4.5 release on Ubuntu
-         22.04 LTS with NVIDIA driver 535.129.
-
-         From Isaac Sim 4.5 release, Isaac Sim binaries can be downloaded directly as a zip file.
-         The below steps assume the Isaac Sim folder was unzipped to the ``${HOME}/isaacsim`` directory.
+         For details on driver requirements, please see the `Technical Requirements <https://docs.omniverse.nvidia.com/materials-and-rendering/latest/common/technical-requirements.html>`_ guide!
 
       On Linux systems, Isaac Sim directory will be named ``${HOME}/isaacsim``.
 
@@ -41,7 +37,7 @@ To check the minimum system requirements, refer to the documentation
 
       .. note::
 
-         We have tested Isaac Lab with Isaac Sim 4.5 release on Windows11 with NVIDIA driver 552.86.
+         For details on driver requirements, please see the `Technical Requirements <https://docs.omniverse.nvidia.com/materials-and-rendering/latest/common/technical-requirements.html>`_ guide!
 
          From Isaac Sim 4.5 release, Isaac Sim binaries can be downloaded directly as a zip file.
          The below steps assume the Isaac Sim folder was unzipped to the ``C:/isaacsim`` directory.
@@ -383,26 +379,6 @@ Installation
 
    The valid options are ``rl_games``, ``rsl_rl``, ``sb3``, ``skrl``, ``robomimic``, ``none``.
 
-.. attention::
-
-   For 50 series GPUs, please use the latest PyTorch nightly build instead of PyTorch 2.5.1, which comes with Isaac Sim:
-
-   .. tab-set::
-      :sync-group: os
-
-      .. tab-item:: :icon:`fa-brands fa-linux` Linux
-         :sync: linux
-
-         .. code:: bash
-
-            ./isaaclab.sh -p -m pip install --upgrade --pre torch torchvision --index-url https://download.pytorch.org/whl/nightly/cu128
-
-      .. tab-item:: :icon:`fa-brands fa-windows` Windows
-         :sync: windows
-
-         .. code:: batch
-
-            isaaclab.bat -p -m pip install --upgrade --pre torch torchvision --index-url https://download.pytorch.org/whl/nightly/cu128
 
 Verifying the Isaac Lab installation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

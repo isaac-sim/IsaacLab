@@ -291,17 +291,23 @@ Running Pre-Built Isaac Lab Container
 In Isaac Lab 2.0 release, we introduced a minimal pre-built container that contains a very minimal set
 of Isaac Sim and Omniverse dependencies, along with Isaac Lab 2.0 pre-built into the container.
 This container allows users to pull the container directly from NGC without requiring a local build of
-the docker image. The Isaac Lab 2.0 source code will be available in this container under ``/workspace/IsaacLab``.
+the docker image. The Isaac Lab source code will be available in this container under ``/workspace/IsaacLab``.
 
 This container is designed for running **headless** only and does not allow for X11 forwarding or running
 with the GUI. Please only use this container for headless training. For other use cases, we recommend
 following the above steps to build your own Isaac Lab docker image.
 
+.. note::
+
+  Currently, we only provide docker images with every major release of Isaac Lab.
+  For example, we provide the docker image for release 2.0.0 and 2.1.0, but not 2.0.2.
+  In the future, we will provide docker images for every minor release of Isaac Lab.
+
 To pull the minimal Isaac Lab container, run:
 
 .. code:: bash
 
-  docker pull nvcr.io/nvidia/isaac-lab:2.1.0
+  docker pull nvcr.io/nvidia/isaac-lab:2.2.0
 
 To run the Isaac Lab container with an interactive bash session, run:
 
@@ -317,7 +323,7 @@ To run the Isaac Lab container with an interactive bash session, run:
      -v ~/docker/isaac-sim/logs:/root/.nvidia-omniverse/logs:rw \
      -v ~/docker/isaac-sim/data:/root/.local/share/ov/data:rw \
      -v ~/docker/isaac-sim/documents:/root/Documents:rw \
-     nvcr.io/nvidia/isaac-lab:2.1.0
+     nvcr.io/nvidia/isaac-lab:2.2.0
 
 To enable rendering through X11 forwarding, run:
 
@@ -336,7 +342,7 @@ To enable rendering through X11 forwarding, run:
      -v ~/docker/isaac-sim/logs:/root/.nvidia-omniverse/logs:rw \
      -v ~/docker/isaac-sim/data:/root/.local/share/ov/data:rw \
      -v ~/docker/isaac-sim/documents:/root/Documents:rw \
-     nvcr.io/nvidia/isaac-lab:2.1.0
+     nvcr.io/nvidia/isaac-lab:2.2.0
 
 To run an example within the container, run:
 

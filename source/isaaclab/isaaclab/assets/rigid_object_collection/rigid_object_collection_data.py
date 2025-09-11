@@ -9,6 +9,7 @@ import weakref
 import omni.physics.tensors.impl.api as physx
 
 import isaaclab.utils.math as math_utils
+from isaaclab.sim.utils import get_current_stage_id
 from isaaclab.utils.buffers import TimestampedBuffer
 
 
@@ -54,7 +55,8 @@ class RigidObjectCollectionData:
         self._sim_timestamp = 0.0
 
         # Obtain global physics sim view
-        physics_sim_view = physx.create_simulation_view("torch")
+        stage_id = get_current_stage_id()
+        physics_sim_view = physx.create_simulation_view("torch", stage_id)
         physics_sim_view.set_subspace_roots("/")
         gravity = physics_sim_view.get_gravity()
         # Convert to direction vector
@@ -116,8 +118,11 @@ class RigidObjectCollectionData:
     default_inertia: torch.Tensor = None
     """Default object inertia tensor read from the simulation. Shape is (num_instances, num_objects, 9).
 
-    The inertia is the inertia tensor relative to the center of mass frame. The values are stored in
-    the order :math:`[I_{xx}, I_{xy}, I_{xz}, I_{yx}, I_{yy}, I_{yz}, I_{zx}, I_{zy}, I_{zz}]`.
+    The inertia tensor should be given with respect to the center of mass, expressed in the rigid body's actor frame.
+    The values are stored in the order :math:`[I_{xx}, I_{yx}, I_{zx}, I_{xy}, I_{yy}, I_{zy}, I_{xz}, I_{yz}, I_{zz}]`.
+    However, due to the symmetry of inertia tensors, row- and column-major orders are equivalent.
+
+    This quantity is parsed from the USD schema at the time of initialization.
     """
 
     ##

@@ -24,12 +24,22 @@ from isaaclab.sensors import Camera, Imu, RayCaster, RayCasterCamera, TiledCamer
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv, ManagerBasedRLEnv
 
+from isaaclab.envs.utils.io_descriptors import (
+    generic_io_descriptor,
+    record_body_names,
+    record_dtype,
+    record_joint_names,
+    record_joint_pos_offsets,
+    record_joint_vel_offsets,
+    record_shape,
+)
 
 """
 Root state.
 """
 
 
+@generic_io_descriptor(units="m", axes=["Z"], observation_type="RootState", on_inspect=[record_shape, record_dtype])
 def base_pos_z(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """Root height in the simulation world frame."""
     # extract the used quantities (to enable type-hinting)
@@ -37,6 +47,9 @@ def base_pos_z(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg(
     return asset.data.root_pos_w[:, 2].unsqueeze(-1)
 
 
+@generic_io_descriptor(
+    units="m/s", axes=["X", "Y", "Z"], observation_type="RootState", on_inspect=[record_shape, record_dtype]
+)
 def base_lin_vel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """Root linear velocity in the asset's root frame."""
     # extract the used quantities (to enable type-hinting)
@@ -44,6 +57,9 @@ def base_lin_vel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCf
     return asset.data.root_lin_vel_b
 
 
+@generic_io_descriptor(
+    units="rad/s", axes=["X", "Y", "Z"], observation_type="RootState", on_inspect=[record_shape, record_dtype]
+)
 def base_ang_vel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """Root angular velocity in the asset's root frame."""
     # extract the used quantities (to enable type-hinting)
@@ -51,6 +67,9 @@ def base_ang_vel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCf
     return asset.data.root_ang_vel_b
 
 
+@generic_io_descriptor(
+    units="m/s^2", axes=["X", "Y", "Z"], observation_type="RootState", on_inspect=[record_shape, record_dtype]
+)
 def projected_gravity(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """Gravity projection on the asset's root frame."""
     # extract the used quantities (to enable type-hinting)
@@ -58,6 +77,9 @@ def projected_gravity(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEnt
     return asset.data.projected_gravity_b
 
 
+@generic_io_descriptor(
+    units="m", axes=["X", "Y", "Z"], observation_type="RootState", on_inspect=[record_shape, record_dtype]
+)
 def root_pos_w(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """Asset root position in the environment frame."""
     # extract the used quantities (to enable type-hinting)
@@ -65,6 +87,9 @@ def root_pos_w(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg(
     return asset.data.root_pos_w - env.scene.env_origins
 
 
+@generic_io_descriptor(
+    units="unit", axes=["W", "X", "Y", "Z"], observation_type="RootState", on_inspect=[record_shape, record_dtype]
+)
 def root_quat_w(
     env: ManagerBasedEnv, make_quat_unique: bool = False, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
 ) -> torch.Tensor:
@@ -82,6 +107,9 @@ def root_quat_w(
     return math_utils.quat_unique(quat) if make_quat_unique else quat
 
 
+@generic_io_descriptor(
+    units="m/s", axes=["X", "Y", "Z"], observation_type="RootState", on_inspect=[record_shape, record_dtype]
+)
 def root_lin_vel_w(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """Asset root linear velocity in the environment frame."""
     # extract the used quantities (to enable type-hinting)
@@ -89,6 +117,9 @@ def root_lin_vel_w(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntity
     return asset.data.root_lin_vel_w
 
 
+@generic_io_descriptor(
+    units="rad/s", axes=["X", "Y", "Z"], observation_type="RootState", on_inspect=[record_shape, record_dtype]
+)
 def root_ang_vel_w(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """Asset root angular velocity in the environment frame."""
     # extract the used quantities (to enable type-hinting)
@@ -101,6 +132,7 @@ Body state
 """
 
 
+@generic_io_descriptor(observation_type="BodyState", on_inspect=[record_shape, record_dtype, record_body_names])
 def body_pose_w(
     env: ManagerBasedEnv,
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
@@ -114,16 +146,19 @@ def body_pose_w(
         asset_cfg: The SceneEntity associated with this observation.
 
     Returns:
-        The poses of bodies in articulation [num_env, 7*num_bodies]. Pose order is [x,y,z,qw,qx,qy,qz]. Output is
-            stacked horizontally per body.
+        The poses of bodies in articulation [num_env, 7 * num_bodies]. Pose order is [x,y,z,qw,qx,qy,qz].
+        Output is stacked horizontally per body.
     """
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
-    pose = asset.data.body_state_w[:, asset_cfg.body_ids, :7]
+
+    # access the body poses in world frame
+    pose = asset.data.body_pose_w[:, asset_cfg.body_ids, :7]
     pose[..., :3] = pose[..., :3] - env.scene.env_origins.unsqueeze(1)
     return pose.reshape(env.num_envs, -1)
 
 
+@generic_io_descriptor(observation_type="BodyState", on_inspect=[record_shape, record_dtype, record_body_names])
 def body_projected_gravity_b(
     env: ManagerBasedEnv,
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
@@ -138,7 +173,7 @@ def body_projected_gravity_b(
 
     Returns:
         The unit vector direction of gravity projected onto body_name's frame. Gravity projection vector order is
-            [x,y,z]. Output is stacked horizontally per body.
+        [x,y,z]. Output is stacked horizontally per body.
     """
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
@@ -153,6 +188,9 @@ Joint state.
 """
 
 
+@generic_io_descriptor(
+    observation_type="JointState", on_inspect=[record_joint_names, record_dtype, record_shape], units="rad"
+)
 def joint_pos(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """The joint positions of the asset.
 
@@ -163,6 +201,11 @@ def joint_pos(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("
     return asset.data.joint_pos[:, asset_cfg.joint_ids]
 
 
+@generic_io_descriptor(
+    observation_type="JointState",
+    on_inspect=[record_joint_names, record_dtype, record_shape, record_joint_pos_offsets],
+    units="rad",
+)
 def joint_pos_rel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """The joint positions of the asset w.r.t. the default joint positions.
 
@@ -173,6 +216,7 @@ def joint_pos_rel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityC
     return asset.data.joint_pos[:, asset_cfg.joint_ids] - asset.data.default_joint_pos[:, asset_cfg.joint_ids]
 
 
+@generic_io_descriptor(observation_type="JointState", on_inspect=[record_joint_names, record_dtype, record_shape])
 def joint_pos_limit_normalized(
     env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
 ) -> torch.Tensor:
@@ -189,6 +233,9 @@ def joint_pos_limit_normalized(
     )
 
 
+@generic_io_descriptor(
+    observation_type="JointState", on_inspect=[record_joint_names, record_dtype, record_shape], units="rad/s"
+)
 def joint_vel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")):
     """The joint velocities of the asset.
 
@@ -199,6 +246,11 @@ def joint_vel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("
     return asset.data.joint_vel[:, asset_cfg.joint_ids]
 
 
+@generic_io_descriptor(
+    observation_type="JointState",
+    on_inspect=[record_joint_names, record_dtype, record_shape, record_joint_vel_offsets],
+    units="rad/s",
+)
 def joint_vel_rel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")):
     """The joint velocities of the asset w.r.t. the default joint velocities.
 
@@ -209,6 +261,9 @@ def joint_vel_rel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityC
     return asset.data.joint_vel[:, asset_cfg.joint_ids] - asset.data.default_joint_vel[:, asset_cfg.joint_ids]
 
 
+@generic_io_descriptor(
+    observation_type="JointState", on_inspect=[record_joint_names, record_dtype, record_shape], units="N.m"
+)
 def joint_effort(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """The joint applied effort of the robot.
 
@@ -352,7 +407,7 @@ def image(
     if (data_type == "distance_to_camera") and convert_perspective_to_orthogonal:
         images = math_utils.orthogonalize_perspective_depth(images, sensor.data.intrinsic_matrices)
 
-    # rgb/depth image normalization
+    # rgb/depth/normals image normalization
     if normalize:
         if data_type == "rgb":
             images = images.float() / 255.0
@@ -360,6 +415,8 @@ def image(
             images -= mean_tensor
         elif "distance_to" in data_type or "depth" in data_type:
             images[images == float("inf")] = 0
+        elif "normals" in data_type:
+            images = (images + 1.0) * 0.5
 
     return images.clone()
 
@@ -593,6 +650,7 @@ Actions.
 """
 
 
+@generic_io_descriptor(dtype=torch.float32, observation_type="Action", on_inspect=[record_shape])
 def last_action(env: ManagerBasedEnv, action_name: str | None = None) -> torch.Tensor:
     """The last input action to the environment.
 
@@ -610,7 +668,8 @@ Commands.
 """
 
 
-def generated_commands(env: ManagerBasedRLEnv, command_name: str) -> torch.Tensor:
+@generic_io_descriptor(dtype=torch.float32, observation_type="Command", on_inspect=[record_shape])
+def generated_commands(env: ManagerBasedRLEnv, command_name: str | None = None) -> torch.Tensor:
     """The generated command from command term in the command manager with the given name."""
     return env.command_manager.get_command(command_name)
 

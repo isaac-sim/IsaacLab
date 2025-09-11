@@ -8,9 +8,9 @@ from __future__ import annotations
 
 import math
 
-import isaacsim.core.utils.stage as stage_utils
 import omni.log
 import omni.physx.scripts.utils as physx_utils
+from isaacsim.core.utils.stage import get_current_stage
 from omni.physx.scripts import deformableUtils as deformable_utils
 from pxr import PhysxSchema, Usd, UsdPhysics
 
@@ -25,6 +25,22 @@ from . import schemas_cfg
 """
 Articulation root properties.
 """
+
+PHYSX_MESH_COLLISION_CFGS = [
+    schemas_cfg.ConvexDecompositionPropertiesCfg,
+    schemas_cfg.ConvexHullPropertiesCfg,
+    schemas_cfg.TriangleMeshPropertiesCfg,
+    schemas_cfg.TriangleMeshSimplificationPropertiesCfg,
+    schemas_cfg.SDFMeshPropertiesCfg,
+]
+
+USD_MESH_COLLISION_CFGS = [
+    schemas_cfg.BoundingCubePropertiesCfg,
+    schemas_cfg.BoundingSpherePropertiesCfg,
+    schemas_cfg.ConvexDecompositionPropertiesCfg,
+    schemas_cfg.ConvexHullPropertiesCfg,
+    schemas_cfg.TriangleMeshSimplificationPropertiesCfg,
+]
 
 
 def define_articulation_root_properties(
@@ -44,9 +60,10 @@ def define_articulation_root_properties(
         ValueError: When the prim path is not valid.
         TypeError: When the prim already has conflicting API schemas.
     """
-    # obtain stage
+    # get stage handle
     if stage is None:
-        stage = stage_utils.get_current_stage()
+        stage = get_current_stage()
+
     # get articulation USD prim
     prim = stage.GetPrimAtPath(prim_path)
     # check if prim path is valid
@@ -102,9 +119,10 @@ def modify_articulation_root_properties(
     Raises:
         NotImplementedError: When the root prim is not a rigid body and a fixed joint is to be created.
     """
-    # obtain stage
+    # get stage handle
     if stage is None:
-        stage = stage_utils.get_current_stage()
+        stage = get_current_stage()
+
     # get articulation USD prim
     articulation_prim = stage.GetPrimAtPath(prim_path)
     # check if prim has articulation applied on it
@@ -204,9 +222,10 @@ def define_rigid_body_properties(
         ValueError: When the prim path is not valid.
         TypeError: When the prim already has conflicting API schemas.
     """
-    # obtain stage
+    # get stage handle
     if stage is None:
-        stage = stage_utils.get_current_stage()
+        stage = get_current_stage()
+
     # get USD prim
     prim = stage.GetPrimAtPath(prim_path)
     # check if prim path is valid
@@ -250,9 +269,10 @@ def modify_rigid_body_properties(
     Returns:
         True if the properties were successfully set, False otherwise.
     """
-    # obtain stage
+    # get stage handle
     if stage is None:
-        stage = stage_utils.get_current_stage()
+        stage = get_current_stage()
+
     # get rigid-body USD prim
     rigid_body_prim = stage.GetPrimAtPath(prim_path)
     # check if prim has rigid-body applied on it
@@ -299,9 +319,10 @@ def define_collision_properties(
     Raises:
         ValueError: When the prim path is not valid.
     """
-    # obtain stage
+    # get stage handle
     if stage is None:
-        stage = stage_utils.get_current_stage()
+        stage = get_current_stage()
+
     # get USD prim
     prim = stage.GetPrimAtPath(prim_path)
     # check if prim path is valid
@@ -343,9 +364,10 @@ def modify_collision_properties(
     Returns:
         True if the properties were successfully set, False otherwise.
     """
-    # obtain stage
+    # get stage handle
     if stage is None:
-        stage = stage_utils.get_current_stage()
+        stage = get_current_stage()
+
     # get USD prim
     collider_prim = stage.GetPrimAtPath(prim_path)
     # check if prim has collision applied on it
@@ -390,9 +412,10 @@ def define_mass_properties(prim_path: str, cfg: schemas_cfg.MassPropertiesCfg, s
     Raises:
         ValueError: When the prim path is not valid.
     """
-    # obtain stage
+    # get stage handle
     if stage is None:
-        stage = stage_utils.get_current_stage()
+        stage = get_current_stage()
+
     # get USD prim
     prim = stage.GetPrimAtPath(prim_path)
     # check if prim path is valid
@@ -435,9 +458,10 @@ def modify_mass_properties(prim_path: str, cfg: schemas_cfg.MassPropertiesCfg, s
     Returns:
         True if the properties were successfully set, False otherwise.
     """
-    # obtain stage
+    # get stage handle
     if stage is None:
-        stage = stage_utils.get_current_stage()
+        stage = get_current_stage()
+
     # get USD prim
     rigid_prim = stage.GetPrimAtPath(prim_path)
     # check if prim has mass API applied on it
@@ -478,9 +502,10 @@ def activate_contact_sensors(prim_path: str, threshold: float = 0.0, stage: Usd.
         ValueError: If the input prim path is not valid.
         ValueError: If there are no rigid bodies under the prim path.
     """
-    # obtain stage
+    # get stage handle
     if stage is None:
-        stage = stage_utils.get_current_stage()
+        stage = get_current_stage()
+
     # get prim
     prim: Usd.Prim = stage.GetPrimAtPath(prim_path)
     # check if prim is valid
@@ -564,9 +589,10 @@ def modify_joint_drive_properties(
     Raises:
         ValueError: If the input prim path is not valid.
     """
-    # obtain stage
+    # get stage handle
     if stage is None:
-        stage = stage_utils.get_current_stage()
+        stage = get_current_stage()
+
     # get USD prim
     prim = stage.GetPrimAtPath(prim_path)
     # check if prim path is valid
@@ -666,9 +692,10 @@ def modify_fixed_tendon_properties(
     Raises:
         ValueError: If the input prim path is not valid.
     """
-    # obtain stage
+    # get stage handle
     if stage is None:
-        stage = stage_utils.get_current_stage()
+        stage = get_current_stage()
+
     # get USD prim
     tendon_prim = stage.GetPrimAtPath(prim_path)
     # check if prim has fixed tendon applied on it
@@ -690,6 +717,77 @@ def modify_fixed_tendon_properties(
         # set into PhysX API
         for attr_name, value in cfg.items():
             safe_set_attribute_on_usd_schema(physx_tendon_axis_api, attr_name, value, camel_case=True)
+    # success
+    return True
+
+
+"""
+Spatial tendon properties.
+"""
+
+
+@apply_nested
+def modify_spatial_tendon_properties(
+    prim_path: str, cfg: schemas_cfg.SpatialTendonPropertiesCfg, stage: Usd.Stage | None = None
+) -> bool:
+    """Modify PhysX parameters for a spatial tendon attachment prim.
+
+    A `spatial tendon`_ can be used to link multiple degrees of freedom of articulation joints
+    through length and limit constraints. For instance, it can be used to set up an equality constraint
+    between a driven and passive revolute joints.
+
+    The schema comprises of attributes that belong to the `PhysxTendonAxisRootAPI`_ schema.
+
+    .. note::
+        This function is decorated with :func:`apply_nested` that sets the properties to all the prims
+        (that have the schema applied on them) under the input prim path.
+
+    .. _spatial tendon: https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/_api_build/classPxArticulationSpatialTendon.html
+    .. _PhysxTendonAxisRootAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_tendon_axis_root_a_p_i.html
+    .. _PhysxTendonAttachmentRootAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_tendon_attachment_root_a_p_i.html
+    .. _PhysxTendonAttachmentLeafAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_tendon_attachment_leaf_a_p_i.html
+
+    Args:
+        prim_path: The prim path to the tendon attachment.
+        cfg: The configuration for the tendon attachment.
+        stage: The stage where to find the prim. Defaults to None, in which case the
+            current stage is used.
+
+    Returns:
+        True if the properties were successfully set, False otherwise.
+
+    Raises:
+        ValueError: If the input prim path is not valid.
+    """
+    # obtain stage
+    if stage is None:
+        stage = get_current_stage()
+    # get USD prim
+    tendon_prim = stage.GetPrimAtPath(prim_path)
+    # check if prim has spatial tendon applied on it
+    has_spatial_tendon = tendon_prim.HasAPI(PhysxSchema.PhysxTendonAttachmentRootAPI) or tendon_prim.HasAPI(
+        PhysxSchema.PhysxTendonAttachmentLeafAPI
+    )
+    if not has_spatial_tendon:
+        return False
+
+    # resolve all available instances of the schema since it is multi-instance
+    for schema_name in tendon_prim.GetAppliedSchemas():
+        # only consider the spatial tendon schema
+        # retrieve the USD tendon api
+        if "PhysxTendonAttachmentRootAPI" in schema_name:
+            instance_name = schema_name.split(":")[-1]
+            physx_tendon_spatial_api = PhysxSchema.PhysxTendonAttachmentRootAPI(tendon_prim, instance_name)
+        elif "PhysxTendonAttachmentLeafAPI" in schema_name:
+            instance_name = schema_name.split(":")[-1]
+            physx_tendon_spatial_api = PhysxSchema.PhysxTendonAttachmentLeafAPI(tendon_prim, instance_name)
+        else:
+            continue
+        # convert to dict
+        cfg = cfg.to_dict()
+        # set into PhysX API
+        for attr_name, value in cfg.items():
+            safe_set_attribute_on_usd_schema(physx_tendon_spatial_api, attr_name, value, camel_case=True)
     # success
     return True
 
@@ -721,9 +819,10 @@ def define_deformable_body_properties(
         ValueError: When the prim path is not valid.
         ValueError: When the prim has no mesh or multiple meshes.
     """
-    # obtain stage
+    # get stage handle
     if stage is None:
-        stage = stage_utils.get_current_stage()
+        stage = get_current_stage()
+
     # get USD prim
     prim = stage.GetPrimAtPath(prim_path)
     # check if prim path is valid
@@ -796,9 +895,9 @@ def modify_deformable_body_properties(
     Returns:
         True if the properties were successfully set, False otherwise.
     """
-    # obtain stage
+    # get stage handle
     if stage is None:
-        stage = stage_utils.get_current_stage()
+        stage = get_current_stage()
 
     # get deformable-body USD prim
     deformable_body_prim = stage.GetPrimAtPath(prim_path)
@@ -848,6 +947,124 @@ def modify_deformable_body_properties(
             safe_set_attribute_on_usd_schema(physx_collision_api, attr_name, value, camel_case=True)
         else:
             safe_set_attribute_on_usd_schema(physx_deformable_api, attr_name, value, camel_case=True)
+
+    # success
+    return True
+
+
+"""
+Collision mesh properties.
+"""
+
+
+def extract_mesh_collision_api_and_attrs(cfg):
+    # We use the number of user set attributes outside of the API function
+    # to determine which API to use in ambiguous cases, so collect them here
+    custom_attrs = {
+        key: value
+        for key, value in cfg.to_dict().items()
+        if value is not None and key not in ["usd_func", "physx_func"]
+    }
+
+    use_usd_api = False
+    use_phsyx_api = False
+
+    # We have some custom attributes and allow them
+    if len(custom_attrs) > 0 and type(cfg) in PHYSX_MESH_COLLISION_CFGS:
+        use_phsyx_api = True
+    # We have no custom attributes
+    elif len(custom_attrs) == 0:
+        if type(cfg) in USD_MESH_COLLISION_CFGS:
+            # Use the USD API
+            use_usd_api = True
+        else:
+            # Use the PhysX API
+            use_phsyx_api = True
+
+    elif len(custom_attrs > 0) and type(cfg) in USD_MESH_COLLISION_CFGS:
+        raise ValueError("Args are specified but the USD Mesh API doesn't support them!")
+
+    mesh_collision_appx_type = type(cfg).__name__.partition("PropertiesCfg")[0]
+
+    if use_usd_api:
+        # Add approximation to the attributes as this is how USD collision mesh API is configured
+        api_func = cfg.usd_func
+        # Approximation needs to be formatted with camelCase
+        custom_attrs["Approximation"] = mesh_collision_appx_type[0].lower() + mesh_collision_appx_type[1:]
+    elif use_phsyx_api:
+        api_func = cfg.physx_func
+    else:
+        raise ValueError("Either USD or PhysX API should be used for mesh collision approximation!")
+
+    return api_func, custom_attrs
+
+
+def define_mesh_collision_properties(
+    prim_path: str, cfg: schemas_cfg.MeshCollisionPropertiesCfg, stage: Usd.Stage | None = None
+):
+    """Apply the mesh collision schema on the input prim and set its properties.
+    See :func:`modify_collision_mesh_properties` for more details on how the properties are set.
+    Args:
+        prim_path : The prim path where to apply the mesh collision schema.
+        cfg : The configuration for the mesh collision properties.
+        stage : The stage where to find the prim. Defaults to None, in which case the
+            current stage is used.
+    Raises:
+        ValueError: When the prim path is not valid.
+    """
+    # obtain stage
+    if stage is None:
+        stage = get_current_stage()
+    # get USD prim
+    prim = stage.GetPrimAtPath(prim_path)
+    # check if prim path is valid
+    if not prim.IsValid():
+        raise ValueError(f"Prim path '{prim_path}' is not valid.")
+
+    api_func, _ = extract_mesh_collision_api_and_attrs(cfg=cfg)
+
+    # Only enable if not already enabled
+    if not api_func(prim):
+        api_func.Apply(prim)
+
+    modify_mesh_collision_properties(prim_path=prim_path, cfg=cfg, stage=stage)
+
+
+@apply_nested
+def modify_mesh_collision_properties(
+    prim_path: str, cfg: schemas_cfg.MeshCollisionPropertiesCfg, stage: Usd.Stage | None = None
+):
+    """Set properties for the mesh collision of a prim.
+    These properties are based on either the `Phsyx the `UsdPhysics.MeshCollisionAPI` schema.
+    .. note::
+        This function is decorated with :func:`apply_nested` that sets the properties to all the prims
+        (that have the schema applied on them) under the input prim path.
+    .. UsdPhysics.MeshCollisionAPI: https://openusd.org/release/api/class_usd_physics_mesh_collision_a_p_i.html
+    Args:
+        prim_path : The prim path of the rigid body. This prim should be a Mesh prim.
+        cfg : The configuration for the mesh collision properties.
+        stage : The stage where to find the prim. Defaults to None, in which case the
+            current stage is used.
+    """
+    # obtain stage
+    if stage is None:
+        stage = get_current_stage()
+    # get USD prim
+    prim = stage.GetPrimAtPath(prim_path)
+
+    api_func, custom_attrs = extract_mesh_collision_api_and_attrs(cfg=cfg)
+
+    # retrieve the mesh collision API
+    mesh_collision_api = api_func(prim)
+
+    # set custom attributes into mesh collision API
+    for attr_name, value in custom_attrs.items():
+        # Only "Attribute" attr should be in format "boundingSphere", so set camel_case to be False
+        if attr_name == "Attribute":
+            camel_case = False
+        else:
+            camel_case = True
+        safe_set_attribute_on_usd_schema(mesh_collision_api, attr_name, value, camel_case=camel_case)
 
     # success
     return True

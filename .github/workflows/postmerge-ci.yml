@@ -1,0 +1,124 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+name: Post-Merge CI
+
+on:
+  push:
+    branches:
+      - main
+      - devel
+
+# Concurrency control to prevent parallel runs
+concurrency:
+  group: postmerge-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
+  ISAACSIM_BASE_IMAGE: ${{ vars.ISAACSIM_BASE_IMAGE || 'nvcr.io/nvidia/isaac-sim' }}
+  ISAACSIM_BASE_VERSIONS_STRING: ${{ vars.ISAACSIM_BASE_VERSIONS_STRING || 'latest-base-5.0' }}
+  ISAACLAB_IMAGE_NAME: ${{ vars.ISAACLAB_IMAGE_NAME || 'isaac-lab-base' }}
+
+jobs:
+  build-and-push-images:
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 180
+    environment:
+      name: postmerge-production
+      url: https://github.com/${{ github.repository }}
+    env:
+        DOCKER_HOST: unix:///var/run/docker.sock
+        DOCKER_TLS_CERTDIR: ""
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        lfs: true
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Login to NGC
+      run: |
+        # Only attempt NGC login if API key is available
+        if [ -n "${{ env.NGC_API_KEY }}" ]; then
+          echo "Logging into NGC registry..."
+          docker login -u \$oauthtoken -p ${{ env.NGC_API_KEY }} nvcr.io
+          echo "✅ Successfully logged into NGC registry"
+        else
+          echo "⚠️ NGC_API_KEY not available - skipping NGC login"
+          echo "This is normal when secrets are not configured"
+        fi
+
+    - name: Build and Push Docker Images
+      run: |
+        # Determine branch name
+        BRANCH_NAME="${{ github.ref_name }}"
+
+        # Replace '/' with '-' and remove any invalid characters for Docker tag
+        SAFE_BRANCH_NAME=$(echo $BRANCH_NAME | sed 's/[^a-zA-Z0-9._-]/-/g')
+
+        # Use "latest" if branch name is empty or only contains invalid characters
+        if [ -z "$SAFE_BRANCH_NAME" ]; then
+          SAFE_BRANCH_NAME="latest"
+        fi
+
+        # Get the git repository short name
+        REPO_SHORT_NAME="${{ github.event.repository.name }}"
+        if [ -z "$REPO_SHORT_NAME" ]; then
+          REPO_SHORT_NAME="verification"
+        fi
+
+        echo "Building images for branch: $BRANCH_NAME"
+        echo "Safe branch name: $SAFE_BRANCH_NAME"
+        echo "Repository name: $REPO_SHORT_NAME"
+        echo "IsaacSim versions: ${{ env.ISAACSIM_BASE_VERSIONS_STRING }}"
+
+        # Parse the env variable string into an array
+        IMAGE_BASE_VERSIONS_STRING="${{ env.ISAACSIM_BASE_VERSIONS_STRING }}"
+        # Use set to split the string into positional parameters, then convert to array
+        set -- $IMAGE_BASE_VERSIONS_STRING
+        IMAGE_BASE_VERSIONS=("$@")
+
+        for IMAGE_BASE_VERSION in "${IMAGE_BASE_VERSIONS[@]}"; do
+          IMAGE_BASE_VERSION=$(echo "$IMAGE_BASE_VERSION" | tr -d '[:space:]')
+
+          # Skip empty versions
+          if [ -z "$IMAGE_BASE_VERSION" ]; then
+            continue
+          fi
+
+          # Combine repo short name and branch name for the tag
+          COMBINED_TAG="${REPO_SHORT_NAME}-${SAFE_BRANCH_NAME}-${IMAGE_BASE_VERSION}"
+          BUILD_TAG="${COMBINED_TAG}-b${{ github.run_number }}"
+
+          echo "Building image: ${{ env.ISAACLAB_IMAGE_NAME }}:$COMBINED_TAG"
+          echo "IsaacSim version: $IMAGE_BASE_VERSION"
+
+          # Build Docker image once with both tags
+          docker buildx build \
+            --platform linux/amd64 \
+            --progress=plain \
+            -t ${{ env.ISAACLAB_IMAGE_NAME }}:$COMBINED_TAG \
+            -t ${{ env.ISAACLAB_IMAGE_NAME }}:$BUILD_TAG \
+            --build-arg ISAACSIM_BASE_IMAGE_ARG=${{ env.ISAACSIM_BASE_IMAGE }} \
+            --build-arg ISAACSIM_VERSION_ARG=$IMAGE_BASE_VERSION \
+            --build-arg ISAACSIM_ROOT_PATH_ARG=/isaac-sim \
+            --build-arg ISAACLAB_PATH_ARG=/workspace/isaaclab \
+            --build-arg DOCKER_USER_HOME_ARG=/root \
+            --cache-from type=gha \
+            --cache-to type=gha,mode=max \
+            -f docker/Dockerfile.base \
+            --push .
+
+          echo "✅ Successfully built and pushed: ${{ env.ISAACLAB_IMAGE_NAME }}:$COMBINED_TAG"
+          echo "✅ Successfully built and pushed: ${{ env.ISAACLAB_IMAGE_NAME }}:$BUILD_TAG"
+        done
