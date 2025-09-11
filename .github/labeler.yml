@@ -10,7 +10,6 @@ documentation:
       - 'docs/**'
       - '**/README.md'
     - all-globs-to-all-files:
-      - '!**/CHANGELOG.rst'
       - '!docs/licenses/**'
 
 # Infrastructure changes
