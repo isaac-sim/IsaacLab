@@ -7,7 +7,7 @@ import contextlib
 import numpy as np
 from time import time
 
-import carb
+import omni.log
 from isaacsim.core.utils.extensions import enable_extension
 
 # For testing purposes, we need to mock the XRCore
@@ -144,7 +144,7 @@ class ManusViveIntegration:
             if self.scene_T_lighthouse_static is None:
                 self._initialize_coordinate_transformation()
         except Exception as e:
-            carb.log_error(f"Vive tracker update failed: {e}")
+            omni.log.error(f"Vive tracker update failed: {e}")
 
     def _initialize_coordinate_transformation(self):
         """
@@ -214,8 +214,12 @@ class ManusViveIntegration:
                     choose_A = True
                 elif errB < errA and errB < tolerance:
                     choose_A = False
+                elif len(self._pairA_trans_errs) % 10 == 0 or len(self._pairB_trans_errs) % 10 == 0:
+                    print("Computing pairing of Vive trackers with wrists")
+                    omni.log.info(
+                        f"Pairing Vive trackers with wrists: error of pairing A: {errA}, error of pairing B: {errB}"
+                    )
             if choose_A is None:
-                carb.log_info(f"error A: {errA}, error B: {errB}")
                 return
 
             if choose_A:
@@ -227,14 +231,21 @@ class ManusViveIntegration:
 
             if len(chosen_list) >= min_frames:
                 cluster = select_mode_cluster(chosen_list)
-                carb.log_info(f"Wrist calibration: formed size {len(cluster)} cluster from {len(chosen_list)} samples")
+                if len(chosen_list) % 10 == 0:
+                    print(
+                        f"Computing wrist calibration: formed size {len(cluster)} cluster from"
+                        f" {len(chosen_list)} samples"
+                    )
                 if len(cluster) >= min_frames // 2:
                     averaged = average_transforms(cluster)
                     self.scene_T_lighthouse_static = averaged
-                    carb.log_info(f"Resolved mapping: {self._vive_left_id}->Left, {self._vive_right_id}->Right")
+                    print(
+                        f"Wrist calibration computed. Resolved mapping: {self._vive_left_id}->Left,"
+                        f" {self._vive_right_id}->Right"
+                    )
 
         except Exception as e:
-            carb.log_error(f"Failed to initialize coordinate transformation: {e}")
+            omni.log.error(f"Failed to initialize coordinate transformation: {e}")
 
     def _transform_vive_data(self, device_data: dict) -> dict:
         """Transform Vive tracker poses to scene coordinates.
@@ -304,7 +315,7 @@ class ManusViveIntegration:
             Pose dictionary with 'position' and 'orientation'.
         """
         if f"{hand}_6" not in transformed_data or f"{hand}_7" not in transformed_data:
-            carb.log_error(f"Joint data not found for {hand}")
+            # Joint data not arrived yet
             return self.default_pose
         metacarpal = transformed_data[f"{hand}_6"]
         proximal = transformed_data[f"{hand}_7"]
@@ -422,7 +433,7 @@ def get_openxr_wrist_matrix(hand: str) -> Gf.Matrix4d:
             return None
         return joint.pose_matrix
     except Exception as e:
-        carb.log_warn(f"OpenXR {hand} wrist fetch failed: {e}")
+        omni.log.warn(f"OpenXR {hand} wrist fetch failed: {e}")
         return None
 
 
