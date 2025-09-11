@@ -45,6 +45,7 @@ isaac-sim:
 isaac-mimic:
   - changed-files:
     - any-glob-to-any-file:
+      - source/isaaclab/isaaclab/devices/**
       - source/isaaclab_mimic/**
       - source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/stack**
       - source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/pick_and_place**
