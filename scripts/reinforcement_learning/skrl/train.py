@@ -182,6 +182,9 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
             "IO descriptors are only supported for manager based RL environments. No IO descriptors will be exported."
         )
 
+    # set the log directory for the environment (works for all environment types)
+    env_cfg.log_dir = log_dir
+
     # create isaac environment
     env = gym.make(args_cli.task, cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None)
 
