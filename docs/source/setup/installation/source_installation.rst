@@ -1,7 +1,7 @@
-.. _isaaclab-pip-installation:
+.. _isaaclab-source-installation:
 
-Installation using Isaac Sim pip
-================================
+Installation using Isaac Sim source code
+========================================
 
 Isaac Lab requires Isaac Sim. This tutorial first installs Isaac Sim from source, then Isaac Lab from source code.
 
