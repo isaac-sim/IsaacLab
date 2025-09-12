@@ -39,12 +39,21 @@ System Requirements
 General Requirements
 ~~~~~~~~~~~~~~~~~~~~
 
+For detailed requirements, see the
+`Isaac Sim system requirements <https://docs.isaacsim.omniverse.nvidia.com/latest/installation/requirements.html>`_.
+The basic requirements are:
+
+- **OS:** Ubuntu 22.04 (Linux x64) or Windows 11 (x64)
 - **RAM:** 32 GB or more
 - **GPU VRAM:** 16 GB or more (additional VRAM may be required for rendering workflows)
-- **OS:** Ubuntu 22.04 (Linux x64) or Windows 11 (x64)
 
-For detailed requirements, see the
-`Isaac Sim system requirements <https://docs.isaacsim.omniverse.nvidia.com/latest/installation/requirements.html#system-requirements>`_.
+Isaac Sim is built against a specific Python version, making
+it essential to use the same Python version when installing Isaac Lab.
+The required Python version is as follows:
+
+- For Isaac Sim 5.X, the required Python version is 3.11.
+- For Isaac Sim 4.X, the required Python version is 3.10.
+
 
 Driver Requirements
 ~~~~~~~~~~~~~~~~~~~
