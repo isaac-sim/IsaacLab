@@ -710,9 +710,7 @@
 <span class="sd">    :math:`B = [1 - \alpha]`.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
-        <span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">modifier_cfg</span><span class="o">.</span><span class="n">DigitalFilterCfg</span><span class="p">,</span> <span class="n">data_dim</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span> <span class="n">device</span><span class="p">:</span> <span class="nb">str</span>
-    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">modifier_cfg</span><span class="o">.</span><span class="n">DigitalFilterCfg</span><span class="p">,</span> <span class="n">data_dim</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span> <span class="n">device</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Initializes digital filter.</span>
 
 <span class="sd">        Args:</span>
@@ -726,9 +724,7 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># check that filter coefficients are not None</span>
         <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">A</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">cfg</span><span class="o">.</span><span class="n">B</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
-                <span class="s2">&quot;Digital filter coefficients A and B must not be None. Please provide valid coefficients.&quot;</span>
-            <span class="p">)</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Digital filter coefficients A and B must not be None. Please provide valid coefficients.&quot;</span><span class="p">)</span>
 
         <span class="c1"># initialize parent class</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">data_dim</span><span class="p">,</span> <span class="n">device</span><span class="p">)</span>
@@ -800,9 +796,7 @@
 <span class="sd">    :math:`\Delta t` is the time step between samples.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
-        <span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">modifier_cfg</span><span class="o">.</span><span class="n">IntegratorCfg</span><span class="p">,</span> <span class="n">data_dim</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span> <span class="n">device</span><span class="p">:</span> <span class="nb">str</span>
-    <span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">modifier_cfg</span><span class="o">.</span><span class="n">IntegratorCfg</span><span class="p">,</span> <span class="n">data_dim</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span> <span class="n">device</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Initializes the integrator configuration and state.</span>
 
 <span class="sd">        Args:</span>
