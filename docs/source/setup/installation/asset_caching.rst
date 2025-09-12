@@ -34,7 +34,7 @@ Click the message to enable `Hub <https://docs.omniverse.nvidia.com/utilities/la
 Hub automatically manages local caching for Isaac Lab assets, so subsequent runs will use cached files instead of
 downloading from AWS each time.
 
-.. figure:: ../../_static/setup/asset_caching.jpg
+.. figure:: /source/_static/setup/asset_caching.jpg
     :align: center
     :figwidth: 100%
     :alt: Simulator with cache messaging.

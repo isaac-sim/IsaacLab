@@ -1,3 +1,6 @@
+Setting up a Python Environment (optional)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 .. attention::
    This step is optional. If you are using the bundled Python with Isaac Sim, you can skip this step.
 
@@ -6,17 +9,33 @@ it is optional. Using a virtual environment helps:
 
 - **Avoid conflicts with system Python** or other projects installed on your machine.
 - **Keep dependencies isolated**, so that package upgrades or experiments in other projects
-  do not break Isaac Lab.
-- **Easily manage multiple environments** for setups with different versions of Isaac Lab and its dependencies.
-- **Simplify reproducibility** — the environment contains only the packages needed for Isaac Lab, making
-  it easier to share setups with colleagues or run on different machines.
+  do not break Isaac Sim.
+- **Easily manage multiple environments** for setups with different versions of dependencies.
+- **Simplify reproducibility** — the environment contains only the packages needed for the current project,
+  making it easier to share setups with colleagues or run on different machines.
 
-You can choose either **UV** or **Conda** to set up your environment. Once created, you can use
-the default Python in the environment (*python* or *python3*) instead of *./isaaclab.sh -p*.
+
+You can choose different package managers to create a virtual environment.
+
+- **UV**: A modern, fast, and secure package manager for Python.
+- **Conda**: A cross-platform, language-agnostic package manager for Python.
+
+Once created, you can use the default Python in the virtual environment (*python* or *python3*)
+instead of *./isaaclab.sh -p* or *isaaclab.bat -p*.
+
+.. caution::
+
+   The Python version of the virtual environment must match the Python version of Isaac Sim.
+
+   - For Isaac Sim 5.X, the required Python version is 3.11.
+   - For Isaac Sim 4.X, the required Python version is 3.10.
+   
+   Using a different Python version will result in errors when running Isaac Lab.
+  
 
 .. tab-set::
 
-   .. tab-item:: :icon:`fa-cube` UV Environment
+   .. tab-item::  UV Environment
 
       To install ``uv``, please follow the instructions `here <https://docs.astral.sh/uv/getting-started/installation/>`__.
       You can create the Isaac Lab environment using the following commands:
@@ -46,7 +65,7 @@ the default Python in the environment (*python* or *python3*) instead of *./isaa
                Windows support for UV is currently unavailable. Please check
                `issue #3483 <https://github.com/isaac-sim/IsaacLab/issues/3438>`_ to track progress.
 
-   .. tab-item:: :icon:`fa-cubes` Conda Environment
+   .. tab-item::  Conda Environment
 
       To install conda, please follow the instructions `here <https://docs.conda.io/projects/conda/en/latest/user-guide/install/index.html>__`.
       You can create the Isaac Lab environment using the following commands.
@@ -87,8 +106,7 @@ the default Python in the environment (*python* or *python3*) instead of *./isaa
                :: Activate environment
                conda activate env_isaaclab  # or "conda activate my_env"
 
-Once you are in the virtual environment, you do not need to use ``./isaaclab.sh -p`` / ``isaaclab.bat -p``
-to run python scripts. You can use the default python executable in your environment
-by running ``python`` or ``python3``. However, for the rest of the documentation,
-we will assume that you are using ``./isaaclab.sh -p`` / ``isaaclab.bat -p`` to run python scripts.
-This command is equivalent to running ``python`` or ``python3`` in your virtual environment.
+Once you are in the virtual environment, you do not need to use ``./isaaclab.sh -p`` or
+``isaaclab.bat -p`` to run python scripts. You can use the default python executable in your
+environment by running ``python`` or ``python3``. However, for the rest of the documentation,
+we will assume that you are using ``./isaaclab.sh -p`` or ``isaaclab.bat -p`` to run python scripts.

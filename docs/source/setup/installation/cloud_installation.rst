@@ -170,7 +170,7 @@ For example:
 
       .. code-block:: batch
 
-         ./isaaclab.bat -p scripts/reinforcement_learning/rl_games/train.py --task=Isaac-Cartpole-v0
+         isaaclab.bat -p scripts/reinforcement_learning/rl_games/train.py --task=Isaac-Cartpole-v0
 
 
 Destroying a Deployment

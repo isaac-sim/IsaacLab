@@ -39,7 +39,7 @@ System Requirements
 General Requirements
 ~~~~~~~~~~~~~~~~~~~~
 
-For detailed requirements, see the
+For detailed requirements, please see the
 `Isaac Sim system requirements <https://docs.isaacsim.omniverse.nvidia.com/latest/installation/requirements.html>`_.
 The basic requirements are:
 
@@ -47,7 +47,7 @@ The basic requirements are:
 - **RAM:** 32 GB or more
 - **GPU VRAM:** 16 GB or more (additional VRAM may be required for rendering workflows)
 
-Isaac Sim is built against a specific Python version, making
+**Isaac Sim is built against a specific Python version**, making
 it essential to use the same Python version when installing Isaac Lab.
 The required Python version is as follows:
 
@@ -74,6 +74,8 @@ Troubleshooting
 Please refer to the `Linux Troubleshooting <https://docs.omniverse.nvidia.com/dev-guide/latest/linux-troubleshooting.html>`_
 to resolve installation issues in Linux.
 
+You can use `Isaac Sim Compatibility Checker <https://docs.isaacsim.omniverse.nvidia.com/latest/installation/install_workstation.html#isaac-sim-compatibility-checker>`_
+to automatically check if the above requirements are met for running Isaac Sim on your system.
 
 Quick Start (Recommended)
 -------------------------
@@ -104,7 +106,10 @@ Use this table to decide:
 | Pip Only          | |:package:| pip install      | |:package:| pip install      | External extensions only  | Special    |
 |                   |                              |                              | (no training/examples)    | case       |
 +-------------------+------------------------------+------------------------------+---------------------------+------------+
-
+| Docker            | |:whale:| Docker             | |:floppy_disk:| source (git) | Docker users              | Advanced   |
++-------------------+------------------------------+------------------------------+---------------------------+------------+
+| Cloud             | |:cloud:| Cloud              | |:cloud:| Cloud              | Cloud users (e.g.: AWS)   | Advanced   |
++-------------------+------------------------------+------------------------------+---------------------------+------------+
 
 Next Steps
 ----------
@@ -133,6 +138,17 @@ Once you've reviewed the installation methods, continue with the guide that matc
   - Install Isaac Sim and Isaac Lab as pip packages.
   - Best for advanced users building **external extensions** with custom runner scripts.
   - Note: This does **not** include training or example scripts.
+
+- :ref:`container-deployment`
+
+  - Install Isaac Sim and Isaac Lab in a Docker container.
+  - Best for users who want to use Isaac Lab in a containerized environment.
+
+- :doc:`cloud_installation`
+
+  - Deploy Isaac Sim and Isaac Lab to public clouds (e.g.: AWS, Azure, GCP, Alibaba Cloud).
+  - Best for users who want to use Isaac Lab in a cloud environment.
+  - Provides a fully configured remote desktop cloud workstation.
 
 
 Asset Caching
