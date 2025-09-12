@@ -111,7 +111,7 @@ Once you've reviewed the installation methods, continue with the guide that matc
 
   - Install Isaac Sim from its binary package (website download).
   - Install Isaac Lab from its source code.
-  - Choose this if you prefer not to use pip for Isaac Sim.
+  - Choose this if you prefer not to use pip for Isaac Sim (for instance, on Ubuntu 20.04).
 
 - :doc:`source_installation`
 
