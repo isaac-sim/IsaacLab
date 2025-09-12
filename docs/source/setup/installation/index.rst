@@ -44,12 +44,14 @@ Local Installation
 Isaac Lab is built on top of the Isaac Sim platform. Therefore, it is required to first install Isaac Sim
 before using Isaac Lab.
 
-Both Isaac Sim and Isaac Lab provide two ways of installation:
-either through binary download/source file, or through Python's package installer ``pip``.
+Isaac Sim can be installed through its binary package either via its website or using Python's package installer
+``pip``. It is also possible to build from its source code. Isaac Lab can then be installed from its source code
+or through Python's package installer ``pip`` as well.
 
-The method of installation may depend on the use case and the level of customization desired from users.
-For example, installing Isaac Sim from pip will be a simpler process than installing it from binaries,
-but the source code will then only be accessible through the installed source package and not through the direct binary download.
+The method of installation depends on the use case and the level of customization desired from users.
+For example, installing Isaac Sim from pip will be a simpler process than installing it from the binary package
+on the website, but the source code will then only be accessible through the installed source package and not through the
+direct binary download.
 
 Similarly, installing Isaac Lab through pip is only recommended for workflows that use external launch scripts outside of Isaac Lab.
 The Isaac Lab pip packages only provide the core framework extensions for Isaac Lab and does not include any of the
@@ -67,4 +69,5 @@ For users getting started with Isaac Lab, we recommend installing Isaac Lab by c
     Pip installation (recommended) <pip_installation>
     Binary installation <binaries_installation>
     Advanced installation (Isaac Lab pip) <isaaclab_pip_installation>
+    Advanced installation (Isaac Sim source) <source_installation>
     Asset caching <asset_caching>
