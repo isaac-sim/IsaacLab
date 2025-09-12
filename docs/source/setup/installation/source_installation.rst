@@ -33,30 +33,30 @@ for the convenience of users.
 
 - Clone the Isaac Sim repository into your workspace:
 
-   .. code:: bash
+  .. code:: bash
 
-      git clone https://github.com/isaac-sim/IsaacSim.git
+     git clone https://github.com/isaac-sim/IsaacSim.git
 
 - Build Isaac Sim from source:
 
-   .. tab-set::
-      :sync-group: os
+  .. tab-set::
+     :sync-group: os
 
-      .. tab-item:: :icon:`fa-brands fa-linux` Linux
-         :sync: linux
+     .. tab-item:: :icon:`fa-brands fa-linux` Linux
+        :sync: linux
 
-         .. code:: bash
+        .. code:: bash
 
-            cd IsaacSim
-            ./build.sh
+           cd IsaacSim
+           ./build.sh
 
-      .. tab-item:: :icon:`fa-brands fa-windows` Windows
-         :sync: windows
+     .. tab-item:: :icon:`fa-brands fa-windows` Windows
+        :sync: windows
 
-         .. code:: bash
+        .. code:: bash
 
-            cd IsaacSim
-            build.bat
+           cd IsaacSim
+           build.bat
 
 
 Verifying the Isaac Sim installation
@@ -89,6 +89,28 @@ variables to your terminal for the remaining of the installation instructions:
          set ISAACSIM_PATH="%cd%\_build\windows-x86_64\release"
          :: Isaac Sim python executable
          set ISAACSIM_PYTHON_EXE="%ISAACSIM_PATH:"=%\python.bat"
+
+-  Check that the simulator runs as expected:
+
+   .. tab-set::
+      :sync-group: os
+
+      .. tab-item:: :icon:`fa-brands fa-linux` Linux
+         :sync: linux
+
+         .. code:: bash
+
+            # note: you can pass the argument "--help" to see all arguments possible.
+            ${ISAACSIM_PATH}/isaac-sim.sh
+
+
+      .. tab-item:: :icon:`fa-brands fa-windows` Windows
+         :sync: windows
+
+         .. code:: batch
+
+            :: note: you can pass the argument "--help" to see all arguments possible.
+            %ISAACSIM_PATH%\isaac-sim.bat
 
 
 -  Check that the simulator runs from a standalone python script:
