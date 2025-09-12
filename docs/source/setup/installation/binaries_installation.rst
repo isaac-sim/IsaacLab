@@ -1,7 +1,7 @@
 .. _isaaclab-binaries-installation:
 
-Installation using Isaac Sim Binaries
-=====================================
+Installation using Isaac Sim Pre-built Binaries
+===============================================
 
 The following steps first installs Isaac Sim from its pre-built binaries, then Isaac Lab from source code.
 

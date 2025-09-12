@@ -1,5 +1,5 @@
-Installing Isaac Lab through Pip
-================================
+Installation using Isaac Lab Pip Packages
+=========================================
 
 From Isaac Lab 2.0, pip packages are provided to install both Isaac Sim and Isaac Lab extensions from pip.
 Note that this installation process is only recommended for advanced users working on additional extension projects

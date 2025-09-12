@@ -1,7 +1,7 @@
 .. _isaaclab-source-installation:
 
-Installation using Isaac Sim Source
-===================================
+Installation using Isaac Sim Source Code
+========================================
 
 The following steps first installs Isaac Sim from source, then Isaac Lab from source code.
 
