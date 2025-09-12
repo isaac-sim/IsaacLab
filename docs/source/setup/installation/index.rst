@@ -147,6 +147,6 @@ Please follow the steps :doc:`asset_caching` to enable asset caching and speed u
 
     pip_installation
     binaries_installation
-    isaaclab_pip_installation
     source_installation
+    isaaclab_pip_installation
     asset_caching
