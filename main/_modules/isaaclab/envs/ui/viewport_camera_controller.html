@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.2.1" />
-    <meta name="docbuild:last-update" content="Sep 11, 2025"/>
+    <meta name="docbuild:last-update" content="Sep 12, 2025"/>
   </head>
   
   
@@ -635,8 +635,8 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">_env</span> <span class="o">=</span> <span class="n">env</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_cfg</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span>
         <span class="c1"># cast viewer eye and look-at to numpy arrays</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">default_cam_eye</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_cfg</span><span class="o">.</span><span class="n">eye</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">default_cam_lookat</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_cfg</span><span class="o">.</span><span class="n">lookat</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">default_cam_eye</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_cfg</span><span class="o">.</span><span class="n">eye</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">default_cam_lookat</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_cfg</span><span class="o">.</span><span class="n">lookat</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
 
         <span class="c1"># set the camera origins</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">origin_type</span> <span class="o">==</span> <span class="s2">&quot;env&quot;</span><span class="p">:</span>
@@ -790,9 +790,9 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># store the camera view pose for later use</span>
         <span class="k">if</span> <span class="n">eye</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">default_cam_eye</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">eye</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">default_cam_eye</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">eye</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">lookat</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">default_cam_lookat</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">lookat</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">default_cam_lookat</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">lookat</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
         <span class="c1"># set the camera locations</span>
         <span class="n">viewer_origin</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">viewer_origin</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">()</span>
         <span class="n">cam_eye</span> <span class="o">=</span> <span class="n">viewer_origin</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">default_cam_eye</span>
@@ -860,7 +860,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Sep 11, 2025.
+  Last updated on Sep 12, 2025.
   <br/>
 </p>
   </div>
