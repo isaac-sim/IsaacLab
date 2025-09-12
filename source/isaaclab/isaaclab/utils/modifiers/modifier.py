@@ -127,9 +127,7 @@ class DigitalFilter(ModifierBase):
     :math:`B = [1 - \alpha]`.
     """
 
-    def __init__(
-        self, cfg: modifier_cfg.DigitalFilterCfg, data_dim: tuple[int, ...], device: str
-    ) -> None:
+    def __init__(self, cfg: modifier_cfg.DigitalFilterCfg, data_dim: tuple[int, ...], device: str):
         """Initializes digital filter.
 
         Args:
@@ -143,9 +141,7 @@ class DigitalFilter(ModifierBase):
         """
         # check that filter coefficients are not None
         if cfg.A is None or cfg.B is None:
-            raise ValueError(
-                "Digital filter coefficients A and B must not be None. Please provide valid coefficients."
-            )
+            raise ValueError("Digital filter coefficients A and B must not be None. Please provide valid coefficients.")
 
         # initialize parent class
         super().__init__(cfg, data_dim, device)
@@ -217,9 +213,7 @@ class Integrator(ModifierBase):
     :math:`\Delta t` is the time step between samples.
     """
 
-    def __init__(
-        self, cfg: modifier_cfg.IntegratorCfg, data_dim: tuple[int, ...], device: str
-    ):
+    def __init__(self, cfg: modifier_cfg.IntegratorCfg, data_dim: tuple[int, ...], device: str):
         """Initializes the integrator configuration and state.
 
         Args:
