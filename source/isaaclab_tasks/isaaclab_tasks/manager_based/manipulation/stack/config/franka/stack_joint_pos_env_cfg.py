@@ -87,6 +87,7 @@ class FrankaCubeStackEnvCfg(StackEnvCfg):
             open_command_expr={"panda_finger_.*": 0.04},
             close_command_expr={"panda_finger_.*": 0.0},
         )
+        # utilities for gripper status check
         self.gripper_joint_names = ["panda_finger_.*"]
         self.gripper_open_val = 0.04
         self.gripper_threshold = 0.005

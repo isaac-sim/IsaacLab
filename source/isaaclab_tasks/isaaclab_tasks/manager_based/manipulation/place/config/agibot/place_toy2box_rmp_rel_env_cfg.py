@@ -6,8 +6,6 @@
 import os
 from dataclasses import MISSING
 
-from isaaclab_assets import ISAACLAB_ASSETS_DATA_DIR
-
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
 from isaaclab.devices.device_base import DevicesCfg
 from isaaclab.devices.keyboard import Se3KeyboardCfg
@@ -24,7 +22,7 @@ from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
 from isaaclab.sim.schemas.schemas_cfg import MassPropertiesCfg, RigidBodyPropertiesCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
 from isaaclab.utils import configclass
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 
 from isaaclab_tasks.manager_based.manipulation.place import mdp as place_mdp
 from isaaclab_tasks.manager_based.manipulation.stack import mdp
@@ -286,7 +284,7 @@ class RmpFlowAgibotPlaceToy2BoxEnvCfg(PlaceToy2BoxEnvCfg):
             prim_path="{ENV_REGEX_NS}/ToyTruck",
             init_state=RigidObjectCfg.InitialStateCfg(),
             spawn=UsdFileCfg(
-                usd_path=f"{ISAACLAB_ASSETS_DATA_DIR}/Objects/toy_truck_022.usd",
+                usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Objects/ToyTruck/toy_truck_022.usd",
                 scale=(0.001, 0.001, 0.001),
                 rigid_props=toy_truck_properties,
                 mass_props=toy_mass_properties,
@@ -297,7 +295,7 @@ class RmpFlowAgibotPlaceToy2BoxEnvCfg(PlaceToy2BoxEnvCfg):
             prim_path="{ENV_REGEX_NS}/Box",
             init_state=RigidObjectCfg.InitialStateCfg(),
             spawn=UsdFileCfg(
-                usd_path=f"{ISAACLAB_ASSETS_DATA_DIR}/Objects/box_167.usd",
+                usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Objects/Box/box_167.usd",
                 activate_contact_sensors=True,
                 scale=(0.001, 0.001, 0.001),
                 rigid_props=box_properties,
