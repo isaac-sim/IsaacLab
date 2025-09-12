@@ -68,10 +68,10 @@ After cloning, you can choose the deployment workflow that fits your needs:
 
 
 .. toctree::
-  :maxdepth: 1
-  :hidden:
+   :maxdepth: 1
+   :hidden:
 
-  docker
-  run_docker_example
-  cluster
-  cloudxr_teleoperation_cluster
+   docker
+   run_docker_example
+   cluster
+   cloudxr_teleoperation_cluster

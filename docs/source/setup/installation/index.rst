@@ -167,11 +167,11 @@ Please follow the steps :doc:`asset_caching` to enable asset caching and speed u
 
 
 .. toctree::
-    :maxdepth: 2
-    :hidden:
+   :maxdepth: 1
+   :hidden:
 
-    pip_installation
-    binaries_installation
-    source_installation
-    isaaclab_pip_installation
-    asset_caching
+   pip_installation
+   binaries_installation
+   source_installation
+   isaaclab_pip_installation
+   asset_caching
