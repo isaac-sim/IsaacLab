@@ -28,7 +28,7 @@ You can choose different package managers to create a virtual environment.
 The following instructions are for Isaac Sim 5.X, which requires Python 3.11.
 If you wish to install Isaac Sim 4.5, please use modify the instructions accordingly to use Python 3.10.
 
-- Create a virtual environment using one of the package managers:
+-  Create a virtual environment using one of the package managers:
 
    .. tab-set::
 
