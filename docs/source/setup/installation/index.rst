@@ -131,10 +131,8 @@ Asset Caching
 
 Isaac Lab assets are hosted on **AWS S3 cloud storage**. Loading times can vary
 depending on your **network connection** and **geographical location**, and in some cases,
-assets may take several minutes to load for each run.
-
-To improve performance or support **offline workflows**, we recommend enabling
-**asset caching**.
+assets may take several minutes to load for each run. To improve performance or support
+**offline workflows**, we recommend enabling **asset caching**.
 
 - Cached assets are stored locally, reducing repeated downloads.
 - This is especially useful if you have a slow or intermittent internet connection,
