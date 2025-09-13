@@ -8,7 +8,7 @@ Changelog
 Changed
 ^^^^^^^
 
-* Fixed missing actuator indicies in :meth:`~isaaclab.envs.mdp.events.randomize_actuator_gains`
+* Fixed missing actuator indices in :meth:`~isaaclab.envs.mdp.events.randomize_actuator_gains`
 
 
 0.46.1 (2025-09-10)
