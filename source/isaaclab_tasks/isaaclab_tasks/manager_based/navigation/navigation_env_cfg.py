@@ -136,7 +136,7 @@ class NavObservationsCfg:
     """Observation specifications for the MDP."""
 
     @configclass
-    class NavPolicyCfg(ObsGroup):
+    class NavProprioceptiveCfg(ObsGroup):
         """Proprioceptive observations for navigation policy group."""
 
         base_lin_vel = ObsTerm(func=mdp.base_lin_vel)
@@ -146,8 +146,17 @@ class NavObservationsCfg:
 
         goal_commands = ObsTerm(func=mdp.generated_commands, params={"command_name": "goal_command"})
 
-        forwards_depth_image = mdp.EmbeddedDepthImageCfg(
-            sensor_cfg=SceneEntityCfg("front_zed_camera"),
+        def __post_init__(self):
+            self.enable_corruption = True
+            self.concatenate_terms = True
+
+    @configclass
+    class NavExteroceptiveCfg(ObsGroup):
+        """Exteroceptive observations for navigation policy group."""
+        
+        forwards_depth_image = ObsTerm(
+            func=mdp.camera_image,
+            params={"sensor_cfg": SceneEntityCfg("front_camera")},
         )
 
         def __post_init__(self):
@@ -157,7 +166,8 @@ class NavObservationsCfg:
 
     # Observation Groups
     low_level_policy: LOW_LEVEL_CFGS.ObservationsCfg.PolicyCfg = LOW_LEVEL_CFGS.ObservationsCfg.PolicyCfg()
-    policy: NavigationPolicyCfg = NavigationPolicyCfg()
+    proprioceptive: NavProprioceptiveCfg = NavProprioceptiveCfg()
+    exteroceptive: NavExteroceptiveCfg = NavExteroceptiveCfg()
 
 
 @configclass
@@ -165,7 +175,7 @@ class EventCfg:
     """Configuration for randomization."""
 
     reset_base = EventTerm(
-        func=mdp.reset_robot_position,
+        func=mdp.reset_root_state_uniform,
         mode="reset",
         params={
             "yaw_range": (-3.0, 3.0),
@@ -255,19 +265,9 @@ class CommandsCfg:
 
     goal_command = mdp.GoalCommandCfg(
         asset_name="robot",
-        z_offset_spawn=0.1,
-        num_pairs=1000,
-        path_length_range=[2.0, 10.0],
-        traj_sampling=TrajectorySamplingCfg(
-            enable_saved_paths_loading=False,
-            terrain_analysis=TerrainAnalysisCfg(
-                raycaster_sensor="front_zed_camera",
-                max_terrain_size=100.0,
-                semantic_cost_mapping=None,
-                viz_graph=False,
-                viz_height_map=False,
-            ),
-        ),
+        grid_resolution=0.1,
+        robot_length=1.0,
+        raycaster_sensor="front_camera",
         resampling_time_range=(1.0e9, 1.0e9),  # No resampling
         debug_vis=True,
     )

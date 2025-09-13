@@ -10,6 +10,8 @@ from typing import Literal
 
 from isaaclab.utils import configclass
 
+from rsl_rl.networks import CNNConfig
+
 from .rnd_cfg import RslRlRndCfg
 from .symmetry_cfg import RslRlSymmetryCfg
 
@@ -62,6 +64,20 @@ class RslRlPpoActorCriticRecurrentCfg(RslRlPpoActorCriticCfg):
 
     rnn_num_layers: int = MISSING
     """The number of RNN layers."""
+
+
+@configclass
+class RslRlPerceptiveActorCriticCfg(RslRlPpoActorCriticCfg):
+    """Configuration for the PPO actor-critic networks with perceptual layers."""
+
+    class_name: str = "PerceptiveActorCritic"
+    """The policy class name. Default is PerceptiveActorCritic."""
+
+    actor_cnn_config: list[CNNConfig] | CNNConfig | None = MISSING
+    """The CNN configuration for the actor network."""
+
+    critic_cnn_config: list[CNNConfig] | CNNConfig | None = MISSING
+    """The CNN configuration for the critic network."""
 
 
 ############################
