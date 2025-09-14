@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING
 from isaaclab.assets import Articulation
 from isaaclab.managers import SceneEntityCfg
 
-from .commands import GoalCommand
+from .commands import GoalCommandTerm
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
@@ -40,7 +40,7 @@ def at_goal(
     """
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
-    goal_cmd_generator: GoalCommand = env.command_manager.get_term(command_generator_term_name)
+    goal_cmd_generator: GoalCommandTerm = env.command_manager.get_term(command_generator_term_name)
 
     # Check conditions for termination
     distance_goal = torch.norm(asset.data.root_pos_w[:, :2] - goal_cmd_generator.pos_command_w[:, :2], dim=1, p=2)
