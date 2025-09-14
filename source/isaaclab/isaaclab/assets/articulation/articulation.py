@@ -1458,6 +1458,7 @@ class Articulation(AssetBase):
             first_env_root_prims = sim_utils.get_all_matching_child_prims(
                 first_env_matching_prim_path,
                 predicate=lambda prim: prim.HasAPI(UsdPhysics.ArticulationRootAPI),
+                traverse_instance_prims=False,
             )
             if len(first_env_root_prims) == 0:
                 raise RuntimeError(

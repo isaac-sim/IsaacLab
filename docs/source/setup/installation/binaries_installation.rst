@@ -213,6 +213,7 @@ Clone the Isaac Lab repository into your workspace:
                -d, --docs           Build the documentation from source using sphinx.
                -n, --new            Create a new external project or internal task from template.
                -c, --conda [NAME]   Create the conda environment for Isaac Lab. Default name is 'env_isaaclab'.
+               -u, --uv [NAME]      Create the uv environment for Isaac Lab. Default name is 'env_isaaclab'.
 
       .. tab-item:: :icon:`fa-brands fa-windows` Windows
          :sync: windows
@@ -234,6 +235,7 @@ Clone the Isaac Lab repository into your workspace:
                -d, --docs           Build the documentation from source using sphinx.
                -n, --new            Create a new external project or internal task from template.
                -c, --conda [NAME]   Create the conda environment for Isaac Lab. Default name is 'env_isaaclab'.
+               -u, --uv [NAME]      Create the uv environment for Isaac Lab. Default name is 'env_isaaclab'.
 
 
 Creating the Isaac Sim Symbolic Link
@@ -267,6 +269,57 @@ to index the python modules and look for extensions shipped with Isaac Sim.
          :: create a symbolic link - requires launching Command Prompt with Administrator access
          mklink /D _isaac_sim path_to_isaac_sim
          :: For example: mklink /D _isaac_sim C:/isaacsim
+
+Setting up the uv environment (optional)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. attention::
+   This step is optional. If you are using the bundled python with Isaac Sim, you can skip this step.
+
+The executable ``isaaclab.sh`` automatically fetches the python bundled with Isaac
+Sim, using ``./isaaclab.sh -p`` command (unless inside a virtual environment). This executable
+behaves like a python executable, and can be used to run any python script or
+module with the simulator. For more information, please refer to the
+`documentation <https://docs.isaacsim.omniverse.nvidia.com/latest/python_scripting/manual_standalone_python.html>`__.
+
+To install ``uv``, please follow the instructions `here <https://docs.astral.sh/uv/getting-started/installation/>`__.
+You can create the Isaac Lab environment using the following commands.
+
+.. tab-set::
+   :sync-group: os
+
+   .. tab-item:: :icon:`fa-brands fa-linux` Linux
+      :sync: linux
+
+      .. code:: bash
+
+         # Option 1: Default name for uv environment is 'env_isaaclab'
+         ./isaaclab.sh --uv  # or "./isaaclab.sh -u"
+         # Option 2: Custom name for uv environment
+         ./isaaclab.sh --uv my_env  # or "./isaaclab.sh -u my_env"
+
+   .. tab-item:: :icon:`fa-brands fa-windows` Windows
+      :sync: windows
+
+      .. code:: batch
+
+         :: Option 1: Default name for uv environment is 'env_isaaclab'
+         isaaclab.bat --uv  :: or "isaaclab.bat -u"
+         :: Option 2: Custom name for uv environment
+         isaaclab.bat --uv my_env  :: or "isaaclab.bat -u my_env"
+
+
+Once created, be sure to activate the environment before proceeding!
+
+.. code:: bash
+
+   source ./env_isaaclab/bin/activate  # or "source ./my_env/bin/activate"
+
+Once you are in the virtual environment, you do not need to use ``./isaaclab.sh -p`` / ``isaaclab.bat -p``
+to run python scripts. You can use the default python executable in your environment
+by running ``python`` or ``python3``. However, for the rest of the documentation,
+we will assume that you are using ``./isaaclab.sh -p`` / ``isaaclab.bat -p`` to run python scripts. This command
+is equivalent to running ``python`` or ``python3`` in your virtual environment.
 
 
 Setting up the conda environment (optional)
@@ -427,8 +480,8 @@ On Windows machines, please terminate the process from Command Prompt using
 
 If you see this, then the installation was successful! |:tada:|
 
-If you see an error ``ModuleNotFoundError: No module named 'isaacsim'``, ensure that the conda environment is activated
-and ``source _isaac_sim/setup_conda_env.sh`` has been executed.
+If you see an error ``ModuleNotFoundError: No module named 'isaacsim'``, ensure that the conda or uv environment is activated
+and ``source _isaac_sim/setup_conda_env.sh`` has been executed (for uv as well).
 
 
 Train a robot!
