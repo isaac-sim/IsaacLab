@@ -70,10 +70,10 @@ class PbtAlgoObserver(AlgoObserver):
         Notes:
             Expects the objective to be at `infos[self.cfg.objective]` where self.cfg.objective is dotted address.
         """
-        parts = self.cfg.objective.split(".")
         score = infos
-        for part in parts:
+        for part in self.cfg.objective.split("."):
             score = score[part]
+        self.score = score
 
     def after_steps(self):
         """Main PBT tick executed every train step.
