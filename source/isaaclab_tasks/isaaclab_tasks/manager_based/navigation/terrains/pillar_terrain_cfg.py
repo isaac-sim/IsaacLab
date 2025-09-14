@@ -55,8 +55,8 @@ class MeshPillarTerrainCfg(SubTerrainBaseCfg):
         length: tuple[float, float] = MISSING
         """The length (along y) of the box (in m). First value start of curriculum, second value end."""
 
-        max_yx_angle: tuple[float, float] = 0.0
-        """The maximum angle along the y and x axis. Defaults to 0.0. First value start of curriculum, second value end."""
+        max_yx_angle: tuple[float, float] = (0.0, 0.0)
+        """The maximum angle along the y and x axis. Defaults to (0.0, 0.0). First value start of curriculum, second value end."""
 
         degrees: bool = True
         """Whether the angle is in degrees. Defaults to True."""

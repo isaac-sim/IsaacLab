@@ -16,11 +16,12 @@ from isaaclab_assets.robots.anymal import ANYMAL_C_CFG  # isort: skip
 @configclass
 class AnymalCNavEnvCfg(NavEnvCfg):
     def __post_init__(self):
-        # switch robot to anymal-c
-        self.scene.robot = ANYMAL_C_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
         # post init of parent
         super().__post_init__()
-
+        # switch robot to anymal-c
+        self.scene.robot = ANYMAL_C_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        # turn off the self-collisions
+        self.scene.robot.spawn.articulation_props.enabled_self_collisions = False
 
 @configclass
 class AnymalCNavEnvCfg_PLAY(AnymalCNavEnvCfg):

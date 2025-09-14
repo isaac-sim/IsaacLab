@@ -36,4 +36,7 @@ class GoalCommandCfg(CommandTermCfg):
 
     robot_length: float = 1.0
     """Length of the robot for the terrain analysis."""
+
+    reset_pos_term_name: str = MISSING
+    """Name of the reset position term to use for the goal command."""
     

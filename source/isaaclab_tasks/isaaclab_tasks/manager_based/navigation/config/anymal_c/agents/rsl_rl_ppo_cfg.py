@@ -5,8 +5,6 @@
 
 from isaaclab.utils import configclass
 
-from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlPpoActorCriticCfg, RslRlPpoAlgorithmCfg
-
 from isaaclab_tasks.manager_based.navigation.config.base_rsl_rl_ppo_cfg import NavBasePPORunnerCfg
 
 @configclass

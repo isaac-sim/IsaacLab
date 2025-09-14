@@ -7,8 +7,6 @@ from isaaclab.utils import configclass
 
 from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlPerceptiveActorCriticCfg, RslRlPpoAlgorithmCfg
 
-from rsl_rl.networks import CNNConfig
-
 @configclass
 class NavBasePPORunnerCfg(RslRlOnPolicyRunnerCfg):
     num_steps_per_env = 24
@@ -25,14 +23,14 @@ class NavBasePPORunnerCfg(RslRlOnPolicyRunnerCfg):
         critic_obs_normalization=False,
         actor_hidden_dims=[512, 256, 128],
         critic_hidden_dims=[512, 256, 128],
-        actor_cnn_config=CNNConfig(
+        actor_cnn_config=RslRlPerceptiveActorCriticCfg.CNNConfig(
             out_channels=[32, 64],
             kernel_size=[(7, 7), (5, 5)],
             flatten=False,
             avg_pool=(1, 1),
             max_pool=(True, False),
         ),
-        critic_cnn_config=CNNConfig(
+        critic_cnn_config=RslRlPerceptiveActorCriticCfg.CNNConfig(
             out_channels=[32, 64],
             kernel_size=[(7, 7), (5, 5)],
             flatten=False,

@@ -74,6 +74,12 @@ NAV_TERRAIN = TerrainGeneratorCfg(
                 height=(0.2, 0.4),
                 num_objects=(10, 20),
             ),
+            cylinder_cfg=MeshPillarTerrainCfg.CylinderCfg(
+                radius=(0.1, 0.3),
+                height=(0.4, 1.5),
+                num_objects=(5, 15),
+                max_yx_angle=(0.0, 60.0),
+            ),
             rough_terrain=HfRandomUniformTerrainCfg(
                 proportion=0.2, noise_range=(0.02, 0.10), noise_step=0.02, border_width=0.25
             ),
@@ -111,9 +117,6 @@ class NavSceneCfg(LOW_LEVEL_CFGS.MySceneCfg):
         # swap to navigation terrain
         self.terrain.terrain_generator = NAV_TERRAIN
 
-        # turn off the self-collisions
-        self.robot.spawn.articulation_props.enabled_self_collisions = False
-
 
 ##
 # MDP settings
@@ -126,7 +129,7 @@ class ActionsCfg:
 
     velocity_command = mdp.NavigationSE2ActionCfg(
         asset_name="robot",
-        low_level_action=LOW_LEVEL_CFGS.ActionsCfg.joint_pos,
+        low_level_action=LOW_LEVEL_CFGS.ActionsCfg().joint_pos,
         low_level_policy_file=ISAACLAB_NUCLEUS_DIR + "/Policies/ANYmal-C/HeightScan/policy.pt",
     )
 
@@ -169,16 +172,30 @@ class NavObservationsCfg:
     proprioceptive: NavProprioceptiveCfg = NavProprioceptiveCfg()
     exteroceptive: NavExteroceptiveCfg = NavExteroceptiveCfg()
 
+    def __post_init__(self):
+        # adjust because the velocity commands are now given by the navigation policy
+        self.low_level_policy.velocity_commands = ObsTerm(func=mdp.vel_commands, params={"action_term": "velocity_command"})
+        self.low_level_policy.actions = ObsTerm(func=mdp.last_low_level_action, params={"action_term": "velocity_command"})
 
 @configclass
 class EventCfg:
     """Configuration for randomization."""
 
     reset_base = EventTerm(
-        func=mdp.reset_root_state_uniform,
+        func=mdp.reset_robot_position,
         mode="reset",
         params={
-            "yaw_range": (-3.0, 3.0),
+            "asset_cfg": SceneEntityCfg("robot"),
+            "yaw_range": (-3.14, 3.14),
+            "velocity_range": {
+                "x": (-0.5, 0.5),
+                "y": (-0.5, 0.5),
+                "z": (0, 0),
+                "roll": (0, 0),
+                "pitch": (0, 0),
+                "yaw": (-0.5, 0.5),
+            },
+            "goal_command_generator_name": "goal_command",
         },
     )
 
@@ -270,6 +287,7 @@ class CommandsCfg:
         raycaster_sensor="front_camera",
         resampling_time_range=(1.0e9, 1.0e9),  # No resampling
         debug_vis=True,
+        reset_pos_term_name="reset_base",
     )
 
 

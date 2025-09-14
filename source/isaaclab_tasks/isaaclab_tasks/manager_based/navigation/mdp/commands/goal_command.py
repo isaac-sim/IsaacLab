@@ -71,10 +71,13 @@ class GoalCommandTerm(CommandTerm):
         self._construct_traversability_map()
 
         # -- goal commands: (x, y, z)
+        self.pos_spawn_w = torch.zeros(self.num_envs, 3, device=self.device)
+        self.heading_spawn_w = torch.zeros(self.num_envs, device=self.device)
         self.pos_command_w = torch.zeros(self.num_envs, 3, device=self.device)
         self.heading_command_w = torch.zeros(self.num_envs, device=self.device)
         self.pos_command_b = torch.zeros_like(self.pos_command_w)
         self.heading_command_b = torch.zeros_like(self.heading_command_w)
+
 
     def __str__(self) -> str:
         msg = "GoalCommandGenerator:\n"
@@ -97,9 +100,43 @@ class GoalCommandTerm(CommandTerm):
 
     def _resample_command(self, env_ids: Sequence[int]):
         """Resample the command for the specified environments."""
-        
-        pass
 
+        # get the terrain id for the environments
+        terrain_id = torch.cdist(self._env.scene.terrain.env_origins[env_ids], self._terrain_origins, p=2).argmin(dim=1).unsqueeze(0)
+
+        start_sample = torch.concat((terrain_id, torch.randint(0, self.split_max_length, (len(env_ids), ), device=self.device).unsqueeze(0)))
+        end_sample = torch.concat((terrain_id, torch.randint(0, self.split_max_length, (len(env_ids), ), device=self.device).unsqueeze(0)))
+
+        # robot height 
+        robot_height = self.robot.data.default_root_state[env_ids, 2]
+
+        # Update command buffers
+        self.pos_command_w[env_ids] = self._split_traversability_map[start_sample[0, :], start_sample[1, :]]
+        self.pos_command_w[env_ids, 2] = robot_height
+        
+        # Update spawn locations and heading buffer
+        self.pos_spawn_w[env_ids] = self._split_traversability_map[end_sample[0, :], end_sample[1, :]]
+        self.pos_spawn_w[env_ids, 2] = robot_height
+
+        # Calculate the spawn heading based on the goal position
+        self.heading_spawn_w[env_ids] = torch.atan2(
+            self.pos_command_w[env_ids, 1] - self.pos_spawn_w[env_ids, 1],
+            self.pos_command_w[env_ids, 0] - self.pos_spawn_w[env_ids, 0],
+        )
+        # Calculate the goal heading based on the goal position
+        self.heading_command_w[env_ids] = torch.atan2(
+            self.pos_command_w[env_ids, 1] - self.pos_spawn_w[env_ids, 1],
+            self.pos_command_w[env_ids, 0] - self.pos_spawn_w[env_ids, 0],
+        )
+
+        # NOTE: the reset event is called before the new goal commands are generated, i.e. the spawn locations are
+        # updated before the new goal commands are generated. To repsawn with the correct locations, we call here the
+        # update spawn locations function
+        if self.cfg.reset_pos_term_name:
+            reset_term_idx = self._env.event_manager.active_terms["reset"].index(self.cfg.reset_pos_term_name)
+            self._env.event_manager._mode_term_cfgs["reset"][reset_term_idx].func(
+                self._env, env_ids, **self._env.event_manager._mode_term_cfgs["reset"][reset_term_idx].params
+            )
 
     def _update_command(self):
         """Re-target the position command to the current root position and heading."""
@@ -165,22 +202,22 @@ class GoalCommandTerm(CommandTerm):
             indexing="ij",
         )
         grid_z = torch.ones_like(grid_x) * raycaster.cfg.max_distance
-        grid_points = torch.vstack((grid_x.flatten(), grid_y.flatten(), grid_z.flatten())).T
-        direction = torch.zeros_like(grid_points)
+        self._height_grid_pos = torch.vstack((grid_x.flatten(), grid_y.flatten(), grid_z.flatten())).T
+        direction = torch.zeros_like(self._height_grid_pos)
         direction[:, 2] = -1.0
 
         # check for collision with raycasting from the top
         # support for both multi-mesh and single-mesh raycasting
         if hasattr(raycaster, "_mesh_ids_wp") and raycast_dynamic_meshes is not None:
             hit_point = raycast_dynamic_meshes(
-                ray_starts=grid_points.unsqueeze(0),
+                ray_starts=self._height_grid_pos.unsqueeze(0),
                 ray_directions=direction.unsqueeze(0),
                 max_dist=raycaster.cfg.max_distance + 1e2,
                 mesh_ids_wp=raycaster._mesh_ids_wp,
             )[0].squeeze(0)
         else:
             hit_point = raycast_mesh(
-                ray_starts=grid_points.unsqueeze(0),
+                ray_starts=self._height_grid_pos.unsqueeze(0),
                 ray_directions=direction.unsqueeze(0),
                 max_dist=raycaster.cfg.max_distance + 1e2,
                 mesh=raycaster.meshes[raycaster.cfg.mesh_prim_paths[0]],
@@ -191,10 +228,6 @@ class GoalCommandTerm(CommandTerm):
             int(np.abs(np.ceil((mesh_dimensions[0] - mesh_dimensions[2]) / self.cfg.grid_resolution))),
             int(np.abs(np.ceil((mesh_dimensions[1] - mesh_dimensions[3]) / self.cfg.grid_resolution))),
         )
-
-        self._height_grid_pos = grid_points * self.cfg.grid_resolution - torch.tensor([mesh_dimensions[2], mesh_dimensions[3], 0.0], device=self.device)
-
-        print("DEBUG")
 
     def _construct_traversability_map(self):
         # Define Sobel filters for x and y directions
@@ -211,25 +244,34 @@ class GoalCommandTerm(CommandTerm):
         )
 
         # Apply the Sobel filters to the heigt_field_matrix while retraining the same shape
-        edges_x = torch.nn.functional.conv2d(self._height_grid.unsqueeze(1).float(), sobel_x, padding=1)
-        edges_y = torch.nn.functional.conv2d(self._height_grid.unsqueeze(1).float(), sobel_y, padding=1)
+        edges_x = torch.nn.functional.conv2d(self._height_grid.unsqueeze(0).float(), sobel_x, padding=1)
+        edges_y = torch.nn.functional.conv2d(self._height_grid.unsqueeze(0).float(), sobel_y, padding=1)
 
         # Compute the gradient magnitude (edge strength)
         edges = torch.sqrt(edges_x**2 + edges_y**2)
 
-        edges_mask = edges.squeeze(1) > 0.0
+        edges_mask = edges > 0.1
 
         # Dilate the mask to expand the objects
-        padding_size = self.cfg.robot_length / 2 / self.cfg.grid_resolution
+        padding_size = int(self.cfg.robot_length / 2 / self.cfg.grid_resolution)
         kernel = torch.ones((1, 1, 2 * padding_size + 1, 2 * padding_size + 1), device=self.device)
-        traversability_map = torch.nn.functional.conv2d(edges_mask.unsqueeze(1).float(), kernel, padding=padding_size).squeeze(1) > 0
+        traversability_map = torch.nn.functional.conv2d(edges_mask.float(), kernel, padding=padding_size).squeeze(1) > 0
+        traversability_map = traversability_map.reshape(-1, 1)
 
         # split the grid into subgrids for each terrain origin
-        terrain_origins = self._env.scene.terrain.terrain_origins.reshape(-1, 3)
-        point_distances = torch.cdist(self._height_grid_pos, terrain_origins, p=2)
+        self._terrain_origins = self._env.scene.terrain.terrain_origins.reshape(-1, 3)
+        point_distances = torch.cdist(self._height_grid_pos, self._terrain_origins, p=2)
         subgrid_ids = torch.argmin(point_distances, dim=1)
-        subgrid_points = 0
-        print("DEBUG")
+        
+        # split the traversability map into the subgrids based on the subgrid_ids
+        split_traversability_map = [self._height_grid_pos[subgrid_ids == i][traversability_map[subgrid_ids == i].squeeze()] for i in range(self._terrain_origins.shape[0])]
+
+        # make every snipped the same length by repeating prev. indexes
+        split_lengths = [len(subgrid) for subgrid in split_traversability_map]
+        self.split_max_length = max(split_lengths)
+        assert min(split_lengths) > 0, "Every subgrid must have at least one point"
+
+        self._split_traversability_map = torch.concat([subgrid[torch.randint(0, split_lengths[idx], (self.split_max_length, ))].unsqueeze(0) for idx, subgrid in enumerate(split_traversability_map)], dim=0)
 
     """
     Visualization
