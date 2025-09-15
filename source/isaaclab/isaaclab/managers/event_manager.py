@@ -216,7 +216,7 @@ class EventManager(ManagerBase):
                             lower, upper = term_cfg.interval_range_s
                             sampled_interval = torch.rand(1) * (upper - lower) + lower
                         else:
-                            sampled_interval = float('inf')
+                            sampled_interval = float("inf")
                         self._interval_term_time_left[index][:] = sampled_interval
 
                         # call the event term (with None for env_ids)
@@ -228,7 +228,7 @@ class EventManager(ManagerBase):
                             lower, upper = term_cfg.interval_range_s
                             sampled_time = torch.rand(len(valid_env_ids), device=self.device) * (upper - lower) + lower
                         else:
-                            sampled_time = float('inf')
+                            sampled_time = float("inf")
 
                         self._interval_term_time_left[index][valid_env_ids] = sampled_time
 
