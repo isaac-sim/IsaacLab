@@ -39,6 +39,7 @@ class RigidBodyMaterialCfg(PhysicsMaterialCfg):
 
     func: Callable = physics_materials.spawn_rigid_body_material
 
+    # TODO(mtrepte): do this friction var comments need to be renamed as well?
     static_friction: float = 0.5
     """The static friction coefficient. Defaults to 0.5."""
 

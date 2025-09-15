@@ -140,6 +140,7 @@ class ActuatorBaseCfg:
     If None, the armature is set to the value from the USD joint prim.
     """
 
+    # TODO(mtrepte): do this friction vars need to be renamed as well?
     friction: dict[str, float] | float | None = None
     r"""The static friction coefficient of the joints in the group. Defaults to None.
 
