@@ -1,6 +1,19 @@
 Changelog
 ---------
 
+0.46.2 (2025-09-15)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Renamed joint_friction_coeff to joint_static_friction_effort in :class:`~isaaclab.assets.Articulation` and
+  :class:`~isaaclab.assets.ArticulationData` to match the new friction model in Isaac Sim.
+* Renamed write_joint_friction_coefficient_to_sim to write_joint_static_friction_effort_to_sim in
+  :class:`~isaaclab.assets.Articulation` and :class:`~isaaclab.assets.ArticulationData` to match the new friction model in Isaac Sim.
+* Added proxies to preserve old names and make them as deprecated.
+
+
 0.46.1 (2025-09-10)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -109,9 +122,7 @@ Fixed
 
 0.45.9 (2025-08-27)
 ~~~~~~~~~~~~~~~~~~~
-
-Fixed
-^^^^^
+joint_friction_coeff
 
 * Fixed removing import of pink_ik controller from isaaclab.controllers which is causing pinocchio import error.
 
