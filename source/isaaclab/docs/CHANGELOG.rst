@@ -7,10 +7,7 @@ Changelog
 Fixed
 ^^^^^
 
-* Renamed joint_friction_coeff to joint_static_friction_effort in :class:`~isaaclab.assets.Articulation` and
-  :class:`~isaaclab.assets.ArticulationData` to match the new friction model in Isaac Sim.
-* Renamed write_joint_friction_coefficient_to_sim to write_joint_static_friction_effort_to_sim in
-  :class:`~isaaclab.assets.Articulation` and :class:`~isaaclab.assets.ArticulationData` to match the new friction model in Isaac Sim.
+* Renamed joint_friction_coeff to joint_static_friction_effort and joint_dynamic_friction_coeff to joint_dynamic_friction_effort in Articulation classes.
 * Added proxies to preserve old names and mark them as deprecated.
 
 
