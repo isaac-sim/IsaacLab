@@ -212,8 +212,11 @@ class EventManager(ManagerBase):
                 # note: we compare with a small value to handle floating point errors
                 if term_cfg.is_global_time:
                     if time_left < 1e-6:
-                        lower, upper = term_cfg.interval_range_s
-                        sampled_interval = torch.rand(1) * (upper - lower) + lower
+                        if not term_cfg.is_single_shot:
+                            lower, upper = term_cfg.interval_range_s
+                            sampled_interval = torch.rand(1) * (upper - lower) + lower
+                        else:
+                            sampled_interval = float('inf')
                         self._interval_term_time_left[index][:] = sampled_interval
 
                         # call the event term (with None for env_ids)
@@ -221,8 +224,12 @@ class EventManager(ManagerBase):
                 else:
                     valid_env_ids = (time_left < 1e-6).nonzero().flatten()
                     if len(valid_env_ids) > 0:
-                        lower, upper = term_cfg.interval_range_s
-                        sampled_time = torch.rand(len(valid_env_ids), device=self.device) * (upper - lower) + lower
+                        if not term_cfg.is_single_shot:
+                            lower, upper = term_cfg.interval_range_s
+                            sampled_time = torch.rand(len(valid_env_ids), device=self.device) * (upper - lower) + lower
+                        else:
+                            sampled_time = float('inf')
+
                         self._interval_term_time_left[index][valid_env_ids] = sampled_time
 
                         # call the event term
