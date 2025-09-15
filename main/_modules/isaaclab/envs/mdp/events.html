@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.2.1" />
-    <meta name="docbuild:last-update" content="Sep 12, 2025"/>
+    <meta name="docbuild:last-update" content="Sep 15, 2025"/>
   </head>
   
   
@@ -1185,7 +1185,7 @@
                     <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;Actuator joint indices must be a slice or a torch.Tensor.&quot;</span><span class="p">)</span>
             <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">actuator</span><span class="o">.</span><span class="n">joint_indices</span><span class="p">,</span> <span class="nb">slice</span><span class="p">):</span>
                 <span class="c1"># we take the joints defined in the asset config</span>
-                <span class="n">global_indices</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">asset_cfg</span><span class="o">.</span><span class="n">joint_ids</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">asset</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+                <span class="n">global_indices</span> <span class="o">=</span> <span class="n">actuator_indices</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">asset_cfg</span><span class="o">.</span><span class="n">joint_ids</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">asset</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="c1"># we take the intersection of the actuator joints and the asset config joints</span>
                 <span class="n">actuator_joint_indices</span> <span class="o">=</span> <span class="n">actuator</span><span class="o">.</span><span class="n">joint_indices</span>
@@ -2380,7 +2380,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Sep 12, 2025.
+  Last updated on Sep 15, 2025.
   <br/>
 </p>
   </div>
