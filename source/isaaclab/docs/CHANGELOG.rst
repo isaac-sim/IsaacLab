@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.46.2 (2025-09-15)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^^^
+
+* Added argument :attr:`is_single_shot` to :class:`~isaaclab.managers.EventTermCfg` to control whether the event is only applied once.
+
+
 0.46.1 (2025-09-10)
 ~~~~~~~~~~~~~~~~~~~
 

@@ -300,6 +300,14 @@ class EventTermCfg(ManagerTermBaseCfg):
         This is only used if the mode is ``"reset"``.
     """
 
+    is_single_shot: bool = False
+    """Whether the event is only applied once. Defaults to False.
+
+    If True, the event is only applied once when the condition is met. After that, it is never applied again until
+    the environment is reset. This is useful for events that should only happen once, such as a one-time
+    perturbation.
+    """
+
 
 ##
 # Reward manager.

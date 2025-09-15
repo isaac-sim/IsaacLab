@@ -328,6 +328,102 @@ def test_apply_interval_mode_with_global_time(env):
             term_2_interval_time = event_man._interval_term_time_left[1].clone()
 
 
+def test_apply_interval_mode_with_single_shot(env):
+    """Test the application of event terms that are in interval mode without global time and single shot event.
+
+    During local time, each environment instance has its own time for the interval term. Single shot events
+    only happen once when the condition is met.
+    """
+    # make two intervals -- one is fixed and the other is random
+    term_1_interval_range_s = (10 * env.dt, 10 * env.dt)
+    term_2_interval_range_s = (2 * env.dt, 10 * env.dt)
+
+    cfg = {
+        "term_1": EventTermCfg(
+            func=increment_dummy1_by_one,
+            mode="interval",
+            interval_range_s=term_1_interval_range_s,
+            is_global_time=False,
+            is_single_shot=True,
+        ),
+        "term_2": EventTermCfg(
+            func=increment_dummy2_by_one,
+            mode="interval",
+            interval_range_s=term_2_interval_range_s,
+            is_global_time=False,
+            is_single_shot=True,
+        ),
+    }
+
+    event_man = EventManager(cfg, env)
+
+    # obtain the initial time left for the interval terms
+    term_2_interval_time = event_man._interval_term_time_left[1].clone()
+    expected_dummy2_value = torch.zeros_like(env.dummy2)
+
+    for count in range(50):
+        # apply the event terms
+        event_man.apply("interval", dt=env.dt)
+        # Make sure dummy1 is only incremented once when the interval time is reached
+        torch.testing.assert_close(
+            env.dummy1, ((count + 1) * env.dt >= term_1_interval_range_s[1]) * torch.ones_like(env.dummy1)
+        )
+
+        # Make sure dummy2 is only incremented once when the interval time is reached
+        expected_dummy2_value = torch.zeros_like(env.dummy2) + (
+            (count + 1) * env.dt >= term_2_interval_time
+        ).float().unsqueeze(1)
+        torch.testing.assert_close(env.dummy2, expected_dummy2_value)
+
+
+def test_apply_interval_mode_with_single_shot_global_time(env):
+    """Test the application of event terms that are in interval mode with global time and single shot event.
+
+    During global time, all the environment instances share the same time for the interval term. Single shot events
+    only happen once when the condition is met.
+    """
+    # make two intervals -- one is fixed and the other is random
+    term_1_interval_range_s = (10 * env.dt, 10 * env.dt)
+    term_2_interval_range_s = (2 * env.dt, 10 * env.dt)
+
+    cfg = {
+        "term_1": EventTermCfg(
+            func=increment_dummy1_by_one,
+            mode="interval",
+            interval_range_s=term_1_interval_range_s,
+            is_global_time=True,
+            is_single_shot=True,
+        ),
+        "term_2": EventTermCfg(
+            func=increment_dummy2_by_one,
+            mode="interval",
+            interval_range_s=term_2_interval_range_s,
+            is_global_time=True,
+            is_single_shot=True,
+        ),
+    }
+
+    event_man = EventManager(cfg, env)
+
+    # obtain the initial time left for the interval terms
+    term_1_interval_time = event_man._interval_term_time_left[0].clone()
+    term_2_interval_time = event_man._interval_term_time_left[1].clone()
+    expected_dummy2_value = torch.zeros_like(env.dummy2)
+
+    for count in range(50):
+        # apply the event terms
+        event_man.apply("interval", dt=env.dt)
+        # check the values
+        # we increment the dummy1 by 1 at the fixed interval. Afterwards the event should not be triggered again
+        torch.testing.assert_close(
+            env.dummy1, ((count + 1) * env.dt >= term_1_interval_time) * torch.ones_like(env.dummy1)
+        )
+
+        # we increment the dummy2 by 1 at the random interval. Afterwards the event should not be triggered again
+        expected_dummy2_value = torch.zeros_like(env.dummy2) + ((count + 1) * env.dt >= term_2_interval_time).float()
+        torch.testing.assert_close(env.dummy2, expected_dummy2_value)
+
+
 def test_apply_reset_mode(env):
     """Test the application of event terms that are in reset mode."""
     cfg = {
