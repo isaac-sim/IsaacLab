@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.46.2 (2025-09-15)
+0.46.3 (2025-09-15)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -12,6 +12,15 @@ Fixed
 * Renamed write_joint_friction_coefficient_to_sim to write_joint_static_friction_effort_to_sim in
   :class:`~isaaclab.assets.Articulation` and :class:`~isaaclab.assets.ArticulationData` to match the new friction model in Isaac Sim.
 * Added proxies to preserve old names and make them as deprecated.
+
+
+0.46.2 (2025-09-13)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Fixed missing actuator indices in :meth:`~isaaclab.envs.mdp.events.randomize_actuator_gains`
 
 
 0.46.1 (2025-09-10)
