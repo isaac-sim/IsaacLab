@@ -190,16 +190,16 @@ class ArticulationData:
     is used.
     """
 
-    default_joint_friction_coeff: torch.Tensor = None
-    """Default joint static friction coefficient of all joints. Shape is (num_instances, num_joints).
+    default_joint_static_friction_effort: torch.Tensor = None
+    """Default joint static friction torque of all joints. Shape is (num_instances, num_joints).
 
     This quantity is configured through the actuator model's :attr:`isaaclab.actuators.ActuatorBaseCfg.friction`
     parameter. If the parameter's value is None, the value parsed from the USD schema, at the time of initialization,
     is used.
     """
 
-    default_joint_dynamic_friction_coeff: torch.Tensor = None
-    """Default joint dynamic friction coefficient of all joints. Shape is (num_instances, num_joints).
+    default_joint_dynamic_friction_effort: torch.Tensor = None
+    """Default joint dynamic friction torque of all joints. Shape is (num_instances, num_joints).
 
     This quantity is configured through the actuator model's :attr:`isaaclab.actuators.ActuatorBaseCfg.dynamic_friction`
     parameter. If the parameter's value is None, the value parsed from the USD schema, at the time of initialization,
@@ -346,11 +346,11 @@ class ArticulationData:
     joint_armature: torch.Tensor = None
     """Joint armature provided to the simulation. Shape is (num_instances, num_joints)."""
 
-    joint_friction_coeff: torch.Tensor = None
-    """Joint static friction coefficient provided to the simulation. Shape is (num_instances, num_joints)."""
+    joint_static_friction_effort: torch.Tensor = None
+    """Joint static friction torque provided to the simulation. Shape is (num_instances, num_joints)."""
 
-    joint_dynamic_friction_coeff: torch.Tensor = None
-    """Joint dynamic friction coefficient provided to the simulation. Shape is (num_instances, num_joints)."""
+    joint_dynamic_friction_effort: torch.Tensor = None
+    """Joint dynamic friction torque provided to the simulation. Shape is (num_instances, num_joints)."""
 
     joint_viscous_friction_coeff: torch.Tensor = None
     """Joint viscous friction coefficient provided to the simulation. Shape is (num_instances, num_joints)."""
@@ -1102,21 +1102,39 @@ class ArticulationData:
 
     @property
     def joint_friction(self) -> torch.Tensor:
-        """Deprecated property. Please use :attr:`joint_friction_coeff` instead."""
+        """Deprecated property. Please use :attr:`joint_static_friction_effort` instead."""
         omni.log.warn(
             "The `joint_friction` property will be deprecated in a future release. Please use"
-            " `joint_friction_coeff` instead."
+            " `joint_static_friction_effort` instead."
         )
-        return self.joint_friction_coeff
+        return self.joint_static_friction_effort
+
+    @property
+    def joint_static_friction_coeff(self) -> torch.Tensor:
+        """Deprecated property. Please use :attr:`joint_static_friction_effort` instead."""
+        omni.log.warn(
+            "The `joint_static_friction_coeff` property will be deprecated in a future release. Please use"
+            " `joint_static_friction_effort` instead."
+        )
+        return self.joint_static_friction_effort
 
     @property
     def default_joint_friction(self) -> torch.Tensor:
-        """Deprecated property. Please use :attr:`default_joint_friction_coeff` instead."""
+        """Deprecated property. Please use :attr:`default_joint_static_friction_effort` instead."""
         omni.log.warn(
             "The `default_joint_friction` property will be deprecated in a future release. Please use"
-            " `default_joint_friction_coeff` instead."
+            " `default_joint_static_friction_effort` instead."
         )
-        return self.default_joint_friction_coeff
+        return self.default_joint_static_friction_effort
+
+    @property
+    def default_joint_static_friction_coeff(self) -> torch.Tensor:
+        """Deprecated property. Please use :attr:`default_joint_static_friction_effort` instead."""
+        omni.log.warn(
+            "The `default_joint_static_friction_coeff` property will be deprecated in a future release. Please use"
+            " `default_joint_static_friction_effort` instead."
+        )
+        return self.default_joint_static_friction_effort
 
     @property
     def fixed_tendon_limit(self) -> torch.Tensor:

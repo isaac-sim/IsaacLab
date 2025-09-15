@@ -639,7 +639,7 @@ class randomize_joint_parameters(ManagerTermBase):
     """Randomize the simulated joint parameters of an articulation by adding, scaling, or setting random values.
 
     This function allows randomizing the joint parameters of the asset. These correspond to the physics engine
-    joint properties that affect the joint behavior. The properties include the joint friction coefficient, armature,
+    joint properties that affect the joint behavior. The properties include the joint friction torque, armature,
     and joint position limits.
 
     The function samples random values from the given distribution parameters and applies the operation to the
@@ -704,18 +704,18 @@ class randomize_joint_parameters(ManagerTermBase):
             joint_ids = torch.tensor(self.asset_cfg.joint_ids, dtype=torch.int, device=self.asset.device)
 
         # sample joint properties from the given ranges and set into the physics simulation
-        # joint friction coefficient
+        # joint friction torque
         if friction_distribution_params is not None:
-            friction_coeff = _randomize_prop_by_op(
-                self.asset.data.default_joint_friction_coeff.clone(),
+            friction_effort = _randomize_prop_by_op(
+                self.asset.data.default_joint_static_friction_effort.clone(),
                 friction_distribution_params,
                 env_ids,
                 joint_ids,
                 operation=operation,
                 distribution=distribution,
             )
-            self.asset.write_joint_friction_coefficient_to_sim(
-                friction_coeff[env_ids[:, None], joint_ids], joint_ids=joint_ids, env_ids=env_ids
+            self.asset.write_joint_static_friction_effort_to_sim(
+                friction_effort[env_ids[:, None], joint_ids], joint_ids=joint_ids, env_ids=env_ids
             )
 
         # joint armature

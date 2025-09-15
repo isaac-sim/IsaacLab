@@ -824,13 +824,13 @@ class Articulation(AssetBase):
         # set into simulation
         self.root_physx_view.set_dof_armatures(self._data.joint_armature.cpu(), indices=physx_env_ids.cpu())
 
-    def write_joint_friction_coefficient_to_sim(
+    def write_joint_static_friction_effort_to_sim(
         self,
-        joint_friction_coeff: torch.Tensor | float,
+        joint_static_friction_effort: torch.Tensor | float,
         joint_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | None = None,
     ):
-        r"""Write joint static friction coefficients into the simulation.
+        r"""Write joint static friction torques into the simulation.
 
         The joint static friction is a unitless quantity. It relates the magnitude of the spatial force transmitted
         from the parent body to the child body to the maximal static friction force that may be applied by the solver
@@ -842,7 +842,7 @@ class Articulation(AssetBase):
         similar to static and Coulomb static friction.
 
         Args:
-            joint_friction_coeff: Joint static friction coefficient. Shape is (len(env_ids), len(joint_ids)).
+            joint_static_friction_effort: Joint static friction torque. Shape is (len(env_ids), len(joint_ids)).
             joint_ids: The joint indices to set the joint torque limits for. Defaults to None (all joints).
             env_ids: The environment indices to set the joint torque limits for. Defaults to None (all environments).
         """
@@ -857,25 +857,25 @@ class Articulation(AssetBase):
         if env_ids != slice(None) and joint_ids != slice(None):
             env_ids = env_ids[:, None]
         # set into internal buffers
-        self._data.joint_friction_coeff[env_ids, joint_ids] = joint_friction_coeff
+        self._data.joint_static_friction_effort[env_ids, joint_ids] = joint_static_friction_effort
         # set into simulation
         if int(get_version()[2]) < 5:
             self.root_physx_view.set_dof_friction_coefficients(
-                self._data.joint_friction_coeff.cpu(), indices=physx_env_ids.cpu()
+                self._data.joint_static_friction_effort.cpu(), indices=physx_env_ids.cpu()
             )
         else:
             friction_props = self.root_physx_view.get_dof_friction_properties()
-            friction_props[physx_env_ids.cpu(), :, 0] = self._data.joint_friction_coeff[physx_env_ids, :].cpu()
+            friction_props[physx_env_ids.cpu(), :, 0] = self._data.joint_static_friction_effort[physx_env_ids, :].cpu()
             self.root_physx_view.set_dof_friction_properties(friction_props, indices=physx_env_ids.cpu())
 
-    def write_joint_dynamic_friction_coefficient_to_sim(
+    def write_joint_dynamic_friction_effort_to_sim(
         self,
-        joint_dynamic_friction_coeff: torch.Tensor | float,
+        joint_dynamic_friction_effort: torch.Tensor | float,
         joint_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | None = None,
     ):
         if int(get_version()[2]) < 5:
-            omni.log.warn("Setting joint dynamic friction coefficients are not supported in Isaac Sim < 5.0")
+            omni.log.warn("Setting joint dynamic friction torques are not supported in Isaac Sim < 5.0")
             return
         # resolve indices
         physx_env_ids = env_ids
@@ -888,10 +888,10 @@ class Articulation(AssetBase):
         if env_ids != slice(None) and joint_ids != slice(None):
             env_ids = env_ids[:, None]
         # set into internal buffers
-        self._data.joint_dynamic_friction_coeff[env_ids, joint_ids] = joint_dynamic_friction_coeff
+        self._data.joint_dynamic_friction_effort[env_ids, joint_ids] = joint_dynamic_friction_effort
         # set into simulation
         friction_props = self.root_physx_view.get_dof_friction_properties()
-        friction_props[physx_env_ids.cpu(), :, 1] = self._data.joint_dynamic_friction_coeff[physx_env_ids, :].cpu()
+        friction_props[physx_env_ids.cpu(), :, 1] = self._data.joint_dynamic_friction_effort[physx_env_ids, :].cpu()
         self.root_physx_view.set_dof_friction_properties(friction_props, indices=physx_env_ids.cpu())
 
     def write_joint_viscous_friction_coefficient_to_sim(
@@ -1548,15 +1548,19 @@ class Articulation(AssetBase):
         self._data.default_joint_damping = self.root_physx_view.get_dof_dampings().to(self.device).clone()
         self._data.default_joint_armature = self.root_physx_view.get_dof_armatures().to(self.device).clone()
         if int(get_version()[2]) < 5:
-            self._data.default_joint_friction_coeff = (
+            self._data.default_joint_static_friction_effort = (
                 self.root_physx_view.get_dof_friction_coefficients().to(self.device).clone()
             )
-            self._data.default_joint_dynamic_friction_coeff = torch.zeros_like(self._data.default_joint_friction_coeff)
-            self._data.default_joint_viscous_friction_coeff = torch.zeros_like(self._data.default_joint_friction_coeff)
+            self._data.default_joint_dynamic_friction_effort = torch.zeros_like(
+                self._data.default_joint_static_friction_effort
+            )
+            self._data.default_joint_viscous_friction_coeff = torch.zeros_like(
+                self._data.default_joint_static_friction_effort
+            )
         else:
             friction_props = self.root_physx_view.get_dof_friction_properties()
-            self._data.default_joint_friction_coeff = friction_props[:, :, 0].to(self.device).clone()
-            self._data.default_joint_dynamic_friction_coeff = friction_props[:, :, 1].to(self.device).clone()
+            self._data.default_joint_static_friction_effort = friction_props[:, :, 0].to(self.device).clone()
+            self._data.default_joint_dynamic_friction_effort = friction_props[:, :, 1].to(self.device).clone()
             self._data.default_joint_viscous_friction_coeff = friction_props[:, :, 2].to(self.device).clone()
 
         self._data.joint_pos_limits = self._data.default_joint_pos_limits.clone()
@@ -1565,8 +1569,8 @@ class Articulation(AssetBase):
         self._data.joint_stiffness = self._data.default_joint_stiffness.clone()
         self._data.joint_damping = self._data.default_joint_damping.clone()
         self._data.joint_armature = self._data.default_joint_armature.clone()
-        self._data.joint_friction_coeff = self._data.default_joint_friction_coeff.clone()
-        self._data.joint_dynamic_friction_coeff = self._data.default_joint_dynamic_friction_coeff.clone()
+        self._data.joint_static_friction_effort = self._data.default_joint_static_friction_effort.clone()
+        self._data.joint_dynamic_friction_effort = self._data.default_joint_dynamic_friction_effort.clone()
         self._data.joint_viscous_friction_coeff = self._data.default_joint_viscous_friction_coeff.clone()
 
         # -- body properties
@@ -1678,8 +1682,8 @@ class Articulation(AssetBase):
                 stiffness=self._data.default_joint_stiffness[:, joint_ids],
                 damping=self._data.default_joint_damping[:, joint_ids],
                 armature=self._data.default_joint_armature[:, joint_ids],
-                friction=self._data.default_joint_friction_coeff[:, joint_ids],
-                dynamic_friction=self._data.default_joint_dynamic_friction_coeff[:, joint_ids],
+                friction=self._data.default_joint_static_friction_effort[:, joint_ids],
+                dynamic_friction=self._data.default_joint_dynamic_friction_effort[:, joint_ids],
                 viscous_friction=self._data.default_joint_viscous_friction_coeff[:, joint_ids],
                 effort_limit=self._data.joint_effort_limits[:, joint_ids],
                 velocity_limit=self._data.joint_vel_limits[:, joint_ids],
@@ -1708,9 +1712,9 @@ class Articulation(AssetBase):
             self.write_joint_effort_limit_to_sim(actuator.effort_limit_sim, joint_ids=actuator.joint_indices)
             self.write_joint_velocity_limit_to_sim(actuator.velocity_limit_sim, joint_ids=actuator.joint_indices)
             self.write_joint_armature_to_sim(actuator.armature, joint_ids=actuator.joint_indices)
-            self.write_joint_friction_coefficient_to_sim(actuator.friction, joint_ids=actuator.joint_indices)
+            self.write_joint_static_friction_effort_to_sim(actuator.friction, joint_ids=actuator.joint_indices)
             if int(get_version()[2]) >= 5:
-                self.write_joint_dynamic_friction_coefficient_to_sim(
+                self.write_joint_dynamic_friction_effort_to_sim(
                     actuator.dynamic_friction, joint_ids=actuator.joint_indices
                 )
                 self.write_joint_viscous_friction_coefficient_to_sim(
@@ -1722,9 +1726,9 @@ class Articulation(AssetBase):
             self._data.default_joint_stiffness[:, actuator.joint_indices] = actuator.stiffness
             self._data.default_joint_damping[:, actuator.joint_indices] = actuator.damping
             self._data.default_joint_armature[:, actuator.joint_indices] = actuator.armature
-            self._data.default_joint_friction_coeff[:, actuator.joint_indices] = actuator.friction
+            self._data.default_joint_static_friction_effort[:, actuator.joint_indices] = actuator.friction
             if int(get_version()[2]) >= 5:
-                self._data.default_joint_dynamic_friction_coeff[:, actuator.joint_indices] = actuator.dynamic_friction
+                self._data.default_joint_dynamic_friction_effort[:, actuator.joint_indices] = actuator.dynamic_friction
                 self._data.default_joint_viscous_friction_coeff[:, actuator.joint_indices] = actuator.viscous_friction
 
         # perform some sanity checks to ensure actuators are prepared correctly
@@ -2054,16 +2058,33 @@ class Articulation(AssetBase):
         joint_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | None = None,
     ):
-        """Write joint friction coefficients into the simulation.
+        """Write joint friction torques into the simulation.
 
         .. deprecated:: 2.1.0
-            Please use :meth:`write_joint_friction_coefficient_to_sim` instead.
+            Please use :meth:`write_joint_static_friction_effort_to_sim` instead.
         """
         omni.log.warn(
             "The function 'write_joint_friction_to_sim' will be deprecated in a future release. Please"
-            " use 'write_joint_friction_coefficient_to_sim' instead."
+            " use 'write_joint_static_friction_effort_to_sim' instead."
         )
-        self.write_joint_friction_coefficient_to_sim(joint_friction, joint_ids=joint_ids, env_ids=env_ids)
+        self.write_joint_static_friction_effort_to_sim(joint_friction, joint_ids=joint_ids, env_ids=env_ids)
+
+    def write_joint_friction_coefficient_to_sim(
+        self,
+        joint_friction: torch.Tensor | float,
+        joint_ids: Sequence[int] | slice | None = None,
+        env_ids: Sequence[int] | None = None,
+    ):
+        """Write joint friction torques into the simulation.
+
+        .. deprecated:: 2.3.0
+            Please use :meth:`write_joint_static_friction_effort_to_sim` instead.
+        """
+        omni.log.warn(
+            "The function 'write_joint_friction_coefficient_to_sim' will be deprecated in a future release. Please"
+            " use 'write_joint_static_friction_effort_to_sim' instead."
+        )
+        self.write_joint_static_friction_effort_to_sim(joint_friction, joint_ids=joint_ids, env_ids=env_ids)
 
     def write_joint_limits_to_sim(
         self,
