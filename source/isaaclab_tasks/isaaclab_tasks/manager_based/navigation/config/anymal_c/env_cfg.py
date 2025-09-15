@@ -23,6 +23,7 @@ class AnymalCNavEnvCfg(NavEnvCfg):
         # turn off the self-collisions
         self.scene.robot.spawn.articulation_props.enabled_self_collisions = False
 
+
 @configclass
 class AnymalCNavEnvCfg_PLAY(AnymalCNavEnvCfg):
     def __post_init__(self):

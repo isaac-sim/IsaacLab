@@ -1,4 +1,7 @@
-
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
 
 # Code adapted from https://github.com/leggedrobotics/nav-suite
 
@@ -12,7 +15,6 @@
 from __future__ import annotations
 
 import numpy as np
-import torch
 import trimesh
 from typing import TYPE_CHECKING
 

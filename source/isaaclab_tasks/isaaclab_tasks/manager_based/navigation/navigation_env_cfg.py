@@ -1,5 +1,7 @@
-
-
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
 
 # Code adapted from https://github.com/leggedrobotics/nav-suite
 
@@ -15,8 +17,6 @@ import os
 # Set the PYTORCH_CUDA_ALLOC_CONF environment variable
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:256"
 
-import torch
-
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
@@ -25,14 +25,14 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.sensors import RayCasterCameraCfg, patterns
-from isaaclab.utils import configclass
-from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 from isaaclab.terrains import TerrainGeneratorCfg
 from isaaclab.terrains.height_field import HfRandomUniformTerrainCfg
+from isaaclab.utils import configclass
+from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 import isaaclab_tasks.manager_based.locomotion.velocity.velocity_env_cfg as LOW_LEVEL_CFGS
-
 import isaaclab_tasks.manager_based.navigation.mdp as mdp
+
 from .terrains import MeshPillarTerrainCfg
 
 ##
@@ -87,6 +87,7 @@ NAV_TERRAIN = TerrainGeneratorCfg(
         ),
     },
 )
+
 
 @configclass
 class NavSceneCfg(LOW_LEVEL_CFGS.MySceneCfg):
@@ -161,7 +162,7 @@ class NavObservationsCfg:
     @configclass
     class NavExteroceptiveCfg(ObsGroup):
         """Exteroceptive observations for navigation policy group."""
-        
+
         forwards_depth_image = ObsTerm(
             func=mdp.camera_image,
             params={"sensor_cfg": SceneEntityCfg("front_camera")},
@@ -171,7 +172,6 @@ class NavObservationsCfg:
             self.enable_corruption = True
             self.concatenate_terms = True
 
-
     # Observation Groups
     low_level_policy: LOW_LEVEL_CFGS.ObservationsCfg.PolicyCfg = LOW_LEVEL_CFGS.ObservationsCfg.PolicyCfg()
     proprioceptive: NavProprioceptiveCfg = NavProprioceptiveCfg()
@@ -179,8 +179,13 @@ class NavObservationsCfg:
 
     def __post_init__(self):
         # adjust because the velocity commands are now given by the navigation policy
-        self.low_level_policy.velocity_commands = ObsTerm(func=mdp.vel_commands, params={"action_term": "velocity_command"})
-        self.low_level_policy.actions = ObsTerm(func=mdp.last_low_level_action, params={"action_term": "velocity_command"})
+        self.low_level_policy.velocity_commands = ObsTerm(
+            func=mdp.vel_commands, params={"action_term": "velocity_command"}
+        )
+        self.low_level_policy.actions = ObsTerm(
+            func=mdp.last_low_level_action, params={"action_term": "velocity_command"}
+        )
+
 
 @configclass
 class EventCfg:
@@ -345,4 +350,3 @@ class NavEnvCfg(ManagerBasedRLEnvCfg):
         # We tick the cameras based on the navigation policy update period.
         if self.scene.front_camera is not None:
             self.scene.front_camera.update_period = self.decimation * self.sim.dt
-

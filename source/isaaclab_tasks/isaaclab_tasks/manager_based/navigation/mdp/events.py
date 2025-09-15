@@ -1,4 +1,7 @@
-
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
 
 # Code adapted from https://github.com/leggedrobotics/nav-suite
 
@@ -9,11 +12,9 @@
 
 from __future__ import annotations
 
-import math
 import torch
 from typing import TYPE_CHECKING
 
-import omni.log
 from isaaclab.assets import Articulation
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils.math import quat_from_euler_xyz, sample_uniform

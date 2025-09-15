@@ -1,5 +1,7 @@
-
-
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
 
 # Code adapted from https://github.com/leggedrobotics/nav-suite
 
@@ -22,9 +24,8 @@ from isaaclab.managers import CommandTerm
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.markers.config import CUBOID_MARKER_CFG
 from isaaclab.markers.visualization_markers import VisualizationMarkersCfg
-from isaaclab.utils.math import quat_from_angle_axis
-from isaaclab.utils.math import quat_apply, quat_apply_inverse, quat_from_euler_xyz, wrap_to_pi, yaw_quat
 from isaaclab.sensors import RayCaster, RayCasterCamera
+from isaaclab.utils.math import quat_apply_inverse, quat_from_angle_axis, wrap_to_pi, yaw_quat
 from isaaclab.utils.warp import raycast_mesh
 
 CYLINDER_MARKER_CFG = VisualizationMarkersCfg(
@@ -78,7 +79,6 @@ class GoalCommandTerm(CommandTerm):
         self.pos_command_b = torch.zeros_like(self.pos_command_w)
         self.heading_command_b = torch.zeros_like(self.heading_command_w)
 
-
     def __str__(self) -> str:
         msg = "GoalCommandGenerator:\n"
         msg += f"\tCommand dimension:\t {tuple(self.command.shape[1:])}\n"
@@ -102,18 +102,26 @@ class GoalCommandTerm(CommandTerm):
         """Resample the command for the specified environments."""
 
         # get the terrain id for the environments
-        terrain_id = torch.cdist(self._env.scene.terrain.env_origins[env_ids], self._terrain_origins, p=2).argmin(dim=1).unsqueeze(0)
+        terrain_id = (
+            torch.cdist(self._env.scene.terrain.env_origins[env_ids], self._terrain_origins, p=2)
+            .argmin(dim=1)
+            .unsqueeze(0)
+        )
 
-        start_sample = torch.concat((terrain_id, torch.randint(0, self.split_max_length, (len(env_ids), ), device=self.device).unsqueeze(0)))
-        end_sample = torch.concat((terrain_id, torch.randint(0, self.split_max_length, (len(env_ids), ), device=self.device).unsqueeze(0)))
+        start_sample = torch.concat(
+            (terrain_id, torch.randint(0, self.split_max_length, (len(env_ids),), device=self.device).unsqueeze(0))
+        )
+        end_sample = torch.concat(
+            (terrain_id, torch.randint(0, self.split_max_length, (len(env_ids),), device=self.device).unsqueeze(0))
+        )
 
-        # robot height 
+        # robot height
         robot_height = self.robot.data.default_root_state[env_ids, 2]
 
         # Update command buffers
         self.pos_command_w[env_ids] = self._split_traversability_map[start_sample[0, :], start_sample[1, :]]
         self.pos_command_w[env_ids, 2] = robot_height
-        
+
         # Update spawn locations and heading buffer
         self.pos_spawn_w[env_ids] = self._split_traversability_map[end_sample[0, :], end_sample[1, :]]
         self.pos_spawn_w[env_ids, 2] = robot_height
@@ -152,12 +160,13 @@ class GoalCommandTerm(CommandTerm):
         """Update metrics."""
         self.metrics["error_pos"] = torch.norm(self.pos_command_w - self.robot.data.root_pos_w[:, :3], dim=1)
 
-
     """
     Helper functions
     """
 
-    def _get_mesh_dimensions(self, raycaster: RayCaster | RayCasterCamera) -> tuple[float, float, float, float, float, float]:
+    def _get_mesh_dimensions(
+        self, raycaster: RayCaster | RayCasterCamera
+    ) -> tuple[float, float, float, float, float, float]:
         # get min, max of the mesh in the xy plane
         # Get bounds of the terrain
         bounds = []
@@ -181,7 +190,7 @@ class GoalCommandTerm(CommandTerm):
 
     def _construct_height_map(self):
         # get dimensions and construct height grid with raycasting
-        raycaster: RayCaster | RayCasterCamera = (self._env.scene.sensors[self.cfg.raycaster_sensor])
+        raycaster: RayCaster | RayCasterCamera = self._env.scene.sensors[self.cfg.raycaster_sensor]
 
         # get mesh dimensions [x_max, y_max, x_min, y_min]
         mesh_dimensions = self._get_mesh_dimensions(raycaster)
@@ -255,23 +264,34 @@ class GoalCommandTerm(CommandTerm):
         # Dilate the mask to expand the objects
         padding_size = int(self.cfg.robot_length / 2 / self.cfg.grid_resolution)
         kernel = torch.ones((1, 1, 2 * padding_size + 1, 2 * padding_size + 1), device=self.device)
-        traversability_map = torch.nn.functional.conv2d(edges_mask.float(), kernel, padding=padding_size).squeeze(1) < 0.5
+        traversability_map = (
+            torch.nn.functional.conv2d(edges_mask.float(), kernel, padding=padding_size).squeeze(1) < 0.5
+        )
         traversability_map = traversability_map.reshape(-1, 1)
 
         # split the grid into subgrids for each terrain origin
         self._terrain_origins = self._env.scene.terrain.terrain_origins.reshape(-1, 3)
         point_distances = torch.cdist(self._height_grid_pos, self._terrain_origins, p=2)
         subgrid_ids = torch.argmin(point_distances, dim=1)
-        
+
         # split the traversability map into the subgrids based on the subgrid_ids
-        split_traversability_map = [self._height_grid_pos[subgrid_ids == i][traversability_map[subgrid_ids == i].squeeze()] for i in range(self._terrain_origins.shape[0])]
+        split_traversability_map = [
+            self._height_grid_pos[subgrid_ids == i][traversability_map[subgrid_ids == i].squeeze()]
+            for i in range(self._terrain_origins.shape[0])
+        ]
 
         # make every snipped the same length by repeating prev. indexes
         split_lengths = [len(subgrid) for subgrid in split_traversability_map]
         self.split_max_length = max(split_lengths)
         assert min(split_lengths) > 0, "Every subgrid must have at least one point"
 
-        self._split_traversability_map = torch.concat([subgrid[torch.randint(0, split_lengths[idx], (self.split_max_length, ))].unsqueeze(0) for idx, subgrid in enumerate(split_traversability_map)], dim=0)
+        self._split_traversability_map = torch.concat(
+            [
+                subgrid[torch.randint(0, split_lengths[idx], (self.split_max_length,))].unsqueeze(0)
+                for idx, subgrid in enumerate(split_traversability_map)
+            ],
+            dim=0,
+        )
 
     """
     Visualization

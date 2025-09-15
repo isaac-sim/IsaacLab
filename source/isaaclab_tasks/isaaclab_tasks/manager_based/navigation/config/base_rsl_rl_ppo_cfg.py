@@ -7,6 +7,7 @@ from isaaclab.utils import configclass
 
 from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlPerceptiveActorCriticCfg, RslRlPpoAlgorithmCfg
 
+
 @configclass
 class NavBasePPORunnerCfg(RslRlOnPolicyRunnerCfg):
     num_steps_per_env = 24

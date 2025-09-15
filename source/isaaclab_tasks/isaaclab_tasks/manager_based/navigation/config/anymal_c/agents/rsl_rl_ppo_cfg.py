@@ -7,6 +7,7 @@ from isaaclab.utils import configclass
 
 from isaaclab_tasks.manager_based.navigation.config.base_rsl_rl_ppo_cfg import NavBasePPORunnerCfg
 
+
 @configclass
 class NavigationEnvPPORunnerCfg(NavBasePPORunnerCfg):
     max_iterations = 1500

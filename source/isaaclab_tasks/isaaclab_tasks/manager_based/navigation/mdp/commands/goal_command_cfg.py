@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # Code adapted from https://github.com/leggedrobotics/nav-suite
 
 # Copyright (c) 2025, The Nav-Suite Project Developers (https://github.com/leggedrobotics/nav-suite/blob/main/CONTRIBUTORS.md).
@@ -9,8 +14,8 @@ from __future__ import annotations
 
 from dataclasses import MISSING
 
-from isaaclab.utils import configclass
 from isaaclab.managers import CommandTermCfg
+from isaaclab.utils import configclass
 
 from .goal_command import GoalCommandTerm
 
@@ -42,4 +47,3 @@ class GoalCommandCfg(CommandTermCfg):
 
     edge_threshold: float = 0.5
     """Threshold for the edge detection to define as untraversable."""
-    
