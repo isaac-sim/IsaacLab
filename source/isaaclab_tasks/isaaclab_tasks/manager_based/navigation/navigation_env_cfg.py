@@ -42,7 +42,8 @@ from .terrains import MeshPillarTerrainCfg
 
 NAV_TERRAIN = TerrainGeneratorCfg(
     size=(8.0, 8.0),
-    border_width=20.0,
+    border_width=1.0,
+    border_height=-3.0,
     num_rows=10,
     num_cols=20,
     horizontal_scale=0.1,
@@ -57,13 +58,13 @@ NAV_TERRAIN = TerrainGeneratorCfg(
                 length=(0.2, 0.4),
                 height=(0.4, 1.5),
                 num_objects=(5, 15),
-                max_yx_angle=(0.0, 60.0),
+                max_yx_angle=(0.0, 20.0),
             ),
             cylinder_cfg=MeshPillarTerrainCfg.CylinderCfg(
                 radius=(0.1, 0.3),
                 height=(0.4, 1.5),
                 num_objects=(5, 15),
-                max_yx_angle=(0.0, 60.0),
+                max_yx_angle=(0.0, 20.0),
             ),
         ),
         "pillar_road": MeshPillarTerrainCfg(
@@ -78,7 +79,7 @@ NAV_TERRAIN = TerrainGeneratorCfg(
                 radius=(0.1, 0.3),
                 height=(0.4, 1.5),
                 num_objects=(5, 15),
-                max_yx_angle=(0.0, 60.0),
+                max_yx_angle=(0.0, 20.0),
             ),
             rough_terrain=HfRandomUniformTerrainCfg(
                 proportion=0.2, noise_range=(0.02, 0.10), noise_step=0.02, border_width=0.25
@@ -95,9 +96,7 @@ class NavSceneCfg(LOW_LEVEL_CFGS.MySceneCfg):
     front_camera = RayCasterCameraCfg(
         prim_path="{ENV_REGEX_NS}/Robot/base",
         mesh_prim_paths=["/World/ground"],
-        pattern_cfg=patterns.PinholeCameraPatternCfg().from_intrinsic_matrix(
-            focal_length=22.0,
-            intrinsic_matrix=[369.7771, 0.0, 489.9926, 0.0, 369.7771, 275.9385, 0.0, 0.0, 1.0],
+        pattern_cfg=patterns.PinholeCameraPatternCfg(
             height=36,
             width=64,
         ),
@@ -131,6 +130,12 @@ class ActionsCfg:
         asset_name="robot",
         low_level_action=LOW_LEVEL_CFGS.ActionsCfg().joint_pos,
         low_level_policy_file=ISAACLAB_NUCLEUS_DIR + "/Policies/ANYmal-C/HeightScan/policy.pt",
+        clip_mode="minmax",
+        clip=[
+            LOW_LEVEL_CFGS.CommandsCfg().base_velocity.ranges.lin_vel_x,
+            LOW_LEVEL_CFGS.CommandsCfg().base_velocity.ranges.lin_vel_y,
+            LOW_LEVEL_CFGS.CommandsCfg().base_velocity.ranges.ang_vel_z,
+        ],
     )
 
 

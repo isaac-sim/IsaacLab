@@ -250,12 +250,12 @@ class GoalCommandTerm(CommandTerm):
         # Compute the gradient magnitude (edge strength)
         edges = torch.sqrt(edges_x**2 + edges_y**2)
 
-        edges_mask = edges > 0.1
+        edges_mask = edges > self.cfg.edge_threshold
 
         # Dilate the mask to expand the objects
         padding_size = int(self.cfg.robot_length / 2 / self.cfg.grid_resolution)
         kernel = torch.ones((1, 1, 2 * padding_size + 1, 2 * padding_size + 1), device=self.device)
-        traversability_map = torch.nn.functional.conv2d(edges_mask.float(), kernel, padding=padding_size).squeeze(1) > 0
+        traversability_map = torch.nn.functional.conv2d(edges_mask.float(), kernel, padding=padding_size).squeeze(1) < 0.5
         traversability_map = traversability_map.reshape(-1, 1)
 
         # split the grid into subgrids for each terrain origin

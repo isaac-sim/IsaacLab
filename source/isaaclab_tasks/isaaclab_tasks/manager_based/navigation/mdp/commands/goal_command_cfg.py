@@ -39,4 +39,7 @@ class GoalCommandCfg(CommandTermCfg):
 
     reset_pos_term_name: str = MISSING
     """Name of the reset position term to use for the goal command."""
+
+    edge_threshold: float = 0.5
+    """Threshold for the edge detection to define as untraversable."""
     
