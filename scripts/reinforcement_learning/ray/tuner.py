@@ -46,6 +46,11 @@ Usage:
     ./isaaclab.sh -p scripts/reinforcement_learning/ray/tuner.py --run_mode local \
     --cfg_file scripts/reinforcement_learning/ray/hyperparameter_tuning/vision_cartpole_cfg.py \
     --cfg_class CartpoleTheiaJobCfg
+    # Local with a custom progress reporter
+    ./isaaclab.sh -p scripts/reinforcement_learning/ray/tuner.py \
+    --cfg_file scripts/reinforcement_learning/ray/hyperparameter_tuning/vision_cartpole_cfg.py \
+    --cfg_class CartpoleTheiaJobCfg \
+    --progress_reporter CustomCartpoleProgressReporter
     # Remote (run grok cluster or create config file mentioned in :file:`submit_job.py`)
     ./isaaclab.sh -p scripts/reinforcement_learning/ray/submit_job.py \
     --aggregate_jobs tuner.py \
@@ -422,7 +427,11 @@ if __name__ == "__main__":
         "--progress_reporter",
         type=str,
         default=None,
-        help="A progress reporter in cfg_file, must be a ProgressReporter object.",
+        help=(
+            "Optional: name of a custom reporter class defined in the cfg_file. "
+            "Must subclass ray.tune.ProgressReporter "
+            "(e.g., CustomCartpoleProgressReporter)."
+        ),
     )
 
     args = parser.parse_args()

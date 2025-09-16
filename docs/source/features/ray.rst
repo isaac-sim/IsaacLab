@@ -58,7 +58,7 @@ The two following files contain the core functionality of the Ray integration.
 
   .. literalinclude:: ../../../scripts/reinforcement_learning/ray/tuner.py
     :language: python
-    :emphasize-lines: 18-53
+    :emphasize-lines: 18-58
 
 
 The following script can be used to submit aggregate
