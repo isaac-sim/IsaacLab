@@ -173,26 +173,6 @@ class GearAssemblySceneCfg(InteractiveSceneCfg):
         spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), intensity=2500.0),
     )
 
-# @configclass
-# class CommandsCfg:
-#     """Command terms for the MDP."""
-
-#     ee_pose = mdp.UniformPoseCommandCfg(
-#         asset_name="robot",
-#         body_name=MISSING,
-#         resampling_time_range=(4.0, 4.0),
-#         debug_vis=True,
-#         ranges=mdp.UniformPoseCommandCfg.Ranges(
-#             pos_x=(0.35, 0.65),
-#             pos_y=(-0.2, 0.2),
-#             pos_z=(0.15, 0.5),
-#             roll=(0.0, 0.0),
-#             pitch=MISSING,  # depends on end-effector axis
-#             yaw=(-3.14, 3.14),
-#         ),
-#     )
-
-
 @configclass
 class ActionsCfg:
     """Action specifications for the MDP."""
@@ -308,7 +288,6 @@ class GearAssemblyEnvCfg(ManagerBasedRLEnvCfg):
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
-    # commands: CommandsCfg = CommandsCfg()
     # MDP settings
     rewards: RewardsCfg = RewardsCfg()
     terminations: TerminationsCfg = TerminationsCfg()

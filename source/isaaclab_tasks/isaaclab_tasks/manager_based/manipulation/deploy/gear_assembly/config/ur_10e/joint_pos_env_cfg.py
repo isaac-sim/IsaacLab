@@ -39,16 +39,11 @@ class EventCfg:
 
     robot_joint_stiffness_and_damping = EventTerm(
         func=mdp.randomize_actuator_gains,
-        # min_step_count_between_reset=720,
-        # min_step_count_between_reset=200,
         mode="reset",
         params={
-            # "asset_cfg": SceneEntityCfg("robot", joint_names=".*"),
             "asset_cfg": SceneEntityCfg("robot", joint_names=["shoulder_.*", "elbow_.*", "wrist_.*"]),  # only the arm joints are randomized
             "stiffness_distribution_params": (0.75, 1.5),
             "damping_distribution_params": (0.3, 3.0),
-            # "stiffness_distribution_params": (1.0, 1.0),
-            # "damping_distribution_params": (1.0, 1.0),
             "operation": "scale",
             "distribution": "log_uniform",
         },
@@ -56,8 +51,6 @@ class EventCfg:
 
     joint_friction = EventTerm(
         func=mdp.randomize_joint_parameters,
-        # min_step_count_between_reset=720,
-        # min_step_count_between_reset=200,
         mode="reset",
         params={
             "asset_cfg": SceneEntityCfg("robot", joint_names=["shoulder_.*", "elbow_.*", "wrist_.*"]),
@@ -155,8 +148,6 @@ class EventCfg:
         mode="reset",
         params={
             "robot_asset_cfg": SceneEntityCfg("robot"),
-            # "pos_offset": [-0.030375, 0.0, -0.255],  # Offset from wrist_3_link to gripper position
-            # "pos_offset": [0.0, 0.030375, -0.26],
             "rot_offset": [0.0, math.sqrt(2)/2, math.sqrt(2)/2, 0.0],
             "pos_randomization_range": {
                 "x": [-0.0, 0.0],
