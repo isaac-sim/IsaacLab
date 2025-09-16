@@ -33,7 +33,7 @@ class AllegroHandEnvCfg(DirectRLEnvCfg):
 
     solver_cfg = MJWarpSolverCfg(
         solver="newton",
-        integrator="implicit",
+        integrator="euler",
         njmax=200,
         ncon_per_env=150,
         impratio=10.0,
@@ -41,12 +41,13 @@ class AllegroHandEnvCfg(DirectRLEnvCfg):
         iterations=100,
         ls_iterations=30,
         ls_parallel=True,
+        default_actuator_gear=1.5,  #! tune this to increase or decrease the action strength
         # save_to_mjcf="AllegroHand.xml",
     )
 
     newton_cfg = NewtonCfg(
         solver_cfg=solver_cfg,
-        num_substeps=6,
+        num_substeps=2,  #! we might need more substeps for stability
         debug_mode=False,
     )
     # simulation

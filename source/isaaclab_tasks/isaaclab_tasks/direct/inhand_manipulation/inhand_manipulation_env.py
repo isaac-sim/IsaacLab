@@ -294,6 +294,11 @@ class InHandManipulationEnv(DirectRLEnv):
             dim=-1,
         )
 
+        # ensure no nonfinite values
+        if not torch.isfinite(obs).all():
+            print("Non-finite values in observations")
+            inds = torch.where(~torch.isfinite(obs))
+            obs[inds] = 0.0
         return obs
 
     def compute_full_observations(self):
