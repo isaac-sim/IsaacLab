@@ -1,0 +1,77 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+# Documentation-related changes
+documentation:
+  - all:
+    - changed-files:
+      - any-glob-to-any-file:
+        - 'docs/**'
+        - '**/README.md'
+      - all-globs-to-all-files:
+        - '!docs/licenses/**'
+
+# Infrastructure changes
+infrastructure:
+  - changed-files:
+    - any-glob-to-any-file:
+      - .github/**
+      - docker/**
+      - .dockerignore
+      - tools/**
+      - .vscode/**
+      - environment.yml
+      - setup.py
+      - pyproject.toml
+      - .pre-commit-config.yaml
+      - .flake8
+      - isaaclab.sh
+      - isaaclab.bat
+      - docs/licenses/**
+
+# Assets (USD, glTF, etc.) related changes.
+asset:
+  - changed-files:
+    - any-glob-to-any-file:
+      - source/isaaclab_assets/**
+
+# Isaac Sim team related changes.
+isaac-sim:
+  - changed-files:
+    - any-glob-to-any-file:
+      - apps/**
+
+# Isaac Mimic team related changes.
+isaac-mimic:
+  - changed-files:
+    - any-glob-to-any-file:
+      - source/isaaclab/isaaclab/devices/**
+      - source/isaaclab_mimic/**
+      - source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/stack**
+      - source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/pick_and_place**
+      - scripts/imitation_learning/**
+
+# Isaac Lab team related changes.
+isaac-lab:
+  - all:
+    - changed-files:
+      - any-glob-to-any-file:
+        - source/**
+        - scripts/**
+      - all-globs-to-all-files:
+        - '!source/isaaclab_assets/**'
+        - '!source/isaaclab_mimic/**'
+        - '!source/isaaclab/isaaclab/devices'
+        - '!scripts/imitation_learning/**'
+
+# Add 'enhancement' label to any PR where the head branch name
+# starts with `feature` or has a `feature` section in the name
+enhancement:
+  - head-branch: ['^feature', 'feature']
+
+# Add 'bug' label to any PR where the head branch name
+# starts with `fix`/`bug` or has a `fix`/`bug` section in the name
+bug:
+  - head-branch: ['^fix', 'fix', '^bug', 'bug']

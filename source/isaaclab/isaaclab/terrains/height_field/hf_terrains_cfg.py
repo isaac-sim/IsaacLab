@@ -21,10 +21,13 @@ class HfTerrainBaseCfg(SubTerrainBaseCfg):
     The border width is subtracted from the :obj:`size` of the terrain. If non-zero, it must be
     greater than or equal to the :obj:`horizontal scale`.
     """
+
     horizontal_scale: float = 0.1
     """The discretization of the terrain along the x and y axes (in m). Defaults to 0.1."""
+
     vertical_scale: float = 0.005
     """The discretization of the terrain along the z axis (in m). Defaults to 0.005."""
+
     slope_threshold: float | None = None
     """The slope threshold above which surfaces are made vertical. Defaults to None,
     in which case no correction is applied."""
@@ -43,8 +46,10 @@ class HfRandomUniformTerrainCfg(HfTerrainBaseCfg):
 
     noise_range: tuple[float, float] = MISSING
     """The minimum and maximum height noise (i.e. along z) of the terrain (in m)."""
+
     noise_step: float = MISSING
     """The minimum height (in m) change between two points."""
+
     downsampled_scale: float | None = None
     """The distance between two randomly sampled points on the terrain. Defaults to None,
     in which case the :obj:`horizontal scale` is used.
@@ -62,8 +67,10 @@ class HfPyramidSlopedTerrainCfg(HfTerrainBaseCfg):
 
     slope_range: tuple[float, float] = MISSING
     """The slope of the terrain (in radians)."""
+
     platform_width: float = 1.0
     """The width of the square platform at the center of the terrain. Defaults to 1.0."""
+
     inverted: bool = False
     """Whether the pyramid is inverted. Defaults to False.
 
@@ -92,10 +99,13 @@ class HfPyramidStairsTerrainCfg(HfTerrainBaseCfg):
 
     step_height_range: tuple[float, float] = MISSING
     """The minimum and maximum height of the steps (in m)."""
+
     step_width: float = MISSING
     """The width of the steps (in m)."""
+
     platform_width: float = 1.0
     """The width of the square platform at the center of the terrain. Defaults to 1.0."""
+
     inverted: bool = False
     """Whether the pyramid stairs is inverted. Defaults to False.
 
@@ -127,12 +137,16 @@ class HfDiscreteObstaclesTerrainCfg(HfTerrainBaseCfg):
 
     The following modes are supported: "choice", "fixed".
     """
+
     obstacle_width_range: tuple[float, float] = MISSING
     """The minimum and maximum width of the obstacles (in m)."""
+
     obstacle_height_range: tuple[float, float] = MISSING
     """The minimum and maximum height of the obstacles (in m)."""
+
     num_obstacles: int = MISSING
     """The number of obstacles to generate."""
+
     platform_width: float = 1.0
     """The width of the square platform at the center of the terrain. Defaults to 1.0."""
 
@@ -145,8 +159,9 @@ class HfWaveTerrainCfg(HfTerrainBaseCfg):
 
     amplitude_range: tuple[float, float] = MISSING
     """The minimum and maximum amplitude of the wave (in m)."""
-    num_waves: int = 1.0
-    """The number of waves to generate. Defaults to 1.0."""
+
+    num_waves: int = 1
+    """The number of waves to generate. Defaults to 1."""
 
 
 @configclass
@@ -157,11 +172,15 @@ class HfSteppingStonesTerrainCfg(HfTerrainBaseCfg):
 
     stone_height_max: float = MISSING
     """The maximum height of the stones (in m)."""
+
     stone_width_range: tuple[float, float] = MISSING
     """The minimum and maximum width of the stones (in m)."""
+
     stone_distance_range: tuple[float, float] = MISSING
     """The minimum and maximum distance between stones (in m)."""
+
     holes_depth: float = -10.0
     """The depth of the holes (negative obstacles). Defaults to -10.0."""
+
     platform_width: float = 1.0
     """The width of the square platform at the center of the terrain. Defaults to 1.0."""
