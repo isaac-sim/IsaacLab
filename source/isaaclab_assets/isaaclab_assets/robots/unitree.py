@@ -562,7 +562,7 @@ The Inspire hand URDF is available at: https://github.com/unitreerobotics/xr_tel
 The merging code for the hand and robot can be found here: https://github.com/unitreerobotics/unitree_ros/blob/master/robots/g1_description/merge_g1_29dof_and_inspire_hand.ipynb,
 Necessary modifications should be made to ensure the correct parent–child relationship.
 """
-
+# Inherit PD settings from G1_29DOF_CFG, with minor adjustments for grasping task
 G1_INSPIRE_FTP_CFG = G1_29DOF_CFG.copy()
 G1_INSPIRE_FTP_CFG.spawn.usd_path = f"{ISAACLAB_NUCLEUS_DIR}/Robots/Unitree/G1/g1_29dof_inspire_hand.usd"
 G1_INSPIRE_FTP_CFG.spawn.activate_contact_sensors = True
@@ -573,24 +573,28 @@ G1_INSPIRE_FTP_CFG.init_state = ArticulationCfg.InitialStateCfg(
     joint_pos={".*": 0.0},
     joint_vel={".*": 0.0},
 )
+# Actuator configuration for arms (stability focused for manipulation)
+# Increased damping improves stability of arm movements
 G1_INSPIRE_FTP_CFG.actuators["arms"] = ImplicitActuatorCfg(
-        joint_names_expr=[
-            ".*_shoulder_pitch_joint",
-            ".*_shoulder_roll_joint",
-            ".*_shoulder_yaw_joint",
-            ".*_elbow_joint",
-            ".*_wrist_.*_joint",
-        ],
-        effort_limit=300,
-        velocity_limit=100,
-        stiffness=3000.0,
-        damping=100.0,
-        armature={
-            ".*_shoulder_.*": 0.001,
-            ".*_elbow_.*": 0.001,
-            ".*_wrist_.*_joint": 0.001,
-        },
+    joint_names_expr=[
+        ".*_shoulder_pitch_joint",
+        ".*_shoulder_roll_joint",
+        ".*_shoulder_yaw_joint",
+        ".*_elbow_joint",
+        ".*_wrist_.*_joint",
+    ],
+    effort_limit=300,
+    velocity_limit=100,
+    stiffness=3000.0,
+    damping=100.0,
+    armature={
+        ".*_shoulder_.*": 0.001,
+        ".*_elbow_.*": 0.001,
+        ".*_wrist_.*_joint": 0.001,
+    },
 )
+# Actuator configuration for hands (flexibility focused for grasping)
+# Lower stiffness and damping to improve finger flexibility when grasping objects
 G1_INSPIRE_FTP_CFG.actuators["hands"] = ImplicitActuatorCfg(
     joint_names_expr=[
         ".*_index_.*",
