@@ -224,3 +224,99 @@ def test_integral(device):
 
         # check if the modified data is close to the expected result
         torch.testing.assert_close(processed_data, test_cfg.result)
+
+
+def _counter_batch(t: int, shape, device):
+    return torch.full(shape, float(t), device=device)
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+def test_delayed_observation_fixed_lag(device):
+    """Fixed lag (L=2) should return t-2 after warmup; shape preserved."""
+    if device.startswith("cuda") and not torch.cuda.is_available():
+        pytest.skip("CUDA not available")
+
+    # config: fixed lag 2, single vector obs (3 envs)
+    cfg = modifiers.DelayedObservationCfg(min_lag=2, max_lag=2, per_env=True, hold_prob=0.0, update_period=0)
+    init_data = torch.zeros(3, device=device)  # shape carried into modifier ctor
+
+    # choose iterations past warmup (max_lag+1 pushes) so last output reflects real history
+    num_iter = cfg.max_lag + 6
+    expected_final = torch.full_like(init_data, float((num_iter - 1) - 2))
+
+    test_cfg = ModifierTestCfg(cfg=cfg, init_data=init_data, result=expected_final, num_iter=num_iter)
+
+    # create a modifier instance
+    modifier_obj = test_cfg.cfg.func(test_cfg.cfg, test_cfg.init_data.shape, device=device)
+
+    for _ in range(3):  # a few trials with reset
+        modifier_obj.reset()
+        for t in range(test_cfg.num_iter):
+            data = _counter_batch(t, test_cfg.init_data.shape, device)
+            processed = modifier_obj(data)
+            assert processed.shape == data.shape, "Modified data shape does not equal original"
+
+        torch.testing.assert_close(processed, test_cfg.result)
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+def test_delayed_observation_multi_rate_period_3(device):
+    """Multi-rate cadence: refresh every 3 steps with desired lag=2; holds in between."""
+    if device.startswith("cuda") and not torch.cuda.is_available():
+        pytest.skip("CUDA not available")
+
+    # single env scalar obs; deterministic cadence (per_env_phase=False)
+    cfg = modifiers.DelayedObservationCfg(
+        min_lag=3, max_lag=3, per_env=True, hold_prob=0.0, update_period=3, per_env_phase=False
+    )
+    init_data = torch.zeros(1, device=device)
+
+    num_iter = cfg.max_lag + 10
+
+    # compute expected final value: last t minus realized lag under the 3-step cadence
+    realized = None
+    for t in range(num_iter):
+        if realized is None:
+            realized = 3
+        elif ((t + 1) % cfg.update_period) == 0:  # refresh on every 3rd call
+            realized = 3
+        else:
+            realized = min(realized + 1, cfg.max_lag)
+    expected_final = torch.tensor([float((num_iter - 1) - realized)], device=device)
+
+    test_cfg = ModifierTestCfg(cfg=cfg, init_data=init_data, result=expected_final, num_iter=num_iter)
+
+    modifier_obj = test_cfg.cfg.func(test_cfg.cfg, test_cfg.init_data.shape, device=device)
+
+    for _ in range(2):
+        modifier_obj.reset()
+        for t in range(test_cfg.num_iter):
+            data = _counter_batch(t, test_cfg.init_data.shape, device)
+            processed = modifier_obj(data)
+            assert processed.shape == data.shape
+        torch.testing.assert_close(processed, test_cfg.result)
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+def test_delayed_observation_bounds_and_causality(device):
+    """Lag stays within [min_lag,max_lag] and obeys causal clamp: lag_t <= lag_{t-1}+1."""
+    if device.startswith("cuda") and not torch.cuda.is_available():
+        pytest.skip("CUDA not available")
+
+    cfg = modifiers.DelayedObservationCfg(min_lag=0, max_lag=4, per_env=True, hold_prob=0.0, update_period=0)
+    init_data = torch.zeros(4, device=device)
+
+    modifier_obj = cfg.func(cfg, init_data.shape, device=device)
+
+    prev_lag = None
+    num_iter = cfg.max_lag + 20
+    for t in range(num_iter):
+        out = modifier_obj(_counter_batch(t, init_data.shape, device))
+        # infer realized lag from the counter signal: lag = t - out
+        lag = (t - out).to(torch.long)
+
+        if t >= (cfg.max_lag + 1):  # after warmup
+            assert torch.all(lag >= cfg.min_lag) and torch.all(lag <= cfg.max_lag)
+            if prev_lag is not None:
+                assert torch.all(lag <= prev_lag + 1)
+            prev_lag = lag

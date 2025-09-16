@@ -320,7 +320,6 @@ class DelayedObservation(ModifierBase):
     """
 
     def __init__(self, cfg: modifier_cfg.DelayedObservationCfg, data_dim: tuple[int, ...], device: str):
-
         """Initialize the DelayedObservation modifier.
 
         Args:
@@ -337,14 +336,20 @@ class DelayedObservation(ModifierBase):
         if cfg.update_period > 0 and cfg.update_period > cfg.max_lag:
             raise ValueError("StochasticDelay: update_period must be <= max_lag.")
 
+        self._batch_size = data_dim[0]
+        self._expand_1d = len(data_dim) == 1  # e.g., input shape (N,)
+        self._feature_shape = (
+            (1,) if self._expand_1d else data_dim[1:]
+        )  # ensure at least one feature dim for DelayBuffer resets
+
         # state
-        self._buf = DelayBuffer(history_length=cfg.max_lag + 1, batch_size=data_dim[0], device=device)
+        self._buf = DelayBuffer(history_length=cfg.max_lag + 1, batch_size=self._batch_size, device=device)
         self._prev_realized_lags: torch.Tensor | None = None  # [N]
         self._phases: torch.Tensor | None = None  # [N] if multi-rate
         self._step: int = 0
 
         # prefill buffer with zeros so early delays are valid
-        zeros = torch.zeros(data_dim, device=device)
+        zeros = torch.zeros((self._batch_size, *self._feature_shape), device=device)
         for _ in range(cfg.max_lag + 1):
             self._buf.compute(zeros)
 
@@ -365,7 +370,7 @@ class DelayedObservation(ModifierBase):
             self._phases = None
             self._step = 0
             # prefill again with zeros
-            zeros = torch.zeros(self._data_dim, device=self._device)
+            zeros = torch.zeros((self._batch_size, *self._feature_shape), device=self._device)
             for _ in range(self._cfg.max_lag + 1):
                 self._buf.compute(zeros)
         else:
@@ -384,6 +389,8 @@ class DelayedObservation(ModifierBase):
         """
         cfg = self._cfg
         self._step += 1
+
+        data_in = data.unsqueeze(-1) if (self._expand_1d and data.dim() == 1) else data
 
         # initialize phases for multi-rate on first use
         if cfg.update_period > 0 and self._phases is None:
@@ -427,4 +434,8 @@ class DelayedObservation(ModifierBase):
 
         # return stale sample
         self._buf.set_time_lag(realized_lags)
-        return self._buf.compute(data)
+        out = self._buf.compute(data_in)
+
+        if self._expand_1d and out.dim() == 2 and data.dim() == 1:
+            out = out.squeeze(-1)
+        return out
