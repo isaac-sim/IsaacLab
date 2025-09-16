@@ -326,7 +326,7 @@ class RayCaster(SensorBase):
 
         self.ray_visualizer.visualize(viz_points)
 
-    def _get_trackable_prim_view(
+       def _get_trackable_prim_view(
         self, target_prim_path: str
     ) -> tuple[XFormPrim | any, tuple[torch.Tensor, torch.Tensor]]:
         """Get a prim view that can be used to track the pose of the mesh prims. Additionally, it resolves the
@@ -365,7 +365,7 @@ class RayCaster(SensorBase):
             current_prim = new_root_prim
 
         mesh_prims = sim_utils.find_matching_prims(target_prim_path)
-        target_prims = sim_utils.find_matching_prims(target_prim_path)
+        target_prims = sim_utils.find_matching_prims(current_path_expr)
         if len(mesh_prims) != len(target_prims):
             raise RuntimeError(
                 f"The number of mesh prims ({len(mesh_prims)}) does not match the number of physics prims"
@@ -376,8 +376,8 @@ class RayCaster(SensorBase):
         quaternions = []
         for mesh, target in zip(mesh_prims, target_prims):
             pos, orientation = sim_utils.resolve_prim_pose(mesh, target)
-            positions.append(pos)
-            quaternions.append(orientation)
+            positions.append(torch.tensor(pos, dtype=torch.float32, device=self.device))
+            quaternions.append(torch.tensor(orientation, dtype=torch.float32, device=self.device))
 
         positions = torch.stack(positions).to(device=self.device, dtype=torch.float32)
         quaternions = torch.stack(quaternions).to(device=self.device, dtype=torch.float32)
