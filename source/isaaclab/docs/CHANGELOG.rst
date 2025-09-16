@@ -1,6 +1,14 @@
 Changelog
 ---------
 
+Unreleased
+~~~~~~~~~~
+
+Added
+^^^^^
+* Added :class:`isaaclab.utils.modifiers.DelayedObservation` for stochastic latency and multi-rate observation modeling (per-env lags, ``hold_prob``, ``update_period``, ``per_env_phase``).
+* Added :class:`isaaclab.utils.modifiers.DelayedObservationCfg` configuration class.
+
 0.46.1 (2025-09-10)
 ~~~~~~~~~~~~~~~~~~~
 

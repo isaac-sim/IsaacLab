@@ -96,6 +96,7 @@ Guidelines for modifications:
 * Manuel Schweiger
 * Masoud Moghani
 * Maurice Rahme
+* Michael Groom
 * Michael Gussert
 * Michael Noseworthy
 * Michael Lin
