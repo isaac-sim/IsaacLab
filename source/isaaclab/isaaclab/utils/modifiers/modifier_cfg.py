@@ -76,3 +76,46 @@ class IntegratorCfg(ModifierCfg):
 
     dt: float = MISSING
     """The time step of the integrator."""
+
+@configclass
+class DelayedObservationCfg(ModifierCfg):
+    """Configuration parameters for a delayed observation modifier.
+
+    For more information, please check the :class:`DelayedObservation` class.
+    """
+
+    func: type[modifier.DelayedObservation] = modifier.DelayedObservation
+    """The delayed observation function to be called for applying the delay."""
+
+    # Lag parameters
+    min_lag: int = 0
+    """The minimum lag (in number of policy steps) to be applied to the observations. Defaults to 0."""
+
+    max_lag: int = 3
+    """The maximum lag (in number of policy steps) to be applied to the observations.
+
+    This value must be greater than or equal to :attr:`min_lag`.
+    """
+
+    per_env: bool = True
+    """Whether to use a separate lag for each environment."""
+
+    hold_prob: float = 0.0
+    """The probability of holding the previous lag when updating the lag."""
+
+    # multi-rate emulation parameters (optional)
+    update_period: int = 1
+    """The period (in number of policy steps) at which the lag is updated.
+
+    If set to 0, the lag is sampled once at the beginning and remains constant throughout the simulation.
+    If set to a positive integer, the lag is updated every `update_period` policy steps. Defaults to 1.
+
+    This value must be less than or equal to :attr:`max_lag` if it is greater than 0.
+    """
+
+    per_env_phase: bool = True
+    """Whether to use a separate phase for each environment when updating the lag.
+
+    If set to True, each environment will have its own phase when updating the lag. If set to False, all
+    environments will share the same phase. Defaults to True.
+    """

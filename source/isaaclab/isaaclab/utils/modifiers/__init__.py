@@ -60,6 +60,8 @@ from .modifier import DigitalFilter
 from .modifier_cfg import DigitalFilterCfg
 from .modifier import Integrator
 from .modifier_cfg import IntegratorCfg
+from .modifier import DelayedObservation
+from .modifier_cfg import DelayedObservationCfg
 
 # isort: on
 from .modifier import bias, clip, scale
