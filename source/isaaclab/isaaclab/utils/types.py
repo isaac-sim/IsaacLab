@@ -48,12 +48,12 @@ class ArticulationThrustActions:
     If the actions are not provided, the values are set to None.
     """
 
-    joint_thrusts: torch.Tensor | None = None
-    """The joint thrusts of the articulation. Defaults to None."""
+    thrusts: torch.Tensor | None = None
+    """The thrusts of the articulation. Defaults to None."""
 
-    joint_indices: torch.Tensor | Sequence[int] | slice | None = None
-    """The joint indices of the articulation. Defaults to None.
+    thruster_indices: torch.Tensor | Sequence[int] | slice | None = None
+    """The thruster indices of the articulation. Defaults to None.
 
-    If the joint indices are a slice, this indicates that the indices are continuous and correspond
-    to all the joints of the articulation. We use a slice to make the indexing more efficient.
+    If the thruster indices are a slice, this indicates that the indices are continuous and correspond
+    to all the thrusters of the articulation. We use a slice to make the indexing more efficient.
     """

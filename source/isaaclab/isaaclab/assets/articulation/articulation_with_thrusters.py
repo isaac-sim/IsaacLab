@@ -8,6 +8,9 @@
 
 from __future__ import annotations
 
+import os
+os.environ["OMNI_PHYSX_TENSORS_WARNINGS"] = "0"
+
 import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
@@ -134,12 +137,17 @@ class ArticulationWithThrusters(Articulation):
         self._joint_vel_target_sim = torch.zeros_like(self._data.joint_pos_target)
         self._joint_effort_target_sim = torch.zeros_like(self._data.joint_pos_target)
         self._thrust_target_sim = torch.zeros_like(self._data.thrust_target)
+        # self._torque_target_sim = torch.zeros_like(self._data.torque_target)
         self._internal_wrench_target_sim = torch.zeros(self.num_instances, 6, device=self.device)
+        self._internal_force_target_sim = torch.zeros_like(self._external_force_b)
+        self._internal_torque_target_sim = torch.zeros_like(self._external_torque_b)
 
         # -- computed joint efforts from the actuator models
         self._data.computed_torque = torch.zeros_like(self._data.joint_pos_target)
         self._data.applied_torque = torch.zeros_like(self._data.joint_pos_target)
+        self._data.computed_thrust = torch.zeros_like(self._data.thrust_target)
         self._data.applied_thrust = torch.zeros_like(self._data.thrust_target)
+        
 
         # -- other data that are filled based on explicit actdef _validate_cfg(self):
         """Validate the configuration after processing.
@@ -233,7 +241,7 @@ class ArticulationWithThrusters(Articulation):
                     is_global=self._use_global_wrench_frame,
                 )
             else:
-                self.root_physx_view.apply_forces_and_torquself.cfg.allocation_matrixes_at_position(
+                self.root_physx_view.apply_forces_and_torques_at_position(
                     force_data=self._external_force_b.view(-1, 3),
                     torque_data=self._external_torque_b.view(-1, 3),
                     position_data=None,
@@ -248,17 +256,20 @@ class ArticulationWithThrusters(Articulation):
         # apply thruster actions
         self._combine_thrusts()
         # TODO apply force to center of gravity instead (important for arbitrary robots)
-        root_body_id = self.root_physx_view.robot_view.get_root_body_index()
-        self.root_physx_view.apply_forces_and_torques_at_position(force_data=self._thrust_target_sim.view(-1, 3),
-                                                                  torque_data = torch.zeros_like(self._thrust_target_sim).view(-1,3),
+        # TODO grab correct index in a flexible way
+        root_body_id = 0 #self.root_physx_view.get_body_index("base_link")
+        # print("\n\n\n\n\n\n\n\n")
+        
+        self.root_physx_view.apply_forces_and_torques_at_position(force_data=self._internal_force_target_sim.view(-1,3),
+                                                                  torque_data = self._internal_torque_target_sim.view(-1,3),
                                                                   position_data=None,
-                                                                  indices = [root_body_id],
+                                                                  indices = torch.tensor([root_body_id], device=self.device),
                                                                   is_global = False)
         
         # position and velocity targets only for implicit actuators
-        if self._has_implicit_actuators:
-            self.root_physx_view.set_dof_position_targets(self._joint_pos_target_sim, self._ALL_INDICES)
-            self.root_physx_view.set_dof_velocity_targets(self._joint_vel_target_sim, self._ALL_INDICES)
+        # if self._has_implicit_actuators:
+        #     self.root_physx_view.set_dof_position_targets(self._joint_pos_target_sim, self._ALL_INDICES)
+        #     self.root_physx_view.set_dof_velocity_targets(self._joint_vel_target_sim, self._ALL_INDICES)
             
     def _initialize_impl(self):
         # obtain global simulation view
@@ -427,16 +438,16 @@ class ArticulationWithThrusters(Articulation):
         for actuator in self.actuators.values():
             # prepare input for actuator model based on cached data
             control_action = ArticulationThrustActions(
-                joint_thrusts=self._data.thrust_target[:, actuator.thruster_indices],
-                joint_indices=actuator.thruster_indices,
+                thrusts=self._data.thrust_target[:, actuator.thruster_indices],
+                thruster_indices=actuator.thruster_indices,
             )
             # compute joint command from the actuator model
             control_action = actuator.compute(
                 control_action
             )
             # update targets (these are set into the simulation)
-            if control_action.joint_thrusts is not None:
-                self._thrust_target_sim[:, actuator.thruster_indices] = control_action.joint_thrusts
+            if control_action.thrusts is not None:
+                self._thrust_target_sim[:, actuator.thruster_indices] = control_action.thrusts
             # update state of the actuator model
             # -- thrusts
             self._data.computed_thrust[:, actuator.thruster_indices] = actuator.computed_thrust
@@ -445,9 +456,11 @@ class ArticulationWithThrusters(Articulation):
 
     def _combine_thrusts(self):
         """Combine individual thrusts into a wrench vector."""
-        thrusts = self._data.applied_thrust
+        thrusts = self._thrust_target_sim
         self._internal_wrench_target_sim = (self._allocation_matrix @ thrusts.T).T
-    
+        self._internal_force_target_sim[:,0,:] = self._internal_wrench_target_sim[:,3:]
+        self._internal_torque_target_sim[:,0,:] = self._internal_wrench_target_sim[:,:3]
+
     def find_thrusters(
         self, name_keys: str | Sequence[str], thruster_subset: list[str] | None = None, preserve_order: bool = False
     ) -> tuple[list[int], list[str]]:

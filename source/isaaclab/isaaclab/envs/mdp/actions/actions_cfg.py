@@ -312,13 +312,13 @@ class OperationalSpaceControllerActionCfg(ActionTermCfg):
     """
     
 @configclass
-class JointThrustActionCfg(JointActionCfg):
+class ThrustActionCfg(JointActionCfg):
     """Configuration for the joint thrust action term.
 
     See :class:`JointThrustAction` for more details.
     """
 
-    class_type: type[ActionTerm] = thrust_actions.JointThrustAction
+    class_type: type[ActionTerm] = thrust_actions.ThrustAction
 
     use_default_offset: bool = True
     """Whether to use default thrust (e.g. hover thrust) configured in the articulation asset as offset.

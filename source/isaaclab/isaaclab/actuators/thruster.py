@@ -139,7 +139,7 @@ class Thruster():
             (num_envs, num_motors) updated thrust state [N].
         
         """
-        des_thrust = control_action.joint_thrusts
+        des_thrust = control_action.thrusts
         des_thrust = torch.clamp(des_thrust, self.thrust_r[:, 0], self.thrust_r[:, 1])
 
         thrust_decrease_mask = torch.sign(self.curr_thrust) * torch.sign(des_thrust - self.curr_thrust)
@@ -176,9 +176,9 @@ class Thruster():
         if self.cfg.use_rps:
             self.thrust_const[env_ids] = rand_range(self.thrust_const_r[:, 0], self.thrust_const_r[:, 1])[env_ids]
 
-    def reset(self) -> None:
+    def reset(self, env_ids: Sequence[int]) -> None:
         """Reset all envs."""
-        self.reset_idx()
+        self.reset_idx(env_ids)
 
 
 @torch.jit.script

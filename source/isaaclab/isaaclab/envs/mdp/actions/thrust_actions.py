@@ -22,28 +22,13 @@ if TYPE_CHECKING:
 
     from . import actions_cfg
 
-
-# class JointEffortAction(JointAction):
-#     """Joint action term that applies the processed actions to the articulation's joints as effort commands."""
-
-#     cfg: actions_cfg.JointEffortActionCfg
-#     """The configuration of the action term."""
-
-#     def __init__(self, cfg: actions_cfg.JointEffortActionCfg, env: ManagerBasedEnv):
-#         super().__init__(cfg, env)
-
-#     def apply_actions(self):
-#         # set joint effort targets
-#         self._asset.set_joint_effort_target(self.processed_actions, joint_ids=self._joint_ids)
-
-
-class JointThrustAction(JointAction):
+class ThrustAction(JointAction):
     """Joint action term that applies the processed actions to the articulation's joints as thrust commands."""
 
-    cfg: actions_cfg.JointThrustActionCfg
+    cfg: actions_cfg.ThrustActionCfg
     """The configuration of the action term."""
 
-    def __init__(self, cfg: actions_cfg.JointThrustActionCfg, env: ManagerBasedEnv):
+    def __init__(self, cfg: actions_cfg.ThrustActionCfg, env: ManagerBasedEnv):
         super().__init__(cfg, env)
 
     def apply_actions(self):
