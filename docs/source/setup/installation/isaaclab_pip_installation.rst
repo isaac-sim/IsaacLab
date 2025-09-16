@@ -25,6 +25,31 @@ To learn about how to set up your own project on top of Isaac Lab, see :ref:`tem
             conda create -n env_isaaclab python=3.11
             conda activate env_isaaclab
 
+      .. tab-item:: uv environment
+
+         .. tab-set::
+            :sync-group: os
+
+            .. tab-item:: :icon:`fa-brands fa-linux` Linux
+               :sync: linux
+
+               .. code-block:: bash
+
+                  # create a virtual environment named env_isaaclab with python3.11
+                  uv venv --python 3.11 env_isaaclab
+                  # activate the virtual environment
+                  source env_isaaclab/bin/activate
+
+            .. tab-item:: :icon:`fa-brands fa-windows` Windows
+               :sync: windows
+
+               .. code-block:: batch
+
+                  # create a virtual environment named env_isaaclab with python3.11
+                  uv venv --python 3.11 env_isaaclab
+                  # activate the virtual environment
+                  env_isaaclab\Scripts\activate
+
       .. tab-item:: venv environment
 
          .. tab-set::
@@ -69,6 +94,10 @@ To learn about how to set up your own project on top of Isaac Lab, see :ref:`tem
          .. code-block:: batch
 
             python -m pip install --upgrade pip
+
+.. note::
+
+   If you use uv, replace ``pip`` with ``uv pip``.
 
 
 -  Next, install a CUDA-enabled PyTorch 2.7.0 build for CUDA 12.8.

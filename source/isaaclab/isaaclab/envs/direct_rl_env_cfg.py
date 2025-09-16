@@ -229,3 +229,6 @@ class DirectRLEnvCfg:
 
     xr: XrCfg | None = None
     """Configuration for viewing and interacting with the environment through an XR device."""
+
+    log_dir: str | None = None
+    """Directory for logging experiment artifacts. Defaults to None, in which case no specific log directory is set."""

@@ -1,6 +1,45 @@
 Changelog
 ---------
 
+
+0.46.2 (2025-09-13)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Fixed missing actuator indices in :meth:`~isaaclab.envs.mdp.events.randomize_actuator_gains`
+
+
+0.46.1 (2025-09-10)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Moved IO descriptors output directory to a subfolder under the task log directory.
+
+
+0.46.0 (2025-09-06)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added argument :attr:`traverse_instance_prims` to :meth:`~isaaclab.sim.utils.get_all_matching_child_prims` and
+  :meth:`~isaaclab.sim.utils.get_first_matching_child_prim` to control whether to traverse instance prims
+  during the traversal. Earlier, instanced prims were skipped since :meth:`Usd.Prim.GetChildren` did not return
+  instanced prims, which is now fixed.
+
+
+Changed
+^^^^^^^
+
+* Made parsing of instanced prims in :meth:`~isaaclab.sim.utils.get_all_matching_child_prims` and
+  :meth:`~isaaclab.sim.utils.get_first_matching_child_prim` as the default behavior.
+* Added parsing of instanced prims in :meth:`~isaaclab.sim.utils.make_uninstanceable` to make all prims uninstanceable.
+
+
 0.45.15 (2025-09-05)
 ~~~~~~~~~~~~~~~~~~~~
 
