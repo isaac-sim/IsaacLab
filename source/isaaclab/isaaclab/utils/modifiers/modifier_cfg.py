@@ -77,6 +77,7 @@ class IntegratorCfg(ModifierCfg):
     dt: float = MISSING
     """The time step of the integrator."""
 
+
 @configclass
 class DelayedObservationCfg(ModifierCfg):
     """Configuration parameters for a delayed observation modifier.

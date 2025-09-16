@@ -9,8 +9,9 @@ import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-from .modifier_base import ModifierBase
 from isaaclab.utils.buffers import DelayBuffer
+
+from .modifier_base import ModifierBase
 
 if TYPE_CHECKING:
     from . import modifier_cfg
@@ -259,17 +260,18 @@ class Integrator(ModifierBase):
 
         return self.integral
 
+
 class DelayedObservation(ModifierBase):
     r"""A modifier used to return a stochastically delayed (stale) version of
-    another observation term. This can also be used to model multi-rate
+    an observation term. This can also be used to model multi-rate
     observations for non-sensor terms, e.g., pure MDP terms or proprioceptive terms.
 
     This modifier takes an existing observation term/function, pushes each new batched
     observation into a DelayBuffer, and returns an older sample according to a
-    per-environment integer time-lag. Lags are drawn in [min_lag, max_lag],
-    with an optional probability to *hold* the previous lag (to mimic repeated 
-    frames). With 'update_period>0' (multi-rate), new lags are applied only
-    on refresh ticks, which occur every update_period. Between refreshes the
+    per-environment integer time-lag. Lags are drawn uniformly from
+    [min_lag, max_lag], with an optional probability to *hold* the previous lag (to
+    mimic repeated frames). With 'update_period>0' (multi-rate), new lags are applied only
+    on refresh ticks, which occur every update_period policy steps. Between refreshes the
     realised lag can increase at most by +1 (frame hold). This process is
     causal: the lag for each environment can only increase by 1 each step,
     ensuring that the returned observation is never older than the previous
@@ -278,29 +280,43 @@ class DelayedObservation(ModifierBase):
     Shapes are preserved: the returned tensor has the exact shape of the wrapped
     term (``[num_envs, *obs_shape]``).
 
-    Configuration (required nesting)
-    --------------------------------
-    Isaac Lab's manager **requires** class-based term params to be nested under
-    the "_" key.
-    
-    Param keys:
-        func (callable): The observation function to wrap. Must be callable
-            with signature ``func(env, **func_params) -> torch.Tensor`` returning
-            a batched tensor of shape ``[num_envs, ...]``.
-        func_params (dict): Optional dict of keyword args to pass to `func`.
-        min_lag (int): Minimum time-lag (in steps) to sample. Default 0.
-        max_lag (int): Maximum time-lag (in steps) to sample. Default 3.
-        per_env (bool): If True, sample a different lag for each environment.
-            If False, use the same lag for all envs. Default True.
-        hold_prob (float): Probability in [0, 1] of holding the previous lag
-            instead of sampling a new one. Default 0.0 (always sample new).
-        update_period (int): If > 0, apply new lags every `update_period`
-            policy steps (models a lower sensor cadence). Between updates, the
-            lag can increase by at most +1 each step (frame hold). If 0 (default),
-            update every step.
-        per_env_phase (bool): Only relevant if `update_period > 0`. If True,
-            each environment has a different random phase offset for lag updates.
-            If False, all envs update their lag simultaneously. Default True.
+    ***Configuration:***
+    min_lag (int): Minimum time-lag (in steps) to sample. Default 0.
+    max_lag (int): Maximum time-lag (in steps) to sample. Default 3.
+    per_env (bool): If True, sample a different lag for each environment.
+        If False, use the same lag for all envs. Default True.
+    hold_prob (float): Probability in [0, 1] of holding the previous lag
+        instead of sampling a new one. Default 0.0 (always sample new).
+    update_period (int): If > 0, apply new lags every `update_period`
+        policy steps (models a lower sensor cadence). Between updates, the
+        lag can increase by at most +1 each step (frame hold). If 0 (default),
+        update every step.
+    per_env_phase (bool): Only relevant if `update_period > 0`. If True,
+        each environment has a different random phase offset for lag updates.
+        If False, all envs update their lag simultaneously. Default True.
+
+    ***Example:***
+    .. code-block:: python
+
+        # create a height_scan observation using the delayed observation modifier
+        from isaaclab.utils.modifiers import DelayedObservation
+
+        height_scan = ObservationTermCfg(
+            func=mdp.height_scan,
+            params={"sensor_cfg": SceneEntityCfg("height_scanner")},
+            noise=Unoise(n_min=-0.1, n_max=0.1),
+            clip=(-1.0, 1.0),
+            modifiers=[
+                modifiers.DelayedObservationCfg(
+                    min_lag=0,
+                    max_lag=3,
+                    per_env=True,
+                    hold_prob=0.66,
+                    update_period=3,
+                    per_env_phase=True,
+                )
+            ],
+        )
     """
 
     def __init__(self, cfg: modifier_cfg.DelayedObservationCfg, data_dim: tuple[int, ...], device: str):
@@ -310,7 +326,7 @@ class DelayedObservation(ModifierBase):
         Args:
             cfg: Configuration parameters.
         """
-        # initialize parent class 
+        # initialize parent class
         super().__init__(cfg, data_dim, device)
         if cfg.min_lag < 0 or cfg.max_lag < cfg.min_lag:
             raise ValueError("StochasticDelay: require 0 <= min_lag <= max_lag.")
@@ -324,9 +340,9 @@ class DelayedObservation(ModifierBase):
         # state
         self._buf = DelayBuffer(history_length=cfg.max_lag + 1, batch_size=data_dim[0], device=device)
         self._prev_realized_lags: torch.Tensor | None = None  # [N]
-        self._phases: torch.Tensor | None = None              # [N] if multi-rate
+        self._phases: torch.Tensor | None = None  # [N] if multi-rate
         self._step: int = 0
-        
+
         # prefill buffer with zeros so early delays are valid
         zeros = torch.zeros(data_dim, device=device)
         for _ in range(cfg.max_lag + 1):
