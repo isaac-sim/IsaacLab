@@ -26,7 +26,7 @@ def compare_single_vs_multi():
 
     fig, axes = plt.subplots(1, 3, figsize=(20, 10))
 
-    # 1. Steps per ms vs Num Envs
+    # 1. Steps per s vs Num Envs
     for res in unique_res:
         for mode in df["mode"].unique():
             sub_df = df[(df["resolution"] == res) & (df["mode"] == mode)]
@@ -39,8 +39,8 @@ def compare_single_vs_multi():
                 label=f"{mode} - Resolution={res}, Rays/Env={sub_df['rays_per_env'].values[0]}",
             )
     axes[0].set_xlabel("Number of Environments")
-    axes[0].set_ylabel("Steps per ms")
-    axes[0].set_title("Steps per ms vs Num Envs")
+    axes[0].set_ylabel("FPS (frames per second)")
+    axes[0].set_title("FPS vs Num Envs")
     axes[0].legend()
     axes[0].grid(True)
 
@@ -63,7 +63,7 @@ def compare_single_vs_multi():
     axes[1].grid(True)
 
     # 3. VRAM usage vs Number of Envs
-    for res in [0.05]:
+    for res in unique_res:
         for mode in df["mode"].unique():
             sub_df = df[(df["resolution"] == res) & (df["mode"] == mode)]
             axes[2].plot(
@@ -89,7 +89,7 @@ def compare_single_vs_multi():
 
 def compare_num_assets_vram_cache():
     """Plots Average steps per ms vs Num assets and Avg memory vs num assets"""
-    df = pd.read_csv("outputs/benchmarks/ray_caster_benchmark_num_assets.csv")
+    df = pd.read_csv("outputs/benchmarks/ray_caster_benchmark_num_assets_reference.csv")
     df["num_assets"] = df["num_assets"].astype(int)
     df["avg_memory"] = df["avg_memory"].astype(float)
     df["fps"] = 1.0 / (df["per_step_ms"] * 1e-3)
@@ -117,7 +117,6 @@ def compare_num_assets_vram_cache():
 def compare_num_assets():
     """Plots Average steps per ms vs Num assets and Avg memory vs num assets"""
     df = pd.read_csv("outputs/benchmarks/ray_caster_benchmark_num_assets.csv")
-    df = df[df["reference_meshes"] is True]
     df["num_assets"] = df["num_assets"].astype(int)
     df["avg_memory"] = df["avg_memory"].astype(float)
     df["fps"] = 1.0 / (df["per_step_ms"] * 1e-3)
@@ -151,6 +150,7 @@ def compare_num_faces():
     # %% Types & cleaning
     df["num_faces"] = df["num_faces"].astype(int)
     df["avg_memory"] = df["avg_memory"].astype(float)
+
     df["fps"] = 1.0 / (df["per_step_ms"] * 1e-3)
 
     fig, axes = plt.subplots(1, 2, figsize=(10, 10))
@@ -158,8 +158,8 @@ def compare_num_faces():
     # 1. Steps per ms vs Num Faces
     axes[0].plot(df["num_faces"], df["fps"], color="blue", marker="o", label="FPS")
     axes[0].set_xlabel("Number of Faces")
-    axes[0].set_ylabel("Steps per ms")
-    axes[0].set_title("Steps per ms vs Num Faces")
+    axes[0].set_ylabel("FPS (frames per second)")
+    axes[0].set_title("FPS vs Num Faces")
     axes[0].legend()
     axes[0].grid(True)
 

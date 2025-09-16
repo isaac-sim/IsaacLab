@@ -34,6 +34,19 @@ parser = argparse.ArgumentParser(description="Benchmark ray caster sensors.")
 parser.add_argument("--steps", type=int, default=2000, help="Steps per resolution for timing.")
 parser.add_argument("--warmup", type=int, default=50, help="Warmup steps before timing.")
 
+NUM_ASSETS_MEMORY = [1, 2, 4, 8, 16, 32]  # Num assets for benchmarking memory usage with and without caching.
+NUM_ASSETS = [0, 1, 2, 4, 8, 16, 32, 64, 128]  # Num assets for benchmarking scaling performance. of multi-mesh ray caster.
+NUM_ENVS = [32, 64, 128, 256, 512, 1024, 2048, 4096]  # Num envs for benchmarking single vs multi mesh ray caster.
+MESH_SUBDIVISIONS = [0, 1, 2, 3, 4, 5, 6]  # Num subdivisions for benchmarking mesh complexity.
+RESOLUTIONS: list[float] = [0.2, 0.1, 0.05, 0.015]  # Different ray caster resolutions to benchmark. Num rays will be (5 / res)^2, e.g. 625, 2500, 10000, 11111
+
+# # TINY for debugging
+# NUM_ASSETS_MEMORY = [1, 2]  # Num assets for benchmarking memory usage with and without caching.
+# NUM_ASSETS = [0, 1]  # Num assets for benchmarking scaling performance. of multi-mesh ray caster.
+# NUM_ENVS = [32, 64]  # Num envs for benchmarking single vs multi mesh ray caster.
+# MESH_SUBDIVISIONS = [0, 1]  # Num subdivisions for benchmarking mesh complexity.
+# RESOLUTIONS: list[float] = [0.2, 0.1]  # Different ray caster resolutions to benchmark. Num rays will be (5 / res)^2, e.g. 625, 2500, 10000, 11111
+
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
@@ -57,7 +70,6 @@ from isaaclab.sim import SimulationContext
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.mesh import _MESH_CONVERTERS_CALLBACKS, _create_sphere_trimesh
-
 
 @configclass
 class RayCasterBenchmarkSceneCfg(InteractiveSceneCfg):
@@ -274,9 +286,6 @@ def main():
 
     # BENCHMARK 1 - Compare Single VS Multi
 
-    NUM_ENVS = [32, 64, 128, 256, 512, 1024, 2048]
-    RESOLUTIONS: list[float] = [0.2, 0.1, 0.05]
-
     print("=== Benchmarking Multi vs Single Raycaster ===")
     results: list[dict[str, object]] = []
     device_name = (
@@ -284,14 +293,14 @@ def main():
     )
 
     _MESH_CONVERTERS_CALLBACKS["Sphere"] = lambda p: _create_sphere_trimesh(p, subdivisions=5)
-    # Compare multi mesh performance over different number of assets
-    NUM_ASSETS = [1, 4, 8, 16, 32, 64, 128]
+    # Compare multi mesh performance over different number of assets.
+    # More specifically, compare reference vs non-reference meshes and their respective memory usage.
     for idx, num_assets in enumerate(NUM_ASSETS):
         for reference_meshes in [True, False]:
             if num_assets > 16 and not reference_meshes:
                 continue  # Skip this, otherwise we run out of memory
 
-            print(f"\n[INFO]: Benchmarking with {num_assets} assets. {idx} / {len(NUM_ASSETS)}")
+            print(f"\n[INFO]: Benchmarking with {num_assets} assets. {idx} / {len(NUM_ASSETS_MEMORY)}")
             num_envs = 1024
             resolution = 0.1
             multi_scene_cfg = _make_scene_cfg_multi(
@@ -315,10 +324,11 @@ def main():
 
             df_num_assets = pd.DataFrame(results)
             df_num_assets["device"] = device_name
-            df_num_assets.to_csv("outputs/benchmarks/ray_caster_benchmark_num_assets.csv", index=False)
+            os.makedirs("outputs/benchmarks", exist_ok=True)
+            df_num_assets.to_csv("outputs/benchmarks/ray_caster_benchmark_num_assets_reference.csv", index=False)
 
     results: list[dict[str, object]] = []
-
+    
     for idx, num_envs in enumerate(NUM_ENVS):
         print(f"\n[INFO]: Benchmarking with {num_envs} envs. {idx + 1} / {len(NUM_ENVS)}")
 
@@ -343,7 +353,7 @@ def main():
                 num_envs=num_envs,
                 resolution=resolution,
                 debug_vis=not args_cli.headless,
-                track_mesh_transforms=False,  # Only static ground
+                track_mesh_transforms=False,
                 num_assets=0,
             )
             result = _run_benchmark(multi_scene_cfg, "height_scanner_multi")
@@ -361,15 +371,19 @@ def main():
 
     print("\n=== Benchmarking Multi Raycaster with different number of assets and faces ===")
     results: list[dict[str, object]] = []
+    
+    
+    # Keep fixed resolution for the subdivision and num assets benchmarks
+    resolution = 0.05
 
     # Compare multi mesh performance over different number of assets
-    for idx, num_assets in enumerate([0, 1, 2, 4, 8, 16, 32, 64, 128]):
+    for idx, num_assets in enumerate(NUM_ASSETS):
         print(f"\n[INFO]: Benchmarking with {num_assets} assets. {idx} / {len(NUM_ENVS)}")
         multi_scene_cfg = _make_scene_cfg_multi(
             num_envs=num_envs,
             resolution=resolution,
             debug_vis=not args_cli.headless,
-            track_mesh_transforms=True,  # Only static ground
+            track_mesh_transforms=True,
             num_assets=num_assets,
         )
         result = _run_benchmark(multi_scene_cfg, "height_scanner_multi")
@@ -387,7 +401,7 @@ def main():
     print("\n=== Benchmarking Multi Raycaster with different number of faces ===")
     results: list[dict[str, object]] = []
     # Compare multi mesh performance over different number of vertices
-    for idx, subdivision in enumerate([0, 1, 2, 3, 4, 5, 6]):
+    for idx, subdivision in enumerate(MESH_SUBDIVISIONS):
         print(f"\n[INFO]: Benchmarking with {subdivision} subdivisions. {idx} / {len(NUM_ENVS)}")
         _MESH_CONVERTERS_CALLBACKS["Sphere"] = lambda p: _create_sphere_trimesh(p, subdivisions=subdivision)
         multi_scene_cfg = _make_scene_cfg_multi(
