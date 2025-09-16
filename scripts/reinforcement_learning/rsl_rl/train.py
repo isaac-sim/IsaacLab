@@ -10,6 +10,8 @@
 import argparse
 import sys
 
+import rsl_rl
+
 from isaaclab.app import AppLauncher
 
 # local imports
@@ -56,8 +58,9 @@ import platform
 from packaging import version
 
 # check minimum supported rsl-rl version
-RSL_RL_VERSION = "3.0.1"
+RSL_RL_VERSION = "2.3.1"
 installed_version = metadata.version("rsl-rl-lib")
+print("installed_version", installed_version)
 if version.parse(installed_version) < version.parse(RSL_RL_VERSION):
     if platform.system() == "Windows":
         cmd = [r".\isaaclab.bat", "-p", "-m", "pip", "install", f"rsl-rl-lib=={RSL_RL_VERSION}"]
@@ -78,7 +81,7 @@ import torch
 from datetime import datetime
 
 import omni
-from rsl_rl.runners import DistillationRunner, OnPolicyRunner
+from rsl_rl.runners import OnPolicyRunner
 
 from isaaclab.envs import (
     DirectMARLEnv,
@@ -198,6 +201,20 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     dump_yaml(os.path.join(log_dir, "params", "agent.yaml"), agent_cfg)
     dump_pickle(os.path.join(log_dir, "params", "env.pkl"), env_cfg)
     dump_pickle(os.path.join(log_dir, "params", "agent.pkl"), agent_cfg)
+
+    import rsl_rl
+    print("[INFO] rsl_rl library location:", rsl_rl.__file__)
+    print("[INFO] rsl_rl library location:", rsl_rl.__file__)
+    print("[INFO] rsl_rl library location:", rsl_rl.__file__)
+    print("[INFO] rsl_rl library location:", rsl_rl.__file__)
+    print("[INFO] rsl_rl library location:", rsl_rl.__file__)
+    print("[INFO] rsl_rl library location:", rsl_rl.__file__)
+    print("[INFO] rsl_rl library location:", rsl_rl.__file__)
+    print("[INFO] rsl_rl library location:", rsl_rl.__file__)
+    print("[INFO] rsl_rl library location:", rsl_rl.__file__)
+    print("[INFO] rsl_rl library location:", rsl_rl.__file__)
+    print("[INFO] rsl_rl library location:", rsl_rl.__file__)
+    print("[INFO] rsl_rl library location:", rsl_rl.__file__)
 
     # run training
     runner.learn(num_learning_iterations=agent_cfg.max_iterations, init_at_random_ep_len=True)
