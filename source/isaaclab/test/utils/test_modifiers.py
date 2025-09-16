@@ -261,7 +261,7 @@ def test_delayed_observation_fixed_lag(device):
 
 @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
 def test_delayed_observation_multi_rate_period_3(device):
-    """Multi-rate cadence: refresh every 3 steps with desired lag=2; holds in between."""
+    """Multi-rate cadence: refresh every 3 steps with desired lag=3; holds in between."""
     if device.startswith("cuda") and not torch.cuda.is_available():
         pytest.skip("CUDA not available")
 
