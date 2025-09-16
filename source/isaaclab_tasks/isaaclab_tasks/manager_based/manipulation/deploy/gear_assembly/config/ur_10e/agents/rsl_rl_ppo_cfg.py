@@ -57,6 +57,7 @@ class UR10GearAssemblyRNNPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     clip_actions = 1.0
     resume = False
     policy = UpdatedRslRlPpoActorCriticRecurrentCfg(
+        fixed_sigma=False,
         init_noise_std=1.0,
         actor_hidden_dims=[256, 128, 64],
         critic_hidden_dims=[256, 128, 64],
