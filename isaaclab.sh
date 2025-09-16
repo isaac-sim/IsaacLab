@@ -102,37 +102,34 @@ is_arm() {
 }
 
 ensure_cuda_torch() {
-  local py="$1"
-  local -r TORCH_VER="2.7.0"
-  local -r TV_VER="0.22.0"
-  local -r CUDA_TAG="cu128"
-  local -r PYTORCH_INDEX="https://download.pytorch.org/whl/${CUDA_TAG}"
-  local torch_ver
+    local py="$1"
 
-  if "$py" -m pip show torch >/dev/null 2>&1; then
-    torch_ver="$("$py" -m pip show torch 2>/dev/null | awk -F': ' '/^Version/{print $2}')"
-    echo "[INFO] Found PyTorch version ${torch_ver}."
-    if [[ "$torch_ver" != "${TORCH_VER}+${CUDA_TAG}" ]]; then
-      echo "[INFO] Replacing PyTorch ${torch_ver} → ${TORCH_VER}+${CUDA_TAG}..."
-      "$py" -m pip uninstall -y torch torchvision torchaudio >/dev/null 2>&1 || true
-      if is_arm; then
-        echo "[INFO] Detected ARM architecture, using ARM-specific PyTorch installation..."
-        "$py" -m pip install --pre torch torchvision --index-url https://download.pytorch.org/whl/nightly/cu130
-      else
-        "$py" -m pip install "torch==${TORCH_VER}" "torchvision==${TV_VER}" --index-url "${PYTORCH_INDEX}"
-      fi
-    else
-      echo "[INFO] PyTorch ${TORCH_VER}+${CUDA_TAG} already installed."
+    # read installed torch version (e.g., "2.7.0+cu128"), empty if missing
+    local v=""
+    if "$py" -m pip show torch >/dev/null 2>&1; then
+        v="$("$py" -m pip show torch 2>/dev/null | awk -F': ' '/^Version/{print $2}')"
+        echo "[INFO] Found PyTorch version ${v}."
     fi
-  else
-    echo "[INFO] Installing PyTorch ${TORCH_VER}+${CUDA_TAG}..."
+
     if is_arm; then
-      echo "[INFO] Detected ARM architecture, using ARM-specific PyTorch installation..."
-      "$py" -m pip install --pre torch torchvision --index-url https://download.pytorch.org/whl/nightly/cu130
+        # ARM wants cu130 nightly
+        if [[ "$v" != *"+cu130" ]]; then
+            echo "[INFO] Installing PyTorch (nightly cu130, ARM)..."
+            "$py" -m pip uninstall -y torch torchvision torchaudio >/dev/null 2>&1 || true
+            "$py" -m pip install -U --pre --index-url https://download.pytorch.org/whl/nightly/cu130 torch torchvision
+        else
+            echo "[INFO] PyTorch already has +cu130."
+        fi
     else
-      "$py" -m pip install "torch==${TORCH_VER}" "torchvision==${TV_VER}" --index-url "${PYTORCH_INDEX}"
+        # x86_64 path: keep pinned stable versions on cu128
+        if [[ "$v" != "2.7.0+cu128" ]]; then
+            echo "[INFO] Installing PyTorch 2.7.0 + torchvision 0.22.0 (cu128)..."
+            "$py" -m pip uninstall -y torch torchvision torchaudio >/dev/null 2>&1 || true
+            "$py" -m pip install -U --index-url https://download.pytorch.org/whl/cu128 torch==2.7.0 torchvision==0.22.0
+        else
+            echo "[INFO] PyTorch 2.7.0+cu128 already installed."
+        fi
     fi
-  fi
 }
 
 # extract isaac sim path
