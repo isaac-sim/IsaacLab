@@ -56,7 +56,8 @@ class GearAssemblySceneCfg(InteractiveSceneCfg):
         prim_path="{ENV_REGEX_NS}/FactoryGearBase",
         # TODO: change to common isaac sim directory
         spawn=sim_utils.UsdFileCfg(
-            usd_path=os.path.join(ASSETS_DIR, "Factory/Gears_1.5x/factory_gear_base.usd"),
+            usd_path=f"omniverse://isaac-dev.ov.nvidia.com/Projects/isaac_ros_gear_insertion/Factory/Gears_1.5x/factory_gear_base.usd",
+            # usd_path=os.path.join(ASSETS_DIR, "Factory/Gears_1.5x/factory_gear_base.usd"),
             # usd_path=f"omniverse://isaac-dev.ov.nvidia.com/Users/ashwinvk@nvidia.com/props/factory_gear_base.usd",
             # usd_path=f"omniverse://isaac-dev.ov.nvidia.com/Projects/isaacsim/Props/gear_assembly/gear_base_scale_1.5_usd/gear_base_scale_1.5.usd",
             activate_contact_sensors=True,
@@ -85,7 +86,8 @@ class GearAssemblySceneCfg(InteractiveSceneCfg):
     #     prim_path="{ENV_REGEX_NS}/FactoryGearSmall",
     #     # TODO: change to common isaac sim directory
     #     spawn=sim_utils.UsdFileCfg(
-    #         usd_path=os.path.join(ASSETS_DIR, "Factory/Gears_1.5x/factory_gear_small.usd"),
+    #         usd_path=f"omniverse://isaac-dev.ov.nvidia.com/Projects/isaac_ros_gear_insertion/Factory/Gears_1.5x/factory_gear_small.usd",
+    #         # usd_path=os.path.join(ASSETS_DIR, "Factory/Gears_1.5x/factory_gear_small.usd"),
     #         # usd_path=f"omniverse://isaac-dev.ov.nvidia.com/Users/ashwinvk@nvidia.com/props/factory_gear_small.usd",
     #         # usd_path=f"omniverse://isaac-dev.ov.nvidia.com/Projects/isaacsim/Props/gear_assembly/small_gear_scale_1p5_usd/small_gear_scale_1p5.usd",
     #         activate_contact_sensors=True,
@@ -112,7 +114,8 @@ class GearAssemblySceneCfg(InteractiveSceneCfg):
         prim_path="{ENV_REGEX_NS}/FactoryGearMedium",
         # TODO: change to common isaac sim directory
         spawn=sim_utils.UsdFileCfg(
-            usd_path=os.path.join(ASSETS_DIR, "Factory/Gears_1.5x/factory_gear_medium.usd"),
+            usd_path=f"omniverse://isaac-dev.ov.nvidia.com/Projects/isaac_ros_gear_insertion/Factory/Gears_1.5x/factory_gear_medium.usd",
+            # usd_path=os.path.join(ASSETS_DIR, "Factory/Gears_1.5x/factory_gear_medium.usd"),
             # usd_path=f"omniverse://isaac-dev.ov.nvidia.com/Users/ashwinvk@nvidia.com/props/factory_gear_medium.usd",
             # usd_path=f"omniverse://isaac-dev.ov.nvidia.com/Projects/isaacsim/Props/gear_assembly/medium_gear_scale_1p5_usd/medium_gear_scale_1p5.usd",
             activate_contact_sensors=True,
@@ -139,7 +142,7 @@ class GearAssemblySceneCfg(InteractiveSceneCfg):
     #     prim_path="{ENV_REGEX_NS}/FactoryGearLarge",
     #     # TODO: change to common isaac sim directory
     #     spawn=sim_utils.UsdFileCfg(
-    #         usd_path=os.path.join(ASSETS_DIR, "Factory/Gears_1.5x/factory_gear_large.usd"),
+    #         usd_path=f"omniverse://isaac-dev.ov.nvidia.com/Projects/isaac_ros_gear_insertion/Factory/Gears_1.5x/factory_gear_large.usd",
     #         # usd_path=f"omniverse://isaac-dev.ov.nvidia.com/Users/ashwinvk@nvidia.com/props/factory_gear_large.usd",
     #         # usd_path=f"omniverse://isaac-dev.ov.nvidia.com/Projects/isaacsim/Props/gear_assembly/large_gear_scale_1p5_usd/large_gear_scale_1p5.usd",
     #         activate_contact_sensors=True,
