@@ -412,17 +412,17 @@
     "comment": "MIT"
   },
   {
-    "package": "numpy-quaternion",
+    "package": "aiohappyeyeballs",
+    "license": "Other/Proprietary License; Python Software Foundation License",
+    "comment": "PSFL / OSRB"
+  },
+  {
+    "package": "cffi",
     "license": "UNKNOWN",
     "comment": "MIT"
   },
   {
-    "package": "numpy-quaternion",
-    "license": "UNKNOWN",
-    "comment": "MIT"
-  },
-  {
-    "package": "numpy-quaternion",
+    "package": "trio",
     "license": "UNKNOWN",
     "comment": "MIT"
   }
