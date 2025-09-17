@@ -405,5 +405,25 @@
     "package": "fsspec",
     "license" : "UNKNOWN",
     "comment": "BSD"
+  },
+  {
+    "package": "numpy-quaternion",
+    "license": "UNKNOWN",
+    "comment": "MIT"
+  },
+  {
+    "package": "numpy-quaternion",
+    "license": "UNKNOWN",
+    "comment": "MIT"
+  },
+  {
+    "package": "numpy-quaternion",
+    "license": "UNKNOWN",
+    "comment": "MIT"
+  },
+  {
+    "package": "numpy-quaternion",
+    "license": "UNKNOWN",
+    "comment": "MIT"
   }
 ]
