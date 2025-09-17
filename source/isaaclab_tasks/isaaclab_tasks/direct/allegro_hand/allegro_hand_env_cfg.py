@@ -23,7 +23,7 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 @configclass
 class AllegroHandEnvCfg(DirectRLEnvCfg):
     # env
-    decimation = 4
+    decimation = 2
     episode_length_s = 10.0
     action_space = 16
     observation_space = 124  # (full)
@@ -33,26 +33,26 @@ class AllegroHandEnvCfg(DirectRLEnvCfg):
 
     solver_cfg = MJWarpSolverCfg(
         solver="newton",
-        integrator="euler",
-        njmax=200,
-        ncon_per_env=150,
+        integrator="implicit",
+        njmax=70,
+        ncon_per_env=70,
         impratio=10.0,
         cone="elliptic",
+        update_data_interval=2,
         iterations=100,
-        ls_iterations=30,
+        ls_iterations=15,
         ls_parallel=True,
-        default_actuator_gear=1.5,  #! tune this to increase or decrease the action strength
         # save_to_mjcf="AllegroHand.xml",
     )
 
     newton_cfg = NewtonCfg(
         solver_cfg=solver_cfg,
         num_substeps=2,  #! we might need more substeps for stability
-        debug_mode=False,
+        debug_mode=True,
     )
     # simulation
     sim: SimulationCfg = SimulationCfg(
-        dt=1 / 120,
+        dt=1 / 60,
         render_interval=decimation,
         physics_material=RigidBodyMaterialCfg(
             static_friction=1.0,
