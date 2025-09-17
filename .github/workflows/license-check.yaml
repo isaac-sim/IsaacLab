@@ -37,7 +37,7 @@ jobs:
       run: |
         # first install isaac sim
         pip install --upgrade pip
-        pip install 'isaacsim[all,extscache]==4.5.0' --extra-index-url https://pypi.nvidia.com
+        pip install 'isaacsim[all,extscache]==${{ vars.ISAACSIM_BASE_VERSION || '5.0.0' }}' --extra-index-url https://pypi.nvidia.com
         chmod +x ./isaaclab.sh  # Make sure the script is executable
         # install all lab dependencies
         ./isaaclab.sh -i
