@@ -87,6 +87,15 @@ source_suffix = {
 # TODO: Enable this by default once we have fixed all the warnings
 # nitpicky = True
 
+nitpick_ignore = [
+    ("py:obj", "slice(None)"),
+]
+
+nitpick_ignore_regex = [
+    (r"py:.*", r"pxr.*"),  # we don't have intersphinx mapping for pxr
+    (r"py:.*", r"trimesh.*"),  # we don't have intersphinx mapping for trimesh
+]
+
 # put type hints inside the signature instead of the description (easier to maintain)
 autodoc_typehints = "signature"
 # autodoc_typehints_format = "fully-qualified"
@@ -112,10 +121,12 @@ autodoc_default_options = {
 intersphinx_mapping = {
     "python": ("https://docs.python.org/3", None),
     "numpy": ("https://numpy.org/doc/stable/", None),
-    "torch": ("https://pytorch.org/docs/stable/", None),
-    "isaac": ("https://docs.omniverse.nvidia.com/py/isaacsim", None),
+    "trimesh": ("https://trimesh.org/", None),
+    "torch": ("https://docs.pytorch.org/docs/stable", None),
+    "isaacsim": ("https://docs.isaacsim.omniverse.nvidia.com/5.0.0/py/", None),
     "gymnasium": ("https://gymnasium.farama.org/", None),
     "warp": ("https://nvidia.github.io/warp/", None),
+    "dev-guide": ("https://docs.omniverse.nvidia.com/dev-guide/latest", None),
 }
 
 # Add any paths that contain templates here, relative to this directory.
@@ -147,17 +158,11 @@ autodoc_mock_imports = [
     "pxr.PhysxSchema",
     "pxr.PhysicsSchemaTools",
     "omni.replicator",
-    "omni.isaac.core",
-    "omni.isaac.kit",
-    "omni.isaac.cloner",
-    "omni.isaac.urdf",
-    "omni.isaac.version",
-    "omni.isaac.motion_generation",
-    "omni.isaac.ui",
     "isaacsim",
     "isaacsim.core.api",
     "isaacsim.core.cloner",
     "isaacsim.core.version",
+    "isaacsim.core.utils",
     "isaacsim.robot_motion.motion_generation",
     "isaacsim.gui.components",
     "isaacsim.asset.importer.urdf",
@@ -255,7 +260,7 @@ html_theme_options = {
         {
             "name": "Isaac Sim",
             "url": "https://developer.nvidia.com/isaac-sim",
-            "icon": "https://img.shields.io/badge/IsaacSim-4.5.0-silver.svg",
+            "icon": "https://img.shields.io/badge/IsaacSim-5.0.0-silver.svg",
             "type": "url",
         },
         {

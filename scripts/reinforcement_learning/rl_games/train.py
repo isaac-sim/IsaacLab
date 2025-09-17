@@ -20,6 +20,9 @@ parser.add_argument("--video_length", type=int, default=200, help="Length of the
 parser.add_argument("--video_interval", type=int, default=2000, help="Interval between video recordings (in steps).")
 parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
+parser.add_argument(
+    "--agent", type=str, default="rl_games_cfg_entry_point", help="Name of the RL agent configuration entry point."
+)
 parser.add_argument("--seed", type=int, default=None, help="Seed used for the environment")
 parser.add_argument(
     "--distributed", action="store_true", default=False, help="Run training with multiple GPUs or nodes."
@@ -38,6 +41,7 @@ parser.add_argument(
     const=True,
     help="if toggled, this experiment will be tracked with Weights and Biases",
 )
+parser.add_argument("--export_io_descriptors", action="store_true", default=False, help="Export IO descriptors.")
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
@@ -61,6 +65,7 @@ import os
 import random
 from datetime import datetime
 
+import omni
 from rl_games.common import env_configurations, vecenv
 from rl_games.common.algo_observer import IsaacAlgoObserver
 from rl_games.torch_runner import Runner
@@ -76,7 +81,7 @@ from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.dict import print_dict
 from isaaclab.utils.io import dump_pickle, dump_yaml
 
-from isaaclab_rl.rl_games import RlGamesGpuEnv, RlGamesVecEnvWrapper
+from isaaclab_rl.rl_games import MultiObserver, PbtAlgoObserver, RlGamesGpuEnv, RlGamesVecEnvWrapper
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.hydra import hydra_task_config
@@ -84,7 +89,7 @@ from isaaclab_tasks.utils.hydra import hydra_task_config
 # PLACEHOLDER: Extension template (do not remove this comment)
 
 
-@hydra_task_config(args_cli.task, "rl_games_cfg_entry_point")
+@hydra_task_config(args_cli.task, args_cli.agent)
 def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agent_cfg: dict):
     """Train with RL-Games agent."""
     # override configurations with non-hydra CLI arguments
@@ -122,7 +127,12 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     # specify directory for logging experiments
     config_name = agent_cfg["params"]["config"]["name"]
     log_root_path = os.path.join("logs", "rl_games", config_name)
-    log_root_path = os.path.abspath(log_root_path)
+    if "pbt" in agent_cfg:
+        if agent_cfg["pbt"]["directory"] == ".":
+            log_root_path = os.path.abspath(log_root_path)
+        else:
+            log_root_path = os.path.join(agent_cfg["pbt"]["directory"], log_root_path)
+
     print(f"[INFO] Logging experiment in directory: {log_root_path}")
     # specify directory for logging runs
     log_dir = agent_cfg["params"]["config"].get("full_experiment_name", datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
@@ -143,6 +153,19 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     rl_device = agent_cfg["params"]["config"]["device"]
     clip_obs = agent_cfg["params"]["env"].get("clip_observations", math.inf)
     clip_actions = agent_cfg["params"]["env"].get("clip_actions", math.inf)
+    obs_groups = agent_cfg["params"]["env"].get("obs_groups")
+    concate_obs_groups = agent_cfg["params"]["env"].get("concate_obs_groups", True)
+
+    # set the IO descriptors export flag if requested
+    if isinstance(env_cfg, ManagerBasedRLEnvCfg):
+        env_cfg.export_io_descriptors = args_cli.export_io_descriptors
+    else:
+        omni.log.warn(
+            "IO descriptors are only supported for manager based RL environments. No IO descriptors will be exported."
+        )
+
+    # set the log directory for the environment (works for all environment types)
+    env_cfg.log_dir = log_dir
 
     # create isaac environment
     env = gym.make(args_cli.task, cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None)
@@ -164,7 +187,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         env = gym.wrappers.RecordVideo(env, **video_kwargs)
 
     # wrap around environment for rl-games
-    env = RlGamesVecEnvWrapper(env, rl_device, clip_obs, clip_actions)
+    env = RlGamesVecEnvWrapper(env, rl_device, clip_obs, clip_actions, obs_groups, concate_obs_groups)
 
     # register the environment to rl-games registry
     # note: in agents configuration: environment name must be "rlgpu"
@@ -176,7 +199,13 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     # set number of actors into agent config
     agent_cfg["params"]["config"]["num_actors"] = env.unwrapped.num_envs
     # create runner from rl-games
-    runner = Runner(IsaacAlgoObserver())
+
+    if "pbt" in agent_cfg and agent_cfg["pbt"]["enabled"]:
+        observers = MultiObserver([IsaacAlgoObserver(), PbtAlgoObserver(agent_cfg, args_cli)])
+        runner = Runner(observers)
+    else:
+        runner = Runner(IsaacAlgoObserver())
+
     runner.load(agent_cfg)
 
     # reset the agent and env

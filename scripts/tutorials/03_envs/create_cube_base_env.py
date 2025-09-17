@@ -314,7 +314,8 @@ def main():
     """Main function."""
 
     # setup base environment
-    env = ManagerBasedEnv(cfg=CubeEnvCfg())
+    env_cfg = CubeEnvCfg()
+    env = ManagerBasedEnv(cfg=env_cfg)
 
     # setup target position commands
     target_position = torch.rand(env.num_envs, 3, device=env.device) * 2

@@ -3,22 +3,20 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 import tempfile
 import torch
 
-from pink.tasks import FrameTask
+import carb
+from pink.tasks import DampingTask, FrameTask
 
 import isaaclab.controllers.utils as ControllerUtils
 import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
-from isaaclab.controllers.pink_ik_cfg import PinkIKControllerCfg
-from isaaclab.devices.openxr import XrCfg
+from isaaclab.controllers.pink_ik import NullSpacePostureTask, PinkIKControllerCfg
+from isaaclab.devices.device_base import DevicesCfg
+from isaaclab.devices.openxr import ManusViveCfg, OpenXRDeviceCfg, XrCfg
+from isaaclab.devices.openxr.retargeters.humanoid.fourier.gr1t2_retargeter import GR1T2RetargeterCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.envs.mdp.actions.pink_actions_cfg import PinkInverseKinematicsActionCfg
 from isaaclab.managers import EventTermCfg as EventTerm
@@ -29,11 +27,11 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
 from isaaclab.utils import configclass
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 
 from . import mdp
 
-from isaaclab_assets.robots.fourier import GR1T2_CFG  # isort: skip
+from isaaclab_assets.robots.fourier import GR1T2_HIGH_PD_CFG  # isort: skip
 
 
 ##
@@ -52,29 +50,18 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
         ),
     )
 
-    # Object
     object = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/Object",
-        init_state=RigidObjectCfg.InitialStateCfg(pos=[-0.35, 0.40, 1.0413], rot=[1, 0, 0, 0]),
-        spawn=sim_utils.CylinderCfg(
-            radius=0.018,
-            height=0.35,
+        init_state=RigidObjectCfg.InitialStateCfg(pos=[-0.45, 0.45, 0.9996], rot=[1, 0, 0, 0]),
+        spawn=UsdFileCfg(
+            usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Mimic/pick_place_task/pick_place_assets/steering_wheel.usd",
+            scale=(0.75, 0.75, 0.75),
             rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(mass=0.3),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.15, 0.15, 0.15), metallic=1.0),
-            physics_material=sim_utils.RigidBodyMaterialCfg(
-                friction_combine_mode="max",
-                restitution_combine_mode="min",
-                static_friction=0.9,
-                dynamic_friction=0.9,
-                restitution=0.0,
-            ),
         ),
     )
 
-    # Humanoid robot w/ arms higher
-    robot: ArticulationCfg = GR1T2_CFG.replace(
+    # Humanoid robot configured for pick-place manipulation tasks
+    robot: ArticulationCfg = GR1T2_HIGH_PD_CFG.replace(
         prim_path="/World/envs/env_.*/Robot",
         init_state=ArticulationCfg.InitialStateCfg(
             pos=(0, 0, 0.93),
@@ -213,6 +200,10 @@ class ActionsCfg:
             "L_thumb_distal_joint",
             "R_thumb_distal_joint",
         ],
+        target_eef_link_names={
+            "left_wrist": "left_hand_pitch_link",
+            "right_wrist": "right_hand_pitch_link",
+        },
         # the robot in the sim scene we are controlling
         asset_name="robot",
         # Configuration for the IK controller
@@ -223,30 +214,49 @@ class ActionsCfg:
             base_link_name="base_link",
             num_hand_joints=22,
             show_ik_warnings=False,
+            fail_on_joint_limit_violation=False,  # Determines whether to pink solver will fail due to a joint limit violation
             variable_input_tasks=[
                 FrameTask(
                     "GR1T2_fourier_hand_6dof_left_hand_pitch_link",
-                    position_cost=1.0,  # [cost] / [m]
+                    position_cost=8.0,  # [cost] / [m]
                     orientation_cost=1.0,  # [cost] / [rad]
                     lm_damping=10,  # dampening for solver for step jumps
-                    gain=0.1,
+                    gain=0.5,
                 ),
                 FrameTask(
                     "GR1T2_fourier_hand_6dof_right_hand_pitch_link",
-                    position_cost=1.0,  # [cost] / [m]
+                    position_cost=8.0,  # [cost] / [m]
                     orientation_cost=1.0,  # [cost] / [rad]
                     lm_damping=10,  # dampening for solver for step jumps
-                    gain=0.1,
+                    gain=0.5,
+                ),
+                DampingTask(
+                    cost=0.5,  # [cost] * [s] / [rad]
+                ),
+                NullSpacePostureTask(
+                    cost=0.5,
+                    lm_damping=1,
+                    controlled_frames=[
+                        "GR1T2_fourier_hand_6dof_left_hand_pitch_link",
+                        "GR1T2_fourier_hand_6dof_right_hand_pitch_link",
+                    ],
+                    controlled_joints=[
+                        "left_shoulder_pitch_joint",
+                        "left_shoulder_roll_joint",
+                        "left_shoulder_yaw_joint",
+                        "left_elbow_pitch_joint",
+                        "right_shoulder_pitch_joint",
+                        "right_shoulder_roll_joint",
+                        "right_shoulder_yaw_joint",
+                        "right_elbow_pitch_joint",
+                        "waist_yaw_joint",
+                        "waist_pitch_joint",
+                        "waist_roll_joint",
+                    ],
                 ),
             ],
-            fixed_input_tasks=[
-                # COMMENT OUT IF LOCKING WAIST/HEAD
-                # FrameTask(
-                #     "GR1T2_fourier_hand_6dof_head_yaw_link",
-                #     position_cost=1.0,  # [cost] / [m]
-                #     orientation_cost=0.05,  # [cost] / [rad]
-                # ),
-            ],
+            fixed_input_tasks=[],
+            xr_enabled=bool(carb.settings.get_settings().get("/app/xr/enabled")),
         ),
     )
 
@@ -298,7 +308,7 @@ class TerminationsCfg:
         func=mdp.root_height_below_minimum, params={"minimum_height": 0.5, "asset_cfg": SceneEntityCfg("object")}
     )
 
-    success = DoneTerm(func=mdp.task_done)
+    success = DoneTerm(func=mdp.task_done_pick_place)
 
 
 @configclass
@@ -312,8 +322,8 @@ class EventCfg:
         mode="reset",
         params={
             "pose_range": {
-                "x": [-0.05, 0.0],
-                "y": [0.0, 0.05],
+                "x": [-0.01, 0.01],
+                "y": [-0.01, 0.01],
             },
             "velocity_range": {},
             "asset_cfg": SceneEntityCfg("object"),
@@ -344,6 +354,9 @@ class PickPlaceGR1T2EnvCfg(ManagerBasedRLEnvCfg):
         anchor_pos=(0.0, 0.0, 0.0),
         anchor_rot=(1.0, 0.0, 0.0, 0.0),
     )
+
+    # OpenXR hand tracking has 26 joints per hand
+    NUM_OPENXR_HAND_JOINTS = 26
 
     # Temporary directory for URDF files
     temp_urdf_dir = tempfile.gettempdir()
@@ -393,10 +406,10 @@ class PickPlaceGR1T2EnvCfg(ManagerBasedRLEnvCfg):
     def __post_init__(self):
         """Post initialization."""
         # general settings
-        self.decimation = 5
+        self.decimation = 6
         self.episode_length_s = 20.0
         # simulation settings
-        self.sim.dt = 1 / 60  # 100Hz
+        self.sim.dt = 1 / 120  # 120Hz
         self.sim.render_interval = 2
 
         # Convert USD to URDF and change revolute joints to fixed
@@ -410,3 +423,33 @@ class PickPlaceGR1T2EnvCfg(ManagerBasedRLEnvCfg):
         # Set the URDF and mesh paths for the IK controller
         self.actions.pink_ik_cfg.controller.urdf_path = temp_urdf_output_path
         self.actions.pink_ik_cfg.controller.mesh_path = temp_urdf_meshes_output_path
+
+        self.teleop_devices = DevicesCfg(
+            devices={
+                "handtracking": OpenXRDeviceCfg(
+                    retargeters=[
+                        GR1T2RetargeterCfg(
+                            enable_visualization=True,
+                            # number of joints in both hands
+                            num_open_xr_hand_joints=2 * self.NUM_OPENXR_HAND_JOINTS,
+                            sim_device=self.sim.device,
+                            hand_joint_names=self.actions.pink_ik_cfg.hand_joint_names,
+                        ),
+                    ],
+                    sim_device=self.sim.device,
+                    xr_cfg=self.xr,
+                ),
+                "manusvive": ManusViveCfg(
+                    retargeters=[
+                        GR1T2RetargeterCfg(
+                            enable_visualization=True,
+                            num_open_xr_hand_joints=2 * 26,
+                            sim_device=self.sim.device,
+                            hand_joint_names=self.actions.pink_ik_cfg.hand_joint_names,
+                        ),
+                    ],
+                    sim_device=self.sim.device,
+                    xr_cfg=self.xr,
+                ),
+            }
+        )

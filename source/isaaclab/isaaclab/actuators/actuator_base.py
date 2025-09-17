@@ -86,7 +86,13 @@ class ActuatorBase(ABC):
     """The armature of the actuator joints. Shape is (num_envs, num_joints)."""
 
     friction: torch.Tensor
-    """The joint friction of the actuator joints. Shape is (num_envs, num_joints)."""
+    """The joint static friction of the actuator joints. Shape is (num_envs, num_joints)."""
+
+    dynamic_friction: torch.Tensor
+    """The joint dynamic friction of the actuator joints. Shape is (num_envs, num_joints)."""
+
+    viscous_friction: torch.Tensor
+    """The joint viscous friction of the actuator joints. Shape is (num_envs, num_joints)."""
 
     _DEFAULT_MAX_EFFORT_SIM: ClassVar[float] = 1.0e9
     """The default maximum effort for the actuator joints in the simulation. Defaults to 1.0e9.
@@ -106,6 +112,8 @@ class ActuatorBase(ABC):
         damping: torch.Tensor | float = 0.0,
         armature: torch.Tensor | float = 0.0,
         friction: torch.Tensor | float = 0.0,
+        dynamic_friction: torch.Tensor | float = 0.0,
+        viscous_friction: torch.Tensor | float = 0.0,
         effort_limit: torch.Tensor | float = torch.inf,
         velocity_limit: torch.Tensor | float = torch.inf,
     ):
@@ -131,7 +139,11 @@ class ActuatorBase(ABC):
                 If a tensor, then the shape is (num_envs, num_joints).
             armature: The default joint armature. Defaults to 0.0.
                 If a tensor, then the shape is (num_envs, num_joints).
-            friction: The default joint friction. Defaults to 0.0.
+            friction: The default joint static friction. Defaults to 0.0.
+                If a tensor, then the shape is (num_envs, num_joints).
+            dynamic_friction: The default joint dynamic friction. Defaults to 0.0.
+                If a tensor, then the shape is (num_envs, num_joints).
+            viscous_friction: The default joint viscous friction. Defaults to 0.0.
                 If a tensor, then the shape is (num_envs, num_joints).
             effort_limit: The default effort limit. Defaults to infinity.
                 If a tensor, then the shape is (num_envs, num_joints).
@@ -162,6 +174,8 @@ class ActuatorBase(ABC):
             ("damping", damping),
             ("armature", armature),
             ("friction", friction),
+            ("dynamic_friction", dynamic_friction),
+            ("viscous_friction", viscous_friction),
         ]
         for param_name, usd_val in to_check:
             cfg_val = getattr(self.cfg, param_name)
