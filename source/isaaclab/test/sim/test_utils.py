@@ -55,7 +55,9 @@ def test_get_all_matching_child_prims():
     # note: isaac sim function does not support instanced prims so we add it here
     #  after the above test for the above test to still pass.
     prim_utils.create_prim(
-        "/World/Franka", "Xform", usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd"
+        "/World/Franka",
+        "Xform",
+        usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/FrankaRobotics/FrankaEmika/panda_instanceable.usd",
     )
 
     # test with predicate
@@ -80,13 +82,19 @@ def test_get_first_matching_child_prim():
     # create scene
     prim_utils.create_prim("/World/Floor")
     prim_utils.create_prim(
-        "/World/env_1/Franka", "Xform", usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd"
+        "/World/env_1/Franka",
+        "Xform",
+        usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/FrankaRobotics/FrankaEmika/panda_instanceable.usd",
     )
     prim_utils.create_prim(
-        "/World/env_2/Franka", "Xform", usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd"
+        "/World/env_2/Franka",
+        "Xform",
+        usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/FrankaRobotics/FrankaEmika/panda_instanceable.usd",
     )
     prim_utils.create_prim(
-        "/World/env_0/Franka", "Xform", usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd"
+        "/World/env_0/Franka",
+        "Xform",
+        usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/FrankaRobotics/FrankaEmika/panda_instanceable.usd",
     )
 
     # test
