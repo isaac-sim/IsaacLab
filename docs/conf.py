@@ -96,6 +96,8 @@ nitpick_ignore_regex = [
     (r"py:.*", r"trimesh.*"),  # we don't have intersphinx mapping for trimesh
 ]
 
+# emoji style
+sphinxemoji_style = "twemoji"  # options: "twemoji" or "unicode"
 # put type hints inside the signature instead of the description (easier to maintain)
 autodoc_typehints = "signature"
 # autodoc_typehints_format = "fully-qualified"

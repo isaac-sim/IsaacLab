@@ -1,52 +1,67 @@
-.. _isaaclab-binaries-installation:
+.. _isaaclab-source-installation:
 
-Installation using Isaac Sim Binaries
-=====================================
+Installation using Isaac Sim Source
+===================================
 
-Isaac Lab requires Isaac Sim. This tutorial installs Isaac Sim first from its binaries, then Isaac Lab from source code.
+Isaac Lab requires Isaac Sim. This tutorial first installs Isaac Sim from source, then Isaac Lab from source code.
+
+.. note::
+
+   This is a more advanced installation method and is not recommended for most users. Only follow this method
+   if you wish to modify the source code of Isaac Sim as well.
 
 Installing Isaac Sim
 --------------------
 
-Downloading pre-built binaries
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+From Isaac Sim 5.0 release, it is possible to build Isaac Sim from its source code.
+This approach is meant for users who wish to modify the source code of Isaac Sim as well,
+or want to test Isaac Lab with the nightly version of Isaac Sim.
 
-Please follow the Isaac Sim
-`documentation <https://docs.isaacsim.omniverse.nvidia.com/latest/installation/install_workstation.html>`__
-to install the latest Isaac Sim release.
+The following instructions are adapted from the `Isaac Sim documentation <https://github.com/isaac-sim/IsaacSim?tab=readme-ov-file#quick-start>`_
+for the convenience of users.
 
-From Isaac Sim 4.5 release, Isaac Sim binaries can be `downloaded <https://docs.isaacsim.omniverse.nvidia.com/latest/installation/download.html#download-isaac-sim-short>`_
-directly as a zip file.
+.. attention::
 
-To check the minimum system requirements, refer to the documentation
-`here <https://docs.isaacsim.omniverse.nvidia.com/latest/installation/requirements.html>`__.
+   Building Isaac Sim from source requires Ubuntu 22.04 LTS or higher.
 
-.. tab-set::
-   :sync-group: os
+.. attention::
 
-   .. tab-item:: :icon:`fa-brands fa-linux` Linux
-      :sync: linux
+   For details on driver requirements, please see the `Technical Requirements <https://docs.omniverse.nvidia.com/materials-and-rendering/latest/common/technical-requirements.html>`_ guide!
 
-      .. note::
+   On Windows, it may be necessary to `enable long path support <https://learn.microsoft.com/en-us/windows/win32/fileio/maximum-file-path-limitation?tabs=registry#enable-long-paths-in-windows-10-version-1607-and-later>`_ to avoid installation errors due to OS limitations.
 
-         For details on driver requirements, please see the `Technical Requirements <https://docs.omniverse.nvidia.com/materials-and-rendering/latest/common/technical-requirements.html>`_ guide!
 
-      On Linux systems, Isaac Sim directory will be named ``${HOME}/isaacsim``.
+- Clone the Isaac Sim repository into your workspace:
 
-   .. tab-item:: :icon:`fa-brands fa-windows` Windows
-      :sync: windows
+  .. code:: bash
 
-      .. note::
+     git clone https://github.com/isaac-sim/IsaacSim.git
 
-         For details on driver requirements, please see the `Technical Requirements <https://docs.omniverse.nvidia.com/materials-and-rendering/latest/common/technical-requirements.html>`_ guide!
+- Build Isaac Sim from source:
 
-         From Isaac Sim 4.5 release, Isaac Sim binaries can be downloaded directly as a zip file.
-         The below steps assume the Isaac Sim folder was unzipped to the ``C:/isaacsim`` directory.
+  .. tab-set::
+     :sync-group: os
 
-      On Windows systems, Isaac Sim directory will be named ``C:/isaacsim``.
+     .. tab-item:: :icon:`fa-brands fa-linux` Linux
+        :sync: linux
+
+        .. code:: bash
+
+           cd IsaacSim
+           ./build.sh
+
+     .. tab-item:: :icon:`fa-brands fa-windows` Windows
+        :sync: windows
+
+        .. code:: bash
+
+           cd IsaacSim
+           build.bat
+
 
 Verifying the Isaac Sim installation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 
 To avoid the overhead of finding and locating the Isaac Sim installation
 directory every time, we recommend exporting the following environment
@@ -61,7 +76,7 @@ variables to your terminal for the remaining of the installation instructions:
       .. code:: bash
 
          # Isaac Sim root directory
-         export ISAACSIM_PATH="${HOME}/isaacsim"
+         export ISAACSIM_PATH="${pwd}/_build/linux-x86_64/release"
          # Isaac Sim python executable
          export ISAACSIM_PYTHON_EXE="${ISAACSIM_PATH}/python.sh"
 
@@ -71,14 +86,9 @@ variables to your terminal for the remaining of the installation instructions:
       .. code:: batch
 
          :: Isaac Sim root directory
-         set ISAACSIM_PATH="C:/isaacsim"
+         set ISAACSIM_PATH="%cd%\_build\windows-x86_64\release"
          :: Isaac Sim python executable
          set ISAACSIM_PYTHON_EXE="%ISAACSIM_PATH:"=%\python.bat"
-
-
-For more information on common paths, please check the Isaac Sim
-`documentation <https://docs.isaacsim.omniverse.nvidia.com/latest/installation/install_faq.html#common-path-locations>`__.
-
 
 -  Check that the simulator runs as expected:
 
@@ -92,6 +102,7 @@ For more information on common paths, please check the Isaac Sim
 
             # note: you can pass the argument "--help" to see all arguments possible.
             ${ISAACSIM_PATH}/isaac-sim.sh
+
 
       .. tab-item:: :icon:`fa-brands fa-windows` Windows
          :sync: windows
@@ -126,7 +137,6 @@ For more information on common paths, please check the Isaac Sim
             %ISAACSIM_PYTHON_EXE% -c "print('Isaac Sim configuration is now complete.')"
             :: checks that Isaac Sim can be launched from python
             %ISAACSIM_PYTHON_EXE% %ISAACSIM_PATH%\standalone_examples\api\isaacsim.core.api\add_cubes.py
-
 
 .. caution::
 
@@ -169,7 +179,9 @@ Cloning Isaac Lab
    make a fork, please replace ``isaac-sim`` with your username
    in the following instructions.
 
-Clone the Isaac Lab repository into your workspace:
+Clone the Isaac Lab repository into your **workspace**. Please note that the location of the Isaac Lab repository
+should be outside of the Isaac Sim repository. For example, if you cloned Isaac Sim into ``~/IsaacSim``,
+then you should clone Isaac Lab into ``~/IsaacLab``.
 
 .. tab-set::
 
@@ -204,7 +216,7 @@ Clone the Isaac Lab repository into your workspace:
 
             optional arguments:
                -h, --help           Display the help content.
-               -i, --install [LIB]  Install the extensions inside Isaac Lab and learning frameworks (rl-games, rsl-rl, sb3, skrl) as extra dependencies. Default is 'all'.
+               -i, --install [LIB]  Install the extensions inside Isaac Lab and learning frameworks (rl_games, rsl_rl, sb3, skrl) as extra dependencies. Default is 'all'.
                -f, --format         Run pre-commit to format the code and check lints.
                -p, --python         Run the python executable provided by Isaac Sim or virtual environment (if active).
                -s, --sim            Run the simulator executable (isaac-sim.sh) provided by Isaac Sim.
@@ -214,6 +226,7 @@ Clone the Isaac Lab repository into your workspace:
                -d, --docs           Build the documentation from source using sphinx.
                -n, --new            Create a new external project or internal task from template.
                -c, --conda [NAME]   Create the conda environment for Isaac Lab. Default name is 'env_isaaclab'.
+               -u, --uv [NAME]      Create the uv environment for Isaac Lab. Default name is 'env_isaaclab'.
 
       .. tab-item:: :icon:`fa-brands fa-windows` Windows
          :sync: windows
@@ -226,7 +239,7 @@ Clone the Isaac Lab repository into your workspace:
 
             optional arguments:
                -h, --help           Display the help content.
-               -i, --install [LIB]  Install the extensions inside Isaac Lab and learning frameworks (rl-games, rsl-rl, sb3, skrl) as extra dependencies. Default is 'all'.
+               -i, --install [LIB]  Install the extensions inside Isaac Lab and learning frameworks (rl_games, rsl_rl, sb3, skrl) as extra dependencies. Default is 'all'.
                -f, --format         Run pre-commit to format the code and check lints.
                -p, --python         Run the python executable provided by Isaac Sim or virtual environment (if active).
                -s, --sim            Run the simulator executable (isaac-sim.bat) provided by Isaac Sim.
@@ -235,6 +248,7 @@ Clone the Isaac Lab repository into your workspace:
                -d, --docs           Build the documentation from source using sphinx.
                -n, --new            Create a new external project or internal task from template.
                -c, --conda [NAME]   Create the conda environment for Isaac Lab. Default name is 'env_isaaclab'.
+               -u, --uv [NAME]      Create the uv environment for Isaac Lab. Default name is 'env_isaaclab'.
 
 
 Creating the Isaac Sim Symbolic Link
@@ -255,8 +269,7 @@ to index the python modules and look for extensions shipped with Isaac Sim.
          # enter the cloned repository
          cd IsaacLab
          # create a symbolic link
-         ln -s path_to_isaac_sim _isaac_sim
-         # For example: ln -s ${HOME}/isaacsim _isaac_sim
+         ln -s ${ISAACSIM_PATH} _isaac_sim
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
@@ -266,8 +279,59 @@ to index the python modules and look for extensions shipped with Isaac Sim.
          :: enter the cloned repository
          cd IsaacLab
          :: create a symbolic link - requires launching Command Prompt with Administrator access
-         mklink /D _isaac_sim path_to_isaac_sim
-         :: For example: mklink /D _isaac_sim C:/isaacsim
+         mklink /D _isaac_sim ${ISAACSIM_PATH}
+
+
+Setting up the uv environment (optional)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. attention::
+   This step is optional. If you are using the bundled python with Isaac Sim, you can skip this step.
+
+The executable ``isaaclab.sh`` automatically fetches the python bundled with Isaac
+Sim, using ``./isaaclab.sh -p`` command (unless inside a virtual environment). This executable
+behaves like a python executable, and can be used to run any python script or
+module with the simulator. For more information, please refer to the
+`documentation <https://docs.isaacsim.omniverse.nvidia.com/latest/python_scripting/manual_standalone_python.html>`__.
+
+To install ``uv``, please follow the instructions `here <https://docs.astral.sh/uv/getting-started/installation/>`__.
+You can create the Isaac Lab environment using the following commands.
+
+.. tab-set::
+   :sync-group: os
+
+   .. tab-item:: :icon:`fa-brands fa-linux` Linux
+      :sync: linux
+
+      .. code:: bash
+
+         # Option 1: Default name for uv environment is 'env_isaaclab'
+         ./isaaclab.sh --uv  # or "./isaaclab.sh -u"
+         # Option 2: Custom name for uv environment
+         ./isaaclab.sh --uv my_env  # or "./isaaclab.sh -u my_env"
+
+   .. tab-item:: :icon:`fa-brands fa-windows` Windows
+      :sync: windows
+
+      .. code:: batch
+
+         :: Option 1: Default name for uv environment is 'env_isaaclab'
+         isaaclab.bat --uv  :: or "isaaclab.bat -u"
+         :: Option 2: Custom name for uv environment
+         isaaclab.bat --uv my_env  :: or "isaaclab.bat -u my_env"
+
+
+Once created, be sure to activate the environment before proceeding!
+
+.. code:: bash
+
+   source ./env_isaaclab/bin/activate  # or "source ./my_env/bin/activate"
+
+Once you are in the virtual environment, you do not need to use ``./isaaclab.sh -p`` / ``isaaclab.bat -p``
+to run python scripts. You can use the default python executable in your environment
+by running ``python`` or ``python3``. However, for the rest of the documentation,
+we will assume that you are using ``./isaaclab.sh -p`` / ``isaaclab.bat -p`` to run python scripts. This command
+is equivalent to running ``python`` or ``python3`` in your virtual environment.
 
 
 Setting up the conda environment (optional)
@@ -325,15 +389,13 @@ by running ``python`` or ``python3``. However, for the rest of the documentation
 we will assume that you are using ``./isaaclab.sh -p`` / ``isaaclab.bat -p`` to run python scripts. This command
 is equivalent to running ``python`` or ``python3`` in your virtual environment.
 
-
 Installation
 ~~~~~~~~~~~~
 
--  Install dependencies using ``apt`` (on Linux only):
+-  Install dependencies using ``apt`` (on Ubuntu):
 
    .. code:: bash
 
-      # these dependency are needed by robomimic which is not available on Windows
       sudo apt install cmake build-essential
 
 - Run the install command that iterates over all the extensions in ``source`` directory and installs them
@@ -352,13 +414,13 @@ Installation
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
 
-      .. code:: batch
+      .. code:: bash
 
          isaaclab.bat --install :: or "isaaclab.bat -i"
 
 .. note::
 
-   By default, the above will install all the learning frameworks. If you want to install only a specific framework, you can
+   By default, this will install all the learning frameworks. If you want to install only a specific framework, you can
    pass the name of the framework as an argument. For example, to install only the ``rl_games`` framework, you can run
 
    .. tab-set::
@@ -374,7 +436,7 @@ Installation
       .. tab-item:: :icon:`fa-brands fa-windows` Windows
          :sync: windows
 
-         .. code:: batch
+         .. code:: bash
 
             isaaclab.bat --install rl_games :: or "isaaclab.bat -i rl_games"
 
@@ -416,9 +478,10 @@ top of the repository:
 
 
 The above command should launch the simulator and display a window with a black
-viewport. You can exit the script by pressing ``Ctrl+C`` on your terminal.
+viewport as shown below. You can exit the script by pressing ``Ctrl+C`` on your terminal.
 On Windows machines, please terminate the process from Command Prompt using
 ``Ctrl+Break`` or ``Ctrl+fn+B``.
+
 
 .. figure:: ../../_static/setup/verify_install.jpg
     :align: center
@@ -427,10 +490,6 @@ On Windows machines, please terminate the process from Command Prompt using
 
 
 If you see this, then the installation was successful! |:tada:|
-
-If you see an error ``ModuleNotFoundError: No module named 'isaacsim'``, ensure that the conda environment is activated
-and ``source _isaac_sim/setup_conda_env.sh`` has been executed.
-
 
 Train a robot!
 ~~~~~~~~~~~~~~
