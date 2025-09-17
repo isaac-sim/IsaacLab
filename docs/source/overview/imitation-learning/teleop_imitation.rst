@@ -140,7 +140,7 @@ Pre-recorded demonstrations
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 We provide a pre-recorded ``dataset.hdf5`` containing 10 human demonstrations for ``Isaac-Stack-Cube-Franka-IK-Rel-v0``
-`here <https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.0/Isaac/IsaacLab/Mimic/franka_stack_datasets/dataset.hdf5>`__.
+here: `[Franka Dataset] <https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.0/Isaac/IsaacLab/Mimic/franka_stack_datasets/dataset.hdf5>`__.
 This dataset may be downloaded and used in the remaining tutorial steps if you do not wish to collect your own demonstrations.
 
 .. note::
@@ -451,7 +451,7 @@ Generate the dataset
 ^^^^^^^^^^^^^^^^^^^^
 
 If you skipped the prior collection and annotation step, download the pre-recorded annotated dataset ``dataset_annotated_gr1.hdf5`` from
-`here <https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.0/Isaac/IsaacLab/Mimic/pick_place_datasets/dataset_annotated_gr1.hdf5>`__.
+here: `[Annotated GR1 Dataset] <https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.0/Isaac/IsaacLab/Mimic/pick_place_datasets/dataset_annotated_gr1_v01.hdf5>`_.
 Place the file under ``IsaacLab/datasets`` and run the following command to generate a new dataset with 1000 demonstrations.
 
 .. code:: bash
@@ -508,13 +508,180 @@ Visualize the results of the trained policy by running the following command, us
    The trained policy performing the pick and place task in Isaac Lab.
 
 
-Demo 2: Visuomotor Policy for a Humanoid Robot
+Demo 2: Data Generation and Policy Training for Humanoid Robot Locomanipulation with Unitree G1
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+In this demo, we showcase the integration of locomotion and manipulation capabilities within a single humanoid robot system.
+This locomanipulation environment enables data collection for complex tasks that combine navigation and object manipulation.
+The demonstration follows a multi-step process: first, it generates pick and place tasks similar to Demo 1, then introduces
+a navigation component that uses specialized scripts to generate scenes where the humanoid robot must move from point A to point B.
+The robot picks up an object at the initial location (point A) and places it at the target destination (point B).
+
+.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/locomanipulation-g-1_steering_wheel_pick_place.gif
+   :width: 100%
+   :align: center
+   :alt: G1 humanoid robot with locomanipulation performing a pick and place task
+   :figclass: align-center
+
+Generate the manipulation dataset
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The same data generation and policy training steps from Demo 1.0 can be applied to the G1 humanoid robot with locomanipulation capabilities.
+This demonstration shows how to train a G1 robot to perform pick and place tasks with full-body locomotion and manipulation.
+
+The process follows the same workflow as Demo 1.0, but uses the ``Isaac-PickPlace-Locomanipulation-G1-Abs-v0`` task environment.
+
+Follow the same data collection, annotation, and generation process as demonstrated in Demo 1.0, but adapted for the G1 locomanipulation task.
+
+.. hint::
+
+   If desired, data collection and annotation can be done using the same commands as the prior examples for validation of the dataset.
+
+   The G1 robot with locomanipulation capabilities combines full-body locomotion with manipulation to perform pick and place tasks.
+
+   **Note that the following commands are only for your reference and dataset validation purposes - they are not required for this demo.**
+
+   To collect demonstrations:
+
+   .. code:: bash
+
+      ./isaaclab.sh -p scripts/tools/record_demos.py \
+      --device cpu \
+      --task Isaac-PickPlace-Locomanipulation-G1-Abs-v0 \
+      --teleop_device handtracking \
+      --dataset_file ./datasets/dataset_g1_locomanip.hdf5 \
+      --num_demos 5 --enable_pinocchio
+
+   You can replay the collected demonstrations by running:
+
+   .. code:: bash
+
+      ./isaaclab.sh -p scripts/tools/replay_demos.py \
+      --device cpu \
+      --task Isaac-PickPlace-Locomanipulation-G1-Abs-v0 \
+      --dataset_file ./datasets/dataset_g1_locomanip.hdf5 --enable_pinocchio
+
+   To annotate the demonstrations:
+
+   .. code:: bash
+
+      ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/annotate_demos.py \
+      --device cpu \
+      --task Isaac-PickPlace-Locomanipulation-G1-Abs-Mimic-v0 \
+      --input_file ./datasets/dataset_g1_locomanip.hdf5 \
+      --output_file ./datasets/dataset_annotated_g1_locomanip.hdf5 --enable_pinocchio
+
+
+If you skipped the prior collection and annotation step, download the pre-recorded annotated dataset ``dataset_annotated_g1_locomanip.hdf5`` from
+here: `[Annotated G1 Dataset] <https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.0/Isaac/IsaacLab/Mimic/pick_place_datasets/dataset_annotated_g1_locomanip_v01.hdf5>`_.
+Place the file under ``IsaacLab/datasets`` and run the following command to generate a new dataset with 1000 demonstrations.
+
+.. code:: bash
+
+   ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
+   --device cpu --headless --num_envs 20 --generation_num_trials 1000 --enable_pinocchio \
+   --input_file ./datasets/dataset_annotated_g1_locomanip.hdf5 --output_file ./datasets/generated_dataset_g1_locomanip.hdf5
+
+
+Train a manipulation-only policy
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+At this point you can train a policy that only performs manipulation tasks using the generated dataset:
+
+.. code:: bash
+
+   ./isaaclab.sh -p scripts/imitation_learning/robomimic/train.py \
+   --task Isaac-PickPlace-Locomanipulation-G1-Abs-v0 --algo bc \
+   --normalize_training_actions \
+   --dataset ./datasets/generated_dataset_g1_locomanip.hdf5
+
+Visualize the results
+^^^^^^^^^^^^^^^^^^^^^
+
+Visualize the trained policy performance:
+
+.. code:: bash
+
+   ./isaaclab.sh -p scripts/imitation_learning/robomimic/play.py \
+   --device cpu \
+   --enable_pinocchio \
+   --task Isaac-PickPlace-Locomanipulation-G1-Abs-v0 \
+   --num_rollouts 50 \
+   --horizon 400 \
+   --norm_factor_min <NORM_FACTOR_MIN> \
+   --norm_factor_max <NORM_FACTOR_MAX> \
+   --checkpoint /PATH/TO/desired_model_checkpoint.pth
+
+.. note::
+   Change the ``NORM_FACTOR`` in the above command with the values generated in the training step.
+
+.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/locomanipulation-g-1_steering_wheel_pick_place.gif
+   :width: 100%
+   :align: center
+   :alt: G1 humanoid robot performing a pick and place task
+   :figclass: align-center
+
+   The trained policy performing the pick and place task in Isaac Lab.
+
+Generate the dataset with manipulation and point-to-point navigation
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+To create a comprehensive locomanipulation dataset that combines both manipulation and navigation capabilities, you can generate a navigation dataset using the manipulation dataset from the previous step as input.
+
+.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/disjoint_navigation.gif
+   :width: 100%
+   :align: center
+   :alt: G1 humanoid robot combining navigation with locomanipulation
+   :figclass: align-center
+
+   G1 humanoid robot performing locomanipulation with navigation capabilities.
+
+The navigation dataset generation process takes the previously generated manipulation dataset and creates scenarios where the robot must navigate from one location to another while performing manipulation tasks. This creates a more complex dataset that includes both locomotion and manipulation behaviors.
+
+To generate the navigation dataset, use the following command:
+
+.. code:: bash
+
+   ./isaaclab.sh -p \
+       scripts/imitation_learning/disjoint_navigation/generate_navigation.py \
+       --device cpu \
+       --kit_args="--enable isaacsim.replicator.mobility_gen" \
+       --task="Isaac-G1-Disjoint-Navigation" \
+       --dataset ./datasets/generated_dataset_g1_locomanip.hdf5 \
+       --num_runs 1 \
+       --lift_step 70 \
+       --navigate_step 120 \
+       --enable_pinocchio \
+       --output_file ./datasets/generated_dataset_g1_navigation.hdf5
+
+.. note::
+
+   The input dataset (``--dataset``) should be the manipulation dataset generated in the previous step. You can specify any output filename using the ``--output_file_name`` parameter.
+
+The key parameters for navigation dataset generation are:
+
+* ``--lift_step 70``: Number of steps for the lifting phase of the manipulation task
+* ``--navigate_step 120``: Number of steps for the navigation phase between locations
+* ``--output_file``: Name of the output dataset file
+
+This process creates a dataset where the robot performs the manipulation task at different locations, requiring it to navigate between points while maintaining the learned manipulation behaviors. The resulting dataset can be used to train policies that combine both locomotion and manipulation capabilities.
+
+.. note::
+
+   You can visualize the robot trajectory results with the following script command:
+
+   .. code:: bash
+
+      ./isaaclab.sh -p scripts/imitation_learning/disjoint_navigation/plot_navigation_trajectory.py --input_file datasets/generated_dataset_g1_navigation.hdf5 --output_dir /PATH/TO/DESIRED_OUTPUT_DIR
+
+
+Demo 3: Visuomotor Policy for a Humanoid Robot
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Download the Dataset
 ^^^^^^^^^^^^^^^^^^^^
 
-Download the pre-generated dataset from `here <https://download.isaacsim.omniverse.nvidia.com/isaaclab/dataset/generated_dataset_gr1_nut_pouring.hdf5>`__ and place it under ``IsaacLab/datasets/generated_dataset_gr1_nut_pouring.hdf5``.
+Download the pre-generated dataset from here: `[Generated GR1 Dataset] <https://download.isaacsim.omniverse.nvidia.com/isaaclab/dataset/generated_dataset_gr1_nut_pouring.hdf5>`__ and place it under ``IsaacLab/datasets/generated_dataset_gr1_nut_pouring.hdf5``.
 The dataset contains 1000 demonstrations of a humanoid robot performing a pouring/placing task that was
 generated using Isaac Lab Mimic for the ``Isaac-NutPour-GR1T2-Pink-IK-Abs-Mimic-v0`` task.
 

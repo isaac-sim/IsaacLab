@@ -50,7 +50,7 @@ Install Isaac Sim 5.0:
 
 .. code-block:: bash
 
-    pip install "isaacsim[all,extscache]==5.0.0" --extra-index-url https://pypi.nvidia.com
+    pip install "isaacsim[all,extscache]==5.1.0" --extra-index-url https://pypi.nvidia.com
 
 Install Isaac Lab extensions and dependencies:
 

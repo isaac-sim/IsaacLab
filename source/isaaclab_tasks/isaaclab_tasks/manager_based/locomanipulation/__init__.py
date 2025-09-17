@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Locomotion environments for legged robots."""
+
+"""This sub-module contains the functions that are specific to the locomanipulation environments."""
 
 from .tracking import *  # noqa
