@@ -33,6 +33,7 @@
 
     <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css" />
     <link rel="stylesheet" href="../../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/twemoji.css" />
     <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.11.13/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/custom.css" />
@@ -47,6 +48,8 @@
     <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
     <script src="../../../_static/doctools.js"></script>
     <script src="../../../_static/sphinx_highlight.js"></script>
+    <script src="https://unpkg.com/twemoji@latest/dist/twemoji.min.js"></script>
+    <script src="../../../_static/twemoji.js"></script>
     <script src="/opt/hostedtoolcache/Python/3.11.13/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
     <script src="../../../_static/clipboard.min.js"></script>
     <script src="../../../_static/copybutton.js"></script>
@@ -56,7 +59,7 @@
     <link rel="icon" href="../../../_static/favicon.ico"/>
     <link rel="index" title="Index" href="../../../genindex.html" />
     <link rel="search" title="Search" href="../../../search.html" />
-    <link rel="next" title="Installation using Isaac Sim pip" href="pip_installation.html" />
+    <link rel="next" title="Installation using Isaac Sim Pip" href="pip_installation.html" />
     <link rel="prev" title="Isaac Lab Ecosystem" href="../ecosystem.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
@@ -235,10 +238,11 @@
 <ul class="current nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../ecosystem.html">Isaac Lab Ecosystem</a></li>
 <li class="toctree-l1 current active has-children"><a class="current reference internal" href="#">Local Installation</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l2"><a class="reference internal" href="pip_installation.html">Pip installation (recommended)</a></li>
-<li class="toctree-l2"><a class="reference internal" href="binaries_installation.html">Binary installation</a></li>
-<li class="toctree-l2"><a class="reference internal" href="isaaclab_pip_installation.html">Advanced installation (Isaac Lab pip)</a></li>
-<li class="toctree-l2"><a class="reference internal" href="asset_caching.html">Asset caching</a></li>
+<li class="toctree-l2"><a class="reference internal" href="pip_installation.html">Installation using Isaac Sim Pip</a></li>
+<li class="toctree-l2"><a class="reference internal" href="binaries_installation.html">Installation using Isaac Sim Binaries</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source_installation.html">Installation using Isaac Sim Source</a></li>
+<li class="toctree-l2"><a class="reference internal" href="isaaclab_pip_installation.html">Installing Isaac Lab through Pip</a></li>
+<li class="toctree-l2"><a class="reference internal" href="asset_caching.html">Asset Caching</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../deployment/index.html">Container Deployment</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
@@ -621,7 +625,9 @@
 <button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
     <i class="fa-solid fa-magnifying-glass fa-lg"></i>
 </button>
-
+<label class="sidebar-toggle secondary-toggle btn btn-sm" for="__secondary"title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</label>
 </div></div>
       
     </div>
@@ -637,6 +643,23 @@
     <div id="print-main-content">
         <div id="jb-print-toc">
             
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#system-requirements">System Requirements</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#general-requirements">General Requirements</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#driver-requirements">Driver Requirements</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#troubleshooting">Troubleshooting</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#quick-start-recommended">Quick Start (Recommended)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#choosing-an-installation-method">Choosing an Installation Method</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#next-steps">Next Steps</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#asset-caching">Asset Caching</a></li>
+</ul>
+            </nav>
         </div>
     </div>
 </div>
@@ -652,6 +675,9 @@
 <a class="reference external image-reference" href="https://www.python.org/downloads/release/python-31013/"><img alt="Python 3.11" src="https://img.shields.io/badge/python-3.11-blue.svg" /></a>
 <a class="reference external image-reference" href="https://releases.ubuntu.com/22.04/"><img alt="Ubuntu 22.04" src="https://img.shields.io/badge/platform-linux--64-orange.svg" /></a>
 <a class="reference external image-reference" href="https://www.microsoft.com/en-ca/windows/windows-11"><img alt="Windows 11" src="https://img.shields.io/badge/platform-windows--64-orange.svg" /></a>
+<p>Isaac Lab installation is available for Windows and Linux. Since it is built on top of Isaac Sim,
+it is required to install Isaac Sim before installing Isaac Lab. This guide explains the
+recommended installation methods for both Isaac Sim and Isaac Lab.</p>
 <div class="admonition caution">
 <p class="admonition-title">Caution</p>
 <p>We have dropped support for Isaac Sim versions 4.2.0 and below. We recommend using the latest
@@ -659,56 +685,138 @@ Isaac Sim 5.0.0 release to benefit from the latest features and improvements.</p
 <p>For more information, please refer to the
 <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/overview/release_notes.html#">Isaac Sim release notes</a>.</p>
 </div>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>We recommend system requirements with at least 32GB RAM and 16GB VRAM for Isaac Lab.
-For workflows with rendering enabled, additional VRAM may be required.
-For the full list of system requirements for Isaac Sim, please refer to the
-<a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/installation/requirements.html#system-requirements">Isaac Sim system requirements</a>.</p>
-<p>For details on driver requirements, please see the <a class="reference external" href="https://docs.omniverse.nvidia.com/materials-and-rendering/latest/common/technical-requirements.html">Technical Requirements</a> guide</p>
+<section id="system-requirements">
+<h2>System Requirements<a class="headerlink" href="#system-requirements" title="Permalink to this heading">#</a></h2>
+<section id="general-requirements">
+<h3>General Requirements<a class="headerlink" href="#general-requirements" title="Permalink to this heading">#</a></h3>
 <ul class="simple">
-<li><p>See <a class="reference external" href="https://docs.omniverse.nvidia.com/dev-guide/latest/linux-troubleshooting.html">Linux Troubleshooting</a> to resolve driver installation issues in linux</p></li>
-<li><p>If you are on a new GPU or are experiencing issues with the current drivers, we recommend installing the <strong>latest production branch version</strong> drivers from the <a class="reference external" href="https://www.nvidia.com/en-us/drivers/unix/">Unix Driver Archive</a> using the <code class="docutils literal notranslate"><span class="pre">.run</span></code> installer on Linux.</p></li>
-<li><p>NVIDIA driver version <code class="docutils literal notranslate"><span class="pre">535.216.01</span></code> or later is recommended when upgrading to <strong>Ubuntu 22.04.5 kernel 6.8.0-48-generic</strong> or later</p></li>
+<li><p><strong>RAM:</strong> 32 GB or more</p></li>
+<li><p><strong>GPU VRAM:</strong> 16 GB or more (additional VRAM may be required for rendering workflows)</p></li>
+<li><p><strong>OS:</strong> Ubuntu 22.04 (Linux x64) or Windows 11 (x64)</p></li>
 </ul>
+<p>For detailed requirements, see the
+<a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/installation/requirements.html#system-requirements">Isaac Sim system requirements</a>.</p>
+</section>
+<section id="driver-requirements">
+<h3>Driver Requirements<a class="headerlink" href="#driver-requirements" title="Permalink to this heading">#</a></h3>
+<p>Drivers other than those recommended on <a class="reference external" href="https://docs.omniverse.nvidia.com/materials-and-rendering/latest/common/technical-requirements.html">Omniverse Technical Requirements</a>
+may work but have not been validated against all Omniverse tests.</p>
+<ul class="simple">
+<li><p>Use the <strong>latest NVIDIA production branch driver</strong>.</p></li>
+<li><p>On Linux, version <code class="docutils literal notranslate"><span class="pre">535.216.01</span></code> or later is recommended, especially when upgrading to
+<strong>Ubuntu 22.04.5 with kernel 6.8.0-48-generic</strong> or newer.</p></li>
+<li><p>If you are using a new GPU or encounter driver issues, install the latest production branch
+driver from the <a class="reference external" href="https://www.nvidia.com/en-us/drivers/unix/">Unix Driver Archive</a>
+using the <code class="docutils literal notranslate"><span class="pre">.run</span></code> installer.</p></li>
+</ul>
+</section>
+<section id="troubleshooting">
+<h3>Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permalink to this heading">#</a></h3>
+<p>Please refer to the <a class="reference external" href="https://docs.omniverse.nvidia.com/dev-guide/latest/linux-troubleshooting.html">Linux Troubleshooting</a>
+to resolve installation issues in Linux.</p>
+</section>
+</section>
+<section id="quick-start-recommended">
+<h2>Quick Start (Recommended)<a class="headerlink" href="#quick-start-recommended" title="Permalink to this heading">#</a></h2>
+<p>For most users, the simplest and fastest way to install Isaac Lab is by following the
+<a class="reference internal" href="pip_installation.html"><span class="doc">Installation using Isaac Sim Pip</span></a> guide.</p>
+<p>This method will install Isaac Sim via pip and Isaac Lab through its source code.
+If you are new to Isaac Lab, start here.</p>
+</section>
+<section id="choosing-an-installation-method">
+<h2>Choosing an Installation Method<a class="headerlink" href="#choosing-an-installation-method" title="Permalink to this heading">#</a></h2>
+<p>Different workflows require different installation methods.
+Use this table to decide:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Method</p></th>
+<th class="head"><p>Isaac Sim</p></th>
+<th class="head"><p>Isaac Lab</p></th>
+<th class="head"><p>Best For</p></th>
+<th class="head"><p>Difficulty</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><strong>Recommended</strong></p></td>
+<td><p>📦 pip install</p></td>
+<td><p>💾 source (git)</p></td>
+<td><p>Beginners, standard use</p></td>
+<td><p>Easy</p></td>
+</tr>
+<tr class="row-odd"><td><p>Binary + Source</p></td>
+<td><p>📥 binary
+download</p></td>
+<td><p>💾 source (git)</p></td>
+<td><p>Users preferring binary
+install of Isaac Sim</p></td>
+<td><p>Easy</p></td>
+</tr>
+<tr class="row-even"><td><p>Full Source Build</p></td>
+<td><p>💾 source (git)</p></td>
+<td><p>💾 source (git)</p></td>
+<td><p>Developers modifying both</p></td>
+<td><p>Advanced</p></td>
+</tr>
+<tr class="row-odd"><td><p>Pip Only</p></td>
+<td><p>📦 pip install</p></td>
+<td><p>📦 pip install</p></td>
+<td><p>External extensions only
+(no training/examples)</p></td>
+<td><p>Special
+case</p></td>
+</tr>
+</tbody>
+</table>
 </div>
-<p>Isaac Lab is built on top of the Isaac Sim platform. Therefore, it is required to first install Isaac Sim
-before using Isaac Lab.</p>
-<p>Both Isaac Sim and Isaac Lab provide two ways of installation:
-either through binary download/source file, or through Python’s package installer <code class="docutils literal notranslate"><span class="pre">pip</span></code>.</p>
-<p>The method of installation may depend on the use case and the level of customization desired from users.
-For example, installing Isaac Sim from pip will be a simpler process than installing it from binaries,
-but the source code will then only be accessible through the installed source package and not through the direct binary download.</p>
-<p>Similarly, installing Isaac Lab through pip is only recommended for workflows that use external launch scripts outside of Isaac Lab.
-The Isaac Lab pip packages only provide the core framework extensions for Isaac Lab and does not include any of the
-standalone training, inferencing, and example scripts. Therefore, this workflow is recommended for projects that are
-built as external extensions outside of Isaac Lab, which utilizes user-defined runner scripts.</p>
-<p>We recommend using Isaac Sim pip installation for a simplified installation experience.</p>
-<p>For users getting started with Isaac Lab, we recommend installing Isaac Lab by cloning the repo.</p>
-<div class="toctree-wrapper compound">
+</section>
+<section id="next-steps">
+<h2>Next Steps<a class="headerlink" href="#next-steps" title="Permalink to this heading">#</a></h2>
+<p>Once you’ve reviewed the installation methods, continue with the guide that matches your workflow:</p>
+<ul class="simple">
+<li><p>😃 <a class="reference internal" href="pip_installation.html"><span class="doc">Installation using Isaac Sim Pip</span></a></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="pip_installation.html">Pip installation (recommended)</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="pip_installation.html#installing-isaac-sim">Installing Isaac Sim</a></li>
-<li class="toctree-l2"><a class="reference internal" href="pip_installation.html#installing-isaac-lab">Installing Isaac Lab</a></li>
+<li><p>Install Isaac Sim via pip and Isaac Lab from source.</p></li>
+<li><p>Best for beginners and most users.</p></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="binaries_installation.html">Binary installation</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="binaries_installation.html#installing-isaac-sim">Installing Isaac Sim</a></li>
-<li class="toctree-l2"><a class="reference internal" href="binaries_installation.html#installing-isaac-lab">Installing Isaac Lab</a></li>
+<li><p><a class="reference internal" href="binaries_installation.html"><span class="doc">Installation using Isaac Sim Binaries</span></a></p>
+<ul>
+<li><p>Install Isaac Sim from its binary package (website download).</p></li>
+<li><p>Install Isaac Lab from its source code.</p></li>
+<li><p>Choose this if you prefer not to use pip for Isaac Sim (for instance, on Ubuntu 20.04).</p></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="isaaclab_pip_installation.html">Advanced installation (Isaac Lab pip)</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="isaaclab_pip_installation.html#verifying-the-isaac-sim-installation">Verifying the Isaac Sim installation</a></li>
-<li class="toctree-l2"><a class="reference internal" href="isaaclab_pip_installation.html#running-isaac-lab-scripts">Running Isaac Lab Scripts</a></li>
-<li class="toctree-l2"><a class="reference internal" href="isaaclab_pip_installation.html#generating-vs-code-settings">Generating VS Code Settings</a></li>
+<li><p><a class="reference internal" href="source_installation.html"><span class="doc">Installation using Isaac Sim Source</span></a></p>
+<ul>
+<li><p>Build Isaac Sim from source.</p></li>
+<li><p>Install Isaac Lab from its source code.</p></li>
+<li><p>Recommended only if you plan to modify Isaac Sim itself.</p></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="asset_caching.html">Asset caching</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="asset_caching.html#nucleus">Nucleus</a></li>
+<li><p><a class="reference internal" href="isaaclab_pip_installation.html"><span class="doc">Installing Isaac Lab through Pip</span></a></p>
+<ul>
+<li><p>Install Isaac Sim and Isaac Lab as pip packages.</p></li>
+<li><p>Best for advanced users building <strong>external extensions</strong> with custom runner scripts.</p></li>
+<li><p>Note: This does <strong>not</strong> include training or example scripts.</p></li>
 </ul>
 </li>
 </ul>
+</section>
+<section id="asset-caching">
+<h2>Asset Caching<a class="headerlink" href="#asset-caching" title="Permalink to this heading">#</a></h2>
+<p>Isaac Lab assets are hosted on <strong>AWS S3 cloud storage</strong>. Loading times can vary
+depending on your <strong>network connection</strong> and <strong>geographical location</strong>, and in some cases,
+assets may take several minutes to load for each run. To improve performance or support
+<strong>offline workflows</strong>, we recommend enabling <strong>asset caching</strong>.</p>
+<ul class="simple">
+<li><p>Cached assets are stored locally, reducing repeated downloads.</p></li>
+<li><p>This is especially useful if you have a slow or intermittent internet connection,
+or if your deployment environment is offline.</p></li>
+</ul>
+<p>Please follow the steps <a class="reference internal" href="asset_caching.html"><span class="doc">Asset Caching</span></a> to enable asset caching and speed up your workflow.</p>
+<div class="toctree-wrapper compound">
 </div>
+</section>
 </section>
 
 
@@ -736,7 +844,7 @@ built as external extensions outside of Isaac Lab, which utilizes user-defined r
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">Installation using Isaac Sim pip</p>
+        <p class="prev-next-title">Installation using Isaac Sim Pip</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>
@@ -746,6 +854,31 @@ built as external extensions outside of Isaac Lab, which utilizes user-defined r
             </div>
             
             
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+  <div class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav class="bd-toc-nav page-toc">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#system-requirements">System Requirements</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#general-requirements">General Requirements</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#driver-requirements">Driver Requirements</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#troubleshooting">Troubleshooting</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#quick-start-recommended">Quick Start (Recommended)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#choosing-an-installation-method">Choosing an Installation Method</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#next-steps">Next Steps</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#asset-caching">Asset Caching</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
               
             
           </div>

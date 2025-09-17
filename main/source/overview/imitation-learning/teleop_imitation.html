@@ -33,6 +33,7 @@
 
     <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css" />
     <link rel="stylesheet" href="../../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/twemoji.css" />
     <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.11.13/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/custom.css" />
@@ -47,6 +48,8 @@
     <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
     <script src="../../../_static/doctools.js"></script>
     <script src="../../../_static/sphinx_highlight.js"></script>
+    <script src="https://unpkg.com/twemoji@latest/dist/twemoji.min.js"></script>
+    <script src="../../../_static/twemoji.js"></script>
     <script src="/opt/hostedtoolcache/Python/3.11.13/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
     <script src="../../../_static/clipboard.min.js"></script>
     <script src="../../../_static/copybutton.js"></script>
@@ -235,10 +238,11 @@
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../../setup/ecosystem.html">Isaac Lab Ecosystem</a></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../setup/installation/index.html">Local Installation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/pip_installation.html">Pip installation (recommended)</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/binaries_installation.html">Binary installation</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/isaaclab_pip_installation.html">Advanced installation (Isaac Lab pip)</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/asset_caching.html">Asset caching</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/pip_installation.html">Installation using Isaac Sim Pip</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/binaries_installation.html">Installation using Isaac Sim Binaries</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/source_installation.html">Installation using Isaac Sim Source</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/isaaclab_pip_installation.html">Installing Isaac Lab through Pip</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/asset_caching.html">Asset Caching</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../deployment/index.html">Container Deployment</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
@@ -1122,10 +1126,13 @@ Record the normalization parameters for later use in the visualization step.</p>
 </section>
 <section id="demo-2-visuomotor-policy-for-a-humanoid-robot">
 <h2>Demo 2: Visuomotor Policy for a Humanoid Robot<a class="headerlink" href="#demo-2-visuomotor-policy-for-a-humanoid-robot" title="Permalink to this heading">#</a></h2>
+<figure class="align-center">
+<a class="reference internal image-reference" href="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/gr-1_nut_pouring_policy.gif"><img alt="GR-1 humanoid robot performing a pouring task" src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/gr-1_nut_pouring_policy.gif" style="width: 100%;" /></a>
+</figure>
 <section id="download-the-dataset">
 <h3>Download the Dataset<a class="headerlink" href="#download-the-dataset" title="Permalink to this heading">#</a></h3>
-<p>Download the pre-generated dataset from <a class="reference external" href="https://download.isaacsim.omniverse.nvidia.com/isaaclab/dataset/generated_dataset_gr1_nut_pouring.hdf5">here</a> and place it under <code class="docutils literal notranslate"><span class="pre">IsaacLab/datasets/generated_dataset_gr1_nut_pouring.hdf5</span></code>.
-The dataset contains 1000 demonstrations of a humanoid robot performing a pouring/placing task that was
+<p>Download the pre-generated dataset from <a class="reference external" href="https://download.isaacsim.omniverse.nvidia.com/isaaclab/dataset/generated_dataset_gr1_nut_pouring.hdf5">here</a> and place it under <code class="docutils literal notranslate"><span class="pre">IsaacLab/datasets/generated_dataset_gr1_nut_pouring.hdf5</span></code>
+(<strong>Note: The dataset size is approximately 12GB</strong>). The dataset contains 1000 demonstrations of a humanoid robot performing a pouring/placing task that was
 generated using Isaac Lab Mimic for the <code class="docutils literal notranslate"><span class="pre">Isaac-NutPour-GR1T2-Pink-IK-Abs-Mimic-v0</span></code> task.</p>
 <div class="admonition hint">
 <p class="admonition-title">Hint</p>
@@ -1133,7 +1140,12 @@ generated using Isaac Lab Mimic for the <code class="docutils literal notranslat
 <p>The robot first picks up the red beaker and pours the contents into the yellow bowl.
 Then, it drops the red beaker into the blue bin. Lastly, it places the yellow bowl onto the white scale.
 See the video in the <a class="reference internal" href="#visualize-results-demo-2"><span class="std std-ref">Visualize the results</span></a> section below for a visual demonstration of the task.</p>
-<p><strong>Note that the following commands are only for your reference and are not required for this demo.</strong></p>
+<p><strong>The success criteria for this task requires the red beaker to be placed in the blue bin, the green nut to be in the yellow bowl,
+and the yellow bowl to be placed on top of the white scale.</strong></p>
+<div class="admonition attention">
+<p class="admonition-title">Attention</p>
+<p><strong>The following commands are only for your reference and are not required for this demo.</strong></p>
+</div>
 <p>To collect demonstrations:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/tools/record_demos.py<span class="w"> </span><span class="se">\</span>
 --device<span class="w"> </span>cpu<span class="w"> </span><span class="se">\</span>

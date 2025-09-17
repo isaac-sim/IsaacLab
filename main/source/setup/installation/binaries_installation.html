@@ -33,6 +33,7 @@
 
     <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css" />
     <link rel="stylesheet" href="../../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/twemoji.css" />
     <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.11.13/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/custom.css" />
@@ -47,6 +48,8 @@
     <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
     <script src="../../../_static/doctools.js"></script>
     <script src="../../../_static/sphinx_highlight.js"></script>
+    <script src="https://unpkg.com/twemoji@latest/dist/twemoji.min.js"></script>
+    <script src="../../../_static/twemoji.js"></script>
     <script src="/opt/hostedtoolcache/Python/3.11.13/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
     <script src="../../../_static/clipboard.min.js"></script>
     <script src="../../../_static/copybutton.js"></script>
@@ -56,8 +59,8 @@
     <link rel="icon" href="../../../_static/favicon.ico"/>
     <link rel="index" title="Index" href="../../../genindex.html" />
     <link rel="search" title="Search" href="../../../search.html" />
-    <link rel="next" title="Installing Isaac Lab through Pip" href="isaaclab_pip_installation.html" />
-    <link rel="prev" title="Installation using Isaac Sim pip" href="pip_installation.html" />
+    <link rel="next" title="Installation using Isaac Sim Source" href="source_installation.html" />
+    <link rel="prev" title="Installation using Isaac Sim Pip" href="pip_installation.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.2.1" />
@@ -235,10 +238,11 @@
 <ul class="current nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../ecosystem.html">Isaac Lab Ecosystem</a></li>
 <li class="toctree-l1 current active has-children"><a class="reference internal" href="index.html">Local Installation</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
-<li class="toctree-l2"><a class="reference internal" href="pip_installation.html">Pip installation (recommended)</a></li>
-<li class="toctree-l2 current active"><a class="current reference internal" href="#">Binary installation</a></li>
-<li class="toctree-l2"><a class="reference internal" href="isaaclab_pip_installation.html">Advanced installation (Isaac Lab pip)</a></li>
-<li class="toctree-l2"><a class="reference internal" href="asset_caching.html">Asset caching</a></li>
+<li class="toctree-l2"><a class="reference internal" href="pip_installation.html">Installation using Isaac Sim Pip</a></li>
+<li class="toctree-l2 current active"><a class="current reference internal" href="#">Installation using Isaac Sim Binaries</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source_installation.html">Installation using Isaac Sim Source</a></li>
+<li class="toctree-l2"><a class="reference internal" href="isaaclab_pip_installation.html">Installing Isaac Lab through Pip</a></li>
+<li class="toctree-l2"><a class="reference internal" href="asset_caching.html">Asset Caching</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../deployment/index.html">Container Deployment</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
@@ -672,7 +676,7 @@
                   
   <section id="installation-using-isaac-sim-binaries">
 <span id="isaaclab-binaries-installation"></span><h1>Installation using Isaac Sim Binaries<a class="headerlink" href="#installation-using-isaac-sim-binaries" title="Permalink to this heading">#</a></h1>
-<p>Isaac Lab requires Isaac Sim. This tutorial installs Isaac Sim first from binaries, then Isaac Lab from source code.</p>
+<p>Isaac Lab requires Isaac Sim. This tutorial installs Isaac Sim first from its binaries, then Isaac Lab from source code.</p>
 <section id="installing-isaac-sim">
 <h2>Installing Isaac Sim<a class="headerlink" href="#installing-isaac-sim" title="Permalink to this heading">#</a></h2>
 <section id="downloading-pre-built-binaries">
@@ -680,7 +684,8 @@
 <p>Please follow the Isaac Sim
 <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/installation/install_workstation.html">documentation</a>
 to install the latest Isaac Sim release.</p>
-<p>From Isaac Sim 4.5 release, Isaac Sim binaries can be <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/installation/download.html#download-isaac-sim-short">downloaded</a> directly as a zip file.</p>
+<p>From Isaac Sim 4.5 release, Isaac Sim binaries can be <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/installation/download.html#download-isaac-sim-short">downloaded</a>
+directly as a zip file.</p>
 <p>To check the minimum system requirements, refer to the documentation
 <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/installation/requirements.html">here</a>.</p>
 <div class="sd-tab-set docutils">
@@ -1169,15 +1174,15 @@ We recommend adding <code class="docutils literal notranslate"><span class="pre"
       <i class="fa-solid fa-angle-left"></i>
       <div class="prev-next-info">
         <p class="prev-next-subtitle">previous</p>
-        <p class="prev-next-title">Installation using Isaac Sim pip</p>
+        <p class="prev-next-title">Installation using Isaac Sim Pip</p>
       </div>
     </a>
     <a class="right-next"
-       href="isaaclab_pip_installation.html"
+       href="source_installation.html"
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">Installing Isaac Lab through Pip</p>
+        <p class="prev-next-title">Installation using Isaac Sim Source</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>

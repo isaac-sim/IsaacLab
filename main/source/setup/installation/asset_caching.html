@@ -33,6 +33,7 @@
 
     <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css" />
     <link rel="stylesheet" href="../../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/twemoji.css" />
     <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.11.13/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/custom.css" />
@@ -47,6 +48,8 @@
     <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
     <script src="../../../_static/doctools.js"></script>
     <script src="../../../_static/sphinx_highlight.js"></script>
+    <script src="https://unpkg.com/twemoji@latest/dist/twemoji.min.js"></script>
+    <script src="../../../_static/twemoji.js"></script>
     <script src="/opt/hostedtoolcache/Python/3.11.13/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
     <script src="../../../_static/clipboard.min.js"></script>
     <script src="../../../_static/copybutton.js"></script>
@@ -235,10 +238,11 @@
 <ul class="current nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../ecosystem.html">Isaac Lab Ecosystem</a></li>
 <li class="toctree-l1 current active has-children"><a class="reference internal" href="index.html">Local Installation</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
-<li class="toctree-l2"><a class="reference internal" href="pip_installation.html">Pip installation (recommended)</a></li>
-<li class="toctree-l2"><a class="reference internal" href="binaries_installation.html">Binary installation</a></li>
-<li class="toctree-l2"><a class="reference internal" href="isaaclab_pip_installation.html">Advanced installation (Isaac Lab pip)</a></li>
-<li class="toctree-l2 current active"><a class="current reference internal" href="#">Asset caching</a></li>
+<li class="toctree-l2"><a class="reference internal" href="pip_installation.html">Installation using Isaac Sim Pip</a></li>
+<li class="toctree-l2"><a class="reference internal" href="binaries_installation.html">Installation using Isaac Sim Binaries</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source_installation.html">Installation using Isaac Sim Source</a></li>
+<li class="toctree-l2"><a class="reference internal" href="isaaclab_pip_installation.html">Installing Isaac Lab through Pip</a></li>
+<li class="toctree-l2 current active"><a class="current reference internal" href="#">Asset Caching</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../deployment/index.html">Container Deployment</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
@@ -663,7 +667,7 @@ Asset loading time can depend on your network connection and geographical locati
 In some cases, it is possible that asset loading times can be long when assets are pulled from the AWS servers.</p>
 <p>If you run into cases where assets take a few minutes to load for each run,
 we recommend enabling asset caching following the below steps.</p>
-<p>First, launch the Isaac Sim app:</p>
+<p>First, launch the Isaac Sim application:</p>
 <div class="sd-tab-set docutils">
 <input checked="checked" id="sd-tab-item-0" name="sd-tab-set-0" type="radio">
 <label class="sd-tab-label" data-sync-group="os" data-sync-id="linux" for="sd-tab-item-0">
@@ -680,22 +684,30 @@ we recommend enabling asset caching following the below steps.</p>
 </div>
 </div>
 </div>
-<p>On the top right of the Isaac Sim app, there will be an icon labelled <code class="docutils literal notranslate"><span class="pre">CACHE:</span></code>.
-There may be a message indicating <code class="docutils literal notranslate"><span class="pre">HUB</span> <span class="pre">NOT</span> <span class="pre">DETECTED</span></code> or <code class="docutils literal notranslate"><span class="pre">NEW</span> <span class="pre">VERSION</span> <span class="pre">DETECTED</span></code>.</p>
+<p>On the top right of the Isaac Lab or Isaac Sim app, look for the icon labeled <code class="docutils literal notranslate"><span class="pre">CACHE:</span></code>.
+You may see a message such as <code class="docutils literal notranslate"><span class="pre">HUB</span> <span class="pre">NOT</span> <span class="pre">DETECTED</span></code> or <code class="docutils literal notranslate"><span class="pre">NEW</span> <span class="pre">VERSION</span> <span class="pre">DETECTED</span></code>.</p>
+<p>Click the message to enable <a class="reference external" href="https://docs.omniverse.nvidia.com/utilities/latest/cache/hub-workstation.html">Hub</a>.
+Hub automatically manages local caching for Isaac Lab assets, so subsequent runs will use cached files instead of
+downloading from AWS each time.</p>
 <figure class="align-center" style="width: 100%">
 <img alt="Simulator with cache messaging." src="../../../_images/asset_caching.jpg" />
 </figure>
-<p>Click on the message, which will enable <a class="reference external" href="https://docs.omniverse.nvidia.com/utilities/latest/cache/hub-workstation.html">Hub</a>
-for asset caching. Once enabled, Hub will run automatically each time an Isaac Lab or Isaac Sim instance is run.</p>
-<p>Note that for the first run, assets will still need to be pulled from the cloud, which could lead to longer loading times.
-However, subsequent runs that use the same assets will be able to use the cached files from Hub.
-Hub will provide better control for caching of assets used in Isaac Lab.</p>
+<p>Hub provides better control and management of cached assets, making workflows faster and more reliable, especially
+in environments with limited or intermittent internet access.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The first time you run Isaac Lab, assets will still need to be pulled from the cloud, which could lead
+to longer loading times.  Once cached, loading times will be significantly reduced on subsequent runs.</p>
+</div>
 <section id="nucleus">
 <h2>Nucleus<a class="headerlink" href="#nucleus" title="Permalink to this heading">#</a></h2>
-<p>Prior to Isaac Sim 4.5, assets were accessible from the Omniverse Nucleus server and through setting up a local Nucleus server.
-Although from Isaac Sim 4.5, we have deprecated the use of Omniverse Nucleus and the Omniverse Launcher, any existing instances
-or setups of local Nucleus instances should still work. We recommend keeping existing setups if a local Nucleus server
-was previously already set up.</p>
+<p>Before Isaac Sim 4.5, assets were accessed via the Omniverse Nucleus server, including setups with local Nucleus instances.</p>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>Starting with Isaac Sim 4.5, the Omniverse Nucleus server and Omniverse Launcher are deprecated.
+Existing Nucleus setups will continue to work, so if you have a local Nucleus server already configured,
+you may continue to use it.</p>
+</div>
 </section>
 </section>
 

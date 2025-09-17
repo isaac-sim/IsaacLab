@@ -33,6 +33,7 @@
 
     <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css" />
     <link rel="stylesheet" href="../../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/twemoji.css" />
     <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.11.13/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/custom.css" />
@@ -47,6 +48,8 @@
     <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
     <script src="../../../_static/doctools.js"></script>
     <script src="../../../_static/sphinx_highlight.js"></script>
+    <script src="https://unpkg.com/twemoji@latest/dist/twemoji.min.js"></script>
+    <script src="../../../_static/twemoji.js"></script>
     <script src="/opt/hostedtoolcache/Python/3.11.13/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
     <script src="../../../_static/clipboard.min.js"></script>
     <script src="../../../_static/copybutton.js"></script>
@@ -57,7 +60,7 @@
     <link rel="index" title="Index" href="../../../genindex.html" />
     <link rel="search" title="Search" href="../../../search.html" />
     <link rel="next" title="Asset Caching" href="asset_caching.html" />
-    <link rel="prev" title="Installation using Isaac Sim Binaries" href="binaries_installation.html" />
+    <link rel="prev" title="Installation using Isaac Sim Source" href="source_installation.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.2.1" />
@@ -235,10 +238,11 @@
 <ul class="current nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../ecosystem.html">Isaac Lab Ecosystem</a></li>
 <li class="toctree-l1 current active has-children"><a class="reference internal" href="index.html">Local Installation</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
-<li class="toctree-l2"><a class="reference internal" href="pip_installation.html">Pip installation (recommended)</a></li>
-<li class="toctree-l2"><a class="reference internal" href="binaries_installation.html">Binary installation</a></li>
-<li class="toctree-l2 current active"><a class="current reference internal" href="#">Advanced installation (Isaac Lab pip)</a></li>
-<li class="toctree-l2"><a class="reference internal" href="asset_caching.html">Asset caching</a></li>
+<li class="toctree-l2"><a class="reference internal" href="pip_installation.html">Installation using Isaac Sim Pip</a></li>
+<li class="toctree-l2"><a class="reference internal" href="binaries_installation.html">Installation using Isaac Sim Binaries</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source_installation.html">Installation using Isaac Sim Source</a></li>
+<li class="toctree-l2 current active"><a class="current reference internal" href="#">Installing Isaac Lab through Pip</a></li>
+<li class="toctree-l2"><a class="reference internal" href="asset_caching.html">Asset Caching</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../deployment/index.html">Container Deployment</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
@@ -833,10 +837,11 @@ To run a user-defined script for Isaac Lab, simply run</p>
 </section>
 <section id="generating-vs-code-settings">
 <h2>Generating VS Code Settings<a class="headerlink" href="#generating-vs-code-settings" title="Permalink to this heading">#</a></h2>
-<p>Due to the structure resulting from the installation, VS Code IntelliSense (code completion, parameter info and member lists, etc.) will not work by default.
-To set it up (define the search paths for import resolution, the path to the default Python interpreter, and other settings), for a given workspace folder, run the following command:</p>
-<blockquote>
-<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>isaaclab<span class="w"> </span>--generate-vscode-settings
+<p>Due to the structure resulting from the installation, VS Code IntelliSense (code completion, parameter info
+and member lists, etc.) will not work by default. To set it up (define the search paths for import resolution,
+the path to the default Python interpreter, and other settings), for a given workspace folder,
+run the following command:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>isaaclab<span class="w"> </span>--generate-vscode-settings
 </pre></div>
 </div>
 <div class="admonition warning">
@@ -844,7 +849,6 @@ To set it up (define the search paths for import resolution, the path to the def
 <p>The command will generate a <code class="docutils literal notranslate"><span class="pre">.vscode/settings.json</span></code> file in the workspace folder.
 If the file already exists, it will be overwritten (a confirmation prompt will be shown first).</p>
 </div>
-</div></blockquote>
 </section>
 </section>
 
@@ -860,12 +864,12 @@ If the file already exists, it will be overwritten (a confirmation prompt will b
                   
 <div class="prev-next-area">
     <a class="left-prev"
-       href="binaries_installation.html"
+       href="source_installation.html"
        title="previous page">
       <i class="fa-solid fa-angle-left"></i>
       <div class="prev-next-info">
         <p class="prev-next-subtitle">previous</p>
-        <p class="prev-next-title">Installation using Isaac Sim Binaries</p>
+        <p class="prev-next-title">Installation using Isaac Sim Source</p>
       </div>
     </a>
     <a class="right-next"

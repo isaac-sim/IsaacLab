@@ -3,7 +3,7 @@
 Installation using Isaac Sim Binaries
 =====================================
 
-Isaac Lab requires Isaac Sim. This tutorial installs Isaac Sim first from binaries, then Isaac Lab from source code.
+Isaac Lab requires Isaac Sim. This tutorial installs Isaac Sim first from its binaries, then Isaac Lab from source code.
 
 Installing Isaac Sim
 --------------------
@@ -15,7 +15,8 @@ Please follow the Isaac Sim
 `documentation <https://docs.isaacsim.omniverse.nvidia.com/latest/installation/install_workstation.html>`__
 to install the latest Isaac Sim release.
 
-From Isaac Sim 4.5 release, Isaac Sim binaries can be `downloaded <https://docs.isaacsim.omniverse.nvidia.com/latest/installation/download.html#download-isaac-sim-short>`_ directly as a zip file.
+From Isaac Sim 4.5 release, Isaac Sim binaries can be `downloaded <https://docs.isaacsim.omniverse.nvidia.com/latest/installation/download.html#download-isaac-sim-short>`_
+directly as a zip file.
 
 To check the minimum system requirements, refer to the documentation
 `here <https://docs.isaacsim.omniverse.nvidia.com/latest/installation/requirements.html>`__.
@@ -485,7 +486,7 @@ and ``source _isaac_sim/setup_conda_env.sh`` has been executed (for uv as well).
 
 
 Train a robot!
-~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~
 
 You can now use Isaac Lab to train a robot through Reinforcement Learning! The quickest way to use Isaac Lab is through the predefined workflows using one of our **Batteries-included** robot tasks. Execute the following command to quickly train an ant to walk!
 We recommend adding ``--headless`` for faster training.
