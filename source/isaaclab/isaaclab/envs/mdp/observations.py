@@ -420,6 +420,61 @@ def image(
 
     return images.clone()
 
+_vae_model = None #TODO this is bad, need fix
+
+def image_latents(
+    env: ManagerBasedEnv,
+    vae,
+    sensor_cfg: SceneEntityCfg = SceneEntityCfg("tiled_camera"),
+    data_type: str = "rgb",
+    convert_perspective_to_orthogonal: bool = False,
+    normalize: bool = True,
+) -> torch.Tensor:
+    """Images of a specific datatype from the camera sensor.
+
+    If the flag :attr:`normalize` is True, post-processing of the images are performed based on their
+    data-types:
+
+    - "rgb": Scales the image to (0, 1) and subtracts with the mean of the current image batch.
+    - "depth" or "distance_to_camera" or "distance_to_plane": Replaces infinity values with zero.
+
+    Args:
+        env: The environment the cameras are placed within.
+        sensor_cfg: The desired sensor to read from. Defaults to SceneEntityCfg("tiled_camera").
+        data_type: The data type to pull from the desired camera. Defaults to "rgb".
+        convert_perspective_to_orthogonal: Whether to orthogonalize perspective depth images.
+            This is used only when the data type is "distance_to_camera". Defaults to False.
+        normalize: Whether to normalize the images. This depends on the selected data type.
+            Defaults to True.
+
+    Returns:
+        The images produced at the last time-step
+    """
+    # extract the used quantities (to enable type-hinting)
+    sensor: TiledCamera | Camera | RayCasterCamera = env.scene.sensors[sensor_cfg.name]
+
+    # obtain the input image
+    images = sensor.data.output[data_type]
+
+    # depth image conversion
+    if (data_type == "distance_to_camera") and convert_perspective_to_orthogonal:
+        images = math_utils.orthogonalize_perspective_depth(images, sensor.data.intrinsic_matrices)
+
+    # rgb/depth/normals image normalization
+    if normalize:
+        if data_type == "rgb":
+            images = images.float() / 255.0
+            mean_tensor = torch.mean(images, dim=(1, 2), keepdim=True)
+            images -= mean_tensor
+        elif "distance_to" in data_type or "depth" in data_type:
+            images[images == float("inf")] = 0
+        elif "normals" in data_type:
+            images = (images + 1.0) * 0.5
+    
+    global _vae_model
+    if _vae_model is None:
+        _vae_model = vae()
+    return _vae_model.encode(images)
 
 class image_features(ManagerTermBase):
     """Extracted image features from a pre-trained frozen encoder.

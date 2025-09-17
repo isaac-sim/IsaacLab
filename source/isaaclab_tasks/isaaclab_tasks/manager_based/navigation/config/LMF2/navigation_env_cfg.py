@@ -17,13 +17,16 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sensors import RayCasterCameraCfg, patterns
+from isaaclab.sensors import CameraCfg
+from isaaclab.sim import PinholeCameraCfg
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
 
 import isaaclab_tasks.manager_based.locomotion.velocity.mdp as mdp
+
+from .vae.vae_image_encoder import VAEImageEncoder
 
 ##
 # Pre-defined configs
@@ -57,13 +60,16 @@ class MySceneCfg(InteractiveSceneCfg):
     # robots
     robot: ArticulationCfg = MISSING
     # sensors
-    depth_camera = RayCasterCameraCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/base_link",
-        offset=RayCasterCameraCfg.OffsetCfg(pos=(0.0, 0.0, 0.0)),
-        ray_alignment="yaw",
-        pattern_cfg=patterns.PinholeCameraPatternCfg(height=270, width=480),
-        debug_vis=False,
-        mesh_prim_paths=["/World/ground"], # TODO ground also includes floating obstacles. Should be changed.
+    depth_camera = CameraCfg(
+        prim_path="{ENV_REGEX_NS}/Robot/base_link/depth_camera",
+        offset=CameraCfg.OffsetCfg(pos=(0.0, 0.0, 0.0)),
+        update_period=0.1,
+        spawn=PinholeCameraCfg(
+            focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 1.0e5)
+        ),
+        height=270, 
+        width=480,
+        data_types=["depth"],
     )
     contact_forces = None
     # lights
@@ -116,15 +122,14 @@ class ObservationsCfg:
         base_orientation = ObsTerm(func=mdp.root_quat_w, noise=Unoise(n_min=-0.1, n_max=0.1))
         base_lin_vel = ObsTerm(func=mdp.base_lin_vel, noise=Unoise(n_min=-0.1, n_max=0.1))
         base_ang_vel = ObsTerm(func=mdp.base_ang_vel, noise=Unoise(n_min=-0.2, n_max=0.2))
-        # height_scan = ObsTerm(
-        #     func=mdp.height_scan,
-        #     params={"sensor_cfg": SceneEntityCfg("height_scanner")},
-        #     noise=Unoise(n_min=-0.1, n_max=0.1),
-        #     clip=(-1.0, 1.0),
-        # )
+        depth_image = ObsTerm(
+            func=mdp.image_latents,
+            params={"sensor_cfg": SceneEntityCfg("depth_camera"), "data_type": "depth", "vae": VAEImageEncoder}, 
+            clip=(-1000000.0, 100000.0),
+        )
 
         def __post_init__(self):
-            self.enable_corruption = True
+            self.enable_corruption = False
             self.concatenate_terms = True
 
     # observation groups
