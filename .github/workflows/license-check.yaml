@@ -29,6 +29,10 @@ jobs:
       with:
         python-version: '3.10'  # Adjust as needed
 
+    - name: Clean up disk space
+      run: |
+        rm -rf /opt/hostedtoolcache
+
     - name: Install dependencies using ./isaaclab.sh -i
       run: |
         # first install isaac sim
