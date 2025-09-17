@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-import random
 import re
 from typing import TYPE_CHECKING
 
@@ -93,7 +92,7 @@ def spawn_multi_asset(
     stage = stage_utils.get_current_stage()
 
     # Select the environment index function when random choice is disabled..
-    choice_fn = None if cfg.random_choice else get_method(".".join([cfg.choice_method_dir, cfg.choice_method]))
+    choice_fn = get_method(".".join([cfg.choice_method_dir, cfg.choice_method]))
 
     # manually clone prims if the source prim path is a regex expression
     # note: unlike in the cloner API from Isaac Sim, we do not "reset" xforms on the copied prims.
@@ -103,11 +102,8 @@ def spawn_multi_asset(
             # spawn single instance
             env_spec = Sdf.CreatePrimInLayer(stage.GetRootLayer(), prim_path)
             # randomly select an asset configuration
-            if choice_fn is None:
-                proto_path = random.choice(proto_prim_paths)
-            else:
-                idx = choice_fn(index, len(source_prim_paths), len(proto_prim_paths))
-                proto_path = proto_prim_paths[idx]
+            idx = choice_fn(index, len(source_prim_paths), len(proto_prim_paths))
+            proto_path = proto_prim_paths[idx]
             # copy the proto prim
             Sdf.CopySpec(env_spec.layer, Sdf.Path(proto_path), env_spec.layer, Sdf.Path(prim_path))
 
@@ -157,7 +153,7 @@ def spawn_multi_usd_file(
     usd_template_cfg = UsdFileCfg()
     for attr_name, attr_value in cfg.__dict__.items():
         # skip names we know are not present
-        if attr_name in ["func", "usd_path", "random_choice", "choice_method_dir", "choice_method"]:
+        if attr_name in ["func", "usd_path", "choice_method_dir", "choice_method"]:
             continue
         # set the attribute into the template
         setattr(usd_template_cfg, attr_name, attr_value)
@@ -168,7 +164,6 @@ def spawn_multi_usd_file(
         usd_cfg = usd_template_cfg.replace(usd_path=usd_path)
         multi_asset_cfg.assets_cfg.append(usd_cfg)
     # set random choice
-    multi_asset_cfg.random_choice = cfg.random_choice
     multi_asset_cfg.choice_method_dir = cfg.choice_method_dir
     multi_asset_cfg.choice_method = cfg.choice_method
 

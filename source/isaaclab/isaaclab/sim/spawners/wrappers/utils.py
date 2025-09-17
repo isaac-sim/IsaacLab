@@ -20,6 +20,11 @@ Arguments:
 
 Use this module when you want to control how environments are distributed among multiple assets.
 """
+import random
+
+
+def random_choice(current_idx: int, total_prim_path: int, num_assets: int) -> int:
+    return random.choice(range(num_assets))
 
 
 def sequential(current_idx: int, total_prim_path: int, num_assets: int) -> int:
