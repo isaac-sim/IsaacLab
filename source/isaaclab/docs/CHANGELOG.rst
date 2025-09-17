@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.46.2 (2025-09-11)
+0.46.3 (2025-09-17)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -9,6 +9,14 @@ Added
 
 * Modified setter to support for viscous and dynamic joint friction coefficients in articulation based on IsaacSim 5.0.
 * Added randomization of viscous and dynamic joint friction coefficients in event term.
+
+0.46.2 (2025-09-13)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Fixed missing actuator indices in :meth:`~isaaclab.envs.mdp.events.randomize_actuator_gains`
 
 
 0.46.1 (2025-09-10)
