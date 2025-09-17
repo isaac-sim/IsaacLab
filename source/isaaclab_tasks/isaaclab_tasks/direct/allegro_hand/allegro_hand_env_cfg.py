@@ -47,8 +47,8 @@ class AllegroHandEnvCfg(DirectRLEnvCfg):
 
     newton_cfg = NewtonCfg(
         solver_cfg=solver_cfg,
-        num_substeps=2,  #! we might need more substeps for stability
-        debug_mode=True,
+        num_substeps=2,
+        debug_mode=False,
     )
     # simulation
     sim: SimulationCfg = SimulationCfg(

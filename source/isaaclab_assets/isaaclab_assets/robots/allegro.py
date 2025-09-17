@@ -44,7 +44,7 @@ ALLEGRO_HAND_CFG = ArticulationCfg(
             effort_limit_sim=0.5,
             stiffness=1.0,
             damping=0.1,
-            friction=1e-5,
+            friction=1e-4,
             armature=1e-4,
         ),
     },
