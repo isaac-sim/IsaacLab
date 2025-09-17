@@ -10,6 +10,6 @@ into a single configuration. This is useful when the user wants to spawn multipl
 different configurations.
 """
 
-from .utils import sequential, split
+from .utils import random_choice, sequential, split
 from .wrappers import spawn_multi_asset, spawn_multi_usd_file
 from .wrappers_cfg import MultiAssetSpawnerCfg, MultiUsdFileCfg
