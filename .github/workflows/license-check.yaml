@@ -52,6 +52,12 @@ jobs:
     - name: Print License Report
       run: pip-licenses --from=mixed --format=markdown
 
+    # Print pipdeptree
+    - name: Print pipdeptree
+      run: |
+        pip install pipdeptree
+        pipdeptree
+
     - name: Check licenses against whitelist and exceptions
       run: |
         # Define the whitelist of allowed licenses
@@ -122,9 +128,3 @@ jobs:
         else
           echo "All packages were checked."
         fi
-
-    # Print pipdeptree
-    - name: Print pipdeptree
-      run: |
-        pip install pipdeptree
-        pipdeptree

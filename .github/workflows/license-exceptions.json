@@ -312,6 +312,11 @@
     "comment": "PSFL / OSRB"
   },
   {
+    "package": "typing_extensions",
+    "license": "Python Software Foundation License",
+    "comment": "PSFL / OSRB"
+  },
+  {
     "package": "urllib3",
     "license": "UNKNOWN",
     "comment": "MIT"
