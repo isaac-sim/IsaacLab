@@ -8,8 +8,6 @@ import os
 import torch
 
 from isaaclab.utils import configclass
-import isaaclab.sim as sim_utils
-from isaaclab.assets.articulation import ArticulationCfg
 
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import SceneEntityCfg
@@ -171,37 +169,8 @@ class UR10eGearAssemblyEnvCfg(GearAssemblyEnvCfg):
         self.scene.robot = UR10e_ROBOTIQ_GRIPPER_CFG.replace(
             prim_path="{ENV_REGEX_NS}/Robot",
             spawn=UR10e_ROBOTIQ_GRIPPER_CFG.spawn.replace(
-                activate_contact_sensors=True,
-                rigid_props=sim_utils.RigidBodyPropertiesCfg(
-                    disable_gravity=True,
-                    max_depenetration_velocity=5.0,
-                    linear_damping=0.0,
-                    angular_damping=0.0,
-                    max_linear_velocity=1000.0,
-                    max_angular_velocity=3666.0,
-                    enable_gyroscopic_forces=True,
-                    solver_position_iteration_count=192,
-                    solver_velocity_iteration_count=1,
-                    max_contact_impulse=1e32,
-                ),
-                articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-                    enabled_self_collisions=False, solver_position_iteration_count=192, solver_velocity_iteration_count=1
-                ),
-                collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.005, rest_offset=0.0),
-            ),
-            init_state=ArticulationCfg.InitialStateCfg(
-                joint_pos={
-                    "shoulder_pan_joint": 2.7228e+00,
-                    "shoulder_lift_joint": -8.3962e-01,
-                    "elbow_joint": 1.3684e+00,
-                    "wrist_1_joint": -2.1048e+00,
-                    "wrist_2_joint": -1.5691e+00,
-                    "wrist_3_joint": -1.9896e+00,
-                    "finger_joint": 0.0,
-                },
-                pos=(0.0, 0.0, 0.0),
-                rot=(0.0, 0.0, 0.0, 1.0),
-            ),
+                usd_path=os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "assets/ur10e_robotiq_140_variant.usd")
+            )
         )
 
 
