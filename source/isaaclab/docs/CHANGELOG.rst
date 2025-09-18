@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.46.3 (2025-09-18)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Removed passing the ``activate_contact_sensors`` flag to the ``PhysxContactReportAPI`` when activating contact
+  sensors, which was incorrectly modifying the threshold attribute to 1 when contact sensors are activated.
+
 
 0.46.2 (2025-09-13)
 ~~~~~~~~~~~~~~~~~~~
