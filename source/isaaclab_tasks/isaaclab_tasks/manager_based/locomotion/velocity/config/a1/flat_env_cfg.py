@@ -16,7 +16,7 @@ class UnitreeA1FlatEnvCfg(UnitreeA1RoughEnvCfg):
     sim: SimulationCfg = SimulationCfg(
         newton_cfg=NewtonCfg(
             solver_cfg=MJWarpSolverCfg(
-                njmax=60,
+                njmax=50,
                 ncon_per_env=30,
                 ls_iterations=10,
                 cone="elliptic",
