@@ -11,12 +11,13 @@ These functions define how environment indices (`env_idx`) are mapped to asset i
 when spawning environments in Isaac Sim or similar simulators.
 
 Each function in this file should follow a standardized signature:
-    (current_idx: int, total_prim_path: int, num_assets: int) -> int
+    (current_idx: int, total_prim_path: int, num_assets: int, **kwargs) -> int
 
 Arguments:
 - current_idx (int): The environment index (e.g., from 0 to n_tot - 1).
 - total_prim_path (int): The total number of environments to spawn.
 - num_assets (int): The number of different asset types available.
+- **kwargs (dict): Keyword arguments.
 
 Use this module when you want to control how environments are distributed among multiple assets.
 """
@@ -24,14 +25,35 @@ import random
 
 
 def random_choice(current_idx: int, total_prim_path: int, num_assets: int, **kwargs) -> int:
-    weights = kwargs.get("weights", None)
+    """
+    Randomly select an asset for the current index.
+
+    Uses optional weights provided in `kwargs['weights']`. If no weights are given, all assets are equally likely.
+
+    Each index is sampled independently according to optional weights.
+    This means the overall distribution across all indices may not exactly match the desired weights.
+
+    Use `deterministic_choice` if you want to maintain the exact proportion of each asset.
+
+    Example weights:
+        [1.0, 1.0, 1.0] -> uniform sampling rate for 3 assets
+        [0.5, 0.3, 0.2] -> weighted sampling with asset 0 more likely
+    """
+    weights = kwargs.get("weights")
     if weights is None:
         weights = [1.0] * num_assets
     return random.choices(range(num_assets), weights=weights, k=1)[0]
 
 
 def deterministic_choice(current_idx: int, total_prim_path: int, num_assets: int, **kwargs) -> int:
-    weights = kwargs.get("weights", None)
+    """
+    Deterministically select assets to maintain the given weights as closely as possible.
+
+    Example weights:
+        [1.0, 1.0, 1.0] -> uniform sampling rate for 3 assets
+        [0.5, 0.3, 0.2] -> weighted sampling with asset 0 more likely
+    """
+    weights = kwargs.get("weights")
     if weights is None:
         weights = [1.0] * num_assets
 
@@ -51,9 +73,20 @@ def deterministic_choice(current_idx: int, total_prim_path: int, num_assets: int
 
 
 def sequential(current_idx: int, total_prim_path: int, num_assets: int, **kwargs) -> int:
+    """
+    Assign assets in a simple round-robin fashion.
+
+    Example sequence for 3 assets: 0, 1, 2, 0, 1, 2, ...
+
+    """
     return current_idx % num_assets
 
 
 def split(current_idx: int, total_prim_path: int, num_assets: int, **kwargs) -> int:
+    """
+    Divide environments evenly among available assets.
+
+    Example for 3 assets and 6 environments: 0, 0, 1, 1, 2, 2,
+    """
     split_index = total_prim_path // num_assets
     return min(current_idx // split_index, num_assets - 1)

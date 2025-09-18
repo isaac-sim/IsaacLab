@@ -3,12 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from collections.abc import Callable
 from dataclasses import MISSING
 
 from isaaclab.sim.spawners.from_files import UsdFileCfg
 from isaaclab.sim.spawners.spawner_cfg import DeformableObjectSpawnerCfg, RigidObjectSpawnerCfg, SpawnerCfg
 from isaaclab.utils import configclass
-from typing import Callable
 
 from . import wrappers
 
@@ -38,16 +38,14 @@ class MultiAssetSpawnerCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
     choice_method: str | Callable = "random_choice"
     """Name of the asset selection method to use.
 
-    Available methods are ``random_choice``, ``sequential`` and ``split``, where ``sequential`` assigns assets in a round-robin manner
-    (e.g., 0, 1, 2, 0, 1, 2, ...) and ``split`` divides the environments evenly among the assets
-    (e.g., 0, 0, 1, 1, 2, 2, ...).
+    Available methods are ``random_choice``, ``deterministic_choice``, ``sequential`` and ``split``.
 
     Custom asset selection methods can be implemented in the module specified by :attr:`choice_method_dir`,
     and refer to it by name in :attr:`choice_method`.
 
     Note:
         Each method must follow the standard signature:
-         ``(current_idx: int, total_prim_path: int, num_assets: int) -> int``
+         ``(current_idx: int, total_prim_path: int, num_assets: int, **kwargs) -> int``
     """
 
     choice_cfg: dict = {"weights": None}
@@ -56,9 +54,9 @@ class MultiAssetSpawnerCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
     Can include parameters such as 'weights' for weighted selection or other method-specific options."""
 
     choice_method_dir: str = "isaaclab.sim.spawners.wrappers.choices"
-    """Python module path where the choice method functions are defined.
+    """Python module path for choice functions.
 
-    This path is used to dynamically load the selection function.
+    Used when `choice_method` is specified as a string to dynamically load the function.
     """
 
 
@@ -82,16 +80,14 @@ class MultiUsdFileCfg(UsdFileCfg):
     choice_method: str | Callable = "random_choice"
     """Name of the asset selection method to use.
 
-    Available methods are ``random_choice``, ``sequential`` and ``split``, where ``sequential`` assigns assets in a round-robin manner
-    (e.g., 0, 1, 2, 0, 1, 2, ...) and ``split`` divides the environments evenly among the assets
-    (e.g., 0, 0, 1, 1, 2, 2, ...).
+    Available methods are ``random_choice``, ``deterministic_choice``, ``sequential`` and ``split``.
 
     Custom asset selection methods can be implemented in the module specified by :attr:`choice_method_dir`,
     and refer to it by name in :attr:`choice_method`.
 
     Note:
         Each method must follow the standard signature:
-         ``(current_idx: int, total_prim_path: int, num_assets: int) -> int``
+         ``(current_idx: int, total_prim_path: int, num_assets: int, **kwargs) -> int``
     """
 
     choice_cfg: dict = {"weights": None}
@@ -99,8 +95,8 @@ class MultiUsdFileCfg(UsdFileCfg):
 
     Can include parameters such as 'weights' for weighted selection or other method-specific options."""
 
-    choice_method_dir: str = "isaaclab.sim.spawners.wrappers.utils"
-    """Python module path where the choice method functions are defined.
+    choice_method_dir: str = "isaaclab.sim.spawners.wrappers.choices"
+    """Python module path for choice functions.
 
-    This path is used to dynamically load the selection function.
+    Used when `choice_method` is specified as a string to dynamically load the function.
     """

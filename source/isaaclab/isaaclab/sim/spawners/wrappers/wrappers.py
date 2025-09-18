@@ -5,16 +5,15 @@
 
 from __future__ import annotations
 
+import importlib
 import re
+from collections import Counter
 from typing import TYPE_CHECKING
 
 import carb
-import importlib
 import isaacsim.core.utils.prims as prim_utils
 import isaacsim.core.utils.stage as stage_utils
 from isaacsim.core.utils.stage import get_current_stage
-from collections import Counter
-
 from pxr import Sdf, Usd
 
 import isaaclab.sim as sim_utils
@@ -108,7 +107,7 @@ def spawn_multi_asset(
     # acquire stage
     stage = stage_utils.get_current_stage()
 
-    # Select the environment index function when random choice is disabled..
+    # load function for choosing multi-assets.
     if callable(cfg.choice_method):
         choice_fn = cfg.choice_method
         choice_method_name = cfg.choice_method.__name__
@@ -125,13 +124,14 @@ def spawn_multi_asset(
         for index, prim_path in enumerate(prim_paths):
             # spawn single instance
             env_spec = Sdf.CreatePrimInLayer(stage.GetRootLayer(), prim_path)
-            # randomly select an asset configuration
+            # select an asset configuration based on pre-defined functions
             idx = choice_fn(index, len(source_prim_paths), len(proto_prim_paths), **cfg.choice_cfg)
             proto_path = proto_prim_paths[idx]
             env_idx.append(idx)
             # copy the proto prim
             Sdf.CopySpec(env_spec.layer, Sdf.Path(proto_path), env_spec.layer, Sdf.Path(prim_path))
 
+    # display result for asset selection.
     counts = Counter(env_idx)
     count_dict = {k: round((v / len(env_idx)) * 100, 2) for k, v in counts.items()}
     print(f"[INFO]: Assets distribution for '{asset_path}' using choice method '{choice_method_name}' :")
