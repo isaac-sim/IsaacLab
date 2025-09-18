@@ -704,7 +704,7 @@ class randomize_joint_parameters(ManagerTermBase):
             joint_ids = torch.tensor(self.asset_cfg.joint_ids, dtype=torch.int, device=self.asset.device)
 
         # sample joint properties from the given ranges and set into the physics simulation
-        # joint friction torque
+        # joint friction effort
         if friction_distribution_params is not None:
             friction_effort = _randomize_prop_by_op(
                 self.asset.data.default_joint_static_friction_effort.clone(),
