@@ -9,11 +9,11 @@ import re
 from typing import TYPE_CHECKING
 
 import carb
+import importlib
 import isaacsim.core.utils.prims as prim_utils
 import isaacsim.core.utils.stage as stage_utils
 from isaacsim.core.utils.stage import get_current_stage
 
-from hydra.utils import get_method
 from pxr import Sdf, Usd
 
 import isaaclab.sim as sim_utils
@@ -108,7 +108,8 @@ def spawn_multi_asset(
     stage = stage_utils.get_current_stage()
 
     # Select the environment index function when random choice is disabled..
-    choice_fn = get_method(".".join([cfg.choice_method_dir, cfg.choice_method]))
+    module = importlib.import_module(cfg.choice_method_dir)
+    choice_fn = getattr(module, cfg.choice_method)
 
     # manually clone prims if the source prim path is a regex expression
     # note: unlike in the cloner API from Isaac Sim, we do not "reset" xforms on the copied prims.
@@ -118,7 +119,7 @@ def spawn_multi_asset(
             # spawn single instance
             env_spec = Sdf.CreatePrimInLayer(stage.GetRootLayer(), prim_path)
             # randomly select an asset configuration
-            idx = choice_fn(index, len(source_prim_paths), len(proto_prim_paths))
+            idx = choice_fn(index, len(source_prim_paths), len(proto_prim_paths), **cfg.choice_cfg)
             proto_path = proto_prim_paths[idx]
             # copy the proto prim
             Sdf.CopySpec(env_spec.layer, Sdf.Path(proto_path), env_spec.layer, Sdf.Path(prim_path))
@@ -184,6 +185,7 @@ def spawn_multi_usd_file(
         usd_cfg = usd_template_cfg.replace(usd_path=usd_path)
         multi_asset_cfg.assets_cfg.append(usd_cfg)
     # set random choice
+    multi_asset_cfg.choice_cfg = cfg.choice_cfg
     multi_asset_cfg.choice_method_dir = cfg.choice_method_dir
     multi_asset_cfg.choice_method = cfg.choice_method
 

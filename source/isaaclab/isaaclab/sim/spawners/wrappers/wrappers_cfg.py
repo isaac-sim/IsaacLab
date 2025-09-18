@@ -49,10 +49,15 @@ class MultiAssetSpawnerCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
          ``(current_idx: int, total_prim_path: int, num_assets: int) -> int``
     """
 
-    choice_method_dir: str = "isaaclab.sim.spawners.wrappers.utils"
+    choice_cfg: dict = {"weights": None}
+    """Configuration dictionary for the choice function.
+
+    Can include parameters such as 'weights' for weighted selection or other method-specific options."""
+
+    choice_method_dir: str = "isaaclab.sim.spawners.wrappers.choices"
     """Python module path where the choice method functions are defined.
 
-    This path is used to dynamically load the selection function via `get_method()`.
+    This path is used to dynamically load the selection function.
     """
 
 
@@ -88,8 +93,13 @@ class MultiUsdFileCfg(UsdFileCfg):
          ``(current_idx: int, total_prim_path: int, num_assets: int) -> int``
     """
 
+    choice_cfg: dict = {"weights": None}
+    """Configuration dictionary for the choice function.
+
+    Can include parameters such as 'weights' for weighted selection or other method-specific options."""
+
     choice_method_dir: str = "isaaclab.sim.spawners.wrappers.utils"
     """Python module path where the choice method functions are defined.
 
-    This path is used to dynamically load the selection function via `get_method()`.
+    This path is used to dynamically load the selection function.
     """
