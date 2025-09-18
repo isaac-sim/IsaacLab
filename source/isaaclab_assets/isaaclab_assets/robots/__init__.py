@@ -15,3 +15,4 @@ from .franka import *
 from .humanoid import *
 from .unitree import *
 from .universal_robots import *
+from .cassie import *
