@@ -108,8 +108,6 @@ Use this table to decide:
 +-------------------+------------------------------+------------------------------+---------------------------+------------+
 | Docker            | |:whale:| Docker             | |:floppy_disk:| source (git) | Docker users              | Advanced   |
 +-------------------+------------------------------+------------------------------+---------------------------+------------+
-| Cloud             | |:cloud:| Cloud              | |:cloud:| Cloud              | Cloud users (e.g.: AWS)   | Advanced   |
-+-------------------+------------------------------+------------------------------+---------------------------+------------+
 
 Next Steps
 ----------
@@ -143,12 +141,6 @@ Once you've reviewed the installation methods, continue with the guide that matc
 
   - Install Isaac Sim and Isaac Lab in a Docker container.
   - Best for users who want to use Isaac Lab in a containerized environment.
-
-- :doc:`cloud_installation`
-
-  - Deploy Isaac Sim and Isaac Lab to public clouds (e.g.: AWS, Azure, GCP, Alibaba Cloud).
-  - Best for users who want to use Isaac Lab in a cloud environment.
-  - Provides a fully configured remote desktop cloud workstation.
 
 
 Asset Caching
