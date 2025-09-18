@@ -347,7 +347,7 @@ class ArticulationData:
     """Joint armature provided to the simulation. Shape is (num_instances, num_joints)."""
 
     joint_static_friction_effort: torch.Tensor = None
-    """Joint static friction torque provided to the simulation. Shape is (num_instances, num_joints)."""
+    """Joint static friction effort provided to the simulation. Shape is (num_instances, num_joints)."""
 
     joint_dynamic_friction_effort: torch.Tensor = None
     """Joint dynamic friction torque provided to the simulation. Shape is (num_instances, num_joints)."""
