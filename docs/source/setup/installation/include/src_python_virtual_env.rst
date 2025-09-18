@@ -29,9 +29,9 @@ instead of *./isaaclab.sh -p* or *isaaclab.bat -p*.
 
    - For Isaac Sim 5.X, the required Python version is 3.11.
    - For Isaac Sim 4.X, the required Python version is 3.10.
-   
+
    Using a different Python version will result in errors when running Isaac Lab.
-  
+
 
 .. tab-set::
 

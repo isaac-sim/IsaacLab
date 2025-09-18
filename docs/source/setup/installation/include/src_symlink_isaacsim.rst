@@ -17,7 +17,7 @@ to index the python modules and look for extensions shipped with Isaac Sim.
          cd IsaacLab
          # create a symbolic link
          ln -s ${ISAACSIM_PATH} _isaac_sim
-         
+
          # For example:
          # Option 1: If pre-built binaries were installed:
          # ln -s ${HOME}/isaacsim _isaac_sim
@@ -34,11 +34,10 @@ to index the python modules and look for extensions shipped with Isaac Sim.
          cd IsaacLab
          :: create a symbolic link - requires launching Command Prompt with Administrator access
          mklink /D _isaac_sim %ISAACSIM_PATH%
-         
+
          :: For example:
          :: Option 1: If pre-built binaries were installed:
          :: mklink /D _isaac_sim C:\isaacsim
          ::
          :: Option 2: If Isaac Sim was built from source:
          :: mklink /D _isaac_sim C:\IsaacSim\_build\windows-x86_64\release
-        

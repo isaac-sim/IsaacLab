@@ -31,7 +31,7 @@ Installation
 
    By default, the above will install **all** the learning frameworks. These include
    ``rl_games``, ``rsl_rl``, ``sb3``, ``skrl``, ``robomimic``.
-   
+
    If you want to install only a specific framework, you can pass the name of the framework
    as an argument. For example, to install only the ``rl_games`` framework, you can run:
 

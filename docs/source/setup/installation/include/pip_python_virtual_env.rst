@@ -22,7 +22,7 @@ You can choose different package managers to create a virtual environment.
 
    - For Isaac Sim 5.X, the required Python version is 3.11.
    - For Isaac Sim 4.X, the required Python version is 3.10.
-   
+
    Using a different Python version will result in errors when running Isaac Lab.
 
 The following instructions are for Isaac Sim 5.X, which requires Python 3.11.
@@ -61,7 +61,7 @@ If you wish to install Isaac Sim 4.5, please use modify the instructions accordi
                   env_isaaclab\Scripts\activate
 
       .. tab-item::  Conda Environment
-    
+
          To install conda, please follow the instructions `here <https://docs.conda.io/projects/conda/en/latest/user-guide/install/index.html>__`.
          You can create the Isaac Lab environment using the following commands.
 
