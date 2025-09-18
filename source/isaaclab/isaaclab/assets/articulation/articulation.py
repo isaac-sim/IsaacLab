@@ -2058,7 +2058,7 @@ class Articulation(AssetBase):
         joint_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | None = None,
     ):
-        """Write joint friction torques into the simulation.
+        """Write joint friction efforts into the simulation.
 
         .. deprecated:: 2.1.0
             Please use :meth:`write_joint_static_friction_effort_to_sim` instead.
