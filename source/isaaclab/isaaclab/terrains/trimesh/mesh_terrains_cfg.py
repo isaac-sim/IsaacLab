@@ -358,13 +358,16 @@ class MeshFloatingObstaclesTerrainCfg(SubTerrainBaseCfg):
     bottom_wall_cfg.size = (20.0, 20.0, 0.2)
     bottom_wall_cfg.center_ratio_min = (0.5, 0.5, 0.0)
     bottom_wall_cfg.center_ratio_max = (0.5, 0.5, 0.0)
-    
-    wall_cfgs = [left_wall_cfg,
-                 right_wall_cfg,
-                 back_wall_cfg,
-                 front_wall_cfg,
-                #  top_wall_cfg,
-                 bottom_wall_cfg]
+
+    wall_cfgs = [bottom_wall_cfg]
+    # [
+    #     left_wall_cfg,
+    #     right_wall_cfg,
+    #     back_wall_cfg,
+    #     front_wall_cfg,
+    #     #  top_wall_cfg,
+    #     bottom_wall_cfg
+    # ]
 
     obstacle_cfgs = [small_wall_obs_cfg,
                      big_wall_obs_cfg,

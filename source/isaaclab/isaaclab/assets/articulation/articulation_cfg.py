@@ -123,3 +123,6 @@ class ArticulationWithThrustersCfg(ArticulationCfg):
 
     allocation_matrix: list[list[float]] | None = None
     """Matrix for calculating wrench from individual motor thrusts. Defaults to None."""
+    
+    rotor_directions: list[int] | None = None
+    """List of rotor directions, 1 for clockwise, -1 for counter-clockwise."""

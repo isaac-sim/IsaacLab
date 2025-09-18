@@ -20,6 +20,7 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers.manager_base import ManagerTermBase
 from isaaclab.managers.manager_term_cfg import ObservationTermCfg
 from isaaclab.sensors import Camera, Imu, RayCaster, RayCasterCamera, TiledCamera
+import matplotlib.pyplot as plt
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv, ManagerBasedRLEnv
@@ -455,6 +456,10 @@ def image_latents(
 
     # obtain the input image
     images = sensor.data.output[data_type]
+    
+    # plt.figure()
+    # plt.imshow(images[0].cpu().numpy())
+    # plt.show()
 
     # depth image conversion
     if (data_type == "distance_to_camera") and convert_perspective_to_orthogonal:

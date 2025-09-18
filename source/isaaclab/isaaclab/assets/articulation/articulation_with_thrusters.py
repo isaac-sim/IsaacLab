@@ -84,7 +84,7 @@ class ArticulationWithThrusters(Articulation):
         self._allocation_matrix = torch.tensor(self.cfg.allocation_matrix, device=self.device)
 
         # external forces and torques
-        self.has_external_wrench = False
+        self.has_external_wrench = True
         self.uses_external_wrench_positions = False
         self._external_force_b = torch.zeros((self.num_instances, self.num_bodies, 3), device=self.device)
         self._external_torque_b = torch.zeros_like(self._external_force_b)
@@ -257,14 +257,16 @@ class ArticulationWithThrusters(Articulation):
         self._combine_thrusts()
         # TODO apply force to center of gravity instead (important for arbitrary robots)
         # TODO grab correct index in a flexible way
-        root_body_id = 0 #self.root_physx_view.get_body_index("base_link")
-        # print("\n\n\n\n\n\n\n\n")
+        # TODO check what is_global does
+        root_body_id = 0 
         
-        self.root_physx_view.apply_forces_and_torques_at_position(force_data=self._internal_force_target_sim.view(-1,3),
-                                                                  torque_data = self._internal_torque_target_sim.view(-1,3),
-                                                                  position_data=None,
-                                                                  indices = torch.tensor([root_body_id], device=self.device),
-                                                                  is_global = False)
+        # print("applying forces: ", self._internal_force_target_sim.view(-1,3))
+        # print("applying torques: ", self._internal_torque_target_sim.view(-1,3))
+        #self.root_physx_view.apply_forces_and_torques_at_position(force_data=self._internal_force_target_sim.view(-1,3),
+        #                                                          torque_data = self._internal_torque_target_sim.view(-1,3),
+        #                                                          position_data=None,
+        #                                                          indices = torch.tensor([root_body_id], device=self.device),
+        #                                                          is_global = False)
         
         # position and velocity targets only for implicit actuators
         # if self._has_implicit_actuators:

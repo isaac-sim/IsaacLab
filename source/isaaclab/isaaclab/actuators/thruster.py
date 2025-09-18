@@ -156,8 +156,10 @@ class Thruster():
         self.computed_thrust = self.curr_thrust
         self.applied_thrust = torch.clamp(self.computed_thrust, self.min_thrust, self.max_thrust)
 
-        control_action.joint_thrusts = self.applied_thrust
-        
+        control_action.thrusts = self.applied_thrust
+
+        # print("control actions: ", control_action.thrusts)
+
         return control_action
     
     def reset_idx(self, env_ids=None) -> None:

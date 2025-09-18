@@ -11,7 +11,6 @@ from isaaclab_tasks.manager_based.navigation.config.LMF2.navigation_env_cfg impo
 # Pre-defined configs
 ##
 from isaaclab_assets.robots.lmf2 import LMF2_CFG
-from isaaclab_assets.robots.anymal import ANYMAL_C_CFG
 
 
 @configclass
