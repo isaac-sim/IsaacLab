@@ -842,7 +842,7 @@ class Articulation(AssetBase):
         similar to static and Coulomb static friction.
 
         Args:
-            joint_static_friction_effort: Joint static friction torque. Shape is (len(env_ids), len(joint_ids)).
+            joint_static_friction_effort: Joint static friction torque or force. Shape is (len(env_ids), len(joint_ids)).
             joint_ids: The joint indices to set the joint torque limits for. Defaults to None (all joints).
             env_ids: The environment indices to set the joint torque limits for. Defaults to None (all environments).
         """
