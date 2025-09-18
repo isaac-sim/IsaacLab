@@ -875,7 +875,7 @@ class Articulation(AssetBase):
         env_ids: Sequence[int] | None = None,
     ):
         if int(get_version()[2]) < 5:
-            omni.log.warn("Setting joint dynamic friction torques are not supported in Isaac Sim < 5.0")
+            omni.log.warn("Setting joint dynamic friction efforts are not supported in Isaac Sim < 5.0")
             return
         # resolve indices
         physx_env_ids = env_ids
