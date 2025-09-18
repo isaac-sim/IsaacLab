@@ -80,6 +80,7 @@ Table of Contents
    source/setup/ecosystem
    source/setup/installation/index
    source/deployment/index
+   source/setup/installation/cloud_installation
    source/refs/reference_architecture/index
 
 
