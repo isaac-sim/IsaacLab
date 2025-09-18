@@ -418,7 +418,7 @@ def test_contact_sensor_threshold(setup_simulation, device):
         sim.reset()
         
         # Get the stage and check the USD threshold attribute on the rigid body prim
-        from omni.isaac.core.utils.stage import get_current_stage
+        from isaacsim.core.utils.stage import get_current_stage
         
         stage = get_current_stage()
         prim_path = scene_cfg.shape.prim_path
