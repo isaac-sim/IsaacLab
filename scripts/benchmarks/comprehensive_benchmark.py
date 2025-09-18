@@ -1,0 +1,435 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""Comprehensive benchmark script for multiple environments with different GPU configurations."""
+
+import argparse
+import json
+import os
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+import pandas as pd
+
+
+class ComprehensiveBenchmark:
+    """Comprehensive benchmarking class for multiple tasks, environments, and GPU configurations."""
+
+    def __init__(self, max_iterations: int = 5000, output_dir: str = "benchmark_results"):
+        """Initialize the benchmark.
+
+        Args:
+            max_iterations: Number of training iterations to run
+            output_dir: Directory to store benchmark results
+        """
+        self.max_iterations = max_iterations
+        self.output_dir = Path(output_dir)
+        self.output_dir.mkdir(exist_ok=True)
+
+        # Define task configurations
+        self.task_configs = {
+            # Camera-enabled task
+            "Isaac-Navigation-Flat-Anymal-C-v0": {
+                "enable_cameras": True,
+                "env_counts": [1024, 2048, 4096],
+                "training_scripts": ["rsl_rl"],
+            },
+            # Non-camera tasks
+            "Isaac-Dexsuite-Kuka-Allegro-Reorient-v0": {
+                "enable_cameras": False,
+                "env_counts": [2048, 4096, 8192, 16384],
+                "training_scripts": ["rsl_rl"],
+            },
+            "Isaac-Dexsuite-Kuka-Allegro-Lift-v0": {
+                "enable_cameras": False,
+                "env_counts": [2048, 4096, 8192, 16384],
+                "training_scripts": ["rsl_rl"],
+            },
+            "Isaac-Velocity-Rough-Anymal-D-v0": {
+                "enable_cameras": False,
+                "env_counts": [2048, 4096, 8192, 16384],
+                "training_scripts": ["rsl_rl"],
+            },
+            "Isaac-Velocity-Rough-G1-v0": {
+                "enable_cameras": False,
+                "env_counts": [2048, 4096, 8192, 16384],
+                "training_scripts": ["rsl_rl"],
+            },
+            "Isaac-Repose-Cube-Shadow-Direct-v0": {
+                "enable_cameras": False,
+                "env_counts": [2048, 4096, 8192, 16384],
+                "training_scripts": ["rsl_rl", "rl_games"],
+            },
+            "Isaac-Repose-Cube-Shadow-OpenAI-LSTM-Direct-v0": {
+                "enable_cameras": False,
+                "env_counts": [2048, 4096, 8192, 16384],
+                "training_scripts": ["rl_games"],
+            },
+        }
+
+        self.gpu_counts = [1, 2, 4, 8]
+        self.results = []
+
+    def _build_command(self, task: str, num_envs: int, num_gpus: int, training_script: str) -> list[str]:
+        """Build the command to run the benchmark.
+
+        Args:
+            task: Task name
+            num_envs: Number of environments
+            num_gpus: Number of GPUs
+            training_script: Training script type ("rsl_rl" or "rl_games")
+
+        Returns:
+            Command as list of strings
+        """
+        config = self.task_configs[task]
+
+        base_script_path = f"scripts/reinforcement_learning/{training_script}/train.py"
+
+        if num_gpus == 1:
+            # Single GPU command
+            cmd = [
+                "./isaaclab.sh",
+                "-p",
+                base_script_path,
+                f"--task={task}",
+                f"--num_envs={num_envs}",
+                f"--max_iterations={self.max_iterations}",
+                "--headless",
+            ]
+        else:
+            # Multi-GPU command
+            cmd = [
+                "./isaaclab.sh",
+                "-p",
+                "-m",
+                "torch.distributed.run",
+                "--nnodes=1",
+                f"--nproc_per_node={num_gpus}",
+                base_script_path,
+                f"--task={task}",
+                f"--num_envs={num_envs}",
+                f"--max_iterations={self.max_iterations}",
+                "--headless",
+                "--distributed",
+            ]
+
+        # Add camera flag if required
+        if config["enable_cameras"]:
+            cmd.append("--enable_cameras")
+
+        return cmd
+
+    def _extract_fps_from_logs(self, log_dir: str, training_script: str) -> float:
+        """Extract FPS from training logs.
+
+        Args:
+            log_dir: Directory containing the logs
+            training_script: Training script type ("rsl_rl" or "rl_games")
+
+        Returns:
+            FPS value, or -1 if not found
+        """
+        try:
+            # Import here to avoid issues with app launcher
+            sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../.."))
+            from scripts.benchmarks.utils import parse_tf_logs
+
+            if training_script == "rsl_rl":
+                # Look for RSL-RL logs
+                log_data = parse_tf_logs(log_dir)
+                if "Perf/total_fps" in log_data and log_data["Perf/total_fps"]:
+                    return max(log_data["Perf/total_fps"])  # Take max FPS achieved
+            elif training_script == "rl_games":
+                # Look for RL-Games logs in summaries subdirectory
+                summaries_dir = os.path.join(log_dir, "summaries")
+                if os.path.exists(summaries_dir):
+                    log_data = parse_tf_logs(summaries_dir)
+                    if (
+                        "performance/step_inference_rl_update_fps" in log_data
+                        and log_data["performance/step_inference_rl_update_fps"]
+                    ):
+                        return max(log_data["performance/step_inference_rl_update_fps"])
+
+            return -1
+        except Exception as e:
+            print(f"Error extracting FPS from logs in {log_dir}: {e}")
+            return -1
+
+    def _run_single_benchmark(self, task: str, num_envs: int, num_gpus: int, training_script: str) -> dict:
+        """Run a single benchmark configuration.
+
+        Args:
+            task: Task name
+            num_envs: Number of environments
+            num_gpus: Number of GPUs
+            training_script: Training script type
+
+        Returns:
+            Dictionary with benchmark results
+        """
+        print(f"Running benchmark: {task} | {num_envs} envs | {num_gpus} GPUs | {training_script}")
+
+        cmd = self._build_command(task, num_envs, num_gpus, training_script)
+
+        # Create unique run identifier
+        run_id = f"{task}_{num_envs}envs_{num_gpus}gpus_{training_script}_{int(time.time())}"
+
+        # Set environment variable for logging
+        env = os.environ.copy()
+
+        result = {
+            "task": task,
+            "num_envs": num_envs,
+            "num_gpus": num_gpus,
+            "training_script": training_script,
+            "fps": -1,
+            "status": "failed",
+            "command": " ".join(cmd),
+            "run_id": run_id,
+        }
+
+        try:
+            # Run the command
+            print(f"Executing: {' '.join(cmd)}")
+            start_time = time.time()
+
+            process = subprocess.Popen(
+                cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env, cwd=os.getcwd()
+            )
+
+            stdout, stderr = process.communicate(timeout=3600)  # 1 hour timeout
+            end_time = time.time()
+
+            if process.returncode == 0:
+                result["status"] = "completed"
+                result["duration"] = end_time - start_time
+
+                # Try to extract FPS from logs
+                # Look for the most recent log directory
+                if training_script == "rsl_rl":
+                    log_base_dir = "logs/rsl_rl"
+                else:
+                    log_base_dir = "logs/rl_games"
+
+                if os.path.exists(log_base_dir):
+                    # Find the most recent log directory
+                    log_dirs = [d for d in os.listdir(log_base_dir) if os.path.isdir(os.path.join(log_base_dir, d))]
+                    if log_dirs:
+                        # Get the most recent directory by modification time
+                        latest_log_dir = max(log_dirs, key=lambda x: os.path.getmtime(os.path.join(log_base_dir, x)))
+                        full_log_path = os.path.join(log_base_dir, latest_log_dir)
+
+                        # For RL-Games, look for subdirectories
+                        if training_script == "rl_games":
+                            subdirs = [
+                                d for d in os.listdir(full_log_path) if os.path.isdir(os.path.join(full_log_path, d))
+                            ]
+                            if subdirs:
+                                latest_subdir = max(
+                                    subdirs, key=lambda x: os.path.getmtime(os.path.join(full_log_path, x))
+                                )
+                                full_log_path = os.path.join(full_log_path, latest_subdir)
+
+                        fps = self._extract_fps_from_logs(full_log_path, training_script)
+                        result["fps"] = fps
+                        result["log_path"] = full_log_path
+
+                print(f"✓ Completed successfully. FPS: {result['fps']}")
+            else:
+                result["error"] = stderr
+                print(f"✗ Failed with return code {process.returncode}")
+                print(f"Error: {stderr}")
+
+        except subprocess.TimeoutExpired:
+            process.kill()
+            result["error"] = "Timeout after 1 hour"
+            print("✗ Failed: Timeout after 1 hour")
+        except Exception as e:
+            result["error"] = str(e)
+            print(f"✗ Failed with exception: {e}")
+
+        return result
+
+    def run_all_benchmarks(self) -> None:
+        """Run all benchmark configurations."""
+        total_configs = sum(
+            len(config["env_counts"]) * len(self.gpu_counts) * len(config["training_scripts"])
+            for config in self.task_configs.values()
+        )
+
+        print(f"Starting comprehensive benchmark with {total_configs} configurations...")
+        print(f"Max iterations per run: {self.max_iterations}")
+        print(f"Results will be saved to: {self.output_dir}")
+        print("=" * 80)
+
+        config_count = 0
+
+        for task, config in self.task_configs.items():
+            for num_envs in config["env_counts"]:
+                for num_gpus in self.gpu_counts:
+                    for training_script in config["training_scripts"]:
+                        config_count += 1
+                        print(f"\nConfiguration {config_count}/{total_configs}")
+                        print("-" * 40)
+
+                        result = self._run_single_benchmark(task, num_envs, num_gpus, training_script)
+                        self.results.append(result)
+
+                        # Save intermediate results
+                        self._save_results()
+
+        print("\n" + "=" * 80)
+        print("Benchmark completed!")
+        self._generate_report()
+
+    def _save_results(self) -> None:
+        """Save results to JSON file."""
+        results_file = self.output_dir / "benchmark_results.json"
+        with open(results_file, "w") as f:
+            json.dump(self.results, f, indent=2)
+
+    def _generate_report(self) -> None:
+        """Generate comprehensive benchmark report."""
+        # Create DataFrame for analysis
+        df = pd.DataFrame(self.results)
+
+        # Save raw data
+        csv_file = self.output_dir / "benchmark_results.csv"
+        df.to_csv(csv_file, index=False)
+
+        # Generate summary report
+        report_file = self.output_dir / "benchmark_report.md"
+
+        with open(report_file, "w") as f:
+            f.write("# Comprehensive Benchmark Report\n\n")
+            f.write(f"**Generated:** {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
+            f.write(f"**Max Iterations:** {self.max_iterations}\n")
+            f.write(f"**Total Configurations:** {len(self.results)}\n\n")
+
+            # Success rate
+            successful_runs = len(df[df["status"] == "completed"])
+            success_rate = (successful_runs / len(df)) * 100
+            f.write(f"**Success Rate:** {success_rate:.1f}% ({successful_runs}/{len(df)})\n\n")
+
+            # Results by task
+            f.write("## Results by Task\n\n")
+
+            for task in df["task"].unique():
+                f.write(f"### {task}\n\n")
+                task_df = df[df["task"] == task]
+
+                # Create table
+                f.write("| Environment Count | GPU Count | Training Script | FPS | Status |\n")
+                f.write("|------------------|-----------|-----------------|-----|--------|\n")
+
+                for _, row in task_df.iterrows():
+                    fps_str = f"{row['fps']:.1f}" if row["fps"] > 0 else "N/A"
+                    status_emoji = "✅" if row["status"] == "completed" else "❌"
+                    f.write(
+                        f"| {row['num_envs']} | {row['num_gpus']} | {row['training_script']} | {fps_str} |"
+                        f" {status_emoji} |\n"
+                    )
+                f.write("\n")
+
+            # Performance analysis
+            f.write("## Performance Analysis\n\n")
+
+            # Best FPS by task
+            f.write("### Best FPS by Task\n\n")
+            successful_df = df[df["fps"] > 0]
+            if not successful_df.empty:
+                best_fps = successful_df.groupby("task")["fps"].max().sort_values(ascending=False)
+                f.write("| Task | Best FPS |\n")
+                f.write("|------|----------|\n")
+                for task, fps in best_fps.items():
+                    f.write(f"| {task} | {fps:.1f} |\n")
+                f.write("\n")
+
+            # GPU scaling analysis
+            f.write("### GPU Scaling Analysis\n\n")
+            if not successful_df.empty:
+                for task in successful_df["task"].unique():
+                    task_data = successful_df[successful_df["task"] == task]
+                    f.write(f"#### {task}\n\n")
+                    f.write("| GPU Count | Environment Count | Training Script | FPS |\n")
+                    f.write("|-----------|------------------|-----------------|-----|\n")
+                    for _, row in task_data.sort_values(["num_gpus", "num_envs"]).iterrows():
+                        f.write(
+                            f"| {row['num_gpus']} | {row['num_envs']} | {row['training_script']} | {row['fps']:.1f} |\n"
+                        )
+                    f.write("\n")
+
+            # Failed runs
+            failed_df = df[df["status"] != "completed"]
+            if not failed_df.empty:
+                f.write("## Failed Runs\n\n")
+                f.write("| Task | Environment Count | GPU Count | Training Script | Error |\n")
+                f.write("|------|------------------|-----------|-----------------|-------|\n")
+                for _, row in failed_df.iterrows():
+                    error = row.get("error", "Unknown error")[:100]  # Truncate long errors
+                    f.write(
+                        f"| {row['task']} | {row['num_envs']} | {row['num_gpus']} | {row['training_script']} |"
+                        f" {error} |\n"
+                    )
+
+        print(f"Report generated: {report_file}")
+        print(f"Raw data saved: {csv_file}")
+
+        # Print summary to console
+        print("\n" + "=" * 80)
+        print("BENCHMARK SUMMARY")
+        print("=" * 80)
+        print(f"Total configurations: {len(self.results)}")
+        print(f"Successful runs: {successful_runs}")
+        print(f"Success rate: {success_rate:.1f}%")
+
+        if not df[df["fps"] > 0].empty:
+            best_overall = df[df["fps"] > 0].loc[df["fps"].idxmax()]
+            print("\nBest performance:")
+            print(f"  Task: {best_overall['task']}")
+            print(f"  FPS: {best_overall['fps']:.1f}")
+            print(
+                f"  Configuration: {best_overall['num_envs']} envs, {best_overall['num_gpus']} GPUs,"
+                f" {best_overall['training_script']}"
+            )
+
+
+def main():
+    """Main function to run the comprehensive benchmark."""
+    parser = argparse.ArgumentParser(description="Comprehensive benchmark for multiple tasks and configurations")
+    parser.add_argument(
+        "--max_iterations", type=int, default=5000, help="Number of training iterations per run (default: 5000)"
+    )
+    parser.add_argument(
+        "--output_dir",
+        type=str,
+        default="benchmark_results",
+        help="Directory to store results (default: benchmark_results)",
+    )
+    parser.add_argument("--tasks", nargs="+", help="Specific tasks to benchmark (default: all tasks)")
+    parser.add_argument("--gpus", nargs="+", type=int, help="Specific GPU counts to test (default: 1,2,4,8)")
+
+    args = parser.parse_args()
+
+    # Create benchmark instance
+    benchmark = ComprehensiveBenchmark(max_iterations=args.max_iterations, output_dir=args.output_dir)
+
+    # Filter tasks if specified
+    if args.tasks:
+        benchmark.task_configs = {task: config for task, config in benchmark.task_configs.items() if task in args.tasks}
+
+    # Filter GPU counts if specified
+    if args.gpus:
+        benchmark.gpu_counts = args.gpus
+
+    # Run benchmarks
+    benchmark.run_all_benchmarks()
+
+
+if __name__ == "__main__":
+    main()
