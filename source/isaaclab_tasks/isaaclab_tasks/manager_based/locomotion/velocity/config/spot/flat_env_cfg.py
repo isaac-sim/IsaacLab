@@ -301,7 +301,7 @@ class SpotFlatEnvCfg(LocomotionVelocityRoughEnvCfg):
     sim: SimulationCfg = SimulationCfg(
         newton_cfg=NewtonCfg(
             solver_cfg=MJWarpSolverCfg(
-                njmax=40,
+                njmax=45,
                 ncon_per_env=30,
                 ls_iterations=10,
                 cone="pyramidal",

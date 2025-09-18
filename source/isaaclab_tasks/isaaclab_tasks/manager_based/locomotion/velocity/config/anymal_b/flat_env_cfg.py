@@ -16,8 +16,8 @@ class AnymalBFlatEnvCfg(AnymalBRoughEnvCfg):
     sim: SimulationCfg = SimulationCfg(
         newton_cfg=NewtonCfg(
             solver_cfg=MJWarpSolverCfg(
-                njmax=60,
-                ncon_per_env=30,
+                njmax=50,
+                ncon_per_env=15,
                 ls_iterations=15,
                 cone="elliptic",
                 impratio=100,

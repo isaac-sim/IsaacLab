@@ -1374,6 +1374,9 @@ class Articulation(AssetBase):
         # log joint information
         self._log_articulation_info()
 
+        self._root_newton_view.set_root_transforms(NewtonManager.get_state_0(), self._data.default_root_state[:, :7], mask=self._mask)
+        self._root_newton_view.set_root_transforms(NewtonManager.get_model(), self._data.default_root_state[:, :7], mask=self._mask)
+
     def _create_buffers(self):
         # constants
         self._ALL_INDICES = torch.arange(self.num_instances, dtype=torch.long, device=self.device)
