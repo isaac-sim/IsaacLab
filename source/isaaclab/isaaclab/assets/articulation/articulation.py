@@ -830,7 +830,7 @@ class Articulation(AssetBase):
         joint_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | None = None,
     ):
-        r"""Write joint static friction torques into the simulation.
+        r"""Write joint static friction effort (force or torque) into the simulation.
 
         The joint static friction is a unitless quantity. It relates the magnitude of the spatial force transmitted
         from the parent body to the child body to the maximal static friction force that may be applied by the solver
