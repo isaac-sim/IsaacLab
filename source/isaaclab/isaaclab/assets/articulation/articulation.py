@@ -202,7 +202,7 @@ class Articulation(AssetBase):
         """
         # write external wrench
         if self.has_external_wrench:
-            wrenches_b = torch.cat([self._external_force_b, self._external_force_b], dim=-1)
+            wrenches_b = torch.cat([self._external_force_b, self._external_torque_b], dim=-1)
             self._root_newton_view.set_attribute("body_f", NewtonManager.get_state_0(), wp.from_torch(wrenches_b))
 
         # apply actuator models
