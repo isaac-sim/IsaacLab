@@ -326,7 +326,7 @@ class RayCaster(SensorBase):
 
         self.ray_visualizer.visualize(viz_points)
 
-       def _get_trackable_prim_view(
+    def _get_trackable_prim_view(
         self, target_prim_path: str
     ) -> tuple[XFormPrim | any, tuple[torch.Tensor, torch.Tensor]]:
         """Get a prim view that can be used to track the pose of the mesh prims. Additionally, it resolves the
@@ -355,6 +355,7 @@ class RayCaster(SensorBase):
             current_path_expr = current_path_expr.rsplit("/", 1)[0]
             if not new_root_prim.IsValid():
                 prim_view = XFormPrim(target_prim_path, reset_xform_properties=False)
+                current_path_expr = target_prim_path
                 omni.log.warn(
                     f"The prim at path {target_prim_path} which is used for raycasting is not a physics prim."
                     " Defaulting to XFormPrim. \n The pose of the mesh will most likely not"

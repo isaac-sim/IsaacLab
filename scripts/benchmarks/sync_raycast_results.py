@@ -1,7 +1,15 @@
-import pandas as pd
-import wandb
-import plotly.express as px
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 import os
+
+import pandas as pd
+import plotly.express as px
+
+import wandb
+
 
 def compare_single_vs_multi():
     csv_path = "outputs/benchmarks/ray_caster_benchmark_single_vs_multi.csv"
@@ -19,9 +27,7 @@ def compare_single_vs_multi():
     df["fps"] = 1.0 / (df["per_step_ms"] * 1e-3)
     df["rays_per_us"] = 1.0 / df["time_per_ray_us"]
 
-    df["resolution_label"] = df.apply(
-        lambda r: f"{r['mode']} - {(5.0 / r['resolution'])**2:.2f} rays", axis=1
-    )
+    df["resolution_label"] = df.apply(lambda r: f"{r['mode']} - {(5.0 / r['resolution'])**2:.2f} rays", axis=1)
 
     fig_fps = px.line(
         df,

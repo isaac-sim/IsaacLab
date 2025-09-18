@@ -115,7 +115,10 @@ class MultiMeshRayCasterCamera(RayCasterCamera, MultiMeshRayCaster):
         """Updates the ray information buffers."""
 
         # compute poses from current view
-        pos_w, quat_w = self._compute_camera_world_poses(env_ids)
+        pos_w, quat_w = sim_utils.obtain_world_pose_from_view(self._view, env_ids)
+        pos_w, quat_w = math_utils.combine_frame_transforms(
+            pos_w, quat_w, self._offset_pos[env_ids], self._offset_quat[env_ids]
+        )
         # update the data
         self._data.pos_w[env_ids] = pos_w
         self._data.quat_w_world[env_ids] = quat_w
@@ -168,15 +171,6 @@ class MultiMeshRayCasterCamera(RayCasterCamera, MultiMeshRayCaster):
             self._mesh_positions_w[:, mesh_idx : mesh_idx + count] = pos_w
             self._mesh_orientations_w[:, mesh_idx : mesh_idx + count] = ori_w
             mesh_idx += count
-
-        # import isaacsim.util.debug_draw._debug_draw as omni_debug_draw
-        # draw_interface = omni_debug_draw.acquire_debug_draw_interface()
-        # draw_interface.clear_lines()
-        # start_pts = self._ray_starts_w.cpu().numpy().reshape(-1, 3)
-        # end_pts = (self._ray_starts_w + self._ray_directions_w * 2.0).cpu().numpy().reshape(-1, 3)
-        # lines_colors = [[0.0, 1.0, 0.0, 1.0]] * start_pts.shape[0]
-        # line_thicknesses = [2.0] * start_pts.shape[0]
-        # draw_interface.draw_lines(start_pts.tolist(), end_pts.tolist(), lines_colors, line_thicknesses)
 
         # ray cast and store the hits
         self.ray_hits_w, ray_depth, ray_normal, _, ray_mesh_ids = raycast_dynamic_meshes(

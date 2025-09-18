@@ -17,7 +17,7 @@ requirements = [
     "prettytable==3.3.0",
     "toml",
     "hidapi",
-    "gymnasium==0.29.0",
+    "gymnasium==1.2.0",
     "trimesh"
 ]
 

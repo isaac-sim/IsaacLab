@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Expectes first argument api key, second wandb entity (optional)
+# Expects first argument api key, second wandb entity (optional)
 export WANDB_API_KEY=$1
 export WANDB_ENTITY=$2
 echo Running raycaster benchmarks with wandb entity $WANDB_ENTITY
