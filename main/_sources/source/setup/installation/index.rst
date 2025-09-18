@@ -39,12 +39,21 @@ System Requirements
 General Requirements
 ~~~~~~~~~~~~~~~~~~~~
 
+For detailed requirements, please see the
+`Isaac Sim system requirements <https://docs.isaacsim.omniverse.nvidia.com/latest/installation/requirements.html>`_.
+The basic requirements are:
+
+- **OS:** Ubuntu 22.04 (Linux x64) or Windows 11 (x64)
 - **RAM:** 32 GB or more
 - **GPU VRAM:** 16 GB or more (additional VRAM may be required for rendering workflows)
-- **OS:** Ubuntu 22.04 (Linux x64) or Windows 11 (x64)
 
-For detailed requirements, see the
-`Isaac Sim system requirements <https://docs.isaacsim.omniverse.nvidia.com/latest/installation/requirements.html#system-requirements>`_.
+**Isaac Sim is built against a specific Python version**, making
+it essential to use the same Python version when installing Isaac Lab.
+The required Python version is as follows:
+
+- For Isaac Sim 5.X, the required Python version is 3.11.
+- For Isaac Sim 4.X, the required Python version is 3.10.
+
 
 Driver Requirements
 ~~~~~~~~~~~~~~~~~~~
@@ -65,6 +74,8 @@ Troubleshooting
 Please refer to the `Linux Troubleshooting <https://docs.omniverse.nvidia.com/dev-guide/latest/linux-troubleshooting.html>`_
 to resolve installation issues in Linux.
 
+You can use `Isaac Sim Compatibility Checker <https://docs.isaacsim.omniverse.nvidia.com/latest/installation/install_workstation.html#isaac-sim-compatibility-checker>`_
+to automatically check if the above requirements are met for running Isaac Sim on your system.
 
 Quick Start (Recommended)
 -------------------------
@@ -95,7 +106,8 @@ Use this table to decide:
 | Pip Only          | |:package:| pip install      | |:package:| pip install      | External extensions only  | Special    |
 |                   |                              |                              | (no training/examples)    | case       |
 +-------------------+------------------------------+------------------------------+---------------------------+------------+
-
+| Docker            | |:whale:| Docker             | |:floppy_disk:| source (git) | Docker users              | Advanced   |
++-------------------+------------------------------+------------------------------+---------------------------+------------+
 
 Next Steps
 ----------
@@ -125,6 +137,11 @@ Once you've reviewed the installation methods, continue with the guide that matc
   - Best for advanced users building **external extensions** with custom runner scripts.
   - Note: This does **not** include training or example scripts.
 
+- :ref:`container-deployment`
+
+  - Install Isaac Sim and Isaac Lab in a Docker container.
+  - Best for users who want to use Isaac Lab in a containerized environment.
+
 
 Asset Caching
 -------------
@@ -142,11 +159,11 @@ Please follow the steps :doc:`asset_caching` to enable asset caching and speed u
 
 
 .. toctree::
-    :maxdepth: 2
-    :hidden:
+   :maxdepth: 1
+   :hidden:
 
-    pip_installation
-    binaries_installation
-    source_installation
-    isaaclab_pip_installation
-    asset_caching
+   pip_installation
+   binaries_installation
+   source_installation
+   isaaclab_pip_installation
+   asset_caching

@@ -1,0 +1,1649 @@
+
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+
+    <title>isaaclab_mimic.envs &#8212; Isaac Lab Documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css" />
+    <link rel="stylesheet" href="../../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/twemoji.css" />
+    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.11.13/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/custom.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.4cbf315f70debaebd550c87a6162cf0f.min.css" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
+    <script src="../../../_static/doctools.js"></script>
+    <script src="../../../_static/sphinx_highlight.js"></script>
+    <script src="https://unpkg.com/twemoji@latest/dist/twemoji.min.js"></script>
+    <script src="../../../_static/twemoji.js"></script>
+    <script src="/opt/hostedtoolcache/Python/3.11.13/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
+    <script src="../../../_static/clipboard.min.js"></script>
+    <script src="../../../_static/copybutton.js"></script>
+    <script src="../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
+    <script src="../../../_static/design-tabs.js"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'source/api/lab_mimic/isaaclab_mimic.envs';</script>
+    <link rel="icon" href="../../../_static/favicon.ico"/>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+    <link rel="next" title="isaaclab_tasks.utils" href="../lab_tasks/isaaclab_tasks.utils.html" />
+    <link rel="prev" title="isaaclab_mimic.datagen" href="isaaclab_mimic.datagen.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="2.2.0" />
+    <meta name="docbuild:last-update" content="Sep 18, 2025"/>
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../../_static/NVIDIA-logo-white.png" class="logo__image only-light" alt=""/>
+    <img src="../../../_static/NVIDIA-logo-black.png" class="logo__image only-dark pst-js-only" alt=""/>
+  
+  
+    <p class="title logo__title">Isaac Lab Documentation</p>
+  
+</a></div>
+        <div class="sidebar-primary-item">
+<nav class="bd-links bd-docs-nav">
+    <div class="bd-toc-item navbar-nav">
+      <ul class="nav bd-sidenav">
+        <li class="toctree-l1 has-children" style="display: flex; justify-content: center; align-items: center; flex-direction: column;">
+          <div  style ="text-align:center;">
+            <label for="version-select" style="font-weight: bold; display: block;">Version</label>
+          </div>
+          <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
+            <option value="../../../../../main/source/api/lab_mimic/isaaclab_mimic.envs.html" >main</option>
+            <option value="../../../../2.1.0/source/api/lab_mimic/isaaclab_mimic.envs.html" >release/2.1.0</option>
+            <option value="isaaclab_mimic.envs.html" selected>release/2.2.0</option>
+            <option value="../../../../2.3.0/source/api/lab_mimic/isaaclab_mimic.envs.html" >release/2.3.0</option>
+            <option value="../../../../../v2.2.1/source/api/lab_mimic/isaaclab_mimic.envs.html" >v2.2.1</option>
+            <option value="../../../../../v2.2.0/source/api/lab_mimic/isaaclab_mimic.envs.html" >v2.2.0</option>
+            <option value="../../../../../v2.1.1/source/api/lab_mimic/isaaclab_mimic.envs.html" >v2.1.1</option>
+            <option value="../../../../../v2.1.0/source/api/lab_mimic/isaaclab_mimic.envs.html" >v2.1.0</option>
+            <option value="../../../../../v2.0.2/source/api/lab_mimic/isaaclab_mimic.envs.html" >v2.0.2</option>
+            <option value="../../../../../v2.0.1/source/api/lab_mimic/isaaclab_mimic.envs.html" >v2.0.1</option>
+            <option value="../../../../../v2.0.0/source/api/lab_mimic/isaaclab_mimic.envs.html" >v2.0.0</option>
+            <option value="../../../../../v1.4.1/index.html" >v1.4.1</option>
+            <option value="../../../../../v1.4.0/index.html" >v1.4.0</option>
+            <option value="../../../../../v1.3.0/index.html" >v1.3.0</option>
+            <option value="../../../../../v1.2.0/index.html" >v1.2.0</option>
+            <option value="../../../../../v1.1.0/index.html" >v1.1.0</option>
+            <option value="../../../../../v1.0.0/index.html" >v1.0.0</option>
+          </select>
+        </li>
+      </ul>
+    </div>
+</nav>
+</div>
+        <div class="sidebar-primary-item"><ul class="navbar-icon-links"
+    aria-label="Quick Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/isaac-sim/IsaacLab" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.0.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://img.shields.io/github/stars/isaac-sim/IsaacLab?color=fedcba" title="Stars" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/github/stars/isaac-sim/IsaacLab?color=fedcba" class="icon-link-image" alt="Stars"/></a>
+        </li>
+</ul></div>
+        <div class="sidebar-primary-item">
+<form class="bd-search d-flex align-items-center"
+      action="../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+        <div class="sidebar-primary-item"><nav class="bd-links" id="bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Isaac Lab</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../setup/ecosystem.html">Isaac Lab Ecosystem</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../setup/installation/index.html">Local Installation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/pip_installation.html">Pip installation (recommended)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/binaries_installation.html">Binary installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/isaaclab_pip_installation.html">Advanced installation (Isaac Lab pip)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/asset_caching.html">Asset caching</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../deployment/index.html">Container Deployment</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../deployment/docker.html">Docker Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../deployment/cluster.html">Cluster Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../deployment/cloudxr_teleoperation_cluster.html">Deploying CloudXR Teleoperation on Kubernetes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../deployment/run_docker_example.html">Running an example with Docker</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../../refs/reference_architecture/index.html">Reference Architecture</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../setup/quickstart.html">Quickstart Guide</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../setup/walkthrough/index.html">Walkthrough</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/walkthrough/project_setup.html">Isaac Lab Project Setup</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/walkthrough/concepts_env_design.html">Environment Design Background</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/walkthrough/api_env_design.html">Classes and Configs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/walkthrough/technical_env_design.html">Environment Design</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/walkthrough/training_jetbot_gt.html">Training the Jetbot: Ground Truth</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/walkthrough/training_jetbot_reward_exploration.html">Exploring the RL problem</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../tutorials/index.html">Tutorials</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/00_sim/create_empty.html">Creating an empty scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/00_sim/spawn_prims.html">Spawning prims into the scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/00_sim/launch_app.html">Deep-dive into AppLauncher</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/01_assets/add_new_robot.html">Adding a New Robot to Isaac Lab</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/01_assets/run_rigid_object.html">Interacting with a rigid object</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/01_assets/run_articulation.html">Interacting with an articulation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/01_assets/run_deformable_object.html">Interacting with a deformable object</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/01_assets/run_surface_gripper.html">Interacting with a surface gripper</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/02_scene/create_scene.html">Using the Interactive Scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/03_envs/create_manager_base_env.html">Creating a Manager-Based Base Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/03_envs/create_manager_rl_env.html">Creating a Manager-Based RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/03_envs/create_direct_rl_env.html">Creating a Direct Workflow RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/03_envs/register_rl_env_gym.html">Registering an Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/03_envs/run_rl_training.html">Training with an RL Agent</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/03_envs/modify_direct_rl_env.html">Modifying an existing Direct RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/03_envs/policy_inference_in_usd.html">Policy Inference in USD Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/04_sensors/add_sensors_on_robot.html">Adding sensors on a robot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/05_controllers/run_diff_ik.html">Using a task-space controller</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/05_controllers/run_osc.html">Using an operational space controller</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../how-to/index.html">How-to Guides</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/import_new_asset.html">Importing a New Asset</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/write_articulation_cfg.html">Writing an Asset Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/make_fixed_prim.html">Making a physics prim fixed in the simulation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/multi_asset_spawning.html">Spawning Multiple Assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/save_camera_output.html">Saving rendered images and 3D re-projection</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/estimate_how_many_cameras_can_run.html">Find How Many/What Cameras You Should Train With</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/configure_rendering.html">Configuring Rendering Settings</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/draw_markers.html">Creating Visualization Markers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/wrap_rl_env.html">Wrapping environments</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/add_own_library.html">Adding your own learning library</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/record_animation.html">Recording Animations of Simulations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/record_video.html">Recording video clips during training</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/curriculums.html">Curriculum Utilities</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/master_omniverse.html">Mastering Omniverse for Robotics</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/cloudxr_teleoperation.html">Setting up CloudXR Teleoperation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/simulation_performance.html">Simulation Performance</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/optimize_stage_creation.html">Optimize Stage Creation</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../overview/developer-guide/index.html">Developer’s Guide</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/vs_code.html">Setting up Visual Studio Code</a></li>
+
+<li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/repo_structure.html">Repository organization</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/development.html">Extension Development</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/template.html">Build your Own Project or Task</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Overview</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../overview/core-concepts/index.html">Core Concepts</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/core-concepts/task_workflows.html">Task Design Workflows</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/core-concepts/actuators.html">Actuators</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../../overview/core-concepts/sensors/index.html">Sensors</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../overview/core-concepts/sensors/camera.html">Camera</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../overview/core-concepts/sensors/contact_sensor.html">Contact Sensor</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../overview/core-concepts/sensors/frame_transformer.html">Frame Transformer</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../overview/core-concepts/sensors/imu.html">Inertial Measurement Unit (IMU)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../overview/core-concepts/sensors/ray_caster.html">Ray Caster</a></li>
+</ul>
+</details></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/core-concepts/motion_generators.html">Motion Generators</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../../overview/environments.html">Available Environments</a></li>
+
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../overview/reinforcement-learning/index.html">Reinforcement Learning</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/rl_existing_scripts.html">Reinforcement Learning Scripts</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/rl_frameworks.html">Reinforcement Learning Library Comparison</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/performance_benchmarks.html">Performance Benchmarks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/training_guide.html">Debugging and Training Guide</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../../overview/teleop_imitation.html">Teleoperation and Imitation Learning with Isaac Lab Mimic</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../overview/augmented_imitation.html">Augmented Imitation Learning</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../overview/showroom.html">Showroom Demos</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../overview/simple_agents.html">Simple Agents</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Features</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../features/hydra.html">Hydra Configuration System</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../features/multi_gpu.html">Multi-GPU and Multi-Node Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../overview/core-concepts/sensors/camera.html">Tiled Rendering</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../features/ray.html">Ray Job Dispatch and Tuning</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../features/reproducibility.html">Reproducibility and Determinism</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../setup/installation/cloud_installation.html">Running Isaac Lab in the Cloud</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../policy_deployment/index.html">Sim2Real Deployment of Policies Trained in Isaac Lab</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../policy_deployment/00_hover/hover_policy.html">Training &amp; Deploying HOVER Policy</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Migration Guides</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../migration/migrating_from_isaacgymenvs.html">From IsaacGymEnvs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../migration/migrating_from_omniisaacgymenvs.html">From OmniIsaacGymEnvs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../migration/migrating_from_orbit.html">From Orbit</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Source API</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1 current active has-children"><a class="reference internal" href="../index.html">API Reference</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.app.html">isaaclab.app</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.actuators.html">isaaclab.actuators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.assets.html">isaaclab.assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.controllers.html">isaaclab.controllers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.devices.html">isaaclab.devices</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.envs.html">isaaclab.envs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.managers.html">isaaclab.managers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.markers.html">isaaclab.markers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.scene.html">isaaclab.scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.sensors.html">isaaclab.sensors</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.sim.html">isaaclab.sim</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.terrains.html">isaaclab.terrains</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.utils.html">isaaclab.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.envs.mdp.html">isaaclab.envs.mdp</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.envs.ui.html">isaaclab.envs.ui</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.sensors.patterns.html">isaaclab.sensors.patterns</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.sim.converters.html">isaaclab.sim.converters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.sim.schemas.html">isaaclab.sim.schemas</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.sim.spawners.html">isaaclab.sim.spawners</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab_rl/isaaclab_rl.html">isaaclab_rl</a></li>
+<li class="toctree-l2"><a class="reference internal" href="isaaclab_mimic.datagen.html">isaaclab_mimic.datagen</a></li>
+<li class="toctree-l2 current active"><a class="current reference internal" href="#">isaaclab_mimic.envs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab_tasks/isaaclab_tasks.utils.html">isaaclab_tasks.utils</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../refs/additional_resources.html">Additional Resources</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../refs/contributing.html">Contribution Guidelines</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../refs/troubleshooting.html">Tricks and Troubleshooting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../refs/migration.html">Migration Guide (Isaac Sim)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../refs/issues.html">Known Issues</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../refs/release_notes.html">Release Notes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../refs/changelog.html">Extensions Changelog</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../refs/license.html">License</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../refs/bibliography.html">Bibliography</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Project Links</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference external" href="https://github.com/isaac-sim/IsaacLab">GitHub</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/index.html">NVIDIA Isaac Sim</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/index.html">NVIDIA PhysX</a></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><label class="sidebar-toggle primary-toggle btn btn-sm" for="__primary" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</label></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-source-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Source repositories">
+    <i class="fab fa-github"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="https://github.com/isaac-sim/IsaacLab" target="_blank"
+   class="btn btn-sm btn-source-repository-button dropdown-item"
+   title="Source repository"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fab fa-github"></i>
+  </span>
+<span class="btn__text-container">Repository</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li><a href="https://github.com/isaac-sim/IsaacLab/edit/main/docs/source/api/lab_mimic/isaaclab_mimic.envs.rst" target="_blank"
+   class="btn btn-sm btn-source-edit-button dropdown-item"
+   title="Suggest edit"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-pencil-alt"></i>
+  </span>
+<span class="btn__text-container">Suggest edit</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li><a href="https://github.com/isaac-sim/IsaacLab/issues/new?title=Issue%20on%20page%20%2Fsource/api/lab_mimic/isaaclab_mimic.envs.html&body=Your%20issue%20content%20here." target="_blank"
+   class="btn btn-sm btn-source-issues-button dropdown-item"
+   title="Open an issue"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-lightbulb"></i>
+  </span>
+<span class="btn__text-container">Open issue</span>
+</a>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+
+
+<div class="dropdown dropdown-download-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Download this page">
+    <i class="fas fa-download"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="../../../_sources/source/api/lab_mimic/isaaclab_mimic.envs.rst" target="_blank"
+   class="btn btn-sm btn-download-source-button dropdown-item"
+   title="Download source file"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="btn__text-container">.rst</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li>
+<button onclick="window.print()"
+  class="btn btn-sm btn-download-pdf-button dropdown-item"
+  title="Print to PDF"
+  data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="btn__text-container">.pdf</span>
+</button>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button>
+
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+<label class="sidebar-toggle secondary-toggle btn btn-sm" for="__secondary"title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</label>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>isaaclab_mimic.envs</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#franka-cube-stack-ik-rel-mimic-env">Franka Cube Stack IK Rel Mimic Env</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnv</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.get_robot_eef_pose"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnv.get_robot_eef_pose()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.target_eef_pose_to_action"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnv.target_eef_pose_to_action()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.action_to_target_eef_pose"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnv.action_to_target_eef_pose()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.actions_to_gripper_actions"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnv.actions_to_gripper_actions()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.get_subtask_term_signals"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnv.get_subtask_term_signals()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.__init__"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnv.__init__()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.close"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnv.close()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.device"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnv.device</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.get_object_poses"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnv.get_object_poses()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.get_wrapper_attr"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnv.get_wrapper_attr()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.has_wrapper_attr"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnv.has_wrapper_attr()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.is_vector_env"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnv.is_vector_env</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.load_managers"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnv.load_managers()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.max_episode_length"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnv.max_episode_length</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.max_episode_length_s"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnv.max_episode_length_s</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.metadata"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnv.metadata</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.np_random"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnv.np_random</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.np_random_seed"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnv.np_random_seed</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.num_envs"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnv.num_envs</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.physics_dt"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnv.physics_dt</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.render"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnv.render()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.reset"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnv.reset()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.reset_to"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnv.reset_to()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.seed"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnv.seed()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.serialize"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnv.serialize()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.set_wrapper_attr"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnv.set_wrapper_attr()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.setup_manager_visualizers"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnv.setup_manager_visualizers()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.step"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnv.step()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.step_dt"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnv.step_dt</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.unwrapped"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnv.unwrapped</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.cfg"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnv.cfg</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#franka-cube-stack-ik-rel-mimic-env-cfg">Franka Cube Stack IK Rel Mimic Env Cfg</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnvCfg</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.__init__"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnvCfg.__init__()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.ui_window_class_type"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnvCfg.ui_window_class_type</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.viewer"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnvCfg.viewer</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.sim"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnvCfg.sim</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.seed"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnvCfg.seed</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.decimation"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnvCfg.decimation</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.scene"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnvCfg.scene</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.recorders"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnvCfg.recorders</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.observations"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnvCfg.observations</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.actions"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnvCfg.actions</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.events"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnvCfg.events</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.rerender_on_reset"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnvCfg.rerender_on_reset</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.wait_for_textures"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnvCfg.wait_for_textures</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.xr"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnvCfg.xr</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.teleop_devices"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnvCfg.teleop_devices</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.is_finite_horizon"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnvCfg.is_finite_horizon</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.episode_length_s"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnvCfg.episode_length_s</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.rewards"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnvCfg.rewards</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.terminations"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnvCfg.terminations</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.curriculum"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnvCfg.curriculum</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.commands"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnvCfg.commands</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="module-isaaclab_mimic.envs">
+<span id="isaaclab-mimic-envs"></span><h1>isaaclab_mimic.envs<a class="headerlink" href="#module-isaaclab_mimic.envs" title="Permalink to this heading">#</a></h1>
+<p>Sub-package with environment wrappers for Isaac Lab Mimic.</p>
+<p class="rubric">Classes</p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv" title="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv"><code class="xref py py-obj docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnv</span></code></a></p></td>
+<td><p>Isaac Lab Mimic environment wrapper class for Franka Cube Stack IK Rel env.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg" title="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnvCfg</span></code></a></p></td>
+<td><p>Isaac Lab Mimic environment config class for Franka Cube Stack IK Rel env.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<section id="franka-cube-stack-ik-rel-mimic-env">
+<h2>Franka Cube Stack IK Rel Mimic Env<a class="headerlink" href="#franka-cube-stack-ik-rel-mimic-env" title="Permalink to this heading">#</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab_mimic.envs.</span></span><span class="sig-name descname"><span class="pre">FrankaCubeStackIKRelMimicEnv</span></span><a class="reference internal" href="../../../_modules/isaaclab_mimic/envs/franka_stack_ik_rel_mimic_env.html#FrankaCubeStackIKRelMimicEnv"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv" title="Permalink to this definition">#</a></dt>
+<dd><p>Isaac Lab Mimic environment wrapper class for Franka Cube Stack IK Rel env.</p>
+<p><strong>Methods:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.get_robot_eef_pose" title="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.get_robot_eef_pose"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_robot_eef_pose</span></code></a>(eef_name[, env_ids])</p></td>
+<td><p>Get current robot end effector pose.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.target_eef_pose_to_action" title="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.target_eef_pose_to_action"><code class="xref py py-obj docutils literal notranslate"><span class="pre">target_eef_pose_to_action</span></code></a>(...[, ...])</p></td>
+<td><p>Takes a target pose and gripper action for the end effector controller and returns an action (usually a normalized delta pose action) to try and achieve that target pose.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.action_to_target_eef_pose" title="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.action_to_target_eef_pose"><code class="xref py py-obj docutils literal notranslate"><span class="pre">action_to_target_eef_pose</span></code></a>(action)</p></td>
+<td><p>Converts action (compatible with env.step) to a target pose for the end effector controller.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.actions_to_gripper_actions" title="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.actions_to_gripper_actions"><code class="xref py py-obj docutils literal notranslate"><span class="pre">actions_to_gripper_actions</span></code></a>(actions)</p></td>
+<td><p>Extracts the gripper actuation part from a sequence of env actions (compatible with env.step).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.get_subtask_term_signals" title="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.get_subtask_term_signals"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_subtask_term_signals</span></code></a>([env_ids])</p></td>
+<td><p>Gets a dictionary of termination signal flags for each subtask in a task.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.__init__" title="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.__init__"><code class="xref py py-obj docutils literal notranslate"><span class="pre">__init__</span></code></a>(cfg[, render_mode])</p></td>
+<td><p>Initialize the environment.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.close" title="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.close"><code class="xref py py-obj docutils literal notranslate"><span class="pre">close</span></code></a>()</p></td>
+<td><p>Cleanup for the environment.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.get_object_poses" title="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.get_object_poses"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_object_poses</span></code></a>([env_ids])</p></td>
+<td><p>Gets the pose of each object relevant to Isaac Lab Mimic data generation in the current scene.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.get_wrapper_attr" title="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.get_wrapper_attr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_wrapper_attr</span></code></a>(name)</p></td>
+<td><p>Gets the attribute <cite>name</cite> from the environment.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.has_wrapper_attr" title="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.has_wrapper_attr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">has_wrapper_attr</span></code></a>(name)</p></td>
+<td><p>Checks if the attribute <cite>name</cite> exists in the environment.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.load_managers" title="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.load_managers"><code class="xref py py-obj docutils literal notranslate"><span class="pre">load_managers</span></code></a>()</p></td>
+<td><p>Load the managers for the environment.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.render" title="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.render"><code class="xref py py-obj docutils literal notranslate"><span class="pre">render</span></code></a>([recompute])</p></td>
+<td><p>Run rendering without stepping through the physics.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.reset" title="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.reset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">reset</span></code></a>([seed, env_ids, options])</p></td>
+<td><p>Resets the specified environments and returns observations.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.reset_to" title="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.reset_to"><code class="xref py py-obj docutils literal notranslate"><span class="pre">reset_to</span></code></a>(state, env_ids[, seed, is_relative])</p></td>
+<td><p>Resets specified environments to provided states.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.seed" title="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.seed"><code class="xref py py-obj docutils literal notranslate"><span class="pre">seed</span></code></a>([seed])</p></td>
+<td><p>Set the seed for the environment.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.serialize" title="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.serialize"><code class="xref py py-obj docutils literal notranslate"><span class="pre">serialize</span></code></a>()</p></td>
+<td><p>Save all information needed to re-instantiate this environment in a dictionary.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.set_wrapper_attr" title="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.set_wrapper_attr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set_wrapper_attr</span></code></a>(name, value, *[, force])</p></td>
+<td><p>Sets the attribute <cite>name</cite> on the environment with <cite>value</cite>, see <cite>Wrapper.set_wrapper_attr</cite> for more info.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.setup_manager_visualizers" title="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.setup_manager_visualizers"><code class="xref py py-obj docutils literal notranslate"><span class="pre">setup_manager_visualizers</span></code></a>()</p></td>
+<td><p>Creates live visualizers for manager terms.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.step" title="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.step"><code class="xref py py-obj docutils literal notranslate"><span class="pre">step</span></code></a>(action)</p></td>
+<td><p>Execute one time-step of the environment's dynamics and reset terminated environments.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Attributes:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.device" title="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.device"><code class="xref py py-obj docutils literal notranslate"><span class="pre">device</span></code></a></p></td>
+<td><p>The device on which the environment is running.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.is_vector_env" title="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.is_vector_env"><code class="xref py py-obj docutils literal notranslate"><span class="pre">is_vector_env</span></code></a></p></td>
+<td><p>Whether the environment is a vectorized environment.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.max_episode_length" title="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.max_episode_length"><code class="xref py py-obj docutils literal notranslate"><span class="pre">max_episode_length</span></code></a></p></td>
+<td><p>Maximum episode length in environment steps.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.max_episode_length_s" title="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.max_episode_length_s"><code class="xref py py-obj docutils literal notranslate"><span class="pre">max_episode_length_s</span></code></a></p></td>
+<td><p>Maximum episode length in seconds.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.metadata" title="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.metadata"><code class="xref py py-obj docutils literal notranslate"><span class="pre">metadata</span></code></a></p></td>
+<td><p>Metadata for the environment.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.np_random" title="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.np_random"><code class="xref py py-obj docutils literal notranslate"><span class="pre">np_random</span></code></a></p></td>
+<td><p>Returns the environment's internal <code class="xref py py-attr docutils literal notranslate"><span class="pre">_np_random</span></code> that if not set will initialise with a random seed.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.np_random_seed" title="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.np_random_seed"><code class="xref py py-obj docutils literal notranslate"><span class="pre">np_random_seed</span></code></a></p></td>
+<td><p>Returns the environment's internal <code class="xref py py-attr docutils literal notranslate"><span class="pre">_np_random_seed</span></code> that if not set will first initialise with a random int as seed.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.num_envs" title="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.num_envs"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_envs</span></code></a></p></td>
+<td><p>The number of instances of the environment that are running.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.physics_dt" title="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.physics_dt"><code class="xref py py-obj docutils literal notranslate"><span class="pre">physics_dt</span></code></a></p></td>
+<td><p>The physics time-step (in s).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.step_dt" title="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.step_dt"><code class="xref py py-obj docutils literal notranslate"><span class="pre">step_dt</span></code></a></p></td>
+<td><p>The environment stepping time-step (in s).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.unwrapped" title="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.unwrapped"><code class="xref py py-obj docutils literal notranslate"><span class="pre">unwrapped</span></code></a></p></td>
+<td><p>Returns the base non-wrapped environment.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.cfg" title="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.cfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">cfg</span></code></a></p></td>
+<td><p>Configuration for the environment.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.get_robot_eef_pose">
+<span class="sig-name descname"><span class="pre">get_robot_eef_pose</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">eef_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">env_ids</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://trimesh.org/trimesh.typed.html#trimesh.typed.Sequence" title="(in trimesh)"><span class="pre">Sequence</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.8)"><span class="pre">torch.Tensor</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab_mimic/envs/franka_stack_ik_rel_mimic_env.html#FrankaCubeStackIKRelMimicEnv.get_robot_eef_pose"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.get_robot_eef_pose" title="Permalink to this definition">#</a></dt>
+<dd><p>Get current robot end effector pose. Should be the same frame as used by the robot end-effector controller.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>eef_name</strong> – Name of the end effector.</p></li>
+<li><p><strong>env_ids</strong> – Environment indices to get the pose for. If None, all envs are considered.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A torch.Tensor eef pose matrix. Shape is (len(env_ids), 4, 4)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.target_eef_pose_to_action">
+<span class="sig-name descname"><span class="pre">target_eef_pose_to_action</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">target_eef_pose_dict</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><span class="pre">dict</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">gripper_action_dict</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><span class="pre">dict</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">action_noise_dict</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><span class="pre">dict</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">env_id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.8)"><span class="pre">torch.Tensor</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab_mimic/envs/franka_stack_ik_rel_mimic_env.html#FrankaCubeStackIKRelMimicEnv.target_eef_pose_to_action"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.target_eef_pose_to_action" title="Permalink to this definition">#</a></dt>
+<dd><p>Takes a target pose and gripper action for the end effector controller and returns an action
+(usually a normalized delta pose action) to try and achieve that target pose.
+Noise is added to the target pose action if specified.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>target_eef_pose_dict</strong> – Dictionary of 4x4 target eef pose for each end-effector.</p></li>
+<li><p><strong>gripper_action_dict</strong> – Dictionary of gripper actions for each end-effector.</p></li>
+<li><p><strong>noise</strong> – Noise to add to the action. If None, no noise is added.</p></li>
+<li><p><strong>env_id</strong> – Environment index to get the action for.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>An action torch.Tensor that’s compatible with env.step().</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.action_to_target_eef_pose">
+<span class="sig-name descname"><span class="pre">action_to_target_eef_pose</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">action</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.8)"><span class="pre">torch.Tensor</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.8)"><span class="pre">torch.Tensor</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../../../_modules/isaaclab_mimic/envs/franka_stack_ik_rel_mimic_env.html#FrankaCubeStackIKRelMimicEnv.action_to_target_eef_pose"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.action_to_target_eef_pose" title="Permalink to this definition">#</a></dt>
+<dd><p>Converts action (compatible with env.step) to a target pose for the end effector controller.
+Inverse of &#64;target_eef_pose_to_action. Usually used to infer a sequence of target controller poses
+from a demonstration trajectory using the recorded actions.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>action</strong> – Environment action. Shape is (num_envs, action_dim)</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A dictionary of eef pose torch.Tensor that &#64;action corresponds to</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.actions_to_gripper_actions">
+<span class="sig-name descname"><span class="pre">actions_to_gripper_actions</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">actions</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.8)"><span class="pre">torch.Tensor</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.8)"><span class="pre">torch.Tensor</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../../../_modules/isaaclab_mimic/envs/franka_stack_ik_rel_mimic_env.html#FrankaCubeStackIKRelMimicEnv.actions_to_gripper_actions"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.actions_to_gripper_actions" title="Permalink to this definition">#</a></dt>
+<dd><p>Extracts the gripper actuation part from a sequence of env actions (compatible with env.step).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>actions</strong> – environment actions. The shape is (num_envs, num steps in a demo, action_dim).</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A dictionary of torch.Tensor gripper actions. Key to each dict is an eef_name.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.get_subtask_term_signals">
+<span class="sig-name descname"><span class="pre">get_subtask_term_signals</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env_ids</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://trimesh.org/trimesh.typed.html#trimesh.typed.Sequence" title="(in trimesh)"><span class="pre">Sequence</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.8)"><span class="pre">torch.Tensor</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../../../_modules/isaaclab_mimic/envs/franka_stack_ik_rel_mimic_env.html#FrankaCubeStackIKRelMimicEnv.get_subtask_term_signals"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.get_subtask_term_signals" title="Permalink to this definition">#</a></dt>
+<dd><p>Gets a dictionary of termination signal flags for each subtask in a task. The flag is 1
+when the subtask has been completed and 0 otherwise. The implementation of this method is
+required if intending to enable automatic subtask term signal annotation when running the
+dataset annotation tool. This method can be kept unimplemented if intending to use manual
+subtask term signal annotation.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>env_ids</strong> – Environment indices to get the termination signals for. If None, all envs are considered.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A dictionary termination signal flags (False or True) for each subtask.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="../lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedRLEnvCfg" title="isaaclab.envs.manager_based_rl_env_cfg.ManagerBasedRLEnvCfg"><span class="pre">ManagerBasedRLEnvCfg</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">render_mode</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.__init__" title="Permalink to this definition">#</a></dt>
+<dd><p>Initialize the environment.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>cfg</strong> – The configuration for the environment.</p></li>
+<li><p><strong>render_mode</strong> – The render mode for the environment. Defaults to None, which
+is similar to <code class="docutils literal notranslate"><span class="pre">&quot;human&quot;</span></code>.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.close">
+<span class="sig-name descname"><span class="pre">close</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.close" title="Permalink to this definition">#</a></dt>
+<dd><p>Cleanup for the environment.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.device">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">device</span></span><a class="headerlink" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.device" title="Permalink to this definition">#</a></dt>
+<dd><p>The device on which the environment is running.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.get_object_poses">
+<span class="sig-name descname"><span class="pre">get_object_poses</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env_ids</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://trimesh.org/trimesh.typed.html#trimesh.typed.Sequence" title="(in trimesh)"><span class="pre">Sequence</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.get_object_poses" title="Permalink to this definition">#</a></dt>
+<dd><p>Gets the pose of each object relevant to Isaac Lab Mimic data generation in the current scene.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>env_ids</strong> – Environment indices to get the pose for. If None, all envs are considered.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A dictionary that maps object names to object pose matrix (4x4 torch.Tensor)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.get_wrapper_attr">
+<span class="sig-name descname"><span class="pre">get_wrapper_attr</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.13)"><span class="pre">Any</span></a></span></span><a class="headerlink" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.get_wrapper_attr" title="Permalink to this definition">#</a></dt>
+<dd><p>Gets the attribute <cite>name</cite> from the environment.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.has_wrapper_attr">
+<span class="sig-name descname"><span class="pre">has_wrapper_attr</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></span></span><a class="headerlink" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.has_wrapper_attr" title="Permalink to this definition">#</a></dt>
+<dd><p>Checks if the attribute <cite>name</cite> exists in the environment.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.is_vector_env">
+<span class="sig-name descname"><span class="pre">is_vector_env</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ClassVar</span><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a><span class="p"><span class="pre">]</span></span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">True</span></em><a class="headerlink" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.is_vector_env" title="Permalink to this definition">#</a></dt>
+<dd><p>Whether the environment is a vectorized environment.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.load_managers">
+<span class="sig-name descname"><span class="pre">load_managers</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.load_managers" title="Permalink to this definition">#</a></dt>
+<dd><p>Load the managers for the environment.</p>
+<p>This function is responsible for creating the various managers (action, observation,
+events, etc.) for the environment. Since the managers require access to physics handles,
+they can only be created after the simulator is reset (i.e. played for the first time).</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>In case of standalone application (when running simulator from Python), the function is called
+automatically when the class is initialized.</p>
+<p>However, in case of extension mode, the user must call this function manually after the simulator
+is reset. This is because the simulator is only reset when the user calls
+<code class="xref py py-meth docutils literal notranslate"><span class="pre">SimulationContext.reset_async()</span></code> and it isn’t possible to call async functions in the constructor.</p>
+</div>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.max_episode_length">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">max_episode_length</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a></em><a class="headerlink" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.max_episode_length" title="Permalink to this definition">#</a></dt>
+<dd><p>Maximum episode length in environment steps.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.max_episode_length_s">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">max_episode_length_s</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a></em><a class="headerlink" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.max_episode_length_s" title="Permalink to this definition">#</a></dt>
+<dd><p>Maximum episode length in seconds.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.metadata">
+<span class="sig-name descname"><span class="pre">metadata</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ClassVar</span><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{'isaac_sim_version':</span> <span class="pre">isaacsim.core.version.get_version,</span> <span class="pre">'render_modes':</span> <span class="pre">[None,</span> <span class="pre">'human',</span> <span class="pre">'rgb_array']}</span></em><a class="headerlink" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.metadata" title="Permalink to this definition">#</a></dt>
+<dd><p>Metadata for the environment.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.np_random">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">np_random</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://numpy.org/doc/stable/reference/random/generator.html#numpy.random.Generator" title="(in NumPy v2.3)"><span class="pre">numpy.random.Generator</span></a></em><a class="headerlink" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.np_random" title="Permalink to this definition">#</a></dt>
+<dd><p>Returns the environment’s internal <code class="xref py py-attr docutils literal notranslate"><span class="pre">_np_random</span></code> that if not set will initialise with a random seed.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Instances of <cite>np.random.Generator</cite></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.np_random_seed">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">np_random_seed</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a></em><a class="headerlink" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.np_random_seed" title="Permalink to this definition">#</a></dt>
+<dd><p>Returns the environment’s internal <code class="xref py py-attr docutils literal notranslate"><span class="pre">_np_random_seed</span></code> that if not set will first initialise with a random int as seed.</p>
+<p>If <a class="reference internal" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.np_random_seed" title="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.np_random_seed"><code class="xref py py-attr docutils literal notranslate"><span class="pre">np_random_seed</span></code></a> was set directly instead of through <a class="reference internal" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.reset" title="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.reset"><code class="xref py py-meth docutils literal notranslate"><span class="pre">reset()</span></code></a> or <code class="xref py py-meth docutils literal notranslate"><span class="pre">set_np_random_through_seed()</span></code>,
+the seed will take the value -1.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>the seed of the current <cite>np_random</cite> or -1, if the seed of the rng is unknown</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)">int</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.num_envs">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">num_envs</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a></em><a class="headerlink" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.num_envs" title="Permalink to this definition">#</a></dt>
+<dd><p>The number of instances of the environment that are running.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.physics_dt">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">physics_dt</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a></em><a class="headerlink" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.physics_dt" title="Permalink to this definition">#</a></dt>
+<dd><p>The physics time-step (in s).</p>
+<p>This is the lowest time-decimation at which the simulation is happening.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.render">
+<span class="sig-name descname"><span class="pre">render</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">recompute</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">np.ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span></span><a class="headerlink" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.render" title="Permalink to this definition">#</a></dt>
+<dd><p>Run rendering without stepping through the physics.</p>
+<p>By convention, if mode is:</p>
+<ul class="simple">
+<li><p><strong>human</strong>: Render to the current display and return nothing. Usually for human consumption.</p></li>
+<li><p><strong>rgb_array</strong>: Return a numpy.ndarray with shape (x, y, 3), representing RGB values for an
+x-by-y pixel image, suitable for turning into a video.</p></li>
+</ul>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>recompute</strong> – Whether to force a render even if the simulator has already rendered the scene.
+Defaults to False.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The rendered image as a numpy array if mode is “rgb_array”. Otherwise, returns None.</p>
+</dd>
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#RuntimeError" title="(in Python v3.13)"><strong>RuntimeError</strong></a> – If mode is set to “rgb_data” and simulation render mode does not support it.
+    In this case, the simulation render mode must be set to <code class="docutils literal notranslate"><span class="pre">RenderMode.PARTIAL_RENDERING</span></code>
+    or <code class="docutils literal notranslate"><span class="pre">RenderMode.FULL_RENDERING</span></code>.</p></li>
+<li><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#NotImplementedError" title="(in Python v3.13)"><strong>NotImplementedError</strong></a> – If an unsupported rendering mode is specified.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.reset">
+<span class="sig-name descname"><span class="pre">reset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">seed</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">env_ids</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://trimesh.org/trimesh.typed.html#trimesh.typed.Sequence" title="(in trimesh)"><span class="pre">Sequence</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">options</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.13)"><span class="pre">Any</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Dict" title="(in Python v3.13)"><span class="pre">Dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Union" title="(in Python v3.13)"><span class="pre">Union</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.8)"><span class="pre">torch.Tensor</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Dict" title="(in Python v3.13)"><span class="pre">Dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.8)"><span class="pre">torch.Tensor</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><span class="pre">dict</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.reset" title="Permalink to this definition">#</a></dt>
+<dd><p>Resets the specified environments and returns observations.</p>
+<p>This function calls the <code class="xref py py-meth docutils literal notranslate"><span class="pre">_reset_idx()</span></code> function to reset the specified environments.
+However, certain operations, such as procedural terrain generation, that happened during initialization
+are not repeated.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>seed</strong> – The seed to use for randomization. Defaults to None, in which case the seed is not set.</p></li>
+<li><p><strong>env_ids</strong> – The environment ids to reset. Defaults to None, in which case all environments are reset.</p></li>
+<li><p><strong>options</strong> – <p>Additional information to specify how the environment is reset. Defaults to None.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This argument is used for compatibility with Gymnasium environment definition.</p>
+</div>
+</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A tuple containing the observations and extras.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.reset_to">
+<span class="sig-name descname"><span class="pre">reset_to</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.8)"><span class="pre">torch.Tensor</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">env_ids</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://trimesh.org/trimesh.typed.html#trimesh.typed.Sequence" title="(in trimesh)"><span class="pre">Sequence</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">seed</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">is_relative</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.reset_to" title="Permalink to this definition">#</a></dt>
+<dd><p>Resets specified environments to provided states.</p>
+<p>This function resets the environments to the provided states. The state is a dictionary
+containing the state of the scene entities. Please refer to <code class="xref py py-meth docutils literal notranslate"><span class="pre">InteractiveScene.get_state()</span></code>
+for the format.</p>
+<p>The function is different from the <a class="reference internal" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.reset" title="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.reset"><code class="xref py py-meth docutils literal notranslate"><span class="pre">reset()</span></code></a> function as it resets the environments to specific states,
+instead of using the randomization events for resetting the environments.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>state</strong> – The state to reset the specified environments to. Please refer to
+<code class="xref py py-meth docutils literal notranslate"><span class="pre">InteractiveScene.get_state()</span></code> for the format.</p></li>
+<li><p><strong>env_ids</strong> – The environment ids to reset. Defaults to None, in which case all environments are reset.</p></li>
+<li><p><strong>seed</strong> – The seed to use for randomization. Defaults to None, in which case the seed is not set.</p></li>
+<li><p><strong>is_relative</strong> – If set to True, the state is considered relative to the environment origins.
+Defaults to False.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.seed">
+<em class="property"><span class="pre">static</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">seed</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">seed</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">-1</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a></span></span><a class="headerlink" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.seed" title="Permalink to this definition">#</a></dt>
+<dd><p>Set the seed for the environment.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>seed</strong> – The seed for random generator. Defaults to -1.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The seed used for random generator.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.serialize">
+<span class="sig-name descname"><span class="pre">serialize</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.serialize" title="Permalink to this definition">#</a></dt>
+<dd><p>Save all information needed to re-instantiate this environment in a dictionary.
+This is the same as &#64;env_meta - environment metadata stored in hdf5 datasets,
+and used in utils/env_utils.py.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.set_wrapper_attr">
+<span class="sig-name descname"><span class="pre">set_wrapper_attr</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">value</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.13)"><span class="pre">Any</span></a></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">force</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></span></span><a class="headerlink" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.set_wrapper_attr" title="Permalink to this definition">#</a></dt>
+<dd><p>Sets the attribute <cite>name</cite> on the environment with <cite>value</cite>, see <cite>Wrapper.set_wrapper_attr</cite> for more info.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.setup_manager_visualizers">
+<span class="sig-name descname"><span class="pre">setup_manager_visualizers</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.setup_manager_visualizers" title="Permalink to this definition">#</a></dt>
+<dd><p>Creates live visualizers for manager terms.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.step">
+<span class="sig-name descname"><span class="pre">step</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">action</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.8)"><span class="pre">torch.Tensor</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Dict" title="(in Python v3.13)"><span class="pre">Dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Union" title="(in Python v3.13)"><span class="pre">Union</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.8)"><span class="pre">torch.Tensor</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Dict" title="(in Python v3.13)"><span class="pre">Dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.8)"><span class="pre">torch.Tensor</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.8)"><span class="pre">torch.Tensor</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.8)"><span class="pre">torch.Tensor</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.8)"><span class="pre">torch.Tensor</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><span class="pre">dict</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.step" title="Permalink to this definition">#</a></dt>
+<dd><p>Execute one time-step of the environment’s dynamics and reset terminated environments.</p>
+<p>Unlike the <code class="xref py py-class docutils literal notranslate"><span class="pre">ManagerBasedEnv.step</span></code> class, the function performs the following operations:</p>
+<ol class="arabic simple">
+<li><p>Process the actions.</p></li>
+<li><p>Perform physics stepping.</p></li>
+<li><p>Perform rendering if gui is enabled.</p></li>
+<li><p>Update the environment counters and compute the rewards and terminations.</p></li>
+<li><p>Reset the environments that terminated.</p></li>
+<li><p>Compute the observations.</p></li>
+<li><p>Return the observations, rewards, resets and extras.</p></li>
+</ol>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>action</strong> – The actions to apply on the environment. Shape is (num_envs, action_dim).</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A tuple containing the observations, rewards, resets (terminated and truncated) and extras.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.step_dt">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">step_dt</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a></em><a class="headerlink" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.step_dt" title="Permalink to this definition">#</a></dt>
+<dd><p>The environment stepping time-step (in s).</p>
+<p>This is the time-step at which the environment steps forward.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.unwrapped">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">unwrapped</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://gymnasium.farama.org/api/env/#gymnasium.Env" title="(in Gymnasium)"><span class="pre">Env</span></a><span class="p"><span class="pre">[</span></span><span class="pre">ObsType</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">ActType</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.unwrapped" title="Permalink to this definition">#</a></dt>
+<dd><p>Returns the base non-wrapped environment.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>The base non-wrapped <a class="reference external" href="https://gymnasium.farama.org/api/env/#gymnasium.Env" title="(in Gymnasium)"><code class="xref py py-class docutils literal notranslate"><span class="pre">gymnasium.Env</span></code></a> instance</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>Env</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.cfg">
+<span class="sig-name descname"><span class="pre">cfg</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="../lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedRLEnvCfg" title="isaaclab.envs.ManagerBasedRLEnvCfg"><span class="pre">ManagerBasedRLEnvCfg</span></a></em><a class="headerlink" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.cfg" title="Permalink to this definition">#</a></dt>
+<dd><p>Configuration for the environment.</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="franka-cube-stack-ik-rel-mimic-env-cfg">
+<h2>Franka Cube Stack IK Rel Mimic Env Cfg<a class="headerlink" href="#franka-cube-stack-ik-rel-mimic-env-cfg" title="Permalink to this heading">#</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab_mimic.envs.</span></span><span class="sig-name descname"><span class="pre">FrankaCubeStackIKRelMimicEnvCfg</span></span><a class="reference internal" href="../../../_modules/isaaclab_mimic/envs/franka_stack_ik_rel_mimic_env_cfg.html#FrankaCubeStackIKRelMimicEnvCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg" title="Permalink to this definition">#</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">FrankaCubeStackEnvCfg</span></code>, <a class="reference internal" href="../lab/isaaclab.envs.html#isaaclab.envs.MimicEnvCfg" title="isaaclab.envs.mimic_env_cfg.MimicEnvCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">MimicEnvCfg</span></code></a></p>
+<p>Isaac Lab Mimic environment config class for Franka Cube Stack IK Rel env.</p>
+<p><strong>Methods:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.__init__" title="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.__init__"><code class="xref py py-obj docutils literal notranslate"><span class="pre">__init__</span></code></a>([datagen_config, subtask_configs, ...])</p></td>
+<td><p></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Classes:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.ui_window_class_type" title="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.ui_window_class_type"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ui_window_class_type</span></code></a></p></td>
+<td><p>alias of <a class="reference internal" href="../lab/isaaclab.envs.ui.html#isaaclab.envs.ui.ManagerBasedRLEnvWindow" title="isaaclab.envs.ui.manager_based_rl_env_window.ManagerBasedRLEnvWindow"><code class="xref py py-class docutils literal notranslate"><span class="pre">ManagerBasedRLEnvWindow</span></code></a></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Attributes:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.viewer" title="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.viewer"><code class="xref py py-obj docutils literal notranslate"><span class="pre">viewer</span></code></a></p></td>
+<td><p>Viewer configuration.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.sim" title="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.sim"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sim</span></code></a></p></td>
+<td><p>Physics simulation configuration.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.seed" title="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.seed"><code class="xref py py-obj docutils literal notranslate"><span class="pre">seed</span></code></a></p></td>
+<td><p>The seed for the random number generator.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.decimation" title="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.decimation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">decimation</span></code></a></p></td>
+<td><p>Number of control action updates &#64; sim dt per policy dt.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.scene" title="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.scene"><code class="xref py py-obj docutils literal notranslate"><span class="pre">scene</span></code></a></p></td>
+<td><p>Scene settings.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.recorders" title="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.recorders"><code class="xref py py-obj docutils literal notranslate"><span class="pre">recorders</span></code></a></p></td>
+<td><p>Recorder settings.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.observations" title="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.observations"><code class="xref py py-obj docutils literal notranslate"><span class="pre">observations</span></code></a></p></td>
+<td><p>Observation space settings.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.actions" title="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.actions"><code class="xref py py-obj docutils literal notranslate"><span class="pre">actions</span></code></a></p></td>
+<td><p>Action space settings.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.events" title="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.events"><code class="xref py py-obj docutils literal notranslate"><span class="pre">events</span></code></a></p></td>
+<td><p>Event settings.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.rerender_on_reset" title="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.rerender_on_reset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">rerender_on_reset</span></code></a></p></td>
+<td><p>Whether a render step is performed again after at least one environment has been reset.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.wait_for_textures" title="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.wait_for_textures"><code class="xref py py-obj docutils literal notranslate"><span class="pre">wait_for_textures</span></code></a></p></td>
+<td><p>True to wait for assets to be loaded completely, False otherwise.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.xr" title="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.xr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">xr</span></code></a></p></td>
+<td><p>Configuration for viewing and interacting with the environment through an XR device.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.teleop_devices" title="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.teleop_devices"><code class="xref py py-obj docutils literal notranslate"><span class="pre">teleop_devices</span></code></a></p></td>
+<td><p>Configuration for teleoperation devices.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.is_finite_horizon" title="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.is_finite_horizon"><code class="xref py py-obj docutils literal notranslate"><span class="pre">is_finite_horizon</span></code></a></p></td>
+<td><p>Whether the learning task is treated as a finite or infinite horizon problem for the agent.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.episode_length_s" title="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.episode_length_s"><code class="xref py py-obj docutils literal notranslate"><span class="pre">episode_length_s</span></code></a></p></td>
+<td><p>Duration of an episode (in seconds).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.rewards" title="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.rewards"><code class="xref py py-obj docutils literal notranslate"><span class="pre">rewards</span></code></a></p></td>
+<td><p>Reward settings.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.terminations" title="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.terminations"><code class="xref py py-obj docutils literal notranslate"><span class="pre">terminations</span></code></a></p></td>
+<td><p>Termination settings.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.curriculum" title="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.curriculum"><code class="xref py py-obj docutils literal notranslate"><span class="pre">curriculum</span></code></a></p></td>
+<td><p>Curriculum settings.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.commands" title="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.commands"><code class="xref py py-obj docutils literal notranslate"><span class="pre">commands</span></code></a></p></td>
+<td><p>Command settings.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">datagen_config:</span> <span class="pre">~isaaclab.envs.mimic_env_cfg.DataGenConfig</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">subtask_configs:</span> <span class="pre">dict[str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">list[isaaclab.envs.mimic_env_cfg.SubTaskConfig]]</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">task_constraint_configs:</span> <span class="pre">list[isaaclab.envs.mimic_env_cfg.SubTaskConstraintConfig]</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">viewer:</span> <span class="pre">~isaaclab.envs.common.ViewerCfg</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sim:</span> <span class="pre">~isaaclab.sim.simulation_cfg.SimulationCfg</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ui_window_class_type:</span> <span class="pre">type</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">&lt;class</span> <span class="pre">'isaaclab.envs.ui.manager_based_rl_env_window.ManagerBasedRLEnvWindow'&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">seed:</span> <span class="pre">int</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">decimation:</span> <span class="pre">int</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scene:</span> <span class="pre">~isaaclab_tasks.manager_based.manipulation.stack.stack_env_cfg.ObjectTableSceneCfg</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">recorders:</span> <span class="pre">object</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">observations:</span> <span class="pre">~isaaclab_tasks.manager_based.manipulation.stack.stack_env_cfg.ObservationsCfg</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">actions:</span> <span class="pre">~isaaclab_tasks.manager_based.manipulation.stack.stack_env_cfg.ActionsCfg</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">events:</span> <span class="pre">object</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rerender_on_reset:</span> <span class="pre">bool</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">wait_for_textures:</span> <span class="pre">bool</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">xr:</span> <span class="pre">~isaaclab.devices.openxr.xr_cfg.XrCfg</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">teleop_devices:</span> <span class="pre">~isaaclab.devices.device_base.DevicesCfg</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">is_finite_horizon:</span> <span class="pre">bool</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">episode_length_s:</span> <span class="pre">float</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rewards:</span> <span class="pre">object</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">terminations:</span> <span class="pre">~isaaclab_tasks.manager_based.manipulation.stack.stack_env_cfg.TerminationsCfg</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">curriculum:</span> <span class="pre">object</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">commands:</span> <span class="pre">object</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span></span><a class="headerlink" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.__init__" title="Permalink to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.ui_window_class_type">
+<span class="sig-name descname"><span class="pre">ui_window_class_type</span></span><a class="headerlink" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.ui_window_class_type" title="Permalink to this definition">#</a></dt>
+<dd><p>alias of <a class="reference internal" href="../lab/isaaclab.envs.ui.html#isaaclab.envs.ui.ManagerBasedRLEnvWindow" title="isaaclab.envs.ui.manager_based_rl_env_window.ManagerBasedRLEnvWindow"><code class="xref py py-class docutils literal notranslate"><span class="pre">ManagerBasedRLEnvWindow</span></code></a></p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.viewer">
+<span class="sig-name descname"><span class="pre">viewer</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="../lab/isaaclab.envs.html#isaaclab.envs.ViewerCfg" title="isaaclab.envs.common.ViewerCfg"><span class="pre">ViewerCfg</span></a></em><a class="headerlink" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.viewer" title="Permalink to this definition">#</a></dt>
+<dd><p>Viewer configuration. Default is ViewerCfg().</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.sim">
+<span class="sig-name descname"><span class="pre">sim</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="../lab/isaaclab.sim.html#isaaclab.sim.SimulationCfg" title="isaaclab.sim.simulation_cfg.SimulationCfg"><span class="pre">SimulationCfg</span></a></em><a class="headerlink" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.sim" title="Permalink to this definition">#</a></dt>
+<dd><p>Physics simulation configuration. Default is SimulationCfg().</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.seed">
+<span class="sig-name descname"><span class="pre">seed</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.seed" title="Permalink to this definition">#</a></dt>
+<dd><p>The seed for the random number generator. Defaults to None, in which case the seed is not set.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The seed is set at the beginning of the environment initialization. This ensures that the environment
+creation is deterministic and behaves similarly across different runs.</p>
+</div>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.decimation">
+<span class="sig-name descname"><span class="pre">decimation</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a></em><a class="headerlink" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.decimation" title="Permalink to this definition">#</a></dt>
+<dd><p>Number of control action updates &#64; sim dt per policy dt.</p>
+<p>For instance, if the simulation dt is 0.01s and the policy dt is 0.1s, then the decimation is 10.
+This means that the control action is updated every 10 simulation steps.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.scene">
+<span class="sig-name descname"><span class="pre">scene</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ObjectTableSceneCfg</span></em><a class="headerlink" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.scene" title="Permalink to this definition">#</a></dt>
+<dd><p>Scene settings.</p>
+<p>Please refer to the <a class="reference internal" href="../lab/isaaclab.scene.html#isaaclab.scene.InteractiveSceneCfg" title="isaaclab.scene.InteractiveSceneCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">isaaclab.scene.InteractiveSceneCfg</span></code></a> class for more details.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.recorders">
+<span class="sig-name descname"><span class="pre">recorders</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.13)"><span class="pre">object</span></a></em><a class="headerlink" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.recorders" title="Permalink to this definition">#</a></dt>
+<dd><p>Recorder settings. Defaults to recording nothing.</p>
+<p>Please refer to the <a class="reference internal" href="../lab/isaaclab.managers.html#isaaclab.managers.RecorderManager" title="isaaclab.managers.RecorderManager"><code class="xref py py-class docutils literal notranslate"><span class="pre">isaaclab.managers.RecorderManager</span></code></a> class for more details.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.observations">
+<span class="sig-name descname"><span class="pre">observations</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ObservationsCfg</span></em><a class="headerlink" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.observations" title="Permalink to this definition">#</a></dt>
+<dd><p>Observation space settings.</p>
+<p>Please refer to the <a class="reference internal" href="../lab/isaaclab.managers.html#isaaclab.managers.ObservationManager" title="isaaclab.managers.ObservationManager"><code class="xref py py-class docutils literal notranslate"><span class="pre">isaaclab.managers.ObservationManager</span></code></a> class for more details.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.actions">
+<span class="sig-name descname"><span class="pre">actions</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ActionsCfg</span></em><a class="headerlink" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.actions" title="Permalink to this definition">#</a></dt>
+<dd><p>Action space settings.</p>
+<p>Please refer to the <a class="reference internal" href="../lab/isaaclab.managers.html#isaaclab.managers.ActionManager" title="isaaclab.managers.ActionManager"><code class="xref py py-class docutils literal notranslate"><span class="pre">isaaclab.managers.ActionManager</span></code></a> class for more details.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.events">
+<span class="sig-name descname"><span class="pre">events</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.13)"><span class="pre">object</span></a></em><a class="headerlink" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.events" title="Permalink to this definition">#</a></dt>
+<dd><p>Event settings. Defaults to the basic configuration that resets the scene to its default state.</p>
+<p>Please refer to the <a class="reference internal" href="../lab/isaaclab.managers.html#isaaclab.managers.EventManager" title="isaaclab.managers.EventManager"><code class="xref py py-class docutils literal notranslate"><span class="pre">isaaclab.managers.EventManager</span></code></a> class for more details.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.rerender_on_reset">
+<span class="sig-name descname"><span class="pre">rerender_on_reset</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></em><a class="headerlink" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.rerender_on_reset" title="Permalink to this definition">#</a></dt>
+<dd><p>Whether a render step is performed again after at least one environment has been reset.
+Defaults to False, which means no render step will be performed after reset.</p>
+<ul class="simple">
+<li><p>When this is False, data collected from sensors after performing reset will be stale and will not reflect the
+latest states in simulation caused by the reset.</p></li>
+<li><p>When this is True, an extra render step will be performed to update the sensor data
+to reflect the latest states from the reset. This comes at a cost of performance as an additional render
+step will be performed after each time an environment is reset.</p></li>
+</ul>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.wait_for_textures">
+<span class="sig-name descname"><span class="pre">wait_for_textures</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></em><a class="headerlink" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.wait_for_textures" title="Permalink to this definition">#</a></dt>
+<dd><p>True to wait for assets to be loaded completely, False otherwise. Defaults to True.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.xr">
+<span class="sig-name descname"><span class="pre">xr</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">XrCfg</span></em><a class="headerlink" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.xr" title="Permalink to this definition">#</a></dt>
+<dd><p>Configuration for viewing and interacting with the environment through an XR device.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.teleop_devices">
+<span class="sig-name descname"><span class="pre">teleop_devices</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">DevicesCfg</span></em><a class="headerlink" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.teleop_devices" title="Permalink to this definition">#</a></dt>
+<dd><p>Configuration for teleoperation devices.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.is_finite_horizon">
+<span class="sig-name descname"><span class="pre">is_finite_horizon</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></em><a class="headerlink" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.is_finite_horizon" title="Permalink to this definition">#</a></dt>
+<dd><p>Whether the learning task is treated as a finite or infinite horizon problem for the agent.
+Defaults to False, which means the task is treated as an infinite horizon problem.</p>
+<p>This flag handles the subtleties of finite and infinite horizon tasks:</p>
+<ul class="simple">
+<li><p><strong>Finite horizon</strong>: no penalty or bootstrapping value is required by the the agent for
+running out of time. However, the environment still needs to terminate the episode after the
+time limit is reached.</p></li>
+<li><p><strong>Infinite horizon</strong>: the agent needs to bootstrap the value of the state at the end of the episode.
+This is done by sending a time-limit (or truncated) done signal to the agent, which triggers this
+bootstrapping calculation.</p></li>
+</ul>
+<p>If True, then the environment is treated as a finite horizon problem and no time-out (or truncated) done signal
+is sent to the agent. If False, then the environment is treated as an infinite horizon problem and a time-out
+(or truncated) done signal is sent to the agent.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The base <code class="xref py py-class docutils literal notranslate"><span class="pre">ManagerBasedRLEnv</span></code> class does not use this flag directly. It is used by the environment
+wrappers to determine what type of done signal to send to the corresponding learning agent.</p>
+</div>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.episode_length_s">
+<span class="sig-name descname"><span class="pre">episode_length_s</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a></em><a class="headerlink" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.episode_length_s" title="Permalink to this definition">#</a></dt>
+<dd><p>Duration of an episode (in seconds).</p>
+<p>Based on the decimation rate and physics time step, the episode length is calculated as:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">episode_length_steps</span> <span class="o">=</span> <span class="n">ceil</span><span class="p">(</span><span class="n">episode_length_s</span> <span class="o">/</span> <span class="p">(</span><span class="n">decimation_rate</span> <span class="o">*</span> <span class="n">physics_time_step</span><span class="p">))</span>
+</pre></div>
+</div>
+<p>For example, if the decimation rate is 10, the physics time step is 0.01, and the episode length is 10 seconds,
+then the episode length in steps is 100.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.rewards">
+<span class="sig-name descname"><span class="pre">rewards</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.13)"><span class="pre">object</span></a></em><a class="headerlink" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.rewards" title="Permalink to this definition">#</a></dt>
+<dd><p>Reward settings.</p>
+<p>Please refer to the <a class="reference internal" href="../lab/isaaclab.managers.html#isaaclab.managers.RewardManager" title="isaaclab.managers.RewardManager"><code class="xref py py-class docutils literal notranslate"><span class="pre">isaaclab.managers.RewardManager</span></code></a> class for more details.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.terminations">
+<span class="sig-name descname"><span class="pre">terminations</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">TerminationsCfg</span></em><a class="headerlink" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.terminations" title="Permalink to this definition">#</a></dt>
+<dd><p>Termination settings.</p>
+<p>Please refer to the <a class="reference internal" href="../lab/isaaclab.managers.html#isaaclab.managers.TerminationManager" title="isaaclab.managers.TerminationManager"><code class="xref py py-class docutils literal notranslate"><span class="pre">isaaclab.managers.TerminationManager</span></code></a> class for more details.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.curriculum">
+<span class="sig-name descname"><span class="pre">curriculum</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.13)"><span class="pre">object</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.curriculum" title="Permalink to this definition">#</a></dt>
+<dd><p>Curriculum settings. Defaults to None, in which case no curriculum is applied.</p>
+<p>Please refer to the <a class="reference internal" href="../lab/isaaclab.managers.html#isaaclab.managers.CurriculumManager" title="isaaclab.managers.CurriculumManager"><code class="xref py py-class docutils literal notranslate"><span class="pre">isaaclab.managers.CurriculumManager</span></code></a> class for more details.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.commands">
+<span class="sig-name descname"><span class="pre">commands</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.13)"><span class="pre">object</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.commands" title="Permalink to this definition">#</a></dt>
+<dd><p>Command settings. Defaults to None, in which case no commands are generated.</p>
+<p>Please refer to the <a class="reference internal" href="../lab/isaaclab.managers.html#isaaclab.managers.CommandManager" title="isaaclab.managers.CommandManager"><code class="xref py py-class docutils literal notranslate"><span class="pre">isaaclab.managers.CommandManager</span></code></a> class for more details.</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="isaaclab_mimic.datagen.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">isaaclab_mimic.datagen</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="../lab_tasks/isaaclab_tasks.utils.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">isaaclab_tasks.utils</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+  <div class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav class="bd-toc-nav page-toc">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#franka-cube-stack-ik-rel-mimic-env">Franka Cube Stack IK Rel Mimic Env</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnv</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.get_robot_eef_pose"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnv.get_robot_eef_pose()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.target_eef_pose_to_action"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnv.target_eef_pose_to_action()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.action_to_target_eef_pose"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnv.action_to_target_eef_pose()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.actions_to_gripper_actions"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnv.actions_to_gripper_actions()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.get_subtask_term_signals"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnv.get_subtask_term_signals()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.__init__"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnv.__init__()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.close"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnv.close()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.device"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnv.device</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.get_object_poses"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnv.get_object_poses()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.get_wrapper_attr"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnv.get_wrapper_attr()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.has_wrapper_attr"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnv.has_wrapper_attr()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.is_vector_env"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnv.is_vector_env</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.load_managers"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnv.load_managers()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.max_episode_length"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnv.max_episode_length</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.max_episode_length_s"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnv.max_episode_length_s</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.metadata"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnv.metadata</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.np_random"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnv.np_random</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.np_random_seed"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnv.np_random_seed</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.num_envs"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnv.num_envs</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.physics_dt"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnv.physics_dt</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.render"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnv.render()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.reset"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnv.reset()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.reset_to"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnv.reset_to()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.seed"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnv.seed()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.serialize"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnv.serialize()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.set_wrapper_attr"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnv.set_wrapper_attr()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.setup_manager_visualizers"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnv.setup_manager_visualizers()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.step"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnv.step()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.step_dt"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnv.step_dt</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.unwrapped"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnv.unwrapped</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.cfg"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnv.cfg</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#franka-cube-stack-ik-rel-mimic-env-cfg">Franka Cube Stack IK Rel Mimic Env Cfg</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnvCfg</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.__init__"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnvCfg.__init__()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.ui_window_class_type"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnvCfg.ui_window_class_type</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.viewer"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnvCfg.viewer</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.sim"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnvCfg.sim</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.seed"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnvCfg.seed</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.decimation"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnvCfg.decimation</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.scene"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnvCfg.scene</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.recorders"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnvCfg.recorders</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.observations"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnvCfg.observations</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.actions"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnvCfg.actions</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.events"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnvCfg.events</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.rerender_on_reset"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnvCfg.rerender_on_reset</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.wait_for_textures"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnvCfg.wait_for_textures</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.xr"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnvCfg.xr</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.teleop_devices"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnvCfg.teleop_devices</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.is_finite_horizon"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnvCfg.is_finite_horizon</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.episode_length_s"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnvCfg.episode_length_s</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.rewards"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnvCfg.rewards</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.terminations"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnvCfg.terminations</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.curriculum"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnvCfg.curriculum</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.commands"><code class="docutils literal notranslate"><span class="pre">FrankaCubeStackIKRelMimicEnvCfg.commands</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By The Isaac Lab Project Developers.
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2022-2025, The Isaac Lab Project Developers..
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    <p class="last-updated">
+  Last updated on Sep 18, 2025.
+  <br/>
+</p>
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

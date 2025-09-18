@@ -162,6 +162,9 @@
           </div>
           <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
             <option value="isaaclab.sensors.html" selected>main</option>
+            <option value="../../../../release/2.1.0/source/api/lab/isaaclab.sensors.html" >release/2.1.0</option>
+            <option value="../../../../release/2.2.0/source/api/lab/isaaclab.sensors.html" >release/2.2.0</option>
+            <option value="../../../../release/2.3.0/source/api/lab/isaaclab.sensors.html" >release/2.3.0</option>
             <option value="../../../../v2.2.1/source/api/lab/isaaclab.sensors.html" >v2.2.1</option>
             <option value="../../../../v2.2.0/source/api/lab/isaaclab.sensors.html" >v2.2.0</option>
             <option value="../../../../v2.1.1/source/api/lab/isaaclab.sensors.html" >v2.1.1</option>
@@ -240,20 +243,21 @@
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../../setup/ecosystem.html">Isaac Lab Ecosystem</a></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../setup/installation/index.html">Local Installation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/pip_installation.html">Installation using Isaac Sim Pip</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/binaries_installation.html">Installation using Isaac Sim Binaries</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/source_installation.html">Installation using Isaac Sim Source</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/isaaclab_pip_installation.html">Installing Isaac Lab through Pip</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/pip_installation.html">Installation using Isaac Sim Pip Package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/binaries_installation.html">Installation using Isaac Sim Pre-built Binaries</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/source_installation.html">Installation using Isaac Sim Source Code</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/isaaclab_pip_installation.html">Installation using Isaac Lab Pip Packages</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../setup/installation/asset_caching.html">Asset Caching</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../deployment/index.html">Container Deployment</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../deployment/docker.html">Docker Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../deployment/run_docker_example.html">Running an example with Docker</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../deployment/cluster.html">Cluster Guide</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../deployment/cloudxr_teleoperation_cluster.html">Deploying CloudXR Teleoperation on Kubernetes</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../deployment/run_docker_example.html">Running an example with Docker</a></li>
 </ul>
 </details></li>
+<li class="toctree-l1"><a class="reference internal" href="../../setup/installation/cloud_installation.html">Cloud Deployment</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../refs/reference_architecture/index.html">Reference Architecture</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
@@ -382,7 +386,7 @@
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="../../setup/installation/cloud_installation.html">Running Isaac Lab in the Cloud</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../setup/installation/cloud_installation.html">Cloud Deployment</a></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../policy_deployment/index.html">Sim2Real Deployment of Policies Trained in Isaac Lab</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../policy_deployment/00_hover/hover_policy.html">Training &amp; Deploying HOVER Policy</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../policy_deployment/01_io_descriptors/io_descriptors_101.html">IO Descriptors 101</a></li>
@@ -703,12 +707,6 @@
 </ul>
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.CameraCfg"><code class="docutils literal notranslate"><span class="pre">CameraCfg</span></code></a><ul class="nav section-nav flex-column">
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.CameraCfg.OffsetCfg"><code class="docutils literal notranslate"><span class="pre">CameraCfg.OffsetCfg</span></code></a><ul class="nav section-nav flex-column">
-<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.CameraCfg.OffsetCfg.pos"><code class="docutils literal notranslate"><span class="pre">CameraCfg.OffsetCfg.pos</span></code></a></li>
-<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.CameraCfg.OffsetCfg.rot"><code class="docutils literal notranslate"><span class="pre">CameraCfg.OffsetCfg.rot</span></code></a></li>
-<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.CameraCfg.OffsetCfg.convention"><code class="docutils literal notranslate"><span class="pre">CameraCfg.OffsetCfg.convention</span></code></a></li>
-</ul>
-</li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.CameraCfg.offset"><code class="docutils literal notranslate"><span class="pre">CameraCfg.offset</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.CameraCfg.spawn"><code class="docutils literal notranslate"><span class="pre">CameraCfg.spawn</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.CameraCfg.depth_clipping_behavior"><code class="docutils literal notranslate"><span class="pre">CameraCfg.depth_clipping_behavior</span></code></a></li>
@@ -1717,15 +1715,6 @@ Opengl / USD Camera convention.</p>
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab.sensors.</span></span><span class="sig-name descname"><span class="pre">CameraCfg</span></span><a class="reference internal" href="../../../_modules/isaaclab/sensors/camera/camera_cfg.html#CameraCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.sensors.CameraCfg" title="Permalink to this definition">#</a></dt>
 <dd><p>Bases: <a class="reference internal" href="#isaaclab.sensors.SensorBaseCfg" title="isaaclab.sensors.sensor_base_cfg.SensorBaseCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">SensorBaseCfg</span></code></a></p>
 <p>Configuration for a camera sensor.</p>
-<p><strong>Classes:</strong></p>
-<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
-<tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sensors.CameraCfg.OffsetCfg" title="isaaclab.sensors.CameraCfg.OffsetCfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">OffsetCfg</span></code></a></p></td>
-<td><p>The offset pose of the sensor's frame from the sensor's parent frame.</p></td>
-</tr>
-</tbody>
-</table>
-</div>
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
@@ -1780,51 +1769,6 @@ Opengl / USD Camera convention.</p>
 </tbody>
 </table>
 </div>
-<dl class="py class">
-<dt class="sig sig-object py" id="isaaclab.sensors.CameraCfg.OffsetCfg">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">OffsetCfg</span></span><a class="reference internal" href="../../../_modules/isaaclab/sensors/camera/camera_cfg.html#CameraCfg.OffsetCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.sensors.CameraCfg.OffsetCfg" title="Permalink to this definition">#</a></dt>
-<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
-<p>The offset pose of the sensor’s frame from the sensor’s parent frame.</p>
-<p><strong>Attributes:</strong></p>
-<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
-<tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sensors.CameraCfg.OffsetCfg.pos" title="isaaclab.sensors.CameraCfg.OffsetCfg.pos"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pos</span></code></a></p></td>
-<td><p>Translation w.r.t.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sensors.CameraCfg.OffsetCfg.rot" title="isaaclab.sensors.CameraCfg.OffsetCfg.rot"><code class="xref py py-obj docutils literal notranslate"><span class="pre">rot</span></code></a></p></td>
-<td><p>Quaternion rotation (w, x, y, z) w.r.t.</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sensors.CameraCfg.OffsetCfg.convention" title="isaaclab.sensors.CameraCfg.OffsetCfg.convention"><code class="xref py py-obj docutils literal notranslate"><span class="pre">convention</span></code></a></p></td>
-<td><p>The convention in which the frame offset is applied.</p></td>
-</tr>
-</tbody>
-</table>
-</div>
-<dl class="py attribute">
-<dt class="sig sig-object py" id="isaaclab.sensors.CameraCfg.OffsetCfg.pos">
-<span class="sig-name descname"><span class="pre">pos</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#isaaclab.sensors.CameraCfg.OffsetCfg.pos" title="Permalink to this definition">#</a></dt>
-<dd><p>Translation w.r.t. the parent frame. Defaults to (0.0, 0.0, 0.0).</p>
-</dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="isaaclab.sensors.CameraCfg.OffsetCfg.rot">
-<span class="sig-name descname"><span class="pre">rot</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#isaaclab.sensors.CameraCfg.OffsetCfg.rot" title="Permalink to this definition">#</a></dt>
-<dd><p>Quaternion rotation (w, x, y, z) w.r.t. the parent frame. Defaults to (1.0, 0.0, 0.0, 0.0).</p>
-</dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="isaaclab.sensors.CameraCfg.OffsetCfg.convention">
-<span class="sig-name descname"><span class="pre">convention</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.13)"><span class="pre">Literal</span></a><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'opengl'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'ros'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'world'</span></span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#isaaclab.sensors.CameraCfg.OffsetCfg.convention" title="Permalink to this definition">#</a></dt>
-<dd><p>The convention in which the frame offset is applied. Defaults to “ros”.</p>
-<ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">&quot;opengl&quot;</span></code> - forward axis: <code class="docutils literal notranslate"><span class="pre">-Z</span></code> - up axis: <code class="docutils literal notranslate"><span class="pre">+Y</span></code> - Offset is applied in the OpenGL (Usd.Camera) convention.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">&quot;ros&quot;</span></code>    - forward axis: <code class="docutils literal notranslate"><span class="pre">+Z</span></code> - up axis: <code class="docutils literal notranslate"><span class="pre">-Y</span></code> - Offset is applied in the ROS convention.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">&quot;world&quot;</span></code>  - forward axis: <code class="docutils literal notranslate"><span class="pre">+X</span></code> - up axis: <code class="docutils literal notranslate"><span class="pre">+Z</span></code> - Offset is applied in the World Frame convention.</p></li>
-</ul>
-</dd></dl>
-
-</dd></dl>
-
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab.sensors.CameraCfg.offset">
 <span class="sig-name descname"><span class="pre">offset</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#isaaclab.sensors.TiledCameraCfg.OffsetCfg" title="isaaclab.sensors.camera.camera_cfg.CameraCfg.OffsetCfg"><span class="pre">OffsetCfg</span></a></em><a class="headerlink" href="#isaaclab.sensors.CameraCfg.offset" title="Permalink to this definition">#</a></dt>
@@ -4882,12 +4826,6 @@ which results in a positive acceleration reading in the world Z.</p>
 </ul>
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.CameraCfg"><code class="docutils literal notranslate"><span class="pre">CameraCfg</span></code></a><ul class="nav section-nav flex-column">
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.CameraCfg.OffsetCfg"><code class="docutils literal notranslate"><span class="pre">CameraCfg.OffsetCfg</span></code></a><ul class="nav section-nav flex-column">
-<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.CameraCfg.OffsetCfg.pos"><code class="docutils literal notranslate"><span class="pre">CameraCfg.OffsetCfg.pos</span></code></a></li>
-<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.CameraCfg.OffsetCfg.rot"><code class="docutils literal notranslate"><span class="pre">CameraCfg.OffsetCfg.rot</span></code></a></li>
-<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.CameraCfg.OffsetCfg.convention"><code class="docutils literal notranslate"><span class="pre">CameraCfg.OffsetCfg.convention</span></code></a></li>
-</ul>
-</li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.CameraCfg.offset"><code class="docutils literal notranslate"><span class="pre">CameraCfg.offset</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.CameraCfg.spawn"><code class="docutils literal notranslate"><span class="pre">CameraCfg.spawn</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sensors.CameraCfg.depth_clipping_behavior"><code class="docutils literal notranslate"><span class="pre">CameraCfg.depth_clipping_behavior</span></code></a></li>

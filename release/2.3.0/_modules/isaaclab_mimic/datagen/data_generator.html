@@ -1,0 +1,1640 @@
+
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>isaaclab_mimic.datagen.data_generator &#8212; Isaac Lab Documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css" />
+    <link rel="stylesheet" href="../../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/twemoji.css" />
+    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.11.13/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/custom.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.4cbf315f70debaebd550c87a6162cf0f.min.css" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
+    <script src="../../../_static/doctools.js"></script>
+    <script src="../../../_static/sphinx_highlight.js"></script>
+    <script src="https://unpkg.com/twemoji@latest/dist/twemoji.min.js"></script>
+    <script src="../../../_static/twemoji.js"></script>
+    <script src="/opt/hostedtoolcache/Python/3.11.13/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
+    <script src="../../../_static/clipboard.min.js"></script>
+    <script src="../../../_static/copybutton.js"></script>
+    <script src="../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
+    <script src="../../../_static/design-tabs.js"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/isaaclab_mimic/datagen/data_generator';</script>
+    <link rel="icon" href="../../../_static/favicon.ico"/>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="2.3.0" />
+    <meta name="docbuild:last-update" content="Sep 18, 2025"/>
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+        
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../../_static/NVIDIA-logo-white.png" class="logo__image only-light" alt=""/>
+    <img src="../../../_static/NVIDIA-logo-black.png" class="logo__image only-dark pst-js-only" alt=""/>
+  
+  
+    <p class="title logo__title">Isaac Lab Documentation</p>
+  
+</a></div>
+        <div class="sidebar-primary-item">
+<nav class="bd-links bd-docs-nav">
+    <div class="bd-toc-item navbar-nav">
+      <ul class="nav bd-sidenav">
+        <li class="toctree-l1 has-children" style="display: flex; justify-content: center; align-items: center; flex-direction: column;">
+          <div  style ="text-align:center;">
+            <label for="version-select" style="font-weight: bold; display: block;">Version</label>
+          </div>
+          <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
+            <option value="../../../../../main/index.html" >main</option>
+            <option value="../../../../2.1.0/index.html" >release/2.1.0</option>
+            <option value="../../../../2.2.0/index.html" >release/2.2.0</option>
+            <option value="data_generator.html" selected>release/2.3.0</option>
+            <option value="../../../../../v2.2.1/index.html" >v2.2.1</option>
+            <option value="../../../../../v2.2.0/index.html" >v2.2.0</option>
+            <option value="../../../../../v2.1.1/index.html" >v2.1.1</option>
+            <option value="../../../../../v2.1.0/index.html" >v2.1.0</option>
+            <option value="../../../../../v2.0.2/index.html" >v2.0.2</option>
+            <option value="../../../../../v2.0.1/index.html" >v2.0.1</option>
+            <option value="../../../../../v2.0.0/index.html" >v2.0.0</option>
+            <option value="../../../../../v1.4.1/index.html" >v1.4.1</option>
+            <option value="../../../../../v1.4.0/index.html" >v1.4.0</option>
+            <option value="../../../../../v1.3.0/index.html" >v1.3.0</option>
+            <option value="../../../../../v1.2.0/index.html" >v1.2.0</option>
+            <option value="../../../../../v1.1.0/index.html" >v1.1.0</option>
+            <option value="../../../../../v1.0.0/index.html" >v1.0.0</option>
+          </select>
+        </li>
+      </ul>
+    </div>
+</nav>
+</div>
+        <div class="sidebar-primary-item"><ul class="navbar-icon-links"
+    aria-label="Quick Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/isaac-sim/IsaacLab" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.0.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://img.shields.io/github/stars/isaac-sim/IsaacLab?color=fedcba" title="Stars" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/github/stars/isaac-sim/IsaacLab?color=fedcba" class="icon-link-image" alt="Stars"/></a>
+        </li>
+</ul></div>
+        <div class="sidebar-primary-item">
+<form class="bd-search d-flex align-items-center"
+      action="../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+        <div class="sidebar-primary-item"><nav class="bd-links" id="bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Isaac Lab</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../../source/setup/ecosystem.html">Isaac Lab Ecosystem</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../source/setup/installation/index.html">Local Installation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/setup/installation/pip_installation.html">Installation using Isaac Sim Pip</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/setup/installation/binaries_installation.html">Installation using Isaac Sim Binaries</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/setup/installation/source_installation.html">Installation using Isaac Sim Source</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/setup/installation/isaaclab_pip_installation.html">Installing Isaac Lab through Pip</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/setup/installation/asset_caching.html">Asset Caching</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../source/deployment/index.html">Container Deployment</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/deployment/docker.html">Docker Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/deployment/cluster.html">Cluster Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/deployment/cloudxr_teleoperation_cluster.html">Deploying CloudXR Teleoperation on Kubernetes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/deployment/run_docker_example.html">Running an example with Docker</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../source/refs/reference_architecture/index.html">Reference Architecture</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../../source/setup/quickstart.html">Quickstart Guide</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../source/overview/own-project/index.html">Build your Own Project or Task</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/overview/own-project/template.html">Create new project or task</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/overview/own-project/project_structure.html">Project Structure</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../source/setup/walkthrough/index.html">Walkthrough</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/setup/walkthrough/concepts_env_design.html">Environment Design Background</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/setup/walkthrough/api_env_design.html">Classes and Configs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/setup/walkthrough/technical_env_design.html">Environment Design</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/setup/walkthrough/training_jetbot_gt.html">Training the Jetbot: Ground Truth</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/setup/walkthrough/training_jetbot_reward_exploration.html">Exploring the RL problem</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../source/tutorials/index.html">Tutorials</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/tutorials/00_sim/create_empty.html">Creating an empty scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/tutorials/00_sim/spawn_prims.html">Spawning prims into the scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/tutorials/00_sim/launch_app.html">Deep-dive into AppLauncher</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/tutorials/01_assets/add_new_robot.html">Adding a New Robot to Isaac Lab</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/tutorials/01_assets/run_rigid_object.html">Interacting with a rigid object</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/tutorials/01_assets/run_articulation.html">Interacting with an articulation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/tutorials/01_assets/run_deformable_object.html">Interacting with a deformable object</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/tutorials/01_assets/run_surface_gripper.html">Interacting with a surface gripper</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/tutorials/02_scene/create_scene.html">Using the Interactive Scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/tutorials/03_envs/create_manager_base_env.html">Creating a Manager-Based Base Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/tutorials/03_envs/create_manager_rl_env.html">Creating a Manager-Based RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/tutorials/03_envs/create_direct_rl_env.html">Creating a Direct Workflow RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/tutorials/03_envs/register_rl_env_gym.html">Registering an Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/tutorials/03_envs/run_rl_training.html">Training with an RL Agent</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/tutorials/03_envs/configuring_rl_training.html">Configuring an RL Agent</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/tutorials/03_envs/modify_direct_rl_env.html">Modifying an existing Direct RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/tutorials/03_envs/policy_inference_in_usd.html">Policy Inference in USD Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/tutorials/04_sensors/add_sensors_on_robot.html">Adding sensors on a robot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/tutorials/05_controllers/run_diff_ik.html">Using a task-space controller</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/tutorials/05_controllers/run_osc.html">Using an operational space controller</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../source/how-to/index.html">How-to Guides</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/import_new_asset.html">Importing a New Asset</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/write_articulation_cfg.html">Writing an Asset Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/make_fixed_prim.html">Making a physics prim fixed in the simulation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/multi_asset_spawning.html">Spawning Multiple Assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/save_camera_output.html">Saving rendered images and 3D re-projection</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/estimate_how_many_cameras_can_run.html">Find How Many/What Cameras You Should Train With</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/configure_rendering.html">Configuring Rendering Settings</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/draw_markers.html">Creating Visualization Markers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/wrap_rl_env.html">Wrapping environments</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/add_own_library.html">Adding your own learning library</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/record_animation.html">Recording Animations of Simulations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/record_video.html">Recording video clips during training</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/curriculums.html">Curriculum Utilities</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/master_omniverse.html">Mastering Omniverse for Robotics</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/cloudxr_teleoperation.html">Setting up CloudXR Teleoperation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/simulation_performance.html">Simulation Performance</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/optimize_stage_creation.html">Optimize Stage Creation</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../source/overview/developer-guide/index.html">Developer’s Guide</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/overview/developer-guide/vs_code.html">Setting up Visual Studio Code</a></li>
+
+<li class="toctree-l2"><a class="reference internal" href="../../../source/overview/developer-guide/repo_structure.html">Repository organization</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/overview/developer-guide/development.html">Extension Development</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Overview</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../source/overview/core-concepts/index.html">Core Concepts</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/overview/core-concepts/task_workflows.html">Task Design Workflows</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/overview/core-concepts/actuators.html">Actuators</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../../../source/overview/core-concepts/sensors/index.html">Sensors</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../../source/overview/core-concepts/sensors/camera.html">Camera</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../source/overview/core-concepts/sensors/contact_sensor.html">Contact Sensor</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../source/overview/core-concepts/sensors/frame_transformer.html">Frame Transformer</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../source/overview/core-concepts/sensors/imu.html">Inertial Measurement Unit (IMU)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../source/overview/core-concepts/sensors/ray_caster.html">Ray Caster</a></li>
+</ul>
+</details></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/overview/core-concepts/motion_generators.html">Motion Generators</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../source/overview/environments.html">Available Environments</a></li>
+
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../source/overview/reinforcement-learning/index.html">Reinforcement Learning</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/overview/reinforcement-learning/rl_existing_scripts.html">Reinforcement Learning Scripts</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/overview/reinforcement-learning/rl_frameworks.html">Reinforcement Learning Library Comparison</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/overview/reinforcement-learning/performance_benchmarks.html">Performance Benchmarks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/overview/reinforcement-learning/training_guide.html">Debugging and Training Guide</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../source/overview/imitation-learning/index.html">Imitation Learning</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/overview/imitation-learning/augmented_imitation.html">Augmented Imitation Learning</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/overview/imitation-learning/teleop_imitation.html">Teleoperation and Imitation Learning with Isaac Lab Mimic</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/overview/imitation-learning/skillgen.html">SkillGen for Automated Demonstration Generation</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../source/overview/showroom.html">Showroom Demos</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../source/overview/simple_agents.html">Simple Agents</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Features</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../../source/features/hydra.html">Hydra Configuration System</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../source/features/multi_gpu.html">Multi-GPU and Multi-Node Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../source/features/population_based_training.html">Population Based Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../source/overview/core-concepts/sensors/camera.html">Tiled Rendering</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../source/features/ray.html">Ray Job Dispatch and Tuning</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../source/features/reproducibility.html">Reproducibility and Determinism</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Experimental Features</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../../source/experimental-features/bleeding-edge.html">Welcome to the bleeding edge!</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../source/experimental-features/newton-physics-integration/index.html">Newton Physics Integration</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/experimental-features/newton-physics-integration/installation.html">Installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/experimental-features/newton-physics-integration/training-environments.html">Training Environments</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/experimental-features/newton-physics-integration/newton-visualizer.html">Newton Visualizer</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/experimental-features/newton-physics-integration/limitations-and-known-bugs.html">Limitations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/experimental-features/newton-physics-integration/solver-transitioning.html">Solver Transitioning</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/experimental-features/newton-physics-integration/sim-to-sim.html">Sim-to-Sim Policy Transfer</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/experimental-features/newton-physics-integration/sim-to-real.html">Sim-to-Real Policy Transfer</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../../source/setup/installation/cloud_installation.html">Running Isaac Lab in the Cloud</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../source/policy_deployment/index.html">Sim2Real Deployment of Policies Trained in Isaac Lab</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/policy_deployment/00_hover/hover_policy.html">Training &amp; Deploying HOVER Policy</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/policy_deployment/01_io_descriptors/io_descriptors_101.html">IO Descriptors 101</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Migration Guides</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../../source/migration/migrating_from_isaacgymenvs.html">From IsaacGymEnvs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../source/migration/migrating_from_omniisaacgymenvs.html">From OmniIsaacGymEnvs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../source/migration/migrating_from_orbit.html">From Orbit</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Source API</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../source/api/index.html">API Reference</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab/isaaclab.app.html">isaaclab.app</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab/isaaclab.actuators.html">isaaclab.actuators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab/isaaclab.assets.html">isaaclab.assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab/isaaclab.controllers.html">isaaclab.controllers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab/isaaclab.devices.html">isaaclab.devices</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab/isaaclab.envs.html">isaaclab.envs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab/isaaclab.managers.html">isaaclab.managers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab/isaaclab.markers.html">isaaclab.markers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab/isaaclab.scene.html">isaaclab.scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab/isaaclab.sensors.html">isaaclab.sensors</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab/isaaclab.sim.html">isaaclab.sim</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab/isaaclab.terrains.html">isaaclab.terrains</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab/isaaclab.utils.html">isaaclab.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab/isaaclab.envs.mdp.html">isaaclab.envs.mdp</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab/isaaclab.envs.ui.html">isaaclab.envs.ui</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab/isaaclab.sensors.patterns.html">isaaclab.sensors.patterns</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab/isaaclab.sim.converters.html">isaaclab.sim.converters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab/isaaclab.sim.schemas.html">isaaclab.sim.schemas</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab/isaaclab.sim.spawners.html">isaaclab.sim.spawners</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab_rl/isaaclab_rl.html">isaaclab_rl</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab_mimic/isaaclab_mimic.datagen.html">isaaclab_mimic.datagen</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab_mimic/isaaclab_mimic.envs.html">isaaclab_mimic.envs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab_tasks/isaaclab_tasks.utils.html">isaaclab_tasks.utils</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../../source/refs/additional_resources.html">Additional Resources</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../source/refs/contributing.html">Contribution Guidelines</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../source/refs/troubleshooting.html">Tricks and Troubleshooting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../source/refs/migration.html">Migration Guide (Isaac Sim)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../source/refs/issues.html">Known Issues</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../source/refs/release_notes.html">Release Notes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../source/refs/changelog.html">Extensions Changelog</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../source/refs/license.html">License</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../source/refs/bibliography.html">Bibliography</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Project Links</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference external" href="https://github.com/isaac-sim/IsaacLab">GitHub</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/index.html">NVIDIA Isaac Sim</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/index.html">NVIDIA PhysX</a></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><label class="sidebar-toggle primary-toggle btn btn-sm" for="__primary" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</label></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-source-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Source repositories">
+    <i class="fab fa-github"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="https://github.com/isaac-sim/IsaacLab" target="_blank"
+   class="btn btn-sm btn-source-repository-button dropdown-item"
+   title="Source repository"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fab fa-github"></i>
+  </span>
+<span class="btn__text-container">Repository</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li><a href="https://github.com/isaac-sim/IsaacLab/issues/new?title=Issue%20on%20page%20%2F_modules/isaaclab_mimic/datagen/data_generator.html&body=Your%20issue%20content%20here." target="_blank"
+   class="btn btn-sm btn-source-issues-button dropdown-item"
+   title="Open an issue"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-lightbulb"></i>
+  </span>
+<span class="btn__text-container">Open issue</span>
+</a>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button>
+
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1></h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <h1>Source code for isaaclab_mimic.datagen.data_generator</h1><div class="highlight"><pre>
+<span></span><span class="c1"># Copyright (c) 2024-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).</span>
+<span class="c1"># All rights reserved.</span>
+<span class="c1">#</span>
+<span class="c1"># SPDX-License-Identifier: Apache-2.0</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Base class for data generator.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.utils.math</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">PoseUtils</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.envs</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">ManagerBasedRLMimicEnv</span><span class="p">,</span>
+    <span class="n">MimicEnvCfg</span><span class="p">,</span>
+    <span class="n">SubTaskConstraintCoordinationScheme</span><span class="p">,</span>
+    <span class="n">SubTaskConstraintType</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.managers</span><span class="w"> </span><span class="kn">import</span> <span class="n">TerminationTermCfg</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_mimic.datagen.datagen_info</span><span class="w"> </span><span class="kn">import</span> <span class="n">DatagenInfo</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_mimic.datagen.selection_strategy</span><span class="w"> </span><span class="kn">import</span> <span class="n">make_selection_strategy</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_mimic.datagen.waypoint</span><span class="w"> </span><span class="kn">import</span> <span class="n">MultiWaypoint</span><span class="p">,</span> <span class="n">Waypoint</span><span class="p">,</span> <span class="n">WaypointSequence</span><span class="p">,</span> <span class="n">WaypointTrajectory</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">.datagen_info_pool</span><span class="w"> </span><span class="kn">import</span> <span class="n">DataGenInfoPool</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">transform_source_data_segment_using_delta_object_pose</span><span class="p">(</span>
+    <span class="n">src_eef_poses</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">delta_obj_pose</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Transform a source data segment (object-centric subtask segment from source demonstration) using</span>
+<span class="sd">    a delta object pose.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        src_eef_poses: pose sequence (shape [T, 4, 4]) for the sequence of end effector control poses</span>
+<span class="sd">            from the source demonstration</span>
+<span class="sd">        delta_obj_pose: 4x4 delta object pose</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        transformed_eef_poses: transformed pose sequence (shape [T, 4, 4])</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">PoseUtils</span><span class="o">.</span><span class="n">pose_in_A_to_pose_in_B</span><span class="p">(</span>
+        <span class="n">pose_in_A</span><span class="o">=</span><span class="n">src_eef_poses</span><span class="p">,</span>
+        <span class="n">pose_A_in_B</span><span class="o">=</span><span class="n">delta_obj_pose</span><span class="p">[</span><span class="kc">None</span><span class="p">],</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">transform_source_data_segment_using_object_pose</span><span class="p">(</span>
+    <span class="n">obj_pose</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">src_eef_poses</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">src_obj_pose</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Transform a source data segment (object-centric subtask segment from source demonstration) such that</span>
+<span class="sd">    the relative poses between the target eef pose frame and the object frame are preserved. Recall that</span>
+<span class="sd">    each object-centric subtask segment corresponds to one object, and consists of a sequence of</span>
+<span class="sd">    target eef poses.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        obj_pose: 4x4 object pose in current scene</span>
+<span class="sd">        src_eef_poses: pose sequence (shape [T, 4, 4]) for the sequence of end effector control poses</span>
+<span class="sd">            from the source demonstration</span>
+<span class="sd">        src_obj_pose: 4x4 object pose from the source demonstration</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        transformed_eef_poses: transformed pose sequence (shape [T, 4, 4])</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># Transform source end effector poses to be relative to source object frame</span>
+    <span class="n">src_eef_poses_rel_obj</span> <span class="o">=</span> <span class="n">PoseUtils</span><span class="o">.</span><span class="n">pose_in_A_to_pose_in_B</span><span class="p">(</span>
+        <span class="n">pose_in_A</span><span class="o">=</span><span class="n">src_eef_poses</span><span class="p">,</span>
+        <span class="n">pose_A_in_B</span><span class="o">=</span><span class="n">PoseUtils</span><span class="o">.</span><span class="n">pose_inv</span><span class="p">(</span><span class="n">src_obj_pose</span><span class="p">[</span><span class="kc">None</span><span class="p">]),</span>
+    <span class="p">)</span>
+
+    <span class="c1"># Apply relative poses to current object frame to obtain new target eef poses</span>
+    <span class="n">transformed_eef_poses</span> <span class="o">=</span> <span class="n">PoseUtils</span><span class="o">.</span><span class="n">pose_in_A_to_pose_in_B</span><span class="p">(</span>
+        <span class="n">pose_in_A</span><span class="o">=</span><span class="n">src_eef_poses_rel_obj</span><span class="p">,</span>
+        <span class="n">pose_A_in_B</span><span class="o">=</span><span class="n">obj_pose</span><span class="p">[</span><span class="kc">None</span><span class="p">],</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">transformed_eef_poses</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">get_delta_pose_with_scheme</span><span class="p">(</span>
+    <span class="n">src_obj_pose</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">cur_obj_pose</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">task_constraint</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Get the delta pose with the given coordination scheme.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        src_obj_pose: 4x4 object pose in source scene</span>
+<span class="sd">        cur_obj_pose: 4x4 object pose in current scene</span>
+<span class="sd">        task_constraint: task constraint dictionary</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        delta_pose: 4x4 delta pose</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">coord_transform_scheme</span> <span class="o">=</span> <span class="n">task_constraint</span><span class="p">[</span><span class="s2">&quot;coordination_scheme&quot;</span><span class="p">]</span>
+    <span class="n">device</span> <span class="o">=</span> <span class="n">src_obj_pose</span><span class="o">.</span><span class="n">device</span>
+    <span class="k">if</span> <span class="n">coord_transform_scheme</span> <span class="o">==</span> <span class="n">SubTaskConstraintCoordinationScheme</span><span class="o">.</span><span class="n">TRANSFORM</span><span class="p">:</span>
+        <span class="n">delta_pose</span> <span class="o">=</span> <span class="n">PoseUtils</span><span class="o">.</span><span class="n">get_delta_object_pose</span><span class="p">(</span><span class="n">cur_obj_pose</span><span class="p">,</span> <span class="n">src_obj_pose</span><span class="p">)</span>
+        <span class="c1"># add noise to delta pose position</span>
+    <span class="k">elif</span> <span class="n">coord_transform_scheme</span> <span class="o">==</span> <span class="n">SubTaskConstraintCoordinationScheme</span><span class="o">.</span><span class="n">TRANSLATE</span><span class="p">:</span>
+        <span class="n">delta_pose</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">device</span><span class="p">)</span>
+        <span class="n">delta_pose</span><span class="p">[:</span><span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="n">cur_obj_pose</span><span class="p">[:</span><span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">]</span> <span class="o">-</span> <span class="n">src_obj_pose</span><span class="p">[:</span><span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">]</span>
+    <span class="k">elif</span> <span class="n">coord_transform_scheme</span> <span class="o">==</span> <span class="n">SubTaskConstraintCoordinationScheme</span><span class="o">.</span><span class="n">REPLAY</span><span class="p">:</span>
+        <span class="n">delta_pose</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">device</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;coordination coord_transform_scheme </span><span class="si">{</span><span class="n">coord_transform_scheme</span><span class="si">}</span><span class="s2"> not supported, only&quot;</span>
+            <span class="sa">f</span><span class="s2">&quot; </span><span class="si">{</span><span class="p">[</span><span class="n">e</span><span class="o">.</span><span class="n">value</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">e</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">SubTaskConstraintCoordinationScheme</span><span class="p">]</span><span class="si">}</span><span class="s2"> are supported&quot;</span>
+        <span class="p">)</span>
+
+    <span class="n">pos_noise_scale</span> <span class="o">=</span> <span class="n">task_constraint</span><span class="p">[</span><span class="s2">&quot;coordination_scheme_pos_noise_scale&quot;</span><span class="p">]</span>
+    <span class="n">rot_noise_scale</span> <span class="o">=</span> <span class="n">task_constraint</span><span class="p">[</span><span class="s2">&quot;coordination_scheme_rot_noise_scale&quot;</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">pos_noise_scale</span> <span class="o">!=</span> <span class="mf">0.0</span> <span class="ow">or</span> <span class="n">rot_noise_scale</span> <span class="o">!=</span> <span class="mf">0.0</span><span class="p">:</span>
+        <span class="n">pos</span> <span class="o">=</span> <span class="n">delta_pose</span><span class="p">[:</span><span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">]</span>
+        <span class="n">rot</span> <span class="o">=</span> <span class="n">delta_pose</span><span class="p">[:</span><span class="mi">3</span><span class="p">,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span>
+        <span class="n">pos_new</span><span class="p">,</span> <span class="n">rot_new</span> <span class="o">=</span> <span class="n">PoseUtils</span><span class="o">.</span><span class="n">add_uniform_noise_to_pose</span><span class="p">(</span><span class="n">pos</span><span class="p">,</span> <span class="n">rot</span><span class="p">,</span> <span class="n">pos_noise_scale</span><span class="p">,</span> <span class="n">rot_noise_scale</span><span class="p">)</span>
+        <span class="n">delta_pose</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">device</span><span class="p">)</span>
+        <span class="n">delta_pose</span><span class="p">[:</span><span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="n">pos_new</span>
+        <span class="n">delta_pose</span><span class="p">[:</span><span class="mi">3</span><span class="p">,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="n">rot_new</span>
+    <span class="k">return</span> <span class="n">delta_pose</span>
+
+
+<div class="viewcode-block" id="DataGenerator"><a class="viewcode-back" href="../../../source/api/lab_mimic/isaaclab_mimic.datagen.html#isaaclab_mimic.datagen.DataGenerator">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">DataGenerator</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    The main data generator class that generates new trajectories from source datasets.</span>
+
+<span class="sd">    The data generator, inspired by the MimicGen, enables the generation of new datasets based on a few human</span>
+<span class="sd">    collected source demonstrations.</span>
+
+<span class="sd">    The data generator works by parsing demonstrations into object-centric subtask segments, stored in DataGenInfoPool.</span>
+<span class="sd">    It then adapts these subtask segments to new scenes by transforming each segment according to the new scene’s context,</span>
+<span class="sd">    stitching them into a coherent trajectory for a robotic end-effector to execute.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="DataGenerator.__init__"><a class="viewcode-back" href="../../../source/api/lab_mimic/isaaclab_mimic.datagen.html#isaaclab_mimic.datagen.DataGenerator.__init__">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedRLMimicEnv</span><span class="p">,</span>
+        <span class="n">src_demo_datagen_info_pool</span><span class="p">:</span> <span class="n">DataGenInfoPool</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">dataset_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">demo_keys</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Args:</span>
+<span class="sd">            env: environment to use for data generation</span>
+<span class="sd">            src_demo_datagen_info_pool: source demo datagen info pool</span>
+<span class="sd">            dataset_path: path to hdf5 dataset to use for generation</span>
+<span class="sd">            demo_keys: list of demonstration keys to use in file. If not provided, all demonstration keys</span>
+<span class="sd">                will be used.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">env</span> <span class="o">=</span> <span class="n">env</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">env_cfg</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">cfg</span>
+        <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">env_cfg</span><span class="p">,</span> <span class="n">MimicEnvCfg</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dataset_path</span> <span class="o">=</span> <span class="n">dataset_path</span>
+
+        <span class="c1"># Sanity check on task spec offset ranges - final subtask should not have any offset randomization</span>
+        <span class="k">for</span> <span class="n">subtask_configs</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">env_cfg</span><span class="o">.</span><span class="n">subtask_configs</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+            <span class="k">assert</span> <span class="n">subtask_configs</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">subtask_term_offset_range</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span>
+            <span class="k">assert</span> <span class="n">subtask_configs</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">subtask_term_offset_range</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">demo_keys</span> <span class="o">=</span> <span class="n">demo_keys</span>
+
+        <span class="k">if</span> <span class="n">src_demo_datagen_info_pool</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">src_demo_datagen_info_pool</span> <span class="o">=</span> <span class="n">src_demo_datagen_info_pool</span>
+        <span class="k">elif</span> <span class="n">dataset_path</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">src_demo_datagen_info_pool</span> <span class="o">=</span> <span class="n">DataGenInfoPool</span><span class="p">(</span>
+                <span class="n">env</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">env</span><span class="p">,</span> <span class="n">env_cfg</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">env_cfg</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">env</span><span class="o">.</span><span class="n">device</span>
+            <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">src_demo_datagen_info_pool</span><span class="o">.</span><span class="n">load_from_dataset_file</span><span class="p">(</span><span class="n">dataset_path</span><span class="p">,</span> <span class="n">select_demo_keys</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">demo_keys</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Either src_demo_datagen_info_pool or dataset_path must be provided&quot;</span><span class="p">)</span></div>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Pretty print this object.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">msg</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="p">)</span>
+        <span class="n">msg</span> <span class="o">+=</span> <span class="s2">&quot; (</span><span class="se">\n\t</span><span class="s2">dataset_path=</span><span class="si">{}</span><span class="se">\n\t</span><span class="s2">demo_keys=</span><span class="si">{}</span><span class="se">\n</span><span class="s2">)&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">dataset_path</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">demo_keys</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="n">msg</span>
+
+<div class="viewcode-block" id="DataGenerator.randomize_subtask_boundaries"><a class="viewcode-back" href="../../../source/api/lab_mimic/isaaclab_mimic.datagen.html#isaaclab_mimic.datagen.DataGenerator.randomize_subtask_boundaries">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">randomize_subtask_boundaries</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Apply random offsets to sample subtask boundaries according to the task spec.</span>
+<span class="sd">        Recall that each demonstration is segmented into a set of subtask segments, and the</span>
+<span class="sd">        end index (and start index when skillgen is enabled) of each subtask can have a random offset.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">randomized_subtask_boundaries</span> <span class="o">=</span> <span class="p">{}</span>
+
+        <span class="k">for</span> <span class="n">eef_name</span><span class="p">,</span> <span class="n">subtask_boundaries</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">src_demo_datagen_info_pool</span><span class="o">.</span><span class="n">subtask_boundaries</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="c1"># Initial subtask start and end indices - shape (N, S, 2)</span>
+            <span class="n">subtask_boundaries</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">subtask_boundaries</span><span class="p">)</span>
+
+            <span class="c1"># Randomize the start of the first subtask</span>
+            <span class="n">first_subtask_start_offsets</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span>
+                <span class="n">low</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">env_cfg</span><span class="o">.</span><span class="n">subtask_configs</span><span class="p">[</span><span class="n">eef_name</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">first_subtask_start_offset_range</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+                <span class="n">high</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">env_cfg</span><span class="o">.</span><span class="n">subtask_configs</span><span class="p">[</span><span class="n">eef_name</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">first_subtask_start_offset_range</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span>
+                <span class="n">size</span><span class="o">=</span><span class="n">subtask_boundaries</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+            <span class="p">)</span>
+            <span class="n">subtask_boundaries</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">+=</span> <span class="n">first_subtask_start_offsets</span>
+
+            <span class="c1"># For each subtask, sample all end offsets at once for each demonstration</span>
+            <span class="c1"># Add them to subtask end indices, and then set them as the start indices of next subtask too</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">subtask_boundaries</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]):</span>
+                <span class="c1"># If skillgen is enabled, sample a random start offset to increase demonstration variety.</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">env_cfg</span><span class="o">.</span><span class="n">datagen_config</span><span class="o">.</span><span class="n">use_skillgen</span><span class="p">:</span>
+                    <span class="n">start_offset</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span>
+                        <span class="n">low</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">env_cfg</span><span class="o">.</span><span class="n">subtask_configs</span><span class="p">[</span><span class="n">eef_name</span><span class="p">][</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">subtask_start_offset_range</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+                        <span class="n">high</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">env_cfg</span><span class="o">.</span><span class="n">subtask_configs</span><span class="p">[</span><span class="n">eef_name</span><span class="p">][</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">subtask_start_offset_range</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span>
+                        <span class="n">size</span><span class="o">=</span><span class="n">subtask_boundaries</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+                    <span class="p">)</span>
+                    <span class="n">subtask_boundaries</span><span class="p">[:,</span> <span class="n">i</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">+=</span> <span class="n">start_offset</span>
+                <span class="k">elif</span> <span class="n">i</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="c1"># Without skillgen, the start of a subtask is the end of the previous one.</span>
+                    <span class="n">subtask_boundaries</span><span class="p">[:,</span> <span class="n">i</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">subtask_boundaries</span><span class="p">[:,</span> <span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span>
+
+                <span class="c1"># Sample end offset for each demonstration</span>
+                <span class="n">end_offsets</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span>
+                    <span class="n">low</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">env_cfg</span><span class="o">.</span><span class="n">subtask_configs</span><span class="p">[</span><span class="n">eef_name</span><span class="p">][</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">subtask_term_offset_range</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+                    <span class="n">high</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">env_cfg</span><span class="o">.</span><span class="n">subtask_configs</span><span class="p">[</span><span class="n">eef_name</span><span class="p">][</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">subtask_term_offset_range</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span>
+                    <span class="n">size</span><span class="o">=</span><span class="n">subtask_boundaries</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+                <span class="p">)</span>
+                <span class="n">subtask_boundaries</span><span class="p">[:,</span> <span class="n">i</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">subtask_boundaries</span><span class="p">[:,</span> <span class="n">i</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">end_offsets</span>
+
+            <span class="c1"># Ensure non-empty subtasks</span>
+            <span class="k">assert</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">((</span><span class="n">subtask_boundaries</span><span class="p">[:,</span> <span class="p">:,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">subtask_boundaries</span><span class="p">[:,</span> <span class="p">:,</span> <span class="mi">0</span><span class="p">])</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">),</span> <span class="s2">&quot;got empty subtasks!&quot;</span>
+
+            <span class="c1"># Ensure subtask indices increase (both starts and ends)</span>
+            <span class="k">assert</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span>
+                <span class="p">(</span><span class="n">subtask_boundaries</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">:,</span> <span class="p">:]</span> <span class="o">-</span> <span class="n">subtask_boundaries</span><span class="p">[:,</span> <span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="p">:])</span> <span class="o">&gt;</span> <span class="mi">0</span>
+            <span class="p">),</span> <span class="s2">&quot;subtask indices do not strictly increase&quot;</span>
+
+            <span class="c1"># Ensure subtasks are in order</span>
+            <span class="n">subtask_inds_flat</span> <span class="o">=</span> <span class="n">subtask_boundaries</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">subtask_boundaries</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+            <span class="k">assert</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">((</span><span class="n">subtask_inds_flat</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">:]</span> <span class="o">-</span> <span class="n">subtask_inds_flat</span><span class="p">[:,</span> <span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span> <span class="o">&gt;=</span> <span class="mi">0</span><span class="p">),</span> <span class="s2">&quot;subtask indices not in order&quot;</span>
+
+            <span class="n">randomized_subtask_boundaries</span><span class="p">[</span><span class="n">eef_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">subtask_boundaries</span>
+
+        <span class="k">return</span> <span class="n">randomized_subtask_boundaries</span></div>
+
+<div class="viewcode-block" id="DataGenerator.select_source_demo"><a class="viewcode-back" href="../../../source/api/lab_mimic/isaaclab_mimic.datagen.html#isaaclab_mimic.datagen.DataGenerator.select_source_demo">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">select_source_demo</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">eef_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">eef_pose</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span>
+        <span class="n">object_pose</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span>
+        <span class="n">src_demo_current_subtask_boundaries</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span>
+        <span class="n">subtask_object_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">selection_strategy_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">selection_strategy_kwargs</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Helper method to run source subtask segment selection.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            eef_name: name of end effector</span>
+<span class="sd">            eef_pose: current end effector pose</span>
+<span class="sd">            object_pose: current object pose for this subtask</span>
+<span class="sd">            src_demo_current_subtask_boundaries: start and end indices for subtask segment in source demonstrations of shape (N, 2)</span>
+<span class="sd">            subtask_object_name: name of reference object for this subtask</span>
+<span class="sd">            selection_strategy_name: name of selection strategy</span>
+<span class="sd">            selection_strategy_kwargs: extra kwargs for running selection strategy</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            selected_src_demo_ind: selected source demo index</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">subtask_object_name</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># no reference object - only random selection is supported</span>
+            <span class="k">assert</span> <span class="n">selection_strategy_name</span> <span class="o">==</span> <span class="s2">&quot;random&quot;</span><span class="p">,</span> <span class="n">selection_strategy_name</span>
+
+        <span class="c1"># We need to collect the datagen info objects over the timesteps for the subtask segment in each source</span>
+        <span class="c1"># demo, so that it can be used by the selection strategy.</span>
+        <span class="n">src_subtask_datagen_infos</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">src_demo_datagen_info_pool</span><span class="o">.</span><span class="n">datagen_infos</span><span class="p">)):</span>
+            <span class="c1"># Datagen info over all timesteps of the src trajectory</span>
+            <span class="n">src_ep_datagen_info</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">src_demo_datagen_info_pool</span><span class="o">.</span><span class="n">datagen_infos</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+
+            <span class="c1"># Time indices for subtask</span>
+            <span class="n">subtask_start_ind</span> <span class="o">=</span> <span class="n">src_demo_current_subtask_boundaries</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+            <span class="n">subtask_end_ind</span> <span class="o">=</span> <span class="n">src_demo_current_subtask_boundaries</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span>
+
+            <span class="c1"># Get subtask segment using indices</span>
+            <span class="n">src_subtask_datagen_infos</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                <span class="n">DatagenInfo</span><span class="p">(</span>
+                    <span class="n">eef_pose</span><span class="o">=</span><span class="n">src_ep_datagen_info</span><span class="o">.</span><span class="n">eef_pose</span><span class="p">[</span><span class="n">eef_name</span><span class="p">][</span><span class="n">subtask_start_ind</span><span class="p">:</span><span class="n">subtask_end_ind</span><span class="p">],</span>
+                    <span class="c1"># Only include object pose for relevant object in subtask</span>
+                    <span class="n">object_poses</span><span class="o">=</span><span class="p">(</span>
+                        <span class="p">{</span>
+                            <span class="n">subtask_object_name</span><span class="p">:</span> <span class="n">src_ep_datagen_info</span><span class="o">.</span><span class="n">object_poses</span><span class="p">[</span><span class="n">subtask_object_name</span><span class="p">][</span>
+                                <span class="n">subtask_start_ind</span><span class="p">:</span><span class="n">subtask_end_ind</span>
+                            <span class="p">]</span>
+                        <span class="p">}</span>
+                        <span class="k">if</span> <span class="p">(</span><span class="n">subtask_object_name</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">)</span>
+                        <span class="k">else</span> <span class="kc">None</span>
+                    <span class="p">),</span>
+                    <span class="c1"># Subtask termination signal is unused</span>
+                    <span class="n">subtask_term_signals</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                    <span class="n">target_eef_pose</span><span class="o">=</span><span class="n">src_ep_datagen_info</span><span class="o">.</span><span class="n">target_eef_pose</span><span class="p">[</span><span class="n">eef_name</span><span class="p">][</span><span class="n">subtask_start_ind</span><span class="p">:</span><span class="n">subtask_end_ind</span><span class="p">],</span>
+                    <span class="n">gripper_action</span><span class="o">=</span><span class="n">src_ep_datagen_info</span><span class="o">.</span><span class="n">gripper_action</span><span class="p">[</span><span class="n">eef_name</span><span class="p">][</span><span class="n">subtask_start_ind</span><span class="p">:</span><span class="n">subtask_end_ind</span><span class="p">],</span>
+                <span class="p">)</span>
+            <span class="p">)</span>
+
+        <span class="c1"># Make selection strategy object</span>
+        <span class="n">selection_strategy_obj</span> <span class="o">=</span> <span class="n">make_selection_strategy</span><span class="p">(</span><span class="n">selection_strategy_name</span><span class="p">)</span>
+
+        <span class="c1"># Run selection</span>
+        <span class="k">if</span> <span class="n">selection_strategy_kwargs</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">selection_strategy_kwargs</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
+        <span class="n">selected_src_demo_ind</span> <span class="o">=</span> <span class="n">selection_strategy_obj</span><span class="o">.</span><span class="n">select_source_demo</span><span class="p">(</span>
+            <span class="n">eef_pose</span><span class="o">=</span><span class="n">eef_pose</span><span class="p">,</span>
+            <span class="n">object_pose</span><span class="o">=</span><span class="n">object_pose</span><span class="p">,</span>
+            <span class="n">src_subtask_datagen_infos</span><span class="o">=</span><span class="n">src_subtask_datagen_infos</span><span class="p">,</span>
+            <span class="o">**</span><span class="n">selection_strategy_kwargs</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">selected_src_demo_ind</span></div>
+
+<div class="viewcode-block" id="DataGenerator.generate_eef_subtask_trajectory"><a class="viewcode-back" href="../../../source/api/lab_mimic/isaaclab_mimic.datagen.html#isaaclab_mimic.datagen.DataGenerator.generate_eef_subtask_trajectory">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">generate_eef_subtask_trajectory</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">env_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">eef_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">subtask_ind</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">all_randomized_subtask_boundaries</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span>
+        <span class="n">runtime_subtask_constraints_dict</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span>
+        <span class="n">selected_src_demo_inds</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">WaypointTrajectory</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Build a transformed waypoint trajectory for a single subtask of an end-effector.</span>
+
+<span class="sd">        This method selects a source demonstration segment for the specified subtask,</span>
+<span class="sd">        slices the corresponding EEF poses/targets/gripper actions using the randomized</span>
+<span class="sd">        subtask boundaries, optionally prepends the first robot EEF pose (to interpolate</span>
+<span class="sd">        from the robot pose instead of the first target), applies an object/coordination</span>
+<span class="sd">        based transform to the pose sequence, and returns the result as a `WaypointTrajectory`.</span>
+
+<span class="sd">        Selection and transforms:</span>
+
+<span class="sd">        - Source demo selection is controlled by `SubTaskConfig.selection_strategy` (and kwargs) and by</span>
+<span class="sd">          `datagen_config.generation_select_src_per_subtask` / `generation_select_src_per_arm`.</span>
+<span class="sd">        - For coordination constraints, the method reuses/sets the selected source demo ID across</span>
+<span class="sd">          concurrent subtasks, computes `synchronous_steps`, and stores the pose `transform` used</span>
+<span class="sd">          to ensure consistent relative motion between tasks.</span>
+<span class="sd">        - Pose transforms are computed either from object poses (`object_ref`) or via a delta pose</span>
+<span class="sd">          provided by a concurrent task/coordination scheme.</span>
+
+
+<span class="sd">        Args:</span>
+<span class="sd">            env_id: Environment index used to query current robot/object poses.</span>
+<span class="sd">            eef_name: End-effector key whose subtask trajectory is being generated.</span>
+<span class="sd">            subtask_ind: Index of the subtask within `subtask_configs[eef_name]`.</span>
+<span class="sd">            all_randomized_subtask_boundaries: For each EEF, an array of per-demo</span>
+<span class="sd">                randomized (start, end) indices for every subtask.</span>
+<span class="sd">            runtime_subtask_constraints_dict: In/out dictionary carrying runtime fields</span>
+<span class="sd">                for constraints (e.g., selected source ID, delta transform, synchronous steps).</span>
+<span class="sd">            selected_src_demo_inds: Per-EEF mapping for the currently selected source demo index</span>
+<span class="sd">                (may be reused across arms if configured).</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            WaypointTrajectory: The transformed trajectory for the selected subtask segment.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">subtask_configs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">env_cfg</span><span class="o">.</span><span class="n">subtask_configs</span><span class="p">[</span><span class="n">eef_name</span><span class="p">]</span>
+        <span class="c1"># name of object for this subtask</span>
+        <span class="n">subtask_object_name</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">env_cfg</span><span class="o">.</span><span class="n">subtask_configs</span><span class="p">[</span><span class="n">eef_name</span><span class="p">][</span><span class="n">subtask_ind</span><span class="p">]</span><span class="o">.</span><span class="n">object_ref</span>
+        <span class="n">subtask_object_pose</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">env</span><span class="o">.</span><span class="n">get_object_poses</span><span class="p">(</span><span class="n">env_ids</span><span class="o">=</span><span class="p">[</span><span class="n">env_id</span><span class="p">])[</span><span class="n">subtask_object_name</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">subtask_object_name</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">)</span>
+            <span class="k">else</span> <span class="kc">None</span>
+        <span class="p">)</span>
+
+        <span class="n">is_first_subtask</span> <span class="o">=</span> <span class="n">subtask_ind</span> <span class="o">==</span> <span class="mi">0</span>
+
+        <span class="n">need_source_demo_selection</span> <span class="o">=</span> <span class="n">is_first_subtask</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">env_cfg</span><span class="o">.</span><span class="n">datagen_config</span><span class="o">.</span><span class="n">generation_select_src_per_subtask</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">env_cfg</span><span class="o">.</span><span class="n">datagen_config</span><span class="o">.</span><span class="n">generation_select_src_per_arm</span><span class="p">:</span>
+            <span class="n">need_source_demo_selection</span> <span class="o">=</span> <span class="n">need_source_demo_selection</span> <span class="ow">and</span> <span class="n">selected_src_demo_inds</span><span class="p">[</span><span class="n">eef_name</span><span class="p">]</span> <span class="ow">is</span> <span class="kc">None</span>
+
+        <span class="n">use_delta_transform</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="n">coord_transform_scheme</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">eef_name</span><span class="p">,</span> <span class="n">subtask_ind</span><span class="p">)</span> <span class="ow">in</span> <span class="n">runtime_subtask_constraints_dict</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">runtime_subtask_constraints_dict</span><span class="p">[(</span><span class="n">eef_name</span><span class="p">,</span> <span class="n">subtask_ind</span><span class="p">)][</span><span class="s2">&quot;type&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="n">SubTaskConstraintType</span><span class="o">.</span><span class="n">COORDINATION</span><span class="p">:</span>
+                <span class="c1"># Avoid selecting source demo if it has already been selected by the concurrent task</span>
+                <span class="n">concurrent_task_spec_key</span> <span class="o">=</span> <span class="n">runtime_subtask_constraints_dict</span><span class="p">[(</span><span class="n">eef_name</span><span class="p">,</span> <span class="n">subtask_ind</span><span class="p">)][</span>
+                    <span class="s2">&quot;concurrent_task_spec_key&quot;</span>
+                <span class="p">]</span>
+                <span class="n">concurrent_subtask_ind</span> <span class="o">=</span> <span class="n">runtime_subtask_constraints_dict</span><span class="p">[(</span><span class="n">eef_name</span><span class="p">,</span> <span class="n">subtask_ind</span><span class="p">)][</span>
+                    <span class="s2">&quot;concurrent_subtask_ind&quot;</span>
+                <span class="p">]</span>
+                <span class="n">concurrent_selected_src_ind</span> <span class="o">=</span> <span class="n">runtime_subtask_constraints_dict</span><span class="p">[</span>
+                    <span class="p">(</span><span class="n">concurrent_task_spec_key</span><span class="p">,</span> <span class="n">concurrent_subtask_ind</span><span class="p">)</span>
+                <span class="p">][</span><span class="s2">&quot;selected_src_demo_ind&quot;</span><span class="p">]</span>
+                <span class="k">if</span> <span class="n">concurrent_selected_src_ind</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="c1"># The concurrent task has started, so we should use the same source demo</span>
+                    <span class="n">selected_src_demo_inds</span><span class="p">[</span><span class="n">eef_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">concurrent_selected_src_ind</span>
+                    <span class="n">need_source_demo_selection</span> <span class="o">=</span> <span class="kc">False</span>
+                    <span class="c1"># This transform is set at after the first data generation iteration/first run of the main while loop</span>
+                    <span class="n">use_delta_transform</span> <span class="o">=</span> <span class="n">runtime_subtask_constraints_dict</span><span class="p">[</span>
+                        <span class="p">(</span><span class="n">concurrent_task_spec_key</span><span class="p">,</span> <span class="n">concurrent_subtask_ind</span><span class="p">)</span>
+                    <span class="p">][</span><span class="s2">&quot;transform&quot;</span><span class="p">]</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">assert</span> <span class="p">(</span>
+                        <span class="s2">&quot;transform&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">runtime_subtask_constraints_dict</span><span class="p">[(</span><span class="n">eef_name</span><span class="p">,</span> <span class="n">subtask_ind</span><span class="p">)]</span>
+                    <span class="p">),</span> <span class="s2">&quot;transform should not be set for concurrent task&quot;</span>
+                    <span class="c1"># Need to transform demo according to scheme</span>
+                    <span class="n">coord_transform_scheme</span> <span class="o">=</span> <span class="n">runtime_subtask_constraints_dict</span><span class="p">[(</span><span class="n">eef_name</span><span class="p">,</span> <span class="n">subtask_ind</span><span class="p">)][</span>
+                        <span class="s2">&quot;coordination_scheme&quot;</span>
+                    <span class="p">]</span>
+                    <span class="k">if</span> <span class="n">coord_transform_scheme</span> <span class="o">!=</span> <span class="n">SubTaskConstraintCoordinationScheme</span><span class="o">.</span><span class="n">REPLAY</span><span class="p">:</span>
+                        <span class="k">assert</span> <span class="p">(</span>
+                            <span class="n">subtask_object_name</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+                        <span class="p">),</span> <span class="sa">f</span><span class="s2">&quot;object reference should not be None for </span><span class="si">{</span><span class="n">coord_transform_scheme</span><span class="si">}</span><span class="s2"> coordination scheme&quot;</span>
+
+        <span class="k">if</span> <span class="n">need_source_demo_selection</span><span class="p">:</span>
+            <span class="n">selected_src_demo_inds</span><span class="p">[</span><span class="n">eef_name</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">select_source_demo</span><span class="p">(</span>
+                <span class="n">eef_name</span><span class="o">=</span><span class="n">eef_name</span><span class="p">,</span>
+                <span class="n">eef_pose</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">env</span><span class="o">.</span><span class="n">get_robot_eef_pose</span><span class="p">(</span><span class="n">env_ids</span><span class="o">=</span><span class="p">[</span><span class="n">env_id</span><span class="p">],</span> <span class="n">eef_name</span><span class="o">=</span><span class="n">eef_name</span><span class="p">)[</span><span class="mi">0</span><span class="p">],</span>
+                <span class="n">object_pose</span><span class="o">=</span><span class="n">subtask_object_pose</span><span class="p">,</span>
+                <span class="n">src_demo_current_subtask_boundaries</span><span class="o">=</span><span class="n">all_randomized_subtask_boundaries</span><span class="p">[</span><span class="n">eef_name</span><span class="p">][:,</span> <span class="n">subtask_ind</span><span class="p">],</span>
+                <span class="n">subtask_object_name</span><span class="o">=</span><span class="n">subtask_object_name</span><span class="p">,</span>
+                <span class="n">selection_strategy_name</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">env_cfg</span><span class="o">.</span><span class="n">subtask_configs</span><span class="p">[</span><span class="n">eef_name</span><span class="p">][</span><span class="n">subtask_ind</span><span class="p">]</span><span class="o">.</span><span class="n">selection_strategy</span><span class="p">,</span>
+                <span class="n">selection_strategy_kwargs</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">env_cfg</span><span class="o">.</span><span class="n">subtask_configs</span><span class="p">[</span><span class="n">eef_name</span><span class="p">][</span><span class="n">subtask_ind</span><span class="p">]</span><span class="o">.</span><span class="n">selection_strategy_kwargs</span><span class="p">,</span>
+            <span class="p">)</span>
+
+        <span class="k">assert</span> <span class="n">selected_src_demo_inds</span><span class="p">[</span><span class="n">eef_name</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="n">selected_src_demo_ind</span> <span class="o">=</span> <span class="n">selected_src_demo_inds</span><span class="p">[</span><span class="n">eef_name</span><span class="p">]</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">env_cfg</span><span class="o">.</span><span class="n">datagen_config</span><span class="o">.</span><span class="n">generation_select_src_per_arm</span> <span class="ow">and</span> <span class="n">need_source_demo_selection</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">itrated_eef_name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">env_cfg</span><span class="o">.</span><span class="n">subtask_configs</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+                <span class="n">selected_src_demo_inds</span><span class="p">[</span><span class="n">itrated_eef_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">selected_src_demo_ind</span>
+
+        <span class="c1"># Selected subtask segment time indices</span>
+        <span class="n">selected_src_subtask_boundary</span> <span class="o">=</span> <span class="n">all_randomized_subtask_boundaries</span><span class="p">[</span><span class="n">eef_name</span><span class="p">][</span><span class="n">selected_src_demo_ind</span><span class="p">,</span> <span class="n">subtask_ind</span><span class="p">]</span>
+
+        <span class="k">if</span> <span class="p">(</span><span class="n">eef_name</span><span class="p">,</span> <span class="n">subtask_ind</span><span class="p">)</span> <span class="ow">in</span> <span class="n">runtime_subtask_constraints_dict</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">runtime_subtask_constraints_dict</span><span class="p">[(</span><span class="n">eef_name</span><span class="p">,</span> <span class="n">subtask_ind</span><span class="p">)][</span><span class="s2">&quot;type&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="n">SubTaskConstraintType</span><span class="o">.</span><span class="n">COORDINATION</span><span class="p">:</span>
+                <span class="c1"># Store selected source demo ind for concurrent task</span>
+                <span class="n">runtime_subtask_constraints_dict</span><span class="p">[(</span><span class="n">eef_name</span><span class="p">,</span> <span class="n">subtask_ind</span><span class="p">)][</span>
+                    <span class="s2">&quot;selected_src_demo_ind&quot;</span>
+                <span class="p">]</span> <span class="o">=</span> <span class="n">selected_src_demo_ind</span>
+                <span class="n">concurrent_task_spec_key</span> <span class="o">=</span> <span class="n">runtime_subtask_constraints_dict</span><span class="p">[(</span><span class="n">eef_name</span><span class="p">,</span> <span class="n">subtask_ind</span><span class="p">)][</span>
+                    <span class="s2">&quot;concurrent_task_spec_key&quot;</span>
+                <span class="p">]</span>
+                <span class="n">concurrent_subtask_ind</span> <span class="o">=</span> <span class="n">runtime_subtask_constraints_dict</span><span class="p">[(</span><span class="n">eef_name</span><span class="p">,</span> <span class="n">subtask_ind</span><span class="p">)][</span>
+                    <span class="s2">&quot;concurrent_subtask_ind&quot;</span>
+                <span class="p">]</span>
+                <span class="n">concurrent_src_subtask_inds</span> <span class="o">=</span> <span class="n">all_randomized_subtask_boundaries</span><span class="p">[</span><span class="n">concurrent_task_spec_key</span><span class="p">][</span>
+                    <span class="n">selected_src_demo_ind</span><span class="p">,</span> <span class="n">concurrent_subtask_ind</span>
+                <span class="p">]</span>
+                <span class="n">subtask_len</span> <span class="o">=</span> <span class="n">selected_src_subtask_boundary</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">selected_src_subtask_boundary</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="n">concurrent_subtask_len</span> <span class="o">=</span> <span class="n">concurrent_src_subtask_inds</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">concurrent_src_subtask_inds</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="n">runtime_subtask_constraints_dict</span><span class="p">[(</span><span class="n">eef_name</span><span class="p">,</span> <span class="n">subtask_ind</span><span class="p">)][</span><span class="s2">&quot;synchronous_steps&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span>
+                    <span class="n">subtask_len</span><span class="p">,</span> <span class="n">concurrent_subtask_len</span>
+                <span class="p">)</span>
+
+        <span class="c1"># Get subtask segment, consisting of the sequence of robot eef poses, target poses, gripper actions</span>
+        <span class="n">src_ep_datagen_info</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">src_demo_datagen_info_pool</span><span class="o">.</span><span class="n">datagen_infos</span><span class="p">[</span><span class="n">selected_src_demo_ind</span><span class="p">]</span>
+        <span class="n">src_subtask_eef_poses</span> <span class="o">=</span> <span class="n">src_ep_datagen_info</span><span class="o">.</span><span class="n">eef_pose</span><span class="p">[</span><span class="n">eef_name</span><span class="p">][</span>
+            <span class="n">selected_src_subtask_boundary</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="p">:</span> <span class="n">selected_src_subtask_boundary</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="p">]</span>
+        <span class="n">src_subtask_target_poses</span> <span class="o">=</span> <span class="n">src_ep_datagen_info</span><span class="o">.</span><span class="n">target_eef_pose</span><span class="p">[</span><span class="n">eef_name</span><span class="p">][</span>
+            <span class="n">selected_src_subtask_boundary</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="p">:</span> <span class="n">selected_src_subtask_boundary</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="p">]</span>
+        <span class="n">src_subtask_gripper_actions</span> <span class="o">=</span> <span class="n">src_ep_datagen_info</span><span class="o">.</span><span class="n">gripper_action</span><span class="p">[</span><span class="n">eef_name</span><span class="p">][</span>
+            <span class="n">selected_src_subtask_boundary</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="p">:</span> <span class="n">selected_src_subtask_boundary</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="p">]</span>
+
+        <span class="c1"># Get reference object pose from source demo</span>
+        <span class="n">src_subtask_object_pose</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">src_ep_datagen_info</span><span class="o">.</span><span class="n">object_poses</span><span class="p">[</span><span class="n">subtask_object_name</span><span class="p">][</span><span class="n">selected_src_subtask_boundary</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">subtask_object_name</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">)</span>
+            <span class="k">else</span> <span class="kc">None</span>
+        <span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">is_first_subtask</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">env_cfg</span><span class="o">.</span><span class="n">datagen_config</span><span class="o">.</span><span class="n">generation_transform_first_robot_pose</span><span class="p">:</span>
+            <span class="c1"># Source segment consists of first robot eef pose and the target poses. This ensures that</span>
+            <span class="c1"># We will interpolate to the first robot eef pose in this source segment, instead of the</span>
+            <span class="c1"># first robot target pose.</span>
+            <span class="n">src_eef_poses</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">([</span><span class="n">src_subtask_eef_poses</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="mi">1</span><span class="p">],</span> <span class="n">src_subtask_target_poses</span><span class="p">],</span> <span class="n">dim</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+            <span class="c1"># Account for extra timestep added to @src_eef_poses</span>
+            <span class="n">src_subtask_gripper_actions</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">(</span>
+                <span class="p">[</span><span class="n">src_subtask_gripper_actions</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="mi">1</span><span class="p">],</span> <span class="n">src_subtask_gripper_actions</span><span class="p">],</span> <span class="n">dim</span><span class="o">=</span><span class="mi">0</span>
+            <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># Source segment consists of just the target poses.</span>
+            <span class="n">src_eef_poses</span> <span class="o">=</span> <span class="n">src_subtask_target_poses</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+            <span class="n">src_subtask_gripper_actions</span> <span class="o">=</span> <span class="n">src_subtask_gripper_actions</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+
+        <span class="c1"># Transform source demonstration segment using relevant object pose.</span>
+        <span class="k">if</span> <span class="n">use_delta_transform</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># Use delta transform from concurrent task</span>
+            <span class="n">transformed_eef_poses</span> <span class="o">=</span> <span class="n">transform_source_data_segment_using_delta_object_pose</span><span class="p">(</span>
+                <span class="n">src_eef_poses</span><span class="p">,</span> <span class="n">use_delta_transform</span>
+            <span class="p">)</span>
+
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">coord_transform_scheme</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">delta_obj_pose</span> <span class="o">=</span> <span class="n">get_delta_pose_with_scheme</span><span class="p">(</span>
+                    <span class="n">src_subtask_object_pose</span><span class="p">,</span>
+                    <span class="n">subtask_object_pose</span><span class="p">,</span>
+                    <span class="n">runtime_subtask_constraints_dict</span><span class="p">[(</span><span class="n">eef_name</span><span class="p">,</span> <span class="n">subtask_ind</span><span class="p">)],</span>
+                <span class="p">)</span>
+                <span class="n">transformed_eef_poses</span> <span class="o">=</span> <span class="n">transform_source_data_segment_using_delta_object_pose</span><span class="p">(</span>
+                    <span class="n">src_eef_poses</span><span class="p">,</span> <span class="n">delta_obj_pose</span>
+                <span class="p">)</span>
+                <span class="n">runtime_subtask_constraints_dict</span><span class="p">[(</span><span class="n">eef_name</span><span class="p">,</span> <span class="n">subtask_ind</span><span class="p">)][</span><span class="s2">&quot;transform&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">delta_obj_pose</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">subtask_object_name</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">transformed_eef_poses</span> <span class="o">=</span> <span class="n">transform_source_data_segment_using_object_pose</span><span class="p">(</span>
+                        <span class="n">subtask_object_pose</span><span class="p">,</span>
+                        <span class="n">src_eef_poses</span><span class="p">,</span>
+                        <span class="n">src_subtask_object_pose</span><span class="p">,</span>
+                    <span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;skipping transformation for </span><span class="si">{</span><span class="n">subtask_object_name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+                    <span class="c1"># Skip transformation if no reference object is provided</span>
+                    <span class="n">transformed_eef_poses</span> <span class="o">=</span> <span class="n">src_eef_poses</span>
+
+        <span class="c1"># Construct trajectory for the transformed segment.</span>
+        <span class="n">transformed_seq</span> <span class="o">=</span> <span class="n">WaypointSequence</span><span class="o">.</span><span class="n">from_poses</span><span class="p">(</span>
+            <span class="n">poses</span><span class="o">=</span><span class="n">transformed_eef_poses</span><span class="p">,</span>
+            <span class="n">gripper_actions</span><span class="o">=</span><span class="n">src_subtask_gripper_actions</span><span class="p">,</span>
+            <span class="n">action_noise</span><span class="o">=</span><span class="n">subtask_configs</span><span class="p">[</span><span class="n">subtask_ind</span><span class="p">]</span><span class="o">.</span><span class="n">action_noise</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">transformed_traj</span> <span class="o">=</span> <span class="n">WaypointTrajectory</span><span class="p">()</span>
+        <span class="n">transformed_traj</span><span class="o">.</span><span class="n">add_waypoint_sequence</span><span class="p">(</span><span class="n">transformed_seq</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">transformed_traj</span></div>
+
+<div class="viewcode-block" id="DataGenerator.merge_eef_subtask_trajectory"><a class="viewcode-back" href="../../../source/api/lab_mimic/isaaclab_mimic.datagen.html#isaaclab_mimic.datagen.DataGenerator.merge_eef_subtask_trajectory">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">merge_eef_subtask_trajectory</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">env_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">eef_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">subtask_index</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">prev_executed_traj</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Waypoint</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">subtask_trajectory</span><span class="p">:</span> <span class="n">WaypointTrajectory</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">Waypoint</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Merge a subtask trajectory into an executable trajectory for the robot end-effector.</span>
+
+<span class="sd">        This constructs a new `WaypointTrajectory` by first creating an initial</span>
+<span class="sd">        interpolation segment, then merging the provided `subtask_trajectory` onto it.</span>
+<span class="sd">        The initial segment begins either from the last executed target waypoint of the</span>
+<span class="sd">        previous subtask (if configured) or from the robot&#39;s current end-effector pose.</span>
+
+<span class="sd">        Behavior:</span>
+
+<span class="sd">        - If `datagen_config.generation_interpolate_from_last_target_pose` is True and</span>
+<span class="sd">          this is not the first subtask, interpolation starts from the last waypoint of</span>
+<span class="sd">          `prev_executed_traj`.</span>
+<span class="sd">        - Otherwise, interpolation starts from the current robot EEF pose (queried from the env)</span>
+<span class="sd">          and uses the first waypoint&#39;s gripper action and the subtask&#39;s action noise.</span>
+<span class="sd">        - The merge uses `num_interpolation_steps`, `num_fixed_steps`, and optionally</span>
+<span class="sd">          `apply_noise_during_interpolation` from the corresponding `SubTaskConfig`.</span>
+<span class="sd">        - The temporary initial waypoint used to enable interpolation is removed before returning.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            env_id: Environment index to query the current robot EEF pose when needed.</span>
+<span class="sd">            eef_name: Name/key of the end-effector whose trajectory is being merged.</span>
+<span class="sd">            subtask_index: Index of the subtask within `subtask_configs[eef_name]` driving interpolation parameters.</span>
+<span class="sd">            prev_executed_traj: The previously executed trajectory used to</span>
+<span class="sd">                seed interpolation from its last target waypoint. Required when interpolation-from-last-target</span>
+<span class="sd">                is enabled and this is not the first subtask.</span>
+<span class="sd">            subtask_trajectory:</span>
+<span class="sd">                Trajectory segment for the current subtask that will be merged after the initial interpolation segment.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            list[Waypoint]: The full sequence of waypoints to execute (initial interpolation segment followed by the subtask segment),</span>
+<span class="sd">            with the temporary initial waypoint removed.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">is_first_subtask</span> <span class="o">=</span> <span class="n">subtask_index</span> <span class="o">==</span> <span class="mi">0</span>
+        <span class="c1"># We will construct a WaypointTrajectory instance to keep track of robot control targets</span>
+        <span class="c1"># and then execute it once we have the trajectory.</span>
+        <span class="n">traj_to_execute</span> <span class="o">=</span> <span class="n">WaypointTrajectory</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">env_cfg</span><span class="o">.</span><span class="n">datagen_config</span><span class="o">.</span><span class="n">generation_interpolate_from_last_target_pose</span> <span class="ow">and</span> <span class="p">(</span><span class="ow">not</span> <span class="n">is_first_subtask</span><span class="p">):</span>
+            <span class="c1"># Interpolation segment will start from last target pose (which may not have been achieved).</span>
+            <span class="k">assert</span> <span class="n">prev_executed_traj</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+            <span class="n">last_waypoint</span> <span class="o">=</span> <span class="n">prev_executed_traj</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+            <span class="n">init_sequence</span> <span class="o">=</span> <span class="n">WaypointSequence</span><span class="p">(</span><span class="n">sequence</span><span class="o">=</span><span class="p">[</span><span class="n">last_waypoint</span><span class="p">])</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># Interpolation segment will start from current robot eef pose.</span>
+            <span class="n">init_sequence</span> <span class="o">=</span> <span class="n">WaypointSequence</span><span class="o">.</span><span class="n">from_poses</span><span class="p">(</span>
+                <span class="n">poses</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">env</span><span class="o">.</span><span class="n">get_robot_eef_pose</span><span class="p">(</span><span class="n">env_ids</span><span class="o">=</span><span class="p">[</span><span class="n">env_id</span><span class="p">],</span> <span class="n">eef_name</span><span class="o">=</span><span class="n">eef_name</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">0</span><span class="p">),</span>
+                <span class="n">gripper_actions</span><span class="o">=</span><span class="n">subtask_trajectory</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">gripper_action</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">0</span><span class="p">),</span>
+                <span class="n">action_noise</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">env_cfg</span><span class="o">.</span><span class="n">subtask_configs</span><span class="p">[</span><span class="n">eef_name</span><span class="p">][</span><span class="n">subtask_index</span><span class="p">]</span><span class="o">.</span><span class="n">action_noise</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="n">traj_to_execute</span><span class="o">.</span><span class="n">add_waypoint_sequence</span><span class="p">(</span><span class="n">init_sequence</span><span class="p">)</span>
+
+        <span class="c1"># Merge this trajectory into our trajectory using linear interpolation.</span>
+        <span class="c1"># Interpolation will happen from the initial pose (@init_sequence) to the first element of @transformed_seq.</span>
+        <span class="n">traj_to_execute</span><span class="o">.</span><span class="n">merge</span><span class="p">(</span>
+            <span class="n">subtask_trajectory</span><span class="p">,</span>
+            <span class="n">num_steps_interp</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">env_cfg</span><span class="o">.</span><span class="n">subtask_configs</span><span class="p">[</span><span class="n">eef_name</span><span class="p">][</span><span class="n">subtask_index</span><span class="p">]</span><span class="o">.</span><span class="n">num_interpolation_steps</span><span class="p">,</span>
+            <span class="n">num_steps_fixed</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">env_cfg</span><span class="o">.</span><span class="n">subtask_configs</span><span class="p">[</span><span class="n">eef_name</span><span class="p">][</span><span class="n">subtask_index</span><span class="p">]</span><span class="o">.</span><span class="n">num_fixed_steps</span><span class="p">,</span>
+            <span class="n">action_noise</span><span class="o">=</span><span class="p">(</span>
+                <span class="nb">float</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">env_cfg</span><span class="o">.</span><span class="n">subtask_configs</span><span class="p">[</span><span class="n">eef_name</span><span class="p">][</span><span class="n">subtask_index</span><span class="p">]</span><span class="o">.</span><span class="n">apply_noise_during_interpolation</span><span class="p">)</span>
+                <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">env_cfg</span><span class="o">.</span><span class="n">subtask_configs</span><span class="p">[</span><span class="n">eef_name</span><span class="p">][</span><span class="n">subtask_index</span><span class="p">]</span><span class="o">.</span><span class="n">action_noise</span>
+            <span class="p">),</span>
+        <span class="p">)</span>
+
+        <span class="c1"># We initialized @traj_to_execute with a pose to allow @merge to handle linear interpolation</span>
+        <span class="c1"># for us. However, we can safely discard that first waypoint now, and just start by executing</span>
+        <span class="c1"># the rest of the trajectory (interpolation segment and transformed subtask segment).</span>
+        <span class="n">traj_to_execute</span><span class="o">.</span><span class="n">pop_first</span><span class="p">()</span>
+
+        <span class="c1"># Return the generated trajectory</span>
+        <span class="k">return</span> <span class="n">traj_to_execute</span><span class="o">.</span><span class="n">get_full_sequence</span><span class="p">()</span><span class="o">.</span><span class="n">sequence</span></div>
+
+<div class="viewcode-block" id="DataGenerator.generate"><a class="viewcode-back" href="../../../source/api/lab_mimic/isaaclab_mimic.datagen.html#isaaclab_mimic.datagen.DataGenerator.generate">[docs]</a>    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">generate</span><span class="p">(</span>  <span class="c1"># noqa: C901</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">env_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">success_term</span><span class="p">:</span> <span class="n">TerminationTermCfg</span><span class="p">,</span>
+        <span class="n">env_reset_queue</span><span class="p">:</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">Queue</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">env_action_queue</span><span class="p">:</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">Queue</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">pause_subtask</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">export_demo</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="n">motion_planner</span><span class="p">:</span> <span class="n">Any</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Attempt to generate a new demonstration.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            env_id: environment ID</span>
+<span class="sd">            success_term: success function to check if the task is successful</span>
+<span class="sd">            env_reset_queue: queue to store environment IDs for reset</span>
+<span class="sd">            env_action_queue: queue to store actions for each environment</span>
+<span class="sd">            pause_subtask: whether to pause the subtask generation</span>
+<span class="sd">            export_demo: whether to export the demo</span>
+<span class="sd">            motion_planner: motion planner to use for motion planning</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            results (dict): dictionary with the following items:</span>
+<span class="sd">                initial_state (dict): initial simulator state for the executed trajectory</span>
+<span class="sd">                states (list): simulator state at each timestep</span>
+<span class="sd">                observations (list): observation dictionary at each timestep</span>
+<span class="sd">                datagen_infos (list): datagen_info at each timestep</span>
+<span class="sd">                actions (np.array): action executed at each timestep</span>
+<span class="sd">                success (bool): whether the trajectory successfully solved the task or not</span>
+<span class="sd">                src_demo_inds (list): list of selected source demonstration indices for each subtask</span>
+<span class="sd">                src_demo_labels (np.array): same as @src_demo_inds, but repeated to have a label for each timestep of the trajectory</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># With skillgen, a motion planner is required to generate collision-free transitions between subtasks.</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">env_cfg</span><span class="o">.</span><span class="n">datagen_config</span><span class="o">.</span><span class="n">use_skillgen</span> <span class="ow">and</span> <span class="n">motion_planner</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;motion_planner must be provided if use_skillgen is True&quot;</span><span class="p">)</span>
+
+        <span class="c1"># reset the env to create a new task demo instance</span>
+        <span class="n">env_id_tensor</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">([</span><span class="n">env_id</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">int64</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">env</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">env</span><span class="o">.</span><span class="n">recorder_manager</span><span class="o">.</span><span class="n">reset</span><span class="p">(</span><span class="n">env_ids</span><span class="o">=</span><span class="n">env_id_tensor</span><span class="p">)</span>
+        <span class="k">await</span> <span class="n">env_reset_queue</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="n">env_id</span><span class="p">)</span>
+        <span class="k">await</span> <span class="n">env_reset_queue</span><span class="o">.</span><span class="n">join</span><span class="p">()</span>
+        <span class="n">new_initial_state</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">env</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">get_state</span><span class="p">(</span><span class="n">is_relative</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+        <span class="c1"># create runtime subtask constraint rules from subtask constraint configs</span>
+        <span class="n">runtime_subtask_constraints_dict</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">subtask_constraint</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">env_cfg</span><span class="o">.</span><span class="n">task_constraint_configs</span><span class="p">:</span>
+            <span class="n">runtime_subtask_constraints_dict</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">subtask_constraint</span><span class="o">.</span><span class="n">generate_runtime_subtask_constraints</span><span class="p">())</span>
+
+        <span class="c1"># save generated data in these variables</span>
+        <span class="n">generated_states</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">generated_obs</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">generated_actions</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">generated_success</span> <span class="o">=</span> <span class="kc">False</span>
+
+        <span class="c1"># some eef-specific state variables used during generation</span>
+        <span class="n">current_eef_selected_src_demo_indices</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">current_eef_subtask_trajectories</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="n">Waypoint</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">current_eef_subtask_indices</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">next_eef_subtask_indices_after_motion</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">next_eef_subtask_trajectories_after_motion</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">current_eef_subtask_step_indices</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">eef_subtasks_done</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">eef_name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">env_cfg</span><span class="o">.</span><span class="n">subtask_configs</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+            <span class="n">current_eef_selected_src_demo_indices</span><span class="p">[</span><span class="n">eef_name</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="n">current_eef_subtask_trajectories</span><span class="p">[</span><span class="n">eef_name</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>  <span class="c1"># type of list of Waypoint</span>
+            <span class="n">current_eef_subtask_indices</span><span class="p">[</span><span class="n">eef_name</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="n">next_eef_subtask_indices_after_motion</span><span class="p">[</span><span class="n">eef_name</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="n">next_eef_subtask_trajectories_after_motion</span><span class="p">[</span><span class="n">eef_name</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="n">current_eef_subtask_step_indices</span><span class="p">[</span><span class="n">eef_name</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="n">eef_subtasks_done</span><span class="p">[</span><span class="n">eef_name</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
+
+        <span class="n">prev_src_demo_datagen_info_pool_size</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="c1"># While loop that runs per time step</span>
+        <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+            <span class="k">async</span> <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">src_demo_datagen_info_pool</span><span class="o">.</span><span class="n">asyncio_lock</span><span class="p">:</span>
+                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">src_demo_datagen_info_pool</span><span class="o">.</span><span class="n">datagen_infos</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">prev_src_demo_datagen_info_pool_size</span><span class="p">:</span>
+                    <span class="c1"># src_demo_datagen_info_pool at this point may be updated with new demos,</span>
+                    <span class="c1"># So we need to update subtask boundaries again</span>
+                    <span class="n">randomized_subtask_boundaries</span> <span class="o">=</span> <span class="p">(</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">randomize_subtask_boundaries</span><span class="p">()</span>
+                    <span class="p">)</span>  <span class="c1"># shape [N, S, 2], last dim is start and end action lengths</span>
+                    <span class="n">prev_src_demo_datagen_info_pool_size</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">src_demo_datagen_info_pool</span><span class="o">.</span><span class="n">datagen_infos</span><span class="p">)</span>
+
+                <span class="c1"># Generate trajectory for a subtask for the eef that is currently at the beginning of a subtask</span>
+                <span class="k">for</span> <span class="n">eef_name</span><span class="p">,</span> <span class="n">eef_subtask_step_index</span> <span class="ow">in</span> <span class="n">current_eef_subtask_step_indices</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                    <span class="k">if</span> <span class="n">eef_subtask_step_index</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                        <span class="c1"># Trajectory stored in current_eef_subtask_trajectories[eef_name] has been executed,</span>
+                        <span class="c1"># So we need to determine the next trajectory</span>
+                        <span class="c1"># Note: This condition is the &quot;resume-after-motion-plan&quot; gate for skillgen. When</span>
+                        <span class="c1"># use_skillgen=False (vanilla Mimic), next_eef_subtask_indices_after_motion[eef_name]</span>
+                        <span class="c1"># remains None, so this condition is always True and the else-branch below is never taken.</span>
+                        <span class="c1"># The else-branch is only used right after executing a motion-planned transition (skillgen)</span>
+                        <span class="c1"># to resume the actual subtask trajectory.</span>
+                        <span class="k">if</span> <span class="n">next_eef_subtask_indices_after_motion</span><span class="p">[</span><span class="n">eef_name</span><span class="p">]</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                            <span class="c1"># This is the beginning of a new subtask, so generate a new trajectory accordingly</span>
+                            <span class="n">eef_subtask_trajectory</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">generate_eef_subtask_trajectory</span><span class="p">(</span>
+                                <span class="n">env_id</span><span class="p">,</span>
+                                <span class="n">eef_name</span><span class="p">,</span>
+                                <span class="n">current_eef_subtask_indices</span><span class="p">[</span><span class="n">eef_name</span><span class="p">],</span>
+                                <span class="n">randomized_subtask_boundaries</span><span class="p">,</span>
+                                <span class="n">runtime_subtask_constraints_dict</span><span class="p">,</span>
+                                <span class="n">current_eef_selected_src_demo_indices</span><span class="p">,</span>  <span class="c1"># updated in the method</span>
+                            <span class="p">)</span>
+                            <span class="c1"># With skillgen, use a motion planner to transition between subtasks.</span>
+                            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">env_cfg</span><span class="o">.</span><span class="n">datagen_config</span><span class="o">.</span><span class="n">use_skillgen</span><span class="p">:</span>
+                                <span class="c1"># Define the goal for the motion planner: the start of the next subtask.</span>
+                                <span class="n">target_eef_pose</span> <span class="o">=</span> <span class="n">eef_subtask_trajectory</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">pose</span>
+                                <span class="n">target_gripper_action</span> <span class="o">=</span> <span class="n">eef_subtask_trajectory</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">gripper_action</span>
+
+                                <span class="c1"># Determine expected object attachment using environment-specific logic (optional)</span>
+                                <span class="n">expected_attached_object</span> <span class="o">=</span> <span class="kc">None</span>
+                                <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">env</span><span class="p">,</span> <span class="s2">&quot;get_expected_attached_object&quot;</span><span class="p">):</span>
+                                    <span class="n">expected_attached_object</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">env</span><span class="o">.</span><span class="n">get_expected_attached_object</span><span class="p">(</span>
+                                        <span class="n">eef_name</span><span class="p">,</span> <span class="n">current_eef_subtask_indices</span><span class="p">[</span><span class="n">eef_name</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">env</span><span class="o">.</span><span class="n">cfg</span>
+                                    <span class="p">)</span>
+
+                                <span class="c1"># Plan motion using motion planner with comprehensive world update and attachment handling</span>
+                                <span class="k">if</span> <span class="n">motion_planner</span><span class="p">:</span>
+                                    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">--- Environment </span><span class="si">{</span><span class="n">env_id</span><span class="si">}</span><span class="s2">: Planning motion to target pose ---&quot;</span><span class="p">)</span>
+                                    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Target pose: </span><span class="si">{</span><span class="n">target_eef_pose</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                                    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Expected attached object: </span><span class="si">{</span><span class="n">expected_attached_object</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+                                    <span class="c1"># This call updates the planner&#39;s world model and computes the trajectory.</span>
+                                    <span class="n">planning_success</span> <span class="o">=</span> <span class="n">motion_planner</span><span class="o">.</span><span class="n">update_world_and_plan_motion</span><span class="p">(</span>
+                                        <span class="n">target_pose</span><span class="o">=</span><span class="n">target_eef_pose</span><span class="p">,</span>
+                                        <span class="n">expected_attached_object</span><span class="o">=</span><span class="n">expected_attached_object</span><span class="p">,</span>
+                                        <span class="n">env_id</span><span class="o">=</span><span class="n">env_id</span><span class="p">,</span>
+                                        <span class="n">step_size</span><span class="o">=</span><span class="nb">getattr</span><span class="p">(</span><span class="n">motion_planner</span><span class="p">,</span> <span class="s2">&quot;step_size&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+                                        <span class="n">enable_retiming</span><span class="o">=</span><span class="nb">hasattr</span><span class="p">(</span><span class="n">motion_planner</span><span class="p">,</span> <span class="s2">&quot;step_size&quot;</span><span class="p">)</span>
+                                        <span class="ow">and</span> <span class="n">motion_planner</span><span class="o">.</span><span class="n">step_size</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">,</span>
+                                    <span class="p">)</span>
+
+                                    <span class="c1"># If planning succeeds, execute the planner&#39;s trajectory first.</span>
+                                    <span class="k">if</span> <span class="n">planning_success</span><span class="p">:</span>
+                                        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Env </span><span class="si">{</span><span class="n">env_id</span><span class="si">}</span><span class="s2">: Motion planning succeeded&quot;</span><span class="p">)</span>
+                                        <span class="c1"># The original subtask trajectory is stored to be executed after the transition.</span>
+                                        <span class="n">next_eef_subtask_trajectories_after_motion</span><span class="p">[</span><span class="n">eef_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">eef_subtask_trajectory</span>
+                                        <span class="n">next_eef_subtask_indices_after_motion</span><span class="p">[</span><span class="n">eef_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">current_eef_subtask_indices</span><span class="p">[</span>
+                                            <span class="n">eef_name</span>
+                                        <span class="p">]</span>
+                                        <span class="c1"># Mark the current subtask as invalid (-1) until the transition is done.</span>
+                                        <span class="n">current_eef_subtask_indices</span><span class="p">[</span><span class="n">eef_name</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span>
+
+                                        <span class="c1"># Convert the planner&#39;s output into a sequence of waypoints to be executed.</span>
+                                        <span class="n">current_eef_subtask_trajectories</span><span class="p">[</span><span class="n">eef_name</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span>
+                                            <span class="bp">self</span><span class="o">.</span><span class="n">_convert_planned_trajectory_to_waypoints</span><span class="p">(</span>
+                                                <span class="n">motion_planner</span><span class="p">,</span> <span class="n">target_gripper_action</span>
+                                            <span class="p">)</span>
+                                        <span class="p">)</span>
+                                        <span class="n">current_eef_subtask_step_indices</span><span class="p">[</span><span class="n">eef_name</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+                                        <span class="nb">print</span><span class="p">(</span>
+                                            <span class="sa">f</span><span class="s2">&quot;Generated </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">current_eef_subtask_trajectories</span><span class="p">[</span><span class="n">eef_name</span><span class="p">])</span><span class="si">}</span><span class="s2"> waypoints&quot;</span>
+                                            <span class="s2">&quot; from motion plan&quot;</span>
+                                        <span class="p">)</span>
+
+                                    <span class="k">else</span><span class="p">:</span>
+                                        <span class="c1"># If planning fails, abort the data generation trial.</span>
+                                        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Env </span><span class="si">{</span><span class="n">env_id</span><span class="si">}</span><span class="s2">: Motion planning failed for </span><span class="si">{</span><span class="n">eef_name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                                        <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;success&quot;</span><span class="p">:</span> <span class="kc">False</span><span class="p">}</span>
+                            <span class="k">else</span><span class="p">:</span>
+                                <span class="c1"># Without skillgen, transition using simple interpolation.</span>
+                                <span class="n">current_eef_subtask_trajectories</span><span class="p">[</span><span class="n">eef_name</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">merge_eef_subtask_trajectory</span><span class="p">(</span>
+                                    <span class="n">env_id</span><span class="p">,</span>
+                                    <span class="n">eef_name</span><span class="p">,</span>
+                                    <span class="n">current_eef_subtask_indices</span><span class="p">[</span><span class="n">eef_name</span><span class="p">],</span>
+                                    <span class="n">current_eef_subtask_trajectories</span><span class="p">[</span><span class="n">eef_name</span><span class="p">],</span>
+                                    <span class="n">eef_subtask_trajectory</span><span class="p">,</span>
+                                <span class="p">)</span>
+                                <span class="n">current_eef_subtask_step_indices</span><span class="p">[</span><span class="n">eef_name</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+                        <span class="k">else</span><span class="p">:</span>
+                            <span class="c1"># Motion-planned trajectory has been executed, so we are ready to move to execute the next subtask</span>
+                            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Finished executing motion-planned trajectory&quot;</span><span class="p">)</span>
+                            <span class="c1"># It is important to pass the prev_executed_traj to merge_eef_subtask_trajectory</span>
+                            <span class="c1"># so that it can correctly interpolate from the last pose of the motion-planned trajectory</span>
+                            <span class="n">prev_executed_traj</span> <span class="o">=</span> <span class="n">current_eef_subtask_trajectories</span><span class="p">[</span><span class="n">eef_name</span><span class="p">]</span>
+                            <span class="n">current_eef_subtask_indices</span><span class="p">[</span><span class="n">eef_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">next_eef_subtask_indices_after_motion</span><span class="p">[</span><span class="n">eef_name</span><span class="p">]</span>
+                            <span class="n">current_eef_subtask_trajectories</span><span class="p">[</span><span class="n">eef_name</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">merge_eef_subtask_trajectory</span><span class="p">(</span>
+                                <span class="n">env_id</span><span class="p">,</span>
+                                <span class="n">eef_name</span><span class="p">,</span>
+                                <span class="n">current_eef_subtask_indices</span><span class="p">[</span><span class="n">eef_name</span><span class="p">],</span>
+                                <span class="n">prev_executed_traj</span><span class="p">,</span>
+                                <span class="n">next_eef_subtask_trajectories_after_motion</span><span class="p">[</span><span class="n">eef_name</span><span class="p">],</span>
+                            <span class="p">)</span>
+                            <span class="n">current_eef_subtask_step_indices</span><span class="p">[</span><span class="n">eef_name</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+                            <span class="n">next_eef_subtask_trajectories_after_motion</span><span class="p">[</span><span class="n">eef_name</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+                            <span class="n">next_eef_subtask_indices_after_motion</span><span class="p">[</span><span class="n">eef_name</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+
+            <span class="c1"># Determine the next waypoint for each eef based on the current subtask constraints</span>
+            <span class="n">eef_waypoint_dict</span> <span class="o">=</span> <span class="p">{}</span>
+            <span class="k">for</span> <span class="n">eef_name</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">env_cfg</span><span class="o">.</span><span class="n">subtask_configs</span><span class="o">.</span><span class="n">keys</span><span class="p">()):</span>
+                <span class="c1"># Handle constraints</span>
+                <span class="n">step_ind</span> <span class="o">=</span> <span class="n">current_eef_subtask_step_indices</span><span class="p">[</span><span class="n">eef_name</span><span class="p">]</span>
+                <span class="n">subtask_ind</span> <span class="o">=</span> <span class="n">current_eef_subtask_indices</span><span class="p">[</span><span class="n">eef_name</span><span class="p">]</span>
+                <span class="k">if</span> <span class="p">(</span><span class="n">eef_name</span><span class="p">,</span> <span class="n">subtask_ind</span><span class="p">)</span> <span class="ow">in</span> <span class="n">runtime_subtask_constraints_dict</span><span class="p">:</span>
+                    <span class="n">task_constraint</span> <span class="o">=</span> <span class="n">runtime_subtask_constraints_dict</span><span class="p">[(</span><span class="n">eef_name</span><span class="p">,</span> <span class="n">subtask_ind</span><span class="p">)]</span>
+                    <span class="k">if</span> <span class="n">task_constraint</span><span class="p">[</span><span class="s2">&quot;type&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="n">SubTaskConstraintType</span><span class="o">.</span><span class="n">_SEQUENTIAL_LATTER</span><span class="p">:</span>
+                        <span class="n">min_time_diff</span> <span class="o">=</span> <span class="n">task_constraint</span><span class="p">[</span><span class="s2">&quot;min_time_diff&quot;</span><span class="p">]</span>
+                        <span class="k">if</span> <span class="ow">not</span> <span class="n">task_constraint</span><span class="p">[</span><span class="s2">&quot;fulfilled&quot;</span><span class="p">]:</span>
+                            <span class="k">if</span> <span class="p">(</span>
+                                <span class="n">min_time_diff</span> <span class="o">==</span> <span class="o">-</span><span class="mi">1</span>
+                                <span class="ow">or</span> <span class="n">step_ind</span> <span class="o">&gt;=</span> <span class="nb">len</span><span class="p">(</span><span class="n">current_eef_subtask_trajectories</span><span class="p">[</span><span class="n">eef_name</span><span class="p">])</span> <span class="o">-</span> <span class="n">min_time_diff</span>
+                            <span class="p">):</span>
+                                <span class="k">if</span> <span class="n">step_ind</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                                    <span class="c1"># Wait at the same step</span>
+                                    <span class="n">step_ind</span> <span class="o">-=</span> <span class="mi">1</span>
+                                    <span class="n">current_eef_subtask_step_indices</span><span class="p">[</span><span class="n">eef_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">step_ind</span>
+
+                    <span class="k">elif</span> <span class="n">task_constraint</span><span class="p">[</span><span class="s2">&quot;type&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="n">SubTaskConstraintType</span><span class="o">.</span><span class="n">COORDINATION</span><span class="p">:</span>
+                        <span class="n">synchronous_steps</span> <span class="o">=</span> <span class="n">task_constraint</span><span class="p">[</span><span class="s2">&quot;synchronous_steps&quot;</span><span class="p">]</span>
+                        <span class="n">concurrent_task_spec_key</span> <span class="o">=</span> <span class="n">task_constraint</span><span class="p">[</span><span class="s2">&quot;concurrent_task_spec_key&quot;</span><span class="p">]</span>
+                        <span class="n">concurrent_subtask_ind</span> <span class="o">=</span> <span class="n">task_constraint</span><span class="p">[</span><span class="s2">&quot;concurrent_subtask_ind&quot;</span><span class="p">]</span>
+                        <span class="n">concurrent_task_fulfilled</span> <span class="o">=</span> <span class="n">runtime_subtask_constraints_dict</span><span class="p">[</span>
+                            <span class="p">(</span><span class="n">concurrent_task_spec_key</span><span class="p">,</span> <span class="n">concurrent_subtask_ind</span><span class="p">)</span>
+                        <span class="p">][</span><span class="s2">&quot;fulfilled&quot;</span><span class="p">]</span>
+
+                        <span class="k">if</span> <span class="p">(</span>
+                            <span class="n">task_constraint</span><span class="p">[</span><span class="s2">&quot;coordination_synchronize_start&quot;</span><span class="p">]</span>
+                            <span class="ow">and</span> <span class="n">current_eef_subtask_indices</span><span class="p">[</span><span class="n">concurrent_task_spec_key</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">concurrent_subtask_ind</span>
+                        <span class="p">):</span>
+                            <span class="c1"># The concurrent eef is not yet at the concurrent subtask, so wait at the first action</span>
+                            <span class="c1"># This also makes sure that the concurrent task starts at the same time as this task</span>
+                            <span class="n">step_ind</span> <span class="o">=</span> <span class="mi">0</span>
+                            <span class="n">current_eef_subtask_step_indices</span><span class="p">[</span><span class="n">eef_name</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+                        <span class="k">else</span><span class="p">:</span>
+                            <span class="k">if</span> <span class="p">(</span>
+                                <span class="ow">not</span> <span class="n">concurrent_task_fulfilled</span>
+                                <span class="ow">and</span> <span class="n">step_ind</span> <span class="o">&gt;=</span> <span class="nb">len</span><span class="p">(</span><span class="n">current_eef_subtask_trajectories</span><span class="p">[</span><span class="n">eef_name</span><span class="p">])</span> <span class="o">-</span> <span class="n">synchronous_steps</span>
+                            <span class="p">):</span>
+                                <span class="c1"># Trigger concurrent task</span>
+                                <span class="n">runtime_subtask_constraints_dict</span><span class="p">[(</span><span class="n">concurrent_task_spec_key</span><span class="p">,</span> <span class="n">concurrent_subtask_ind</span><span class="p">)][</span>
+                                    <span class="s2">&quot;fulfilled&quot;</span>
+                                <span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+
+                            <span class="k">if</span> <span class="ow">not</span> <span class="n">task_constraint</span><span class="p">[</span><span class="s2">&quot;fulfilled&quot;</span><span class="p">]:</span>
+                                <span class="k">if</span> <span class="n">step_ind</span> <span class="o">&gt;=</span> <span class="nb">len</span><span class="p">(</span><span class="n">current_eef_subtask_trajectories</span><span class="p">[</span><span class="n">eef_name</span><span class="p">])</span> <span class="o">-</span> <span class="n">synchronous_steps</span><span class="p">:</span>
+                                    <span class="k">if</span> <span class="n">step_ind</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                                        <span class="n">step_ind</span> <span class="o">-=</span> <span class="mi">1</span>
+                                        <span class="n">current_eef_subtask_step_indices</span><span class="p">[</span><span class="n">eef_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">step_ind</span>  <span class="c1"># wait here</span>
+
+                <span class="n">waypoint</span> <span class="o">=</span> <span class="n">current_eef_subtask_trajectories</span><span class="p">[</span><span class="n">eef_name</span><span class="p">][</span><span class="n">step_ind</span><span class="p">]</span>
+
+                <span class="c1"># Update visualization if motion planner is available</span>
+                <span class="k">if</span> <span class="n">motion_planner</span> <span class="ow">and</span> <span class="n">motion_planner</span><span class="o">.</span><span class="n">visualize_spheres</span><span class="p">:</span>
+                    <span class="n">current_joints</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">env</span><span class="o">.</span><span class="n">scene</span><span class="p">[</span><span class="s2">&quot;robot&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">joint_pos</span><span class="p">[</span><span class="n">env_id</span><span class="p">]</span>
+                    <span class="n">motion_planner</span><span class="o">.</span><span class="n">_update_visualization_at_joint_positions</span><span class="p">(</span><span class="n">current_joints</span><span class="p">)</span>
+
+                <span class="n">eef_waypoint_dict</span><span class="p">[</span><span class="n">eef_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">waypoint</span>
+            <span class="n">multi_waypoint</span> <span class="o">=</span> <span class="n">MultiWaypoint</span><span class="p">(</span><span class="n">eef_waypoint_dict</span><span class="p">)</span>
+
+            <span class="c1"># Execute the next waypoints for all eefs</span>
+            <span class="n">exec_results</span> <span class="o">=</span> <span class="k">await</span> <span class="n">multi_waypoint</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
+                <span class="n">env</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">env</span><span class="p">,</span>
+                <span class="n">success_term</span><span class="o">=</span><span class="n">success_term</span><span class="p">,</span>
+                <span class="n">env_id</span><span class="o">=</span><span class="n">env_id</span><span class="p">,</span>
+                <span class="n">env_action_queue</span><span class="o">=</span><span class="n">env_action_queue</span><span class="p">,</span>
+            <span class="p">)</span>
+
+            <span class="c1"># Update execution state buffers</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">exec_results</span><span class="p">[</span><span class="s2">&quot;states&quot;</span><span class="p">])</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">generated_states</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">exec_results</span><span class="p">[</span><span class="s2">&quot;states&quot;</span><span class="p">])</span>
+                <span class="n">generated_obs</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">exec_results</span><span class="p">[</span><span class="s2">&quot;observations&quot;</span><span class="p">])</span>
+                <span class="n">generated_actions</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">exec_results</span><span class="p">[</span><span class="s2">&quot;actions&quot;</span><span class="p">])</span>
+                <span class="n">generated_success</span> <span class="o">=</span> <span class="n">generated_success</span> <span class="ow">or</span> <span class="n">exec_results</span><span class="p">[</span><span class="s2">&quot;success&quot;</span><span class="p">]</span>
+
+            <span class="k">for</span> <span class="n">eef_name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">env_cfg</span><span class="o">.</span><span class="n">subtask_configs</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+                <span class="n">current_eef_subtask_step_indices</span><span class="p">[</span><span class="n">eef_name</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+                <span class="n">subtask_ind</span> <span class="o">=</span> <span class="n">current_eef_subtask_indices</span><span class="p">[</span><span class="n">eef_name</span><span class="p">]</span>
+                <span class="k">if</span> <span class="n">current_eef_subtask_step_indices</span><span class="p">[</span><span class="n">eef_name</span><span class="p">]</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span>
+                    <span class="n">current_eef_subtask_trajectories</span><span class="p">[</span><span class="n">eef_name</span><span class="p">]</span>
+                <span class="p">):</span>  <span class="c1"># Subtask done</span>
+                    <span class="k">if</span> <span class="p">(</span><span class="n">eef_name</span><span class="p">,</span> <span class="n">subtask_ind</span><span class="p">)</span> <span class="ow">in</span> <span class="n">runtime_subtask_constraints_dict</span><span class="p">:</span>
+                        <span class="n">task_constraint</span> <span class="o">=</span> <span class="n">runtime_subtask_constraints_dict</span><span class="p">[(</span><span class="n">eef_name</span><span class="p">,</span> <span class="n">subtask_ind</span><span class="p">)]</span>
+                        <span class="k">if</span> <span class="n">task_constraint</span><span class="p">[</span><span class="s2">&quot;type&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="n">SubTaskConstraintType</span><span class="o">.</span><span class="n">_SEQUENTIAL_FORMER</span><span class="p">:</span>
+                            <span class="n">constrained_task_spec_key</span> <span class="o">=</span> <span class="n">task_constraint</span><span class="p">[</span><span class="s2">&quot;constrained_task_spec_key&quot;</span><span class="p">]</span>
+                            <span class="n">constrained_subtask_ind</span> <span class="o">=</span> <span class="n">task_constraint</span><span class="p">[</span><span class="s2">&quot;constrained_subtask_ind&quot;</span><span class="p">]</span>
+                            <span class="n">runtime_subtask_constraints_dict</span><span class="p">[(</span><span class="n">constrained_task_spec_key</span><span class="p">,</span> <span class="n">constrained_subtask_ind</span><span class="p">)][</span>
+                                <span class="s2">&quot;fulfilled&quot;</span>
+                            <span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+                        <span class="k">elif</span> <span class="n">task_constraint</span><span class="p">[</span><span class="s2">&quot;type&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="n">SubTaskConstraintType</span><span class="o">.</span><span class="n">COORDINATION</span><span class="p">:</span>
+                            <span class="n">concurrent_task_spec_key</span> <span class="o">=</span> <span class="n">task_constraint</span><span class="p">[</span><span class="s2">&quot;concurrent_task_spec_key&quot;</span><span class="p">]</span>
+                            <span class="n">concurrent_subtask_ind</span> <span class="o">=</span> <span class="n">task_constraint</span><span class="p">[</span><span class="s2">&quot;concurrent_subtask_ind&quot;</span><span class="p">]</span>
+                            <span class="c1"># Concurrent_task_spec_idx = task_spec_keys.index(concurrent_task_spec_key)</span>
+                            <span class="n">task_constraint</span><span class="p">[</span><span class="s2">&quot;finished&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+                            <span class="c1"># Check if concurrent task has been finished</span>
+                            <span class="k">assert</span> <span class="p">(</span>
+                                <span class="n">runtime_subtask_constraints_dict</span><span class="p">[(</span><span class="n">concurrent_task_spec_key</span><span class="p">,</span> <span class="n">concurrent_subtask_ind</span><span class="p">)][</span>
+                                    <span class="s2">&quot;finished&quot;</span>
+                                <span class="p">]</span>
+                                <span class="ow">or</span> <span class="n">current_eef_subtask_step_indices</span><span class="p">[</span><span class="n">concurrent_task_spec_key</span><span class="p">]</span>
+                                <span class="o">&gt;=</span> <span class="nb">len</span><span class="p">(</span><span class="n">current_eef_subtask_trajectories</span><span class="p">[</span><span class="n">concurrent_task_spec_key</span><span class="p">])</span> <span class="o">-</span> <span class="mi">1</span>
+                            <span class="p">)</span>
+
+                    <span class="k">if</span> <span class="n">pause_subtask</span><span class="p">:</span>
+                        <span class="nb">input</span><span class="p">(</span>
+                            <span class="sa">f</span><span class="s2">&quot;Pausing after subtask </span><span class="si">{</span><span class="n">current_eef_subtask_indices</span><span class="p">[</span><span class="n">eef_name</span><span class="p">]</span><span class="si">}</span><span class="s2"> of </span><span class="si">{</span><span class="n">eef_name</span><span class="si">}</span><span class="s2"> execution.&quot;</span>
+                            <span class="s2">&quot; Press any key to continue...&quot;</span>
+                        <span class="p">)</span>
+                    <span class="c1"># This is a check to see if this arm has completed all the subtasks</span>
+                    <span class="k">if</span> <span class="n">current_eef_subtask_indices</span><span class="p">[</span><span class="n">eef_name</span><span class="p">]</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">env_cfg</span><span class="o">.</span><span class="n">subtask_configs</span><span class="p">[</span><span class="n">eef_name</span><span class="p">])</span> <span class="o">-</span> <span class="mi">1</span><span class="p">:</span>
+                        <span class="n">eef_subtasks_done</span><span class="p">[</span><span class="n">eef_name</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+                        <span class="c1"># If all subtasks done for this arm, repeat last waypoint to make sure this arm does not move</span>
+                        <span class="n">current_eef_subtask_trajectories</span><span class="p">[</span><span class="n">eef_name</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                            <span class="n">current_eef_subtask_trajectories</span><span class="p">[</span><span class="n">eef_name</span><span class="p">][</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+                        <span class="p">)</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">current_eef_subtask_step_indices</span><span class="p">[</span><span class="n">eef_name</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+                        <span class="n">current_eef_subtask_indices</span><span class="p">[</span><span class="n">eef_name</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="c1"># Check if all eef_subtasks_done values are True</span>
+            <span class="k">if</span> <span class="nb">all</span><span class="p">(</span><span class="n">eef_subtasks_done</span><span class="o">.</span><span class="n">values</span><span class="p">()):</span>
+                <span class="k">break</span>
+
+        <span class="c1"># Merge numpy arrays</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">generated_actions</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">generated_actions</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">(</span><span class="n">generated_actions</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+
+        <span class="c1"># Set success to the recorded episode data and export to file</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">env</span><span class="o">.</span><span class="n">recorder_manager</span><span class="o">.</span><span class="n">set_success_to_episodes</span><span class="p">(</span>
+            <span class="n">env_id_tensor</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">([[</span><span class="n">generated_success</span><span class="p">]],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">bool</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">env</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="n">export_demo</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">env</span><span class="o">.</span><span class="n">recorder_manager</span><span class="o">.</span><span class="n">export_episodes</span><span class="p">(</span><span class="n">env_id_tensor</span><span class="p">)</span>
+
+        <span class="n">results</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span>
+            <span class="n">initial_state</span><span class="o">=</span><span class="n">new_initial_state</span><span class="p">,</span>
+            <span class="n">states</span><span class="o">=</span><span class="n">generated_states</span><span class="p">,</span>
+            <span class="n">observations</span><span class="o">=</span><span class="n">generated_obs</span><span class="p">,</span>
+            <span class="n">actions</span><span class="o">=</span><span class="n">generated_actions</span><span class="p">,</span>
+            <span class="n">success</span><span class="o">=</span><span class="n">generated_success</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="n">results</span></div>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_convert_planned_trajectory_to_waypoints</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">motion_planner</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">gripper_action</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">Waypoint</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        (skillgen) Convert a motion planner&#39;s output trajectory into a list of Waypoint objects.</span>
+
+<span class="sd">        The motion planner provides a sequence of planned 4x4 poses. This method wraps each</span>
+<span class="sd">        pose into a `Waypoint`, pairing it with the provided `gripper_action` and an optional</span>
+<span class="sd">        per-timestep noise value sourced from the planner config (`motion_noise_scale`).</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            motion_planner: Planner instance exposing `get_planned_poses()` and an optional</span>
+<span class="sd">                `config.motion_noise_scale` float.</span>
+<span class="sd">            gripper_action: Gripper actuation to associate with each planned pose.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            list[Waypoint]: Sequence of waypoints corresponding to the planned trajectory.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Get motion noise scale from the planner&#39;s configuration</span>
+        <span class="n">motion_noise_scale</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">motion_planner</span><span class="o">.</span><span class="n">config</span><span class="p">,</span> <span class="s2">&quot;motion_noise_scale&quot;</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">)</span>
+
+        <span class="n">waypoints</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">planned_poses</span> <span class="o">=</span> <span class="n">motion_planner</span><span class="o">.</span><span class="n">get_planned_poses</span><span class="p">()</span>
+
+        <span class="k">for</span> <span class="n">planned_pose</span> <span class="ow">in</span> <span class="n">planned_poses</span><span class="p">:</span>
+            <span class="n">waypoint</span> <span class="o">=</span> <span class="n">Waypoint</span><span class="p">(</span><span class="n">pose</span><span class="o">=</span><span class="n">planned_pose</span><span class="p">,</span> <span class="n">gripper_action</span><span class="o">=</span><span class="n">gripper_action</span><span class="p">,</span> <span class="n">noise</span><span class="o">=</span><span class="n">motion_noise_scale</span><span class="p">)</span>
+            <span class="n">waypoints</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">waypoint</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">waypoints</span></div>
+</pre></div>
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By The Isaac Lab Project Developers.
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2022-2025, The Isaac Lab Project Developers..
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    <p class="last-updated">
+  Last updated on Sep 18, 2025.
+  <br/>
+</p>
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

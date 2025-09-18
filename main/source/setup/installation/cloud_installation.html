@@ -9,7 +9,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
 
-    <title>Running Isaac Lab in the Cloud &#8212; Isaac Lab Documentation</title>
+    <title>Cloud Deployment &#8212; Isaac Lab Documentation</title>
   
   
   
@@ -59,8 +59,8 @@
     <link rel="icon" href="../../../_static/favicon.ico"/>
     <link rel="index" title="Index" href="../../../genindex.html" />
     <link rel="search" title="Search" href="../../../search.html" />
-    <link rel="next" title="Sim2Real Deployment of Policies Trained in Isaac Lab" href="../../policy_deployment/index.html" />
-    <link rel="prev" title="Sim-to-Real Policy Transfer" href="../../experimental-features/newton-physics-integration/sim-to-real.html" />
+    <link rel="next" title="Reference Architecture" href="../../refs/reference_architecture/index.html" />
+    <link rel="prev" title="Deploying CloudXR Teleoperation on Kubernetes" href="../../deployment/cloudxr_teleoperation_cluster.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.2.1" />
@@ -160,6 +160,9 @@
           </div>
           <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
             <option value="cloud_installation.html" selected>main</option>
+            <option value="../../../../release/2.1.0/source/setup/installation/cloud_installation.html" >release/2.1.0</option>
+            <option value="../../../../release/2.2.0/source/setup/installation/cloud_installation.html" >release/2.2.0</option>
+            <option value="../../../../release/2.3.0/source/setup/installation/cloud_installation.html" >release/2.3.0</option>
             <option value="../../../../v2.2.1/source/setup/installation/cloud_installation.html" >v2.2.1</option>
             <option value="../../../../v2.2.0/source/setup/installation/cloud_installation.html" >v2.2.0</option>
             <option value="../../../../v2.1.1/source/setup/installation/cloud_installation.html" >v2.1.1</option>
@@ -235,23 +238,24 @@
         <div class="sidebar-primary-item"><nav class="bd-links" id="bd-docs-nav" aria-label="Main">
     <div class="bd-toc-item navbar-nav active">
         <p aria-level="2" class="caption" role="heading"><span class="caption-text">Isaac Lab</span></p>
-<ul class="nav bd-sidenav">
+<ul class="current nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../ecosystem.html">Isaac Lab Ecosystem</a></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="index.html">Local Installation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l2"><a class="reference internal" href="pip_installation.html">Installation using Isaac Sim Pip</a></li>
-<li class="toctree-l2"><a class="reference internal" href="binaries_installation.html">Installation using Isaac Sim Binaries</a></li>
-<li class="toctree-l2"><a class="reference internal" href="source_installation.html">Installation using Isaac Sim Source</a></li>
-<li class="toctree-l2"><a class="reference internal" href="isaaclab_pip_installation.html">Installing Isaac Lab through Pip</a></li>
+<li class="toctree-l2"><a class="reference internal" href="pip_installation.html">Installation using Isaac Sim Pip Package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="binaries_installation.html">Installation using Isaac Sim Pre-built Binaries</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source_installation.html">Installation using Isaac Sim Source Code</a></li>
+<li class="toctree-l2"><a class="reference internal" href="isaaclab_pip_installation.html">Installation using Isaac Lab Pip Packages</a></li>
 <li class="toctree-l2"><a class="reference internal" href="asset_caching.html">Asset Caching</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../deployment/index.html">Container Deployment</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../deployment/docker.html">Docker Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../deployment/run_docker_example.html">Running an example with Docker</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../deployment/cluster.html">Cluster Guide</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../deployment/cloudxr_teleoperation_cluster.html">Deploying CloudXR Teleoperation on Kubernetes</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../deployment/run_docker_example.html">Running an example with Docker</a></li>
 </ul>
 </details></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Cloud Deployment</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../refs/reference_architecture/index.html">Reference Architecture</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
@@ -380,7 +384,7 @@
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
 <ul class="current nav bd-sidenav">
-<li class="toctree-l1 current active"><a class="current reference internal" href="#">Running Isaac Lab in the Cloud</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Cloud Deployment</a></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../policy_deployment/index.html">Sim2Real Deployment of Policies Trained in Isaac Lab</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../policy_deployment/00_hover/hover_policy.html">Training &amp; Deploying HOVER Policy</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../policy_deployment/01_io_descriptors/io_descriptors_101.html">IO Descriptors 101</a></li>
@@ -638,7 +642,7 @@
               
 
 <div id="jb-print-docs-body" class="onlyprint">
-    <h1>Running Isaac Lab in the Cloud</h1>
+    <h1>Cloud Deployment</h1>
     <!-- Table of contents -->
     <div id="print-main-content">
         <div id="jb-print-toc">
@@ -648,10 +652,12 @@
             </div>
             <nav aria-label="Page">
                 <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#system-requirements">System Requirements</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#installing-isaac-automator">Installing Isaac Automator</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#running-isaac-automator">Running Isaac Automator</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#building-the-container">Building the container</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#running-the-automator-commands">Running the Automator Commands</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#running-isaac-lab-on-the-cloud">Running Isaac Lab on the Cloud</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#destroying-a-development">Destroying a Development</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#destroying-a-deployment">Destroying a Deployment</a></li>
 </ul>
             </nav>
         </div>
@@ -663,25 +669,50 @@
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <section id="running-isaac-lab-in-the-cloud">
-<h1>Running Isaac Lab in the Cloud<a class="headerlink" href="#running-isaac-lab-in-the-cloud" title="Permalink to this heading">#</a></h1>
-<p>Isaac Lab can be run in various cloud infrastructures with the use of <a class="reference external" href="https://github.com/isaac-sim/IsaacAutomator">Isaac Automator</a>.
-Isaac Automator allows for quick deployment of Isaac Sim and Isaac Lab onto the public clouds (AWS, GCP, Azure, and Alibaba Cloud are currently supported).</p>
-<p>The result is a fully configured remote desktop cloud workstation, which can be used for development and testing of Isaac Lab within minutes and on a budget. Isaac Automator supports variety of GPU instances and stop-start functionality to save on cloud costs and a variety of tools to aid the workflow (like uploading and downloading data, autorun, deployment management, etc).</p>
+  <section id="cloud-deployment">
+<h1>Cloud Deployment<a class="headerlink" href="#cloud-deployment" title="Permalink to this heading">#</a></h1>
+<p>Isaac Lab can be run in various cloud infrastructures with the use of
+<a class="reference external" href="https://github.com/isaac-sim/IsaacAutomator">Isaac Automator</a>.</p>
+<p>Isaac Automator allows for quick deployment of Isaac Sim and Isaac Lab onto
+the public clouds (AWS, GCP, Azure, and Alibaba Cloud are currently supported).
+The result is a fully configured remote desktop cloud workstation, which can
+be used for development and testing of Isaac Lab within minutes and on a budget.
+Isaac Automator supports variety of GPU instances and stop-start functionality
+to save on cloud costs and a variety of tools to aid the workflow
+(such as uploading and downloading data, autorun, deployment management, etc).</p>
+<section id="system-requirements">
+<h2>System Requirements<a class="headerlink" href="#system-requirements" title="Permalink to this heading">#</a></h2>
+<p>Isaac Automator requires having <code class="docutils literal notranslate"><span class="pre">docker</span></code> pre-installed on the system.</p>
+<ul class="simple">
+<li><p>To install Docker, please follow the instructions for your operating system on the
+<a class="reference external" href="https://docs.docker.com/desktop/install/linux-install/">Docker website</a>. A minimum version of 26.0.0 for Docker Engine and 2.25.0 for Docker
+compose are required to work with Isaac Automator.</p></li>
+<li><p>Follow the post-installation steps for Docker on the <a class="reference external" href="https://docs.docker.com/engine/install/linux-postinstall/">post-installation steps</a> page.
+These steps allow you to run Docker without using <code class="docutils literal notranslate"><span class="pre">sudo</span></code>.</p></li>
+</ul>
+</section>
 <section id="installing-isaac-automator">
 <h2>Installing Isaac Automator<a class="headerlink" href="#installing-isaac-automator" title="Permalink to this heading">#</a></h2>
-<p>For the most update-to-date and complete installation instructions, please refer to <a class="reference external" href="https://github.com/isaac-sim/IsaacAutomator?tab=readme-ov-file#installation">Isaac Automator</a>.</p>
+<p>For the most update-to-date and complete installation instructions, please refer to
+<a class="reference external" href="https://github.com/isaac-sim/IsaacAutomator?tab=readme-ov-file#installation">Isaac Automator</a>.</p>
 <p>To use Isaac Automator, first clone the repo:</p>
+<div class="sd-tab-set docutils">
+<input checked="checked" id="sd-tab-item-0" name="sd-tab-set-0" type="radio">
+<label class="sd-tab-label" for="sd-tab-item-0">
+HTTPS</label><div class="sd-tab-content docutils">
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/isaac-sim/IsaacAutomator.git
 </pre></div>
 </div>
-<p>Isaac Automator requires having <code class="docutils literal notranslate"><span class="pre">docker</span></code> pre-installed on the system.</p>
-<ul class="simple">
-<li><p>To install Docker, please follow the instructions for your operating system on the <a class="reference external" href="https://docs.docker.com/desktop/install/linux-install/">Docker website</a>. A minimum version of 26.0.0 for Docker Engine and 2.25.0 for Docker compose are required to work with Isaac Automator.</p></li>
-<li><p>Follow the post-installation steps for Docker on the <a class="reference external" href="https://docs.docker.com/engine/install/linux-postinstall/">post-installation steps</a> page. These steps allow you to run
-Docker without using <code class="docutils literal notranslate"><span class="pre">sudo</span></code>.</p></li>
-</ul>
-<p>Isaac Automator also requires obtaining a NGC API key.</p>
+</div>
+<input id="sd-tab-item-1" name="sd-tab-set-0" type="radio">
+<label class="sd-tab-label" for="sd-tab-item-1">
+SSH</label><div class="sd-tab-content docutils">
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>git@github.com:isaac-sim/IsaacAutomator.git
+</pre></div>
+</div>
+</div>
+</div>
+<p>Isaac Automator requires obtaining a NGC API key.</p>
 <ul>
 <li><p>Get access to the <a class="reference external" href="https://catalog.ngc.nvidia.com/orgs/nvidia/containers/isaac-sim">Isaac Sim container</a> by joining the NVIDIA Developer Program credentials.</p></li>
 <li><p>Generate your <a class="reference external" href="https://docs.nvidia.com/ngc/gpu-cloud/ngc-user-guide/index.html#generating-api-key">NGC API key</a> to access locked container images from NVIDIA GPU Cloud (NGC).</p>
@@ -704,56 +735,92 @@ Password: &lt;Your NGC API Key&gt;
 </li>
 </ul>
 </section>
-<section id="running-isaac-automator">
-<h2>Running Isaac Automator<a class="headerlink" href="#running-isaac-automator" title="Permalink to this heading">#</a></h2>
+<section id="building-the-container">
+<h2>Building the container<a class="headerlink" href="#building-the-container" title="Permalink to this heading">#</a></h2>
 <p>To run Isaac Automator, first build the Isaac Automator container:</p>
-<div class="sd-tab-set docutils">
-<input checked="checked" id="sd-tab-item-0" name="sd-tab-set-0" type="radio">
-<label class="sd-tab-label" data-sync-group="os" data-sync-id="linux" for="sd-tab-item-0">
-<i class="fa-brands fa-linux"></i> Linux</label><div class="sd-tab-content docutils">
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./build
-</pre></div>
-</div>
-</div>
-<input id="sd-tab-item-1" name="sd-tab-set-0" type="radio">
-<label class="sd-tab-label" data-sync-group="os" data-sync-id="windows" for="sd-tab-item-1">
-<i class="fa-brands fa-windows"></i> Windows</label><div class="sd-tab-content docutils">
-<div class="highlight-batch notranslate"><div class="highlight"><pre><span></span>docker build --platform linux/x86_64 -t isa .
-</pre></div>
-</div>
-</div>
-</div>
-<p>Next, enter the automator container:</p>
 <div class="sd-tab-set docutils">
 <input checked="checked" id="sd-tab-item-2" name="sd-tab-set-1" type="radio">
 <label class="sd-tab-label" data-sync-group="os" data-sync-id="linux" for="sd-tab-item-2">
 <i class="fa-brands fa-linux"></i> Linux</label><div class="sd-tab-content docutils">
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./run
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./build
 </pre></div>
 </div>
 </div>
 <input id="sd-tab-item-3" name="sd-tab-set-1" type="radio">
 <label class="sd-tab-label" data-sync-group="os" data-sync-id="windows" for="sd-tab-item-3">
 <i class="fa-brands fa-windows"></i> Windows</label><div class="sd-tab-content docutils">
+<div class="highlight-batch notranslate"><div class="highlight"><pre><span></span>docker build --platform linux/x86_64 -t isa .
+</pre></div>
+</div>
+</div>
+</div>
+<p>This will build the Isaac Automator container and tag it as <code class="docutils literal notranslate"><span class="pre">isa</span></code>.</p>
+</section>
+<section id="running-the-automator-commands">
+<h2>Running the Automator Commands<a class="headerlink" href="#running-the-automator-commands" title="Permalink to this heading">#</a></h2>
+<p>First, enter the Automator container:</p>
+<div class="sd-tab-set docutils">
+<input checked="checked" id="sd-tab-item-4" name="sd-tab-set-2" type="radio">
+<label class="sd-tab-label" data-sync-group="os" data-sync-id="linux" for="sd-tab-item-4">
+<i class="fa-brands fa-linux"></i> Linux</label><div class="sd-tab-content docutils">
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./run
+</pre></div>
+</div>
+</div>
+<input id="sd-tab-item-5" name="sd-tab-set-2" type="radio">
+<label class="sd-tab-label" data-sync-group="os" data-sync-id="windows" for="sd-tab-item-5">
+<i class="fa-brands fa-windows"></i> Windows</label><div class="sd-tab-content docutils">
 <div class="highlight-batch notranslate"><div class="highlight"><pre><span></span>docker run --platform linux/x86_64 -it --rm -v .:/app isa bash
 </pre></div>
 </div>
 </div>
 </div>
-<p>Next, run the deployed script for your preferred cloud:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># AWS</span>
-./deploy-aws
-<span class="c1"># Azure</span>
-./deploy-azure
-<span class="c1"># GCP</span>
-./deploy-gcp
-<span class="c1"># Alibaba Cloud</span>
-./deploy-alicloud
+<p>Next, run the deployment script for your preferred cloud:</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">--isaaclab</span></code> flag is used to specify the version of Isaac Lab to deploy.
+The <code class="docutils literal notranslate"><span class="pre">v2.2.1</span></code> tag is the latest release of Isaac Lab.</p>
+</div>
+<div class="sd-tab-set docutils">
+<input checked="checked" id="sd-tab-item-6" name="sd-tab-set-3" type="radio">
+<label class="sd-tab-label" data-sync-group="cloud" data-sync-id="aws" for="sd-tab-item-6">
+AWS</label><div class="sd-tab-content docutils">
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./deploy-aws<span class="w"> </span>--isaaclab<span class="w"> </span>v2.2.1
 </pre></div>
 </div>
+</div>
+<input id="sd-tab-item-7" name="sd-tab-set-3" type="radio">
+<label class="sd-tab-label" data-sync-group="cloud" data-sync-id="azure" for="sd-tab-item-7">
+Azure</label><div class="sd-tab-content docutils">
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./deploy-azure<span class="w"> </span>--isaaclab<span class="w"> </span>v2.2.1
+</pre></div>
+</div>
+</div>
+<input id="sd-tab-item-8" name="sd-tab-set-3" type="radio">
+<label class="sd-tab-label" data-sync-group="cloud" data-sync-id="gcp" for="sd-tab-item-8">
+GCP</label><div class="sd-tab-content docutils">
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./deploy-gcp<span class="w"> </span>--isaaclab<span class="w"> </span>v2.2.1
+</pre></div>
+</div>
+</div>
+<input id="sd-tab-item-9" name="sd-tab-set-3" type="radio">
+<label class="sd-tab-label" data-sync-group="cloud" data-sync-id="alicloud" for="sd-tab-item-9">
+Alibaba Cloud</label><div class="sd-tab-content docutils">
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./deploy-alicloud<span class="w"> </span>--isaaclab<span class="w"> </span>v2.2.1
+</pre></div>
+</div>
+</div>
+</div>
 <p>Follow the prompts for entering information regarding the environment setup and credentials.
-Once successful, instructions for connecting to the cloud instance will be available in the terminal.
-Connections can be made using SSH, noVCN, or NoMachine.</p>
+Once successful, instructions for connecting to the cloud instance will be available
+in the terminal. The deployed Isaac Sim instances can be accessed via:</p>
+<ul class="simple">
+<li><p>SSH</p></li>
+<li><p>noVCN (browser-based VNC client)</p></li>
+<li><p>NoMachine (remote desktop client)</p></li>
+</ul>
+<p>Look for the connection instructions at the end of the deployment command output.
+Additionally, this info is saved in <code class="docutils literal notranslate"><span class="pre">state/&lt;deployment-name&gt;/info.txt</span></code> file.</p>
 <p>For details on the credentials and setup required for each cloud, please visit the
 <a class="reference external" href="https://github.com/isaac-sim/IsaacAutomator?tab=readme-ov-file#deploying-isaac-sim">Isaac Automator</a>
 page for more instructions.</p>
@@ -765,27 +832,44 @@ Launch the <code class="docutils literal notranslate"><span class="pre">isaaclab
 Isaac Lab commands can be executed in the same way as running locally.</p>
 <p>For example:</p>
 <div class="sd-tab-set docutils">
-<input checked="checked" id="sd-tab-item-4" name="sd-tab-set-2" type="radio">
-<label class="sd-tab-label" data-sync-group="os" data-sync-id="linux" for="sd-tab-item-4">
+<input checked="checked" id="sd-tab-item-10" name="sd-tab-set-4" type="radio">
+<label class="sd-tab-label" data-sync-group="os" data-sync-id="linux" for="sd-tab-item-10">
 <i class="fa-brands fa-linux"></i> Linux</label><div class="sd-tab-content docutils">
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/reinforcement_learning/rl_games/train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Cartpole-v0
 </pre></div>
 </div>
 </div>
-<input id="sd-tab-item-5" name="sd-tab-set-2" type="radio">
-<label class="sd-tab-label" data-sync-group="os" data-sync-id="windows" for="sd-tab-item-5">
+<input id="sd-tab-item-11" name="sd-tab-set-4" type="radio">
+<label class="sd-tab-label" data-sync-group="os" data-sync-id="windows" for="sd-tab-item-11">
 <i class="fa-brands fa-windows"></i> Windows</label><div class="sd-tab-content docutils">
-<div class="highlight-batch notranslate"><div class="highlight"><pre><span></span>./isaaclab.bat -p scripts/reinforcement_learning/rl_games/train.py --task=Isaac-Cartpole-v0
+<div class="highlight-batch notranslate"><div class="highlight"><pre><span></span>isaaclab.bat -p scripts/reinforcement_learning/rl_games/train.py --task=Isaac-Cartpole-v0
 </pre></div>
 </div>
 </div>
 </div>
 </section>
-<section id="destroying-a-development">
-<h2>Destroying a Development<a class="headerlink" href="#destroying-a-development" title="Permalink to this heading">#</a></h2>
+<section id="destroying-a-deployment">
+<h2>Destroying a Deployment<a class="headerlink" href="#destroying-a-deployment" title="Permalink to this heading">#</a></h2>
 <p>To save costs, deployments can be destroyed when not being used.
-This can be done from within the Automator container, which can be entered with command <code class="docutils literal notranslate"><span class="pre">./run</span></code>.</p>
-<p>To destroy a deployment, run:</p>
+This can be done from within the Automator container.</p>
+<p>Enter the Automator container with the command described in the previous section:</p>
+<div class="sd-tab-set docutils">
+<input checked="checked" id="sd-tab-item-12" name="sd-tab-set-5" type="radio">
+<label class="sd-tab-label" data-sync-group="os" data-sync-id="linux" for="sd-tab-item-12">
+<i class="fa-brands fa-linux"></i> Linux</label><div class="sd-tab-content docutils">
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./run
+</pre></div>
+</div>
+</div>
+<input id="sd-tab-item-13" name="sd-tab-set-5" type="radio">
+<label class="sd-tab-label" data-sync-group="os" data-sync-id="windows" for="sd-tab-item-13">
+<i class="fa-brands fa-windows"></i> Windows</label><div class="sd-tab-content docutils">
+<div class="highlight-batch notranslate"><div class="highlight"><pre><span></span>docker run --platform linux/x86_64 -it --rm -v .:/app isa bash
+</pre></div>
+</div>
+</div>
+</div>
+<p>To destroy a deployment, run the following command from within the container:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./destroy<span class="w"> </span>&lt;deployment-name&gt;
 </pre></div>
 </div>
@@ -804,20 +888,20 @@ This can be done from within the Automator container, which can be entered with 
                   
 <div class="prev-next-area">
     <a class="left-prev"
-       href="../../experimental-features/newton-physics-integration/sim-to-real.html"
+       href="../../deployment/cloudxr_teleoperation_cluster.html"
        title="previous page">
       <i class="fa-solid fa-angle-left"></i>
       <div class="prev-next-info">
         <p class="prev-next-subtitle">previous</p>
-        <p class="prev-next-title">Sim-to-Real Policy Transfer</p>
+        <p class="prev-next-title">Deploying CloudXR Teleoperation on Kubernetes</p>
       </div>
     </a>
     <a class="right-next"
-       href="../../policy_deployment/index.html"
+       href="../../refs/reference_architecture/index.html"
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">Sim2Real Deployment of Policies Trained in Isaac Lab</p>
+        <p class="prev-next-title">Reference Architecture</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>
@@ -838,10 +922,12 @@ This can be done from within the Automator container, which can be entered with 
   </div>
   <nav class="bd-toc-nav page-toc">
     <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#system-requirements">System Requirements</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#installing-isaac-automator">Installing Isaac Automator</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#running-isaac-automator">Running Isaac Automator</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#building-the-container">Building the container</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#running-the-automator-commands">Running the Automator Commands</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#running-isaac-lab-on-the-cloud">Running Isaac Lab on the Cloud</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#destroying-a-development">Destroying a Development</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#destroying-a-deployment">Destroying a Deployment</a></li>
 </ul>
   </nav></div>
 
