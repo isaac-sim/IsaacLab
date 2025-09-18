@@ -199,7 +199,7 @@ class ArticulationData:
     """
 
     default_joint_dynamic_friction_effort: torch.Tensor = None
-    """Default joint dynamic friction torque of all joints. Shape is (num_instances, num_joints).
+    """Default joint dynamic friction effort of all joints. Shape is (num_instances, num_joints).
 
     This quantity is configured through the actuator model's :attr:`isaaclab.actuators.ActuatorBaseCfg.dynamic_friction`
     parameter. If the parameter's value is None, the value parsed from the USD schema, at the time of initialization,
