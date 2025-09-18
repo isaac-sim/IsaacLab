@@ -180,7 +180,8 @@ UR10e_ROBOTIQ_GRIPPER_CFG.actuators["others_2"] = ImplicitActuatorCfg(
 
 UR10e_2f140_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"omniverse://isaac-dev.ov.nvidia.com/Projects/IsaacARM/Assets/UR10/iakinola/ur10e_robotiq_140_variant.usd",
+        usd_path=f"omniverse://isaac-dev.ov.nvidia.com/Projects/isaac_ros_gear_insertion/ur10e_robotiq_140_variant.usd",
+        # usd_path=f"omniverse://isaac-dev.ov.nvidia.com/Projects/IsaacARM/Assets/UR10/iakinola/ur10e_robotiq_140_variant.usd",
         # usd_path=f"omniverse://isaac-dev.ov.nvidia.com/Isaac/Samples/Rigging/Manipulator/import_manipulator/ur10e/ur/ur_gripper.usd",
         # rigid_props=sim_utils.RigidBodyPropertiesCfg(
         #     disable_gravity=True,
