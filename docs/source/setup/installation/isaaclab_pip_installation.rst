@@ -187,14 +187,17 @@ To run a user-defined script for Isaac Lab, simply run
 Generating VS Code Settings
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Due to the structure resulting from the installation, VS Code IntelliSense (code completion, parameter info and member lists, etc.) will not work by default.
-To set it up (define the search paths for import resolution, the path to the default Python interpreter, and other settings), for a given workspace folder, run the following command:
+Due to the structure resulting from the installation, VS Code IntelliSense (code completion, parameter info
+and member lists, etc.) will not work by default. To set it up (define the search paths for import resolution,
+the path to the default Python interpreter, and other settings), for a given workspace folder,
+run the following command:
 
-    .. code-block:: bash
+.. code-block:: bash
 
-        python -m isaaclab --generate-vscode-settings
+   python -m isaaclab --generate-vscode-settings
 
-    .. warning::
 
-        The command will generate a ``.vscode/settings.json`` file in the workspace folder.
-        If the file already exists, it will be overwritten (a confirmation prompt will be shown first).
+.. warning::
+
+   The command will generate a ``.vscode/settings.json`` file in the workspace folder.
+   If the file already exists, it will be overwritten (a confirmation prompt will be shown first).
