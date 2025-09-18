@@ -416,25 +416,27 @@ def test_contact_sensor_threshold(setup_simulation, device):
         scene = InteractiveScene(scene_cfg)
         # Play the simulator
         sim.reset()
-        
+
         # Get the stage and check the USD threshold attribute on the rigid body prim
         from isaacsim.core.utils.stage import get_current_stage
-        
+
         stage = get_current_stage()
         prim_path = scene_cfg.shape.prim_path
         prim = stage.GetPrimAtPath(prim_path)
-        
+
         # Ensure the contact sensor was created properly
         contact_sensor = scene["contact_sensor"]
         assert contact_sensor is not None, "Contact sensor was not created"
-        
+
         # Check if the prim has contact report API and verify threshold is close to 0.0
         if prim.HasAPI(PhysxSchema.PhysxContactReportAPI):
             cr_api = PhysxSchema.PhysxContactReportAPI.Get(stage, prim.GetPrimPath())
             threshold_attr = cr_api.GetThresholdAttr()
             if threshold_attr.IsValid():
                 threshold_value = threshold_attr.Get()
-                assert pytest.approx(threshold_value, abs=1e-6) == 0.0, f"Expected USD threshold to be close to 0.0, but got {threshold_value}"
+                assert (
+                    pytest.approx(threshold_value, abs=1e-6) == 0.0
+                ), f"Expected USD threshold to be close to 0.0, but got {threshold_value}"
 
 
 """
