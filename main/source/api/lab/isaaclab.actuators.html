@@ -161,10 +161,10 @@
             <label for="version-select" style="font-weight: bold; display: block;">Version</label>
           </div>
           <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
-            <option value="../../../../release/2.3.0/source/api/lab/isaaclab.actuators.html" >release/2.3.0</option>
             <option value="isaaclab.actuators.html" selected>main</option>
             <option value="../../../../release/2.1.0/source/api/lab/isaaclab.actuators.html" >release/2.1.0</option>
             <option value="../../../../release/2.2.0/source/api/lab/isaaclab.actuators.html" >release/2.2.0</option>
+            <option value="../../../../release/2.3.0/source/api/lab/isaaclab.actuators.html" >release/2.3.0</option>
             <option value="../../../../v2.2.1/source/api/lab/isaaclab.actuators.html" >v2.2.1</option>
             <option value="../../../../v2.2.0/source/api/lab/isaaclab.actuators.html" >v2.2.0</option>
             <option value="../../../../v2.1.1/source/api/lab/isaaclab.actuators.html" >v2.1.1</option>
@@ -207,7 +207,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.1.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.0.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -2015,7 +2015,7 @@ similar to static and Coulomb static friction.</p>
 <p>Ideal torque-controlled actuator model with a simple saturation model.</p>
 <p>It employs the following model for computing torques for the actuated joint <span class="math notranslate nohighlight">\(j\)</span>:</p>
 <div class="math notranslate nohighlight">
-\[\tau_{j, computed} = k_p * (q - q_{des}) + k_d * (\dot{q} - \dot{q}_{des}) + \tau_{ff}\]</div>
+\[\tau_{j, computed} = k_p * (q_{des} - q) + k_d * (\dot{q}_{des} - \dot{q}) + \tau_{ff}\]</div>
 <p>where, <span class="math notranslate nohighlight">\(k_p\)</span> and <span class="math notranslate nohighlight">\(k_d\)</span> are joint stiffness and damping gains, <span class="math notranslate nohighlight">\(q\)</span> and <span class="math notranslate nohighlight">\(\dot{q}\)</span>
 are the current joint positions and velocities, <span class="math notranslate nohighlight">\(q_{des}\)</span>, <span class="math notranslate nohighlight">\(\dot{q}_{des}\)</span> and <span class="math notranslate nohighlight">\(\tau_{ff}\)</span>
 are the desired joint positions, velocities and torques commands.</p>
