@@ -19,7 +19,7 @@ parser.add_argument(
     "--teleop_device",
     type=str,
     default="keyboard",
-    help="Device for interacting with environment. Examples: keyboard, spacemouse, gamepad, handtracking, manusvive",
+    help="Device for interacting with environment. Examples: keyboard, spacemouse, gamepad, handtracking, manusvive, xrlocomotion",
 )
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 parser.add_argument("--sensitivity", type=float, default=1.0, help="Sensitivity factor.")
@@ -196,7 +196,7 @@ def main() -> None:
                 )
             else:
                 omni.log.error(f"Unsupported teleop device: {args_cli.teleop_device}")
-                omni.log.error("Supported devices: keyboard, spacemouse, gamepad, handtracking")
+                omni.log.error("Supported devices: keyboard, spacemouse, gamepad, handtracking, manusvive, xrlocomotion")
                 env.close()
                 simulation_app.close()
                 return
