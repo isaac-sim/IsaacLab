@@ -8,6 +8,7 @@ from dataclasses import MISSING
 from isaaclab.sim.spawners.from_files import UsdFileCfg
 from isaaclab.sim.spawners.spawner_cfg import DeformableObjectSpawnerCfg, RigidObjectSpawnerCfg, SpawnerCfg
 from isaaclab.utils import configclass
+from typing import Callable
 
 from . import wrappers
 
@@ -34,7 +35,7 @@ class MultiAssetSpawnerCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
     assets_cfg: list[SpawnerCfg] = MISSING
     """List of asset configurations to spawn."""
 
-    choice_method: str = "random_choice"
+    choice_method: str | Callable = "random_choice"
     """Name of the asset selection method to use.
 
     Available methods are ``random_choice``, ``sequential`` and ``split``, where ``sequential`` assigns assets in a round-robin manner
@@ -78,7 +79,7 @@ class MultiUsdFileCfg(UsdFileCfg):
     usd_path: str | list[str] = MISSING
     """Path or a list of paths to the USD files to spawn asset from."""
 
-    choice_method: str = "random_choice"
+    choice_method: str | Callable = "random_choice"
     """Name of the asset selection method to use.
 
     Available methods are ``random_choice``, ``sequential`` and ``split``, where ``sequential`` assigns assets in a round-robin manner

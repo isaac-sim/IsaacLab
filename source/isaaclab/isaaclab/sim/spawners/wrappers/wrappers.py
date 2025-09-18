@@ -13,6 +13,7 @@ import importlib
 import isaacsim.core.utils.prims as prim_utils
 import isaacsim.core.utils.stage as stage_utils
 from isaacsim.core.utils.stage import get_current_stage
+from collections import Counter
 
 from pxr import Sdf, Usd
 
@@ -108,12 +109,18 @@ def spawn_multi_asset(
     stage = stage_utils.get_current_stage()
 
     # Select the environment index function when random choice is disabled..
-    module = importlib.import_module(cfg.choice_method_dir)
-    choice_fn = getattr(module, cfg.choice_method)
+    if callable(cfg.choice_method):
+        choice_fn = cfg.choice_method
+        choice_method_name = cfg.choice_method.__name__
+    else:
+        module = importlib.import_module(cfg.choice_method_dir)
+        choice_fn = getattr(module, cfg.choice_method)
+        choice_method_name = cfg.choice_method
 
     # manually clone prims if the source prim path is a regex expression
     # note: unlike in the cloner API from Isaac Sim, we do not "reset" xforms on the copied prims.
     #   This is because the "spawn" calls during the creation of the proto prims already handles this operation.
+    env_idx = []
     with Sdf.ChangeBlock():
         for index, prim_path in enumerate(prim_paths):
             # spawn single instance
@@ -121,9 +128,15 @@ def spawn_multi_asset(
             # randomly select an asset configuration
             idx = choice_fn(index, len(source_prim_paths), len(proto_prim_paths), **cfg.choice_cfg)
             proto_path = proto_prim_paths[idx]
+            env_idx.append(idx)
             # copy the proto prim
             Sdf.CopySpec(env_spec.layer, Sdf.Path(proto_path), env_spec.layer, Sdf.Path(prim_path))
 
+    counts = Counter(env_idx)
+    count_dict = {k: round((v / len(env_idx)) * 100, 2) for k, v in counts.items()}
+    print(f"[INFO]: Assets distribution for '{asset_path}' using choice method '{choice_method_name}' :")
+    for k in sorted(count_dict.keys()):
+        print(f"\tAsset {k}: {counts[k]} occurrences, {count_dict[k]}%")
     # delete the dataset prim after spawning
     prim_utils.delete_prim(template_prim_path)
 
