@@ -6,7 +6,6 @@
 """Comprehensive benchmark script for multiple environments with different GPU configurations."""
 
 import argparse
-import json
 import os
 import subprocess
 import sys
@@ -14,12 +13,38 @@ import time
 from pathlib import Path
 
 import pandas as pd
+from tensorboard.backend.event_processing import event_accumulator
+import glob
+
+
+def parse_tf_logs(log_dir: str):
+    """Search for the latest tfevents file in log_dir folder and returns
+    the tensorboard logs in a dictionary.
+
+    Args:
+        log_dir: directory used to search for tfevents files
+    """
+
+    # search log directory for latest log file
+    list_of_files = glob.glob(f"{log_dir}/events*")  # * means all if need specific format then *.csv
+    latest_file = max(list_of_files, key=os.path.getctime)
+
+    log_data = {}
+    ea = event_accumulator.EventAccumulator(latest_file)
+    ea.Reload()
+    tags = ea.Tags()["scalars"]
+    for tag in tags:
+        log_data[tag] = []
+        for event in ea.Scalars(tag):
+            log_data[tag].append(event.value)
+
+    return log_data
 
 
 class ComprehensiveBenchmark:
     """Comprehensive benchmarking class for multiple tasks, environments, and GPU configurations."""
 
-    def __init__(self, max_iterations: int = 5000, output_dir: str = "benchmark_results"):
+    def __init__(self, max_iterations: int = 100, output_dir: str = "benchmark_results"):
         """Initialize the benchmark.
 
         Args:
@@ -32,12 +57,12 @@ class ComprehensiveBenchmark:
 
         # Define task configurations
         self.task_configs = {
-            # Camera-enabled task
-            "Isaac-Navigation-Flat-Anymal-C-v0": {
-                "enable_cameras": True,
-                "env_counts": [1024, 2048, 4096],
-                "training_scripts": ["rsl_rl"],
-            },
+            # # Camera-enabled task
+            # "Isaac-Navigation-Flat-Anymal-C-v0": {
+            #     "enable_cameras": True,
+            #     "env_counts": [1024, 2048, 4096],
+            #     "training_scripts": ["rsl_rl"],
+            # },
             # Non-camera tasks
             "Isaac-Dexsuite-Kuka-Allegro-Reorient-v0": {
                 "enable_cameras": False,
@@ -124,41 +149,109 @@ class ComprehensiveBenchmark:
 
         return cmd
 
-    def _extract_fps_from_logs(self, log_dir: str, training_script: str) -> float:
-        """Extract FPS from training logs.
+    def _extract_fps_from_logs(self, log_dir: str, training_script: str, num_gpus: int) -> dict:
+        """Extract FPS statistics from training logs.
 
         Args:
             log_dir: Directory containing the logs
             training_script: Training script type ("rsl_rl" or "rl_games")
+            num_gpus: Number of GPUs used (for RSL RL scaling)
 
         Returns:
-            FPS value, or -1 if not found
+            Dictionary with FPS statistics (min, max, mean, std), or None if not found
         """
         try:
             # Import here to avoid issues with app launcher
             sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../.."))
-            from scripts.benchmarks.utils import parse_tf_logs
+
+            print(f"DEBUG: Extracting FPS from {log_dir} for {training_script}")
+            
+            if not os.path.exists(log_dir):
+                print(f"DEBUG: Log directory does not exist: {log_dir}")
+                return None
 
             if training_script == "rsl_rl":
                 # Look for RSL-RL logs
-                log_data = parse_tf_logs(log_dir)
+                print(f"DEBUG: Looking for tfevents files in: {log_dir}")
+                
+                # Check if there are any tfevents files
+                import glob
+                import numpy as np
+                log_folders = glob.glob(f"{log_dir}/*")
+                # find most recent folder
+                if not log_folders:
+                    print("DEBUG: No log folders found")
+                    return None
+                
+                latest_log_folder = max(log_folders, key=os.path.getmtime)
+                tfevents_files = glob.glob(f"{latest_log_folder}/events*")
+                print(f"DEBUG: Found tfevents files: {tfevents_files}")
+                
+                log_data = parse_tf_logs(latest_log_folder)
+                print(f"DEBUG: Available log keys: {list(log_data.keys())}")
+                
                 if "Perf/total_fps" in log_data and log_data["Perf/total_fps"]:
-                    return max(log_data["Perf/total_fps"])  # Take max FPS achieved
+                    fps_values = np.array(log_data["Perf/total_fps"]) * num_gpus  # Scale by number of GPUs
+                    fps_stats = {
+                        "min_fps": float(np.min(fps_values)),
+                        "max_fps": float(np.max(fps_values)),
+                        "mean_fps": float(np.mean(fps_values)),
+                        "std_fps": float(np.std(fps_values)),
+                        "sample_count": len(fps_values)
+                    }
+                    print(f"DEBUG: Found Perf/total_fps with stats (scaled by {num_gpus} GPUs): {fps_stats}")
+                    return fps_stats
+                else:
+                    print("DEBUG: Perf/total_fps not found or empty in log data")
+                    
             elif training_script == "rl_games":
+                # Check if there are any tfevents files
+                import glob
+                import numpy as np
+
+                print(f"DEBUG: Found latest folder: {log_dir}")
+
                 # Look for RL-Games logs in summaries subdirectory
                 summaries_dir = os.path.join(log_dir, "summaries")
+                print(f"DEBUG: Looking for RL-Games logs in: {summaries_dir}")
+                
                 if os.path.exists(summaries_dir):
+                    import glob
+                    tfevents_files = glob.glob(f"{summaries_dir}/events*")
+                    print(f"DEBUG: Found tfevents files in summaries: {tfevents_files}")
+                    
+                    if not tfevents_files:
+                        print("DEBUG: No tfevents files found in summaries")
+                        return None
+                    
                     log_data = parse_tf_logs(summaries_dir)
+                    print(f"DEBUG: Available log keys: {list(log_data.keys())}")
+                    
                     if (
                         "performance/step_inference_rl_update_fps" in log_data
                         and log_data["performance/step_inference_rl_update_fps"]
                     ):
-                        return max(log_data["performance/step_inference_rl_update_fps"])
+                        fps_values = np.array(log_data["performance/step_inference_rl_update_fps"])
+                        fps_stats = {
+                            "min_fps": float(np.min(fps_values)),
+                            "max_fps": float(np.max(fps_values)),
+                            "mean_fps": float(np.mean(fps_values)),
+                            "std_fps": float(np.std(fps_values)),
+                            "sample_count": len(fps_values)
+                        }
+                        print(f"DEBUG: Found performance/step_inference_rl_update_fps with stats: {fps_stats}")
+                        return fps_stats
+                    else:
+                        print("DEBUG: performance/step_inference_rl_update_fps not found or empty in log data")
+                else:
+                    print(f"DEBUG: Summaries directory does not exist: {summaries_dir}")
 
-            return -1
+            return None
         except Exception as e:
             print(f"Error extracting FPS from logs in {log_dir}: {e}")
-            return -1
+            import traceback
+            traceback.print_exc()
+            return None
 
     def _run_single_benchmark(self, task: str, num_envs: int, num_gpus: int, training_script: str) -> dict:
         """Run a single benchmark configuration.
@@ -188,6 +281,7 @@ class ComprehensiveBenchmark:
             "num_gpus": num_gpus,
             "training_script": training_script,
             "fps": -1,
+            "fps_stats": None,
             "status": "failed",
             "command": " ".join(cmd),
             "run_id": run_id,
@@ -235,11 +329,20 @@ class ComprehensiveBenchmark:
                                 )
                                 full_log_path = os.path.join(full_log_path, latest_subdir)
 
-                        fps = self._extract_fps_from_logs(full_log_path, training_script)
-                        result["fps"] = fps
+                        fps_stats = self._extract_fps_from_logs(full_log_path, training_script, num_gpus)
+                        if fps_stats:
+                            result["fps_stats"] = fps_stats
+                            result["fps"] = fps_stats["mean_fps"]  # For backward compatibility
+                        else:
+                            result["fps_stats"] = None
+                            result["fps"] = -1
                         result["log_path"] = full_log_path
 
-                print(f"✓ Completed successfully. FPS: {result['fps']}")
+                if result['fps_stats']:
+                    stats = result['fps_stats']
+                    print(f"✓ Completed successfully. FPS Stats - Mean: {stats['mean_fps']:.1f}, Min: {stats['min_fps']:.1f}, Max: {stats['max_fps']:.1f}, Std: {stats['std_fps']:.1f}")
+                else:
+                    print(f"✓ Completed successfully. FPS: {result['fps']}")
             else:
                 result["error"] = stderr
                 print(f"✗ Failed with return code {process.returncode}")
@@ -264,7 +367,7 @@ class ComprehensiveBenchmark:
 
         print(f"Starting comprehensive benchmark with {total_configs} configurations...")
         print(f"Max iterations per run: {self.max_iterations}")
-        print(f"Results will be saved to: {self.output_dir}")
+        print(f"Results will be saved to: {self.output_dir}/benchmark_results.csv")
         print("=" * 80)
 
         config_count = 0
@@ -288,97 +391,21 @@ class ComprehensiveBenchmark:
         self._generate_report()
 
     def _save_results(self) -> None:
-        """Save results to JSON file."""
-        results_file = self.output_dir / "benchmark_results.json"
-        with open(results_file, "w") as f:
-            json.dump(self.results, f, indent=2)
-
-    def _generate_report(self) -> None:
-        """Generate comprehensive benchmark report."""
-        # Create DataFrame for analysis
+        """Save results to CSV file."""
+        # Create DataFrame and save as CSV
         df = pd.DataFrame(self.results)
-
-        # Save raw data
         csv_file = self.output_dir / "benchmark_results.csv"
         df.to_csv(csv_file, index=False)
+        print(f"Results saved: {csv_file}")
 
-        # Generate summary report
-        report_file = self.output_dir / "benchmark_report.md"
-
-        with open(report_file, "w") as f:
-            f.write("# Comprehensive Benchmark Report\n\n")
-            f.write(f"**Generated:** {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
-            f.write(f"**Max Iterations:** {self.max_iterations}\n")
-            f.write(f"**Total Configurations:** {len(self.results)}\n\n")
-
-            # Success rate
-            successful_runs = len(df[df["status"] == "completed"])
-            success_rate = (successful_runs / len(df)) * 100
-            f.write(f"**Success Rate:** {success_rate:.1f}% ({successful_runs}/{len(df)})\n\n")
-
-            # Results by task
-            f.write("## Results by Task\n\n")
-
-            for task in df["task"].unique():
-                f.write(f"### {task}\n\n")
-                task_df = df[df["task"] == task]
-
-                # Create table
-                f.write("| Environment Count | GPU Count | Training Script | FPS | Status |\n")
-                f.write("|------------------|-----------|-----------------|-----|--------|\n")
-
-                for _, row in task_df.iterrows():
-                    fps_str = f"{row['fps']:.1f}" if row["fps"] > 0 else "N/A"
-                    status_emoji = "✅" if row["status"] == "completed" else "❌"
-                    f.write(
-                        f"| {row['num_envs']} | {row['num_gpus']} | {row['training_script']} | {fps_str} |"
-                        f" {status_emoji} |\n"
-                    )
-                f.write("\n")
-
-            # Performance analysis
-            f.write("## Performance Analysis\n\n")
-
-            # Best FPS by task
-            f.write("### Best FPS by Task\n\n")
-            successful_df = df[df["fps"] > 0]
-            if not successful_df.empty:
-                best_fps = successful_df.groupby("task")["fps"].max().sort_values(ascending=False)
-                f.write("| Task | Best FPS |\n")
-                f.write("|------|----------|\n")
-                for task, fps in best_fps.items():
-                    f.write(f"| {task} | {fps:.1f} |\n")
-                f.write("\n")
-
-            # GPU scaling analysis
-            f.write("### GPU Scaling Analysis\n\n")
-            if not successful_df.empty:
-                for task in successful_df["task"].unique():
-                    task_data = successful_df[successful_df["task"] == task]
-                    f.write(f"#### {task}\n\n")
-                    f.write("| GPU Count | Environment Count | Training Script | FPS |\n")
-                    f.write("|-----------|------------------|-----------------|-----|\n")
-                    for _, row in task_data.sort_values(["num_gpus", "num_envs"]).iterrows():
-                        f.write(
-                            f"| {row['num_gpus']} | {row['num_envs']} | {row['training_script']} | {row['fps']:.1f} |\n"
-                        )
-                    f.write("\n")
-
-            # Failed runs
-            failed_df = df[df["status"] != "completed"]
-            if not failed_df.empty:
-                f.write("## Failed Runs\n\n")
-                f.write("| Task | Environment Count | GPU Count | Training Script | Error |\n")
-                f.write("|------|------------------|-----------|-----------------|-------|\n")
-                for _, row in failed_df.iterrows():
-                    error = row.get("error", "Unknown error")[:100]  # Truncate long errors
-                    f.write(
-                        f"| {row['task']} | {row['num_envs']} | {row['num_gpus']} | {row['training_script']} |"
-                        f" {error} |\n"
-                    )
-
-        print(f"Report generated: {report_file}")
-        print(f"Raw data saved: {csv_file}")
+    def _generate_report(self) -> None:
+        """Generate console summary."""
+        # Create DataFrame for analysis
+        df = pd.DataFrame(self.results)
+        
+        # Calculate statistics
+        successful_runs = len(df[df["status"] == "completed"])
+        success_rate = (successful_runs / len(df)) * 100
 
         # Print summary to console
         print("\n" + "=" * 80)
@@ -389,6 +416,18 @@ class ComprehensiveBenchmark:
         print(f"Success rate: {success_rate:.1f}%")
 
         if not df[df["fps"] > 0].empty:
+            fps_data = df[df["fps"] > 0]["fps"]
+            avg_fps = fps_data.mean()
+            min_fps = fps_data.min()
+            max_fps = fps_data.max()
+            std_fps = fps_data.std()
+            
+            print("\nFPS Statistics:")
+            print(f"  Average FPS: {avg_fps:.1f}")
+            print(f"  Standard Deviation: {std_fps:.1f}")
+            print(f"  Minimum FPS: {min_fps:.1f}")
+            print(f"  Maximum FPS: {max_fps:.1f}")
+            
             best_overall = df[df["fps"] > 0].loc[df["fps"].idxmax()]
             print("\nBest performance:")
             print(f"  Task: {best_overall['task']}")
@@ -403,7 +442,7 @@ def main():
     """Main function to run the comprehensive benchmark."""
     parser = argparse.ArgumentParser(description="Comprehensive benchmark for multiple tasks and configurations")
     parser.add_argument(
-        "--max_iterations", type=int, default=5000, help="Number of training iterations per run (default: 5000)"
+        "--max_iterations", type=int, default=100, help="Number of training iterations per run (default: 5000)"
     )
     parser.add_argument(
         "--output_dir",
