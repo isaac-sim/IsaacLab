@@ -308,11 +308,6 @@
   },
   {
     "package": "typing_extensions",
-    "license": "UNKNOWN",
-    "comment": "PSFL / OSRB"
-  },
-  {
-    "package": "typing_extensions",
     "license": "Python Software Foundation License",
     "comment": "PSFL / OSRB"
   },
@@ -423,6 +418,11 @@
   },
   {
     "package": "trio",
+    "license": "UNKNOWN",
+    "comment": "MIT"
+  },
+  {
+    "package": "pipdeptree",
     "license": "UNKNOWN",
     "comment": "MIT"
   }
