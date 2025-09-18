@@ -5,6 +5,7 @@
 """Retargeters for mapping input device data to robot commands."""
 
 from .humanoid.fourier.gr1t2_retargeter import GR1T2Retargeter, GR1T2RetargeterCfg
+from .humanoid.g1_lower_body_foot_pedal import G1LowerBodyFootPedalRetargeter, G1LowerBodyFootPedalRetargeterCfg
 from .humanoid.unitree.g1_lower_body_standing import G1LowerBodyStandingRetargeter, G1LowerBodyStandingRetargeterCfg
 from .humanoid.unitree.inspire.g1_upper_body_retargeter import UnitreeG1Retargeter, UnitreeG1RetargeterCfg
 from .humanoid.unitree.trihand.g1_upper_body_retargeter import (
