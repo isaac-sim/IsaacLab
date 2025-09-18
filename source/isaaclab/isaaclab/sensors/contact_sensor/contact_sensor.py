@@ -13,8 +13,8 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import warp as wp
-from newton.sensors import MatchKind
 from newton.sensors import ContactSensor as NewtonContactSensor
+from newton.sensors import MatchKind
 
 import isaaclab.utils.string as string_utils
 from isaaclab.markers import VisualizationMarkers

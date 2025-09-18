@@ -8,6 +8,7 @@ from typing import Any
 
 import warp as wp
 from newton import AxisType, ModelBuilder
+from pxr import Usd
 
 from isaaclab.utils.timer import Timer
 
@@ -66,7 +67,7 @@ def replicate_environment(
         else:
             # If source is already a stage
             stage = source
-        
+
         # Get the prototype prim
         prototype_prim = stage.GetPrimAtPath(prototype_path)
         if prototype_prim.IsValid():
@@ -74,7 +75,7 @@ def replicate_environment(
             for child_prim in prototype_prim.GetAllChildren():
                 if child_prim.GetTypeName() == "Xform":
                     child_xforms.append(child_prim.GetPath().pathString)
-        
+
         # If no child xforms found, use the prototype path itself
         if not child_xforms:
             child_xforms = [prototype_path]
