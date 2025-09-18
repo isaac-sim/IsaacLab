@@ -59,7 +59,7 @@
     <link rel="icon" href="../../../_static/favicon.ico"/>
     <link rel="index" title="Index" href="../../../genindex.html" />
     <link rel="search" title="Search" href="../../../search.html" />
-    <link rel="next" title="Installation using Isaac Sim Pip" href="pip_installation.html" />
+    <link rel="next" title="Installation using Isaac Sim Pip Package" href="pip_installation.html" />
     <link rel="prev" title="Isaac Lab Ecosystem" href="../ecosystem.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
@@ -159,10 +159,10 @@
             <label for="version-select" style="font-weight: bold; display: block;">Version</label>
           </div>
           <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
+            <option value="index.html" selected>release/2.3.0</option>
             <option value="../../../../../main/source/setup/installation/index.html" >main</option>
             <option value="../../../../2.1.0/source/setup/installation/index.html" >release/2.1.0</option>
             <option value="../../../../2.2.0/source/setup/installation/index.html" >release/2.2.0</option>
-            <option value="index.html" selected>release/2.3.0</option>
             <option value="../../../../../v2.2.1/source/setup/installation/index.html" >v2.2.1</option>
             <option value="../../../../../v2.2.0/source/setup/installation/index.html" >v2.2.0</option>
             <option value="../../../../../v2.1.1/source/setup/installation/index.html" >v2.1.1</option>
@@ -205,7 +205,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.0.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.1.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -241,20 +241,21 @@
 <ul class="current nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../ecosystem.html">Isaac Lab Ecosystem</a></li>
 <li class="toctree-l1 current active has-children"><a class="current reference internal" href="#">Local Installation</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l2"><a class="reference internal" href="pip_installation.html">Installation using Isaac Sim Pip</a></li>
-<li class="toctree-l2"><a class="reference internal" href="binaries_installation.html">Installation using Isaac Sim Binaries</a></li>
-<li class="toctree-l2"><a class="reference internal" href="source_installation.html">Installation using Isaac Sim Source</a></li>
-<li class="toctree-l2"><a class="reference internal" href="isaaclab_pip_installation.html">Installing Isaac Lab through Pip</a></li>
+<li class="toctree-l2"><a class="reference internal" href="pip_installation.html">Installation using Isaac Sim Pip Package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="binaries_installation.html">Installation using Isaac Sim Pre-built Binaries</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source_installation.html">Installation using Isaac Sim Source Code</a></li>
+<li class="toctree-l2"><a class="reference internal" href="isaaclab_pip_installation.html">Installation using Isaac Lab Pip Packages</a></li>
 <li class="toctree-l2"><a class="reference internal" href="asset_caching.html">Asset Caching</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../deployment/index.html">Container Deployment</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../deployment/docker.html">Docker Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../deployment/run_docker_example.html">Running an example with Docker</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../deployment/cluster.html">Cluster Guide</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../deployment/cloudxr_teleoperation_cluster.html">Deploying CloudXR Teleoperation on Kubernetes</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../deployment/run_docker_example.html">Running an example with Docker</a></li>
 </ul>
 </details></li>
+<li class="toctree-l1"><a class="reference internal" href="cloud_installation.html">Cloud Deployment</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../refs/reference_architecture/index.html">Reference Architecture</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
@@ -383,7 +384,7 @@
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="cloud_installation.html">Running Isaac Lab in the Cloud</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cloud_installation.html">Cloud Deployment</a></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../policy_deployment/index.html">Sim2Real Deployment of Policies Trained in Isaac Lab</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../policy_deployment/00_hover/hover_policy.html">Training &amp; Deploying HOVER Policy</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../policy_deployment/01_io_descriptors/io_descriptors_101.html">IO Descriptors 101</a></li>
@@ -692,13 +693,21 @@ Isaac Sim 5.1.0 release to benefit from the latest features and improvements.</p
 <h2>System Requirements<a class="headerlink" href="#system-requirements" title="Permalink to this heading">#</a></h2>
 <section id="general-requirements">
 <h3>General Requirements<a class="headerlink" href="#general-requirements" title="Permalink to this heading">#</a></h3>
+<p>For detailed requirements, please see the
+<a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/installation/requirements.html">Isaac Sim system requirements</a>.
+The basic requirements are:</p>
 <ul class="simple">
+<li><p><strong>OS:</strong> Ubuntu 22.04 (Linux x64) or Windows 11 (x64)</p></li>
 <li><p><strong>RAM:</strong> 32 GB or more</p></li>
 <li><p><strong>GPU VRAM:</strong> 16 GB or more (additional VRAM may be required for rendering workflows)</p></li>
-<li><p><strong>OS:</strong> Ubuntu 22.04 (Linux x64) or Windows 11 (x64)</p></li>
 </ul>
-<p>For detailed requirements, see the
-<a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/installation/requirements.html#system-requirements">Isaac Sim system requirements</a>.</p>
+<p><strong>Isaac Sim is built against a specific Python version</strong>, making
+it essential to use the same Python version when installing Isaac Lab.
+The required Python version is as follows:</p>
+<ul class="simple">
+<li><p>For Isaac Sim 5.X, the required Python version is 3.11.</p></li>
+<li><p>For Isaac Sim 4.X, the required Python version is 3.10.</p></li>
+</ul>
 </section>
 <section id="driver-requirements">
 <h3>Driver Requirements<a class="headerlink" href="#driver-requirements" title="Permalink to this heading">#</a></h3>
@@ -717,12 +726,14 @@ using the <code class="docutils literal notranslate"><span class="pre">.run</spa
 <h3>Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permalink to this heading">#</a></h3>
 <p>Please refer to the <a class="reference external" href="https://docs.omniverse.nvidia.com/dev-guide/latest/linux-troubleshooting.html">Linux Troubleshooting</a>
 to resolve installation issues in Linux.</p>
+<p>You can use <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/installation/install_workstation.html#isaac-sim-compatibility-checker">Isaac Sim Compatibility Checker</a>
+to automatically check if the above requirements are met for running Isaac Sim on your system.</p>
 </section>
 </section>
 <section id="quick-start-recommended">
 <h2>Quick Start (Recommended)<a class="headerlink" href="#quick-start-recommended" title="Permalink to this heading">#</a></h2>
 <p>For most users, the simplest and fastest way to install Isaac Lab is by following the
-<a class="reference internal" href="pip_installation.html"><span class="doc">Installation using Isaac Sim Pip</span></a> guide.</p>
+<a class="reference internal" href="pip_installation.html"><span class="doc">Installation using Isaac Sim Pip Package</span></a> guide.</p>
 <p>This method will install Isaac Sim via pip and Isaac Lab through its source code.
 If you are new to Isaac Lab, start here.</p>
 </section>
@@ -768,6 +779,12 @@ install of Isaac Sim</p></td>
 <td><p>Special
 case</p></td>
 </tr>
+<tr class="row-even"><td><p>Docker</p></td>
+<td><p>🐳 Docker</p></td>
+<td><p>💾 source (git)</p></td>
+<td><p>Docker users</p></td>
+<td><p>Advanced</p></td>
+</tr>
 </tbody>
 </table>
 </div>
@@ -776,31 +793,37 @@ case</p></td>
 <h2>Next Steps<a class="headerlink" href="#next-steps" title="Permalink to this heading">#</a></h2>
 <p>Once you’ve reviewed the installation methods, continue with the guide that matches your workflow:</p>
 <ul class="simple">
-<li><p>😃 <a class="reference internal" href="pip_installation.html"><span class="doc">Installation using Isaac Sim Pip</span></a></p>
+<li><p>😃 <a class="reference internal" href="pip_installation.html"><span class="doc">Installation using Isaac Sim Pip Package</span></a></p>
 <ul>
 <li><p>Install Isaac Sim via pip and Isaac Lab from source.</p></li>
 <li><p>Best for beginners and most users.</p></li>
 </ul>
 </li>
-<li><p><a class="reference internal" href="binaries_installation.html"><span class="doc">Installation using Isaac Sim Binaries</span></a></p>
+<li><p><a class="reference internal" href="binaries_installation.html"><span class="doc">Installation using Isaac Sim Pre-built Binaries</span></a></p>
 <ul>
 <li><p>Install Isaac Sim from its binary package (website download).</p></li>
 <li><p>Install Isaac Lab from its source code.</p></li>
 <li><p>Choose this if you prefer not to use pip for Isaac Sim (for instance, on Ubuntu 20.04).</p></li>
 </ul>
 </li>
-<li><p><a class="reference internal" href="source_installation.html"><span class="doc">Installation using Isaac Sim Source</span></a></p>
+<li><p><a class="reference internal" href="source_installation.html"><span class="doc">Installation using Isaac Sim Source Code</span></a></p>
 <ul>
 <li><p>Build Isaac Sim from source.</p></li>
 <li><p>Install Isaac Lab from its source code.</p></li>
 <li><p>Recommended only if you plan to modify Isaac Sim itself.</p></li>
 </ul>
 </li>
-<li><p><a class="reference internal" href="isaaclab_pip_installation.html"><span class="doc">Installing Isaac Lab through Pip</span></a></p>
+<li><p><a class="reference internal" href="isaaclab_pip_installation.html"><span class="doc">Installation using Isaac Lab Pip Packages</span></a></p>
 <ul>
 <li><p>Install Isaac Sim and Isaac Lab as pip packages.</p></li>
 <li><p>Best for advanced users building <strong>external extensions</strong> with custom runner scripts.</p></li>
 <li><p>Note: This does <strong>not</strong> include training or example scripts.</p></li>
+</ul>
+</li>
+<li><p><a class="reference internal" href="../../deployment/index.html#container-deployment"><span class="std std-ref">Container Deployment</span></a></p>
+<ul>
+<li><p>Install Isaac Sim and Isaac Lab in a Docker container.</p></li>
+<li><p>Best for users who want to use Isaac Lab in a containerized environment.</p></li>
 </ul>
 </li>
 </ul>
@@ -847,7 +870,7 @@ or if your deployment environment is offline.</p></li>
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">Installation using Isaac Sim Pip</p>
+        <p class="prev-next-title">Installation using Isaac Sim Pip Package</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>

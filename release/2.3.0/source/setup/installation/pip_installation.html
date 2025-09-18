@@ -9,7 +9,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
 
-    <title>Installation using Isaac Sim Pip &#8212; Isaac Lab Documentation</title>
+    <title>Installation using Isaac Sim Pip Package &#8212; Isaac Lab Documentation</title>
   
   
   
@@ -59,7 +59,7 @@
     <link rel="icon" href="../../../_static/favicon.ico"/>
     <link rel="index" title="Index" href="../../../genindex.html" />
     <link rel="search" title="Search" href="../../../search.html" />
-    <link rel="next" title="Installation using Isaac Sim Binaries" href="binaries_installation.html" />
+    <link rel="next" title="Installation using Isaac Sim Pre-built Binaries" href="binaries_installation.html" />
     <link rel="prev" title="Local Installation" href="index.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
@@ -159,10 +159,10 @@
             <label for="version-select" style="font-weight: bold; display: block;">Version</label>
           </div>
           <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
+            <option value="pip_installation.html" selected>release/2.3.0</option>
             <option value="../../../../../main/source/setup/installation/pip_installation.html" >main</option>
             <option value="../../../../2.1.0/source/setup/installation/pip_installation.html" >release/2.1.0</option>
             <option value="../../../../2.2.0/source/setup/installation/pip_installation.html" >release/2.2.0</option>
-            <option value="pip_installation.html" selected>release/2.3.0</option>
             <option value="../../../../../v2.2.1/source/setup/installation/pip_installation.html" >v2.2.1</option>
             <option value="../../../../../v2.2.0/source/setup/installation/pip_installation.html" >v2.2.0</option>
             <option value="../../../../../v2.1.1/source/setup/installation/pip_installation.html" >v2.1.1</option>
@@ -205,7 +205,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.0.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.1.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -241,20 +241,21 @@
 <ul class="current nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../ecosystem.html">Isaac Lab Ecosystem</a></li>
 <li class="toctree-l1 current active has-children"><a class="reference internal" href="index.html">Local Installation</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
-<li class="toctree-l2 current active"><a class="current reference internal" href="#">Installation using Isaac Sim Pip</a></li>
-<li class="toctree-l2"><a class="reference internal" href="binaries_installation.html">Installation using Isaac Sim Binaries</a></li>
-<li class="toctree-l2"><a class="reference internal" href="source_installation.html">Installation using Isaac Sim Source</a></li>
-<li class="toctree-l2"><a class="reference internal" href="isaaclab_pip_installation.html">Installing Isaac Lab through Pip</a></li>
+<li class="toctree-l2 current active"><a class="current reference internal" href="#">Installation using Isaac Sim Pip Package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="binaries_installation.html">Installation using Isaac Sim Pre-built Binaries</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source_installation.html">Installation using Isaac Sim Source Code</a></li>
+<li class="toctree-l2"><a class="reference internal" href="isaaclab_pip_installation.html">Installation using Isaac Lab Pip Packages</a></li>
 <li class="toctree-l2"><a class="reference internal" href="asset_caching.html">Asset Caching</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../deployment/index.html">Container Deployment</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../deployment/docker.html">Docker Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../deployment/run_docker_example.html">Running an example with Docker</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../deployment/cluster.html">Cluster Guide</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../deployment/cloudxr_teleoperation_cluster.html">Deploying CloudXR Teleoperation on Kubernetes</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../deployment/run_docker_example.html">Running an example with Docker</a></li>
 </ul>
 </details></li>
+<li class="toctree-l1"><a class="reference internal" href="cloud_installation.html">Cloud Deployment</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../refs/reference_architecture/index.html">Reference Architecture</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
@@ -383,7 +384,7 @@
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="cloud_installation.html">Running Isaac Lab in the Cloud</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cloud_installation.html">Cloud Deployment</a></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../policy_deployment/index.html">Sim2Real Deployment of Policies Trained in Isaac Lab</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../policy_deployment/00_hover/hover_policy.html">Training &amp; Deploying HOVER Policy</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../policy_deployment/01_io_descriptors/io_descriptors_101.html">IO Descriptors 101</a></li>
@@ -641,7 +642,7 @@
               
 
 <div id="jb-print-docs-body" class="onlyprint">
-    <h1>Installation using Isaac Sim Pip</h1>
+    <h1>Installation using Isaac Sim Pip Package</h1>
     <!-- Table of contents -->
     <div id="print-main-content">
         <div id="jb-print-toc">
@@ -652,6 +653,8 @@
             <nav aria-label="Page">
                 <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#installing-isaac-sim">Installing Isaac Sim</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#preparing-a-python-environment">Preparing a Python Environment</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#installing-dependencies">Installing dependencies</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#verifying-the-isaac-sim-installation">Verifying the Isaac Sim installation</a></li>
 </ul>
 </li>
@@ -673,55 +676,112 @@
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <section id="installation-using-isaac-sim-pip">
-<span id="isaaclab-pip-installation"></span><h1>Installation using Isaac Sim Pip<a class="headerlink" href="#installation-using-isaac-sim-pip" title="Permalink to this heading">#</a></h1>
-<p>Isaac Lab requires Isaac Sim. This tutorial first installs Isaac Sim from pip, then Isaac Lab from source code.</p>
-<section id="installing-isaac-sim">
-<h2>Installing Isaac Sim<a class="headerlink" href="#installing-isaac-sim" title="Permalink to this heading">#</a></h2>
-<p>From Isaac Sim 4.0 release, it is possible to install Isaac Sim using pip.
-This approach makes it easier to install Isaac Sim without requiring to download the Isaac Sim binaries.
-If you encounter any issues, please report them to the
-<a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com//latest/common/feedback.html">Isaac Sim Forums</a>.</p>
+  <section id="installation-using-isaac-sim-pip-package">
+<span id="isaaclab-pip-installation"></span><h1>Installation using Isaac Sim Pip Package<a class="headerlink" href="#installation-using-isaac-sim-pip-package" title="Permalink to this heading">#</a></h1>
+<p>The following steps first installs Isaac Sim from pip, then Isaac Lab from source code.</p>
 <div class="admonition attention">
 <p class="admonition-title">Attention</p>
 <p>Installing Isaac Sim with pip requires GLIBC 2.35+ version compatibility.
 To check the GLIBC version on your system, use command <code class="docutils literal notranslate"><span class="pre">ldd</span> <span class="pre">--version</span></code>.</p>
-<p>This may pose compatibility issues with some Linux distributions. For instance, Ubuntu 20.04 LTS has GLIBC 2.31
-by default. If you encounter compatibility issues, we recommend following the
-<a class="reference internal" href="binaries_installation.html#isaaclab-binaries-installation"><span class="std std-ref">Isaac Sim Binaries Installation</span></a> approach.</p>
-</div>
-<div class="admonition attention">
-<p class="admonition-title">Attention</p>
-<p>For details on driver requirements, please see the <a class="reference external" href="https://docs.omniverse.nvidia.com/materials-and-rendering/latest/common/technical-requirements.html">Technical Requirements</a> guide!</p>
-<p>On Windows, it may be necessary to <a class="reference external" href="https://learn.microsoft.com/en-us/windows/win32/fileio/maximum-file-path-limitation?tabs=registry#enable-long-paths-in-windows-10-version-1607-and-later">enable long path support</a> to avoid installation errors due to OS limitations.</p>
-</div>
-<div class="admonition attention">
-<p class="admonition-title">Attention</p>
-<p>If you plan to <a class="reference internal" href="../../overview/developer-guide/vs_code.html#setup-vs-code"><span class="std std-ref">Set up Visual Studio Code</span></a> later, we recommend following the
+<p>This may pose compatibility issues with some Linux distributions. For instance, Ubuntu 20.04 LTS
+has GLIBC 2.31 by default. If you encounter compatibility issues, we recommend following the
 <a class="reference internal" href="binaries_installation.html#isaaclab-binaries-installation"><span class="std std-ref">Isaac Sim Binaries Installation</span></a> approach.</p>
 </div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>If you use Conda, we recommend using <a class="reference external" href="https://docs.anaconda.com/miniconda/miniconda-other-installer-links/">Miniconda</a>.</p>
+<p>If you plan to <a class="reference internal" href="../../overview/developer-guide/vs_code.html#setup-vs-code"><span class="std std-ref">Set up Visual Studio Code</span></a> later, we recommend following the
+<a class="reference internal" href="binaries_installation.html#isaaclab-binaries-installation"><span class="std std-ref">Isaac Sim Binaries Installation</span></a> approach.</p>
 </div>
+<section id="installing-isaac-sim">
+<h2>Installing Isaac Sim<a class="headerlink" href="#installing-isaac-sim" title="Permalink to this heading">#</a></h2>
+<p>From Isaac Sim 4.0 onwards, it is possible to install Isaac Sim using pip.
+This approach makes it easier to install Isaac Sim without requiring to download the Isaac Sim binaries.
+If you encounter any issues, please report them to the
+<a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/common/feedback.html">Isaac Sim Forums</a>.</p>
+<div class="admonition attention">
+<p class="admonition-title">Attention</p>
+<p>On Windows, it may be necessary to <a class="reference external" href="https://learn.microsoft.com/en-us/windows/win32/fileio/maximum-file-path-limitation?tabs=registry#enable-long-paths-in-windows-10-version-1607-and-later">enable long path support</a>
+to avoid installation errors due to OS limitations.</p>
+</div>
+<section id="preparing-a-python-environment">
+<h3>Preparing a Python Environment<a class="headerlink" href="#preparing-a-python-environment" title="Permalink to this heading">#</a></h3>
+<p>Creating a dedicated Python environment is <strong>strongly recommended</strong>. It helps:</p>
+<ul class="simple">
+<li><p><strong>Avoid conflicts with system Python</strong> or other projects installed on your machine.</p></li>
+<li><p><strong>Keep dependencies isolated</strong>, so that package upgrades or experiments in other projects
+do not break Isaac Sim.</p></li>
+<li><p><strong>Easily manage multiple environments</strong> for setups with different versions of dependencies.</p></li>
+<li><p><strong>Simplify reproducibility</strong> — the environment contains only the packages needed for the current project,
+making it easier to share setups with colleagues or run on different machines.</p></li>
+</ul>
+<p>You can choose different package managers to create a virtual environment.</p>
+<ul class="simple">
+<li><p><strong>UV</strong>: A modern, fast, and secure package manager for Python.</p></li>
+<li><p><strong>Conda</strong>: A cross-platform, language-agnostic package manager for Python.</p></li>
+<li><p><strong>venv</strong>: The standard library for creating virtual environments in Python.</p></li>
+</ul>
+<div class="admonition caution">
+<p class="admonition-title">Caution</p>
+<p>The Python version of the virtual environment must match the Python version of Isaac Sim.</p>
+<ul class="simple">
+<li><p>For Isaac Sim 5.X, the required Python version is 3.11.</p></li>
+<li><p>For Isaac Sim 4.X, the required Python version is 3.10.</p></li>
+</ul>
+<p>Using a different Python version will result in errors when running Isaac Lab.</p>
+</div>
+<p>The following instructions are for Isaac Sim 5.X, which requires Python 3.11.
+If you wish to install Isaac Sim 4.5, please use modify the instructions accordingly to use Python 3.10.</p>
 <ul>
-<li><p>To use the pip installation approach for Isaac Sim, we recommend first creating a virtual environment.
-Ensure that the python version of the virtual environment is <strong>Python 3.11</strong>.</p>
+<li><p>Create a virtual environment using one of the package managers:</p>
 <div class="sd-tab-set docutils">
 <input checked="checked" id="sd-tab-item-0" name="sd-tab-set-0" type="radio">
 <label class="sd-tab-label" for="sd-tab-item-0">
-conda environment</label><div class="sd-tab-content docutils">
+UV Environment</label><div class="sd-tab-content docutils">
+<p>To install <code class="docutils literal notranslate"><span class="pre">uv</span></code>, please follow the instructions <a class="reference external" href="https://docs.astral.sh/uv/getting-started/installation/">here</a>.
+You can create the Isaac Lab environment using the following commands:</p>
+<div class="sd-tab-set docutils">
+<input checked="checked" id="sd-tab-item-3" name="sd-tab-set-1" type="radio">
+<label class="sd-tab-label" data-sync-group="os" data-sync-id="linux" for="sd-tab-item-3">
+<i class="fa-brands fa-linux"></i> Linux</label><div class="sd-tab-content docutils">
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># create a virtual environment named env_isaaclab with python3.11</span>
+uv<span class="w"> </span>venv<span class="w"> </span>--python<span class="w"> </span><span class="m">3</span>.11<span class="w"> </span>env_isaaclab
+<span class="c1"># activate the virtual environment</span>
+<span class="nb">source</span><span class="w"> </span>env_isaaclab/bin/activate
+</pre></div>
+</div>
+</div>
+<input id="sd-tab-item-4" name="sd-tab-set-1" type="radio">
+<label class="sd-tab-label" data-sync-group="os" data-sync-id="windows" for="sd-tab-item-4">
+<i class="fa-brands fa-windows"></i> Windows</label><div class="sd-tab-content docutils">
+<div class="highlight-batch notranslate"><div class="highlight"><pre><span></span><span class="p">:</span><span class="c1">: create a virtual environment named env_isaaclab with python3.11</span>
+uv venv --python 3.11 env_isaaclab
+<span class="p">:</span><span class="c1">: activate the virtual environment</span>
+env_isaaclab\Scripts\activate
+</pre></div>
+</div>
+</div>
+</div>
+</div>
+<input id="sd-tab-item-1" name="sd-tab-set-0" type="radio">
+<label class="sd-tab-label" for="sd-tab-item-1">
+Conda Environment</label><div class="sd-tab-content docutils">
+<p>To install conda, please follow the instructions <cite>here &lt;https://docs.conda.io/projects/conda/en/latest/user-guide/install/index.html&gt;__</cite>.
+You can create the Isaac Lab environment using the following commands.</p>
+<p>We recommend using <a class="reference external" href="https://www.anaconda.com/docs/getting-started/miniconda/main/">Miniconda</a>,
+since it is light-weight and resource-efficient environment management system.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>create<span class="w"> </span>-n<span class="w"> </span>env_isaaclab<span class="w"> </span><span class="nv">python</span><span class="o">=</span><span class="m">3</span>.11
 conda<span class="w"> </span>activate<span class="w"> </span>env_isaaclab
 </pre></div>
 </div>
 </div>
-<input id="sd-tab-item-1" name="sd-tab-set-0" type="radio">
-<label class="sd-tab-label" for="sd-tab-item-1">
-venv environment</label><div class="sd-tab-content docutils">
+<input id="sd-tab-item-2" name="sd-tab-set-0" type="radio">
+<label class="sd-tab-label" for="sd-tab-item-2">
+venv Environment</label><div class="sd-tab-content docutils">
+<p>To create a virtual environment using the standard library, you can use the
+following commands:</p>
 <div class="sd-tab-set docutils">
-<input checked="checked" id="sd-tab-item-2" name="sd-tab-set-1" type="radio">
-<label class="sd-tab-label" data-sync-group="os" data-sync-id="linux" for="sd-tab-item-2">
+<input checked="checked" id="sd-tab-item-5" name="sd-tab-set-2" type="radio">
+<label class="sd-tab-label" data-sync-group="os" data-sync-id="linux" for="sd-tab-item-5">
 <i class="fa-brands fa-linux"></i> Linux</label><div class="sd-tab-content docutils">
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># create a virtual environment named env_isaaclab with python3.11</span>
 python3.11<span class="w"> </span>-m<span class="w"> </span>venv<span class="w"> </span>env_isaaclab
@@ -730,12 +790,12 @@ python3.11<span class="w"> </span>-m<span class="w"> </span>venv<span class="w">
 </pre></div>
 </div>
 </div>
-<input id="sd-tab-item-3" name="sd-tab-set-1" type="radio">
-<label class="sd-tab-label" data-sync-group="os" data-sync-id="windows" for="sd-tab-item-3">
+<input id="sd-tab-item-6" name="sd-tab-set-2" type="radio">
+<label class="sd-tab-label" data-sync-group="os" data-sync-id="windows" for="sd-tab-item-6">
 <i class="fa-brands fa-windows"></i> Windows</label><div class="sd-tab-content docutils">
-<div class="highlight-batch notranslate"><div class="highlight"><pre><span></span># create a virtual environment named env_isaaclab with python3.11
+<div class="highlight-batch notranslate"><div class="highlight"><pre><span></span><span class="p">:</span><span class="c1">: create a virtual environment named env_isaaclab with python3.11</span>
 python3.11 -m venv env_isaaclab
-# activate the virtual environment
+<span class="p">:</span><span class="c1">: activate the virtual environment</span>
 env_isaaclab\Scripts\activate
 </pre></div>
 </div>
@@ -744,17 +804,18 @@ env_isaaclab\Scripts\activate
 </div>
 </div>
 </li>
-<li><p>Before installing Isaac Sim, ensure the latest pip version is installed. To update pip, run</p>
+<li><p>Ensure the latest pip version is installed. To update pip, run the following command
+from inside the virtual environment:</p>
 <div class="sd-tab-set docutils">
-<input checked="checked" id="sd-tab-item-4" name="sd-tab-set-2" type="radio">
-<label class="sd-tab-label" data-sync-group="os" data-sync-id="linux" for="sd-tab-item-4">
+<input checked="checked" id="sd-tab-item-7" name="sd-tab-set-3" type="radio">
+<label class="sd-tab-label" data-sync-group="os" data-sync-id="linux" for="sd-tab-item-7">
 <i class="fa-brands fa-linux"></i> Linux</label><div class="sd-tab-content docutils">
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>--upgrade<span class="w"> </span>pip
 </pre></div>
 </div>
 </div>
-<input id="sd-tab-item-5" name="sd-tab-set-2" type="radio">
-<label class="sd-tab-label" data-sync-group="os" data-sync-id="windows" for="sd-tab-item-5">
+<input id="sd-tab-item-8" name="sd-tab-set-3" type="radio">
+<label class="sd-tab-label" data-sync-group="os" data-sync-id="windows" for="sd-tab-item-8">
 <i class="fa-brands fa-windows"></i> Windows</label><div class="sd-tab-content docutils">
 <div class="highlight-batch notranslate"><div class="highlight"><pre><span></span>python -m pip install --upgrade pip
 </pre></div>
@@ -762,17 +823,28 @@ env_isaaclab\Scripts\activate
 </div>
 </div>
 </li>
-<li><p>Next, install a CUDA-enabled PyTorch 2.7.0 build.</p>
+</ul>
+</section>
+<section id="installing-dependencies">
+<h3>Installing dependencies<a class="headerlink" href="#installing-dependencies" title="Permalink to this heading">#</a></h3>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>In case you used UV to create your virtual environment, please replace <code class="docutils literal notranslate"><span class="pre">pip</span></code> with <code class="docutils literal notranslate"><span class="pre">uv</span> <span class="pre">pip</span></code>
+in the following commands.</p>
+</div>
+<ul>
+<li><p>Install a CUDA-enabled PyTorch 2.7.0 build for CUDA 12.8:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span><span class="nv">torch</span><span class="o">==</span><span class="m">2</span>.7.0<span class="w"> </span><span class="nv">torchvision</span><span class="o">==</span><span class="m">0</span>.22.0<span class="w"> </span>--index-url<span class="w"> </span>https://download.pytorch.org/whl/cu128
 </pre></div>
 </div>
 </li>
-<li><p>Then, install the Isaac Sim packages.</p>
+<li><p>Install Isaac Sim pip packages:</p>
 <div class="highlight-none notranslate"><div class="highlight"><pre><span></span>pip install &quot;isaacsim[all,extscache]==5.1.0&quot; --extra-index-url https://pypi.nvidia.com
 </pre></div>
 </div>
 </li>
 </ul>
+</section>
 <section id="verifying-the-isaac-sim-installation">
 <h3>Verifying the Isaac Sim installation<a class="headerlink" href="#verifying-the-isaac-sim-installation" title="Permalink to this heading">#</a></h3>
 <ul>
@@ -790,18 +862,18 @@ isaacsim<span class="w"> </span>isaacsim.exp.full.kit
 </div>
 </li>
 </ul>
-<div class="admonition attention">
-<p class="admonition-title">Attention</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
 <p>When running Isaac Sim for the first time, all dependent extensions will be pulled from the registry.
 This process can take upwards of 10 minutes and is required on the first run of each experience file.
 Once the extensions are pulled, consecutive runs using the same experience file will use the cached extensions.</p>
 </div>
 <div class="admonition attention">
 <p class="admonition-title">Attention</p>
-<p>The first run will prompt users to accept the NVIDIA Software License Agreement.
+<p>The first run will prompt users to accept the Nvidia Omniverse License Agreement.
 To accept the EULA, reply <code class="docutils literal notranslate"><span class="pre">Yes</span></code> when prompted with the below message:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>By<span class="w"> </span>installing<span class="w"> </span>or<span class="w"> </span>using<span class="w"> </span>Isaac<span class="w"> </span>Sim,<span class="w"> </span>I<span class="w"> </span>agree<span class="w"> </span>to<span class="w"> </span>the<span class="w"> </span>terms<span class="w"> </span>of<span class="w"> </span>NVIDIA<span class="w"> </span>SOFTWARE<span class="w"> </span>LICENSE<span class="w"> </span>AGREEMENT<span class="w"> </span><span class="o">(</span>EULA<span class="o">)</span>
-<span class="k">in</span><span class="w"> </span>https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-software-license-agreement
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>By<span class="w"> </span>installing<span class="w"> </span>or<span class="w"> </span>using<span class="w"> </span>Isaac<span class="w"> </span>Sim,<span class="w"> </span>I<span class="w"> </span>agree<span class="w"> </span>to<span class="w"> </span>the<span class="w"> </span>terms<span class="w"> </span>of<span class="w"> </span>NVIDIA<span class="w"> </span>OMNIVERSE<span class="w"> </span>LICENSE<span class="w"> </span>AGREEMENT<span class="w"> </span><span class="o">(</span>EULA<span class="o">)</span>
+<span class="k">in</span><span class="w"> </span>https://docs.isaacsim.omniverse.nvidia.com/latest/common/NVIDIA_Omniverse_License_Agreement.html
 
 Do<span class="w"> </span>you<span class="w"> </span>accept<span class="w"> </span>the<span class="w"> </span>EULA?<span class="w"> </span><span class="o">(</span>Yes/No<span class="o">)</span>:<span class="w"> </span>Yes
 </pre></div>
@@ -826,30 +898,29 @@ to the project but this is not mandatory to use the framework. If you
 make a fork, please replace <code class="docutils literal notranslate"><span class="pre">isaac-sim</span></code> with your username
 in the following instructions.</p>
 </div>
-<p>Clone the Isaac Lab repository into your workspace:</p>
+<p>Clone the Isaac Lab repository into your project’s workspace:</p>
 <div class="sd-tab-set docutils">
-<input checked="checked" id="sd-tab-item-6" name="sd-tab-set-3" type="radio">
-<label class="sd-tab-label" for="sd-tab-item-6">
+<input checked="checked" id="sd-tab-item-9" name="sd-tab-set-4" type="radio">
+<label class="sd-tab-label" for="sd-tab-item-9">
 SSH</label><div class="sd-tab-content docutils">
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>git@github.com:isaac-sim/IsaacLab.git
 </pre></div>
 </div>
 </div>
-<input id="sd-tab-item-7" name="sd-tab-set-3" type="radio">
-<label class="sd-tab-label" for="sd-tab-item-7">
+<input id="sd-tab-item-10" name="sd-tab-set-4" type="radio">
+<label class="sd-tab-label" for="sd-tab-item-10">
 HTTPS</label><div class="sd-tab-content docutils">
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/isaac-sim/IsaacLab.git
 </pre></div>
 </div>
 </div>
 </div>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>We provide a helper executable <a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/isaaclab.sh">isaaclab.sh</a> that provides
-utilities to manage extensions:</p>
+<p>We provide a helper executable <a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/isaaclab.sh">isaaclab.sh</a>
+and <a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/isaaclab.bat">isaaclab.bat</a> for Linux and Windows
+respectively that provides utilities to manage extensions.</p>
 <div class="sd-tab-set docutils">
-<input checked="checked" id="sd-tab-item-8" name="sd-tab-set-4" type="radio">
-<label class="sd-tab-label" data-sync-group="os" data-sync-id="linux" for="sd-tab-item-8">
+<input checked="checked" id="sd-tab-item-11" name="sd-tab-set-5" type="radio">
+<label class="sd-tab-label" data-sync-group="os" data-sync-id="linux" for="sd-tab-item-11">
 <i class="fa-brands fa-linux"></i> Linux</label><div class="sd-tab-content docutils">
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh --help
 
@@ -867,11 +938,12 @@ optional arguments:
    -d, --docs           Build the documentation from source using sphinx.
    -n, --new            Create a new external project or internal task from template.
    -c, --conda [NAME]   Create the conda environment for Isaac Lab. Default name is &#39;env_isaaclab&#39;.
+   -u, --uv [NAME]      Create the uv environment for Isaac Lab. Default name is &#39;env_isaaclab&#39;.
 </pre></div>
 </div>
 </div>
-<input id="sd-tab-item-9" name="sd-tab-set-4" type="radio">
-<label class="sd-tab-label" data-sync-group="os" data-sync-id="windows" for="sd-tab-item-9">
+<input id="sd-tab-item-12" name="sd-tab-set-5" type="radio">
+<label class="sd-tab-label" data-sync-group="os" data-sync-id="windows" for="sd-tab-item-12">
 <i class="fa-brands fa-windows"></i> Windows</label><div class="sd-tab-content docutils">
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span>isaaclab.bat --help
 
@@ -888,8 +960,8 @@ optional arguments:
    -d, --docs           Build the documentation from source using sphinx.
    -n, --new            Create a new external project or internal task from template.
    -c, --conda [NAME]   Create the conda environment for Isaac Lab. Default name is &#39;env_isaaclab&#39;.
+   -u, --uv [NAME]      Create the uv environment for Isaac Lab. Default name is &#39;env_isaaclab&#39;.
 </pre></div>
-</div>
 </div>
 </div>
 </div>
@@ -897,60 +969,62 @@ optional arguments:
 <section id="installation">
 <h3>Installation<a class="headerlink" href="#installation" title="Permalink to this heading">#</a></h3>
 <ul>
-<li><p>Install dependencies using <code class="docutils literal notranslate"><span class="pre">apt</span></code> (on Ubuntu):</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>apt<span class="w"> </span>install<span class="w"> </span>cmake<span class="w"> </span>build-essential
+<li><p>Install dependencies using <code class="docutils literal notranslate"><span class="pre">apt</span></code> (on Linux only):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># these dependency are needed by robomimic which is not available on Windows</span>
+sudo<span class="w"> </span>apt<span class="w"> </span>install<span class="w"> </span>cmake<span class="w"> </span>build-essential
 </pre></div>
 </div>
 </li>
 <li><p>Run the install command that iterates over all the extensions in <code class="docutils literal notranslate"><span class="pre">source</span></code> directory and installs them
-using pip (with <code class="docutils literal notranslate"><span class="pre">--editable</span></code> flag):</p></li>
-</ul>
+using pip (with <code class="docutils literal notranslate"><span class="pre">--editable</span></code> flag):</p>
 <div class="sd-tab-set docutils">
-<input checked="checked" id="sd-tab-item-10" name="sd-tab-set-5" type="radio">
-<label class="sd-tab-label" data-sync-group="os" data-sync-id="linux" for="sd-tab-item-10">
+<input checked="checked" id="sd-tab-item-13" name="sd-tab-set-6" type="radio">
+<label class="sd-tab-label" data-sync-group="os" data-sync-id="linux" for="sd-tab-item-13">
 <i class="fa-brands fa-linux"></i> Linux</label><div class="sd-tab-content docutils">
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>--install<span class="w"> </span><span class="c1"># or &quot;./isaaclab.sh -i&quot;</span>
 </pre></div>
 </div>
 </div>
-<input id="sd-tab-item-11" name="sd-tab-set-5" type="radio">
-<label class="sd-tab-label" data-sync-group="os" data-sync-id="windows" for="sd-tab-item-11">
+<input id="sd-tab-item-14" name="sd-tab-set-6" type="radio">
+<label class="sd-tab-label" data-sync-group="os" data-sync-id="windows" for="sd-tab-item-14">
 <i class="fa-brands fa-windows"></i> Windows</label><div class="sd-tab-content docutils">
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>isaaclab.bat<span class="w"> </span>--install<span class="w"> </span>::<span class="w"> </span>or<span class="w"> </span><span class="s2">&quot;isaaclab.bat -i&quot;</span>
+<div class="highlight-batch notranslate"><div class="highlight"><pre><span></span>isaaclab.bat --install :: or <span class="s2">&quot;isaaclab.bat -i&quot;</span>
 </pre></div>
 </div>
 </div>
 </div>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>By default, this will install all the learning frameworks. If you want to install only a specific framework, you can
-pass the name of the framework as an argument. For example, to install only the <code class="docutils literal notranslate"><span class="pre">rl_games</span></code> framework, you can run</p>
+<p>By default, the above will install <strong>all</strong> the learning frameworks. These include
+<code class="docutils literal notranslate"><span class="pre">rl_games</span></code>, <code class="docutils literal notranslate"><span class="pre">rsl_rl</span></code>, <code class="docutils literal notranslate"><span class="pre">sb3</span></code>, <code class="docutils literal notranslate"><span class="pre">skrl</span></code>, <code class="docutils literal notranslate"><span class="pre">robomimic</span></code>.</p>
+<p>If you want to install only a specific framework, you can pass the name of the framework
+as an argument. For example, to install only the <code class="docutils literal notranslate"><span class="pre">rl_games</span></code> framework, you can run:</p>
 <div class="sd-tab-set docutils">
-<input checked="checked" id="sd-tab-item-12" name="sd-tab-set-6" type="radio">
-<label class="sd-tab-label" data-sync-group="os" data-sync-id="linux" for="sd-tab-item-12">
+<input checked="checked" id="sd-tab-item-15" name="sd-tab-set-7" type="radio">
+<label class="sd-tab-label" data-sync-group="os" data-sync-id="linux" for="sd-tab-item-15">
 <i class="fa-brands fa-linux"></i> Linux</label><div class="sd-tab-content docutils">
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>--install<span class="w"> </span>rl_games<span class="w">  </span><span class="c1"># or &quot;./isaaclab.sh -i rl_games&quot;</span>
 </pre></div>
 </div>
 </div>
-<input id="sd-tab-item-13" name="sd-tab-set-6" type="radio">
-<label class="sd-tab-label" data-sync-group="os" data-sync-id="windows" for="sd-tab-item-13">
+<input id="sd-tab-item-16" name="sd-tab-set-7" type="radio">
+<label class="sd-tab-label" data-sync-group="os" data-sync-id="windows" for="sd-tab-item-16">
 <i class="fa-brands fa-windows"></i> Windows</label><div class="sd-tab-content docutils">
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>isaaclab.bat<span class="w"> </span>--install<span class="w"> </span>rl_games<span class="w"> </span>::<span class="w"> </span>or<span class="w"> </span><span class="s2">&quot;isaaclab.bat -i rl_games&quot;</span>
+<div class="highlight-batch notranslate"><div class="highlight"><pre><span></span>isaaclab.bat --install rl_games :: or <span class="s2">&quot;isaaclab.bat -i rl_games&quot;</span>
 </pre></div>
 </div>
 </div>
 </div>
-<p>The valid options are <code class="docutils literal notranslate"><span class="pre">rl_games</span></code>, <code class="docutils literal notranslate"><span class="pre">rsl_rl</span></code>, <code class="docutils literal notranslate"><span class="pre">sb3</span></code>, <code class="docutils literal notranslate"><span class="pre">skrl</span></code>, <code class="docutils literal notranslate"><span class="pre">robomimic</span></code>, <code class="docutils literal notranslate"><span class="pre">none</span></code>.</p>
-</div>
+<p>The valid options are <code class="docutils literal notranslate"><span class="pre">all</span></code>, <code class="docutils literal notranslate"><span class="pre">rl_games</span></code>, <code class="docutils literal notranslate"><span class="pre">rsl_rl</span></code>, <code class="docutils literal notranslate"><span class="pre">sb3</span></code>, <code class="docutils literal notranslate"><span class="pre">skrl</span></code>, <code class="docutils literal notranslate"><span class="pre">robomimic</span></code>,
+and <code class="docutils literal notranslate"><span class="pre">none</span></code>. If <code class="docutils literal notranslate"><span class="pre">none</span></code> is passed, then no learning frameworks will be installed.</p>
+</li>
+</ul>
 </section>
 <section id="verifying-the-isaac-lab-installation">
 <h3>Verifying the Isaac Lab installation<a class="headerlink" href="#verifying-the-isaac-lab-installation" title="Permalink to this heading">#</a></h3>
 <p>To verify that the installation was successful, run the following command from the
 top of the repository:</p>
 <div class="sd-tab-set docutils">
-<input checked="checked" id="sd-tab-item-14" name="sd-tab-set-7" type="radio">
-<label class="sd-tab-label" data-sync-group="os" data-sync-id="linux" for="sd-tab-item-14">
+<input checked="checked" id="sd-tab-item-17" name="sd-tab-set-8" type="radio">
+<label class="sd-tab-label" data-sync-group="os" data-sync-id="linux" for="sd-tab-item-17">
 <i class="fa-brands fa-linux"></i> Linux</label><div class="sd-tab-content docutils">
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Option 1: Using the isaaclab.sh executable</span>
 <span class="c1"># note: this works for both the bundled python and the virtual environment</span>
@@ -961,8 +1035,8 @@ python<span class="w"> </span>scripts/tutorials/00_sim/create_empty.py
 </pre></div>
 </div>
 </div>
-<input id="sd-tab-item-15" name="sd-tab-set-7" type="radio">
-<label class="sd-tab-label" data-sync-group="os" data-sync-id="windows" for="sd-tab-item-15">
+<input id="sd-tab-item-18" name="sd-tab-set-8" type="radio">
+<label class="sd-tab-label" data-sync-group="os" data-sync-id="windows" for="sd-tab-item-18">
 <i class="fa-brands fa-windows"></i> Windows</label><div class="sd-tab-content docutils">
 <div class="highlight-batch notranslate"><div class="highlight"><pre><span></span><span class="p">:</span><span class="c1">: Option 1: Using the isaaclab.bat executable</span>
 <span class="p">:</span><span class="c1">: note: this works for both the bundled python and the virtual environment</span>
@@ -975,28 +1049,33 @@ python scripts\tutorials\00_sim\create_empty.py
 </div>
 </div>
 <p>The above command should launch the simulator and display a window with a black
-viewport as shown below. You can exit the script by pressing <code class="docutils literal notranslate"><span class="pre">Ctrl+C</span></code> on your terminal.
+viewport. You can exit the script by pressing <code class="docutils literal notranslate"><span class="pre">Ctrl+C</span></code> on your terminal.
 On Windows machines, please terminate the process from Command Prompt using
 <code class="docutils literal notranslate"><span class="pre">Ctrl+Break</span></code> or <code class="docutils literal notranslate"><span class="pre">Ctrl+fn+B</span></code>.</p>
 <figure class="align-center" style="width: 100%">
 <img alt="Simulator with a black window." src="../../../_images/verify_install.jpg" />
 </figure>
 <p>If you see this, then the installation was successful! 🎉</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>If you see an error <code class="docutils literal notranslate"><span class="pre">ModuleNotFoundError:</span> <span class="pre">No</span> <span class="pre">module</span> <span class="pre">named</span> <span class="pre">'isaacsim'</span></code>, please ensure that the virtual
+environment is activated and <code class="docutils literal notranslate"><span class="pre">source</span> <span class="pre">_isaac_sim/setup_conda_env.sh</span></code> has been executed (for uv as well).</p>
+</div>
 </section>
 <section id="train-a-robot">
 <h3>Train a robot!<a class="headerlink" href="#train-a-robot" title="Permalink to this heading">#</a></h3>
 <p>You can now use Isaac Lab to train a robot through Reinforcement Learning! The quickest way to use Isaac Lab is through the predefined workflows using one of our <strong>Batteries-included</strong> robot tasks. Execute the following command to quickly train an ant to walk!
 We recommend adding <code class="docutils literal notranslate"><span class="pre">--headless</span></code> for faster training.</p>
 <div class="sd-tab-set docutils">
-<input checked="checked" id="sd-tab-item-16" name="sd-tab-set-8" type="radio">
-<label class="sd-tab-label" data-sync-group="os" data-sync-id="linux" for="sd-tab-item-16">
+<input checked="checked" id="sd-tab-item-19" name="sd-tab-set-9" type="radio">
+<label class="sd-tab-label" data-sync-group="os" data-sync-id="linux" for="sd-tab-item-19">
 <i class="fa-brands fa-linux"></i> Linux</label><div class="sd-tab-content docutils">
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/reinforcement_learning/rsl_rl/train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Ant-v0<span class="w"> </span>--headless
 </pre></div>
 </div>
 </div>
-<input id="sd-tab-item-17" name="sd-tab-set-8" type="radio">
-<label class="sd-tab-label" data-sync-group="os" data-sync-id="windows" for="sd-tab-item-17">
+<input id="sd-tab-item-20" name="sd-tab-set-9" type="radio">
+<label class="sd-tab-label" data-sync-group="os" data-sync-id="windows" for="sd-tab-item-20">
 <i class="fa-brands fa-windows"></i> Windows</label><div class="sd-tab-content docutils">
 <div class="highlight-batch notranslate"><div class="highlight"><pre><span></span>isaaclab.bat -p scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Ant-v0 --headless
 </pre></div>
@@ -1005,15 +1084,15 @@ We recommend adding <code class="docutils literal notranslate"><span class="pre"
 </div>
 <p>… Or a robot dog!</p>
 <div class="sd-tab-set docutils">
-<input checked="checked" id="sd-tab-item-18" name="sd-tab-set-9" type="radio">
-<label class="sd-tab-label" data-sync-group="os" data-sync-id="linux" for="sd-tab-item-18">
+<input checked="checked" id="sd-tab-item-21" name="sd-tab-set-10" type="radio">
+<label class="sd-tab-label" data-sync-group="os" data-sync-id="linux" for="sd-tab-item-21">
 <i class="fa-brands fa-linux"></i> Linux</label><div class="sd-tab-content docutils">
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/reinforcement_learning/rsl_rl/train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Velocity-Rough-Anymal-C-v0<span class="w"> </span>--headless
 </pre></div>
 </div>
 </div>
-<input id="sd-tab-item-19" name="sd-tab-set-9" type="radio">
-<label class="sd-tab-label" data-sync-group="os" data-sync-id="windows" for="sd-tab-item-19">
+<input id="sd-tab-item-22" name="sd-tab-set-10" type="radio">
+<label class="sd-tab-label" data-sync-group="os" data-sync-id="windows" for="sd-tab-item-22">
 <i class="fa-brands fa-windows"></i> Windows</label><div class="sd-tab-content docutils">
 <div class="highlight-batch notranslate"><div class="highlight"><pre><span></span>isaaclab.bat -p scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Velocity-Rough-Anymal-C-v0 --headless
 </pre></div>
@@ -1053,7 +1132,7 @@ We recommend adding <code class="docutils literal notranslate"><span class="pre"
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">Installation using Isaac Sim Binaries</p>
+        <p class="prev-next-title">Installation using Isaac Sim Pre-built Binaries</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>
@@ -1075,6 +1154,8 @@ We recommend adding <code class="docutils literal notranslate"><span class="pre"
   <nav class="bd-toc-nav page-toc">
     <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#installing-isaac-sim">Installing Isaac Sim</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#preparing-a-python-environment">Preparing a Python Environment</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#installing-dependencies">Installing dependencies</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#verifying-the-isaac-sim-installation">Verifying the Isaac Sim installation</a></li>
 </ul>
 </li>
