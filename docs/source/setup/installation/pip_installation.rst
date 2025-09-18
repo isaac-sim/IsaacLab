@@ -1,7 +1,7 @@
 .. _isaaclab-pip-installation:
 
-Installation using Isaac Sim Pip Packages
-=========================================
+Installation using Isaac Sim Pip Package
+========================================
 
 The following steps first installs Isaac Sim from pip, then Isaac Lab from source code.
 
