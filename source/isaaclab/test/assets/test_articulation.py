@@ -1879,7 +1879,6 @@ def test_write_joint_state_data_consistency(sim, num_articulations, device, grav
     rand_joint_vel = vel_dist.sample()
 
     articulation.write_joint_state_to_sim(rand_joint_pos, rand_joint_vel)
-    articulation.root_physx_view.get_jacobians()
     # make sure valued updated
     assert torch.count_nonzero(original_body_states[:, 1:] != articulation.data.body_state_w[:, 1:]) > (
         len(original_body_states[:, 1:]) / 2

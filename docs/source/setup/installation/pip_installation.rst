@@ -1,6 +1,6 @@
 .. _isaaclab-pip-installation:
 
-Installation using Isaac Sim pip
+Installation using Isaac Sim Pip
 ================================
 
 Isaac Lab requires Isaac Sim. This tutorial first installs Isaac Sim from pip, then Isaac Lab from source code.
@@ -371,7 +371,7 @@ On Windows machines, please terminate the process from Command Prompt using
 If you see this, then the installation was successful! |:tada:|
 
 Train a robot!
-~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~
 
 You can now use Isaac Lab to train a robot through Reinforcement Learning! The quickest way to use Isaac Lab is through the predefined workflows using one of our **Batteries-included** robot tasks. Execute the following command to quickly train an ant to walk!
 We recommend adding ``--headless`` for faster training.
