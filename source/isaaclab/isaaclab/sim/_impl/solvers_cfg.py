@@ -162,6 +162,9 @@ class FeatherstoneSolverCfg(NewtonSolverCfg):
     See: https://en.wikipedia.org/wiki/Semi-implicit_Euler_method
     """
 
+    solver_type: str = "featherstone"
+    """Solver type. Can be "featherstone"."""
+
     angular_damping: float = 0.05
     """Angular damping parameter for rigid contact simulation."""
 
