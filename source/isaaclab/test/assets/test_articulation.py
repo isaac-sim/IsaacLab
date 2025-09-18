@@ -2010,9 +2010,16 @@ def test_write_joint_frictions_to_sim(sim, num_articulations, device, add_ground
         articulation.update(sim.cfg.dt)
 
     if int(get_version()[2]) >= 5:
-        assert torch.allclose(articulation.data.joint_dynamic_friction_coeff, dynamic_friction)
-        assert torch.allclose(articulation.data.joint_viscous_friction_coeff, viscous_friction)
-    assert torch.allclose(articulation.data.joint_friction_coeff, friction)
+        friction_props_from_sim = articulation.root_physx_view.get_dof_friction_properties()
+        joint_friction_coeff_sim = friction_props_from_sim[:, :, 0]
+        joint_dynamic_friction_coeff_sim = friction_props_from_sim[:, :, 1]
+        joint_viscous_friction_coeff_sim = friction_props_from_sim[:, :, 2]
+        assert torch.allclose(joint_dynamic_friction_coeff_sim, dynamic_friction)
+        assert torch.allclose(joint_viscous_friction_coeff_sim, viscous_friction)
+    else:
+        joint_friction_coeff_sim = articulation.root_physx_view.get_dof_friction_properties()
+
+    assert torch.allclose(joint_friction_coeff_sim, friction)
 
     # For Isaac Sim >= 5.0: also test the combined API that can set dynamic and viscous via
     # write_joint_friction_coefficient_to_sim; reset the sim to isolate this path.
@@ -2043,10 +2050,16 @@ def test_write_joint_frictions_to_sim(sim, num_articulations, device, add_ground
             sim.step()
             articulation.update(sim.cfg.dt)
 
+
+        friction_props_from_sim_2 = articulation.root_physx_view.get_dof_friction_properties()
+        joint_friction_coeff_sim_2 = friction_props_from_sim_2[:, :, 0]
+        friction_dynamic_coef_sim_2 = friction_props_from_sim_2[:, :, 1]
+        friction_viscous_coeff_sim_2 = friction_props_from_sim_2[:, :, 2]
+
         # Validate values propagated
-        assert torch.allclose(articulation.data.joint_dynamic_friction_coeff, dynamic_friction_2)
-        assert torch.allclose(articulation.data.joint_viscous_friction_coeff, viscous_friction_2)
-        assert torch.allclose(articulation.data.joint_friction_coeff, friction_2)
+        assert torch.allclose(friction_viscous_coeff_sim_2, viscous_friction_2)
+        assert torch.allclose(friction_dynamic_coef_sim_2, dynamic_friction_2)
+        assert torch.allclose(joint_friction_coeff_sim_2, friction_2)
 
 
 if __name__ == "__main__":
