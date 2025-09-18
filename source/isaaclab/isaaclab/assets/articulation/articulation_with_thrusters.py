@@ -84,7 +84,7 @@ class ArticulationWithThrusters(Articulation):
         self._allocation_matrix = torch.tensor(self.cfg.allocation_matrix, device=self.device)
 
         # external forces and torques
-        self.has_external_wrench = True
+        self.has_external_wrench = False
         self.uses_external_wrench_positions = False
         self._external_force_b = torch.zeros((self.num_instances, self.num_bodies, 3), device=self.device)
         self._external_torque_b = torch.zeros_like(self._external_force_b)
@@ -230,24 +230,24 @@ class ArticulationWithThrusters(Articulation):
             We write external wrench to the simulation here since this function is called before the simulation step.
             This ensures that the external wrench is applied at every simulation step.
         """
-        # write external wrench
-        if self.has_external_wrench:
-            if self.uses_external_wrench_positions:
-                self.root_physx_view.apply_forces_and_torques_at_position(
-                    force_data=self._external_force_b.view(-1, 3),
-                    torque_data=self._external_torque_b.view(-1, 3),
-                    position_data=self._external_wrench_positions_b.view(-1, 3),
-                    indices=self._ALL_INDICES,        
-                    is_global=self._use_global_wrench_frame,
-                )
-            else:
-                self.root_physx_view.apply_forces_and_torques_at_position(
-                    force_data=self._external_force_b.view(-1, 3),
-                    torque_data=self._external_torque_b.view(-1, 3),
-                    position_data=None,
-                    indices=self._ALL_INDICES,
-                    is_global=self._use_global_wrench_frame,
-                )
+        # # write external wrench
+        # if self.has_external_wrench:
+        #     if self.uses_external_wrench_positions:
+        #         self.root_physx_view.apply_forces_and_torques_at_position(
+        #             force_data=self._external_force_b.view(-1, 3),
+        #             torque_data=self._external_torque_b.view(-1, 3),
+        #             position_data=self._external_wrench_positions_b.view(-1, 3),
+        #             indices=self._ALL_INDICES,        
+        #             is_global=self._use_global_wrench_frame,
+        #         )
+        #     else:
+        #         self.root_physx_view.apply_forces_and_torques_at_position(
+        #             force_data=self._external_force_b.view(-1, 3),
+        #             torque_data=self._external_torque_b.view(-1, 3),
+        #             position_data=None,
+        #             indices=self._ALL_INDICES,
+        #             is_global=self._use_global_wrench_frame,
+        #         )
 
         # apply actuator models
         self._apply_actuator_model()
@@ -262,11 +262,11 @@ class ArticulationWithThrusters(Articulation):
         
         # print("applying forces: ", self._internal_force_target_sim.view(-1,3))
         # print("applying torques: ", self._internal_torque_target_sim.view(-1,3))
-        #self.root_physx_view.apply_forces_and_torques_at_position(force_data=self._internal_force_target_sim.view(-1,3),
-        #                                                          torque_data = self._internal_torque_target_sim.view(-1,3),
-        #                                                          position_data=None,
-        #                                                          indices = torch.tensor([root_body_id], device=self.device),
-        #                                                          is_global = False)
+        self.root_physx_view.apply_forces_and_torques_at_position(force_data=self._internal_force_target_sim.view(-1,3),
+                                                                 torque_data = self._internal_torque_target_sim.view(-1,3),
+                                                                 position_data=None,
+                                                                 indices = torch.tensor([root_body_id], device=self.device),
+                                                                 is_global = False)
         
         # position and velocity targets only for implicit actuators
         # if self._has_implicit_actuators:
