@@ -30,7 +30,7 @@ from isaacsim.core.simulation_manager import SimulationManager
 from isaacsim.core.utils.carb import get_carb_setting, set_carb_setting
 from isaacsim.core.utils.viewports import set_camera_view
 from isaacsim.core.version import get_version
-from pxr import Gf, PhysxSchema, Usd, UsdPhysics
+from pxr import Gf, PhysxSchema, Usd, UsdPhysics, Sdf
 
 from isaaclab.sim.utils import create_new_stage_in_memory, use_stage
 
@@ -786,6 +786,10 @@ class SimulationContext(_SimulationContext):
         physx_scene_api.CreateGpuCollisionStackSizeAttr(self.cfg.physx.gpu_collision_stack_size)
         # -- Improved determinism by PhysX
         physx_scene_api.CreateEnableEnhancedDeterminismAttr(self.cfg.physx.enable_enhanced_determinism)
+        # -- set solve_articulation_contact_last by creating a prim and add attribute there
+        physx_prim = physx_scene_api.GetPrim()
+        if self.cfg.physx.solve_articulation_contact_last:
+            physx_prim.CreateAttribute("physxScene:solveArticulationContactLast", Sdf.ValueTypeNames.Bool).Set(True)
 
         # -- Gravity
         # note: Isaac sim only takes the "up-axis" as the gravity direction. But physics allows any direction so we

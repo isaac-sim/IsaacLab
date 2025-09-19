@@ -1,6 +1,12 @@
 Changelog
 ---------
 
+0.46.5 (2025-10-14)
+
+* Exposing physxscene: USD attribute "physxscene:solveArticulationContactLast" to isaaclab
+  :class:`~isaaclab.sim.spawners.PhysxCfg`
+
+
 0.46.4 (2025-10-06)
 ~~~~~~~~~~~~~~~~~~~
 
