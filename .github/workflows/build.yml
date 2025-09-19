@@ -10,6 +10,7 @@ on:
     branches:
       - devel
       - main
+      - 'release/**'
 
 # Concurrency control to prevent parallel runs on the same PR
 concurrency:
@@ -74,6 +75,20 @@ jobs:
         path: reports/isaaclab-tasks-report.xml
         retention-days: 1
         compression-level: 9
+
+    - name: Check Test Results for Fork PRs
+      if: github.event.pull_request.head.repo.full_name != github.repository
+      run: |
+        if [ -f "reports/isaaclab-tasks-report.xml" ]; then
+          # Check if the test results contain any failures
+          if grep -q 'failures="[1-9]' reports/isaaclab-tasks-report.xml || grep -q 'errors="[1-9]' reports/isaaclab-tasks-report.xml; then
+            echo "Tests failed for PR from fork. The test report is in the logs. Failing the job."
+            exit 1
+          fi
+        else
+          echo "No test results file found. This might indicate test execution failed."
+          exit 1
+        fi
 
   test-general:
     runs-on: [self-hosted, gpu]
