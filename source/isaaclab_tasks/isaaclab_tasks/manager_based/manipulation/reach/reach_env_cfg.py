@@ -226,5 +226,9 @@ class ReachEnvCfg(ManagerBasedRLEnvCfg):
                     gripper_term=False,
                     sim_device=self.sim.device,
                 ),
+                "phone": Se3PhoneCfg(
+                    gripper_term=False,
+                    sim_device=self.sim.device,
+                ),
             },
         )

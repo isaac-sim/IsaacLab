@@ -332,6 +332,11 @@ class RmpFlowAgibotPlaceToy2BoxEnvCfg(PlaceToy2BoxEnvCfg):
                     rot_sensitivity=0.05,
                     sim_device=self.sim.device,
                 ),
+                "phone": Se3PhoneCfg(
+                    pos_sensitivity=0.05,
+                    rot_sensitivity=0.05,
+                    sim_device=self.sim.device,
+                ),
             }
         )
 
