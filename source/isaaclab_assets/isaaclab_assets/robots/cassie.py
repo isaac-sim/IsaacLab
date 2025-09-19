@@ -23,7 +23,8 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 CASSIE_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/Agility/Cassie/cassie.usd",
+        # usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/Agility/Cassie/cassie.usd",
+        usd_path="omniverse://isaac-dev.ov.nvidia.com/Projects/Robots/Agility/Cassie/cassie.usd",
         activate_contact_sensors=True,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=False,
