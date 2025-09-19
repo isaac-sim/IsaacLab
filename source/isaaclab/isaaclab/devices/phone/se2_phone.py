@@ -160,8 +160,12 @@ class Se2Phone(DeviceBase):
 
             # --- Parse position ---
             p = message.get("position", {})
-            self._latest_v_x = -float(p.get("z", 0.0))
-            self._latest_v_y = -float(p.get("x", 0.0))
+            self._latest_v_x = torch.tensor(
+                [-float(p.get("z", 0.0))], device=self._sim_device, dtype=torch.float32
+            ).unsqueeze(0)
+            self._latest_v_y = torch.tensor(
+                [-float(p.get("x", 0.0))], device=self._sim_device, dtype=torch.float32
+            ).unsqueeze(0)
 
             # --- Parse quaternion (x, y, z, w) and normalize ---
             qd = message.get("orientation", {})

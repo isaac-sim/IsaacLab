@@ -330,66 +330,6 @@ def test_se2phone_constructor(mock_environment, mocker):
     assert torch.allclose(out2, expected, atol=1e-5)
 
 
-"""
-Test OpenXR devices.
-"""
-
-
-def test_openxr_constructors(mock_environment, mocker):
-    """Test constructor for OpenXRDevice."""
-    # Test config-based constructor with custom XrCfg
-    xr_cfg = XrCfg(
-        anchor_pos=(1.0, 2.0, 3.0),
-        anchor_rot=(0.0, 0.1, 0.2, 0.3),
-        near_plane=0.2,
-    )
-    config = OpenXRDeviceCfg(xr_cfg=xr_cfg)
-
-    # Create mock retargeters
-    mock_controller_retargeter = mocker.MagicMock()
-    mock_head_retargeter = mocker.MagicMock()
-    retargeters = [mock_controller_retargeter, mock_head_retargeter]
-
-    device_mod = importlib.import_module("isaaclab.devices.openxr.openxr_device")
-    mocker.patch.dict(
-        "sys.modules",
-        {
-            "carb": mock_environment["carb"],
-            "omni.kit.xr.core": mock_environment["omni"].kit.xr.core,
-            "isaacsim.core.prims": mocker.MagicMock(),
-        },
-    )
-    mocker.patch.object(device_mod, "XRCore", mock_environment["omni"].kit.xr.core.XRCore)
-    mocker.patch.object(device_mod, "XRPoseValidityFlags", mock_environment["omni"].kit.xr.core.XRPoseValidityFlags)
-    mock_single_xform = mocker.patch.object(device_mod, "SingleXFormPrim")
-
-    # Configure the mock to return a string for prim_path
-    mock_instance = mock_single_xform.return_value
-    mock_instance.prim_path = "/XRAnchor"
-
-    # Create the device using the factory
-    device = OpenXRDevice(config)
-
-    # Verify the device was created successfully
-    assert device._xr_cfg == xr_cfg
-
-    # Test with retargeters
-    device = OpenXRDevice(cfg=config, retargeters=retargeters)
-
-    # Verify retargeters were correctly assigned as a list
-    assert device._retargeters == retargeters
-
-    # Test with config and retargeters
-    device = OpenXRDevice(cfg=config, retargeters=retargeters)
-
-    # Verify both config and retargeters were correctly assigned
-    assert device._xr_cfg == xr_cfg
-    assert device._retargeters == retargeters
-
-    # Test reset functionality
-    device.reset()
-
-
 def test_se3phone_constructor(mocker):
     """Test constructor and delta-output behavior for Se3Phone."""
 
@@ -482,6 +422,66 @@ def test_se3phone_constructor(mocker):
     expected3 = torch.zeros(7, dtype=torch.float32, device=out3.device)
     expected3[6] = -1.0
     assert torch.allclose(out3, expected3, atol=1e-6)
+
+
+"""
+Test OpenXR devices.
+"""
+
+
+def test_openxr_constructors(mock_environment, mocker):
+    """Test constructor for OpenXRDevice."""
+    # Test config-based constructor with custom XrCfg
+    xr_cfg = XrCfg(
+        anchor_pos=(1.0, 2.0, 3.0),
+        anchor_rot=(0.0, 0.1, 0.2, 0.3),
+        near_plane=0.2,
+    )
+    config = OpenXRDeviceCfg(xr_cfg=xr_cfg)
+
+    # Create mock retargeters
+    mock_controller_retargeter = mocker.MagicMock()
+    mock_head_retargeter = mocker.MagicMock()
+    retargeters = [mock_controller_retargeter, mock_head_retargeter]
+
+    device_mod = importlib.import_module("isaaclab.devices.openxr.openxr_device")
+    mocker.patch.dict(
+        "sys.modules",
+        {
+            "carb": mock_environment["carb"],
+            "omni.kit.xr.core": mock_environment["omni"].kit.xr.core,
+            "isaacsim.core.prims": mocker.MagicMock(),
+        },
+    )
+    mocker.patch.object(device_mod, "XRCore", mock_environment["omni"].kit.xr.core.XRCore)
+    mocker.patch.object(device_mod, "XRPoseValidityFlags", mock_environment["omni"].kit.xr.core.XRPoseValidityFlags)
+    mock_single_xform = mocker.patch.object(device_mod, "SingleXFormPrim")
+
+    # Configure the mock to return a string for prim_path
+    mock_instance = mock_single_xform.return_value
+    mock_instance.prim_path = "/XRAnchor"
+
+    # Create the device using the factory
+    device = OpenXRDevice(config)
+
+    # Verify the device was created successfully
+    assert device._xr_cfg == xr_cfg
+
+    # Test with retargeters
+    device = OpenXRDevice(cfg=config, retargeters=retargeters)
+
+    # Verify retargeters were correctly assigned as a list
+    assert device._retargeters == retargeters
+
+    # Test with config and retargeters
+    device = OpenXRDevice(cfg=config, retargeters=retargeters)
+
+    # Verify both config and retargeters were correctly assigned
+    assert device._xr_cfg == xr_cfg
+    assert device._retargeters == retargeters
+
+    # Test reset functionality
+    device.reset()
 
 
 """
