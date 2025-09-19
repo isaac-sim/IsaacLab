@@ -5,7 +5,7 @@ License
 
 NVIDIA Isaac Sim is available freely under `individual license
 <https://www.nvidia.com/en-us/omniverse/download/>`_. For more information
-about its license terms, please check `here <https://www.nvidia.com/en-us/agreements/enterprise-software/product-specific-terms-for-omniverse/>`_ 
+about its license terms, please check `here <https://www.nvidia.com/en-us/agreements/enterprise-software/product-specific-terms-for-omniverse/>`_
 and `here <https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-software-license-agreement/>`_ .
 The license files for all its dependencies and included assets are available in its
 `documentation <https://docs.isaacsim.omniverse.nvidia.com/latest/common/licenses.html>`_.
