@@ -159,10 +159,10 @@
             <label for="version-select" style="font-weight: bold; display: block;">Version</label>
           </div>
           <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
+            <option value="add_new_robot.html" selected>release/2.3.0</option>
             <option value="../../../../../main/source/tutorials/01_assets/add_new_robot.html" >main</option>
             <option value="../../../../2.1.0/index.html" >release/2.1.0</option>
             <option value="../../../../2.2.0/source/tutorials/01_assets/add_new_robot.html" >release/2.2.0</option>
-            <option value="add_new_robot.html" selected>release/2.3.0</option>
             <option value="../../../../../v2.2.1/source/tutorials/01_assets/add_new_robot.html" >v2.2.1</option>
             <option value="../../../../../v2.2.0/source/tutorials/01_assets/add_new_robot.html" >v2.2.0</option>
             <option value="../../../../../v2.1.1/source/tutorials/01_assets/add_new_robot.html" >v2.1.1</option>
@@ -205,7 +205,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.0.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.1.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -668,7 +668,7 @@
   <section id="adding-a-new-robot-to-isaac-lab">
 <span id="tutorial-add-new-robot"></span><h1>Adding a New Robot to Isaac Lab<a class="headerlink" href="#adding-a-new-robot-to-isaac-lab" title="Permalink to this heading">#</a></h1>
 <p>Simulating and training a new robot is a multi-step process that starts with importing the robot into Isaac Sim.
-This is covered in depth in the Isaac Sim documentation <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/robot_setup/importers_exporters.html">here</a>.
+This is covered in depth in the Isaac Sim documentation <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/importer_exporter/importers_exporters.html">here</a>.
 Once the robot is imported and tuned for simulation, we must define those interfaces necessary to clone the robot across multiple environments, drive its joints,
 and properly reset it, regardless of the chosen workflow or training framework.</p>
 <p>In this tutorial, we will examine how to add a new robot to Isaac Lab. The key step is creating an <code class="docutils literal notranslate"><span class="pre">AssetBaseCfg</span></code> that defines

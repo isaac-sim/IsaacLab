@@ -161,10 +161,10 @@
             <label for="version-select" style="font-weight: bold; display: block;">Version</label>
           </div>
           <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
+            <option value="isaaclab.sim.converters.html" selected>release/2.3.0</option>
             <option value="../../../../../main/source/api/lab/isaaclab.sim.converters.html" >main</option>
             <option value="../../../../2.1.0/source/api/lab/isaaclab.sim.converters.html" >release/2.1.0</option>
             <option value="../../../../2.2.0/source/api/lab/isaaclab.sim.converters.html" >release/2.2.0</option>
-            <option value="isaaclab.sim.converters.html" selected>release/2.3.0</option>
             <option value="../../../../../v2.2.1/source/api/lab/isaaclab.sim.converters.html" >v2.2.1</option>
             <option value="../../../../../v2.2.0/source/api/lab/isaaclab.sim.converters.html" >v2.2.0</option>
             <option value="../../../../../v2.1.1/source/api/lab/isaaclab.sim.converters.html" >v2.1.1</option>
@@ -207,7 +207,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.0.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.1.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -1006,7 +1006,7 @@ what is typically used in all learning related applications.</p>
 instancing and physics work. The rigid body component must be added to each instance and not the
 referenced asset (i.e. the prototype prim itself). This is because the rigid body component defines
 properties that are specific to each instance and cannot be shared under the referenced asset. For
-more information, please check the <a class="reference external" href="https://docs.omniverse.nvidia.com/extensions/latest/ext_physics/rigid-bodies.html#instancing-rigid-bodies">documentation</a>.</p>
+more information, please check the <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/physics/simulation_fundamentals.html#rigid-body">documentation</a>.</p>
 <p>Due to the above, we follow the following structure:</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">{prim_path}</span></code> - The root prim that is an Xform with the rigid body and mass APIs if configured.</p></li>

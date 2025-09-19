@@ -161,10 +161,10 @@
             <label for="version-select" style="font-weight: bold; display: block;">Version</label>
           </div>
           <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
+            <option value="isaaclab.sensors.html" selected>release/2.3.0</option>
             <option value="../../../../../main/source/api/lab/isaaclab.sensors.html" >main</option>
             <option value="../../../../2.1.0/source/api/lab/isaaclab.sensors.html" >release/2.1.0</option>
             <option value="../../../../2.2.0/source/api/lab/isaaclab.sensors.html" >release/2.2.0</option>
-            <option value="isaaclab.sensors.html" selected>release/2.3.0</option>
             <option value="../../../../../v2.2.1/source/api/lab/isaaclab.sensors.html" >v2.2.1</option>
             <option value="../../../../../v2.2.0/source/api/lab/isaaclab.sensors.html" >v2.2.0</option>
             <option value="../../../../../v2.1.1/source/api/lab/isaaclab.sensors.html" >v2.1.1</option>
@@ -207,7 +207,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.0.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.1.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -2507,7 +2507,7 @@ in the asset.</p>
 filter pattern using the <a class="reference internal" href="#isaaclab.sensors.ContactSensorCfg.filter_prim_paths_expr" title="isaaclab.sensors.ContactSensorCfg.filter_prim_paths_expr"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ContactSensorCfg.filter_prim_paths_expr</span></code></a>. This is useful
 when you want to report the contact forces between the sensor bodies and a specific set of
 bodies in the scene. The data can be accessed using the <a class="reference internal" href="#isaaclab.sensors.ContactSensorData.force_matrix_w" title="isaaclab.sensors.ContactSensorData.force_matrix_w"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ContactSensorData.force_matrix_w</span></code></a>.
-Please check the documentation on <a class="reference external" href="https://docs.omniverse.nvidia.com/py/isaacsim/source/isaacsim.core/docs/index.html#isaacsim.core.prims.RigidContact">RigidContact</a> for more details.</p>
+Please check the documentation on <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/py/source/extensions/isaacsim.core.api/docs/index.html#isaacsim.core.api.sensors.RigidContactView">RigidContact</a> for more details.</p>
 <p>The reporting of the filtered contact forces is only possible as one-to-many. This means that only one
 sensor body in an environment can be filtered against multiple bodies in that environment. If you need to
 filter multiple sensor bodies against multiple bodies, you need to create separate sensors for each sensor

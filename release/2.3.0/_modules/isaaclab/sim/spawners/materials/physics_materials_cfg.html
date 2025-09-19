@@ -158,10 +158,10 @@
             <label for="version-select" style="font-weight: bold; display: block;">Version</label>
           </div>
           <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
+            <option value="physics_materials_cfg.html" selected>release/2.3.0</option>
             <option value="../../../../../../../main/index.html" >main</option>
             <option value="../../../../../../2.1.0/index.html" >release/2.1.0</option>
             <option value="../../../../../../2.2.0/index.html" >release/2.2.0</option>
-            <option value="physics_materials_cfg.html" selected>release/2.3.0</option>
             <option value="../../../../../../../v2.2.1/index.html" >v2.2.1</option>
             <option value="../../../../../../../v2.2.0/index.html" >v2.2.0</option>
             <option value="../../../../../../../v2.1.1/index.html" >v2.1.1</option>
@@ -204,7 +204,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.0.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.1.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -622,10 +622,6 @@
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Physics material parameters for rigid bodies.</span>
 
 <span class="sd">    See :meth:`spawn_rigid_body_material` for more information.</span>
-
-<span class="sd">    Note:</span>
-<span class="sd">        The default values are the `default values used by PhysX 5</span>
-<span class="sd">        &lt;https://docs.omniverse.nvidia.com/extensions/latest/ext_physics/rigid-bodies.html#rigid-body-materials&gt;`__.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">func</span><span class="p">:</span> <span class="n">Callable</span> <span class="o">=</span> <span class="n">physics_materials</span><span class="o">.</span><span class="n">spawn_rigid_body_material</span>
@@ -680,9 +676,6 @@
 
 <span class="sd">    See :meth:`spawn_deformable_body_material` for more information.</span>
 
-<span class="sd">    Note:</span>
-<span class="sd">        The default values are the `default values used by PhysX 5</span>
-<span class="sd">        &lt;https://docs.omniverse.nvidia.com/extensions/latest/ext_physics/deformable-bodies.html#deformable-body-material&gt;`__.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">func</span><span class="p">:</span> <span class="n">Callable</span> <span class="o">=</span> <span class="n">physics_materials</span><span class="o">.</span><span class="n">spawn_deformable_body_material</span>

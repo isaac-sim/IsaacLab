@@ -159,10 +159,10 @@
             <label for="version-select" style="font-weight: bold; display: block;">Version</label>
           </div>
           <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
+            <option value="population_based_training.html" selected>release/2.3.0</option>
             <option value="../../../../main/source/features/population_based_training.html" >main</option>
             <option value="../../../2.1.0/index.html" >release/2.1.0</option>
             <option value="../../../2.2.0/index.html" >release/2.2.0</option>
-            <option value="population_based_training.html" selected>release/2.3.0</option>
             <option value="../../../../v2.2.1/index.html" >v2.2.1</option>
             <option value="../../../../v2.2.0/index.html" >v2.2.0</option>
             <option value="../../../../v2.1.1/index.html" >v2.1.1</option>
@@ -205,7 +205,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.0.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.1.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -721,7 +721,7 @@
 <span class="w">  </span><span class="nt">num_policies</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8</span>
 <span class="w">  </span><span class="nt">directory</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">.</span>
 <span class="w">  </span><span class="nt">workspace</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;pbt_workspace&quot;</span>
-<span class="w">  </span><span class="nt">objective</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Curriculum/difficulty_level</span>
+<span class="w">  </span><span class="nt">objective</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">episode.Curriculum/difficulty_level</span>
 <span class="w">  </span><span class="nt">interval_steps</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">50000000</span>
 <span class="w">  </span><span class="nt">threshold_std</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.1</span>
 <span class="w">  </span><span class="nt">threshold_abs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.025</span>
@@ -738,9 +738,9 @@
 <span class="w">    </span><span class="nt">agent.params.config.tau</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;mutate_discount&quot;</span>
 </pre></div>
 </div>
-<p><code class="docutils literal notranslate"><span class="pre">objective:</span> <span class="pre">Curriculum/difficulty_level</span></code> uses <code class="docutils literal notranslate"><span class="pre">infos[&quot;episode&quot;][&quot;Curriculum/difficulty_level&quot;]</span></code> as the scalar to
-<strong>rank policies</strong> (higher is better).  With <code class="docutils literal notranslate"><span class="pre">num_policies:</span> <span class="pre">8</span></code>, launch eight processes sharing the same <code class="docutils literal notranslate"><span class="pre">workspace</span></code>
-and unique <code class="docutils literal notranslate"><span class="pre">policy_idx</span></code> (0-7).</p>
+<p><code class="docutils literal notranslate"><span class="pre">objective:</span> <span class="pre">episode.Curriculum/difficulty_level</span></code> is the dotted expression that uses
+<code class="docutils literal notranslate"><span class="pre">infos[&quot;episode&quot;][&quot;Curriculum/difficulty_level&quot;]</span></code> as the scalar to <strong>rank policies</strong> (higher is better).
+With <code class="docutils literal notranslate"><span class="pre">num_policies:</span> <span class="pre">8</span></code>, launch eight processes sharing the same <code class="docutils literal notranslate"><span class="pre">workspace</span></code> and unique <code class="docutils literal notranslate"><span class="pre">policy_idx</span></code> (0-7).</p>
 </section>
 <section id="launching-pbt">
 <h2>Launching PBT<a class="headerlink" href="#launching-pbt" title="Permalink to this heading">#</a></h2>

@@ -161,10 +161,10 @@
             <label for="version-select" style="font-weight: bold; display: block;">Version</label>
           </div>
           <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
+            <option value="isaaclab.sensors.patterns.html" selected>release/2.3.0</option>
             <option value="../../../../../main/source/api/lab/isaaclab.sensors.patterns.html" >main</option>
             <option value="../../../../2.1.0/source/api/lab/isaaclab.sensors.patterns.html" >release/2.1.0</option>
             <option value="../../../../2.2.0/source/api/lab/isaaclab.sensors.patterns.html" >release/2.2.0</option>
-            <option value="isaaclab.sensors.patterns.html" selected>release/2.3.0</option>
             <option value="../../../../../v2.2.1/source/api/lab/isaaclab.sensors.patterns.html" >v2.2.1</option>
             <option value="../../../../../v2.2.0/source/api/lab/isaaclab.sensors.patterns.html" >v2.2.0</option>
             <option value="../../../../../v2.1.1/source/api/lab/isaaclab.sensors.patterns.html" >v2.1.1</option>
@@ -207,7 +207,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.0.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.1.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -1025,7 +1025,7 @@ The matrix is defined as [f_x, 0, c_x, 0, f_y, c_y, 0, 0, 1]. Shape is (9,).</p>
 <dt class="sig sig-object py" id="isaaclab.sensors.patterns.bpearl_pattern">
 <span class="sig-prename descclassname"><span class="pre">isaaclab.sensors.patterns.</span></span><span class="sig-name descname"><span class="pre">bpearl_pattern</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#isaaclab.sensors.patterns.BpearlPatternCfg" title="isaaclab.sensors.ray_caster.patterns.patterns_cfg.BpearlPatternCfg"><span class="pre">patterns_cfg.BpearlPatternCfg</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">device</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.8)"><span class="pre">torch.Tensor</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.8)"><span class="pre">torch.Tensor</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#isaaclab.sensors.patterns.bpearl_pattern" title="Permalink to this definition">#</a></dt>
 <dd><p>The RS-Bpearl pattern for ray casting.</p>
-<p>The <a class="reference external" href="https://www.roscomponents.com/en/lidar-laser-scanner/267-rs-bpearl.html">Robosense RS-Bpearl</a> is a short-range LiDAR that has a 360 degrees x 90 degrees super wide
+<p>The <a class="reference external" href="https://www.roscomponents.com/product/rs-bpearl/">Robosense RS-Bpearl</a> is a short-range LiDAR that has a 360 degrees x 90 degrees super wide
 field of view. It is designed for near-field blind-spots detection.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>

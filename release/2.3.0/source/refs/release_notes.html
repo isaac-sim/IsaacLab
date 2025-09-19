@@ -159,10 +159,10 @@
             <label for="version-select" style="font-weight: bold; display: block;">Version</label>
           </div>
           <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
+            <option value="release_notes.html" selected>release/2.3.0</option>
             <option value="../../../../main/source/refs/release_notes.html" >main</option>
             <option value="../../../2.1.0/source/refs/release_notes.html" >release/2.1.0</option>
             <option value="../../../2.2.0/source/refs/release_notes.html" >release/2.2.0</option>
-            <option value="release_notes.html" selected>release/2.3.0</option>
             <option value="../../../../v2.2.1/source/refs/release_notes.html" >v2.2.1</option>
             <option value="../../../../v2.2.0/source/refs/release_notes.html" >v2.2.0</option>
             <option value="../../../../v2.1.1/source/refs/release_notes.html" >v2.1.1</option>
@@ -205,7 +205,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.0.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.1.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -2139,12 +2139,12 @@ Isaac Sim 4.0.0 version for the latest features and improvements.</p>
 <ul class="simple">
 <li><p>Integrated CI/CD pipeline, which is triggered on pull requests and publishes the results publicly</p></li>
 <li><p>Extended support for Windows OS platforms</p></li>
-<li><p>Added <a class="reference external" href="https://isaac-sim.github.io/IsaacLab/source/features/tiled_rendering.html">tiled rendered</a> based Camera
+<li><p>Added tiled render based Camera
 sensor implementation. This provides optimized RGB-D rendering throughputs of up to 10k frames per second.</p></li>
 <li><p>Added support for multi-GPU and multi-node training for the RL-Games library</p></li>
 <li><p>Integrated APIs for environment designing (direct workflow) without relying on managers</p></li>
 <li><p>Added implementation of delayed PD actuator model</p></li>
-<li><p><a class="reference external" href="https://isaac-sim.github.io/IsaacLab/main/source/features/environments.html">Added various new learning environments</a>:
+<li><p>Added various new learning environments:
 * Cartpole balancing using images
 * Shadow hand cube reorientation
 * Boston Dynamics Spot locomotion
