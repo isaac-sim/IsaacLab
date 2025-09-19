@@ -6,3 +6,4 @@
 """Phone device for SE(2) and SE(3) control."""
 
 from .se3_phone import Se3Phone, Se3PhoneCfg
+from .se2_phone import Se2Phone, Se2PhoneCfg
