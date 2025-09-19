@@ -60,6 +60,7 @@ class Se2Phone(DeviceBase):
         The official documentation for the phone interface: `Phone Interface <TODO: add package link>`__.
 
     """
+
     def __init__(self, cfg: Se2PhoneCfg):
         """Initialize the phone layer.
 

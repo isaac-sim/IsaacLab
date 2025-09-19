@@ -68,6 +68,7 @@ class Se3Phone(DeviceBase):
         The official documentation for the keyboard interface: `Carb Keyboard Interface <https://docs.omniverse.nvidia.com/dev-guide/latest/programmer_ref/input-devices/keyboard.html>`__.
 
     """
+
     def __init__(self, cfg: Se3PhoneCfg):
         """Initialize the phone layer.
 
