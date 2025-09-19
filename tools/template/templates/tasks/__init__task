@@ -15,9 +15,9 @@ from . import agents
 gym.register(
     id="{{ task.id }}",
 {% if task.workflow.name == "direct" %}
-    entry_point=f"{__name__}.{{ task.filename }}_env:{{ task.classname }}Env",
+    vector_entry_point=f"{__name__}.{{ task.filename }}_env:{{ task.classname }}Env",
 {% else %}
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    vector_entry_point="isaaclab.envs:ManagerBasedRLEnv",
 {% endif %}
     disable_env_checker=True,
     kwargs={

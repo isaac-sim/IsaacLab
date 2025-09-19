@@ -21,7 +21,7 @@ from . import agents
 
 gym.register(
     id="Isaac-Cartpole-Showcase-Box-Box-Direct-v0",
-    entry_point=f"{__name__}.cartpole_env:CartpoleShowcaseEnv",
+    vector_entry_point=f"{__name__}.cartpole_env:CartpoleShowcaseEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.cartpole_env_cfg:BoxBoxEnvCfg",
@@ -31,7 +31,7 @@ gym.register(
 
 gym.register(
     id="Isaac-Cartpole-Showcase-Box-Discrete-Direct-v0",
-    entry_point=f"{__name__}.cartpole_env:CartpoleShowcaseEnv",
+    vector_entry_point=f"{__name__}.cartpole_env:CartpoleShowcaseEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.cartpole_env_cfg:BoxDiscreteEnvCfg",
@@ -41,7 +41,7 @@ gym.register(
 
 gym.register(
     id="Isaac-Cartpole-Showcase-Box-MultiDiscrete-Direct-v0",
-    entry_point=f"{__name__}.cartpole_env:CartpoleShowcaseEnv",
+    vector_entry_point=f"{__name__}.cartpole_env:CartpoleShowcaseEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.cartpole_env_cfg:BoxMultiDiscreteEnvCfg",
@@ -55,7 +55,7 @@ gym.register(
 
 gym.register(
     id="Isaac-Cartpole-Showcase-Discrete-Box-Direct-v0",
-    entry_point=f"{__name__}.cartpole_env:CartpoleShowcaseEnv",
+    vector_entry_point=f"{__name__}.cartpole_env:CartpoleShowcaseEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.cartpole_env_cfg:DiscreteBoxEnvCfg",
@@ -65,7 +65,7 @@ gym.register(
 
 gym.register(
     id="Isaac-Cartpole-Showcase-Discrete-Discrete-Direct-v0",
-    entry_point=f"{__name__}.cartpole_env:CartpoleShowcaseEnv",
+    vector_entry_point=f"{__name__}.cartpole_env:CartpoleShowcaseEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.cartpole_env_cfg:DiscreteDiscreteEnvCfg",
@@ -75,7 +75,7 @@ gym.register(
 
 gym.register(
     id="Isaac-Cartpole-Showcase-Discrete-MultiDiscrete-Direct-v0",
-    entry_point=f"{__name__}.cartpole_env:CartpoleShowcaseEnv",
+    vector_entry_point=f"{__name__}.cartpole_env:CartpoleShowcaseEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.cartpole_env_cfg:DiscreteMultiDiscreteEnvCfg",
@@ -89,7 +89,7 @@ gym.register(
 
 gym.register(
     id="Isaac-Cartpole-Showcase-MultiDiscrete-Box-Direct-v0",
-    entry_point=f"{__name__}.cartpole_env:CartpoleShowcaseEnv",
+    vector_entry_point=f"{__name__}.cartpole_env:CartpoleShowcaseEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.cartpole_env_cfg:MultiDiscreteBoxEnvCfg",
@@ -99,7 +99,7 @@ gym.register(
 
 gym.register(
     id="Isaac-Cartpole-Showcase-MultiDiscrete-Discrete-Direct-v0",
-    entry_point=f"{__name__}.cartpole_env:CartpoleShowcaseEnv",
+    vector_entry_point=f"{__name__}.cartpole_env:CartpoleShowcaseEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.cartpole_env_cfg:MultiDiscreteDiscreteEnvCfg",
@@ -109,7 +109,7 @@ gym.register(
 
 gym.register(
     id="Isaac-Cartpole-Showcase-MultiDiscrete-MultiDiscrete-Direct-v0",
-    entry_point=f"{__name__}.cartpole_env:CartpoleShowcaseEnv",
+    vector_entry_point=f"{__name__}.cartpole_env:CartpoleShowcaseEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.cartpole_env_cfg:MultiDiscreteMultiDiscreteEnvCfg",
@@ -123,7 +123,7 @@ gym.register(
 
 gym.register(
     id="Isaac-Cartpole-Showcase-Dict-Box-Direct-v0",
-    entry_point=f"{__name__}.cartpole_env:CartpoleShowcaseEnv",
+    vector_entry_point=f"{__name__}.cartpole_env:CartpoleShowcaseEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.cartpole_env_cfg:DictBoxEnvCfg",
@@ -133,7 +133,7 @@ gym.register(
 
 gym.register(
     id="Isaac-Cartpole-Showcase-Dict-Discrete-Direct-v0",
-    entry_point=f"{__name__}.cartpole_env:CartpoleShowcaseEnv",
+    vector_entry_point=f"{__name__}.cartpole_env:CartpoleShowcaseEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.cartpole_env_cfg:DictDiscreteEnvCfg",
@@ -143,7 +143,7 @@ gym.register(
 
 gym.register(
     id="Isaac-Cartpole-Showcase-Dict-MultiDiscrete-Direct-v0",
-    entry_point=f"{__name__}.cartpole_env:CartpoleShowcaseEnv",
+    vector_entry_point=f"{__name__}.cartpole_env:CartpoleShowcaseEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.cartpole_env_cfg:DictMultiDiscreteEnvCfg",
@@ -157,7 +157,7 @@ gym.register(
 
 gym.register(
     id="Isaac-Cartpole-Showcase-Tuple-Box-Direct-v0",
-    entry_point=f"{__name__}.cartpole_env:CartpoleShowcaseEnv",
+    vector_entry_point=f"{__name__}.cartpole_env:CartpoleShowcaseEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.cartpole_env_cfg:TupleBoxEnvCfg",
@@ -167,7 +167,7 @@ gym.register(
 
 gym.register(
     id="Isaac-Cartpole-Showcase-Tuple-Discrete-Direct-v0",
-    entry_point=f"{__name__}.cartpole_env:CartpoleShowcaseEnv",
+    vector_entry_point=f"{__name__}.cartpole_env:CartpoleShowcaseEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.cartpole_env_cfg:TupleDiscreteEnvCfg",
@@ -177,7 +177,7 @@ gym.register(
 
 gym.register(
     id="Isaac-Cartpole-Showcase-Tuple-MultiDiscrete-Direct-v0",
-    entry_point=f"{__name__}.cartpole_env:CartpoleShowcaseEnv",
+    vector_entry_point=f"{__name__}.cartpole_env:CartpoleShowcaseEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.cartpole_env_cfg:TupleMultiDiscreteEnvCfg",

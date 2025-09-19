@@ -36,7 +36,7 @@ from .ui import ViewportCameraController
 from .utils.spaces import sample_space, spec_to_gym_space
 
 
-class DirectMARLEnv(gym.Env):
+class DirectMARLEnv(gym.vector.VectorEnv):
     """The superclass for the direct workflow to design multi-agent environments.
 
     This class implements the core functionality for multi-agent reinforcement learning (MARL)
@@ -45,9 +45,6 @@ class DirectMARLEnv(gym.Env):
     in parallel with multiple sub-environments.
 
     The design of this class is based on the PettingZoo Parallel API.
-    While the environment itself is implemented as a vectorized environment, we do not
-    inherit from :class:`pettingzoo.ParallelEnv` or :class:`gym.vector.VectorEnv`. This is mainly
-    because the class adds various attributes and methods that are inconsistent with them.
 
     Note:
         For vectorized environments, it is recommended to **only** call the :meth:`reset`
