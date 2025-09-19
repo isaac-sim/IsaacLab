@@ -57,12 +57,12 @@ class ComprehensiveBenchmark:
 
         # Define task configurations
         self.task_configs = {
-            # # Camera-enabled task
-            # "Isaac-Navigation-Flat-Anymal-C-v0": {
-            #     "enable_cameras": True,
-            #     "env_counts": [1024, 2048, 4096],
-            #     "training_scripts": ["rsl_rl"],
-            # },
+            # Camera-enabled task
+            "Isaac-Navigation-Flat-Anymal-C-v0": {
+                "enable_cameras": True,
+                "env_counts": [1024, 2048, 4096],
+                "training_scripts": ["rsl_rl"],
+            },
             # Non-camera tasks
             "Isaac-Dexsuite-Kuka-Allegro-Reorient-v0": {
                 "enable_cameras": False,
