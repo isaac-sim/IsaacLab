@@ -18,7 +18,6 @@ It then runs three different benchmarks:
 """Launch Isaac Sim Simulator first."""
 
 import argparse
-import math
 import numpy as np
 import os
 import platform
@@ -27,6 +26,8 @@ import torch
 
 import pandas as pd
 
+from local_utils import dataframe_to_markdown
+
 from isaaclab.app import AppLauncher
 
 # add argparse arguments
@@ -34,26 +35,16 @@ parser = argparse.ArgumentParser(description="Benchmark ray caster sensors.")
 parser.add_argument("--steps", type=int, default=2000, help="Steps per resolution for timing.")
 parser.add_argument("--warmup", type=int, default=50, help="Warmup steps before timing.")
 
-NUM_ASSETS_MEMORY = [1, 2, 4, 8, 16, 32]  # Num assets for benchmarking memory usage with and without caching.
-NUM_ASSETS = [
-    0,
-    1,
-    2,
-    4,
-    8,
-    16,
-    32,
-    64,
-    128,
-]  # Num assets for benchmarking scaling performance. of multi-mesh ray caster.
-NUM_ENVS = [32, 64, 128, 256, 512, 1024, 2048, 4096]  # Num envs for benchmarking single vs multi mesh ray caster.
-MESH_SUBDIVISIONS = [0, 1, 2, 3, 4, 5, 6]  # Num subdivisions for benchmarking mesh complexity.
-RESOLUTIONS: list[float] = [
-    0.2,
-    0.1,
-    0.05,
-    0.015,
-]  # Different ray caster resolutions to benchmark. Num rays will be (5 / res)^2, e.g. 625, 2500, 10000, 11111
+# Num assets for benchmarking memory usage with and without caching.
+NUM_ASSETS_MEMORY = [1, 2, 4, 8, 16, 32]  
+ # Num assets for benchmarking scaling performance. of multi-mesh ray caster.
+NUM_ASSETS = [0, 1, 2, 4, 8, 16, 32, 64, 128]
+# Num envs for benchmarking single vs multi mesh ray caster. 
+NUM_ENVS = [32, 64, 128, 256, 512, 1024, 2048, 4096]  
+# Num subdivisions for benchmarking mesh complexity.
+MESH_SUBDIVISIONS = [0, 1, 2, 3, 4, 5, 6]
+# Different ray caster resolutions to benchmark. Num rays will be (5 / res)^2, e.g. 625, 2500, 10000, 11111 
+RESOLUTIONS: list[float] = [0.2, 0.1, 0.05, 0.015]  
 
 # # TINY for debugging
 # NUM_ASSETS_MEMORY = [1, 2]  # Num assets for benchmarking memory usage with and without caching.
@@ -240,60 +231,6 @@ def _run_benchmark(scene_cfg: RayCasterBenchmarkSceneCfg, sensor_name: str):
         "avg_memory": float(avg_memory),
         "num_meshes": len(np.unique([m.id for m in sensor.meshes.values()])),
     }
-
-
-def dataframe_to_markdown(
-    df: pd.DataFrame, index: bool = True, floatfmt: str | None = ".3f", nan_rep: str = "", align: str = "left"
-) -> str:
-    """
-    Convert a pandas DataFrame to a Markdown table (no extra deps).
-    - index: include the index as the first column
-    - floatfmt: e.g. '.2f' for floats; set None to use str() directly
-    - nan_rep: string to show for NaNs/None
-    - align: 'left' | 'center' | 'right'
-    """
-
-    def _fmt(x):
-        if x is None or (isinstance(x, float) and math.isnan(x)):
-            return nan_rep
-        if isinstance(x, float) and floatfmt is not None:
-            return format(x, floatfmt)
-        return str(x)
-
-    def _esc(s: str) -> str:
-        # Escape pipes so they don't break the Markdown table
-        return s.replace("|", r"\|")
-
-    # Build header and rows
-    headers = [str(c) for c in df.columns]
-    rows = [[_fmt(v) for v in row] for row in df.to_numpy().tolist()]
-
-    if index:
-        headers = [df.index.name or ""] + headers
-        idx_col = [str(i) for i in df.index.tolist()]
-        rows = [[idx] + r for idx, r in zip(idx_col, rows)]
-
-    # Compute column widths
-    cols = list(zip(*([headers] + rows))) if headers else []
-    widths = [max(len(_esc(h)), *(len(_esc(cell)) for cell in col)) for h, col in zip(headers, cols)]
-
-    # Alignment rule
-    def rule(w):
-        if align == "right":
-            return "-" * (w - 1) + ":"
-        if align == "center":
-            return ":" + "-" * (w - 2 if w > 2 else 1) + ":"
-        return ":" + "-" * (w - 1)  # left
-
-    # Build markdown lines
-    def fmt_row(cells):
-        return "| " + " | ".join(_esc(c).ljust(w) for c, w in zip(cells, widths)) + " |"
-
-    header_line = fmt_row(headers)
-    sep_line = "| " + " | ".join(rule(w) for w in widths) + " |"
-    body_lines = [fmt_row(r) for r in rows]
-
-    return "\n".join([header_line, sep_line, *body_lines])
 
 
 def main():
