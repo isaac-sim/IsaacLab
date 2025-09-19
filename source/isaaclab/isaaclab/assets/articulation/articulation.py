@@ -1374,12 +1374,14 @@ class Articulation(AssetBase):
         # log joint information
         self._log_articulation_info()
 
-        self._root_newton_view.set_root_transforms(
-            NewtonManager.get_state_0(), self._data.default_root_state[:, :7], mask=self._mask
-        )
-        self._root_newton_view.set_root_transforms(
-            NewtonManager.get_model(), self._data.default_root_state[:, :7], mask=self._mask
-        )
+        # Moves the articulation to its default pose before the solver is initialized
+        generated_pose = self._data.default_root_state[:, :7].clone()
+        generated_pose[:, 3:] = math_utils.convert_quat(generated_pose[:, 3:], to="xyzw")
+        generated_pose[:, :2] += wp.to_torch(self._root_newton_view.get_root_transforms(NewtonManager.get_model()))[
+            :, :2
+        ]
+        self._root_newton_view.set_root_transforms(NewtonManager.get_state_0(), generated_pose, mask=self._ALL_INDICES)
+        self._root_newton_view.set_root_transforms(NewtonManager.get_model(), generated_pose, mask=self._ALL_INDICES)
 
     def _create_buffers(self):
         # constants
