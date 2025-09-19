@@ -49,7 +49,7 @@ Example Config
      num_policies: 8
      directory: .
      workspace: "pbt_workspace"
-     objective: Curriculum/difficulty_level
+     objective: episode.Curriculum/difficulty_level
      interval_steps: 50000000
      threshold_std: 0.1
      threshold_abs: 0.025
@@ -66,9 +66,9 @@ Example Config
        agent.params.config.tau: "mutate_discount"
 
 
-``objective: Curriculum/difficulty_level`` uses ``infos["episode"]["Curriculum/difficulty_level"]`` as the scalar to
-**rank policies** (higher is better).  With ``num_policies: 8``, launch eight processes sharing the same ``workspace``
-and unique ``policy_idx`` (0-7).
+``objective: episode.Curriculum/difficulty_level`` is the dotted expression that uses
+``infos["episode"]["Curriculum/difficulty_level"]`` as the scalar to **rank policies** (higher is better).
+With ``num_policies: 8``, launch eight processes sharing the same ``workspace`` and unique ``policy_idx`` (0-7).
 
 
 Launching PBT
