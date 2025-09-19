@@ -13,8 +13,8 @@ simulation_app = AppLauncher(headless=True).app
 """Rest everything follows."""
 
 import importlib
-import torch
 import numpy as np
+import torch
 
 import pytest
 
@@ -26,16 +26,16 @@ from isaaclab.devices import (
     Se2GamepadCfg,
     Se2Keyboard,
     Se2KeyboardCfg,
-    Se2SpaceMouse,
-    Se2SpaceMouseCfg,
     Se2Phone,
     Se2PhoneCfg,
-    Se3Phone,
-    Se3PhoneCfg,
+    Se2SpaceMouse,
+    Se2SpaceMouseCfg,
     Se3Gamepad,
     Se3GamepadCfg,
     Se3Keyboard,
     Se3KeyboardCfg,
+    Se3Phone,
+    Se3PhoneCfg,
     Se3SpaceMouse,
     Se3SpaceMouseCfg,
 )
@@ -265,6 +265,7 @@ def test_se3spacemouse_constructors(mock_environment, mocker):
     assert isinstance(result, torch.Tensor)
     assert result.shape == (7,)  # (pos_x, pos_y, pos_z, rot_x, rot_y, rot_z, gripper)
 
+
 """
 Test phone devices.
 """
@@ -328,6 +329,7 @@ def test_se2phone_constructor(mock_environment, mocker):
     assert out2.shape == (3,)
     assert torch.allclose(out2, expected, atol=1e-5)
 
+
 """
 Test OpenXR devices.
 """
@@ -387,8 +389,10 @@ def test_openxr_constructors(mock_environment, mocker):
     # Test reset functionality
     device.reset()
 
+
 def test_se3phone_constructor(mocker):
     """Test constructor and delta-output behavior for Se3Phone."""
+
     # --- Fake Teleop that captures the callback and lets us emit messages ---
     class _FakeTeleop:
         def __init__(self, **kwargs):
@@ -478,6 +482,7 @@ def test_se3phone_constructor(mocker):
     expected3 = torch.zeros(7, dtype=torch.float32, device=out3.device)
     expected3[6] = -1.0
     assert torch.allclose(out3, expected3, atol=1e-6)
+
 
 """
 Test teleop device factory.
