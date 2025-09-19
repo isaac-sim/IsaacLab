@@ -39,23 +39,41 @@ class Se3PhoneCfg(DeviceCfg):
 
 
 class Se3Phone(DeviceBase):
-    """Phone-based SE(3) teleop device.
+    """A keyboard controller for sending SE(3) commands as delta poses and binary command (open/close).
 
-    Returns a 7D tensor on `advance()`:
-        [dx, dy, dz, droll, dpitch, dyaw, gripper]
-    where the first 6 are *relative* deltas since the last frame (meters, radians)
-    and `gripper` is in {-1.0, +1.0} (close/open).
+    This class is designed to provide a keyboard controller for a robotic arm with a gripper.
+    It uses the Omniverse keyboard interface to listen to keyboard events and map them to robot's
+    task-space commands.
 
-    Notes
-    -----
-    - The device listens to a background `teleop.Teleop` server, which streams a 4x4
-      end-effector target pose (in some chosen reference frame) and a message dict.
-    - When the message indicates the move gate is OFF, the deltas are zeroed but
-      the gripper command is still emitted from the message.
+    The command comprises of two parts:
+
+    * delta pose: a 6D vector of (x, y, z, roll, pitch, yaw) in meters and radians.
+    * gripper: a binary command to open or close the gripper.
+
+    Key bindings:
+        ============================== ================= =================
+        Description                    Key (+ve axis)    Key (-ve axis)
+        ============================== ================= =================
+        Toggle gripper (open/close)    K
+        Move along x-axis              W                 S
+        Move along y-axis              A                 D
+        Move along z-axis              Q                 E
+        Rotate along x-axis            Z                 X
+        Rotate along y-axis            T                 G
+        Rotate along z-axis            C                 V
+        ============================== ================= =================
+
+    .. seealso::
+
+        The official documentation for the keyboard interface: `Carb Keyboard Interface <https://docs.omniverse.nvidia.com/dev-guide/latest/programmer_ref/input-devices/keyboard.html>`__.
+
     """
-
     def __init__(self, cfg: Se3PhoneCfg):
+        """Initialize the phone layer.
 
+        Args:
+            cfg: Configuration object for keyboard settings.
+        """
         if Teleop is None:
             raise ImportError(
                 "teleop is not available. Install it first (e.g., `pip install teleop`)."
