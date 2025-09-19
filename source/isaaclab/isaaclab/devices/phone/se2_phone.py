@@ -101,7 +101,7 @@ class Se2Phone(DeviceBase):
         msg += "\tMove in Y plane: Pull/Pull your phone left/right\n"
         msg += "\tRotate in Z axis: Twist your phone left/right"
         return msg
-    
+
     def reset(self) -> None:
         self._prev_v_x = None
         self._prev_v_y = None

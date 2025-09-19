@@ -106,7 +106,7 @@ class Se3Phone(DeviceBase):
         msg += "\tRotate arm along y-axis: Tilt your phone forward/backward\n"
         msg += "\tRotate arm along z-axis: Twist your phone left/right"
         return msg
-    
+
     def reset(self) -> None:
         self._prev_pos = None
         self._prev_rot = None
