@@ -43,7 +43,55 @@ def randomize_rigid_body_scale(
 
 class randomize_rigid_body_material(ManagerTermBase):
     def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):
-        raise NotImplementedError("Not implemented")
+        """Initialize the term.
+
+        Args:
+            cfg: The configuration of the event term.
+            env: The environment instance.
+
+        Raises:
+            ValueError: If the asset is not an Articulation.
+        """
+        super().__init__(cfg, env)
+
+        # extract the used quantities (to enable type-hinting)
+        self.asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
+        self.asset: Articulation = env.scene[self.asset_cfg.name]
+
+        if not isinstance(self.asset, (Articulation)):
+            raise ValueError(
+                f"Randomization term 'randomize_rigid_body_material' not supported for asset: '{self.asset_cfg.name}'"
+                f" with type: '{type(self.asset)}'."
+            )
+
+        # obtain number of shapes per body (needed for indexing the material properties correctly)
+        # note: this is a workaround since the Articulation does not provide a direct way to obtain the number of shapes
+        #  per body. We use the physics simulation view to obtain the number of shapes per body.
+        self.num_shapes_per_body = None
+        if isinstance(self.asset, Articulation) and self.asset_cfg.body_ids != slice(None):
+            self.num_shapes_per_body = []
+            for shapes in self.asset.root_newton_view.body_shapes:
+                self.num_shapes_per_body.append(len(shapes))
+
+        # obtain parameters for sampling friction and restitution values
+        static_friction_range = cfg.params.get("static_friction_range", (1.0, 1.0))
+        dynamic_friction_range = cfg.params.get("dynamic_friction_range", (1.0, 1.0))
+        restitution_range = cfg.params.get("restitution_range", (0.0, 0.0))
+        num_buckets = int(cfg.params.get("num_buckets", 1))
+
+        # sample material properties from the given ranges
+        # note: we only sample the materials once during initialization
+        #   afterwards these are randomly assigned to the geometries of the asset
+        range_list = [static_friction_range, dynamic_friction_range, restitution_range]
+        ranges = torch.tensor(range_list, device=self.asset.device)
+        self.material_buckets = math_utils.sample_uniform(
+            ranges[:, 0], ranges[:, 1], (num_buckets, 3), device=self.asset.device
+        )
+
+        # ensure dynamic friction is always less than static friction
+        make_consistent = cfg.params.get("make_consistent", False)
+        if make_consistent:
+            self.material_buckets[:, 1] = torch.min(self.material_buckets[:, 0], self.material_buckets[:, 1])
 
     def __call__(
         self,
@@ -56,7 +104,46 @@ class randomize_rigid_body_material(ManagerTermBase):
         asset_cfg: SceneEntityCfg,
         make_consistent: bool = False,
     ):
-        raise NotImplementedError("Not implemented")
+
+        # resolve environment ids
+        if env_ids is None:
+            env_ids = torch.arange(env.scene.num_envs, device="cpu")
+        else:
+            env_ids = env_ids.cpu()
+        # retrieve material buffer from the physics simulation
+        # materials = self.asset.root_physx_view.get_material_properties()
+        material_mu = wp.to_torch(
+            self.asset.root_newton_view.get_attribute("shape_material_mu", self.asset.root_newton_model)
+        ).clone()
+        # randomly assign material IDs to the geometries
+        total_num_shapes = material_mu.shape[1]
+        bucket_ids = torch.randint(0, num_buckets, (len(env_ids), total_num_shapes), device=self.asset.device)
+        material_samples = self.material_buckets[bucket_ids]
+        # print("material_mu before update:\n", material_mu.shape, material_mu)
+        # update material buffer with new samples
+        if self.num_shapes_per_body is not None:
+            # sample material properties from the given ranges
+            for body_id in self.asset_cfg.body_ids:
+                # obtain indices of shapes for the body
+                start_idx = sum(self.num_shapes_per_body[:body_id])
+                end_idx = start_idx + self.num_shapes_per_body[body_id]
+                # assign the new materials
+                # material samples are of shape: num_env_ids x total_num_shapes x 3
+                material_mu[env_ids, start_idx:end_idx] = material_samples[:, start_idx:end_idx, 0]
+        else:
+            # assign all the materials
+            material_mu[env_ids, :] = material_samples[:, :, 0]
+
+        # apply to simulation
+        mask = torch.zeros((env.scene.num_envs,), dtype=torch.bool, device=env.device)
+        mask[env_ids] = True
+        self.asset.root_newton_view.set_attribute(
+            "shape_material_mu", self.asset.root_newton_model, wp.from_torch(material_mu), mask=mask
+        )
+        NewtonManager._solver.notify_model_changed(SolverNotifyFlags.SHAPE_PROPERTIES)
+
+        # material_mu = wp.to_torch(self.asset.root_newton_view.get_attribute("shape_material_mu", self.asset.root_newton_model)).clone()
+        # print("material_mu after update:\n", material_mu.shape, material_mu)
 
 
 def randomize_rigid_body_mass(
