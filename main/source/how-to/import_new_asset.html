@@ -64,7 +64,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.2.1" />
-    <meta name="docbuild:last-update" content="Sep 18, 2025"/>
+    <meta name="docbuild:last-update" content="Sep 19, 2025"/>
   </head>
   
   
@@ -702,10 +702,10 @@ loaded into memory multiple times, which can cause performance issues.
 For more details on instanceable assets, please check the Isaac Sim <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/isaac_lab_tutorials/tutorial_instanceable_assets.html">documentation</a>.</p>
 <section id="using-urdf-importer">
 <h2>Using URDF Importer<a class="headerlink" href="#using-urdf-importer" title="Permalink to this heading">#</a></h2>
-<p>For using the URDF importer in the GUI, please check the documentation at <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/robot_setup/import_urdf.html">URDF importer</a>. For using the URDF importer from Python scripts, we include a utility tool called <code class="docutils literal notranslate"><span class="pre">convert_urdf.py</span></code>. This script creates an instance of <a class="reference internal" href="../api/lab/isaaclab.sim.converters.html#isaaclab.sim.converters.UrdfConverterCfg" title="isaaclab.sim.converters.UrdfConverterCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">UrdfConverterCfg</span></code></a> which
+<p>For using the URDF importer in the GUI, please check the documentation at <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/importer_exporter/ext_isaacsim_asset_importer_urdf.html">URDF importer</a>. For using the URDF importer from Python scripts, we include a utility tool called <code class="docutils literal notranslate"><span class="pre">convert_urdf.py</span></code>. This script creates an instance of <a class="reference internal" href="../api/lab/isaaclab.sim.converters.html#isaaclab.sim.converters.UrdfConverterCfg" title="isaaclab.sim.converters.UrdfConverterCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">UrdfConverterCfg</span></code></a> which
 is then passed to the <a class="reference internal" href="../api/lab/isaaclab.sim.converters.html#isaaclab.sim.converters.UrdfConverter" title="isaaclab.sim.converters.UrdfConverter"><code class="xref py py-class docutils literal notranslate"><span class="pre">UrdfConverter</span></code></a> class.</p>
 <p>The URDF importer has various configuration parameters that can be set to control the behavior of the importer.
-The default values for the importer’s configuration parameters are specified are in the <a class="reference internal" href="../api/lab/isaaclab.sim.converters.html#isaaclab.sim.converters.UrdfConverterCfg" title="isaaclab.sim.converters.UrdfConverterCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">UrdfConverterCfg</span></code></a> class, and they are listed below. We made a few commonly modified settings to be available as command-line arguments when calling the <code class="docutils literal notranslate"><span class="pre">convert_urdf.py</span></code>, and they are marked with <code class="docutils literal notranslate"><span class="pre">*</span></code> in the list. For a comprehensive list of the configuration parameters, please check the the documentation at <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/robot_setup/import_urdf.html">URDF importer</a>.</p>
+The default values for the importer’s configuration parameters are specified are in the <a class="reference internal" href="../api/lab/isaaclab.sim.converters.html#isaaclab.sim.converters.UrdfConverterCfg" title="isaaclab.sim.converters.UrdfConverterCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">UrdfConverterCfg</span></code></a> class, and they are listed below. We made a few commonly modified settings to be available as command-line arguments when calling the <code class="docutils literal notranslate"><span class="pre">convert_urdf.py</span></code>, and they are marked with <code class="docutils literal notranslate"><span class="pre">*</span></code> in the list. For a comprehensive list of the configuration parameters, please check the the documentation at <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/importer_exporter/ext_isaacsim_asset_importer_urdf.html">URDF importer</a>.</p>
 <ul class="simple">
 <li><p><a class="reference internal" href="../api/lab/isaaclab.sim.converters.html#isaaclab.sim.converters.UrdfConverterCfg.fix_base" title="isaaclab.sim.converters.UrdfConverterCfg.fix_base"><code class="xref py py-attr docutils literal notranslate"><span class="pre">fix_base</span></code></a> * - Whether to fix the base of the robot.
 This depends on whether you have a floating-base or fixed-base robot. The command-line flag is
@@ -804,14 +804,14 @@ exit the script after the conversion is complete.</p>
 <section id="using-mjcf-importer">
 <h2>Using MJCF Importer<a class="headerlink" href="#using-mjcf-importer" title="Permalink to this heading">#</a></h2>
 <p>Similar to the URDF Importer, the MJCF Importer also has a GUI interface. Please check the documentation at
-<a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/robot_setup/import_mjcf.html">MJCF importer</a> for more details. For using the MJCF importer from Python scripts, we include a utility tool
+<a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/importer_exporter/ext_isaacsim_asset_importer_mjcf.html">MJCF importer</a> for more details. For using the MJCF importer from Python scripts, we include a utility tool
 called <code class="docutils literal notranslate"><span class="pre">convert_mjcf.py</span></code>. This script creates an instance of <a class="reference internal" href="../api/lab/isaaclab.sim.converters.html#isaaclab.sim.converters.MjcfConverterCfg" title="isaaclab.sim.converters.MjcfConverterCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">MjcfConverterCfg</span></code></a>
 which is then passed to the <a class="reference internal" href="../api/lab/isaaclab.sim.converters.html#isaaclab.sim.converters.MjcfConverter" title="isaaclab.sim.converters.MjcfConverter"><code class="xref py py-class docutils literal notranslate"><span class="pre">MjcfConverter</span></code></a> class.</p>
 <p>The default values for the importer’s configuration parameters are specified in the
 <a class="reference internal" href="../api/lab/isaaclab.sim.converters.html#isaaclab.sim.converters.MjcfConverterCfg" title="isaaclab.sim.converters.MjcfConverterCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">MjcfConverterCfg</span></code></a> class. The configuration parameters are listed below.
 We made a few commonly modified settings to be available as command-line arguments when calling the
 <code class="docutils literal notranslate"><span class="pre">convert_mjcf.py</span></code>, and they are marked with <code class="docutils literal notranslate"><span class="pre">*</span></code> in the list. For a comprehensive list of the configuration
-parameters, please check the the documentation at <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/robot_setup/import_mjcf.html">MJCF importer</a>.</p>
+parameters, please check the the documentation at <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/importer_exporter/ext_isaacsim_asset_importer_mjcf.html">MJCF importer</a>.</p>
 <ul class="simple">
 <li><p><code class="xref py py-attr docutils literal notranslate"><span class="pre">fix_base*</span></code> - Whether to fix the base of the robot.
 This depends on whether you have a floating-base or fixed-base robot. The command-line flag is
@@ -1039,7 +1039,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Sep 18, 2025.
+  Last updated on Sep 19, 2025.
   <br/>
 </p>
   </div>

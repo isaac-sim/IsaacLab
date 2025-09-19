@@ -66,7 +66,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.2.1" />
-    <meta name="docbuild:last-update" content="Sep 18, 2025"/>
+    <meta name="docbuild:last-update" content="Sep 19, 2025"/>
   </head>
   
   
@@ -4971,11 +4971,6 @@ in which case this is set to identity.</p></li>
 world unit is Meter s.t. all of these values are set in cm.</p>
 </dd>
 </dl>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>The default values are taken from the <a class="reference external" href="https://docs.omniverse.nvidia.com/py/replicator/1.9.8/source/omni.replicator.core/docs/API.html#omni.replicator.core.create.camera">Replicator camera</a>
-function.</p>
-</div>
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
@@ -6246,7 +6241,7 @@ the physically-based rendering (PBR) model, which is a set of equations that des
 interacts with a surface. The PBR model is used to create realistic-looking materials.</p>
 <p>While MDL is primarily used for defining the appearance of objects, it can be extended to define
 the physical properties of objects. For example, the friction and restitution coefficients of a
-rubber material. A <a class="reference external" href="https://docs.omniverse.nvidia.com/extensions/latest/ext_physics/simulation-control/physics-settings.html#physics-materials">physics material</a> can be assigned to a physics object to
+rubber material. A <a class="reference external" href="https://isaac-sim.github.io/IsaacLab/main/source/api/lab/isaaclab.sim.html#isaaclab.sim.SimulationCfg.physics_material">physics material</a> can be assigned to a physics object to
 define its physical properties.  There are different kinds of physics materials, such as rigid body
 material, deformable material, and fluid material.</p>
 <p>In order to apply a material to an object, we “bind” the geometry of the object to the material.
@@ -6611,10 +6606,6 @@ then the asset is spawned at all the matching prim paths.</p></li>
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab.sim.spawners.materials.</span></span><span class="sig-name descname"><span class="pre">RigidBodyMaterialCfg</span></span><a class="reference internal" href="../../../_modules/isaaclab/sim/spawners/materials/physics_materials_cfg.html#RigidBodyMaterialCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.sim.spawners.materials.RigidBodyMaterialCfg" title="Permalink to this definition">#</a></dt>
 <dd><p>Physics material parameters for rigid bodies.</p>
 <p>See <a class="reference internal" href="#isaaclab.sim.spawners.materials.spawn_rigid_body_material" title="isaaclab.sim.spawners.materials.spawn_rigid_body_material"><code class="xref py py-meth docutils literal notranslate"><span class="pre">spawn_rigid_body_material()</span></code></a> for more information.</p>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>The default values are the <a class="reference external" href="https://docs.omniverse.nvidia.com/extensions/latest/ext_physics/rigid-bodies.html#rigid-body-materials">default values used by PhysX 5</a>.</p>
-</div>
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
@@ -6735,10 +6726,6 @@ then the asset is spawned at all the matching prim paths.</p></li>
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab.sim.spawners.materials.</span></span><span class="sig-name descname"><span class="pre">DeformableBodyMaterialCfg</span></span><a class="reference internal" href="../../../_modules/isaaclab/sim/spawners/materials/physics_materials_cfg.html#DeformableBodyMaterialCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.sim.spawners.materials.DeformableBodyMaterialCfg" title="Permalink to this definition">#</a></dt>
 <dd><p>Physics material parameters for deformable bodies.</p>
 <p>See <a class="reference internal" href="#isaaclab.sim.spawners.materials.spawn_deformable_body_material" title="isaaclab.sim.spawners.materials.spawn_deformable_body_material"><code class="xref py py-meth docutils literal notranslate"><span class="pre">spawn_deformable_body_material()</span></code></a> for more information.</p>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>The default values are the <a class="reference external" href="https://docs.omniverse.nvidia.com/extensions/latest/ext_physics/deformable-bodies.html#deformable-body-material">default values used by PhysX 5</a>.</p>
-</div>
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
@@ -7849,7 +7836,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Sep 18, 2025.
+  Last updated on Sep 19, 2025.
   <br/>
 </p>
   </div>

@@ -451,7 +451,7 @@ Generate the dataset
 ^^^^^^^^^^^^^^^^^^^^
 
 If you skipped the prior collection and annotation step, download the pre-recorded annotated dataset ``dataset_annotated_gr1.hdf5`` from
-here: `[Annotated GR1 Dataset] <https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.0/Isaac/IsaacLab/Mimic/pick_place_datasets/dataset_annotated_gr1_v01.hdf5>`_.
+here: `[Annotated GR1 Dataset] <https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.0/Isaac/IsaacLab/Mimic/pick_place_datasets/dataset_annotated_gr1.hdf5>`_.
 Place the file under ``IsaacLab/datasets`` and run the following command to generate a new dataset with 1000 demonstrations.
 
 .. code:: bash
@@ -573,7 +573,7 @@ Follow the same data collection, annotation, and generation process as demonstra
 
 
 If you skipped the prior collection and annotation step, download the pre-recorded annotated dataset ``dataset_annotated_g1_locomanip.hdf5`` from
-here: `[Annotated G1 Dataset] <https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.0/Isaac/IsaacLab/Mimic/pick_place_datasets/dataset_annotated_g1_locomanip_v01.hdf5>`_.
+here: `[Annotated G1 Dataset] <https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.0/Isaac/IsaacLab/Mimic/pick_place_datasets/dataset_annotated_g1_locomanip.hdf5>`_.
 Place the file under ``IsaacLab/datasets`` and run the following command to generate a new dataset with 1000 demonstrations.
 
 .. code:: bash

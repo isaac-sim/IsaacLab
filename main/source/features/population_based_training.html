@@ -64,7 +64,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.2.1" />
-    <meta name="docbuild:last-update" content="Sep 18, 2025"/>
+    <meta name="docbuild:last-update" content="Sep 19, 2025"/>
   </head>
   
   
@@ -721,7 +721,7 @@
 <span class="w">  </span><span class="nt">num_policies</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8</span>
 <span class="w">  </span><span class="nt">directory</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">.</span>
 <span class="w">  </span><span class="nt">workspace</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;pbt_workspace&quot;</span>
-<span class="w">  </span><span class="nt">objective</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Curriculum/difficulty_level</span>
+<span class="w">  </span><span class="nt">objective</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">episode.Curriculum/difficulty_level</span>
 <span class="w">  </span><span class="nt">interval_steps</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">50000000</span>
 <span class="w">  </span><span class="nt">threshold_std</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.1</span>
 <span class="w">  </span><span class="nt">threshold_abs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.025</span>
@@ -738,9 +738,9 @@
 <span class="w">    </span><span class="nt">agent.params.config.tau</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;mutate_discount&quot;</span>
 </pre></div>
 </div>
-<p><code class="docutils literal notranslate"><span class="pre">objective:</span> <span class="pre">Curriculum/difficulty_level</span></code> uses <code class="docutils literal notranslate"><span class="pre">infos[&quot;episode&quot;][&quot;Curriculum/difficulty_level&quot;]</span></code> as the scalar to
-<strong>rank policies</strong> (higher is better).  With <code class="docutils literal notranslate"><span class="pre">num_policies:</span> <span class="pre">8</span></code>, launch eight processes sharing the same <code class="docutils literal notranslate"><span class="pre">workspace</span></code>
-and unique <code class="docutils literal notranslate"><span class="pre">policy_idx</span></code> (0-7).</p>
+<p><code class="docutils literal notranslate"><span class="pre">objective:</span> <span class="pre">episode.Curriculum/difficulty_level</span></code> is the dotted expression that uses
+<code class="docutils literal notranslate"><span class="pre">infos[&quot;episode&quot;][&quot;Curriculum/difficulty_level&quot;]</span></code> as the scalar to <strong>rank policies</strong> (higher is better).
+With <code class="docutils literal notranslate"><span class="pre">num_policies:</span> <span class="pre">8</span></code>, launch eight processes sharing the same <code class="docutils literal notranslate"><span class="pre">workspace</span></code> and unique <code class="docutils literal notranslate"><span class="pre">policy_idx</span></code> (0-7).</p>
 </section>
 <section id="launching-pbt">
 <h2>Launching PBT<a class="headerlink" href="#launching-pbt" title="Permalink to this heading">#</a></h2>
@@ -869,7 +869,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Sep 18, 2025.
+  Last updated on Sep 19, 2025.
   <br/>
 </p>
   </div>
