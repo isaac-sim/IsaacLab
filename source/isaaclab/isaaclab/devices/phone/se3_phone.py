@@ -1,16 +1,21 @@
-# IsaacLab/source/isaaclab/isaaclab/devices/phone/se3_phone.py
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""Phone controller for SE(3) control."""
 
 from __future__ import annotations
 
 import threading
 import time
 from typing import Any, Callable, Optional
-
+from isaaclab.utils.math import axis_angle_from_quat
 import numpy as np
 import torch
 
 from ..device_base import DeviceBase, DeviceCfg
-
+import os
 try:
     from teleop import Teleop
 except Exception as exc:  # pragma: no cover
@@ -24,19 +29,9 @@ from dataclasses import dataclass
 class Se3PhoneCfg(DeviceCfg):
     """Configuration for SE3 space mouse devices."""
 
-    # pos_scale: float = 1.0          # scale factor (m / raw meter)
-    # rot_scale: float = 1.0          # scale factor (rad / raw rad)
-    # max_step_pos: float = 0.10      # clamp per tick (m)
-    # max_step_rot: float = 0.50      # clamp per tick (rad)
-    # use_euler: bool = True          # convert orientation via RPY (simple)
-    # gate_key: str = "move"          # message boolean that gates motion
-    # gripper_key: str = "scale"      # message float in [-1 1] for gripper
-    # open_threshold: float = 0.0     # >= -> open (+1) < -> close (-1)
-    # start_server: bool = True       # start Teleop server automatically
-    # server_kwargs: Optional[dict] = None  # forwarded to Teleop(...)
     gripper_term: bool = True
-    pos_sensitivity: float = 1.0
-    rot_sensitivity: float = 1.0
+    pos_sensitivity: float = 0.5
+    rot_sensitivity: float = 0.4
     retargeters: None = None
 
 class Se3Phone(DeviceBase):
@@ -62,26 +57,22 @@ class Se3Phone(DeviceBase):
                 "teleop is not available. Install it first (e.g., `pip install teleop`)."
             ) from _IMPORT_ERR
 
-        # self._pos_scale = float(cfg.pos_scale)
-        # self._rot_scale = float(cfg.rot_scale)
-        # self._max_step_pos = float(cfg.max_step_pos)
-        # self._max_step_rot = float(cfg.max_step_rot)
-        # self._use_euler = bool(cfg.use_euler)
-        # self._gate_key = cfg.gate_key
-        # self._gripper_key = cfg.gripper_key
-        # self._open_threshold = float(cfg.open_threshold)
         # store inputs
         self._pos_sensitivity = cfg.pos_sensitivity
         self._rot_sensitivity = cfg.rot_sensitivity
         self._gripper_term = cfg.gripper_term
         self._sim_device = cfg.sim_device
         # latest data (written by callback thread)
-        self._latest_pose: Optional[np.ndarray] = None  # 4x4
-        self._latest_msg: dict[str, Any] = {}
-        self._enabled: bool = False
+        self._gripper = 1.0
+        self._move_enabled = False
 
-        # previous pose (read on main thread to compute deltas)
-        self._prev_pose: Optional[np.ndarray] = None
+        self._latest_pos: Optional[torch.Tensor] = None       # (3,)
+        self._latest_rot: Optional[torch.Tensor] = None      # (3,) (w,x,y,z)
+        self._latest_msg: dict[str, Any] = {}
+
+        # Previous sample used to compute relative deltas
+        self._prev_pos: Optional[torch.Tensor] = None         # (3,)
+        self._prev_rot: Optional[torch.Tensor] = None        # (3,)
 
         # spin Teleop server in the background so `advance()` is non-blocking
         self._teleop: Optional[Teleop] = None
@@ -89,14 +80,9 @@ class Se3Phone(DeviceBase):
         self._server_kwargs: Optional[dict] = None
         self._start_server(self._server_kwargs or {})
 
-    # --------------------------------------------------------------------- #
-    # DeviceBase required API
-    # --------------------------------------------------------------------- #
-
     def reset(self) -> None:
-        """Reset the device internals (clears reference)."""
-        self._prev_pose = None
-        # keep latest pose so user can re-enable without reconnect
+        self._prev_pos = None
+        self._prev_rot = None
 
     def add_callback(self, key: Any, func: Callable) -> None:
         """Optional: bind a callback (unused for phone device)."""
@@ -109,47 +95,75 @@ class Se3Phone(DeviceBase):
         Contract matches other Isaac Lab SE(3) devices:
         first 6 entries are [dx, dy, dz, droll, dpitch, dyaw] and last is gripper. :contentReference[oaicite:1]{index=1}
         """
-        pose = self._latest_pose
-        msg = self._latest_msg
+        command = torch.zeros(7, dtype=torch.float32, device=self._sim_device)
+        command[6] = self._gripper
 
-        # default zeros if no data yet
-        if pose is None:
-            return torch.zeros(7, dtype=torch.float32, device=self._sim_device)
+        if self._latest_pos is None:
+            return command
 
-        # compute relative motion wrt previous pose
-        if self._prev_pose is None:
-            self._prev_pose = pose.copy()
-            return torch.tensor(
-                [0, 0, 0, 0, 0, 0, self._gripper_from_msg(msg)],
-                dtype=torch.float32, device=self._sim_device
-            )
+        # print(self._move_enabled)
+        if self._prev_pos is None:
+            # First sample: initialize reference
+            self._prev_pos = self._latest_pos.clone()
+            self._prev_rot = self._latest_rot.clone()
+            return command
 
-        dp = self._delta_pose(self._prev_pose, pose)
-        self._prev_pose = pose.copy()
+        if not self._move_enabled:
+            # Gate OFF: zero deltas and keep reference synced to current to avoid jumps on re-enable
+            self._prev_pos = self._latest_pos.clone()
+            self._prev_rot = self._latest_rot.clone()
+            return command
 
-        # scale & clamp
-        dp[:3] *= self._pos_sensitivity
-        dp[3:6] *= self._rot_sensitivity
-        # dp[:3] = np.clip(dp[:3], -self._max_step_pos, self._max_step_pos)
-        # dp[3:6] = np.clip(dp[3:6], -self._max_step_rot, self._max_step_rot)
+        # Gate ON: compute SE(3) delta wrt previous, then update reference
+        dpos = torch.sub(self._latest_pos, self._prev_pos)
+        drot = torch.sub(self._latest_rot, self._prev_rot)
+        print(f"dpos is {dpos}")
+        print(f"drot is {drot}")
 
-        command = np.append(dp, self._gripper_from_msg(msg))
-        return torch.tensor(command, dtype=torch.float32, device=self._sim_device)
+        command[:3] = dpos * self._pos_sensitivity
+        command[3:6] = drot * self._rot_sensitivity
 
-    # --------------------------------------------------------------------- #
+        return command
+
     # Teleop plumbing
-    # --------------------------------------------------------------------- #
-
     def _start_server(self, server_kwargs: dict) -> None:
         self._teleop = Teleop(**server_kwargs)
 
-        def _cb(pose: np.ndarray, message: dict) -> None:
-            # Expect pose: (4, 4), message: dict with keys like "move", "scale"
-            if not isinstance(pose, np.ndarray) or pose.shape != (4, 4):
+        def _cb(_pose_unused: np.ndarray, message: dict) -> None:
+            # Expect "message" like the example in your comment.
+            if not isinstance(message, dict):
                 return
-            self._latest_pose = pose.astype(np.float64, copy=True)
-            self._latest_msg = dict("scale")
-            print
+            self._latest_msg = dict(message)
+
+            # --- Parse position ---
+            p = message.get("position", {})
+            tx = -float(p.get("z", 0.0))
+            ty = -float(p.get("x", 0.0))
+            tz = float(p.get("y", 0.0))
+
+            self._latest_pos = torch.tensor([tx, ty, tz], device=self._sim_device, dtype=torch.float32)
+
+
+            # --- Parse quaternion (x, y, z, w) and normalize ---
+            qd = message.get("orientation", {})
+            qx = float(qd.get("x", 0.0))
+            qy = float(qd.get("y", 0.0))
+            qz = float(qd.get("z", 0.0))
+            qw = float(qd.get("w", 1.0))
+
+            quat = torch.tensor([qw, qx, qy, qz], device=self._sim_device, dtype=torch.float32).unsqueeze(0)  # (1, 4)
+            self._latest_rot = axis_angle_from_quat(quat).squeeze(0) # (3,)
+            self._latest_rot[[0 ,1, 2]] = self._latest_rot[[2, 0, 1]] * torch.tensor([-1, -1, 1], device=self._sim_device, dtype=torch.float32)
+
+
+            g = message.get("gripper")
+            if isinstance(g, str):
+                s = g.strip().lower()
+                if s == "open":   self._gripper = 1.0
+                elif s == "close": self._gripper = -1.0
+
+
+            self._move_enabled = bool(message.get("move", False))
 
 
         self._teleop.subscribe(_cb)
@@ -161,43 +175,3 @@ class Se3Phone(DeviceBase):
 
         # give server a moment to boot
         time.sleep(0.1)
-
-    # --------------------------------------------------------------------- #
-    # Helpers
-    # --------------------------------------------------------------------- #
-
-    def _gripper_from_msg(self, msg: dict) -> float:
-        # Simple mapping: value >= threshold => open (+1), else close (-1)
-        val = float(msg.get("scale", 0.0))
-        print(val)
-        return 1.0 if val >= 1.0 else -1.0
-
-    def _delta_pose(self, T_prev: np.ndarray, T_curr: np.ndarray) -> np.ndarray:
-        """Compute [dx, dy, dz, droll, dpitch, dyaw] from two 4x4 transforms."""
-        dT = np.linalg.inv(T_prev) @ T_curr
-        t = dT[:3, 3]
-        # if self._use_euler:
-        rpy = self._mat_to_rpy(dT[:3, :3])
-        # else:
-        #     # axis-angle small-angle approx
-        #     rpy = self._rot_to_small_rpy(dT[:3, :3])
-        return np.concatenate([t, rpy], axis=0)
-
-    @staticmethod
-    def _mat_to_rpy(R: np.ndarray) -> np.ndarray:
-        """ZYX (roll-pitch-yaw) from rotation matrix, numerically safe."""
-        # yaw (z)
-        yaw = float(np.arctan2(R[1, 0], R[0, 0]))
-        # pitch (y)
-        sp = -R[2, 0]
-        sp = float(np.clip(sp, -1.0, 1.0))
-        pitch = float(np.arcsin(sp))
-        # roll (x)
-        roll = float(np.arctan2(R[2, 1], R[2, 2]))
-        return np.array([roll, pitch, yaw], dtype=np.float64)
-
-    @staticmethod
-    def _rot_to_small_rpy(R: np.ndarray) -> np.ndarray:
-        """Small-angle rpy from rotation matrix (approx via vee(logR))."""
-        w = np.array([R[2, 1] - R[1, 2], R[0, 2] - R[2, 0], R[1, 0] - R[0, 1]]) * 0.5
-        return w.astype(np.float64)

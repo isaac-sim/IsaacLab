@@ -145,7 +145,7 @@ class Se3Keyboard(DeviceBase):
         if self.gripper_term:
             gripper_value = -1.0 if self._close_gripper else 1.0
             command = np.append(command, gripper_value)
-
+        print(command[:3])
         return torch.tensor(command, dtype=torch.float32, device=self._sim_device)
 
     """

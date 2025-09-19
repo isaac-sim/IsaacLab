@@ -26,6 +26,7 @@ from isaaclab.devices.openxr.retargeters import (
 )
 from isaaclab.devices.retargeter_base import RetargeterBase, RetargeterCfg
 from isaaclab.devices.spacemouse import Se2SpaceMouse, Se2SpaceMouseCfg, Se3SpaceMouse, Se3SpaceMouseCfg
+from isaaclab.devices.phone import Se3Phone, Se3PhoneCfg
 
 with contextlib.suppress(ModuleNotFoundError):
     # May fail if xr is not in use
@@ -35,6 +36,7 @@ with contextlib.suppress(ModuleNotFoundError):
 DEVICE_MAP: dict[type[DeviceCfg], type[DeviceBase]] = {
     Se3KeyboardCfg: Se3Keyboard,
     Se3SpaceMouseCfg: Se3SpaceMouse,
+    Se3PhoneCfg: Se3Phone,
     Se3GamepadCfg: Se3Gamepad,
     Se2KeyboardCfg: Se2Keyboard,
     Se2GamepadCfg: Se2Gamepad,
