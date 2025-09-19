@@ -14,6 +14,7 @@ simulation_app = AppLauncher(headless=True).app
 
 import importlib
 import torch
+import numpy as np
 
 import pytest
 
@@ -27,6 +28,10 @@ from isaaclab.devices import (
     Se2KeyboardCfg,
     Se2SpaceMouse,
     Se2SpaceMouseCfg,
+    Se2Phone,
+    Se2PhoneCfg,
+    Se3Phone,
+    Se3PhoneCfg,
     Se3Gamepad,
     Se3GamepadCfg,
     Se3Keyboard,
@@ -260,6 +265,68 @@ def test_se3spacemouse_constructors(mock_environment, mocker):
     assert isinstance(result, torch.Tensor)
     assert result.shape == (7,)  # (pos_x, pos_y, pos_z, rot_x, rot_y, rot_z, gripper)
 
+"""
+Test phone devices.
+"""
+
+
+def test_se2phone_constructor(mock_environment, mocker):
+    """Test constructor and delta-output behavior for Se2Phone."""
+
+    # --- Fake Teleop that captures the callback and allows us to emit messages ---
+    class _FakeTeleop:
+        def __init__(self, **kwargs):
+            self._cb = None
+
+        def subscribe(self, cb):
+            self._cb = cb
+
+        def run(self):
+            # No-op: don't start any network/server loop in tests
+            return
+
+        def emit(self, msg: dict):
+            assert self._cb is not None, "Callback not registered"
+            # The device ignores the pose argument; pass a dummy np.array
+            self._cb(np.zeros(7), msg)
+
+    # Import the device module and patch Teleop with our fake
+    device_mod = importlib.import_module("isaaclab.devices.phone.se2_phone")
+    mocker.patch.object(device_mod, "Teleop", _FakeTeleop)
+
+    # Build config with custom sensitivities (we'll verify via output)
+    cfg = Se2PhoneCfg(v_x_sensitivity=0.9, v_y_sensitivity=0.5, omega_z_sensitivity=1.2)
+
+    # Create the device
+    phone = Se2Phone(cfg)
+    assert isinstance(phone, Se2Phone)
+
+    # Grab the fake teleop instance to push messages
+    fake = phone._teleop
+    assert isinstance(fake, _FakeTeleop)
+
+    # Helper: orientation kept constant so omega_z delta is zero (easier assertion)
+    orient = {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0}
+
+    # 1) First message initializes internal reference; advance() should return zeros.
+    fake.emit({"move": True, "position": {"x": 0.0, "z": 0.0}, "orientation": orient})
+    out1 = phone.advance()
+    assert isinstance(out1, torch.Tensor)
+    assert out1.shape == (3,)
+    assert torch.allclose(out1, torch.zeros(3, dtype=torch.float32, device=out1.device))
+
+    # 2) Second message changes position (x, z). Se2Phone maps latest_v_x=-z, latest_v_y=-x.
+    #    Deltas: dvx = -(2.0 - 0.0) = -2.0, dvy = -(1.0 - 0.0) = -1.0
+    fake.emit({"move": True, "position": {"x": 1.0, "z": 2.0}, "orientation": orient})
+    out2 = phone.advance()
+
+    # Expected scaled command:
+    #   vx = dvx * 0.9 = -1.8
+    #   vy = dvy * 0.5 = -0.5
+    #   omega_z = 0.0 (orientation unchanged)
+    expected = torch.tensor([-1.8, -0.5, 0.0], dtype=torch.float32, device=out2.device)
+    assert out2.shape == (3,)
+    assert torch.allclose(out2, expected, atol=1e-5)
 
 """
 Test OpenXR devices.
@@ -320,6 +387,97 @@ def test_openxr_constructors(mock_environment, mocker):
     # Test reset functionality
     device.reset()
 
+def test_se3phone_constructor(mocker):
+    """Test constructor and delta-output behavior for Se3Phone."""
+    # --- Fake Teleop that captures the callback and lets us emit messages ---
+    class _FakeTeleop:
+        def __init__(self, **kwargs):
+            self._cb = None
+
+        def subscribe(self, cb):
+            self._cb = cb
+
+        def run(self):
+            return  # no thread loop in tests
+
+        def emit(self, msg: dict):
+            assert self._cb is not None, "Callback not registered"
+            self._cb(np.zeros(7), msg)  # pose is unused by device
+
+    # Import the device module and patch Teleop with our fake
+    device_mod = importlib.import_module("isaaclab.devices.phone.se3_phone")
+    mocker.patch.object(device_mod, "Teleop", _FakeTeleop)
+
+    # Build config with custom sensitivities to verify scaling
+    cfg = Se3PhoneCfg(pos_sensitivity=0.5, rot_sensitivity=0.4, gripper_term=True)
+
+    # Create the device
+    phone = Se3Phone(cfg)
+    assert isinstance(phone, Se3Phone)
+
+    fake = phone._teleop
+    assert isinstance(fake, _FakeTeleop)
+
+    # Keep gripper explicit; start with OPEN
+    # Keep orientation constant on first emit to initialize state
+    orient0 = {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0}
+
+    # 1) First message initializes internal reference; advance() -> zeros (with gripper)
+    fake.emit({
+        "move": True,
+        "position": {"x": 0.0, "y": 0.0, "z": 0.0},
+        "orientation": orient0,
+        "gripper": "open",
+    })
+    out1 = phone.advance()
+    assert isinstance(out1, torch.Tensor)
+    assert out1.shape == (7,)
+    # first call yields zeros for deltas; gripper=+1
+    expected1 = torch.zeros(7, dtype=torch.float32, device=out1.device)
+    expected1[6] = 1.0
+    assert torch.allclose(out1, expected1, atol=1e-6)
+
+    # 2) Second message changes position & orientation.
+    # Position mapping inside device: latest_pos = [-z, -x, y]
+    # Use x=1, y=2, z=3  -> latest_pos = [-3, -1, 2], prev was [0,0,0]
+    # Orientation: apply yaw rotation by theta about Z:
+    # quat (w,x,y,z) = (cos(theta/2), 0, 0, sin(theta/2))
+    # axis_angle_from_quat -> [0,0,theta]
+    # device remaps: rot[[0,1,2]] = rot[[2,0,1]] * [-1,-1,1]
+    # so -> [theta, 0, 0] * [-1,-1,1] = [-theta, 0, 0]
+    theta = 0.2  # radians
+    w = float(np.cos(theta / 2.0))
+    z = float(np.sin(theta / 2.0))
+    orient1 = {"x": 0.0, "y": 0.0, "z": z, "w": w}
+
+    fake.emit({
+        "move": True,
+        "position": {"x": 1.0, "y": 2.0, "z": 3.0},
+        "orientation": orient1,
+        "gripper": "open",
+    })
+    out2 = phone.advance()
+
+    # Expected scaled deltas
+    dpos = torch.tensor([-3.0, -1.0, 2.0], dtype=torch.float32, device=out2.device) * 0.5
+    drot = torch.tensor([-theta, 0.0, 0.0], dtype=torch.float32, device=out2.device) * 0.4
+    expected2 = torch.cat([dpos, drot, torch.tensor([1.0], dtype=torch.float32, device=out2.device)], dim=0)
+
+    assert out2.shape == (7,)
+    assert torch.allclose(out2, expected2, atol=1e-5)
+
+    # 3) Gate OFF should zero deltas and resync reference
+    fake.emit({
+        "move": False,  # gate off
+        "position": {"x": 4.0, "y": 5.0, "z": 6.0},
+        "orientation": orient1,  # unchanged quaternion
+        "gripper": "close",
+    })
+    out3 = phone.advance()
+    # deltas should be zero; gripper should now be -1
+    expected3 = torch.zeros(7, dtype=torch.float32, device=out3.device)
+    expected3[6] = -1.0
+    assert torch.allclose(out3, expected3, atol=1e-6)
 
 """
 Test teleop device factory.
