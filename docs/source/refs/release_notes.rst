@@ -4,6 +4,97 @@ Release Notes
 The release notes are now available in the `Isaac Lab GitHub repository <https://github.com/isaac-sim/IsaacLab/releases>`_.
 We summarize the release notes here for convenience.
 
+v2.2.1
+======
+
+Overview
+--------
+
+This is a minor patch release with some improvements and bug fixes.
+
+Full Changelog: https://github.com/isaac-sim/IsaacLab/compare/v2.2.0...v2.2.1
+
+New Features
+------------
+
+- Adds contact point location reporting to ContactSensor by @jtigue-bdai
+- Adds environments actions/observations descriptors for export by @AntoineRichard
+- Adds RSL-RL symmetry example for cartpole and ANYmal locomotion by @Mayankm96
+
+Improvements
+------------
+
+Core API
+~~~~~~~~
+
+- Enhances Pink IK controller with null-space posture control and improvements by @michaellin6
+- Adds periodic logging when checking USD path on Nucleus server by @matthewtrepte
+- Disallows string value written in sb3_ppo_cfg.yaml from being evaluated in process_sb3_cfg by @ooctipus
+
+Infrastructure
+~~~~~~~~~~~~~~
+
+* **Application Settings**
+  - Disables rate limit for headless and headless rendering app by @matthewtrepte, @kellyguo11
+  - Disables ``rtx.indirrectDiffuse.enabled`` in render preset balanced and performance modes by @matthewtrepte
+  - Sets profiler backend to NVTX by default by @soowanpNV, @rwiltz
+* **Dependencies**
+  - Adds hf-xet license by @hhansen-bdai
+  - Fixes new typing-inspection dependency license by @kellyguo11
+* **Testing & Benchmarking**
+  - Adds basic validation tests for scale-based randomization ranges by @louislelay
+  - Adds ``SensorBase`` tests by @jtigue-bdai
+* **Repository Utilities**
+  - Adds improved readout from install_deps.py by @hhansen-bdai
+  - Fixes isaaclab.sh to detect isaacsim_version accurately 4.5 or >= 5.0 by @ooctipus
+  - Disables verbose printing in conftest.py by @ooctipus
+  - Updates pytest flags for isaacsim integration testing by @ben-johnston-nv
+  - Updates CodeOwners to be more fine-grained by @pascal-roth
+  - Fixes minor issues in CI by @nv-apoddubny
+
+Bug Fixes
+---------
+
+Core API
+~~~~~~~~
+
+* **Asset Interfaces**
+  - Fixes setting friction coefficients into PhysX in the articulation classes by @ossamaAhmed
+  - Sets joint_friction_coeff only for selected physx_env_ids by @ashwinvkNV
+* **Manager Interfaces**
+  - Fixes observation space Dict for non-concatenated groups only keeping the last term by @CSCSX
+* **MDP Terms**
+  - Fixes termination term effort limit check logic by @moribots
+  - Broadcasts environment ids inside ``mdp.randomize_rigid_body_com`` by @Foruck
+  - Fixes IndexError in reset_joints_by_scale and reset_joints_by_offset by @Creampelt
+  - Fixes ``terrain_out_of_bounds`` to return tensor instead of bool by @fan-ziqi
+
+Infrastructure
+~~~~~~~~~~~~~~
+
+- Fixes distributed training hanging issue by @kellyguo11
+- Disables generation of internal template when detecting isaaclab install via pip by @ooctipus
+- Fixes typo in isaaclab.bat by @ooctipus
+- Updates app pathing for user-provided rendering preset mode by @matthewtrepte
+
+Documentation
+-------------
+
+- Adds documentation for Newton integration by @mpgussert
+- Adapts FAQ section in docs with Isaac Sim open-sourcing by @Mayankm96
+- Changes checkpoint path in rsl-rl to an absolute path in documentation by @fan-ziqi
+- Fixes MuJoCo link in docs by @fan-ziqi
+- Adds client version direction to XR document by @lotusl-code
+- Fixes broken link in doc by @kellyguo11
+- Fixes typo in list_envs.py script path by @fbeltrao
+- Fixes Franka blueprint env ID in docs by @louislelay
+
+Breaking Changes
+----------------
+
+- Improves termination manager logging to report aggregated percentage of environments done due to each term by @ooctipus
+
+
 v2.2.0
 ======
 
@@ -54,10 +145,10 @@ New Features
 * Adds FORGE tasks for contact-rich manipulation with force sensing to IsaacLab by @noseworm in #2968
 * Adds two new GR1 environments for IsaacLab Mimic by @peterd-NV
 * Adds stack environment, scripts for Cosmos, and visual robustness evaluation by @shauryadNv
-* Updates Joint Friction Parameters to Isaac Sim 5.0 PhysX APIs by @ossamaAhmed in 87130f23a11b84851133685b234dfa4e0991cfcd
-* Adds support for spatial tendons by @ossamaAhmed in 7a176fa984dfac022d7f99544037565e78354067
-* Adds support and example for SurfaceGrippers by @AntoineRichard in 14a3a7afc835754da7a275209a95ea21b40c0d7a
-* Adds support for stage in memory by @matthewtrepte in 33bcf6605bcd908c10dfb485a4432fa1110d2e73
+* Updates Joint Friction Parameters to Isaac Sim 5.0 PhysX APIs by @ossamaAhmed
+* Adds support for spatial tendons by @ossamaAhmed
+* Adds support and example for SurfaceGrippers by @AntoineRichard
+* Adds support for stage in memory by @matthewtrepte
 * Adds OVD animation recording feature by @matthewtrepte
 
 Improvements
@@ -71,7 +162,7 @@ Improvements
 * Updates Mimic test cases to pytest format by @peterd-NV
 * Updates cosmos test files to use pytest by @shauryadNv
 * Updates onnx and protobuf version due to vulnerabilities by @kellyguo11
-* Updates minimum skrl version to 1.4.3 by @Toni-SM in https://github.com/isaac-sim/IsaacLab/pull/3053
+* Updates minimum skrl version to 1.4.3 by @Toni-SM
 * Updates to Isaac Sim 5.0 by @kellyguo11
 * Updates docker CloudXR runtime version by @lotusl-code
 * Removes xr rendering mode by @rwiltz
@@ -84,16 +175,16 @@ Bug Fixes
 ---------
 
 * Fixes operational space unit test to avoid pi rotation error by @ooctipus
-* Fixes GLIBC errors with importing torch before AppLauncher by @kellyguo11 in c80e2afb596372923dbab1090d4d0707423882f0
+* Fixes GLIBC errors with importing torch before AppLauncher by @kellyguo11
 * Fixes rendering preset by @matthewtrepte in cc0dab6cd50778507efc3c9c2d74a28919ab2092
-* Fixes callbacks with stage in memory and organize environment tests by @matthewtrepte in 4dd6a1e804395561965ed242b3d3d80b8a8f72b9
-* Fixes XR and external camera bug with async rendering by @rwiltz in c80e2afb596372923dbab1090d4d0707423882f0
+* Fixes callbacks with stage in memory and organize environment tests by @matthewtrepte
+* Fixes XR and external camera bug with async rendering by @rwiltz
 * Disables selection for rl_games when marl is selected for template generator by @ooctipus
 * Adds check for .gitignore when generating template by @kellyguo11
 * Fixes camera obs errors in stack instance randomize envs by @peterd-NV
 * Fixes parsing for play envs by @matthewtrepte
 * Fixes issues with consecutive python exe calls in isaaclab.bat by @kellyguo11
-* Fixes spacemouse add callback function by @peterd-NV in 72f05a29ad12d02ec9585dad0fbb2299d70a929c
+* Fixes spacemouse add callback function by @peterd-NV
 * Fixes humanoid training with new velocity_limit_sim by @AntoineRichard
 
 Documentation

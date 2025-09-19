@@ -20,6 +20,7 @@ class DatagenInfo:
     Core Elements:
     - **eef_pose**: Captures the current 6 dimensional poses of the robot's end-effector.
     - **object_poses**: Captures the 6 dimensional poses of relevant objects in the scene.
+    - **subtask_start_signals**: Captures subtask start signals. Used by skillgen to identify the precise start of a subtask from a demonstration.
     - **subtask_term_signals**: Captures subtask completions signals.
     - **target_eef_pose**: Captures the target 6 dimensional poses for robot's end effector at each time step.
     - **gripper_action**:  Captures the gripper's state.
@@ -30,6 +31,7 @@ class DatagenInfo:
         eef_pose=None,
         object_poses=None,
         subtask_term_signals=None,
+        subtask_start_signals=None,
         target_eef_pose=None,
         gripper_action=None,
     ):
@@ -38,6 +40,9 @@ class DatagenInfo:
             eef_pose (torch.Tensor or None): robot end effector poses of shape [..., 4, 4]
             object_poses (dict or None): dictionary mapping object name to object poses
                 of shape [..., 4, 4]
+            subtask_start_signals (dict or None): dictionary mapping subtask name to a binary
+                indicator (0 or 1) on whether subtask has started. This is required when using skillgen.
+                Each value in the dictionary could be an int, float, or torch.Tensor of shape [..., 1].
             subtask_term_signals (dict or None): dictionary mapping subtask name to a binary
                 indicator (0 or 1) on whether subtask has been completed. Each value in the
                 dictionary could be an int, float, or torch.Tensor of shape [..., 1].
@@ -52,6 +57,17 @@ class DatagenInfo:
         self.object_poses = None
         if object_poses is not None:
             self.object_poses = {k: object_poses[k] for k in object_poses}
+
+        # When using skillgen, demonstrations must be annotated with subtask start signals.
+        self.subtask_start_signals = None
+        if subtask_start_signals is not None:
+            self.subtask_start_signals = dict()
+            for k in subtask_start_signals:
+                if isinstance(subtask_start_signals[k], (float, int)):
+                    self.subtask_start_signals[k] = subtask_start_signals[k]
+                else:
+                    # Only create torch tensor if value is not a single value
+                    self.subtask_start_signals[k] = subtask_start_signals[k]
 
         self.subtask_term_signals = None
         if subtask_term_signals is not None:
@@ -80,6 +96,8 @@ class DatagenInfo:
             ret["eef_pose"] = self.eef_pose
         if self.object_poses is not None:
             ret["object_poses"] = deepcopy(self.object_poses)
+        if self.subtask_start_signals is not None:
+            ret["subtask_start_signals"] = deepcopy(self.subtask_start_signals)
         if self.subtask_term_signals is not None:
             ret["subtask_term_signals"] = deepcopy(self.subtask_term_signals)
         if self.target_eef_pose is not None:

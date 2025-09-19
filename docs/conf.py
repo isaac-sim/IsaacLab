@@ -87,6 +87,17 @@ source_suffix = {
 # TODO: Enable this by default once we have fixed all the warnings
 # nitpicky = True
 
+nitpick_ignore = [
+    ("py:obj", "slice(None)"),
+]
+
+nitpick_ignore_regex = [
+    (r"py:.*", r"pxr.*"),  # we don't have intersphinx mapping for pxr
+    (r"py:.*", r"trimesh.*"),  # we don't have intersphinx mapping for trimesh
+]
+
+# emoji style
+sphinxemoji_style = "twemoji"  # options: "twemoji" or "unicode"
 # put type hints inside the signature instead of the description (easier to maintain)
 autodoc_typehints = "signature"
 # autodoc_typehints_format = "fully-qualified"
@@ -112,8 +123,9 @@ autodoc_default_options = {
 intersphinx_mapping = {
     "python": ("https://docs.python.org/3", None),
     "numpy": ("https://numpy.org/doc/stable/", None),
-    "torch": ("https://pytorch.org/docs/stable/", None),
-    "isaac": ("https://docs.omniverse.nvidia.com/py/isaacsim", None),
+    "trimesh": ("https://trimesh.org/", None),
+    "torch": ("https://docs.pytorch.org/docs/stable", None),
+    "isaacsim": ("https://docs.isaacsim.omniverse.nvidia.com/5.0.0/py/", None),
     "gymnasium": ("https://gymnasium.farama.org/", None),
     "warp": ("https://nvidia.github.io/warp/", None),
     "dev-guide": ("https://docs.omniverse.nvidia.com/dev-guide/latest", None),
@@ -148,17 +160,11 @@ autodoc_mock_imports = [
     "pxr.PhysxSchema",
     "pxr.PhysicsSchemaTools",
     "omni.replicator",
-    "omni.isaac.core",
-    "omni.isaac.kit",
-    "omni.isaac.cloner",
-    "omni.isaac.urdf",
-    "omni.isaac.version",
-    "omni.isaac.motion_generation",
-    "omni.isaac.ui",
     "isaacsim",
     "isaacsim.core.api",
     "isaacsim.core.cloner",
     "isaacsim.core.version",
+    "isaacsim.core.utils",
     "isaacsim.robot_motion.motion_generation",
     "isaacsim.gui.components",
     "isaacsim.asset.importer.urdf",
@@ -276,7 +282,7 @@ templates_path = [
 # Whitelist pattern for remotes
 smv_remote_whitelist = r"^.*$"
 # Whitelist pattern for branches (set to None to ignore all branches)
-smv_branch_whitelist = os.getenv("SMV_BRANCH_WHITELIST", r"^(main|devel)$")
+smv_branch_whitelist = os.getenv("SMV_BRANCH_WHITELIST", r"^(main|devel|release/.*)$")
 # Whitelist pattern for tags (set to None to ignore all tags)
 smv_tag_whitelist = os.getenv("SMV_TAG_WHITELIST", r"^v[1-9]\d*\.\d+\.\d+$")
 html_sidebars = {
