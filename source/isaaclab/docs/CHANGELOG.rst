@@ -7,7 +7,7 @@ Changelog
 Changed
 ^^^^^^^
 
-* Exposing physxscene: USD attribute "physxscene:solveArticulationContactLast" to isaaclab
+* Exposed physxscene: USD attribute "physxscene:solveArticulationContactLast" to isaaclab
   :class:`~isaaclab.sim.spawners.PhysxCfg`
 
 
