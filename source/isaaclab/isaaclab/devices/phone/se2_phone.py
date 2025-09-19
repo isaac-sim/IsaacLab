@@ -30,7 +30,7 @@ from dataclasses import dataclass
 
 @dataclass
 class Se2PhoneCfg(DeviceCfg):
-    """Configuration for SE2 space mouse devices."""
+    """Configuration for SE2 phone devices."""
 
     v_x_sensitivity: float = 0.8
     v_y_sensitivity: float = 0.4
@@ -38,27 +38,19 @@ class Se2PhoneCfg(DeviceCfg):
 
 
 class Se2Phone(DeviceBase):
-    r"""A keyboard controller for sending SE(2) commands as velocity commands.
+    r"""A phone controller for sending SE(3) commands as delta poses and binary command (open/close).
 
-    This class is designed to provide a keyboard controller for mobile base (such as quadrupeds).
-    It uses the Omniverse keyboard interface to listen to keyboard events and map them to robot's
+    This class is designed to provide a phone controller for a robotic arm with a gripper.
+    It uses the PyPi teleop package to listen to phone events and map them to robot's
     task-space commands.
 
     The command comprises of the base linear and angular velocity: :math:`(v_x, v_y, \omega_z)`.
 
-    Key bindings:
-        ====================== ========================= ========================
-        Command                Key (+ve axis)            Key (-ve axis)
-        ====================== ========================= ========================
-        Move along x-axis      Numpad 8 / Arrow Up       Numpad 2 / Arrow Down
-        Move along y-axis      Numpad 4 / Arrow Right    Numpad 6 / Arrow Left
-        Rotate along z-axis    Numpad 7 / Z              Numpad 9 / X
-        ====================== ========================= ========================
+    See phone controller section in the teleoperation documentation for details: `Teleop <https://isaac-sim.github.io/IsaacLab/main/source/overview/imitation-learning/teleop_imitation.html#teleoperation>`__
 
     .. seealso::
 
-        The official documentation for the phone interface: `Phone Interface <TODO: add package link>`__.
-
+        PyPi teleop package documentation: `Teleop <https://pypi.org/project/teleop/>`__.
     """
 
     def __init__(self, cfg: Se2PhoneCfg):
@@ -106,22 +98,21 @@ class Se2Phone(DeviceBase):
 
     def add_callback(self, key: Any, func: Callable) -> None:
         """Optional: bind a callback (unused for phone device)."""
-        # We could forward callbacks to Teleop if needed; noop for now.
         return
 
     def advance(self) -> torch.Tensor:
-        """Provides the result from keyboard event state.
+        """Provides the result from phone event state.
 
         Returns:
             Tensor containing the linear (x,y) and angular velocity (z).
         """
         command = torch.zeros(3, dtype=torch.float32, device=self._sim_device)
 
-        if self._latest_v_x is None:
+        if self._latest_v_x is None or self._latest_v_y is None or self._latest_omega_z is None:
             return command
 
         # print(self._move_enabled)
-        if self._prev_v_x is None:
+        if self._prev_v_x is None or self._prev_v_y is None or self._prev_omega_z is None:
             # First sample: initialize reference
             self._prev_v_x = self._latest_v_x.clone()
             self._prev_v_y = self._latest_v_y.clone()
@@ -135,12 +126,10 @@ class Se2Phone(DeviceBase):
             self._prev_omega_z = self._latest_omega_z.clone()
             return command
 
-        # Gate ON: compute SE(2) delta wrt previous, then update reference
+        # Gate ON: compute SE(2) delta wrt previous
         dvx = torch.sub(self._latest_v_x, self._prev_v_x)
         dvy = torch.sub(self._latest_v_y, self._prev_v_y)
         d_omega_z = torch.sub(self._latest_omega_z, self._prev_omega_z)
-        print(f"dpos is {dvx, dvy}")
-        print(f"drot is {d_omega_z}")
 
         command[0] = dvx * self._v_x_sensitivity
         command[1] = dvy * self._v_y_sensitivity
@@ -153,7 +142,6 @@ class Se2Phone(DeviceBase):
         self._teleop = Teleop(**server_kwargs)
 
         def _cb(_pose_unused: np.ndarray, message: dict) -> None:
-            # Expect "message" like the example in your comment.
             if not isinstance(message, dict):
                 return
             self._latest_msg = dict(message)
@@ -167,7 +155,7 @@ class Se2Phone(DeviceBase):
                 [-float(p.get("x", 0.0))], device=self._sim_device, dtype=torch.float32
             ).unsqueeze(0)
 
-            # --- Parse quaternion (x, y, z, w) and normalize ---
+            # --- Parse quaternion (x, y, z, w) ---
             qd = message.get("orientation", {})
             qx = float(qd.get("x", 0.0))
             qy = float(qd.get("y", 0.0))

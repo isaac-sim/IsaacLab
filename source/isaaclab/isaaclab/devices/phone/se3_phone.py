@@ -30,7 +30,7 @@ from dataclasses import dataclass
 
 @dataclass
 class Se3PhoneCfg(DeviceCfg):
-    """Configuration for SE3 space mouse devices."""
+    """Configuration for SE3 phone devices."""
 
     gripper_term: bool = True
     pos_sensitivity: float = 0.5
@@ -39,10 +39,10 @@ class Se3PhoneCfg(DeviceCfg):
 
 
 class Se3Phone(DeviceBase):
-    """A keyboard controller for sending SE(3) commands as delta poses and binary command (open/close).
+    """A phone controller for sending SE(3) commands as delta poses and binary command (open/close).
 
-    This class is designed to provide a keyboard controller for a robotic arm with a gripper.
-    It uses the Omniverse keyboard interface to listen to keyboard events and map them to robot's
+    This class is designed to provide a phone controller for a robotic arm with a gripper.
+    It uses the PyPi teleop package to listen to phone events and map them to robot's
     task-space commands.
 
     The command comprises of two parts:
@@ -50,22 +50,11 @@ class Se3Phone(DeviceBase):
     * delta pose: a 6D vector of (x, y, z, roll, pitch, yaw) in meters and radians.
     * gripper: a binary command to open or close the gripper.
 
-    Key bindings:
-        ============================== ================= =================
-        Description                    Key (+ve axis)    Key (-ve axis)
-        ============================== ================= =================
-        Toggle gripper (open/close)    K
-        Move along x-axis              W                 S
-        Move along y-axis              A                 D
-        Move along z-axis              Q                 E
-        Rotate along x-axis            Z                 X
-        Rotate along y-axis            T                 G
-        Rotate along z-axis            C                 V
-        ============================== ================= =================
+    See phone controller section in the teleoperation documentation for details: `Teleop <https://isaac-sim.github.io/IsaacLab/main/source/overview/imitation-learning/teleop_imitation.html#teleoperation>`__
 
     .. seealso::
 
-        The official documentation for the keyboard interface: `Carb Keyboard Interface <https://docs.omniverse.nvidia.com/dev-guide/latest/programmer_ref/input-devices/keyboard.html>`__.
+        PyPi teleop package documentation: `Teleop <https://pypi.org/project/teleop/>`__.
 
     """
 
@@ -73,7 +62,7 @@ class Se3Phone(DeviceBase):
         """Initialize the phone layer.
 
         Args:
-            cfg: Configuration object for keyboard settings.
+            cfg: Configuration object for phone settings.
         """
         if Teleop is None:
             raise ImportError(
@@ -109,7 +98,6 @@ class Se3Phone(DeviceBase):
 
     def add_callback(self, key: Any, func: Callable) -> None:
         """Optional: bind a callback (unused for phone device)."""
-        # We could forward callbacks to Teleop if needed; noop for now.
         return
 
     def advance(self) -> torch.Tensor:
@@ -121,11 +109,10 @@ class Se3Phone(DeviceBase):
         command = torch.zeros(7, dtype=torch.float32, device=self._sim_device)
         command[6] = self._gripper
 
-        if self._latest_pos is None:
+        if self._latest_pos is None or self._latest_rot is None:
             return command
 
-        # print(self._move_enabled)
-        if self._prev_pos is None:
+        if self._prev_pos is None or self._prev_rot is None:
             # First sample: initialize reference
             self._prev_pos = self._latest_pos.clone()
             self._prev_rot = self._latest_rot.clone()
@@ -137,11 +124,9 @@ class Se3Phone(DeviceBase):
             self._prev_rot = self._latest_rot.clone()
             return command
 
-        # Gate ON: compute SE(3) delta wrt previous, then update reference
+        # Gate ON: compute SE(3) delta wrt previous
         dpos = torch.sub(self._latest_pos, self._prev_pos)
         drot = torch.sub(self._latest_rot, self._prev_rot)
-        print(f"dpos is {dpos}")
-        print(f"drot is {drot}")
 
         command[:3] = dpos * self._pos_sensitivity
         command[3:6] = drot * self._rot_sensitivity
@@ -153,7 +138,6 @@ class Se3Phone(DeviceBase):
         self._teleop = Teleop(**server_kwargs)
 
         def _cb(_pose_unused: np.ndarray, message: dict) -> None:
-            # Expect "message" like the example in your comment.
             if not isinstance(message, dict):
                 return
             self._latest_msg = dict(message)
@@ -166,7 +150,7 @@ class Se3Phone(DeviceBase):
 
             self._latest_pos = torch.tensor([tx, ty, tz], device=self._sim_device, dtype=torch.float32)
 
-            # --- Parse quaternion (x, y, z, w) and normalize ---
+            # --- Parse quaternion (x, y, z, w) ---
             qd = message.get("orientation", {})
             qx = float(qd.get("x", 0.0))
             qy = float(qd.get("y", 0.0))
