@@ -10,8 +10,8 @@ from isaaclab.assets import ArticulationCfg, AssetBaseCfg
 from isaaclab.devices import DevicesCfg
 from isaaclab.devices.gamepad import Se3GamepadCfg
 from isaaclab.devices.keyboard import Se3KeyboardCfg
-from isaaclab.devices.spacemouse import Se3SpaceMouseCfg
 from isaaclab.devices.phone import Se3PhoneCfg
+from isaaclab.devices.spacemouse import Se3SpaceMouseCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import ActionTermCfg as ActionTerm
 from isaaclab.managers import CurriculumTermCfg as CurrTerm

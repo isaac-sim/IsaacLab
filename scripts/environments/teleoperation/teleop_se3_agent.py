@@ -56,7 +56,16 @@ import torch
 
 import omni.log
 
-from isaaclab.devices import Se3Gamepad, Se3GamepadCfg, Se3Phone, Se3PhoneCfg, Se3Keyboard, Se3KeyboardCfg, Se3SpaceMouse, Se3SpaceMouseCfg
+from isaaclab.devices import (
+    Se3Gamepad,
+    Se3GamepadCfg,
+    Se3Keyboard,
+    Se3KeyboardCfg,
+    Se3Phone,
+    Se3PhoneCfg,
+    Se3SpaceMouse,
+    Se3SpaceMouseCfg,
+)
 from isaaclab.devices.openxr import remove_camera_configs
 from isaaclab.devices.teleop_device_factory import create_teleop_device
 from isaaclab.managers import TerminationTermCfg as DoneTerm

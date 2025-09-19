@@ -7,15 +7,18 @@
 
 from __future__ import annotations
 
+import numpy as np
+import os
 import threading
 import time
-from typing import Any, Callable, Optional
-from isaaclab.utils.math import axis_angle_from_quat
-import numpy as np
 import torch
+from typing import Any, Optional
+from collections.abc import Callable
+
+from isaaclab.utils.math import axis_angle_from_quat
 
 from ..device_base import DeviceBase, DeviceCfg
-import os
+
 try:
     from teleop import Teleop
 except Exception as exc:  # pragma: no cover
@@ -25,6 +28,7 @@ else:
     _IMPORT_ERR = None
 from dataclasses import dataclass
 
+
 @dataclass
 class Se3PhoneCfg(DeviceCfg):
     """Configuration for SE3 space mouse devices."""
@@ -33,6 +37,7 @@ class Se3PhoneCfg(DeviceCfg):
     pos_sensitivity: float = 0.5
     rot_sensitivity: float = 0.4
     retargeters: None = None
+
 
 class Se3Phone(DeviceBase):
     """Phone-based SE(3) teleop device.
@@ -66,18 +71,18 @@ class Se3Phone(DeviceBase):
         self._gripper = 1.0
         self._move_enabled = False
 
-        self._latest_pos: Optional[torch.Tensor] = None       # (3,)
-        self._latest_rot: Optional[torch.Tensor] = None      # (3,) (w,x,y,z)
+        self._latest_pos: torch.Tensor | None = None  # (3,)
+        self._latest_rot: torch.Tensor | None = None  # (3,) (w,x,y,z)
         self._latest_msg: dict[str, Any] = {}
 
         # Previous sample used to compute relative deltas
-        self._prev_pos: Optional[torch.Tensor] = None         # (3,)
-        self._prev_rot: Optional[torch.Tensor] = None        # (3,)
+        self._prev_pos: torch.Tensor | None = None  # (3,)
+        self._prev_rot: torch.Tensor | None = None  # (3,)
 
         # spin Teleop server in the background so `advance()` is non-blocking
-        self._teleop: Optional[Teleop] = None
-        self._thread: Optional[threading.Thread] = None
-        self._server_kwargs: Optional[dict] = None
+        self._teleop: Teleop | None = None
+        self._thread: threading.Thread | None = None
+        self._server_kwargs: dict | None = None
         self._start_server(self._server_kwargs or {})
 
     def reset(self) -> None:
@@ -143,7 +148,6 @@ class Se3Phone(DeviceBase):
 
             self._latest_pos = torch.tensor([tx, ty, tz], device=self._sim_device, dtype=torch.float32)
 
-
             # --- Parse quaternion (x, y, z, w) and normalize ---
             qd = message.get("orientation", {})
             qx = float(qd.get("x", 0.0))
@@ -152,25 +156,24 @@ class Se3Phone(DeviceBase):
             qw = float(qd.get("w", 1.0))
 
             quat = torch.tensor([qw, qx, qy, qz], device=self._sim_device, dtype=torch.float32).unsqueeze(0)  # (1, 4)
-            self._latest_rot = axis_angle_from_quat(quat).squeeze(0) # (3,)
-            self._latest_rot[[0 ,1, 2]] = self._latest_rot[[2, 0, 1]] * torch.tensor([-1, -1, 1], device=self._sim_device, dtype=torch.float32)
-
+            self._latest_rot = axis_angle_from_quat(quat).squeeze(0)  # (3,)
+            self._latest_rot[[0, 1, 2]] = self._latest_rot[[2, 0, 1]] * torch.tensor(
+                [-1, -1, 1], device=self._sim_device, dtype=torch.float32
+            )
 
             g = message.get("gripper")
             if isinstance(g, str):
                 s = g.strip().lower()
-                if s == "open":   self._gripper = 1.0
-                elif s == "close": self._gripper = -1.0
-
+                if s == "open":
+                    self._gripper = 1.0
+                elif s == "close":
+                    self._gripper = -1.0
 
             self._move_enabled = bool(message.get("move", False))
 
-
         self._teleop.subscribe(_cb)
 
-        self._thread = threading.Thread(
-            target=self._teleop.run, name="TeleopServer", daemon=True
-        )
+        self._thread = threading.Thread(target=self._teleop.run, name="TeleopServer", daemon=True)
         self._thread.start()
 
         # give server a moment to boot

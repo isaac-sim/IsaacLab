@@ -24,9 +24,9 @@ from isaaclab.devices.openxr.retargeters import (
     Se3RelRetargeter,
     Se3RelRetargeterCfg,
 )
+from isaaclab.devices.phone import Se3Phone, Se3PhoneCfg
 from isaaclab.devices.retargeter_base import RetargeterBase, RetargeterCfg
 from isaaclab.devices.spacemouse import Se2SpaceMouse, Se2SpaceMouseCfg, Se3SpaceMouse, Se3SpaceMouseCfg
-from isaaclab.devices.phone import Se3Phone, Se3PhoneCfg
 
 with contextlib.suppress(ModuleNotFoundError):
     # May fail if xr is not in use
