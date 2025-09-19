@@ -16,79 +16,137 @@ command is a 6-D vector representing the change in pose.
 
    Presently, Isaac Lab Mimic is only supported in Linux.
 
-To play inverse kinematics (IK) control with a keyboard device:
+.. tab-set::
+   :sync-group: keyboard
 
-.. code:: bash
+   .. tab-item:: Keyboard
+      :sync: keyboard
 
-   ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py --task Isaac-Stack-Cube-Franka-IK-Rel-v0 --num_envs 1 --teleop_device keyboard
+      To play inverse kinematics (IK) control with a keyboard device:
 
-For smoother operation and off-axis operation, we recommend using a SpaceMouse as the input device. Providing smoother demonstrations will make it easier for the policy to clone the behavior. To use a SpaceMouse, simply change the teleop device accordingly:
+      .. code:: bash
 
-.. code:: bash
+         ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py --task Isaac-Stack-Cube-Franka-IK-Rel-v0 --num_envs 1 --teleop_device keyboard
 
-   ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py --task Isaac-Stack-Cube-Franka-IK-Rel-v0 --num_envs 1 --teleop_device spacemouse
+      The script prints the teleoperation events configured. For keyboard, these are as follows
 
-.. note::
+      .. code:: text
 
-   If the SpaceMouse is not detected, you may need to grant additional user permissions by running ``sudo chmod 666 /dev/hidraw<#>`` where ``<#>`` corresponds to the device index
-   of the connected SpaceMouse.
-
-   To determine the device index, list all ``hidraw`` devices by running ``ls -l /dev/hidraw*``.
-   Identify the device corresponding to the SpaceMouse by running ``cat /sys/class/hidraw/hidraw<#>/device/uevent`` on each of the devices listed
-   from the prior step.
-
-   We recommend using local deployment of Isaac Lab to use the SpaceMouse. If using container deployment (:ref:`deployment-docker`), you must manually mount the SpaceMouse to the ``isaac-lab-base`` container by
-   adding a ``devices`` attribute with the path to the device in your ``docker-compose.yaml`` file:
-
-   .. code:: yaml
-
-      devices:
-         - /dev/hidraw<#>:/dev/hidraw<#>
-
-   where ``<#>`` is the device index of the connected SpaceMouse.
-
-   If you are using the IsaacLab + CloudXR container deployment (:ref:`cloudxr-teleoperation`), you can add the ``devices`` attribute under the ``services -> isaac-lab-base`` section of the
-   ``docker/docker-compose.cloudxr-runtime.patch.yaml`` file.
-
-   Isaac Lab is only compatible with the SpaceMouse Wireless and SpaceMouse Compact models from 3Dconnexion.
+         Keyboard Controller for SE(3): Se3Keyboard
+            Reset all commands: R
+            Toggle gripper (open/close): K
+            Move arm along x-axis: W/S
+            Move arm along y-axis: A/D
+            Move arm along z-axis: Q/E
+            Rotate arm along x-axis: Z/X
+            Rotate arm along y-axis: T/G
+            Rotate arm along z-axis: C/V
 
 
-For tasks that benefit from the use of an extended reality (XR) device with hand tracking, Isaac Lab supports using NVIDIA CloudXR to immersively stream the scene to compatible XR devices for teleoperation. Note that when using hand tracking we recommend using the absolute variant of the task (``Isaac-Stack-Cube-Franka-IK-Abs-v0``), which requires the ``handtracking`` device:
+   .. tab-item:: SpaceMouse
+      :sync: spacemouse
 
-.. code:: bash
+      For smoother operation and off-axis operation, we recommend using a 
+      SpaceMouse as the input device. Providing smoother demonstrations will 
+      make it easier for the policy to clone the behavior. To use a 
+      SpaceMouse, simply change the teleop device accordingly:
 
-   ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py --task Isaac-Stack-Cube-Franka-IK-Abs-v0 --teleop_device handtracking --device cpu
+      .. code:: bash
 
-.. note::
+         ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py --task Isaac-Stack-Cube-Franka-IK-Rel-v0 --num_envs 1 --teleop_device spacemouse
 
-   See :ref:`cloudxr-teleoperation` to learn more about using CloudXR with Isaac Lab.
+      The script prints the teleoperation events configured. For SpaceMouse, these are as follows:
+
+      .. code:: text
+
+         SpaceMouse Controller for SE(3): Se3SpaceMouse
+            Reset all commands: Right click
+            Toggle gripper (open/close): Click the left button on the SpaceMouse
+            Move arm along x/y-axis: Tilt the SpaceMouse
+            Move arm along z-axis: Push or pull the SpaceMouse
+            Rotate arm: Twist the SpaceMouse
+
+      .. note::
+
+         If the SpaceMouse is not detected, you may need to grant additional 
+         user permissions by running ``sudo chmod 666 /dev/hidraw<#>`` where 
+         ``<#>`` corresponds to the device index of the connected SpaceMouse.
+
+         To determine the device index, list all ``hidraw`` devices by 
+         running ``ls -l /dev/hidraw*``.
+
+         Identify the device corresponding to the SpaceMouse by running 
+         ``cat /sys/class/hidraw/hidraw<#>/device/uevent`` on each of 
+         the devices listed from the prior step.
+
+         We recommend using local deployment of Isaac Lab to use the SpaceMouse. 
+         If using container deployment (:ref:`deployment-docker`), you must 
+         manually mount the SpaceMouse to the ``isaac-lab-base`` container by
+         adding a ``devices`` attribute with the path to the device in your 
+         ``docker-compose.yaml`` file:
+
+         .. code:: yaml
+
+            devices:
+               - /dev/hidraw<#>:/dev/hidraw<#>
+
+         where ``<#>`` is the device index of the connected SpaceMouse.
+
+         If you are using the IsaacLab + CloudXR container deployment 
+         (:ref:`cloudxr-teleoperation`), you can add the ``devices`` 
+         attribute under the ``services -> isaac-lab-base`` section 
+         of the ``docker/docker-compose.cloudxr-runtime.patch.yaml`` 
+         file.
+
+         Isaac Lab is only compatible with the SpaceMouse Wireless and 
+         SpaceMouse Compact models from 3Dconnexion.
 
 
-The script prints the teleoperation events configured. For keyboard,
-these are as follows:
+   .. tab-item:: Phone
+      :sync: phone
 
-.. code:: text
+      As an alternative to the keyboard and SpaceMouse, it is also possible 
+      to use your phone as a teleoperation device. It is more instinctive to 
+      use than a keyboard, and more accessible than a SpaceMouse (but less 
+      precise). To use your phone as a teleoperation device, use the 
+      following command:
 
-   Keyboard Controller for SE(3): Se3Keyboard
-      Reset all commands: R
-      Toggle gripper (open/close): K
-      Move arm along x-axis: W/S
-      Move arm along y-axis: A/D
-      Move arm along z-axis: Q/E
-      Rotate arm along x-axis: Z/X
-      Rotate arm along y-axis: T/G
-      Rotate arm along z-axis: C/V
+      .. code:: bash
 
-For SpaceMouse, these are as follows:
+         ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py --task Isaac-Stack-Cube-Franka-IK-Rel-v0 --num_envs 1 --teleop_device phone
 
-.. code:: text
+      The script prints the teleoperation events configured. For phone, these are as follows
 
-   SpaceMouse Controller for SE(3): Se3SpaceMouse
-      Reset all commands: Right click
-      Toggle gripper (open/close): Click the left button on the SpaceMouse
-      Move arm along x/y-axis: Tilt the SpaceMouse
-      Move arm along z-axis: Push or pull the SpaceMouse
-      Rotate arm: Twist the SpaceMouse
+      .. code:: text
+
+         Phone Controller for SE(3): Se3Phone
+         
+            Reset all commands: R
+            Toggle gripper (open/close): K
+            Move arm along x-axis: W/S
+            Move arm along y-axis: A/D
+            Move arm along z-axis: Q/E
+            Rotate arm along x-axis: Z/X
+            Rotate arm along y-axis: T/G
+            Rotate arm along z-axis: C/V
+
+      .. note::
+
+         Please note that only android devices are supported at this time.
+
+   .. tab-item:: CloudXR Hand Tracking
+      :sync: cloudxr
+
+      For tasks that benefit from the use of an extended reality (XR) device with hand tracking, Isaac Lab supports using NVIDIA CloudXR to immersively stream the scene to compatible XR devices for teleoperation. Note that when using hand tracking we recommend using the absolute variant of the task (``Isaac-Stack-Cube-Franka-IK-Abs-v0``), which requires the ``handtracking`` device:
+
+      .. code:: bash
+
+         ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py --task Isaac-Stack-Cube-Franka-IK-Abs-v0 --teleop_device handtracking --device cpu
+
+      .. note::
+
+         See :ref:`cloudxr-teleoperation` to learn more about using CloudXR with Isaac Lab.
+
 
 The next section describes how teleoperation devices can be used for data collection for imitation learning.
 
