@@ -52,7 +52,7 @@ class LocomanipulationG1MimicEnvCfg(LocomanipulationG1EnvCfg, MimicEnvCfg):
                 # Optional parameters for the selection strategy function
                 selection_strategy_kwargs={"nn_k": 3},
                 # Amount of action noise to apply during this subtask
-                action_noise=0.002,
+                action_noise=0.003,
                 # Number of interpolation steps to bridge to this subtask segment
                 num_interpolation_steps=0,
                 # Additional fixed steps for the robot to reach the necessary pose
@@ -74,7 +74,7 @@ class LocomanipulationG1MimicEnvCfg(LocomanipulationG1EnvCfg, MimicEnvCfg):
                 # Optional parameters for the selection strategy function
                 selection_strategy_kwargs={"nn_k": 3},
                 # Amount of action noise to apply during this subtask
-                action_noise=0.002,
+                action_noise=0.003,
                 # Number of interpolation steps to bridge to this subtask segment
                 num_interpolation_steps=3,
                 # Additional fixed steps for the robot to reach the necessary pose
@@ -100,7 +100,7 @@ class LocomanipulationG1MimicEnvCfg(LocomanipulationG1EnvCfg, MimicEnvCfg):
                 # Optional parameters for the selection strategy function
                 selection_strategy_kwargs={"nn_k": 3},
                 # Amount of action noise to apply during this subtask
-                action_noise=0.002,
+                action_noise=0.003,
                 # Number of interpolation steps to bridge to this subtask segment
                 num_interpolation_steps=0,
                 # Additional fixed steps for the robot to reach the necessary pose
