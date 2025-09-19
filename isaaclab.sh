@@ -286,6 +286,8 @@ setup_conda_env() {
         'export ISAACLAB_PATH='${ISAACLAB_PATH}'' \
         'alias isaaclab='${ISAACLAB_PATH}'/isaaclab.sh' \
         '' \
+        '# WAR for ARM to load Isaac Sim libgomp' \
+        'export LD_PRELOAD="'${ISAACLAB_PATH}'/_isaac_sim/kit/python/lib/python3.11/site-packages/torch/lib/libgomp.so.1"' \
         '# show icon if not runninng headless' \
         'export RESOURCE_NAME="IsaacSim"' \
         '' > ${CONDA_PREFIX}/etc/conda/activate.d/setenv.sh
