@@ -11,8 +11,8 @@ import numpy as np
 import threading
 import time
 import torch
-from typing import Any, Optional
 from collections.abc import Callable
+from typing import Any
 
 from isaaclab.utils.math import axis_angle_from_quat
 
