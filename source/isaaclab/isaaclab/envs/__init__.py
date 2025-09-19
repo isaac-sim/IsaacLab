@@ -39,7 +39,7 @@ Based on these workflows, there are the following environment classes for single
 
 For more information about the workflow design patterns, see the `Task Design Workflows`_ section.
 
-.. _`Task Design Workflows`: https://isaac-sim.github.io/IsaacLab/source/features/task_workflows.html
+.. _`Task Design Workflows`: https://docs.isaacsim.omniverse.nvidia.com/latest/introduction/workflows.html
 """
 
 from . import mdp, ui
