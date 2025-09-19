@@ -285,10 +285,10 @@ def main():
                 results.append(result)
                 del single_scene_cfg
 
-    df_single_vs_multi = pd.DataFrame(results)
-    df_single_vs_multi["device"] = device_name
+    df_distance_to_image_plane = pd.DataFrame(results)
+    df_distance_to_image_plane["device"] = device_name
     os.makedirs("outputs/benchmarks", exist_ok=True)
-    df_single_vs_multi.to_csv("outputs/benchmarks/camera_distance_to_image_plane.csv", index=False)
+    df_distance_to_image_plane.to_csv("outputs/benchmarks/camera_distance_to_image_plane.csv", index=False)
 
     # BENCHMARK 2 - Compare RGB Camera
     print("\n=== Benchmarking RGB CAMERA ===")
@@ -341,14 +341,14 @@ def main():
                 results.append(result)
                 del single_scene_cfg
 
-    df_single_vs_multi = pd.DataFrame(results)
-    df_single_vs_multi["device"] = device_name
+    df_rgb = pd.DataFrame(results)
+    df_rgb["device"] = device_name
     os.makedirs("outputs/benchmarks", exist_ok=True)
-    df_single_vs_multi.to_csv("outputs/benchmarks/camera_rgb.csv", index=False)
+    df_rgb.to_csv("outputs/benchmarks/camera_rgb.csv", index=False)
 
     # Create .md file with all three tables
     for df, title in zip(
-        [df_single_vs_multi, df_single_vs_multi], ["Single vs Multi", "RGB"]
+        [df_rgb, df_distance_to_image_plane], ["RGB", "Distance to Image Plane"]
     ):
         with open(f"outputs/benchmarks/camera_benchmark_{title}.md", "w") as f:
             f.write(f"# {title}\n\n")
