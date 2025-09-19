@@ -30,7 +30,7 @@ from isaacsim.core.simulation_manager import SimulationManager
 from isaacsim.core.utils.carb import get_carb_setting, set_carb_setting
 from isaacsim.core.utils.viewports import set_camera_view
 from isaacsim.core.version import get_version
-from pxr import Gf, PhysxSchema, Usd, UsdPhysics, Sdf
+from pxr import Gf, PhysxSchema, Sdf, Usd, UsdPhysics
 
 from isaaclab.sim.utils import create_new_stage_in_memory, use_stage
 
