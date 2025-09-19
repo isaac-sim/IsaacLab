@@ -41,7 +41,7 @@ parser.add_argument(
     "--num_envs",
     type=int,
     nargs="+",
-    default=[256, 512, 1024],
+    default=[12, 24, 48],   # [256, 512, 1024],
     help="List of environment counts to benchmark (e.g., 256 512 1024).",
 )
 parser.add_argument(
@@ -79,7 +79,7 @@ from isaacsim.core.simulation_manager import SimulationManager
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
-from isaaclab.sensors import CameraCfg, RayCasterCameraCfg, TiledCameraCfg, patterns, Camera, TiledCamera, RayCasterCamera
+from isaaclab.sensors import CameraCfg, MultiMeshRayCasterCameraCfg, TiledCameraCfg, patterns, Camera, TiledCamera, MultiMeshRayCasterCamera
 from isaaclab.sim import SimulationContext
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
@@ -124,7 +124,7 @@ class CameraBenchmarkSceneCfg(InteractiveSceneCfg):
 
     usd_camera: CameraCfg | None = None
     tiled_camera: TiledCameraCfg | None = None
-    ray_caster_camera: RayCasterCameraCfg | None = None
+    ray_caster_camera: MultiMeshRayCasterCameraCfg | None = None
 
 
 def _make_scene_cfg_usd(num_envs: int, height: int, width: int, data_types: list[str], debug_vis: bool) -> CameraBenchmarkSceneCfg:
@@ -159,7 +159,7 @@ def _make_scene_cfg_tiled(num_envs: int, height: int, width: int, data_types: li
 
 def _make_scene_cfg_ray_caster(num_envs: int, height: int, width: int, data_types: list[str], debug_vis: bool) -> CameraBenchmarkSceneCfg:
     scene_cfg = CameraBenchmarkSceneCfg(num_envs=num_envs, env_spacing=2.0)
-    scene_cfg.ray_caster_camera = RayCasterCameraCfg(
+    scene_cfg.ray_caster_camera = MultiMeshRayCasterCameraCfg(
         prim_path="{ENV_REGEX_NS}/Robot/base",  # attach to existing prim
         mesh_prim_paths=["/World/ground", "/World/envs/env_.*/cube"],
         pattern_cfg=patterns.PinholeCameraPatternCfg(
@@ -190,7 +190,7 @@ def _setup_scene(scene_cfg: CameraBenchmarkSceneCfg) -> tuple[SimulationContext,
 
 def _run_benchmark(scene_cfg: CameraBenchmarkSceneCfg, sensor_name: str):
     sim, scene, sim_dt = _setup_scene(scene_cfg)
-    sensor: Camera | TiledCamera | RayCasterCamera = scene[sensor_name]
+    sensor: Camera | TiledCamera | MultiMeshRayCasterCamera = scene[sensor_name]
     # Warmup
     for _ in range(args_cli.warmup):
         sim.step()
@@ -258,25 +258,25 @@ def main():
             
                 # Tiled Camera
                 elif camera == "tiled_camera":
-                    multi_scene_cfg = _make_scene_cfg_tiled(
+                    single_scene_cfg = _make_scene_cfg_tiled(
                         num_envs=num_envs,
                         height=resolution[0],
                         width=resolution[1],
                         data_types=["distance_to_image_plane"],
                         debug_vis=not args_cli.headless,
                     )
-                    result = _run_benchmark(multi_scene_cfg, "tiled_camera")
+                    result = _run_benchmark(single_scene_cfg, "tiled_camera")
                 
                 # Multi-Mesh RayCaster Camera
                 elif camera == "ray_caster_camera":
-                    multi_scene_cfg = _make_scene_cfg_ray_caster(
+                    single_scene_cfg = _make_scene_cfg_ray_caster(
                         num_envs=num_envs,
                         height=resolution[0],
                         width=resolution[1],
                         data_types=["distance_to_image_plane"],
                         debug_vis=not args_cli.headless,
                     )
-                    result = _run_benchmark(multi_scene_cfg, "ray_caster_camera")
+                    result = _run_benchmark(single_scene_cfg, "ray_caster_camera")
             
                 result["num_envs"] = num_envs
                 result["resolution"] = resolution
@@ -313,25 +313,25 @@ def main():
             
                 # Tiled Camera
                 elif camera == "tiled_camera":
-                    multi_scene_cfg = _make_scene_cfg_tiled(
+                    single_scene_cfg = _make_scene_cfg_tiled(
                         num_envs=num_envs,
                         height=resolution[0],
                         width=resolution[1],
                         data_types=["rgb"],
                         debug_vis=not args_cli.headless,
                     )
-                    result = _run_benchmark(multi_scene_cfg, "tiled_camera")
+                    result = _run_benchmark(single_scene_cfg, "tiled_camera")
                 
                 # Multi-Mesh RayCaster Camera
                 elif camera == "ray_caster_camera":
-                    # multi_scene_cfg = _make_scene_cfg_ray_caster(
+                    # single_scene_cfg = _make_scene_cfg_ray_caster(
                     #     num_envs=num_envs,
                     #     height=resolution[0],
                     #     width=resolution[1],
                     #     data_types=["distance_to_image_plane"],
                     #     debug_vis=not args_cli.headless,
                     # )
-                    # result = _run_benchmark(multi_scene_cfg, "ray_caster_camera")
+                    # result = _run_benchmark(single_scene_cfg, "ray_caster_camera")
                     continue
             
                 result["num_envs"] = num_envs
@@ -344,7 +344,7 @@ def main():
     df_single_vs_multi = pd.DataFrame(results)
     df_single_vs_multi["device"] = device_name
     os.makedirs("outputs/benchmarks", exist_ok=True)
-    df_single_vs_multi.to_csv("outputs/benchmarks/camera_distance_to_image_plane.csv", index=False)
+    df_single_vs_multi.to_csv("outputs/benchmarks/camera_rgb.csv", index=False)
 
     # Create .md file with all three tables
     for df, title in zip(
