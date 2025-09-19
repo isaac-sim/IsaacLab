@@ -43,10 +43,10 @@ class TerrainImporterCfg:
     :attr:`isaaclab.scene.InteractiveSceneCfg.num_envs` attribute.
     """
 
-    terrain_type: Literal["generator", "plane", "usd"] = "generator"
+    terrain_type: Literal["generator", "plane", "usd", "mesh"] = "generator"
     """The type of terrain to generate. Defaults to "generator".
 
-    Available options are "plane", "usd", and "generator".
+    Available options are "plane", "usd", "generator", "mesh".
     """
 
     terrain_generator: TerrainGeneratorCfg | None = None
@@ -59,6 +59,12 @@ class TerrainImporterCfg:
     """The path to the USD file containing the terrain.
 
     Only used if ``terrain_type`` is set to "usd".
+    """
+
+    mesh_path: str | None = None
+    """The path to the mesh file containing the terrain.
+
+    Only used if ``terrain_type`` is set to "mesh".
     """
 
     env_spacing: float | None = None
