@@ -92,6 +92,21 @@ class Se3Phone(DeviceBase):
         self._server_kwargs: dict | None = None
         self._start_server(self._server_kwargs or {})
 
+    def __str__(self) -> str:
+        """Returns: A string containing the information of phone."""
+        msg = f"Phone Controller for SE(3): {self.__class__.__name__}\n"
+        msg += "\t----------------------------------------------\n"
+        msg += "\tKeep the phone upright.\n"
+        msg += "\tToggle gripper (open/close): Enabled Gripper button\n"
+        msg += "\tTo move or rotate the arm: Press hold and do the corresponding action\n"
+        msg += "\tMove arm along x-axis: Push/Pull your phone forward/backward\n"
+        msg += "\tMove arm along y-axis: Pull/Pull your phone left/right\n"
+        msg += "\tMove arm along z-axis: Push/Pull your phone up/down\n"
+        msg += "\tRotate arm along x-axis: Rotate your phone left/right\n"
+        msg += "\tRotate arm along y-axis: Tilt your phone forward/backward\n"
+        msg += "\tRotate arm along z-axis: Twist your phone left/right"
+        return msg
+    
     def reset(self) -> None:
         self._prev_pos = None
         self._prev_rot = None
