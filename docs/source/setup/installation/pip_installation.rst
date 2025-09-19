@@ -11,7 +11,7 @@ Installing Isaac Sim
 From Isaac Sim 4.0 release, it is possible to install Isaac Sim using pip.
 This approach makes it easier to install Isaac Sim without requiring to download the Isaac Sim binaries.
 If you encounter any issues, please report them to the
-`Isaac Sim Forums <https://docs.isaacsim.omniverse.nvidia.com//latest/common/feedback.html>`_.
+`Isaac Sim Forums <https://docs.isaacsim.omniverse.nvidia.com/latest/common/feedback.html>`_.
 
 .. attention::
 
@@ -382,7 +382,7 @@ We recommend adding ``--headless`` for faster training.
 
          isaaclab.bat -p scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Velocity-Rough-Anymal-C-v0 --headless
 
-Isaac Lab provides the tools you'll need to create your own **Tasks** and **Workflows** for whatever your project needs may be. Take a look at our :ref:`how-to` guides like `Adding your own learning Library <source/how-to/add_own_library>`_ or `Wrapping Environments <source/how-to/wrap_rl_env>`_ for details.
+Isaac Lab provides the tools you'll need to create your own **Tasks** and **Workflows** for whatever your project needs may be. Take a look at our :ref:`how-to` guides like :ref:`adding your own RL library <how-to-add-library>` or :ref:`wrapping environments <how-to-env-wrappers>` for details.
 
 .. figure:: ../../_static/setup/isaac_ants_example.jpg
     :align: center
