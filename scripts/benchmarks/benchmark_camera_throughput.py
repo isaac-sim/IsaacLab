@@ -241,7 +241,7 @@ def main():
 
     for idx, num_envs in enumerate(args_cli.num_envs):
         print(f"\n[INFO]: Benchmarking with {num_envs} envs. {idx + 1} / {len(args_cli.num_envs)}")
-
+        data_types = ["distance_to_image_plane"]
         for resolution in resolutions:
             
             for camera in cameras: 
@@ -251,7 +251,7 @@ def main():
                         num_envs=num_envs,
                         height=resolution[0],
                         width=resolution[1],
-                        data_types=["distance_to_image_plane"],
+                        data_types=data_types,
                         debug_vis=not args_cli.headless,
                     )
                     result = _run_benchmark(single_scene_cfg, "usd_camera")
@@ -262,7 +262,7 @@ def main():
                         num_envs=num_envs,
                         height=resolution[0],
                         width=resolution[1],
-                        data_types=["distance_to_image_plane"],
+                        data_types=data_types,
                         debug_vis=not args_cli.headless,
                     )
                     result = _run_benchmark(single_scene_cfg, "tiled_camera")
@@ -273,7 +273,7 @@ def main():
                         num_envs=num_envs,
                         height=resolution[0],
                         width=resolution[1],
-                        data_types=["distance_to_image_plane"],
+                        data_types=data_types,
                         debug_vis=not args_cli.headless,
                     )
                     result = _run_benchmark(single_scene_cfg, "ray_caster_camera")
@@ -281,7 +281,7 @@ def main():
                 result["num_envs"] = num_envs
                 result["resolution"] = resolution
                 result["mode"] = camera
-                result["data_types"] = ["distance_to_image_plane"]
+                result["data_types"] = data_types
                 results.append(result)
                 del single_scene_cfg
 
@@ -296,7 +296,8 @@ def main():
 
     for idx, num_envs in enumerate(args_cli.num_envs):
         print(f"\n[INFO]: Benchmarking with {num_envs} envs. {idx + 1} / {len(args_cli.num_envs)}")
-
+        data_types = ["rgb"]
+        data_types = ["distance_to_image_plane"]
         for resolution in resolutions:
             
             for camera in cameras: 
@@ -306,7 +307,7 @@ def main():
                         num_envs=num_envs,
                         height=resolution[0],
                         width=resolution[1],
-                        data_types=["rgb"],
+                        data_types=data_types,
                         debug_vis=not args_cli.headless,
                     )
                     result = _run_benchmark(single_scene_cfg, "usd_camera")
@@ -317,7 +318,7 @@ def main():
                         num_envs=num_envs,
                         height=resolution[0],
                         width=resolution[1],
-                        data_types=["rgb"],
+                        data_types=data_types,
                         debug_vis=not args_cli.headless,
                     )
                     result = _run_benchmark(single_scene_cfg, "tiled_camera")
@@ -328,7 +329,7 @@ def main():
                     #     num_envs=num_envs,
                     #     height=resolution[0],
                     #     width=resolution[1],
-                    #     data_types=["distance_to_image_plane"],
+                    #     data_types=data_types,
                     #     debug_vis=not args_cli.headless,
                     # )
                     # result = _run_benchmark(single_scene_cfg, "ray_caster_camera")
@@ -337,7 +338,7 @@ def main():
                 result["num_envs"] = num_envs
                 result["resolution"] = resolution
                 result["mode"] = camera
-                result["data_types"] = ["distance_to_image_plane"]
+                result["data_types"] = data_types
                 results.append(result)
                 del single_scene_cfg
 
