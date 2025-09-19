@@ -786,7 +786,7 @@ class SimulationContext(_SimulationContext):
         physx_scene_api.CreateGpuCollisionStackSizeAttr(self.cfg.physx.gpu_collision_stack_size)
         # -- Improved determinism by PhysX
         physx_scene_api.CreateEnableEnhancedDeterminismAttr(self.cfg.physx.enable_enhanced_determinism)
-        # -- set solve_articulation_contact_last by creating a prim and add attribute there
+        # -- Set solve_articulation_contact_last by add attribute to the PhysxScene prim, and add attribute there.
         physx_prim = physx_scene_api.GetPrim()
         if self.cfg.physx.solve_articulation_contact_last:
             physx_prim.CreateAttribute("physxScene:solveArticulationContactLast", Sdf.ValueTypeNames.Bool).Set(True)
