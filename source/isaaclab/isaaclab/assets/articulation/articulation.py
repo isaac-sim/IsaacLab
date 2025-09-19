@@ -202,7 +202,7 @@ class Articulation(AssetBase):
         """
         # write external wrench
         if self.has_external_wrench:
-            wrenches_b = torch.cat([self._external_force_b, self._external_force_b], dim=-1)
+            wrenches_b = torch.cat([self._external_force_b, self._external_torque_b], dim=-1)
             self._root_newton_view.set_attribute("body_f", NewtonManager.get_state_0(), wp.from_torch(wrenches_b))
 
         # apply actuator models
@@ -1374,6 +1374,13 @@ class Articulation(AssetBase):
         # log joint information
         self._log_articulation_info()
 
+        self._root_newton_view.set_root_transforms(
+            NewtonManager.get_state_0(), self._data.default_root_state[:, :7], mask=self._mask
+        )
+        self._root_newton_view.set_root_transforms(
+            NewtonManager.get_model(), self._data.default_root_state[:, :7], mask=self._mask
+        )
+
     def _create_buffers(self):
         # constants
         self._ALL_INDICES = torch.arange(self.num_instances, dtype=torch.long, device=self.device)
@@ -1479,17 +1486,19 @@ class Articulation(AssetBase):
         # -- joint state
         self._data.default_joint_pos = torch.zeros(self.num_instances, self.num_joints, device=self.device)
         self._data.default_joint_vel = torch.zeros_like(self._data.default_joint_pos)
-        # joint pos
-        indices_list, _, values_list = string_utils.resolve_matching_names_values(
-            self.cfg.init_state.joint_pos, self.joint_names
-        )
-        self._data.default_joint_pos[:, indices_list] = torch.tensor(values_list, device=self.device)
 
-        # joint vel
-        indices_list, _, values_list = string_utils.resolve_matching_names_values(
-            self.cfg.init_state.joint_vel, self.joint_names
-        )
-        self._data.default_joint_vel[:, indices_list] = torch.tensor(values_list, device=self.device)
+        if self.num_joints > 0:
+            # joint pos
+            indices_list, _, values_list = string_utils.resolve_matching_names_values(
+                self.cfg.init_state.joint_pos, self.joint_names
+            )
+            self._data.default_joint_pos[:, indices_list] = torch.tensor(values_list, device=self.device)
+
+            # joint vel
+            indices_list, _, values_list = string_utils.resolve_matching_names_values(
+                self.cfg.init_state.joint_vel, self.joint_names
+            )
+            self._data.default_joint_vel[:, indices_list] = torch.tensor(values_list, device=self.device)
 
     """
     Internal simulation callbacks.

@@ -13,9 +13,9 @@ from newton import Axis, Contacts, Control, Model, ModelBuilder, State, eval_fk
 from newton.sensors import ContactSensor as NewtonContactSensor
 from newton.sensors import populate_contacts
 from newton.solvers import SolverBase, SolverFeatherstone, SolverMuJoCo, SolverXPBD
-from newton.viewer import RendererOpenGL
 
 from isaaclab.sim._impl.newton_manager_cfg import NewtonCfg
+from isaaclab.sim._impl.newton_viewer import NewtonViewerGL
 from isaaclab.utils.timer import Timer
 
 
@@ -75,6 +75,8 @@ class NewtonManager:
     _gravity_vector: tuple[float, float, float] = (0.0, 0.0, -9.81)
     _up_axis: str = "Z"
     _num_envs: int = None
+    _visualizer_update_counter: int = 0
+    _visualizer_update_frequency: int = 1  # Configurable frequency for all rendering updates
 
     @classmethod
     def clear(cls):
@@ -98,6 +100,8 @@ class NewtonManager:
         NewtonManager._cfg = NewtonCfg()
         NewtonManager._up_axis = "Z"
         NewtonManager._first_call = True
+        NewtonManager._visualizer_update_counter = 0
+        NewtonManager._visualizer_update_frequency = NewtonManager._cfg.newton_viewer_update_frequency
 
     @classmethod
     def set_builder(cls, builder):
@@ -300,20 +304,33 @@ class NewtonManager:
 
         This function renders the simulation using the OpenGL renderer.
         """
+
         if NewtonManager._renderer is None:
-            NewtonManager._renderer = RendererOpenGL(
-                path="example.usd",
-                model=NewtonManager._model,
-                scaling=1.0,
-                up_axis=NewtonManager._up_axis,
-                screen_width=1280,
-                screen_height=720,
-                camera_pos=(0, 3, 10),
-            )
+            NewtonManager._renderer = NewtonViewerGL(width=1280, height=720)
+            NewtonManager._renderer.set_model(NewtonManager._model)
+            NewtonManager._renderer.camera.pos = wp.vec3(*NewtonManager._cfg.newton_viewer_camera_pos)
+            NewtonManager._renderer.up_axis = NewtonManager._up_axis
+            NewtonManager._renderer.scaling = 1.0
+            NewtonManager._renderer._paused = False
         else:
-            NewtonManager._renderer.begin_frame(NewtonManager._sim_time)
-            NewtonManager._renderer.render(NewtonManager._state_0)
-            NewtonManager._renderer.end_frame()
+            # Keep updating the renderer until the training is resumed
+            while NewtonManager._renderer.is_training_paused():
+                NewtonManager._renderer.begin_frame(NewtonManager._sim_time)
+                NewtonManager._renderer.log_state(NewtonManager._state_0)
+                NewtonManager._renderer.end_frame()
+
+            # Use configurable frequency for both paused and unpaused rendering
+            NewtonManager._visualizer_update_counter += 1
+            if NewtonManager._visualizer_update_counter >= NewtonManager._visualizer_update_frequency:
+                if not NewtonManager._renderer.is_paused():
+                    # Render the frame normally when not paused
+                    NewtonManager._renderer.begin_frame(NewtonManager._sim_time)
+                    NewtonManager._renderer.log_state(NewtonManager._state_0)
+                    NewtonManager._renderer.end_frame()
+                else:
+                    # Just update the renderer when paused (no actual rendering)
+                    NewtonManager._renderer._update()
+                NewtonManager._visualizer_update_counter = 0
 
     @classmethod
     def sync_fabric_transforms(cls) -> None:
