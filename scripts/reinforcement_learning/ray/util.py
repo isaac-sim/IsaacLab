@@ -71,7 +71,7 @@ def get_invocation_command_from_cfg(
             if not is_hydra:
                 if key.endswith("_singleton"):
                     target_list.append(value)
-                elif key.startswith("--"):
+                elif key.startswith("--") or key.startswith("-"):
                     target_list.append(f"{key} {value}")  # Space instead of = for runner args
                 else:
                     target_list.append(f"{value}")
