@@ -827,24 +827,33 @@ class Articulation(AssetBase):
     def write_joint_friction_coefficient_to_sim(
         self,
         joint_friction_coeff: torch.Tensor | float,
+        joint_dynamic_friction_coeff: torch.Tensor | float | None = None,
+        joint_viscous_friction_coeff: torch.Tensor | float | None = None,
         joint_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | None = None,
     ):
-        r"""Write joint static friction coefficients into the simulation.
+        r"""Write joint friction coefficients into the simulation.
 
-        The joint static friction is a unitless quantity. It relates the magnitude of the spatial force transmitted
-        from the parent body to the child body to the maximal static friction force that may be applied by the solver
-        to resist the joint motion.
+        For Isaac Sim versions below 5.0, only the static friction coefficient is set.
+        This limits the resisting force or torque up to a maximum proportional to the transmitted
+        spatial force: :math:`\|F_{resist}\| \leq \mu_s \, \|F_{spatial}\|`.
 
-        Mathematically, this means that: :math:`F_{resist} \leq \mu F_{spatial}`, where :math:`F_{resist}`
-        is the resisting force applied by the solver and :math:`F_{spatial}` is the spatial force
-        transmitted from the parent body to the child body. The simulated static friction effect is therefore
-        similar to static and Coulomb static friction.
+        For Isaac Sim versions 5.0 and above, the static, dynamic, and viscous friction coefficients
+        are set. The model combines Coulomb (static & dynamic) friction with a viscous term:
+
+        - Static friction :math:`\mu_s` defines the maximum effort that prevents motion at rest.
+        - Dynamic friction :math:`\mu_d` applies once motion begins and remains constant during motion.
+        - Viscous friction :math:`c_v` is a velocity-proportional resistive term.
 
         Args:
-            joint_friction_coeff: Joint static friction coefficient. Shape is (len(env_ids), len(joint_ids)).
-            joint_ids: The joint indices to set the joint torque limits for. Defaults to None (all joints).
-            env_ids: The environment indices to set the joint torque limits for. Defaults to None (all environments).
+            joint_friction_coeff: Static friction coefficient :math:`\mu_s`.
+                Shape is (len(env_ids), len(joint_ids)). Scalars are broadcast to all selections.
+            joint_dynamic_friction_coeff: Dynamic (Coulomb) friction coefficient :math:`\mu_d`.
+                Same shape as above. If None, the dynamic coefficient is not updated.
+            joint_viscous_friction_coeff: Viscous friction coefficient :math:`c_v`.
+                Same shape as above. If None, the viscous coefficient is not updated.
+            joint_ids: The joint indices to set the friction coefficients for. Defaults to None (all joints).
+            env_ids: The environment indices to set the friction coefficients for. Defaults to None (all environments).
         """
         # resolve indices
         physx_env_ids = env_ids
@@ -858,15 +867,38 @@ class Articulation(AssetBase):
             env_ids = env_ids[:, None]
         # set into internal buffers
         self._data.joint_friction_coeff[env_ids, joint_ids] = joint_friction_coeff
+
+        # if dynamic or viscous friction coeffs are provided, set them too
+        if joint_dynamic_friction_coeff is not None:
+            self._data.joint_dynamic_friction_coeff[env_ids, joint_ids] = joint_dynamic_friction_coeff
+        if joint_viscous_friction_coeff is not None:
+            self._data.joint_viscous_friction_coeff[env_ids, joint_ids] = joint_viscous_friction_coeff
+
+        # move the indices to cpu
+        physx_envs_ids_cpu = physx_env_ids.cpu()
+
         # set into simulation
         if int(get_version()[2]) < 5:
             self.root_physx_view.set_dof_friction_coefficients(
-                self._data.joint_friction_coeff.cpu(), indices=physx_env_ids.cpu()
+                self._data.joint_friction_coeff.cpu(), indices=physx_envs_ids_cpu
             )
         else:
             friction_props = self.root_physx_view.get_dof_friction_properties()
-            friction_props[physx_env_ids.cpu(), :, 0] = self._data.joint_friction_coeff[physx_env_ids, :].cpu()
-            self.root_physx_view.set_dof_friction_properties(friction_props, indices=physx_env_ids.cpu())
+            friction_props[physx_envs_ids_cpu, :, 0] = self._data.joint_friction_coeff[physx_envs_ids_cpu, :].cpu()
+
+            # only set dynamic and viscous friction if provided
+            if joint_dynamic_friction_coeff is not None:
+                friction_props[physx_envs_ids_cpu, :, 1] = self._data.joint_dynamic_friction_coeff[
+                    physx_envs_ids_cpu, :
+                ].cpu()
+
+            # only set viscous friction if provided
+            if joint_viscous_friction_coeff is not None:
+                friction_props[physx_envs_ids_cpu, :, 2] = self._data.joint_viscous_friction_coeff[
+                    physx_envs_ids_cpu, :
+                ].cpu()
+
+            self.root_physx_view.set_dof_friction_properties(friction_props, indices=physx_envs_ids_cpu)
 
     def write_joint_dynamic_friction_coefficient_to_sim(
         self,
