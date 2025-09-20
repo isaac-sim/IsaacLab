@@ -160,6 +160,9 @@ class PhysxCfg:
     gpu_max_particle_contacts: int = 2**20
     """Size of particle contacts stream buffer allocated in pinned host memory. Default is 2 ** 20."""
 
+    solve_articulation_contact_last: bool = False
+    """This reorders the solver and could be a potential aid for gripper scenarios, Default is False"""
+
 
 @configclass
 class RenderCfg:
