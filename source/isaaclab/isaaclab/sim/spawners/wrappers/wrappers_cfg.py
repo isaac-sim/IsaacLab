@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from collections.abc import Callable
 from dataclasses import MISSING
 
 from isaaclab.sim.spawners.from_files import UsdFileCfg
@@ -34,11 +35,28 @@ class MultiAssetSpawnerCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
     assets_cfg: list[SpawnerCfg] = MISSING
     """List of asset configurations to spawn."""
 
-    random_choice: bool = True
-    """Whether to randomly select an asset configuration. Default is True.
+    choice_method: str | Callable = "random_choice"
+    """Name of the asset selection method to use.
 
-    If False, the asset configurations are spawned in the order they are provided in the list.
-    If True, a random asset configuration is selected for each spawn.
+    Available methods are ``random_choice``, ``deterministic_choice``, ``sequential`` and ``split``.
+
+    Custom asset selection methods can be implemented in the module specified by :attr:`choice_method_dir`,
+    and refer to it by name in :attr:`choice_method`.
+
+    Note:
+        Each method must follow the standard signature:
+         ``(current_idx: int, total_prim_path: int, num_assets: int, **kwargs) -> int``
+    """
+
+    choice_cfg: dict = {"weights": None}
+    """Configuration dictionary for the choice function.
+
+    Can include parameters such as 'weights' for weighted selection or other method-specific options."""
+
+    choice_method_dir: str = "isaaclab.sim.spawners.wrappers.choices"
+    """Python module path for choice functions.
+
+    Used when `choice_method` is specified as a string to dynamically load the function.
     """
 
 
@@ -59,9 +77,26 @@ class MultiUsdFileCfg(UsdFileCfg):
     usd_path: str | list[str] = MISSING
     """Path or a list of paths to the USD files to spawn asset from."""
 
-    random_choice: bool = True
-    """Whether to randomly select an asset configuration. Default is True.
+    choice_method: str | Callable = "random_choice"
+    """Name of the asset selection method to use.
 
-    If False, the asset configurations are spawned in the order they are provided in the list.
-    If True, a random asset configuration is selected for each spawn.
+    Available methods are ``random_choice``, ``deterministic_choice``, ``sequential`` and ``split``.
+
+    Custom asset selection methods can be implemented in the module specified by :attr:`choice_method_dir`,
+    and refer to it by name in :attr:`choice_method`.
+
+    Note:
+        Each method must follow the standard signature:
+         ``(current_idx: int, total_prim_path: int, num_assets: int, **kwargs) -> int``
+    """
+
+    choice_cfg: dict = {"weights": None}
+    """Configuration dictionary for the choice function.
+
+    Can include parameters such as 'weights' for weighted selection or other method-specific options."""
+
+    choice_method_dir: str = "isaaclab.sim.spawners.wrappers.choices"
+    """Python module path for choice functions.
+
+    Used when `choice_method` is specified as a string to dynamically load the function.
     """
