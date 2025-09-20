@@ -68,9 +68,12 @@ class PbtAlgoObserver(AlgoObserver):
         """Extract the scalar objective from environment infos and store in `self.score`.
 
         Notes:
-            Expects the objective to be at `infos["episode"][self.cfg.objective]`.
+            Expects the objective to be at `infos[self.cfg.objective]` where self.cfg.objective is dotted address.
         """
-        self.score = infos["episode"][self.cfg.objective]
+        score = infos
+        for part in self.cfg.objective.split("."):
+            score = score[part]
+        self.score = score
 
     def after_steps(self):
         """Main PBT tick executed every train step.
@@ -84,6 +87,9 @@ class PbtAlgoObserver(AlgoObserver):
                whitelisted params, set `restart_flag`, broadcast (if distributed),
                and print a mutation diff table.
         """
+        if self.distributed_args.distributed:
+            dist.broadcast(self.restart_flag, src=0)
+
         if self.distributed_args.rank != 0:
             if self.restart_flag.cpu().item() == 1:
                 os._exit(0)
@@ -154,9 +160,6 @@ class PbtAlgoObserver(AlgoObserver):
             self.new_params = mutate(cur_params, self.cfg.mutation, self.cfg.mutation_rate, self.cfg.change_range)
             self.restart_from_checkpoint = os.path.abspath(ckpts[replacement_policy_candidate]["checkpoint"])
             self.restart_flag[0] = 1
-            if self.distributed_args.distributed:
-                dist.broadcast(self.restart_flag, src=0)
-
             self.printer.print_mutation_diff(cur_params, self.new_params)
 
     def _restart_with_new_params(self, new_params, restart_from_checkpoint):
@@ -191,6 +194,11 @@ class PbtAlgoObserver(AlgoObserver):
         if self.wandb_args.enabled:
             import wandb
 
+            # note setdefault will only affect child process, that mean don't have to worry it env variable
+            # propagate beyond restarted child process
+            os.environ.setdefault("WANDB_RUN_ID", wandb.run.id)  # continue with the same run id
+            os.environ.setdefault("WANDB_RESUME", "allow")  # allow wandb to resume
+            os.environ.setdefault("WANDB_INIT_TIMEOUT", "300")  # give wandb init more time to be fault tolerant
             wandb.run.finish()
 
         # Get the directory of the current file

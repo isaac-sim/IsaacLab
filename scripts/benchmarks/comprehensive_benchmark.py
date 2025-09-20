@@ -58,42 +58,54 @@ class ComprehensiveBenchmark:
         # Define task configurations
         self.task_configs = {
             # Camera-enabled task
-            "Isaac-Navigation-Flat-Anymal-C-v0": {
+            "Isaac-Dexsuite-Kuka-Allegro-Lift-Depth-TiledCamera-v0": {
                 "enable_cameras": True,
                 "env_counts": [1024, 2048, 4096],
-                "training_scripts": ["rsl_rl"],
-            },
-            # Non-camera tasks
-            "Isaac-Dexsuite-Kuka-Allegro-Reorient-v0": {
-                "enable_cameras": False,
-                "env_counts": [2048, 4096, 8192, 16384],
-                "training_scripts": ["rsl_rl"],
-            },
-            "Isaac-Dexsuite-Kuka-Allegro-Lift-v0": {
-                "enable_cameras": False,
-                "env_counts": [2048, 4096, 8192, 16384],
-                "training_scripts": ["rsl_rl"],
-            },
-            "Isaac-Velocity-Rough-Anymal-D-v0": {
-                "enable_cameras": False,
-                "env_counts": [2048, 4096, 8192, 16384],
-                "training_scripts": ["rsl_rl"],
-            },
-            "Isaac-Velocity-Rough-G1-v0": {
-                "enable_cameras": False,
-                "env_counts": [2048, 4096, 8192, 16384],
-                "training_scripts": ["rsl_rl"],
-            },
-            "Isaac-Repose-Cube-Shadow-Direct-v0": {
-                "enable_cameras": False,
-                "env_counts": [2048, 4096, 8192, 16384],
-                "training_scripts": ["rsl_rl", "rl_games"],
-            },
-            "Isaac-Repose-Cube-Shadow-OpenAI-LSTM-Direct-v0": {
-                "enable_cameras": False,
-                "env_counts": [2048, 4096, 8192, 16384],
                 "training_scripts": ["rl_games"],
+                "extra": "--rendering_mode performance"
             },
+            "Isaac-Dexsuite-Kuka-Allegro-Lift-Depth-RayCasterCamera-v0": {
+                "enable_cameras": True,
+                "env_counts": [1024, 2048, 4096],
+                "training_scripts": ["rl_games"],
+                "extra": "--rendering_mode performance"
+            },
+            # "Isaac-Navigation-Flat-Anymal-C-v0": {
+            #     "enable_cameras": True,
+            #     "env_counts": [1024, 2048, 4096],
+            #     "training_scripts": ["rsl_rl"],
+            # },
+            # # Non-camera tasks
+            # "Isaac-Dexsuite-Kuka-Allegro-Reorient-v0": {
+            #     "enable_cameras": False,
+            #     "env_counts": [2048, 4096, 8192, 16384],
+            #     "training_scripts": ["rsl_rl"],
+            # },
+            # "Isaac-Dexsuite-Kuka-Allegro-Lift-v0": {
+            #     "enable_cameras": False,
+            #     "env_counts": [2048, 4096, 8192, 16384],
+            #     "training_scripts": ["rsl_rl"],
+            # },
+            # "Isaac-Velocity-Rough-Anymal-D-v0": {
+            #     "enable_cameras": False,
+            #     "env_counts": [2048, 4096, 8192, 16384],
+            #     "training_scripts": ["rsl_rl"],
+            # },
+            # "Isaac-Velocity-Rough-G1-v0": {
+            #     "enable_cameras": False,
+            #     "env_counts": [2048, 4096, 8192, 16384],
+            #     "training_scripts": ["rsl_rl"],
+            # },
+            # "Isaac-Repose-Cube-Shadow-Direct-v0": {
+            #     "enable_cameras": False,
+            #     "env_counts": [2048, 4096, 8192, 16384],
+            #     "training_scripts": ["rsl_rl", "rl_games"],
+            # },
+            # "Isaac-Repose-Cube-Shadow-OpenAI-LSTM-Direct-v0": {
+            #     "enable_cameras": False,
+            #     "env_counts": [2048, 4096, 8192, 16384],
+            #     "training_scripts": ["rl_games"],
+            # },
         }
 
         self.gpu_counts = [1, 2, 4, 8]
@@ -146,6 +158,9 @@ class ComprehensiveBenchmark:
         # Add camera flag if required
         if config["enable_cameras"]:
             cmd.append("--enable_cameras")
+        
+        if "extra" in config:
+            cmd.extend(config["extra"].split())
 
         return cmd
 

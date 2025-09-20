@@ -66,6 +66,7 @@ import random
 from datetime import datetime
 
 import omni
+from rl_games.algos_torch import model_builder
 from rl_games.common import env_configurations, vecenv
 from rl_games.common.algo_observer import IsaacAlgoObserver
 from rl_games.torch_runner import Runner
@@ -82,6 +83,7 @@ from isaaclab.utils.dict import print_dict
 from isaaclab.utils.io import dump_pickle, dump_yaml
 
 from isaaclab_rl.rl_games import MultiObserver, PbtAlgoObserver, RlGamesGpuEnv, RlGamesVecEnvWrapper
+from isaaclab_rl.rl_games.encoder_a2c_network import A2CBuilderWithEncoders
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.hydra import hydra_task_config
@@ -93,6 +95,7 @@ from isaaclab_tasks.utils.hydra import hydra_task_config
 def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agent_cfg: dict):
     """Train with RL-Games agent."""
     # override configurations with non-hydra CLI arguments
+    model_builder.register_network("encoder_actor_critic", A2CBuilderWithEncoders)
     env_cfg.scene.num_envs = args_cli.num_envs if args_cli.num_envs is not None else env_cfg.scene.num_envs
     env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
 
@@ -226,8 +229,9 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
             monitor_gym=True,
             save_code=True,
         )
-        wandb.config.update({"env_cfg": env_cfg.to_dict()})
-        wandb.config.update({"agent_cfg": agent_cfg})
+        if not wandb.run.resumed:
+            wandb.config.update({"env_cfg": env_cfg.to_dict()})
+            wandb.config.update({"agent_cfg": agent_cfg})
 
     if args_cli.checkpoint is not None:
         runner.run({"train": True, "play": False, "sigma": train_sigma, "checkpoint": resume_path})

@@ -74,12 +74,13 @@ Table of Contents
 =================
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
    :caption: Isaac Lab
 
    source/setup/ecosystem
    source/setup/installation/index
    source/deployment/index
+   source/setup/installation/cloud_installation
    source/refs/reference_architecture/index
 
 
