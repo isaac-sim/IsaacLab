@@ -10,12 +10,13 @@ from typing import TYPE_CHECKING
 
 from isaaclab.assets import Articulation, RigidObject
 from isaaclab.managers import ManagerTermBase, SceneEntityCfg
-from isaaclab.utils.math import quat_apply, quat_apply_inverse, quat_inv, quat_mul, subtract_frame_transforms
+from isaaclab.utils.math import quat_apply, quat_apply_inverse, quat_inv, quat_mul, subtract_frame_transforms, combine_frame_transforms, compute_pose_error
 
 from .utils import sample_object_point_cloud
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
+    from isaaclab.sensors import Camera, RayCasterCamera, TiledCamera, MultiMeshRayCasterCamera, MultiMeshRayCaster
 
 
 def object_pos_b(
@@ -194,4 +195,22 @@ def fingers_contact_force_b(
     force_w = torch.stack(force_w, dim=1)
     robot: Articulation = env.scene[asset_cfg.name]
     forces_b = quat_apply_inverse(robot.data.root_link_quat_w.unsqueeze(1).repeat(1, force_w.shape[1], 1), force_w)
-    return forces_b
+    return forces_b.view(env.num_envs, -1)
+
+
+def depth_image(
+    env: ManagerBasedRLEnv,
+    sensor_cfg: SceneEntityCfg = SceneEntityCfg("tiled_camera"),
+    normalize: bool = True,
+) -> torch.Tensor:
+    # extract the used quantities (to enable type-hinting)
+    sensor: TiledCamera | Camera | RayCasterCamera | MultiMeshRayCasterCamera = env.scene.sensors[sensor_cfg.name]
+    # obtain the input image
+    images = sensor.data.output["distance_to_image_plane"]
+    images = torch.nan_to_num(images, nan=10.0)
+    # depth image normalization
+    if normalize:
+        images = torch.tanh(images / 2) * 2
+        images -= torch.mean(images, dim=(1, 2), keepdim=True)
+
+    return images
