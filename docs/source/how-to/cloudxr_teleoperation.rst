@@ -409,7 +409,7 @@ Manus + Vive Hand Tracking
 
 Manus gloves and HTC Vive trackers can provide hand tracking when optical hand tracking from a headset is occluded.
 This setup expects Manus gloves with a Manus SDK license and Vive trackers attached to the gloves.
-Requires Isaac Sim >=5.1.
+Requires Isaac Sim 5.1 or later.
 
 Run the teleoperation example with Manus + Vive tracking:
 
@@ -424,6 +424,10 @@ Run the teleoperation example with Manus + Vive tracking:
 Begin the session with your palms facing up.
 This is necessary for calibrating Vive tracker poses using Apple Vision Pro wrist poses from a few initial frames,
 as the Vive trackers attached to the back of the hands occlude the optical hand tracking.
+
+For optimal performance, position the lighthouse above the hands, tilted slightly downward.
+One lighthouse is sufficient if both hands are visible.
+Ensure the lighthouse remains stable; a stand is recommended to prevent wobbling.
 
 .. note::
 
