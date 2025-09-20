@@ -247,6 +247,45 @@ install_isaaclab_extension() {
     fi
 }
 
+# Resolve Torch-bundled libgomp and prepend to LD_PRELOAD, once per shell session
+write_torch_gomp_hooks() {
+  mkdir -p "${CONDA_PREFIX}/etc/conda/activate.d" "${CONDA_PREFIX}/etc/conda/deactivate.d"
+
+  # activation: resolve Torch's libgomp via this env's Python and prepend to LD_PRELOAD
+  cat > "${CONDA_PREFIX}/etc/conda/activate.d/torch_gomp.sh" <<'EOS'
+# Resolve Torch-bundled libgomp and prepend to LD_PRELOAD (quiet + idempotent)
+: "${_IL_PREV_LD_PRELOAD:=${LD_PRELOAD-}}"
+
+__gomp="$("$CONDA_PREFIX/bin/python" - <<'PY' 2>/dev/null || true
+import pathlib
+try:
+    import torch
+    p = pathlib.Path(torch.__file__).parent / 'lib' / 'libgomp.so.1'
+    print(p if p.exists() else "", end="")
+except Exception:
+    pass
+PY
+)"
+
+if [ -n "$__gomp" ] && [ -r "$__gomp" ]; then
+  case ":${LD_PRELOAD:-}:" in
+    *":$__gomp:"*) : ;;  # already present
+    *) export LD_PRELOAD="$__gomp${LD_PRELOAD:+:$LD_PRELOAD}";;
+  esac
+fi
+unset __gomp
+EOS
+
+  # deactivation: restore original LD_PRELOAD
+  cat > "${CONDA_PREFIX}/etc/conda/deactivate.d/torch_gomp_unset.sh" <<'EOS'
+# restore LD_PRELOAD to pre-activation value
+if [ -v _IL_PREV_LD_PRELOAD ]; then
+  export LD_PRELOAD="$_IL_PREV_LD_PRELOAD"
+  unset _IL_PREV_LD_PRELOAD
+fi
+EOS
+}
+
 # setup anaconda environment for Isaac Lab
 setup_conda_env() {
     # get environment name from input
@@ -311,6 +350,7 @@ setup_conda_env() {
         'export RESOURCE_NAME="IsaacSim"' \
         '' > ${CONDA_PREFIX}/etc/conda/activate.d/setenv.sh
 
+    write_torch_gomp_hooks
     # check if we have _isaac_sim directory -> if so that means binaries were installed.
     # we need to setup conda variables to load the binaries
     local isaacsim_setup_conda_env_script=${ISAACLAB_PATH}/_isaac_sim/setup_conda_env.sh
