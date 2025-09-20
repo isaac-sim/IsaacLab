@@ -7,7 +7,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
-# from isaaclab.sensors.ray_caster import MultiMeshRayCasterCfg, patterns, MultiMeshRayCasterCameraCfg
+from isaaclab.sensors.ray_caster import MultiMeshRayCasterCfg, patterns, MultiMeshRayCasterCameraCfg
 from isaaclab.sensors import TiledCameraCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
@@ -21,38 +21,38 @@ from .dexsuite_kuka_allegro_env_cfg import KukaAllegroMixinCfg
 class KukaAllegroRayCasterSceneCfg(dexsuite_state_impl.SceneCfg):
     """Dexsuite scene for multi-objects Lifting/Reorientation"""
 
-    # base_camera = MultiMeshRayCasterCameraCfg(
-    #     prim_path="{ENV_REGEX_NS}/Robot/root_joint",
-    #     mesh_prim_paths=[
-    #         "/World/GroundPlane",
-    #         MultiMeshRayCasterCfg.RaycastTargetCfg(is_shared=False, target_prim_expr="{ENV_REGEX_NS}/Object"),
-    #         MultiMeshRayCasterCfg.RaycastTargetCfg(is_shared=True, target_prim_expr="{ENV_REGEX_NS}/Robot/ee_link/.*_link.*"),
-    #         MultiMeshRayCasterCfg.RaycastTargetCfg(is_shared=True, target_prim_expr="{ENV_REGEX_NS}/Robot/.*_link_.*"),
-    #         MultiMeshRayCasterCfg.RaycastTargetCfg(is_shared=True, target_prim_expr="{ENV_REGEX_NS}/table", track_mesh_transforms=False),
-    #     ],
-    #     offset=MultiMeshRayCasterCameraCfg.OffsetCfg(
-    #         pos=(0.57, -0.8, 0.5), rot=(0.6124, 0.6124, 0.3536, 0.3536), convention="opengl",
-    #     ),
-    #     pattern_cfg=patterns.PinholeCameraPatternCfg(height=64, width=64),
-    #     max_distance=10,
-    #     depth_clipping_behavior="max"
-    # )
+    base_camera = MultiMeshRayCasterCameraCfg(
+        prim_path="{ENV_REGEX_NS}/Robot/root_joint",
+        mesh_prim_paths=[
+            "/World/GroundPlane",
+            MultiMeshRayCasterCfg.RaycastTargetCfg(is_shared=False, target_prim_expr="{ENV_REGEX_NS}/Object"),
+            MultiMeshRayCasterCfg.RaycastTargetCfg(is_shared=True, target_prim_expr="{ENV_REGEX_NS}/Robot/ee_link/.*_link.*"),
+            MultiMeshRayCasterCfg.RaycastTargetCfg(is_shared=True, target_prim_expr="{ENV_REGEX_NS}/Robot/.*_link_.*"),
+            MultiMeshRayCasterCfg.RaycastTargetCfg(is_shared=True, target_prim_expr="{ENV_REGEX_NS}/table", track_mesh_transforms=False),
+        ],
+        offset=MultiMeshRayCasterCameraCfg.OffsetCfg(
+            pos=(0.57, -0.8, 0.5), rot=(0.6124, 0.6124, 0.3536, 0.3536), convention="opengl",
+        ),
+        pattern_cfg=patterns.PinholeCameraPatternCfg(height=64, width=64),
+        max_distance=10,
+        depth_clipping_behavior="max"
+    )
 
-    # wrist_camera = MultiMeshRayCasterCameraCfg(
-    #     prim_path="{ENV_REGEX_NS}/Robot/ee_link/palm_link",
-    #     mesh_prim_paths=[
-    #         "/World/GroundPlane",
-    #         MultiMeshRayCasterCfg.RaycastTargetCfg(is_shared=False, target_prim_expr="{ENV_REGEX_NS}/Object"),
-    #         MultiMeshRayCasterCfg.RaycastTargetCfg(is_shared=True, target_prim_expr="{ENV_REGEX_NS}/Robot/ee_link/.*_link.*"),
-    #         MultiMeshRayCasterCfg.RaycastTargetCfg(is_shared=True, target_prim_expr="{ENV_REGEX_NS}/table"),
-    #     ],
-    #     offset=MultiMeshRayCasterCameraCfg.OffsetCfg(
-    #         pos=(0.038, -0.38, -0.18), rot=(0.299, 0.641, 0.641, -0.299), convention="opengl",
-    #     ),
-    #     pattern_cfg=patterns.PinholeCameraPatternCfg(height=64, width=64),
-    #     max_distance=10,
-    #     depth_clipping_behavior="max"
-    # )
+    wrist_camera = MultiMeshRayCasterCameraCfg(
+        prim_path="{ENV_REGEX_NS}/Robot/ee_link/palm_link",
+        mesh_prim_paths=[
+            "/World/GroundPlane",
+            MultiMeshRayCasterCfg.RaycastTargetCfg(is_shared=False, target_prim_expr="{ENV_REGEX_NS}/Object"),
+            MultiMeshRayCasterCfg.RaycastTargetCfg(is_shared=True, target_prim_expr="{ENV_REGEX_NS}/Robot/ee_link/.*_link.*"),
+            MultiMeshRayCasterCfg.RaycastTargetCfg(is_shared=True, target_prim_expr="{ENV_REGEX_NS}/table"),
+        ],
+        offset=MultiMeshRayCasterCameraCfg.OffsetCfg(
+            pos=(0.038, -0.38, -0.18), rot=(0.299, 0.641, 0.641, -0.299), convention="opengl",
+        ),
+        pattern_cfg=patterns.PinholeCameraPatternCfg(height=64, width=64),
+        max_distance=10,
+        depth_clipping_behavior="max"
+    )
 
 
 @configclass
