@@ -6,7 +6,7 @@ Adding a New Robot to Isaac Lab
 .. currentmodule:: isaaclab
 
 Simulating and training a new robot is a multi-step process that starts with importing the robot into Isaac Sim.
-This is covered in depth in the Isaac Sim documentation `here <https://docs.isaacsim.omniverse.nvidia.com/latest/robot_setup/importers_exporters.html>`_.
+This is covered in depth in the Isaac Sim documentation `here <https://docs.isaacsim.omniverse.nvidia.com/latest/importer_exporter/importers_exporters.html>`_.
 Once the robot is imported and tuned for simulation, we must define those interfaces necessary to clone the robot across multiple environments, drive its joints,
 and properly reset it, regardless of the chosen workflow or training framework.
 
