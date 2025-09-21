@@ -29,7 +29,7 @@ ALLEGRO_HAND_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/WonikRobotics/AllegroHand/allegro_hand_instanceable.usd",
         articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-            enabled_self_collisions=False,
+            enabled_self_collisions=True,
         ),
     ),
     init_state=ArticulationCfg.InitialStateCfg(

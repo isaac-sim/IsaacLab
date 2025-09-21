@@ -1380,8 +1380,8 @@ class Articulation(AssetBase):
         generated_pose[:, :2] += wp.to_torch(self._root_newton_view.get_root_transforms(NewtonManager.get_model()))[
             :, :2
         ]
-        self._root_newton_view.set_root_transforms(NewtonManager.get_state_0(), generated_pose, mask=self._ALL_INDICES)
-        self._root_newton_view.set_root_transforms(NewtonManager.get_model(), generated_pose, mask=self._ALL_INDICES)
+        self._root_newton_view.set_root_transforms(NewtonManager.get_state_0(), generated_pose)
+        self._root_newton_view.set_root_transforms(NewtonManager.get_model(), generated_pose)
 
     def _create_buffers(self):
         # constants
