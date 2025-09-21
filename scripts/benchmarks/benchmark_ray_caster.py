@@ -36,7 +36,7 @@ parser.add_argument("--steps", type=int, default=2000, help="Steps per resolutio
 parser.add_argument("--warmup", type=int, default=50, help="Warmup steps before timing.")
 
 # Num assets for benchmarking memory usage with and without caching.
-NUM_ASSETS_MEMORY = [1, 2, 4, 8, 16, 32]  
+NUM_ASSETS_MEMORY = [1, 2, 4, 8, 16]  
  # Num assets for benchmarking scaling performance. of multi-mesh ray caster.
 NUM_ASSETS = [0, 1, 2, 4, 8, 16, 32, 64, 128]
 # Num envs for benchmarking single vs multi mesh ray caster. 
@@ -248,7 +248,7 @@ def main():
     _MESH_CONVERTERS_CALLBACKS["Sphere"] = lambda p: _create_sphere_trimesh(p, subdivisions=5)
     # Compare multi mesh performance over different number of assets.
     # More specifically, compare reference vs non-reference meshes and their respective memory usage.
-    for idx, num_assets in enumerate(NUM_ASSETS):
+    for idx, num_assets in enumerate(NUM_ASSETS_MEMORY):
         for reference_meshes in [True, False]:
             if num_assets > 16 and not reference_meshes:
                 continue  # Skip this, otherwise we run out of memory
@@ -330,7 +330,7 @@ def main():
 
     # Compare multi mesh performance over different number of assets
     for idx, num_assets in enumerate(NUM_ASSETS):
-        print(f"\n[INFO]: Benchmarking with {num_assets} assets. {idx} / {len(NUM_ENVS)}")
+        print(f"\n[INFO]: Benchmarking with {num_assets} assets. {idx} / {len(NUM_ASSETS)}")
         multi_scene_cfg = _make_scene_cfg_multi(
             num_envs=num_envs,
             resolution=resolution,
@@ -354,7 +354,7 @@ def main():
     results: list[dict[str, object]] = []
     # Compare multi mesh performance over different number of vertices
     for idx, subdivision in enumerate(MESH_SUBDIVISIONS):
-        print(f"\n[INFO]: Benchmarking with {subdivision} subdivisions. {idx} / {len(NUM_ENVS)}")
+        print(f"\n[INFO]: Benchmarking with {subdivision} subdivisions. {idx} / {len(MESH_SUBDIVISIONS)}")
         _MESH_CONVERTERS_CALLBACKS["Sphere"] = lambda p: _create_sphere_trimesh(p, subdivisions=subdivision)
         multi_scene_cfg = _make_scene_cfg_multi(
             num_envs=num_envs,
