@@ -198,16 +198,6 @@ class ArticulationWithThrusters(Articulation):
     def set_thrust_target(
         self, target: torch.Tensor, joint_ids: Sequence[int] | slice | None = None, env_ids: Sequence[int] | None = None
     ):
-        """Set thrust targets into internal buffers.
-
-        This function does not apply the thrust targets to the simulation. It only fills the buffers with
-        the desired values. To apply the thrust targets, call the :meth:`write_data_to_sim` function.
-            # TODO : A tensor dict would be nice to do the indexing of all tensors together
-        Args:
-            target: Thrust targets. Shape is (len(env_ids), len(joint_ids)).
-            joint_ids: The joint indices to set the targets for. Defaults to None (all joints).
-            env_ids: The environment indices to set the targets for. Defaults to None (all environments).
-        """
         
         # resolve indices
         if env_ids is None:
@@ -219,6 +209,7 @@ class ArticulationWithThrusters(Articulation):
             env_ids = env_ids[:, None]
         # set targets
         self._data.thrust_target[env_ids, joint_ids] = target
+    
 
     def write_data_to_sim(self):
         """Write external wrenches and joint commands to the simulation.

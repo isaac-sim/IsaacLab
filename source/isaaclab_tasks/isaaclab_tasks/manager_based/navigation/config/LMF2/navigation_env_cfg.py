@@ -7,7 +7,7 @@ import math
 from dataclasses import MISSING
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import ArticulationCfg, AssetBaseCfg
+from isaaclab.assets import AssetBaseCfg, ArticulationWithThrustersCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import CurriculumTermCfg as CurrTerm
 from isaaclab.managers import EventTermCfg as EventTerm
@@ -32,6 +32,7 @@ from .vae.vae_image_encoder import VAEImageEncoder
 # Pre-defined configs
 ##
 from isaaclab.terrains.config.floating_obstacles import FLOATING_OBSTACLES_CFG 
+from isaaclab.controllers.lee_velocity_control_cfg import LeeVelControllerCfg
 
 ##
 # Scene definition
@@ -58,7 +59,7 @@ class MySceneCfg(InteractiveSceneCfg):
     )
     
     # robots
-    robot: ArticulationCfg = MISSING
+    robot: ArticulationWithThrustersCfg = MISSING
     # sensors
     depth_camera = CameraCfg(
         prim_path="{ENV_REGEX_NS}/Robot/base_link/depth_camera",
@@ -107,7 +108,11 @@ class CommandsCfg:
 class ActionsCfg:
     """Action specifications for the MDP."""
 
-    thrust = mdp.ThrustActionCfg(asset_name="robot", joint_names=[".*"], scale=0.5, use_default_offset=True)
+    thrust = mdp.NavigationActionCfg(asset_name="robot", 
+                                     joint_names=[".*"], 
+                                     scale=0.5, 
+                                     use_default_offset=True,
+                                     controller_cfg=LeeVelControllerCfg())
 
 @configclass
 class ObservationsCfg:

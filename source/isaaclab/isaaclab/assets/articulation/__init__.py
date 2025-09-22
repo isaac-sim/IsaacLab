@@ -9,3 +9,4 @@ from .articulation import Articulation
 from .articulation_cfg import ArticulationCfg, ArticulationWithThrustersCfg
 from .articulation_data import ArticulationData
 from .articulation_data_thrusters import ArticulationDataWithThrusters
+from .articulation_with_thrusters import ArticulationWithThrusters

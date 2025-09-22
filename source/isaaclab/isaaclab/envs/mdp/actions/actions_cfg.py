@@ -6,6 +6,7 @@
 from dataclasses import MISSING
 
 from isaaclab.controllers import DifferentialIKControllerCfg, OperationalSpaceControllerCfg
+from isaaclab.controllers.lee_velocity_control_cfg import LeeVelControllerCfg
 from isaaclab.managers.action_manager import ActionTerm, ActionTermCfg
 from isaaclab.utils import configclass
 
@@ -350,5 +351,8 @@ class NavigationActionCfg(JointActionCfg):
     """Type of command to apply: "vel" for velocity commands, "pos" for position commands. 
     "acc" for acceleration commands. Defaults to "vel".
     """
+    
+    controller_cfg: LeeVelControllerCfg = MISSING
+    """The configuration for the Lee velocity controller."""
     
     

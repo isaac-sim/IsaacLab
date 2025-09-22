@@ -80,7 +80,7 @@ class ArticulationWithThrustersCfg(ArticulationCfg):
     """Configuration parameters for an articulation."""
 
     @configclass
-    class InitialThrusterStateCfg(ArticulationCfg.InitialStateCfg):
+    class InitialStateCfg(ArticulationCfg.InitialStateCfg):
         """Initial state of the articulation."""
         
         # # root velocity
@@ -110,7 +110,7 @@ class ArticulationWithThrustersCfg(ArticulationCfg):
     The path must start with a slash (`/`).
     """
 
-    init_state: InitialThrusterStateCfg = InitialThrusterStateCfg()
+    init_state: InitialStateCfg = InitialStateCfg()
     """Initial state of the articulated object. Defaults to identity pose with zero velocity and zero joint state."""
 
     # actuators: dict[str, ActuatorBaseCfg] = MISSING

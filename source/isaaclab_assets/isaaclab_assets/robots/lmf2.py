@@ -48,7 +48,7 @@ LMF2_CFG = ArticulationWithThrustersCfg(
             enabled_self_collisions=True, solver_position_iteration_count=4, solver_velocity_iteration_count=0
         ),
     ),
-    init_state=ArticulationWithThrustersCfg.InitialThrusterStateCfg(
+    init_state=ArticulationWithThrustersCfg.InitialStateCfg(
         pos=(0.0, 0.0, 0.0),
         lin_vel=(0.0, 0.0, 0.0),
         ang_vel=(0.0, 0.0, 0.0),
@@ -61,7 +61,7 @@ LMF2_CFG = ArticulationWithThrustersCfg(
         },
     ),
     actuators={"thrusters": LMF2_THRUSTER},
-    soft_joint_pos_limit_factor=0.95,
+    # soft_joint_pos_limit_factor=0.95,
     rotor_directions=[1, -1, 1, -1],
     allocation_matrix=[
             [0.0, 0.0, 0.0, 0.0],
