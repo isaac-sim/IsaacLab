@@ -42,42 +42,6 @@ def set_env_mask(env_mask: wp.array(dtype=bool), env_ids: wp.array(dtype=wp.int3
 
 
 @wp.func
-def combine_frame_transform(pos_1: wp.vec3f, quat_1: wp.quatf, pos_2: wp.vec3f, quat_2: wp.quatf) -> wp.transformf:
-    """Combine two frame transforms.
-
-    Args:
-        pos_1: The position of the first frame.
-        quat_1: The quaternion of the first frame.
-        pos_2: The position of the second frame.
-        quat_2: The quaternion of the second frame.
-
-    Returns:
-        The combined frame transform.
-    """
-    quat = quat_1 * quat_2
-    pos = pos_1 + wp.quat_rotate(quat_1, pos_2)
-    return wp.transformf(pos, quat)
-
-
-@wp.func
-def subtract_frame_transform(pos_1: wp.vec3f, quat_1: wp.quatf, pos_2: wp.vec3f, quat_2: wp.quatf) -> wp.transformf:
-    """Subtract two frame transforms.
-
-    Args:
-        pos_1: The position of the first frame.
-        quat_1: The quaternion of the first frame.
-        pos_2: The position of the second frame.
-        quat_2: The quaternion of the second frame.
-
-    Returns:
-        The subtracted frame transform.
-    """
-    quat = wp.quat_inverse(quat_1) * quat_2
-    pos = wp.quat_rotate_inv(quat_1, pos_2 - pos_1)
-    return wp.transformf(pos, quat)
-
-
-@wp.func
 def split_transform_to_quat4lab(transform: wp.transformf) -> wp.vec4f:
     """Split a frame transform into a quaternion in wxyz order.
 
@@ -120,12 +84,7 @@ def update_source_transform(
     """
     idx = wp.tid()
     if env_mask[idx]:
-        output_transforms[idx] = combine_frame_transform(
-            wp.transform_get_translation(source_transforms[idx, source_index]),
-            wp.transform_get_rotation(source_transforms[idx, source_index]),
-            wp.transform_get_translation(offset),
-            wp.transform_get_rotation(offset),
-        )
+        output_transforms[idx] = source_transforms[idx, source_index] * offset
         output_pos[idx] = wp.transform_get_translation(output_transforms[idx])
         output_quat[idx] = split_transform_to_quat4lab(output_transforms[idx])
 
@@ -167,24 +126,14 @@ def update_frame_transforms(
     env_idx, frame_idx = wp.tid()
 
     if env_mask[env_idx]:
-        frames_transforms_origin[env_idx][frame_to_view_ids[frame_idx]] = combine_frame_transform(
-            wp.transform_get_translation(frames_transforms_world[env_idx][body_to_view_ids[frame_idx]]),
-            wp.transform_get_rotation(frames_transforms_world[env_idx][body_to_view_ids[frame_idx]]),
-            wp.transform_get_translation(frame_offsets[frame_to_view_ids[frame_idx]]),
-            wp.transform_get_rotation(frame_offsets[frame_to_view_ids[frame_idx]]),
-        )
+        frames_transforms_origin[env_idx][frame_to_view_ids[frame_idx]] = frames_transforms_world[env_idx][body_to_view_ids[frame_idx]] * frame_offsets[frame_to_view_ids[frame_idx]]
         frames_pos_world[env_idx][frame_to_view_ids[frame_idx]] = wp.transform_get_translation(
             frames_transforms_origin[env_idx][frame_to_view_ids[frame_idx]]
         )
         frames_quat_world[env_idx][frame_to_view_ids[frame_idx]] = split_transform_to_quat4lab(
             frames_transforms_origin[env_idx][frame_to_view_ids[frame_idx]]
         )
-        frames_transforms_origin[env_idx][frame_to_view_ids[frame_idx]] = subtract_frame_transform(
-            wp.transform_get_translation(origin_transforms[env_idx]),
-            wp.transform_get_rotation(origin_transforms[env_idx]),
-            wp.transform_get_translation(frames_transforms_origin[env_idx][frame_to_view_ids[frame_idx]]),
-            wp.transform_get_rotation(frames_transforms_origin[env_idx][frame_to_view_ids[frame_idx]]),
-        )
+        frames_transforms_origin[env_idx][frame_to_view_ids[frame_idx]] = wp.transform_inverse(origin_transforms[env_idx]) * frames_transforms_origin[env_idx][frame_to_view_ids[frame_idx]]
         frames_pos_origin[env_idx][frame_to_view_ids[frame_idx]] = wp.transform_get_translation(
             frames_transforms_origin[env_idx][frame_to_view_ids[frame_idx]]
         )
