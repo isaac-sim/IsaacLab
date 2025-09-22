@@ -154,10 +154,6 @@ class LeeVelController:
         accel_command = (
             self.K_vel_current * velocity_error
         )
-        print("setpoint velocity world frame: ", setpoint_velocity_world_frame)
-        print("current velocity world frame: ", self.robot.data.root_lin_vel_w)
-        print("velocity error: ", velocity_error)
-        print("accel command: ", accel_command)
         return accel_command
 
     def compute_body_torque(self, setpoint_orientation, setpoint_angvel):
