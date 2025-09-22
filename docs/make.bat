@@ -13,8 +13,8 @@ if "%1" == "multi-docs" (
 	if "%SPHINXBUILD%" == "" (
 		set SPHINXBUILD=sphinx-multiversion
 	)
-	%SPHINXBUILD% >NUL 2>NUL
-	if errorlevel 9009 (
+	where %SPHINXBUILD% >NUL 2>NUL
+	if errorlevel 1 (
 		echo.
 		echo.The 'sphinx-multiversion' command was not found. Make sure you have Sphinx
 		echo.installed, then set the SPHINXBUILD environment variable to point
@@ -37,8 +37,8 @@ if "%1" == "current-docs" (
 	if "%SPHINXBUILD%" == "" (
 		set SPHINXBUILD=sphinx-build
 	)
-	%SPHINXBUILD% >NUL 2>NUL
-	if errorlevel 9009 (
+	where %SPHINXBUILD% >NUL 2>NUL
+	if errorlevel 1 (
 		echo.
 		echo.The 'sphinx-build' command was not found. Make sure you have Sphinx
 		echo.installed, then set the SPHINXBUILD environment variable to point
@@ -49,7 +49,8 @@ if "%1" == "current-docs" (
 		echo.http://sphinx-doc.org/
 		exit /b 1
 	)
-	%SPHINXBUILD% %SOURCEDIR% %BUILDDIR%\current %SPHINXOPTS% %O%
+	if exist "%BUILDDIR%\current" rmdir /s /q "%BUILDDIR%\current"
+	%SPHINXBUILD% -W "%SOURCEDIR%" "%BUILDDIR%\current" %SPHINXOPTS%
 	goto end
 )
 
