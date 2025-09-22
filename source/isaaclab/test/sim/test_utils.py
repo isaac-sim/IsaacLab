@@ -204,8 +204,8 @@ def test_resolve_prim_pose():
             attributes={"size": rand_widths[i]},
         )
         # xform hierarchy
-        # NOTE: Enabling scale causes the test to fail because the current implementation of 
-        # resolve_prim_pose does not correctly handle non-identity scales on Xform prims. This is a known 
+        # NOTE: Enabling scale causes the test to fail because the current implementation of
+        # resolve_prim_pose does not correctly handle non-identity scales on Xform prims. This is a known
         # limitation. Until this is fixed, scale is disabled here to ensure the test passes.
         # TODO: Fix resolve_prim_pose to support scaled Xform prims.
         xform_prim = prim_utils.create_prim(
