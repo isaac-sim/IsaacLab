@@ -117,7 +117,7 @@ class CartpoleCameraEnv(DirectRLEnv):
                     self.cfg.num_stacked_frames,
                     3,
                 ),
-                dtype=torch.uint8,
+                dtype=torch.float32,
                 device=self.device,
             )
         elif "depth" in self.cfg.tiled_camera.data_types:
@@ -235,11 +235,11 @@ class CartpoleCameraEnv(DirectRLEnv):
             camera_data = self._tiled_camera.data.output[data_type][env_ids] / 255.0
             mean_tensor = torch.mean(camera_data, dim=(1, 2), keepdim=True)
             camera_data -= mean_tensor
-            self.stacked_frames[env_ids] = camera_data
+            self.stacked_frames[env_ids, :, :, -1] = camera_data
         elif data_type == "depth":
             camera_data = self._tiled_camera.data.output[data_type][env_ids]
             camera_data[camera_data == float("inf")] = 0
-            self.stacked_frames[env_ids] = camera_data
+            self.stacked_frames[env_ids, :, :, -1] = camera_data.squeeze()
 
         joint_pos = self._cartpole.data.default_joint_pos[env_ids]
         joint_pos[:, self._pole_dof_idx] += sample_uniform(
