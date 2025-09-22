@@ -451,8 +451,8 @@ class ArticulationWithThrusters(Articulation):
         """Combine individual thrusts into a wrench vector."""
         thrusts = self._thrust_target_sim
         self._internal_wrench_target_sim = (self._allocation_matrix @ thrusts.T).T
-        self._internal_force_target_sim[:,0,:] = self._internal_wrench_target_sim[:,3:]
-        self._internal_torque_target_sim[:,0,:] = self._internal_wrench_target_sim[:,:3]
+        self._internal_force_target_sim[:,0,:] = self._internal_wrench_target_sim[:,:3]
+        self._internal_torque_target_sim[:,0,:] = self._internal_wrench_target_sim[:,3:]
 
     def find_thrusters(
         self, name_keys: str | Sequence[str], thruster_subset: list[str] | None = None, preserve_order: bool = False

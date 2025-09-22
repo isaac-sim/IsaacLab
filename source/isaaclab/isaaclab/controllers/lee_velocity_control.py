@@ -154,6 +154,10 @@ class LeeVelController:
         accel_command = (
             self.K_vel_current * velocity_error
         )
+        print("setpoint velocity world frame: ", setpoint_velocity_world_frame)
+        print("current velocity world frame: ", self.robot.data.root_lin_vel_w)
+        print("velocity error: ", velocity_error)
+        print("accel command: ", accel_command)
         return accel_command
 
     def compute_body_torque(self, setpoint_orientation, setpoint_angvel):
@@ -198,7 +202,7 @@ def calculate_desired_orientation_for_position_velocity_control(
     rotation_matrix_desired[:, :, 1] = b2_c
     rotation_matrix_desired[:, :, 2] = b3_c
     q = math_utils.quat_from_matrix(rotation_matrix_desired)
-    quat_desired = torch.stack((q[:, 1], q[:, 2], q[:, 3], q[:, 0]), dim=1)
+    quat_desired = torch.stack((q[:, 0], q[:, 1], q[:, 2], q[:, 3]), dim=1)
 
     return quat_desired
 
@@ -228,7 +232,7 @@ def copysign(a, b):
 
 @torch.jit.script
 def get_euler_xyz_tensor(q):
-    qx, qy, qz, qw = 0, 1, 2, 3
+    qx, qy, qz, qw = 1, 2, 3, 0
     # roll (x-axis rotation)
     sinr_cosp = 2.0 * (q[:, qw] * q[:, qx] + q[:, qy] * q[:, qz])
     cosr_cosp = (
@@ -268,7 +272,7 @@ def quat_from_euler_xyz_tensor(euler_xyz_tensor: torch.Tensor) -> torch.Tensor:
     qy = cy * cr * sp + sy * sr * cp
     qz = sy * cr * cp - cy * sr * sp
 
-    return torch.stack([qx, qy, qz, qw], dim=-1)
+    return torch.stack([qw, qx, qy, qz], dim=-1)
 
 
 @torch.jit.script
