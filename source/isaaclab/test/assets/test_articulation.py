@@ -2050,7 +2050,6 @@ def test_write_joint_frictions_to_sim(sim, num_articulations, device, add_ground
             sim.step()
             articulation.update(sim.cfg.dt)
 
-
         friction_props_from_sim_2 = articulation.root_physx_view.get_dof_friction_properties()
         joint_friction_coeff_sim_2 = friction_props_from_sim_2[:, :, 0]
         friction_dynamic_coef_sim_2 = friction_props_from_sim_2[:, :, 1]
