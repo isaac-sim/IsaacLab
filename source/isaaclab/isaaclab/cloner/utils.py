@@ -8,6 +8,7 @@ from typing import Any
 
 import warp as wp
 from newton import AxisType, ModelBuilder
+from pxr import Usd
 
 from isaaclab.utils.timer import Timer
 
@@ -58,14 +59,35 @@ def replicate_environment(
             print(f"WARNING: up_axis '{up_axis}' does not match USD stage up_axis '{stage_up_axis}'")
 
     with Timer(name="newton_prototype_builder", msg="Prototype Builder took:", enable=True, format="ms"):
-        # load just the prototype env
+        # Get child xforms from the prototype path
+        child_xforms = []
+        if isinstance(source, str):
+            # If source is a file path, load the stage
+            stage = Usd.Stage.Open(source)
+        else:
+            # If source is already a stage
+            stage = source
+
+        # Get the prototype prim
+        prototype_prim = stage.GetPrimAtPath(prototype_path)
+        if prototype_prim.IsValid():
+            # Get all child prims that are Xforms
+            for child_prim in prototype_prim.GetAllChildren():
+                if child_prim.GetTypeName() == "Xform":
+                    child_xforms.append(child_prim.GetPath().pathString)
+
+        # If no child xforms found, use the prototype path itself
+        if not child_xforms:
+            child_xforms = [prototype_path]
+
         prototype_builder = ModelBuilder(up_axis=up_axis)
-        prototype_builder.add_usd(
-            source,
-            root_path=prototype_path,
-            load_non_physics_prims=False,
-            **usd_kwargs,
-        )
+        for child_path in child_xforms:
+            prototype_builder.add_usd(
+                source,
+                root_path=child_path,
+                load_non_physics_prims=False,
+                **usd_kwargs,
+            )
         prototype_builder.approximate_meshes("convex_hull")
 
     with Timer(name="newton_multiple_add_to_builder", msg="All add to builder took:", enable=True, format="ms"):

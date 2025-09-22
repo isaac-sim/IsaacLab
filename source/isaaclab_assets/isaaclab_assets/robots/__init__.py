@@ -7,9 +7,11 @@
 # Configuration for different assets.
 ##
 
+from .allegro import *
 from .ant import *
 from .anymal import *
 from .cartpole import *
+from .cassie import *
 from .franka import *
 from .humanoid import *
 from .unitree import *
