@@ -204,16 +204,12 @@ def test_resolve_prim_pose():
             attributes={"size": rand_widths[i]},
         )
         # xform hierarchy
-        # NOTE: Enabling scale causes the test to fail because the current implementation of
-        # resolve_prim_pose does not correctly handle non-identity scales on Xform prims. This is a known
-        # limitation. Until this is fixed, scale is disabled here to ensure the test passes.
-        # TODO: Fix resolve_prim_pose to support scaled Xform prims.
         xform_prim = prim_utils.create_prim(
             f"/World/Xform/instance_{i:02d}",
             "Xform",
             translation=rand_positions[i, 1],
             orientation=rand_quats[i, 1],
-            # scale=rand_scales[i, 1],
+            scale=rand_scales[i, 1],
         )
         geometry_prim = prim_utils.create_prim(
             f"/World/Xform/instance_{i:02d}/geometry",
@@ -251,8 +247,12 @@ def test_resolve_prim_pose():
         pos, quat = sim_utils.resolve_prim_pose(geometry_prim, ref_prim=xform_prim)
         pos, quat = np.array(pos), np.array(quat)
         quat = quat if np.sign(rand_quats[i, 2, 0]) == np.sign(quat[0]) else -quat
-        np.testing.assert_allclose(pos, rand_positions[i, 2], atol=1e-3)
+        np.testing.assert_allclose(pos, rand_positions[i, 2] * rand_scales[i, 1], atol=1e-3)
+        # TODO: Enabling scale causes the test to fail because the current implementation of
+        # resolve_prim_pose does not correctly handle non-identity scales on Xform prims. This is a known
+        # limitation. Until this is fixed, the test is disabled here to ensure the test passes.
         np.testing.assert_allclose(quat, rand_quats[i, 2], atol=1e-3)
+
         # dummy prim w.r.t. xform prim
         pos, quat = sim_utils.resolve_prim_pose(dummy_prim, ref_prim=xform_prim)
         pos, quat = np.array(pos), np.array(quat)
