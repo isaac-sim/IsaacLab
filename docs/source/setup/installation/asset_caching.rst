@@ -8,7 +8,7 @@ In some cases, it is possible that asset loading times can be long when assets a
 If you run into cases where assets take a few minutes to load for each run,
 we recommend enabling asset caching following the below steps.
 
-First, launch the Isaac Sim app:
+First, launch the Isaac Sim application:
 
 .. tab-set::
    :sync-group: os
@@ -27,25 +27,32 @@ First, launch the Isaac Sim app:
 
          isaaclab.bat -s
 
-On the top right of the Isaac Sim app, there will be an icon labelled ``CACHE:``.
-There may be a message indicating ``HUB NOT DETECTED`` or ``NEW VERSION DETECTED``.
+On the top right of the Isaac Lab or Isaac Sim app, look for the icon labeled ``CACHE:``.
+You may see a message such as ``HUB NOT DETECTED`` or ``NEW VERSION DETECTED``.
 
-.. figure:: ../../_static/setup/asset_caching.jpg
+Click the message to enable `Hub <https://docs.omniverse.nvidia.com/utilities/latest/cache/hub-workstation.html>`_.
+Hub automatically manages local caching for Isaac Lab assets, so subsequent runs will use cached files instead of
+downloading from AWS each time.
+
+.. figure:: /source/_static/setup/asset_caching.jpg
     :align: center
     :figwidth: 100%
     :alt: Simulator with cache messaging.
 
-Click on the message, which will enable `Hub <https://docs.omniverse.nvidia.com/utilities/latest/cache/hub-workstation.html>`_
-for asset caching. Once enabled, Hub will run automatically each time an Isaac Lab or Isaac Sim instance is run.
+Hub provides better control and management of cached assets, making workflows faster and more reliable, especially
+in environments with limited or intermittent internet access.
 
-Note that for the first run, assets will still need to be pulled from the cloud, which could lead to longer loading times.
-However, subsequent runs that use the same assets will be able to use the cached files from Hub.
-Hub will provide better control for caching of assets used in Isaac Lab.
+.. note::
+   The first time you run Isaac Lab, assets will still need to be pulled from the cloud, which could lead
+   to longer loading times.  Once cached, loading times will be significantly reduced on subsequent runs.
 
 Nucleus
 -------
 
-Prior to Isaac Sim 4.5, assets were accessible from the Omniverse Nucleus server and through setting up a local Nucleus server.
-Although from Isaac Sim 4.5, we have deprecated the use of Omniverse Nucleus and the Omniverse Launcher, any existing instances
-or setups of local Nucleus instances should still work. We recommend keeping existing setups if a local Nucleus server
-was previously already set up.
+
+Before Isaac Sim 4.5, assets were accessed via the Omniverse Nucleus server, including setups with local Nucleus instances.
+
+.. warning::
+   Starting with Isaac Sim 4.5, the Omniverse Nucleus server and Omniverse Launcher are deprecated.
+   Existing Nucleus setups will continue to work, so if you have a local Nucleus server already configured,
+   you may continue to use it.

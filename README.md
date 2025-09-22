@@ -37,92 +37,6 @@ Isaac Lab offers a comprehensive set of tools and environments designed to facil
 
 ## Getting Started
 
-### Getting Started with Open-Source Isaac Sim
-
-Isaac Sim is now open source and available on GitHub!
-
-For detailed Isaac Sim installation instructions, please refer to
-[Isaac Sim README](https://github.com/isaac-sim/IsaacSim?tab=readme-ov-file#quick-start).
-
-1. Clone Isaac Sim
-
-    ```
-    git clone https://github.com/isaac-sim/IsaacSim.git
-    ```
-
-2. Build Isaac Sim
-
-    ```
-    cd IsaacSim
-    ./build.sh
-    ```
-
-    On Windows, please use `build.bat` instead.
-
-3. Clone Isaac Lab
-
-    ```
-    cd ..
-    git clone https://github.com/isaac-sim/IsaacLab.git
-    cd isaaclab
-    ```
-
-4. Set up symlink in Isaac Lab
-
-    Linux:
-
-    ```
-    ln -s ../IsaacSim/_build/linux-x86_64/release _isaac_sim
-    ```
-
-    Windows:
-
-    ```
-    mklink /D _isaac_sim ..\IsaacSim\_build\windows-x86_64\release
-    ```
-
-5. Install Isaac Lab
-
-    Linux:
-
-    ```
-    ./isaaclab.sh -i
-    ```
-
-    Windows:
-
-    ```
-    isaaclab.bat -i
-    ```
-
-6. [Optional] Set up a virtual python environment (e.g. for Conda)
-
-    Linux:
-
-    ```
-    source _isaac_sim/setup_conda_env.sh
-    ```
-
-    Windows:
-
-    ```
-    _isaac_sim\setup_python_env.bat
-    ```
-
-7. Train!
-
-    Linux:
-
-    ```
-    ./isaaclab.sh -p scripts/reinforcement_learning/skrl/train.py --task Isaac-Ant-v0 --headless
-    ```
-
-    Windows:
-
-    ```
-    isaaclab.bat -p scripts\reinforcement_learning\skrl\train.py --task Isaac-Ant-v0 --headless
-    ```
-
 ### Documentation
 
 Our [documentation page](https://isaac-sim.github.io/IsaacLab) provides everything you need to get started, including
@@ -199,6 +113,10 @@ community and beyond!
 The Isaac Lab framework is released under [BSD-3 License](LICENSE). The `isaaclab_mimic` extension and its
 corresponding standalone scripts are released under [Apache 2.0](LICENSE-mimic). The license files of its
 dependencies and assets are present in the [`docs/licenses`](docs/licenses) directory.
+
+Note that Isaac Lab requires Isaac Sim, which includes components under proprietary licensing terms. Please see the [Isaac Sim license](docs/licenses/dependencies/isaacsim-license.txt) for information on Isaac Sim licensing.
+
+Note that the `isaaclab_mimic` extension requires cuRobo, which has proprietary licensing terms that can be found in [`docs/licenses/dependencies/cuRobo-license.txt`](docs/licenses/dependencies/cuRobo-license.txt).
 
 ## Acknowledgement
 
