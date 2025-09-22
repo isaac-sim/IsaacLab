@@ -126,14 +126,19 @@ def update_frame_transforms(
     env_idx, frame_idx = wp.tid()
 
     if env_mask[env_idx]:
-        frames_transforms_origin[env_idx][frame_to_view_ids[frame_idx]] = frames_transforms_world[env_idx][body_to_view_ids[frame_idx]] * frame_offsets[frame_to_view_ids[frame_idx]]
+        frames_transforms_origin[env_idx][frame_to_view_ids[frame_idx]] = (
+            frames_transforms_world[env_idx][body_to_view_ids[frame_idx]] * frame_offsets[frame_to_view_ids[frame_idx]]
+        )
         frames_pos_world[env_idx][frame_to_view_ids[frame_idx]] = wp.transform_get_translation(
             frames_transforms_origin[env_idx][frame_to_view_ids[frame_idx]]
         )
         frames_quat_world[env_idx][frame_to_view_ids[frame_idx]] = split_transform_to_quat4lab(
             frames_transforms_origin[env_idx][frame_to_view_ids[frame_idx]]
         )
-        frames_transforms_origin[env_idx][frame_to_view_ids[frame_idx]] = wp.transform_inverse(origin_transforms[env_idx]) * frames_transforms_origin[env_idx][frame_to_view_ids[frame_idx]]
+        frames_transforms_origin[env_idx][frame_to_view_ids[frame_idx]] = (
+            wp.transform_inverse(origin_transforms[env_idx])
+            * frames_transforms_origin[env_idx][frame_to_view_ids[frame_idx]]
+        )
         frames_pos_origin[env_idx][frame_to_view_ids[frame_idx]] = wp.transform_get_translation(
             frames_transforms_origin[env_idx][frame_to_view_ids[frame_idx]]
         )
