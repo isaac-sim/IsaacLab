@@ -394,7 +394,7 @@ def bind_physics_material(
         The function is decorated with :meth:`apply_nested` to allow applying the function to a prim path
         and all its descendants.
 
-    .. _Physics material: https://docs.omniverse.nvidia.com/extensions/latest/ext_physics/simulation-control/physics-settings.html#physics-materials
+    .. _Physics material: https://isaac-sim.github.io/IsaacLab/main/source/api/lab/isaaclab.sim.html#isaaclab.sim.SimulationCfg.physics_material
 
     Args:
         prim_path: The prim path where to apply the material.

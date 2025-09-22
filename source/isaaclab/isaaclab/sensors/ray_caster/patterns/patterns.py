@@ -109,7 +109,7 @@ def bpearl_pattern(cfg: patterns_cfg.BpearlPatternCfg, device: str) -> tuple[tor
     The `Robosense RS-Bpearl`_ is a short-range LiDAR that has a 360 degrees x 90 degrees super wide
     field of view. It is designed for near-field blind-spots detection.
 
-    .. _Robosense RS-Bpearl: https://www.roscomponents.com/en/lidar-laser-scanner/267-rs-bpearl.html
+    .. _Robosense RS-Bpearl: https://www.roscomponents.com/product/rs-bpearl/
 
     Args:
         cfg: The configuration instance for the pattern.

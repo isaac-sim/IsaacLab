@@ -308,7 +308,7 @@
   },
   {
     "package": "typing_extensions",
-    "license": "UNKNOWN",
+    "license": "Python Software Foundation License",
     "comment": "PSFL / OSRB"
   },
   {
@@ -400,5 +400,30 @@
     "package": "fsspec",
     "license" : "UNKNOWN",
     "comment": "BSD"
+  },
+  {
+    "package": "numpy-quaternion",
+    "license": "UNKNOWN",
+    "comment": "MIT"
+  },
+  {
+    "package": "aiohappyeyeballs",
+    "license": "Other/Proprietary License; Python Software Foundation License",
+    "comment": "PSFL / OSRB"
+  },
+  {
+    "package": "cffi",
+    "license": "UNKNOWN",
+    "comment": "MIT"
+  },
+  {
+    "package": "trio",
+    "license": "UNKNOWN",
+    "comment": "MIT"
+  },
+  {
+    "package": "pipdeptree",
+    "license": "UNKNOWN",
+    "comment": "MIT"
   }
 ]
