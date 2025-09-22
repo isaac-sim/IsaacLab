@@ -106,6 +106,30 @@ class ComprehensiveBenchmark:
             #     "env_counts": [2048, 4096, 8192, 16384],
             #     "training_scripts": ["rl_games"],
             # },
+
+            # COMPARISON ENVIRONMENTS FOR ManagerBased vs Direct
+            # "Isaac-Velocity-Rough-Anymal-C-v0": {  # ManagerBased
+            #     "enable_cameras": False,
+            #     "env_counts": [2048, 4096, 8192, 16384],
+            #     "training_scripts": ["rsl_rl"],
+            # },
+            # "Isaac-Velocity-Rough-Anymal-C-Direct-v0": {  # Direct
+            #     "enable_cameras": False,
+            #     "env_counts": [2048, 4096, 8192, 16384],
+            #     "training_scripts": ["rsl_rl"],
+            # },
+            # "Isaac-Open-Drawer-Franka-v0": {  # ManagerBased
+            #     "enable_cameras": False,
+            #     "env_counts": [2048, 4096, 8192, 16384],
+            #     "training_scripts": ["rsl_rl"],
+            # },
+            # "Isaac-Franka-Cabinet-Direct-v0": {  # Direct
+            #     "enable_cameras": False,
+            #     "env_counts": [2048, 4096, 8192, 16384],
+            #     "training_scripts": ["rsl_rl"],
+            # },
+            
+            
         }
 
         self.gpu_counts = [1, 2, 4, 8]
