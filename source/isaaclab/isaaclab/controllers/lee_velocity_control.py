@@ -72,35 +72,6 @@ class LeeVelController:
         self.desired_quat = torch.zeros_like(self.robot.data.root_quat_w)
         self.euler_angle_rates_w = torch.zeros_like(self.robot.data.root_ang_vel_b)
         self.buffer_tensor = torch.zeros((num_envs, 3, 3), device=device)
-
-    # def __call__(self, command):
-    #     """Compute body-frame wrench from an action.
-
-    #     Args:
-    #         command: (num_envs, 4) tensor with
-    #             ``[thrust_scale, roll_cmd, pitch_cmd, yaw_rate_cmd]``.
-    #             ``thrust_scale`` is mapped to collective thrust; angles in radians, rate in rad/s.
-
-    #     Returns:
-    #         (num_envs, 6) body-frame wrench ``[Fx, Fy, Fz, Tx, Ty, Tz]``.
-    #     """
-        
-    #     robot_euler_w = torch.stack(math_utils.euler_xyz_from_quat(self.robot.data.root_quat_w), dim=-1)
-    #     robot_euler_w = math_utils.wrap_to_pi(robot_euler_w)
-    #     self.wrench_command_b[:] = 0.0
-    #     # Collective thrust along +z body axis
-    #     self.wrench_command_b[:, 2] = (command[:, 0] + 1.0) * self.mass * torch.norm(self.gravity, dim=1)
-
-    #     # Desired yaw rate; roll/pitch rates are commanded via orientation setpoint below
-    #     self.euler_angle_rates_w[:, :2] = 0.0
-    #     self.euler_angle_rates_w[:, 2] = command[:, 3]
-    #     self.desired_body_angvel_w[:] = euler_to_body_rate(robot_euler_w, self.euler_angle_rates_w, self.buffer_tensor)
-
-    #     # Desired orientation: (roll_cmd, pitch_cmd, current_yaw)
-    #     quat_w_desired = math_utils.quat_from_euler_xyz(command[:, 1], command[:, 2], robot_euler_w[:, 2])
-    #     self.wrench_command_b[:, 3:6] = self.compute_body_torque(quat_w_desired, self.desired_body_angvel_w)
-
-    #     return self.wrench_command_b
     
     def compute(self, command):
         
