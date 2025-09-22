@@ -110,7 +110,7 @@ tasks = tidy["Task"].dropna().unique()
 machines = tidy["Machine"].dropna().unique()
 
 for i, comparison_environment in enumerate(COMPARISON_ENVIRONMENTS):
-    fig, axs = plt.subplots(1, 2, figsize=(16, 10), sharey=True)
+    fig, axs = plt.subplots(1, 2, figsize=(16, 10), sharey=False)
     
     x_ticks_nbr_gpus = set()
     x_ticks_machine = set()
@@ -145,22 +145,7 @@ for i, comparison_environment in enumerate(COMPARISON_ENVIRONMENTS):
     axs[1].set_xticks(list(x_ticks_nbr_gpus), [str(x) for x in x_ticks_nbr_gpus])
     axs[0].set_xlabel("Number of Environments")
     axs[1].set_xlabel("Number of Environments")
-    # axs[0].legend(
-    #     loc="upper left",
-    #     frameon=True,                 # draw a box around the legend
-    #     facecolor='white',            # white background
-    #     edgecolor='black',            # optional: black border
-    #     framealpha=0.8                # transparency of the box (0.0 to 1.0)
-    # )
-    # axs[1].legend(
-    #     loc="upper left",
-    #     frameon=True,                 # draw a box around the legend
-    #     facecolor='white',            # white background
-    #     edgecolor='black',            # optional: black border
-    #     framealpha=0.8                # transparency of the box (0.0 to 1.0)
-    # )
     axs[0].set_ylabel("FPS")
-
 
     # ===== Separate legends for each subplot, below the figure =====
     # Collect handles/labels from each subplot
@@ -171,7 +156,7 @@ for i, comparison_environment in enumerate(COMPARISON_ENVIRONMENTS):
     leg0 = axs[0].legend(
         handles0, labels0,
         loc="upper center",
-        bbox_to_anchor=(0, -0.25, 1, 0),  # full width of subplot
+        bbox_to_anchor=(-0.1, -0.25, 1.2, 0),  # full width of subplot
         mode="expand",                    # expand across width
         ncol=2,
         frameon=True,
@@ -185,7 +170,7 @@ for i, comparison_environment in enumerate(COMPARISON_ENVIRONMENTS):
     leg1 = axs[1].legend(
         handles1, labels1,
         loc="upper center",
-        bbox_to_anchor=(0, -0.25, 1, 0),  # full width of subplot
+        bbox_to_anchor=(-0.1, -0.25, 1.2, 0),  # full width of subplot
         mode="expand",
         ncol=2,
         frameon=True,
@@ -200,7 +185,4 @@ for i, comparison_environment in enumerate(COMPARISON_ENVIRONMENTS):
 
     plt.savefig(f"benchmark_{comparison_environment['tiled']}_perceptive_environment.png", dpi=300,
                 bbox_extra_artists=(leg0, leg1), bbox_inches="tight")
-    
-    # plt.tight_layout(pad=2.0)
-    # plt.savefig(f"benchmark_{comparison_environment['tiled']}_perceptive_environment.png", dpi=300)
     plt.close()
