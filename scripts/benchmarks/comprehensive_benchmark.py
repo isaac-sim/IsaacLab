@@ -57,19 +57,53 @@ class ComprehensiveBenchmark:
 
         # Define task configurations
         self.task_configs = {
-            # Camera-enabled task
-            "Isaac-Dexsuite-Kuka-Allegro-Lift-Depth-TiledCamera-v0": {
-                "enable_cameras": True,
+            # new batch of benchmark environments
+            #COMPARISON ENVIRONMENTS FOR ManagerBased vs Direct
+            "Isaac-Velocity-Rough-Anymal-C-v0": {  # ManagerBased
+                "enable_cameras": False,
+                "env_counts": [2048, 4096, 8192, 16384],
+                "training_scripts": ["rsl_rl"],
+            },
+            "Isaac-Velocity-Rough-Anymal-C-Direct-v0": {  # Direct
+                "enable_cameras": False,
+                "env_counts": [2048, 4096, 8192, 16384],
+                "training_scripts": ["rsl_rl"],
+            },
+            "Isaac-Open-Drawer-Franka-v0": {  # ManagerBased
+                "enable_cameras": False,
+                "env_counts": [2048, 4096, 8192, 16384],
+                "training_scripts": ["rsl_rl"],
+            },
+            "Isaac-Franka-Cabinet-Direct-v0": {  # Direct
+                "enable_cameras": False,
+                "env_counts": [2048, 4096, 8192, 16384],
+                "training_scripts": ["rsl_rl"],
+            },
+            "Isaac-Velocity-Rough-Digit-v0": {
+                "enable_cameras": False,
+                "env_counts": [2048, 4096, 8192, 16384],
+                "training_scripts": ["rsl_rl"],
+            },
+            "Isaac-Factory-GearMesh-Direct-v0": {
+                "enable_cameras": False,
                 "env_counts": [1024, 2048, 4096],
                 "training_scripts": ["rl_games"],
-                "extra": "--rendering_mode performance"
+                "max_iterations": 25,
             },
-            "Isaac-Dexsuite-Kuka-Allegro-Lift-Depth-RayCasterCamera-v0": {
-                "enable_cameras": True,
-                "env_counts": [1024, 2048, 4096],
-                "training_scripts": ["rl_games"],
-                "extra": "--rendering_mode performance"
-            },
+
+            # # Camera-enabled task
+            # "Isaac-Dexsuite-Kuka-Allegro-Lift-Depth-TiledCamera-v0": {
+            #     "enable_cameras": True,
+            #     "env_counts": [1024, 2048, 4096],
+            #     "training_scripts": ["rl_games"],
+            #     "extra": "--rendering_mode performance"
+            # },
+            # "Isaac-Dexsuite-Kuka-Allegro-Lift-Depth-RayCasterCamera-v0": {
+            #     "enable_cameras": True,
+            #     "env_counts": [1024, 2048, 4096],
+            #     "training_scripts": ["rl_games"],
+            #     "extra": "--rendering_mode performance"
+            # },
             # "Isaac-Navigation-Flat-Anymal-C-v0": {
             #     "enable_cameras": True,
             #     "env_counts": [1024, 2048, 4096],
@@ -106,28 +140,6 @@ class ComprehensiveBenchmark:
             #     "env_counts": [2048, 4096, 8192, 16384],
             #     "training_scripts": ["rl_games"],
             # },
-
-            # COMPARISON ENVIRONMENTS FOR ManagerBased vs Direct
-            # "Isaac-Velocity-Rough-Anymal-C-v0": {  # ManagerBased
-            #     "enable_cameras": False,
-            #     "env_counts": [2048, 4096, 8192, 16384],
-            #     "training_scripts": ["rsl_rl"],
-            # },
-            # "Isaac-Velocity-Rough-Anymal-C-Direct-v0": {  # Direct
-            #     "enable_cameras": False,
-            #     "env_counts": [2048, 4096, 8192, 16384],
-            #     "training_scripts": ["rsl_rl"],
-            # },
-            # "Isaac-Open-Drawer-Franka-v0": {  # ManagerBased
-            #     "enable_cameras": False,
-            #     "env_counts": [2048, 4096, 8192, 16384],
-            #     "training_scripts": ["rsl_rl"],
-            # },
-            # "Isaac-Franka-Cabinet-Direct-v0": {  # Direct
-            #     "enable_cameras": False,
-            #     "env_counts": [2048, 4096, 8192, 16384],
-            #     "training_scripts": ["rsl_rl"],
-            # },
             
             
         }
@@ -148,6 +160,9 @@ class ComprehensiveBenchmark:
             Command as list of strings
         """
         config = self.task_configs[task]
+        
+        # Use task-specific max_iterations if available, otherwise use global default
+        max_iterations = config.get("max_iterations", self.max_iterations)
 
         base_script_path = f"scripts/reinforcement_learning/{training_script}/train.py"
 
@@ -159,7 +174,7 @@ class ComprehensiveBenchmark:
                 base_script_path,
                 f"--task={task}",
                 f"--num_envs={num_envs}",
-                f"--max_iterations={self.max_iterations}",
+                f"--max_iterations={max_iterations}",
                 "--headless",
             ]
         else:
@@ -174,7 +189,7 @@ class ComprehensiveBenchmark:
                 base_script_path,
                 f"--task={task}",
                 f"--num_envs={num_envs}",
-                f"--max_iterations={self.max_iterations}",
+                f"--max_iterations={max_iterations}",
                 "--headless",
                 "--distributed",
             ]
@@ -486,7 +501,7 @@ def main():
     parser.add_argument(
         "--output_dir",
         type=str,
-        default="benchmark_results",
+        default="outputs/benchmarks",
         help="Directory to store results (default: benchmark_results)",
     )
     parser.add_argument("--tasks", nargs="+", help="Specific tasks to benchmark (default: all tasks)")
