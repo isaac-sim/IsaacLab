@@ -64,7 +64,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Sep 22, 2025"/>
+    <meta name="docbuild:last-update" content="Sep 23, 2025"/>
   </head>
   
   
@@ -841,14 +841,14 @@ JAX</label><div class="sd-tab-content docutils">
 Visit the <strong>skrl</strong> <a class="reference external" href="https://skrl.readthedocs.io/en/latest/intro/installation.html">installation</a> page for more details.
 Note that JAX GPU support is only available on Linux.</p>
 <p>JAX 0.6.0 or higher (built on CuDNN v9.8) is incompatible with Isaac Lab’s PyTorch 2.7 (built on CuDNN v9.7), and therefore not supported.
-To install a compatible version of JAX for CUDA 12 use <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">&quot;jax[cuda12]&lt;0.6.0&quot;</span></code>, for example.</p>
+To install a compatible version of JAX for CUDA 12 use <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">&quot;jax[cuda12]&lt;0.6.0&quot;</span> <span class="pre">&quot;flax&lt;0.10.7&quot;</span></code>, for example.</p>
 </div>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># install python module (for skrl)</span>
 ./isaaclab.sh<span class="w"> </span>-i<span class="w"> </span>skrl
 <span class="c1"># install skrl dependencies for JAX</span>
 ./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>skrl<span class="o">[</span><span class="s2">&quot;jax&quot;</span><span class="o">]</span>
 <span class="c1"># install jax&lt;0.6.0 for torch 2.7</span>
-./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;jax[cuda12]&lt;0.6.0&quot;</span>
+./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;jax[cuda12]&lt;0.6.0&quot;</span><span class="w"> </span><span class="s2">&quot;flax&lt;0.10.7&quot;</span>
 <span class="c1"># run script for training</span>
 ./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/reinforcement_learning/skrl/train.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Reach-Franka-v0<span class="w"> </span>--headless<span class="w"> </span>--ml_framework<span class="w"> </span>jax
 <span class="c1"># run script for playing with 32 environments</span>
@@ -1042,7 +1042,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Sep 22, 2025.
+  Last updated on Sep 23, 2025.
   <br/>
 </p>
   </div>
