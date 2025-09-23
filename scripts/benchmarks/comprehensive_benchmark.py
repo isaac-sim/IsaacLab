@@ -89,7 +89,7 @@ class ComprehensiveBenchmark:
                 "env_counts": [1024, 2048, 4096],
                 "training_scripts": ["rl_games"],
                 "max_iterations": 25,
-            },
+            },            
 
             # # Camera-enabled task
             # "Isaac-Dexsuite-Kuka-Allegro-Lift-Depth-TiledCamera-v0": {
@@ -104,11 +104,16 @@ class ComprehensiveBenchmark:
             #     "training_scripts": ["rl_games"],
             #     "extra": "--rendering_mode performance"
             # },
-            # "Isaac-Navigation-Flat-Anymal-C-v0": {
+            # "Isaac-Navigation-Anymal-C-RayCaster-v0": {
             #     "enable_cameras": True,
             #     "env_counts": [1024, 2048, 4096],
             #     "training_scripts": ["rsl_rl"],
             # },
+            "Isaac-Navigation-Anymal-C-Tiled-v0": {
+                "enable_cameras": True,
+                "env_counts": [1024, 2048, 4096],
+                "training_scripts": ["rsl_rl"],
+            },
             # # Non-camera tasks
             # "Isaac-Dexsuite-Kuka-Allegro-Reorient-v0": {
             #     "enable_cameras": False,
