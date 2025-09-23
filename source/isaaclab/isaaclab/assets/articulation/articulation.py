@@ -2058,7 +2058,7 @@ class Articulation(AssetBase):
         joint_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | None = None,
     ):
-        """Write joint friction torques into the simulation.
+        """Write joint static friction torques into the simulation.
 
         .. deprecated:: 2.1.0
             Please use :meth:`write_joint_static_friction_effort_to_sim` instead.
@@ -2075,7 +2075,7 @@ class Articulation(AssetBase):
         joint_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | None = None,
     ):
-        """Write joint friction torques into the simulation.
+        """Write joint static friction torques into the simulation.
 
         .. deprecated:: 2.3.0
             Please use :meth:`write_joint_static_friction_effort_to_sim` instead.
@@ -2085,6 +2085,23 @@ class Articulation(AssetBase):
             " use 'write_joint_static_friction_effort_to_sim' instead."
         )
         self.write_joint_static_friction_effort_to_sim(joint_friction, joint_ids=joint_ids, env_ids=env_ids)
+
+    def write_joint_dynamic_friction_coefficient_to_sim(
+        self,
+        joint_friction: torch.Tensor | float,
+        joint_ids: Sequence[int] | slice | None = None,
+        env_ids: Sequence[int] | None = None,
+    ):
+        """Write joint dynamic friction torques into the simulation.
+
+        .. deprecated:: 2.3.0
+            Please use :meth:`write_joint_dynamic_friction_effort_to_sim` instead.
+        """
+        omni.log.warn(
+            "The function 'write_joint_dynamic_friction_coefficient_to_sim' will be deprecated in a future release."
+            " Please use 'write_joint_dynamic_friction_effort_to_sim' instead."
+        )
+        self.write_joint_dynamic_friction_effort_to_sim(joint_friction, joint_ids=joint_ids, env_ids=env_ids)
 
     def write_joint_limits_to_sim(
         self,

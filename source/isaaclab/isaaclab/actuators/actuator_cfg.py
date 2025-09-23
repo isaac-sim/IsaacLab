@@ -140,9 +140,8 @@ class ActuatorBaseCfg:
     If None, the armature is set to the value from the USD joint prim.
     """
 
-    # TODO(mtrepte): do these friction vars need to be renamed as well?
-    friction: dict[str, float] | float | None = None
-    r"""The static friction coefficient of the joints in the group. Defaults to None.
+    static_friction: dict[str, float] | float | None = None
+    r"""The static friction torque of the joints in the group. Defaults to None.
 
     The joint static friction is a unitless quantity. It relates the magnitude of the spatial force transmitted
     from the parent body to the child body to the maximal static friction force that may be applied by the solver
@@ -154,15 +153,45 @@ class ActuatorBaseCfg:
     similar to static and Coulomb static friction.
 
     If None, the joint static friction is set to the value from the USD joint prim.
+
+    Note: In Isaac Sim 4.5, this attribute is a coefficient, rather than a torque.
     """
 
     dynamic_friction: dict[str, float] | float | None = None
-    """The dynamic friction coefficient of the joints in the group. Defaults to None.
+    """The dynamic friction torque of the joints in the group. Defaults to None.
+
+    Note: In Isaac Sim 4.5, this attribute is a coefficient, rather than a torque.
     """
 
     viscous_friction: dict[str, float] | float | None = None
     """The viscous friction coefficient of the joints in the group. Defaults to None.
     """
+
+    """
+    Deprecated attributes.
+    """
+
+    @property
+    def friction(self) -> dict[str, float] | float | None:
+        """Deprecated property. Please use :attr:`static_friction` instead."""
+        import omni
+
+        omni.log.warn(
+            "The `friction` property is deprecated and will be removed in a future release. "
+            "Please use `static_friction` instead."
+        )
+        return self.static_friction
+
+    @friction.setter
+    def friction(self, value: dict[str, float] | float | None) -> None:
+        """Deprecated property. Please use :attr:`static_friction` instead."""
+        import omni
+
+        omni.log.warn(
+            "Setting `friction` is deprecated and will be removed in a future release. "
+            "Please set `static_friction` instead."
+        )
+        self.static_friction = value
 
 
 """

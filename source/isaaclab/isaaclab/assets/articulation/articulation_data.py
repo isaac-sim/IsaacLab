@@ -1119,6 +1119,15 @@ class ArticulationData:
         return self.joint_static_friction_effort
 
     @property
+    def joint_dynamic_friction_coeff(self) -> torch.Tensor:
+        """Deprecated property. Please use :attr:`joint_dynamic_friction_effort` instead."""
+        omni.log.warn(
+            "The `joint_dynamic_friction_coeff` property will be deprecated in a future release. Please use"
+            " `joint_dynamic_friction_effort` instead."
+        )
+        return self.joint_dynamic_friction_effort
+
+    @property
     def default_joint_friction(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`default_joint_static_friction_effort` instead."""
         omni.log.warn(
@@ -1135,6 +1144,15 @@ class ArticulationData:
             " `default_joint_static_friction_effort` instead."
         )
         return self.default_joint_static_friction_effort
+
+    @property
+    def default_joint_dynamic_friction_coeff(self) -> torch.Tensor:
+        """Deprecated property. Please use :attr:`default_joint_dynamic_friction_effort` instead."""
+        omni.log.warn(
+            "The `default_joint_dynamic_friction_coeff` property will be deprecated in a future release. Please use"
+            " `default_joint_dynamic_friction_effort` instead."
+        )
+        return self.default_joint_dynamic_friction_effort
 
     @property
     def fixed_tendon_limit(self) -> torch.Tensor:
