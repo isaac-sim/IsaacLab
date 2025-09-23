@@ -175,7 +175,7 @@ SKRL
             Note that JAX GPU support is only available on Linux.
 
             JAX 0.6.0 or higher (built on CuDNN v9.8) is incompatible with Isaac Lab's PyTorch 2.7 (built on CuDNN v9.7), and therefore not supported.
-            To install a compatible version of JAX for CUDA 12 use ``pip install "jax[cuda12]<0.6.0"``, for example.
+            To install a compatible version of JAX for CUDA 12 use ``pip install "jax[cuda12]<0.6.0" "flax<0.10.7"``, for example.
 
          .. code:: bash
 
@@ -184,7 +184,7 @@ SKRL
             # install skrl dependencies for JAX
             ./isaaclab.sh -p -m pip install skrl["jax"]
             # install jax<0.6.0 for torch 2.7
-            ./isaaclab.sh -p -m pip install "jax[cuda12]<0.6.0"
+            ./isaaclab.sh -p -m pip install "jax[cuda12]<0.6.0" "flax<0.10.7"
             # run script for training
             ./isaaclab.sh -p scripts/reinforcement_learning/skrl/train.py --task Isaac-Reach-Franka-v0 --headless --ml_framework jax
             # run script for playing with 32 environments
