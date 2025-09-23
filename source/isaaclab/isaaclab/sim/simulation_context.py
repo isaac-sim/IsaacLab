@@ -783,7 +783,7 @@ class SimulationContext(_SimulationContext):
 
         # create the default physics material
         # this material is used when no material is specified for a primitive
-        # check: https://docs.omniverse.nvidia.com/extensions/latest/ext_physics/simulation-control/physics-settings.html#physics-materials
+        # check: https://isaac-sim.github.io/IsaacLab/main/source/api/lab/isaaclab.sim.html#isaaclab.sim.SimulationCfg.physics_material
         material_path = f"{self.cfg.physics_prim_path}/defaultMaterial"
         self.cfg.physics_material.func(material_path, self.cfg.physics_material)
         # bind the physics material to the scene
