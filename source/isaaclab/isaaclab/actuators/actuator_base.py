@@ -159,10 +159,7 @@ class ActuatorBase(ABC):
         self.joint_property_resolution_table: dict[str, list] = {}
         # For explicit models, we do not want to enforce the effort limit through the solver
         # (unless it is explicitly set)
-        effort_limit_is_finite = (
-            effort_limit != torch.inf if isinstance(effort_limit, float) else torch.all(effort_limit != torch.inf)
-        )
-        if not self.is_implicit_model and self.cfg.effort_limit_sim is None and (not effort_limit_is_finite):
+        if not self.is_implicit_model and self.cfg.effort_limit_sim is None:
             self.cfg.effort_limit_sim = self._DEFAULT_MAX_EFFORT_SIM
 
         # resolve usd, actuator configuration values
@@ -199,7 +196,9 @@ class ActuatorBase(ABC):
                 )
 
         self.velocity_limit = self._parse_joint_parameter(self.cfg.velocity_limit, self.velocity_limit_sim)
-        self.effort_limit = self._parse_joint_parameter(self.cfg.effort_limit, self.effort_limit_sim)
+        # For effort_limit, use the tensor passed to constructor if cfg.effort_limit is None
+        effort_default = self.effort_limit_sim if self.cfg.effort_limit is not None else effort_limit
+        self.effort_limit = self._parse_joint_parameter(self.cfg.effort_limit, effort_default)
 
         # create commands buffers for allocation
         self.computed_effort = torch.zeros(self._num_envs, self.num_joints, device=self._device)
