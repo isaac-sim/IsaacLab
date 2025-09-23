@@ -108,7 +108,7 @@ class IsaacLabTuneTrainable(tune.Trainable):
                 }
                 return self.data
             self.experiment = experiment
-            # print(f"[INFO]: Tuner recovered experiment info {experiment}")
+            print(f"[INFO]: Tuner recovered experiment info {experiment}")
             self.proc = experiment["proc"]
             self.experiment_name = experiment["experiment_name"]
             self.isaac_logdir = experiment["logdir"]
@@ -145,7 +145,7 @@ class IsaacLabTuneTrainable(tune.Trainable):
                     if self.time_since_last_proc_response > PROCESS_RESPONSE_TIMEOUT:
                         self.time_since_last_proc_response = 0.0
                         print("[WARNING]: Training workflow process is not responding, terminating...")
-                        self.proc.terminate(9)
+                        self.proc.terminate()
                         try:
                             self.proc.wait(timeout=20)
                         except subprocess.TimeoutExpired:
