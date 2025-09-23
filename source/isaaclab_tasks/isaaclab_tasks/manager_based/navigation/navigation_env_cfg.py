@@ -25,7 +25,7 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
-from isaaclab.sensors import RayCasterCameraCfg, patterns, TiledCameraCfg
+from isaaclab.sensors import RayCasterCameraCfg, TiledCameraCfg, patterns
 from isaaclab.terrains import TerrainGeneratorCfg
 from isaaclab.terrains.height_field import HfRandomUniformTerrainCfg
 from isaaclab.utils import configclass
@@ -322,7 +322,7 @@ class CommandsCfg:
         asset_name="robot",
         grid_resolution=0.1,
         robot_length=1.0,
-        raycaster_sensor="front_camera",
+        raycaster_sensor="height_scanner",
         resampling_time_range=(1.0e9, 1.0e9),  # No resampling
         debug_vis=True,
         reset_pos_term_name="reset_base",
@@ -367,12 +367,13 @@ class NavEnvCfg(ManagerBasedRLEnvCfg):
         # self.sim.dt * self.low_level_decimation, so 0.005 * 4 = 0.02 seconds, or 50Hz.
         self.low_level_decimation = 4
 
+
 @configclass
 class RayCasterNavEnvCfg(NavEnvCfg):
     """Configuration for the navigation environment with ray caster camera."""
 
     scene: RayCasterNavSceneCfg = RayCasterNavSceneCfg(num_envs=100, env_spacing=8)
-    
+
     def __post_init__(self):
         """Post initialization."""
         super().__post_init__()
