@@ -14,7 +14,7 @@ import torch
 from typing import TYPE_CHECKING
 
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.sensors import Camera, RayCasterCamera
+from isaaclab.sensors import Camera, RayCasterCamera, TiledCamera
 
 from .actions import NavigationSE2Action
 
@@ -49,13 +49,15 @@ def camera_image(
     Returns:
         The image data."""
     # extract the used quantities (to enable type-hinting)
-    sensor: Camera | RayCasterCamera = env.scene.sensors[sensor_cfg.name]
+    sensor: Camera | RayCasterCamera | TildCamera = env.scene.sensors[sensor_cfg.name]
 
     img = sensor.data.output[data_type].clone()
 
     if data_type == "distance_to_image_plane":
         if nan_fill_value is None:
-            nan_fill_value = sensor.cfg.max_distance
+            nan_fill_value = (
+                sensor.cfg.max_distance if isinstance(sensor, RayCasterCamera) else sensor.cfg.spawn.clipping_range[1]
+            )
         img = torch.nan_to_num(img, nan=nan_fill_value, posinf=nan_fill_value, neginf=0.0)
 
     # if type torch.uint8, convert to float and scale between 0 and 1

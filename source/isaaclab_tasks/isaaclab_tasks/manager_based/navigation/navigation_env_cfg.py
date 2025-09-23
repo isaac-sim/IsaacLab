@@ -17,6 +17,7 @@ import os
 # Set the PYTORCH_CUDA_ALLOC_CONF environment variable
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:256"
 
+import isaaclab.sim as sim_utils
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
@@ -24,7 +25,7 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
-from isaaclab.sensors import RayCasterCameraCfg, patterns
+from isaaclab.sensors import RayCasterCameraCfg, TiledCameraCfg, patterns
 from isaaclab.terrains import TerrainGeneratorCfg
 from isaaclab.terrains.height_field import HfRandomUniformTerrainCfg
 from isaaclab.utils import configclass
@@ -90,7 +91,7 @@ NAV_TERRAIN = TerrainGeneratorCfg(
 
 
 @configclass
-class NavSceneCfg(LOW_LEVEL_CFGS.MySceneCfg):
+class RayCasterNavSceneCfg(LOW_LEVEL_CFGS.MySceneCfg):
     """Configuration for a scene for training a perceptive navigation policy on an AnymalD Robot."""
 
     # SENSORS: Navigation Policy
@@ -109,6 +110,33 @@ class NavSceneCfg(LOW_LEVEL_CFGS.MySceneCfg):
             convention="world",  # 15 degrees downward tilted
         ),
         max_distance=20,
+        data_types=["distance_to_image_plane"],
+    )
+
+    def __post_init__(self):
+        """Post initialization."""
+        # swap to navigation terrain
+        self.terrain.terrain_generator = NAV_TERRAIN
+
+
+@configclass
+class TiledNavSceneCfg(LOW_LEVEL_CFGS.MySceneCfg):
+    """Configuration for a scene for training a perceptive navigation policy on an AnymalD Robot."""
+
+    # SENSORS: Navigation Policy
+    front_camera = TiledCameraCfg(
+        prim_path="{ENV_REGEX_NS}/Robot/base/camera",
+        spawn=sim_utils.PinholeCameraCfg(
+            clipping_range=(0.01, 20.0),
+        ),
+        height=36,
+        width=64,
+        update_period=0,
+        offset=TiledCameraCfg.OffsetCfg(
+            pos=(0.4761, 0.0035, 0.1055),
+            rot=(0.9914449, 0.0, 0.1305262, 0.0),
+            convention="world",  # 15 degrees downward tilted
+        ),
         data_types=["distance_to_image_plane"],
     )
 
@@ -294,7 +322,7 @@ class CommandsCfg:
         asset_name="robot",
         grid_resolution=0.1,
         robot_length=1.0,
-        raycaster_sensor="front_camera",
+        raycaster_sensor="height_scanner",
         resampling_time_range=(1.0e9, 1.0e9),  # No resampling
         debug_vis=True,
         reset_pos_term_name="reset_base",
@@ -309,9 +337,6 @@ class CommandsCfg:
 @configclass
 class NavEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the navigation environment."""
-
-    # Scene settings
-    scene: NavSceneCfg = NavSceneCfg(num_envs=100, env_spacing=8)
 
     # Basic settings
     observations: NavObservationsCfg = NavObservationsCfg()
@@ -341,6 +366,37 @@ class NavEnvCfg(ManagerBasedRLEnvCfg):
         # Similar to above, the low-level actions (locomotion controller) are calculated every:
         # self.sim.dt * self.low_level_decimation, so 0.005 * 4 = 0.02 seconds, or 50Hz.
         self.low_level_decimation = 4
+
+
+@configclass
+class RayCasterNavEnvCfg(NavEnvCfg):
+    """Configuration for the navigation environment with ray caster camera."""
+
+    scene: RayCasterNavSceneCfg = RayCasterNavSceneCfg(num_envs=100, env_spacing=8)
+
+    def __post_init__(self):
+        """Post initialization."""
+        super().__post_init__()
+
+        # update sensor update periods
+        # We tick contact sensors based on the smallest update period (physics update period)
+        if self.scene.contact_forces is not None:
+            self.scene.contact_forces.update_period = self.sim.dt
+
+        # We tick the cameras based on the navigation policy update period.
+        if self.scene.front_camera is not None:
+            self.scene.front_camera.update_period = self.decimation * self.sim.dt
+
+
+@configclass
+class TiledNavEnvCfg(NavEnvCfg):
+    """Configuration for the navigation environment with tiled camera."""
+
+    scene: TiledNavSceneCfg = TiledNavSceneCfg(num_envs=100, env_spacing=8)
+
+    def __post_init__(self):
+        """Post initialization."""
+        super().__post_init__()
 
         # update sensor update periods
         # We tick contact sensors based on the smallest update period (physics update period)

@@ -271,7 +271,7 @@ class GoalCommandTerm(CommandTerm):
 
         # split the grid into subgrids for each terrain origin
         self._terrain_origins = self._env.scene.terrain.terrain_origins.reshape(-1, 3)
-        point_distances = torch.cdist(self._height_grid_pos, self._terrain_origins, p=2)
+        point_distances = torch.cdist(self._height_grid_pos[..., :2], self._terrain_origins[..., :2], p=2)
         subgrid_ids = torch.argmin(point_distances, dim=1)
 
         # split the traversability map into the subgrids based on the subgrid_ids
