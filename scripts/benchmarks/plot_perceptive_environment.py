@@ -34,7 +34,7 @@ MACHINE_NBR_GPUS_COLORS = {
 
 COMPARISON_ENVIRONMENTS = [
     {"tiled": "Isaac-Dexsuite-Kuka-Allegro-Lift-Depth-TiledCamera-v0", "raycaster": "Isaac-Dexsuite-Kuka-Allegro-Lift-Depth-RayCasterCamera-v0"},
-    # ["Isaac-Navigation-Flat-Anymal-C-TiledCamera-v0", "Isaac-Navigation-Flat-Anymal-C-RayCasterCamera-v0"]
+    {"raycaster": "Isaac-Navigation-Flat-Anymal-C-v0"},
 ]
 COMPARISON_ENVIRONMENTS_NAME = ["dexsuite", "navigation"]
 
@@ -117,6 +117,9 @@ for i, comparison_environment in enumerate(COMPARISON_ENVIRONMENTS):
     x_ticks_machine = set()
 
     for perception_mode, style in [("tiled", "dashed"), ("raycaster", "dotted")]:
+        if perception_mode not in comparison_environment:
+            continue
+        
         sub = tidy[tidy["Task"] == comparison_environment[perception_mode]]
 
         for machine, color in MACHINE_NBR_GPUS_COLORS.items():
