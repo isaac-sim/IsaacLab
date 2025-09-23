@@ -28,9 +28,11 @@ Examples:
 """Launch Isaac Sim Simulator first."""
 
 import argparse
-import csv
 import os
 import time
+
+# local imports
+from local_utils import dataframe_to_markdown
 
 from isaaclab.app import AppLauncher
 
@@ -39,7 +41,7 @@ parser.add_argument(
     "--num_envs",
     type=int,
     nargs="+",
-    default=[256, 512, 1024],
+    default=[12, 24, 48],   # [256, 512, 1024],
     help="List of environment counts to benchmark (e.g., 256 512 1024).",
 )
 parser.add_argument(
@@ -61,17 +63,23 @@ parser.add_argument("--warmup", type=int, default=50, help="Warmup steps per run
 AppLauncher.add_app_launcher_args(parser)
 args_cli, _ = parser.parse_known_args()
 args_cli.enable_cameras = True
+args_cli.headless = True
 
 # launch omniverse app
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
 
 """Rest everything follows."""
+import torch
+import pandas as pd
+
+import isaacsim.core.utils.stage as stage_utils
+from isaacsim.core.simulation_manager import SimulationManager
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
-from isaaclab.sensors import CameraCfg, RayCasterCameraCfg, TiledCameraCfg, patterns
+from isaaclab.sensors import CameraCfg, MultiMeshRayCasterCameraCfg, TiledCameraCfg, patterns, Camera, TiledCamera, MultiMeshRayCasterCamera
 from isaaclab.sim import SimulationContext
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
@@ -114,18 +122,18 @@ class CameraBenchmarkSceneCfg(InteractiveSceneCfg):
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 1.0)),
     )
 
-    standard_camera: CameraCfg | None = None
+    usd_camera: CameraCfg | None = None
     tiled_camera: TiledCameraCfg | None = None
-    ray_caster_camera: RayCasterCameraCfg | None = None
+    ray_caster_camera: MultiMeshRayCasterCameraCfg | None = None
 
 
-def _make_scene_cfg_standard(num_envs: int, height: int, width: int, debug_vis: bool) -> CameraBenchmarkSceneCfg:
+def _make_scene_cfg_usd(num_envs: int, height: int, width: int, data_types: list[str], debug_vis: bool) -> CameraBenchmarkSceneCfg:
     scene_cfg = CameraBenchmarkSceneCfg(num_envs=num_envs, env_spacing=2.0)
-    scene_cfg.standard_camera = CameraCfg(
+    scene_cfg.usd_camera = CameraCfg(
         prim_path="{ENV_REGEX_NS}/Camera",
         height=height,
         width=width,
-        data_types=["rgb"],
+        data_types=data_types,
         spawn=sim_utils.PinholeCameraCfg(
             focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 1e4)
         ),
@@ -134,13 +142,13 @@ def _make_scene_cfg_standard(num_envs: int, height: int, width: int, debug_vis: 
     return scene_cfg
 
 
-def _make_scene_cfg_tiled(num_envs: int, height: int, width: int, debug_vis: bool) -> CameraBenchmarkSceneCfg:
+def _make_scene_cfg_tiled(num_envs: int, height: int, width: int, data_types: list[str], debug_vis: bool) -> CameraBenchmarkSceneCfg:
     scene_cfg = CameraBenchmarkSceneCfg(num_envs=num_envs, env_spacing=2.0)
     scene_cfg.tiled_camera = TiledCameraCfg(
         prim_path="{ENV_REGEX_NS}/TiledCamera",
         height=height,
         width=width,
-        data_types=["rgb", "depth"],
+        data_types=data_types,
         spawn=sim_utils.PinholeCameraCfg(
             focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 1e4)
         ),
@@ -149,21 +157,18 @@ def _make_scene_cfg_tiled(num_envs: int, height: int, width: int, debug_vis: boo
     return scene_cfg
 
 
-def _make_scene_cfg_ray_caster(num_envs: int, height: int, width: int, debug_vis: bool) -> CameraBenchmarkSceneCfg:
+def _make_scene_cfg_ray_caster(num_envs: int, height: int, width: int, data_types: list[str], debug_vis: bool) -> CameraBenchmarkSceneCfg:
     scene_cfg = CameraBenchmarkSceneCfg(num_envs=num_envs, env_spacing=2.0)
-    scene_cfg.ray_caster_camera = RayCasterCameraCfg(
+    scene_cfg.ray_caster_camera = MultiMeshRayCasterCameraCfg(
         prim_path="{ENV_REGEX_NS}/Robot/base",  # attach to existing prim
         mesh_prim_paths=["/World/ground", "/World/envs/env_.*/cube"],
         pattern_cfg=patterns.PinholeCameraPatternCfg(
             focal_length=24.0, horizontal_aperture=20.955, height=height, width=width
         ),
-        data_types=["distance_to_image_plane"],
+        data_types=data_types,
         debug_vis=debug_vis,
     )
     return scene_cfg
-
-
-import isaacsim.core.utils.stage as stage_utils
 
 
 def _setup_scene(scene_cfg: CameraBenchmarkSceneCfg) -> tuple[SimulationContext, InteractiveScene, float]:
@@ -183,75 +188,173 @@ def _setup_scene(scene_cfg: CameraBenchmarkSceneCfg) -> tuple[SimulationContext,
     return sim, scene, sim.get_physics_dt()
 
 
+def _run_benchmark(scene_cfg: CameraBenchmarkSceneCfg, sensor_name: str):
+    sim, scene, sim_dt = _setup_scene(scene_cfg)
+    sensor: Camera | TiledCamera | MultiMeshRayCasterCamera = scene[sensor_name]
+    # Warmup
+    for _ in range(args_cli.warmup):
+        sim.step()
+        sensor.update(dt=sim_dt, force_recompute=True)
+
+    used_memory = 0.0
+
+    # Timing
+    t0 = time.perf_counter_ns()
+    for _ in range(args_cli.steps):
+        sim.step()
+        sensor.update(dt=sim_dt, force_recompute=True)
+        free, total = torch.cuda.mem_get_info(args_cli.device)
+        used_memory += (total - free) / 1024**2  # Convert to MB
+    t1 = time.perf_counter_ns()
+    per_step_ms = (t1 - t0) / args_cli.steps / 1e6
+    avg_memory = used_memory / args_cli.steps
+    # Cleanup
+    # stop simulation
+    # note: cannot use self.sim.stop() since it does one render step after stopping!! This doesn't make sense :(
+    sim._timeline.stop()
+    # clear the stage
+    sim.clear_all_callbacks()
+    sim.clear_instance()
+    SimulationManager._simulation_manager_interface.reset()
+    SimulationManager._callbacks.clear()
+
+    return {
+        "num_envs": scene.num_envs,
+        "resolution": sensor.image_shape,
+        "per_step_ms": float(per_step_ms),
+        "avg_memory": float(avg_memory),
+    }
+
+
 def main():
-    impls = [s.strip() for s in args_cli.impls.split(",") if s]
+    """Main function."""
+    # Prepare benchmark
     resolutions = _parse_resolutions(args_cli.resolutions)
+    cameras = ["usd_camera", "tiled_camera", "ray_caster_camera"]
+    device_name = (
+        torch.cuda.get_device_name(torch.cuda.current_device()) if torch.cuda.is_available() else platform.processor()
+    )
+
+    # BENCHMARK 1 - Compare Depth Camera
+    print("=== Benchmarking DEPTH CAMERA ===")
     results: list[dict[str, object]] = []
 
-    def _bench(num_envs: int, impl: str, height: int, width: int):
-        if impl == "standard":
-            scene_cfg = _make_scene_cfg_standard(num_envs, height, width, debug_vis=not args_cli.headless)
-            sim, scene, sim_dt = _setup_scene(scene_cfg)
-            camera_obj = scene["standard_camera"]
-            label = "StandardCamera"
-        elif impl == "tiled":
-            scene_cfg = _make_scene_cfg_tiled(num_envs, height, width, debug_vis=not args_cli.headless)
-            sim, scene, sim_dt = _setup_scene(scene_cfg)
-            camera_obj = scene["tiled_camera"]
-            label = "TiledCamera"
-        elif impl == "ray_caster":
-            scene_cfg = _make_scene_cfg_ray_caster(num_envs, height, width, debug_vis=not args_cli.headless)
-            sim, scene, sim_dt = _setup_scene(scene_cfg)
-            camera_obj = scene["ray_caster_camera"]
-            label = "RayCasterCamera"
-        else:
-            raise ValueError(f"Unknown impl: {impl}")
+    for idx, num_envs in enumerate(args_cli.num_envs):
+        print(f"\n[INFO]: Benchmarking with {num_envs} envs. {idx + 1} / {len(args_cli.num_envs)}")
+        data_types = ["distance_to_image_plane"]
+        for resolution in resolutions:
+            
+            for camera in cameras: 
+                # USD Camera              
+                if camera == "usd_camera":
+                    single_scene_cfg = _make_scene_cfg_usd(
+                        num_envs=num_envs,
+                        height=resolution[0],
+                        width=resolution[1],
+                        data_types=data_types,
+                        debug_vis=not args_cli.headless,
+                    )
+                    result = _run_benchmark(single_scene_cfg, "usd_camera")
+            
+                # Tiled Camera
+                elif camera == "tiled_camera":
+                    single_scene_cfg = _make_scene_cfg_tiled(
+                        num_envs=num_envs,
+                        height=resolution[0],
+                        width=resolution[1],
+                        data_types=data_types,
+                        debug_vis=not args_cli.headless,
+                    )
+                    result = _run_benchmark(single_scene_cfg, "tiled_camera")
+                
+                # Multi-Mesh RayCaster Camera
+                elif camera == "ray_caster_camera":
+                    single_scene_cfg = _make_scene_cfg_ray_caster(
+                        num_envs=num_envs,
+                        height=resolution[0],
+                        width=resolution[1],
+                        data_types=data_types,
+                        debug_vis=not args_cli.headless,
+                    )
+                    result = _run_benchmark(single_scene_cfg, "ray_caster_camera")
+            
+                result["num_envs"] = num_envs
+                result["resolution"] = resolution
+                result["mode"] = camera
+                result["data_types"] = data_types
+                results.append(result)
+                del single_scene_cfg
 
-        # Warmup
-        for _ in range(args_cli.warmup):
-            sim.step()
-            camera_obj.update(dt=sim_dt)
-        # Timing
-        t0 = time.perf_counter_ns()
-        for _ in range(args_cli.steps):
-            sim.step()
-            camera_obj.update(dt=sim_dt)
-        t1 = time.perf_counter_ns()
-        per_step_ms = (t1 - t0) / args_cli.steps / 1e6
-        print(f"[INFO]: {label}: {num_envs} envs, res={height}x{width}, per-step={per_step_ms:.3f} ms")
-        results.append({
-            "impl": impl,
-            "num_envs": num_envs,
-            "height": height,
-            "width": width,
-            "per_step_ms": float(per_step_ms),
-        })
-        # Teardown
-        sim.clear_instance()
-
-    for num_envs in args_cli.num_envs:
-        for impl in impls:
-            print(f"\n[INFO]: Benchmarking {impl} cameras with {num_envs} envs")
-            for h, w in resolutions:
-                _bench(num_envs, impl, h, w)
-
-    # Save results
+    df_distance_to_image_plane = pd.DataFrame(results)
+    df_distance_to_image_plane["device"] = device_name
     os.makedirs("outputs/benchmarks", exist_ok=True)
-    csv_path = os.path.join("outputs/benchmarks", "camera_throughput.csv")
-    md_path = os.path.join("outputs/benchmarks", "camera_throughput.md")
+    df_distance_to_image_plane.to_csv("outputs/benchmarks/camera_distance_to_image_plane.csv", index=False)
 
-    fieldnames = ["impl", "num_envs", "height", "width", "per_step_ms"]
-    with open(csv_path, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
-        writer.writeheader()
-        writer.writerows(results)
-    with open(md_path, "w") as f:
-        f.write("| impl | num_envs | height | width | per_step_ms |\n")
-        f.write("|---|---:|---:|---:|---:|\n")
-        for r in results:
-            f.write(f"| {r['impl']} | {r['num_envs']} | {r['height']} | {r['width']} | {r['per_step_ms']:.3f} |\n")
-    print(f"[INFO]: Saved benchmark results to {csv_path} and {md_path}")
+    # BENCHMARK 2 - Compare RGB Camera
+    print("\n=== Benchmarking RGB CAMERA ===")
+    results: list[dict[str, object]] = []
 
+    for idx, num_envs in enumerate(args_cli.num_envs):
+        print(f"\n[INFO]: Benchmarking with {num_envs} envs. {idx + 1} / {len(args_cli.num_envs)}")
+        data_types = ["rgb"]
+        data_types = ["distance_to_image_plane"]
+        for resolution in resolutions:
+            
+            for camera in cameras: 
+                # USD Camera              
+                if camera == "usd_camera":
+                    single_scene_cfg = _make_scene_cfg_usd(
+                        num_envs=num_envs,
+                        height=resolution[0],
+                        width=resolution[1],
+                        data_types=data_types,
+                        debug_vis=not args_cli.headless,
+                    )
+                    result = _run_benchmark(single_scene_cfg, "usd_camera")
+            
+                # Tiled Camera
+                elif camera == "tiled_camera":
+                    single_scene_cfg = _make_scene_cfg_tiled(
+                        num_envs=num_envs,
+                        height=resolution[0],
+                        width=resolution[1],
+                        data_types=data_types,
+                        debug_vis=not args_cli.headless,
+                    )
+                    result = _run_benchmark(single_scene_cfg, "tiled_camera")
+                
+                # Multi-Mesh RayCaster Camera
+                elif camera == "ray_caster_camera":
+                    # single_scene_cfg = _make_scene_cfg_ray_caster(
+                    #     num_envs=num_envs,
+                    #     height=resolution[0],
+                    #     width=resolution[1],
+                    #     data_types=data_types,
+                    #     debug_vis=not args_cli.headless,
+                    # )
+                    # result = _run_benchmark(single_scene_cfg, "ray_caster_camera")
+                    continue
+            
+                result["num_envs"] = num_envs
+                result["resolution"] = resolution
+                result["mode"] = camera
+                result["data_types"] = data_types
+                results.append(result)
+                del single_scene_cfg
+
+    df_rgb = pd.DataFrame(results)
+    df_rgb["device"] = device_name
+    os.makedirs("outputs/benchmarks", exist_ok=True)
+    df_rgb.to_csv("outputs/benchmarks/camera_rgb.csv", index=False)
+
+    # Create .md file with all three tables
+    for df, title in zip(
+        [df_rgb, df_distance_to_image_plane], ["RGB", "Distance to Image Plane"]
+    ):
+        with open(f"outputs/benchmarks/camera_benchmark_{title}.md", "w") as f:
+            f.write(f"# {title}\n\n")
+            f.write(dataframe_to_markdown(df, floatfmt=".3f"))
+            f.write("\n\n")
 
 if __name__ == "__main__":
     main()

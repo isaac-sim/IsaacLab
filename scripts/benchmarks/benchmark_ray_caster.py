@@ -18,7 +18,6 @@ It then runs three different benchmarks:
 """Launch Isaac Sim Simulator first."""
 
 import argparse
-import math
 import numpy as np
 import os
 import platform
@@ -27,12 +26,36 @@ import torch
 
 import pandas as pd
 
+from local_utils import dataframe_to_markdown
+
 from isaaclab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Benchmark ray caster sensors.")
 parser.add_argument("--steps", type=int, default=2000, help="Steps per resolution for timing.")
 parser.add_argument("--warmup", type=int, default=50, help="Warmup steps before timing.")
+
+# Num assets for benchmarking memory usage with and without caching.
+NUM_ASSETS_MEMORY = [1, 2, 4, 8, 16, 32]
+# Num assets for benchmarking scaling performance of multi-mesh ray caster.
+NUM_ASSETS = [0, 1, 2, 4, 8, 16, 32]
+# Num envs for benchmarking single vs multi mesh ray caster.
+NUM_ENVS = [32, 64, 128, 256, 512, 1024, 2048, 4096]
+# Num subdivisions for benchmarking mesh complexity.
+MESH_SUBDIVISIONS = [0, 1, 2, 3, 4, 5]
+# Different ray caster resolutions to benchmark. Num rays will be (5 / res)^2, e.g. 625, 2500, 10000, 11111
+RESOLUTIONS: list[float] = [0.2, 0.1, 0.05, 0.015]
+
+# Output directory for benchmark artifacts (can be overridden via env var BENCHMARK_OUTPUT_DIR)
+timestamp = time.strftime("%Y-%m-%d_%H-%M-%S", time.localtime())
+OUTPUT_DIR = "outputs/benchmarks/" + timestamp
+
+# # TINY for debugging
+# NUM_ASSETS_MEMORY = [1, 2]  # Num assets for benchmarking memory usage with and without caching.
+# NUM_ASSETS = [0, 1]  # Num assets for benchmarking scaling performance. of multi-mesh ray caster.
+# NUM_ENVS = [32, 64]  # Num envs for benchmarking single vs multi mesh ray caster.
+# MESH_SUBDIVISIONS = [0, 1]  # Num subdivisions for benchmarking mesh complexity.
+# RESOLUTIONS: list[float] = [0.2, 0.1]  # Different ray caster resolutions to benchmark. Num rays will be (5 / res)^2, e.g. 625, 2500, 10000, 11111
 
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
@@ -214,68 +237,11 @@ def _run_benchmark(scene_cfg: RayCasterBenchmarkSceneCfg, sensor_name: str):
     }
 
 
-def dataframe_to_markdown(
-    df: pd.DataFrame, index: bool = True, floatfmt: str | None = ".3f", nan_rep: str = "", align: str = "left"
-) -> str:
-    """
-    Convert a pandas DataFrame to a Markdown table (no extra deps).
-    - index: include the index as the first column
-    - floatfmt: e.g. '.2f' for floats; set None to use str() directly
-    - nan_rep: string to show for NaNs/None
-    - align: 'left' | 'center' | 'right'
-    """
-
-    def _fmt(x):
-        if x is None or (isinstance(x, float) and math.isnan(x)):
-            return nan_rep
-        if isinstance(x, float) and floatfmt is not None:
-            return format(x, floatfmt)
-        return str(x)
-
-    def _esc(s: str) -> str:
-        # Escape pipes so they don't break the Markdown table
-        return s.replace("|", r"\|")
-
-    # Build header and rows
-    headers = [str(c) for c in df.columns]
-    rows = [[_fmt(v) for v in row] for row in df.to_numpy().tolist()]
-
-    if index:
-        headers = [df.index.name or ""] + headers
-        idx_col = [str(i) for i in df.index.tolist()]
-        rows = [[idx] + r for idx, r in zip(idx_col, rows)]
-
-    # Compute column widths
-    cols = list(zip(*([headers] + rows))) if headers else []
-    widths = [max(len(_esc(h)), *(len(_esc(cell)) for cell in col)) for h, col in zip(headers, cols)]
-
-    # Alignment rule
-    def rule(w):
-        if align == "right":
-            return "-" * (w - 1) + ":"
-        if align == "center":
-            return ":" + "-" * (w - 2 if w > 2 else 1) + ":"
-        return ":" + "-" * (w - 1)  # left
-
-    # Build markdown lines
-    def fmt_row(cells):
-        return "| " + " | ".join(_esc(c).ljust(w) for c, w in zip(cells, widths)) + " |"
-
-    header_line = fmt_row(headers)
-    sep_line = "| " + " | ".join(rule(w) for w in widths) + " |"
-    body_lines = [fmt_row(r) for r in rows]
-
-    return "\n".join([header_line, sep_line, *body_lines])
-
-
 def main():
     """Main function."""
     # Prepare benchmark
 
     # BENCHMARK 1 - Compare Single VS Multi
-
-    NUM_ENVS = [32, 64, 128, 256, 512, 1024, 2048]
-    RESOLUTIONS: list[float] = [0.2, 0.1, 0.05]
 
     print("=== Benchmarking Multi vs Single Raycaster ===")
     results: list[dict[str, object]] = []
@@ -284,14 +250,14 @@ def main():
     )
 
     _MESH_CONVERTERS_CALLBACKS["Sphere"] = lambda p: _create_sphere_trimesh(p, subdivisions=5)
-    # Compare multi mesh performance over different number of assets
-    NUM_ASSETS = [1, 4, 8, 16, 32, 64, 128]
-    for idx, num_assets in enumerate(NUM_ASSETS):
-        for reference_meshes in [True, False]:
+    # Compare multi mesh performance over different number of assets.
+    # More specifically, compare reference vs non-reference meshes and their respective memory usage.
+    for idx, num_assets in enumerate(NUM_ASSETS_MEMORY):
+        for reference_meshes in [True]:
             if num_assets > 16 and not reference_meshes:
                 continue  # Skip this, otherwise we run out of memory
 
-            print(f"\n[INFO]: Benchmarking with {num_assets} assets. {idx} / {len(NUM_ASSETS)}")
+            print(f"\n[INFO]: Benchmarking with {num_assets} assets. {idx} / {len(NUM_ASSETS_MEMORY)}")
             num_envs = 1024
             resolution = 0.1
             multi_scene_cfg = _make_scene_cfg_multi(
@@ -315,7 +281,8 @@ def main():
 
             df_num_assets = pd.DataFrame(results)
             df_num_assets["device"] = device_name
-            df_num_assets.to_csv("outputs/benchmarks/ray_caster_benchmark_num_assets.csv", index=False)
+            os.makedirs(OUTPUT_DIR, exist_ok=True)
+            df_num_assets.to_csv(os.path.join(OUTPUT_DIR, "ray_caster_benchmark_num_assets_reference.csv"), index=False)
 
     results: list[dict[str, object]] = []
 
@@ -343,7 +310,7 @@ def main():
                 num_envs=num_envs,
                 resolution=resolution,
                 debug_vis=not args_cli.headless,
-                track_mesh_transforms=False,  # Only static ground
+                track_mesh_transforms=False,
                 num_assets=0,
             )
             result = _run_benchmark(multi_scene_cfg, "height_scanner_multi")
@@ -356,20 +323,23 @@ def main():
 
         df_single_vs_multi = pd.DataFrame(results)
         df_single_vs_multi["device"] = device_name
-        os.makedirs("outputs/benchmarks", exist_ok=True)
-        df_single_vs_multi.to_csv("outputs/benchmarks/ray_caster_benchmark_single_vs_multi.csv", index=False)
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    df_single_vs_multi.to_csv(os.path.join(OUTPUT_DIR, "ray_caster_benchmark_single_vs_multi.csv"), index=False)
 
     print("\n=== Benchmarking Multi Raycaster with different number of assets and faces ===")
     results: list[dict[str, object]] = []
 
+    # Keep fixed resolution for the subdivision and num assets benchmarks
+    resolution = 0.05
+
     # Compare multi mesh performance over different number of assets
-    for idx, num_assets in enumerate([0, 1, 2, 4, 8, 16, 32, 64, 128]):
-        print(f"\n[INFO]: Benchmarking with {num_assets} assets. {idx} / {len(NUM_ENVS)}")
+    for idx, num_assets in enumerate(NUM_ASSETS):
+        print(f"\n[INFO]: Benchmarking with {num_assets} assets. {idx} / {len(NUM_ASSETS)}")
         multi_scene_cfg = _make_scene_cfg_multi(
             num_envs=num_envs,
             resolution=resolution,
             debug_vis=not args_cli.headless,
-            track_mesh_transforms=True,  # Only static ground
+            track_mesh_transforms=True,
             num_assets=num_assets,
         )
         result = _run_benchmark(multi_scene_cfg, "height_scanner_multi")
@@ -382,13 +352,13 @@ def main():
 
         df_num_assets = pd.DataFrame(results)
         df_num_assets["device"] = device_name
-        df_num_assets.to_csv("outputs/benchmarks/ray_caster_benchmark_num_assets.csv", index=False)
+    df_num_assets.to_csv(os.path.join(OUTPUT_DIR, "ray_caster_benchmark_num_assets.csv"), index=False)
 
     print("\n=== Benchmarking Multi Raycaster with different number of faces ===")
     results: list[dict[str, object]] = []
     # Compare multi mesh performance over different number of vertices
-    for idx, subdivision in enumerate([0, 1, 2, 3, 4, 5, 6]):
-        print(f"\n[INFO]: Benchmarking with {subdivision} subdivisions. {idx} / {len(NUM_ENVS)}")
+    for idx, subdivision in enumerate(MESH_SUBDIVISIONS):
+        print(f"\n[INFO]: Benchmarking with {subdivision} subdivisions. {idx} / {len(MESH_SUBDIVISIONS)}")
         _MESH_CONVERTERS_CALLBACKS["Sphere"] = lambda p: _create_sphere_trimesh(p, subdivisions=subdivision)
         multi_scene_cfg = _make_scene_cfg_multi(
             num_envs=num_envs,
@@ -406,15 +376,15 @@ def main():
         results.append(result)
         del multi_scene_cfg
 
-        df_num_faces = pd.DataFrame(results)
-        df_num_faces["device"] = device_name
-        df_num_faces.to_csv("outputs/benchmarks/ray_caster_benchmark_num_faces.csv", index=False)
+    df_num_faces = pd.DataFrame(results)
+    df_num_faces["device"] = device_name
+    df_num_faces.to_csv(os.path.join(OUTPUT_DIR, "ray_caster_benchmark_num_faces.csv"), index=False)
 
     # Create .md file with all three tables
     for df, title in zip(
         [df_single_vs_multi, df_num_assets, df_num_faces], ["Single vs Multi", "Num Assets", "Num Faces"]
     ):
-        with open(f"outputs/benchmarks/ray_caster_benchmark_{title}.md", "w") as f:
+        with open(os.path.join(OUTPUT_DIR, f"ray_caster_benchmark_{title}.md"), "w") as f:
             f.write(f"# {title}\n\n")
             f.write(dataframe_to_markdown(df, floatfmt=".3f"))
             f.write("\n\n")

@@ -10,9 +10,9 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING, ClassVar, Literal
 
 import isaacsim.core.utils.stage as stage_utils
-import omni.physics.tensors.impl.api as physx
-from isaacsim.core.prims import XFormPrim
+import omni.log
 
+import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.sensors.camera import CameraData
 from isaaclab.utils.warp import raycast_mesh
@@ -143,11 +143,14 @@ class RayCasterCamera(RayCaster):
         # reset the timestamps
         super().reset(env_ids)
         # resolve None
-        if env_ids is None:
-            env_ids = slice(None)
+        if env_ids is None or isinstance(env_ids, slice):
+            env_ids = self._ALL_INDICES
         # reset the data
         # note: this recomputation is useful if one performs events such as randomizations on the camera poses.
-        pos_w, quat_w = self._compute_camera_world_poses(env_ids)
+        pos_w, quat_w = sim_utils.obtain_world_pose_from_view(self._view, env_ids, clone=True)
+        pos_w, quat_w = math_utils.combine_frame_transforms(
+            pos_w, quat_w, self._offset_pos[env_ids], self._offset_quat[env_ids]
+        )
         self._data.pos_w[env_ids] = pos_w
         self._data.quat_w_world[env_ids] = quat_w
         # Reset the frame count
@@ -184,11 +187,11 @@ class RayCasterCamera(RayCaster):
             RuntimeError: If the camera prim is not set. Need to call :meth:`initialize` method first.
         """
         # resolve env_ids
-        if env_ids is None:
+        if env_ids is None or isinstance(env_ids, slice):
             env_ids = self._ALL_INDICES
 
         # get current positions
-        pos_w, quat_w = self._compute_view_world_poses(env_ids)
+        pos_w, quat_w = sim_utils.obtain_world_pose_from_view(self._view, env_ids)
         if positions is not None:
             # transform to camera frame
             pos_offset_world_frame = positions - pos_w
@@ -201,7 +204,10 @@ class RayCasterCamera(RayCaster):
             self._offset_quat[env_ids] = math_utils.quat_mul(math_utils.quat_inv(quat_w), quat_w_set)
 
         # update the data
-        pos_w, quat_w = self._compute_camera_world_poses(env_ids)
+        pos_w, quat_w = sim_utils.obtain_world_pose_from_view(self._view, env_ids, clone=True)
+        pos_w, quat_w = math_utils.combine_frame_transforms(
+            pos_w, quat_w, self._offset_pos[env_ids], self._offset_quat[env_ids]
+        )
         self._data.pos_w[env_ids] = pos_w
         self._data.quat_w_world[env_ids] = quat_w
 
@@ -260,7 +266,10 @@ class RayCasterCamera(RayCaster):
         self._frame[env_ids] += 1
 
         # compute poses from current view
-        pos_w, quat_w = self._compute_camera_world_poses(env_ids)
+        pos_w, quat_w = sim_utils.obtain_world_pose_from_view(self._view, env_ids, clone=True)
+        pos_w, quat_w = math_utils.combine_frame_transforms(
+            pos_w, quat_w, self._offset_pos[env_ids], self._offset_quat[env_ids]
+        )
         # update the data
         self._data.pos_w[env_ids] = pos_w
         self._data.quat_w_world[env_ids] = quat_w
@@ -395,39 +404,46 @@ class RayCasterCamera(RayCaster):
     def _compute_view_world_poses(self, env_ids: Sequence[int]) -> tuple[torch.Tensor, torch.Tensor]:
         """Obtains the pose of the view the camera is attached to in the world frame.
 
+        .. deprecated v2.3.0:
+            This function will be removed in a future release in favor of implementation :meth:`sim_utils.obtain_world_pose_from_view`.
+
         Returns:
             A tuple of the position (in meters) and quaternion (w, x, y, z).
+
+
         """
-        # obtain the poses of the sensors
-        # note: clone arg doesn't exist for xform prim view so we need to do this manually
-        if isinstance(self._view, XFormPrim):
-            if isinstance(env_ids, slice):  # catch the case where env_ids is a slice
-                env_ids = self._ALL_INDICES
-            pos_w, quat_w = self._view.get_world_poses(env_ids)
-        elif isinstance(self._view, physx.ArticulationView):
-            pos_w, quat_w = self._view.get_root_transforms()[env_ids].split([3, 4], dim=-1)
-            quat_w = math_utils.convert_quat(quat_w, to="wxyz")
-        elif isinstance(self._view, physx.RigidBodyView):
-            pos_w, quat_w = self._view.get_transforms()[env_ids].split([3, 4], dim=-1)
-            quat_w = math_utils.convert_quat(quat_w, to="wxyz")
-        else:
-            raise RuntimeError(f"Unsupported view type: {type(self._view)}")
-        # return the pose
-        return pos_w.clone(), quat_w.clone()
+        # deprecation
+        omni.log.warn(
+            "The function '_compute_view_world_poses' will be deprecated in favor of the util method"
+            " 'sim_utils.obtain_world_pose_from_view'. Please use 'sim_utils.obtain_world_pose_from_view' instead...."
+        )
+
+        return sim_utils.obtain_world_pose_from_view(self._view, env_ids, clone=True)
 
     def _compute_camera_world_poses(self, env_ids: Sequence[int]) -> tuple[torch.Tensor, torch.Tensor]:
         """Computes the pose of the camera in the world frame.
 
         This function applies the offset pose to the pose of the view the camera is attached to.
 
+        .. deprecated v2.3.0:
+            This function will be removed in a future release. Instead, use the code block below:
+
+            .. code-block:: python
+
+                pos_w, quat_w = sim_utils.obtain_world_pose_from_view(self._view, env_ids, clone=True)
+                pos_w, quat_w = math_utils.combine_frame_transforms(pos_w, quat_w, self._offset_pos[env_ids],  self._offset_quat[env_ids])
+
         Returns:
             A tuple of the position (in meters) and quaternion (w, x, y, z) in "world" convention.
         """
-        # get the pose of the view the camera is attached to
-        pos_w, quat_w = self._compute_view_world_poses(env_ids)
-        # apply offsets
-        # need to apply quat because offset relative to parent frame
-        pos_w += math_utils.quat_apply(quat_w, self._offset_pos[env_ids])
-        quat_w = math_utils.quat_mul(quat_w, self._offset_quat[env_ids])
 
-        return pos_w, quat_w
+        # deprecation
+        omni.log.warn(
+            "The function '_compute_camera_world_poses' will be deprecated in favor of the combination of methods"
+            " 'sim_utils.obtain_world_pose_from_view' and 'math_utils.combine_frame_transforms'. Please use"
+            " 'sim_utils.obtain_world_pose_from_view' and 'math_utils.combine_frame_transforms' instead...."
+        )
+
+        # get the pose of the view the camera is attached to
+        pos_w, quat_w = sim_utils.obtain_world_pose_from_view(self._view, env_ids, clone=True)
+        return math_utils.combine_frame_transforms(pos_w, quat_w, self._offset_pos[env_ids], self._offset_quat[env_ids])
