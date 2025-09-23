@@ -49,7 +49,7 @@ class ManagerBasedEnv:
       the joint torques, or the desired velocity of the floating base.
     * **Event Manager**: The event manager orchestrates operations triggered based on simulation events.
       This includes resetting the scene to a default state, applying random pushes to the robot at different intervals
-      of time, or randomizing properties such as mass and friction torques and coefficients. This is useful for training
+      of time, or randomizing properties such as mass and friction efforts and coefficients. This is useful for training
       and evaluating the robot in a variety of scenarios.
     * **Recorder Manager**: The recorder manager that handles recording data produced during different steps
       in the simulation. This includes recording in the beginning and end of a reset and a step. The recorded data

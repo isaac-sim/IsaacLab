@@ -191,7 +191,7 @@ class ArticulationData:
     """
 
     default_joint_static_friction_effort: torch.Tensor = None
-    """Default joint static friction torque of all joints. Shape is (num_instances, num_joints).
+    """Default joint static friction effort of all joints. Shape is (num_instances, num_joints).
 
     This quantity is configured through the actuator model's :attr:`isaaclab.actuators.ActuatorBaseCfg.friction`
     parameter. If the parameter's value is None, the value parsed from the USD schema, at the time of initialization,
@@ -199,7 +199,7 @@ class ArticulationData:
     """
 
     default_joint_dynamic_friction_effort: torch.Tensor = None
-    """Default joint dynamic friction torque of all joints. Shape is (num_instances, num_joints).
+    """Default joint dynamic friction effort of all joints. Shape is (num_instances, num_joints).
 
     This quantity is configured through the actuator model's :attr:`isaaclab.actuators.ActuatorBaseCfg.dynamic_friction`
     parameter. If the parameter's value is None, the value parsed from the USD schema, at the time of initialization,
@@ -347,7 +347,7 @@ class ArticulationData:
     """Joint armature provided to the simulation. Shape is (num_instances, num_joints)."""
 
     joint_static_friction_effort: torch.Tensor = None
-    """Joint static friction torque provided to the simulation. Shape is (num_instances, num_joints)."""
+    """Joint static friction effort provided to the simulation. Shape is (num_instances, num_joints)."""
 
     joint_dynamic_friction_effort: torch.Tensor = None
     """Joint dynamic friction torque provided to the simulation. Shape is (num_instances, num_joints)."""

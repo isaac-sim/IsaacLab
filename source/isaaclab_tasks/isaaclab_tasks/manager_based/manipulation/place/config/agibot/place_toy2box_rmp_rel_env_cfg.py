@@ -6,8 +6,6 @@
 import os
 from dataclasses import MISSING
 
-from isaaclab_assets import ISAACLAB_ASSETS_DATA_DIR
-
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
 from isaaclab.devices.device_base import DevicesCfg
 from isaaclab.devices.keyboard import Se3KeyboardCfg
@@ -24,7 +22,7 @@ from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
 from isaaclab.sim.schemas.schemas_cfg import MassPropertiesCfg, RigidBodyPropertiesCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
 from isaaclab.utils import configclass
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 
 from isaaclab_tasks.manager_based.manipulation.place import mdp as place_mdp
 from isaaclab_tasks.manager_based.manipulation.stack import mdp
@@ -57,7 +55,6 @@ class EventCfgPlaceToy2Box:
                 "x": (-0.15, 0.20),
                 "y": (-0.3, -0.15),
                 "z": (-0.65, -0.65),
-                "roll": (1.57, 1.57),
                 "yaw": (-3.14, 3.14),
             },
             "asset_cfgs": [SceneEntityCfg("toy_truck")],
@@ -71,7 +68,6 @@ class EventCfgPlaceToy2Box:
                 "x": (0.25, 0.35),
                 "y": (0.0, 0.10),
                 "z": (-0.55, -0.55),
-                "roll": (1.57, 1.57),
                 "yaw": (-3.14, 3.14),
             },
             "asset_cfgs": [SceneEntityCfg("box")],
@@ -267,14 +263,7 @@ class RmpFlowAgibotPlaceToy2BoxEnvCfg(PlaceToy2BoxEnvCfg):
             disable_gravity=False,
         )
 
-        box_properties = RigidBodyPropertiesCfg(
-            solver_position_iteration_count=16,
-            solver_velocity_iteration_count=1,
-            max_angular_velocity=1000.0,
-            max_linear_velocity=1000.0,
-            max_depenetration_velocity=5.0,
-            disable_gravity=False,
-        )
+        box_properties = toy_truck_properties.copy()
 
         # Notes: remember to add Physics/Mass properties to the toy_truck mesh to make grasping successful,
         # then you can use below MassPropertiesCfg to set the mass of the toy_truck
@@ -286,8 +275,7 @@ class RmpFlowAgibotPlaceToy2BoxEnvCfg(PlaceToy2BoxEnvCfg):
             prim_path="{ENV_REGEX_NS}/ToyTruck",
             init_state=RigidObjectCfg.InitialStateCfg(),
             spawn=UsdFileCfg(
-                usd_path=f"{ISAACLAB_ASSETS_DATA_DIR}/Objects/toy_truck_022.usd",
-                scale=(0.001, 0.001, 0.001),
+                usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Objects/ToyTruck/toy_truck.usd",
                 rigid_props=toy_truck_properties,
                 mass_props=toy_mass_properties,
             ),
@@ -297,9 +285,7 @@ class RmpFlowAgibotPlaceToy2BoxEnvCfg(PlaceToy2BoxEnvCfg):
             prim_path="{ENV_REGEX_NS}/Box",
             init_state=RigidObjectCfg.InitialStateCfg(),
             spawn=UsdFileCfg(
-                usd_path=f"{ISAACLAB_ASSETS_DATA_DIR}/Objects/box_167.usd",
-                activate_contact_sensors=True,
-                scale=(0.001, 0.001, 0.001),
+                usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Objects/Box/box.usd",
                 rigid_props=box_properties,
             ),
         )
@@ -327,10 +313,10 @@ class RmpFlowAgibotPlaceToy2BoxEnvCfg(PlaceToy2BoxEnvCfg):
         # add contact force sensor for grasped checking
         self.scene.contact_grasp = ContactSensorCfg(
             prim_path="{ENV_REGEX_NS}/Robot/right_.*_Pad_Link",
-            update_period=0.0,
+            update_period=0.05,
             history_length=6,
             debug_vis=True,
-            filter_prim_paths_expr=["{ENV_REGEX_NS}/ToyTruck/Aligned"],
+            filter_prim_paths_expr=["{ENV_REGEX_NS}/ToyTruck"],
         )
 
         self.teleop_devices = DevicesCfg(

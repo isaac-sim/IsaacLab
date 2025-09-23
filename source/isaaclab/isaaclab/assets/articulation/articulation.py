@@ -830,7 +830,7 @@ class Articulation(AssetBase):
         joint_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | None = None,
     ):
-        r"""Write joint static friction torques into the simulation.
+        r"""Write joint static friction effort (force or torque) into the simulation.
 
         The joint static friction is a unitless quantity. It relates the magnitude of the spatial force transmitted
         from the parent body to the child body to the maximal static friction force that may be applied by the solver
@@ -842,7 +842,7 @@ class Articulation(AssetBase):
         similar to static and Coulomb static friction.
 
         Args:
-            joint_static_friction_effort: Joint static friction torque. Shape is (len(env_ids), len(joint_ids)).
+            joint_static_friction_effort: Joint static friction torque or force. Shape is (len(env_ids), len(joint_ids)).
             joint_ids: The joint indices to set the joint torque limits for. Defaults to None (all joints).
             env_ids: The environment indices to set the joint torque limits for. Defaults to None (all environments).
         """
@@ -875,7 +875,7 @@ class Articulation(AssetBase):
         env_ids: Sequence[int] | None = None,
     ):
         if int(get_version()[2]) < 5:
-            omni.log.warn("Setting joint dynamic friction torques are not supported in Isaac Sim < 5.0")
+            omni.log.warn("Setting joint dynamic friction efforts are not supported in Isaac Sim < 5.0")
             return
         # resolve indices
         physx_env_ids = env_ids
