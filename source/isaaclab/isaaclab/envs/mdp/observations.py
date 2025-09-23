@@ -459,10 +459,6 @@ def image_latents(
 
     # obtain the input image
     images = sensor.data.output[data_type]
-    
-    # plt.figure()
-    # plt.imshow(images[0].cpu().numpy())
-    # plt.show()
 
     # depth image conversion
     if (data_type == "distance_to_camera") and convert_perspective_to_orthogonal:
