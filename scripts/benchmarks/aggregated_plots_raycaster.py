@@ -4,6 +4,8 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import matplotlib.pyplot as plt
+from matplotlib.ticker import ScalarFormatter
+from matplotlib import cm
 import argparse
 import os
 import glob
@@ -30,31 +32,36 @@ device_name_lookup = {
     "NVIDIA GTX 980": "GTX 980",
     "NVIDIA RTX 6000 Ada Generation": "RTX 6000 Ada",
 }
-# Optional nice plotting style; fall back if not available
-try:
-    import scienceplots  # noqa: F401
-    plt.style.use(["science"]) 
-except Exception:
-    # Proceed with default matplotlib style if scienceplots isn't installed
-    pass
+import scienceplots  # noqa: F401
+plt.style.use(["science"])  # publication-ready base style
 
 SMALL_SIZE = 16
 MEDIUM_SIZE = 20
 LEGEND_SIZE = 15
 BIGGER_SIZE = 24
 
-plt.rc('font', size=14)          # controls default text sizes
-plt.rc('axes', titlesize=SMALL_SIZE)     # fontsize of the axes title
-plt.rc('axes', labelsize=MEDIUM_SIZE)    # fontsize of the x and y labels
-plt.rc('xtick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
-plt.rc('ytick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
-plt.rc('legend', fontsize=LEGEND_SIZE)    # legend fontsize
-plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
+plt.rc('font', size=14)  # base font size
+plt.rc('axes', titlesize=SMALL_SIZE)
+plt.rc('axes', labelsize=MEDIUM_SIZE)
+plt.rc('xtick', labelsize=SMALL_SIZE)
+plt.rc('ytick', labelsize=SMALL_SIZE)
+plt.rc('legend', fontsize=LEGEND_SIZE)
+plt.rc('figure', titlesize=BIGGER_SIZE)
 plt.rc("lines", linewidth=2)
 
-plt.figure(figsize=(6.0, 5.0), dpi=1200)
+OUTPUT_DIR = os.environ.get("BENCHMARK_PLOTS_DIR", "scripts/outputs/")
 
-OUTPUT_DIR = "scripts/artifacts/"
+
+def _format_axes(ax: plt.Axes, grid: bool = True):
+    """Apply consistent, publication-ready formatting to axes."""
+    if grid:
+        ax.grid(True, which="major", linestyle="--", linewidth=0.6, alpha=0.6)
+        ax.grid(True, which="minor", linestyle=":", linewidth=0.4, alpha=0.5)
+    # Use scalar formatter without offset/scientific on axes unless necessary
+    ax.xaxis.set_major_formatter(ScalarFormatter(useMathText=True))
+    ax.yaxis.set_major_formatter(ScalarFormatter(useMathText=True))
+    for spine in ax.spines.values():
+        spine.set_linewidth(0.8)
 
 
 def get_dataframe(df_name: str, fields=None, keys=None) -> pd.DataFrame:
@@ -113,11 +120,17 @@ def get_dataframe(df_name: str, fields=None, keys=None) -> pd.DataFrame:
         try:
             df = pd.read_csv(p)
 
-            if "fps" in fields:
-                df["fps"] = 1.0 / (df["per_step_ms"]) * df["num_envs"]
+            # Derived metrics
+            if fields and ("fps" in fields or "kfps" in fields or "mrays_per_s" in fields):
+                # Frames per second across all envs (aggregate FPS)
+                df["fps"] = 1e3 / df["per_step_ms"] * df["num_envs"]  # total FPS
+                df["kfps"] = df["fps"] / 1e3
+                if "total_rays" in df.columns:
+                    # Throughput in Mray/s
+                    df["mrays_per_s"] = (df["fps"] * (df["total_rays"] / df["num_envs"])) / 1e6
 
             if fields:
-                keep = [c for c in fields if c in df.columns] + [c for c in keys if c in df.columns]
+                keep = [c for c in (fields or []) if c in df.columns] + [c for c in (keys or []) if c in df.columns]
                 if keep:
                     df = df[keep]
             frames.append(df)
@@ -131,9 +144,9 @@ def get_dataframe(df_name: str, fields=None, keys=None) -> pd.DataFrame:
 
 
     # Determine metrics = numeric fields that are in `fields` but not in `keys`
-    keys_present = [k for k in keys if k in df_all.columns]
-    metrics = []
-    for c in fields:
+    keys_present = [k for k in (keys or []) if k in df_all.columns]
+    metrics: list[str] = []
+    for c in (fields or []):
         if c in keys_present:
             continue
         try:
@@ -141,23 +154,19 @@ def get_dataframe(df_name: str, fields=None, keys=None) -> pd.DataFrame:
                 metrics.append(c)
         except Exception:
             continue
-    if not metrics:
+    if not metrics or not keys_present:
         return df_all
 
-    agg_dict = {m: ["mean", "std"] for m in metrics}
-    grouped = df_all.groupby(keys_present, dropna=False).agg(agg_dict).reset_index()
-    # Flatten columns: keep mean under base name, std under base_name_std
-    flat_cols = []
-    for col in grouped.columns:
-        if isinstance(col, tuple):
-            base, stat = col
-            flat_cols.append(base if stat == "mean" or stat == "" else f"{base}_{stat}")
-        else:
-            flat_cols.append(col)
-    grouped.columns = flat_cols
+    group = df_all.groupby(keys_present, dropna=False)
+    mean_df = group[metrics].mean().reset_index()
+    std_df = group[metrics].std().reset_index()
+    # Rename std columns with _std suffix
+    std_df = std_df.rename(columns={m: f"{m}_std" for m in metrics})
+    grouped = pd.merge(mean_df, std_df, on=keys_present, how="left")
     # map device names to shorter versions if applicable
     if "device" in grouped.columns:
-        grouped["device"] = grouped["device"].map(lambda x: device_name_lookup.get(x, x)).fillna(grouped["device"])
+        # Map known device names to short labels; keep original where not mapped
+        grouped["device"] = grouped["device"].map(device_name_lookup).fillna(grouped["device"])
     return grouped
 
 
@@ -165,99 +174,89 @@ def get_dataframe(df_name: str, fields=None, keys=None) -> pd.DataFrame:
 def plot_num_assets_reference():
     df = get_dataframe(
         "num_assets_reference",
-    fields=["avg_memory", "per_step_ms", "fps", "total_rays"],
+        fields=["avg_memory", "per_step_ms", "fps", "kfps", "mrays_per_s", "total_rays"],
         keys=["reference_meshes", "num_assets", "device", "num_envs", "resolution"],
     )
     df = df[df["reference_meshes"] == True]
 
-    # df["reference_meshes"] = df["reference_meshes"].astype(bool)
-    
-    fig, axes = plt.subplots(1, 1, figsize=(10, 10))
+    fig, axes = plt.subplots(1, 1, figsize=(7.2, 5.61), dpi=600, constrained_layout=True)
     for (device, ref), group in df.groupby(["device", "reference_meshes"]):
+        group = group.sort_values("num_assets")
         label = f"{device}"
         # shade the std deviation
-        axes.fill_between(
-            group["num_assets"],
-            group["fps"] - group["fps_std"],
-            group["fps"] + group["fps_std"],
-            alpha=0.2,
+        x = group["num_assets"].to_numpy(dtype=float)
+        y = (group["kfps"].to_numpy(dtype=float) if "kfps" in group.columns else (group["fps"].to_numpy(dtype=float) / 1e3))
+        ystd = (
+            group["kfps_std"].to_numpy(dtype=float) if "kfps_std" in group.columns else
+            (group["fps_std"].to_numpy(dtype=float) / 1e3 if "fps_std" in group.columns else np.zeros_like(y))
         )
-        axes.plot(
-            group["num_assets"],
-            group["fps"],
-            marker="o",
-            label=label,
-        )
-    # Add right-hand tick labels as Rays/s using a conversion from FPS
+        axes.fill_between(x, y - ystd, y + ystd, alpha=0.2)
+        axes.plot(x, y, marker="o", label=label)
+    # Secondary axis as Mray/s
     if set(["total_rays", "num_envs"]).issubset(df.columns) and len(df["num_envs"].unique()) == 1:
         rays_per_env = (df["total_rays"] / df["num_envs"]).median()
         if pd.notnull(rays_per_env) and rays_per_env > 0:
-            fps_to_rps = lambda y: y * rays_per_env / 1e3
-            rps_to_fps = lambda y: y / rays_per_env * 1e3
-            ax_right = axes.secondary_yaxis('right', functions=(fps_to_rps, rps_to_fps))
-            ax_right.set_ylabel("Throughput (Rays/s) $ \cdot 10^6$")
-    axes.set_xlabel("Number of Assets")
-    axes.set_ylabel("Throughput (FPS) $ \cdot 10^3$")
-    axes.set_title(f"Ray Casting Performance vs Number of Assets for {df['num_envs'].iloc[0]} Envs")
-    # axes.grid(True, which="both", linestyle="--", linewidth=0.5)
-    axes.legend()
-    plt.tight_layout()
+            kfps_to_mrays = lambda y: y * rays_per_env / 1e3
+            mrays_to_kfps = lambda y: y * 1e3 / rays_per_env
+            ax_right = axes.secondary_yaxis('right', functions=(kfps_to_mrays, mrays_to_kfps))
+            ax_right.set_ylabel(r"Throughput (Rays) $\times 10^6$")
+    axes.set_xlabel("Number of assets")
+    axes.set_ylabel(r"Throughput (FPS) $\times 10^3$")
+    axes.set_title(f"Throughput vs number of assets ({int(df['num_envs'].iloc[0])} envs)")
+    _format_axes(axes)
+    axes.legend(frameon=False)
     return axes
 
 # plot2: FPS vs Mesh Complexity.
 def plot_mesh_complexity():
     df = get_dataframe(
         "num_faces",
-        fields=["avg_memory", "per_step_ms", "fps", "total_rays"],
+    fields=["avg_memory", "per_step_ms", "fps", "kfps", "mrays_per_s", "total_rays"],
         keys=["num_faces", "device", "num_envs", "resolution"],
     )
 
-    fig, axes = plt.subplots(1, 1, figsize=(10, 10))
+    fig, axes = plt.subplots(1, 1, figsize=(7.2, 5.61), dpi=600, constrained_layout=True)
     for device, group in df.groupby(["device"]):
-        device = device[0]
-        label = f"{device}"
+        group = group.sort_values("num_faces")
+        label = f"{device[0]}"
         # shade the std deviation
-        axes.fill_between(
-            group["num_faces"],
-            group["fps"] - group["fps_std"],
-            group["fps"] + group["fps_std"],
-            alpha=0.2,
+        x = group["num_faces"].to_numpy(dtype=float)
+        y = (group["kfps"].to_numpy(dtype=float) if "kfps" in group.columns else (group["fps"].to_numpy(dtype=float) / 1e3))
+        ystd = (
+            group["kfps_std"].to_numpy(dtype=float) if "kfps_std" in group.columns else
+            (group["fps_std"].to_numpy(dtype=float) / 1e3 if "fps_std" in group.columns else np.zeros_like(y))
         )
-        axes.plot(
-            group["num_faces"],
-            group["fps"],
-            marker="o",
-            label=label,
-        )
-    # Add right-hand tick labels as Rays/s using a conversion from FPS
+        axes.fill_between(x, y - ystd, y + ystd, alpha=0.2)
+        axes.plot(x, y, marker="o", label=label)
+    # Add right-hand tick labels as Mray/s using a conversion from kFPS
     if set(["total_rays", "num_envs"]).issubset(df.columns) and len(df["num_envs"].unique()) == 1:
         rays_per_env = (df["total_rays"] / df["num_envs"]).median()
         if pd.notnull(rays_per_env) and rays_per_env > 0:
-            fps_to_rps = lambda y: y * rays_per_env / 1e3
-            rps_to_fps = lambda y: y / rays_per_env * 1e3
-            ax_right = axes.secondary_yaxis('right', functions=(fps_to_rps, rps_to_fps))
-            ax_right.set_ylabel("Throughput (Rays/s) $ \cdot 10^6$")
-    axes.set_xlabel("Mesh Complexity (Number of Faces)")
-    axes.set_ylabel("Throughput (FPS) $ \cdot 10^3$")
-    axes.set_title(f"Ray Casting Performance vs Mesh Complexity for {df['num_envs'].iloc[0]} Envs")
-    # axes.grid(True, which="both", linestyle="--", linewidth=0.5)
-    axes.legend()
-    plt.tight_layout()
+            kfps_to_mrays = lambda y: y * rays_per_env / 1e3
+            mrays_to_kfps = lambda y: y * 1e3 / rays_per_env
+            ax_right = axes.secondary_yaxis('right', functions=(kfps_to_mrays, mrays_to_kfps))
+            ax_right.set_ylabel(r"Throughput (Rays) $\times 10^6$")
+    axes.set_xlabel("Mesh complexity (faces)")
+    axes.set_ylabel(r"Throughput (FPS) $\times 10^3$")
+    axes.set_title(f"Throughput vs mesh complexity ({int(df['num_envs'].iloc[0])} envs)")
+    _format_axes(axes)
+    axes.legend(frameon=False)
     return axes
 
 
 def compare_single_vs_multi_resolution():
     df = get_dataframe(
         "single_vs_multi",
-        fields=["avg_memory", "per_step_ms", "fps", "total_rays"],
+        fields=["avg_memory", "per_step_ms", "fps", "kfps", "mrays_per_s", "total_rays"],
         keys=["device", "num_envs", "resolution", "mode"],
     )
     df = df[df["mode"] == "multi"]
     
-    fig, axes = plt.subplots(1, 1, figsize=(10, 10))
+    fig, axes = plt.subplots(1, 1, figsize=(7.2, 5.61), dpi=600, constrained_layout=True)
     # build color and line-style maps: color per device, style per resolution
     devices = sorted(df["device"].unique())
-    base_palette = list(plt.cm.tab10.colors)
+    cmap = cm.get_cmap('tab10')
+    base_palette = [cmap(i) for i in range(cmap.N)]
     base_colors = {dev: base_palette[i % len(base_palette)] for i, dev in enumerate(devices)}
     style_cycle = ["-", "--", "-.", ":", (0, (3, 1, 1, 1)), (0, (5, 2, 1, 2))]
     style_map = {}
@@ -268,41 +267,37 @@ def compare_single_vs_multi_resolution():
 
     # group by device and resolution
     for (device, res), group in df.groupby(["device", "resolution"]):
-        label = f"{device} @ {(5.0 / res)**2:.1f} rays"
+        group = group.sort_values("num_envs")
+        label = f"{device} @ {(5.0 / res)**2:.0f} rays"
         # shade the std deviation with device color
-        axes.fill_between(
-            group["num_envs"],
-            group["fps"] - group["fps_std"],
-            group["fps"] + group["fps_std"],
-            alpha=0.2,
-            color=base_colors.get(device, None),
+        x = group["num_envs"].to_numpy(dtype=float)
+        y = (group["kfps"].to_numpy(dtype=float) if "kfps" in group.columns else (group["fps"].to_numpy(dtype=float) / 1e3))
+        ystd = (
+            group["kfps_std"].to_numpy(dtype=float) if "kfps_std" in group.columns else
+            (group["fps_std"].to_numpy(dtype=float) / 1e3 if "fps_std" in group.columns else np.zeros_like(y))
         )
-        axes.plot(
-            group["num_envs"],
-            group["fps"],
-            marker="o",
-            label=label,
-            linestyle=style_map.get((device, res), "-"),
-            color=base_colors.get(device, None),
-        )
-    axes.set_xlabel("Number of Environments")
-    axes.set_ylabel("Throughput (FPS) $ \cdot 10^3$")
-    axes.set_title(f"Ray Casting Performance vs Number of Environments")
-    axes.legend()
+    axes.fill_between(list(x), list(y - ystd), list(y + ystd), alpha=0.2, color=base_colors.get(device, None))
+    axes.plot(list(x), list(y), marker="o", label=label, linestyle=style_map.get((device, res), "-"), color=base_colors.get(device, None))
+    axes.set_xlabel("Number of environments")
+    axes.set_ylabel(r"Throughput (FPS) $\times 10^3$")
+    axes.set_title("Throughput vs number of environments")
+    _format_axes(axes)
+    axes.legend(frameon=False, ncol=1, loc="best")
     return axes
 
 def compare_memory_consumption():
     df = get_dataframe(
         "single_vs_multi",
-        fields=["avg_memory", "per_step_ms", "fps", "total_rays"],
+        fields=["avg_memory", "per_step_ms", "fps", "kfps", "mrays_per_s", "total_rays"],
         keys=["device", "num_envs", "resolution", "mode"],
     )
     df = df[df["mode"] == "multi"]
     
-    fig, axes = plt.subplots(1, 1, figsize=(10, 10))
+    fig, axes = plt.subplots(1, 1, figsize=(7.2, 5.61), dpi=600, constrained_layout=True)
     # build color and line-style maps: color per device, style per resolution
     devices = sorted(df["device"].unique())
-    base_palette = list(plt.cm.tab10.colors)
+    cmap = cm.get_cmap('tab10')
+    base_palette = [cmap(i) for i in range(cmap.N)]
     base_colors = {dev: base_palette[i % len(base_palette)] for i, dev in enumerate(devices)}
     style_cycle = ["-", "--", "-.", ":", (0, (3, 1, 1, 1)), (0, (5, 2, 1, 2))]
     style_map = {}
@@ -311,46 +306,52 @@ def compare_memory_consumption():
         for idx, r in enumerate(res_list):
             style_map[(dev, r)] = style_cycle[idx % len(style_cycle)]
     
-    # zero_memory 
-    min_memory = df["avg_memory"].min()
-    # Normalize memory to start from zero
-    df["avg_memory"] = df["avg_memory"] - min_memory 
     # group by device and resolution
     for (device, res), group in df.groupby(["device", "resolution"]):
-        label = f"{device} @ {(5.0 / res)**2:.1f} rays"
+        label = f"{device} @ {(5.0 / res)**2:.0f} rays"
         # shade the std deviation with device color
-        axes.fill_between(
-            group["num_envs"],
-            group["avg_memory"] - group["avg_memory_std"],
-            group["avg_memory"] + group["avg_memory_std"],
-            alpha=0.2,
-            color=base_colors.get(device, None),
-        )
-        axes.plot(
-            group["num_envs"],
-            group["avg_memory"],
-            marker="o",
-            label=label,
-            linestyle=style_map.get((device, res), "-"),
-            color=base_colors.get(device, None),
-        )
-    axes.set_xlabel("Number of Environments")
-    axes.set_ylabel("Average Difference in VRAM Usage (MB)")
-    axes.set_title(f"Ray Casting VRAM Usage vs Number of Environments")
-    axes.legend()
+        x = group["num_envs"].to_numpy(dtype=float)
+        # normalize each series by its own minimum
+        y_raw = group["avg_memory"].to_numpy(dtype=float)
+        # use nanmin to be safe if NaNs are present; fall back to 0 if all NaN
+        y_min = np.nanmin(y_raw) if np.any(~np.isnan(y_raw)) else 0.0
+        y = y_raw - y_min
+        ystd = group["avg_memory_std"].to_numpy(dtype=float) if "avg_memory_std" in group.columns else np.zeros_like(y)
+        axes.fill_between(x, y - ystd, y + ystd, alpha=0.2, color=base_colors.get(device, None))
+        axes.plot(x, y, marker="o", label=label, linestyle=style_map.get((device, res), "-"), color=base_colors.get(device, None))
+    axes.set_xlabel("Number of environments")
+    axes.set_ylabel(r"VRAM usage $\Delta$ (MB)")
+    axes.set_title("VRAM usage vs number of environments")
+    _format_axes(axes)
+    axes.legend(frameon=False, loc="best")
     return axes
 
 if __name__ == "__main__":
-    axes = plot_num_assets_reference()
-    # Save figure
-    plt.savefig("num_assets_reference.png")
-    axes = plot_mesh_complexity()
-    plt.savefig("mesh_complexity.png")
-    axes = compare_single_vs_multi_resolution()
-    plt.savefig("single_vs_multi_resolution.png")
-    axes = compare_memory_consumption()
-    plt.savefig("memory_consumption.png")
-    # Show all plots
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    try:
+        axes = plot_num_assets_reference()
+        plt.savefig(os.path.join(OUTPUT_DIR, "num_assets_reference.png"), dpi=800)
+    except Exception as e:
+        print(f"Failed to plot num_assets_reference: {e}")
+
+    try:
+        axes = plot_mesh_complexity()
+        plt.savefig(os.path.join(OUTPUT_DIR, "mesh_complexity.png"), dpi=800)
+    except Exception as e:
+        print(f"Failed to plot mesh_complexity: {e}")
+        
+    try:
+        axes = compare_single_vs_multi_resolution()
+        plt.savefig(os.path.join(OUTPUT_DIR, "single_vs_multi_resolution.png"), dpi=800)
+    except Exception as e:
+        print(f"Failed to plot single_vs_multi_resolution: {e}")
+        
+    try:
+        axes = compare_memory_consumption()
+        plt.savefig(os.path.join(OUTPUT_DIR, "memory_consumption.png"), dpi=800)
+    except Exception as e:
+        print(f"Failed to plot memory_consumption: {e}")
+    # Show all plots (optional; comment out for headless)
     plt.show()
 
 
