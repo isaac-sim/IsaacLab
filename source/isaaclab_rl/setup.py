@@ -32,7 +32,7 @@ INSTALL_REQUIRES = [
     # video recording
     "moviepy",
     # make sure this is consistent with isaac sim version
-    "pillow==11.2.1",
+    "pillow==11.3.0",
     "packaging<24",
 ]
 
