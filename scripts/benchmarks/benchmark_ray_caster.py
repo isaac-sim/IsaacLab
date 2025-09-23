@@ -36,15 +36,19 @@ parser.add_argument("--steps", type=int, default=2000, help="Steps per resolutio
 parser.add_argument("--warmup", type=int, default=50, help="Warmup steps before timing.")
 
 # Num assets for benchmarking memory usage with and without caching.
-NUM_ASSETS_MEMORY = [1, 2, 4, 8, 16]  
- # Num assets for benchmarking scaling performance. of multi-mesh ray caster.
-NUM_ASSETS = [0, 1, 2, 4, 8, 16, 32, 64, 128]
-# Num envs for benchmarking single vs multi mesh ray caster. 
-NUM_ENVS = [32, 64, 128, 256, 512, 1024, 2048, 4096]  
+NUM_ASSETS_MEMORY = [1, 2, 4, 8, 16, 32]
+# Num assets for benchmarking scaling performance of multi-mesh ray caster.
+NUM_ASSETS = [0, 1, 2, 4, 8, 16, 32]
+# Num envs for benchmarking single vs multi mesh ray caster.
+NUM_ENVS = [32, 64, 128, 256, 512, 1024, 2048, 4096]
 # Num subdivisions for benchmarking mesh complexity.
-MESH_SUBDIVISIONS = [0, 1, 2, 3, 4, 5, 6]
-# Different ray caster resolutions to benchmark. Num rays will be (5 / res)^2, e.g. 625, 2500, 10000, 11111 
-RESOLUTIONS: list[float] = [0.2, 0.1, 0.05, 0.015]  
+MESH_SUBDIVISIONS = [0, 1, 2, 3, 4, 5]
+# Different ray caster resolutions to benchmark. Num rays will be (5 / res)^2, e.g. 625, 2500, 10000, 11111
+RESOLUTIONS: list[float] = [0.2, 0.1, 0.05, 0.015]
+
+# Output directory for benchmark artifacts (can be overridden via env var BENCHMARK_OUTPUT_DIR)
+timestamp = time.strftime("%Y-%m-%d_%H-%M-%S", time.localtime())
+OUTPUT_DIR = "outputs/benchmarks/" + timestamp
 
 # # TINY for debugging
 # NUM_ASSETS_MEMORY = [1, 2]  # Num assets for benchmarking memory usage with and without caching.
@@ -249,7 +253,7 @@ def main():
     # Compare multi mesh performance over different number of assets.
     # More specifically, compare reference vs non-reference meshes and their respective memory usage.
     for idx, num_assets in enumerate(NUM_ASSETS_MEMORY):
-        for reference_meshes in [True, False]:
+        for reference_meshes in [True]:
             if num_assets > 16 and not reference_meshes:
                 continue  # Skip this, otherwise we run out of memory
 
@@ -277,8 +281,8 @@ def main():
 
             df_num_assets = pd.DataFrame(results)
             df_num_assets["device"] = device_name
-            os.makedirs("outputs/benchmarks", exist_ok=True)
-            df_num_assets.to_csv("outputs/benchmarks/ray_caster_benchmark_num_assets_reference.csv", index=False)
+            os.makedirs(OUTPUT_DIR, exist_ok=True)
+            df_num_assets.to_csv(os.path.join(OUTPUT_DIR, "ray_caster_benchmark_num_assets_reference.csv"), index=False)
 
     results: list[dict[str, object]] = []
 
@@ -319,8 +323,8 @@ def main():
 
         df_single_vs_multi = pd.DataFrame(results)
         df_single_vs_multi["device"] = device_name
-        os.makedirs("outputs/benchmarks", exist_ok=True)
-        df_single_vs_multi.to_csv("outputs/benchmarks/ray_caster_benchmark_single_vs_multi.csv", index=False)
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    df_single_vs_multi.to_csv(os.path.join(OUTPUT_DIR, "ray_caster_benchmark_single_vs_multi.csv"), index=False)
 
     print("\n=== Benchmarking Multi Raycaster with different number of assets and faces ===")
     results: list[dict[str, object]] = []
@@ -348,7 +352,7 @@ def main():
 
         df_num_assets = pd.DataFrame(results)
         df_num_assets["device"] = device_name
-        df_num_assets.to_csv("outputs/benchmarks/ray_caster_benchmark_num_assets.csv", index=False)
+    df_num_assets.to_csv(os.path.join(OUTPUT_DIR, "ray_caster_benchmark_num_assets.csv"), index=False)
 
     print("\n=== Benchmarking Multi Raycaster with different number of faces ===")
     results: list[dict[str, object]] = []
@@ -372,15 +376,15 @@ def main():
         results.append(result)
         del multi_scene_cfg
 
-        df_num_faces = pd.DataFrame(results)
-        df_num_faces["device"] = device_name
-        df_num_faces.to_csv("outputs/benchmarks/ray_caster_benchmark_num_faces.csv", index=False)
+    df_num_faces = pd.DataFrame(results)
+    df_num_faces["device"] = device_name
+    df_num_faces.to_csv(os.path.join(OUTPUT_DIR, "ray_caster_benchmark_num_faces.csv"), index=False)
 
     # Create .md file with all three tables
     for df, title in zip(
         [df_single_vs_multi, df_num_assets, df_num_faces], ["Single vs Multi", "Num Assets", "Num Faces"]
     ):
-        with open(f"outputs/benchmarks/ray_caster_benchmark_{title}.md", "w") as f:
+        with open(os.path.join(OUTPUT_DIR, f"ray_caster_benchmark_{title}.md"), "w") as f:
             f.write(f"# {title}\n\n")
             f.write(dataframe_to_markdown(df, floatfmt=".3f"))
             f.write("\n\n")
