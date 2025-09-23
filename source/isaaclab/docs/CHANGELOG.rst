@@ -1,6 +1,25 @@
 Changelog
 ---------
 
+
+0.46.2 (2025-09-13)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Fixed missing actuator indices in :meth:`~isaaclab.envs.mdp.events.randomize_actuator_gains`
+
+
+0.46.1 (2025-09-10)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Moved IO descriptors output directory to a subfolder under the task log directory.
+
+
 0.46.0 (2025-09-06)
 ~~~~~~~~~~~~~~~~~~~
 

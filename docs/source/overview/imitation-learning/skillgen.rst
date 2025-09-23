@@ -124,7 +124,7 @@ Download and Setup
 .. code:: bash
 
    # Make sure you are in the root directory of your Isaac Lab workspace
-   cd /path/to/your/isaaclab/root
+   cd /path/to/your/IsaacLab
 
    # Create the datasets directory if it does not exist
    mkdir -p datasets
