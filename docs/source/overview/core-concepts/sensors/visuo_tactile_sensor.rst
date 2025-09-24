@@ -9,7 +9,7 @@ Visuo-Tactile Sensor
 The visuo-tactile sensor in Isaac Lab provides realistic tactile feedback through integration with TacSL (Tactile Sensor Learning) [Akinola2025]_. It is designed to simulate high-fidelity tactile interactions, generating both visual and force-based data that mirror real-world tactile sensors like GelSight devices. The sensor can provide tactile RGB images, force field distributions, and other intermediate tactile measurements essential for robotic manipulation tasks requiring fine tactile feedback.
 
 
-.. figure:: ../../../_static/overview/sensors/tacsl_diagram.png
+.. figure:: ../../../_static/overview/sensors/tacsl_diagram.jpg
     :align: center
     :figwidth: 100%
     :alt: Tactile sensor with RGB visualization and force fields
@@ -55,15 +55,7 @@ Tactile sensors require specific configuration parameters to define their behavi
             height=320,
             width=240,
             data_types=["distance_to_image_plane"],
-            spawn=sim_utils.PinholeCameraCfg(
-                focal_length=0.020342857142857145 * 100,
-                focus_distance=400.0 / 1000,
-                horizontal_aperture=0.0119885 * 2 * 100,
-                clipping_range=(0.0001, 1.0e5),
-            ),
-            offset=TiledCameraCfg.OffsetCfg(
-                pos=(0.0, 0.0, -0.020342857142857145 + 0.00175), rot=(0.5, 0.5, -0.5, 0.5), convention="world"
-            ),
+            spawn= None, # the camera is already spawned in the scene, properties are set in the gelsight_r15_finger.usd file
         ),
 
     )
@@ -111,16 +103,7 @@ Configuration Requirements
 Usage Example
 ~~~~~~~~~~~~~
 
-To use the tactile sensor in a simulation environment, first ensure the required dependencies are installed:
-
-.. code-block:: bash
-
-    conda activate env_isaaclab
-    pip install opencv-python==4.11.0 trimesh==4.5.1 imageio==2.37.0
-
-Download the required assets and place them in the appropriate assets folder.
-
-Then run the demo:
+To use the tactile sensor in a simulation environment, run the deom:
 
 .. code-block:: bash
 
@@ -145,7 +128,7 @@ For a complete list of available options:
 .. note::
    The demo examples are based on the Gelsight R1.5, which is a prototype sensor that is now discontinued. The same procedure can be adapted for other visuotactile sensors.
 
-.. figure:: ../../../_static/overview/sensors/tacsl_demo.png
+.. figure:: ../../../_static/overview/sensors/tacsl_demo.jpg
     :align: center
     :figwidth: 100%
     :alt: TacSL tactile sensor demo showing RGB tactile images and force field visualizations
@@ -166,12 +149,12 @@ Output Tactile Data
    :widths: 50 50
    :class: borderless
 
-   * - .. figure:: ../../../_static/overview/sensors/tacsl_taxim_example.png
+   * - .. figure:: ../../../_static/overview/sensors/tacsl_taxim_example.jpg
           :align: center
           :figwidth: 80%
           :alt: Tactile output with RGB visualization
 
-     - .. figure:: ../../../_static/overview/sensors/tacsl_force_field_example.png
+     - .. figure:: ../../../_static/overview/sensors/tacsl_force_field_example.jpg
           :align: center
           :figwidth: 80%
           :alt: Tactile output with force field visualization

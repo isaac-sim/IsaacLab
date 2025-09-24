@@ -64,10 +64,7 @@ from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 
 # Import our TactileSensor
 from isaaclab.sensors import TiledCameraCfg, VisuoTactileSensorCfg
-from isaaclab.sensors.tacsl_sensor.visuotactile_viz_utils import (
-    visualize_penetration_depth,
-    visualize_tactile_shear_image,
-)
+from isaaclab.sensors.tacsl_sensor.visuotactile_viz_utils import visualize_tactile_shear_image
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
@@ -116,11 +113,11 @@ class TactileSensorsSceneCfg(InteractiveSceneCfg):
         prim_path="{ENV_REGEX_NS}/Robot/tactile_sensor",
         history_length=0,
         debug_vis=args_cli.debug_tactile_sensor_pts or args_cli.debug_sdf_closest_pts,
-        ## Sensor configuration
+        # Sensor configuration
         sensor_type="gelsight_r15",
         enable_camera_tactile=args_cli.use_tactile_taxim,
         enable_force_field=args_cli.use_tactile_ff,
-        ## Elastomer configuration
+        # Elastomer configuration
         elastomer_rigid_body="elastomer",
         elastomer_tactile_mesh="elastomer/visuals",
         elastomer_tip_link_name="elastomer_tip",
@@ -128,17 +125,17 @@ class TactileSensorsSceneCfg(InteractiveSceneCfg):
         num_tactile_rows=20,
         num_tactile_cols=25,
         tactile_margin=0.003,
-        ## Indenter configuration (will be set based on indenter type)
+        # Indenter configuration (will be set based on indenter type)
         indenter_rigid_body=None,  # Will be updated based on indenter type
         indenter_sdf_mesh=None,  # Will be updated based on indenter type
-        ## Force field physics parameters
+        # Force field physics parameters
         tactile_kn=args_cli.tactile_kn,
         tactile_mu=args_cli.tactile_mu,
         tactile_kt=args_cli.tactile_kt,
-        ## Compliant dynamics
+        # Compliant dynamics
         compliance_stiffness=args_cli.tactile_compliance_stiffness,
         compliant_damping=args_cli.tactile_compliant_damping,
-        ## Camera configuration
+        # Camera configuration
         camera_cfg=TiledCameraCfg(
             prim_path="{ENV_REGEX_NS}/Robot/elastomer_tip/cam",
             update_period=1 / 60,  # 60 Hz
@@ -147,7 +144,7 @@ class TactileSensorsSceneCfg(InteractiveSceneCfg):
             data_types=["distance_to_image_plane"],
             spawn=None,  # the camera is already spawned in the scene, properties are set in the gelsight_r15_finger.usd file
         ),
-        ## Debug Visualization
+        # Debug Visualization
         trimesh_vis_tactile_points=args_cli.trimesh_vis_tactile_points,
         visualize_sdf_closest_pts=args_cli.debug_sdf_closest_pts,
         visualizer_cfg=VisualizationMarkersCfg(

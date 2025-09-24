@@ -3,27 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""
-Copyright (c) 2024, NVIDIA CORPORATION. All rights reserved.
-
-NVIDIA CORPORATION and its licensors retain all intellectual property
-and proprietary rights in and to this software, related documentation
-and any modifications thereto. Any use, reproduction, disclosure or
-distribution of this software and related documentation without an express
-license agreement from NVIDIA CORPORATION is strictly prohibited.
-
-----------------
-Tensorized implementation of RGB rendering of gelsight-style visuo-tactile sensors
-using the example-based approach (Taxim: https://arxiv.org/abs/2109.04027).
-"""
-
 import numpy as np
 import os
 import scipy
 import torch
 
 import cv2
-import imageio
 
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 
@@ -241,7 +226,8 @@ class gelsightRender:
         bg_path = get_gs_render_data(self.conf["data_dir"], self.conf["background_path"])
         calib_path = get_gs_render_data(self.conf["data_dir"], self.conf["calib_path"])
 
-        self.background = imageio.imread(bg_path)
+        self.background = cv2.cvtColor(cv2.imread(bg_path), cv2.COLOR_BGR2RGB)
+
         self.calib_data = CalibData(calib_path)
         h, w = self.conf["h"], self.conf["w"]
         bins = self.conf["numBins"]
