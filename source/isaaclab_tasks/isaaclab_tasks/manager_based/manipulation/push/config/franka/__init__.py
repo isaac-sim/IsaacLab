@@ -40,5 +40,3 @@ gym.register(
     },
     disable_env_checker=True,
 )
-
-
