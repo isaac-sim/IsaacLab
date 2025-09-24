@@ -135,6 +135,13 @@ class VisuoTactileSensor(SensorBase):
         # Now call parent class constructor
         super().__init__(cfg)
 
+    def __del__(self):
+        """Unsubscribes from callbacks and detach from the replicator registry."""
+        if self._camera_sensor is not None:
+            self._camera_sensor.__del__()
+        # unsubscribe from callbacks
+        super().__del__()
+
     def __str__(self) -> str:
         """Returns: A string containing information about the instance."""
         return (
@@ -167,8 +174,11 @@ class VisuoTactileSensor(SensorBase):
 
     def reset(self, env_ids: Sequence[int] | None = None):
         """Resets the sensor internals."""
-        # Reset camera sensor if enabled
+        # reset the timestamps
+        super().reset(env_ids)
         self.reset_timing_statistics()
+
+        # Reset camera sensor if enabled
         if self._camera_sensor is not None:
             self._camera_sensor.reset(env_ids)
 
@@ -289,11 +299,15 @@ class VisuoTactileSensor(SensorBase):
         # Create camera sensor
         self._camera_sensor = TiledCamera(self.cfg.camera_cfg)
 
-        # Initialize camera if not already done
-        # TODO: Juana: this is a hack to initialize the camera sensor. Should camera_sensor be managed by TacSL sensor or InteractiveScene?
+        # Initialize camera
         if not self._camera_sensor.is_initialized:
             self._camera_sensor._initialize_impl()
             self._camera_sensor._is_initialized = True
+
+        # Initialize camera buffers
+        self._data.taxim_tactile = torch.zeros(
+            (self._num_envs, self.cfg.camera_cfg.height, self.cfg.camera_cfg.width, 3), device=self._device
+        )
 
         omni.log.info("Camera-based tactile sensing initialized.")
 
@@ -602,8 +616,8 @@ class VisuoTactileSensor(SensorBase):
 
         if "distance_to_image_plane" in camera_data.output:
             self._data.tactile_camera_depth = camera_data.output["distance_to_image_plane"][env_ids].clone()
-            diff = self._nominal_tactile["distance_to_image_plane"] - self._data.tactile_camera_depth
-            self._data.taxim_tactile = self.taxim_gelsight.render_tensorized(diff.squeeze(-1))
+            diff = self._nominal_tactile["distance_to_image_plane"][env_ids] - self._data.tactile_camera_depth
+            self._data.taxim_tactile[env_ids] = self.taxim_gelsight.render_tensorized(diff.squeeze(-1))
 
     #########################################################################################
     # Force field tactile sensing
@@ -629,12 +643,8 @@ class VisuoTactileSensor(SensorBase):
             return
 
         # Get elastomer pose and precompute pose components
-        elastomer_poses = self._elastomer_body_view.get_transforms()
-        elastomer_poses[..., 3:] = math_utils.convert_quat(elastomer_poses[..., 3:], to="wxyz")
-
-        # Precompute elastomer pose components for selected environments
-        elastomer_pos_w = elastomer_poses[env_ids, :3]
-        elastomer_quat_w = elastomer_poses[env_ids, 3:]
+        elastomer_pos_w, elastomer_quat_w = self._elastomer_body_view.get_transforms().split([3, 4], dim=-1)
+        elastomer_quat_w = math_utils.convert_quat(elastomer_quat_w, to="wxyz")
 
         # Transform tactile points to world coordinates
         self._transform_tactile_points_to_world(elastomer_pos_w, elastomer_quat_w)
@@ -647,14 +657,11 @@ class VisuoTactileSensor(SensorBase):
         ):
 
             # Get indenter poses and precompute components
-            indenter_poses = self._indenter_body_view.get_transforms()
-            indenter_poses[..., 3:] = math_utils.convert_quat(indenter_poses[..., 3:], to="wxyz")
-
-            indenter_pos_w = indenter_poses[env_ids, :3]
-            indenter_quat_w = indenter_poses[env_ids, 3:]
+            indenter_pos_w, indenter_quat_w = self._indenter_body_view.get_transforms().split([3, 4], dim=-1)
+            indenter_quat_w = math_utils.convert_quat(indenter_quat_w, to="wxyz")
 
             # Get tactile points in world coordinates
-            world_tactile_points = self._data.tactile_points_pos_w[env_ids]
+            world_tactile_points = self._data.tactile_points_pos_w
 
             # Transform tactile points to indenter local frame for SDF queries
             points_indenter_local, indenter_quat_inv = self._transform_points_to_indenter_local(
@@ -715,12 +722,10 @@ class VisuoTactileSensor(SensorBase):
         # Get inverse transformation (per environment)
         # wxyz in torch
         indenter_quat_inv, indenter_pos_inv = torch_utils.tf_inverse(indenter_quat_w, indenter_pos_w)
+        num_pts = self.num_tactile_points
 
-        # Compute points in the object frame
-        num_envs, num_points, _ = world_points.shape
-
-        indenter_quat_expanded = indenter_quat_inv.unsqueeze(1).expand(num_envs, num_points, 4)
-        indenter_pos_expanded = indenter_pos_inv.unsqueeze(1).expand(num_envs, num_points, 3)
+        indenter_quat_expanded = indenter_quat_inv.unsqueeze(1).expand(-1, num_pts, 4)
+        indenter_pos_expanded = indenter_pos_inv.unsqueeze(1).expand(-1, num_pts, 3)
 
         # Apply transformation
         points_sdf = torch_utils.tf_apply(indenter_quat_expanded, indenter_pos_expanded, world_points)
@@ -741,21 +746,20 @@ class VisuoTactileSensor(SensorBase):
             Tactile point velocities in world frame. Shape: (num_envs, num_points, 3)
         """
         num_pts = self.num_tactile_points
-        num_envs = linvel_world.shape[0]
 
         # Pre-expand all required tensors once
-        quat_expanded = quat_world.unsqueeze(1).expand(num_envs, num_pts, 4)
+        quat_expanded = quat_world.unsqueeze(1).expand(-1, num_pts, 4)
         tactile_pos_expanded = self._tactile_pos_expanded
 
         # Transform local positions to world frame relative vectors
         tactile_pos_world_relative = math_utils.quat_apply(quat_expanded, tactile_pos_expanded)
 
         # Compute velocity due to angular motion: ω × r
-        angvel_expanded = angvel_world.unsqueeze(1).expand(num_envs, num_pts, 3)
+        angvel_expanded = angvel_world.unsqueeze(1).expand(-1, num_pts, 3)
         angular_velocity_contribution = torch.cross(angvel_expanded, tactile_pos_world_relative, dim=-1)
 
         # Add linear velocity contribution
-        linvel_expanded = linvel_world.unsqueeze(1).expand(num_envs, num_pts, 3)
+        linvel_expanded = linvel_world.unsqueeze(1).expand(-1, num_pts, 3)
         tactile_velocity_world = angular_velocity_contribution + linvel_expanded
 
         return tactile_velocity_world
@@ -795,14 +799,13 @@ class VisuoTactileSensor(SensorBase):
         depth.zero_()
 
         # Convert SDF values to penetration depth (positive for penetration)
-        depth[:] = torch.clamp(-sdf_values, min=0.0)  # Negative SDF means inside (penetrating)
+        depth[:] = torch.clamp(-sdf_values[env_ids], min=0.0)  # Negative SDF means inside (penetrating)
 
         # Get collision mask for points that are penetrating
         collision_mask = depth > 0.0
 
         # Use pre-allocated tensors instead of creating new ones
         num_pts = self.num_tactile_points
-        num_envs = self.num_instances
 
         if collision_mask.any() or self.cfg.visualize_sdf_closest_pts:
 
@@ -816,10 +819,10 @@ class VisuoTactileSensor(SensorBase):
             elastomer_angvel_w = elastomer_velocities[env_ids, 3:]
 
             # Normalize gradients to get surface normals in local frame
-            normals_local = torch.nn.functional.normalize(sdf_gradients, dim=-1)
+            normals_local = torch.nn.functional.normalize(sdf_gradients[env_ids], dim=-1)
 
             # Transform normals to world frame (rotate by indenter orientation) - use precomputed quaternions
-            indenter_quat_expanded = indenter_quat_w.unsqueeze(1).expand(num_envs, num_pts, 4)
+            indenter_quat_expanded = indenter_quat_w[env_ids].unsqueeze(1).expand(-1, num_pts, 4)
 
             # Apply quaternion transformation
             normals_world = math_utils.quat_apply(indenter_quat_expanded, normals_local)
@@ -830,20 +833,22 @@ class VisuoTactileSensor(SensorBase):
 
             # Get tactile point velocities using precomputed velocities
             tactile_velocity_world = self._get_tactile_points_velocities(
-                elastomer_linvel_w, elastomer_angvel_w, elastomer_quat_w
+                elastomer_linvel_w, elastomer_angvel_w, elastomer_quat_w[env_ids]
             )
 
             # Use precomputed indenter velocities
-            closest_points_sdf = points_indenter_local + depth.unsqueeze(-1) * normals_local
+            closest_points_sdf = points_indenter_local[env_ids] + depth.unsqueeze(-1) * normals_local
 
             if self.cfg.visualize_sdf_closest_pts:
-                debug_closest_points_sdf = points_indenter_local - sdf_values.unsqueeze(-1) * normals_local
+                debug_closest_points_sdf = (
+                    points_indenter_local[env_ids] - sdf_values[env_ids].unsqueeze(-1) * normals_local
+                )
                 self.debug_closest_points_wolrd = math_utils.quat_apply(
                     indenter_quat_expanded, debug_closest_points_sdf
-                ) + indenter_pos_w.unsqueeze(1).expand(num_envs, num_pts, 3)
+                ) + indenter_pos_w[env_ids].unsqueeze(1).expand(-1, num_pts, 3)
 
-            indenter_linvel_expanded = indenter_linvel_w.unsqueeze(1).expand(num_envs, num_pts, 3)
-            indenter_angvel_expanded = indenter_angvel_w.unsqueeze(1).expand(num_envs, num_pts, 3)
+            indenter_linvel_expanded = indenter_linvel_w.unsqueeze(1).expand(-1, num_pts, 3)
+            indenter_angvel_expanded = indenter_angvel_w.unsqueeze(1).expand(-1, num_pts, 3)
             closest_points_vel_world = (
                 torch.linalg.cross(
                     indenter_angvel_expanded, math_utils.quat_apply(indenter_quat_expanded, closest_points_sdf)

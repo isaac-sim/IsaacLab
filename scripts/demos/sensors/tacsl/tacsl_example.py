@@ -350,7 +350,7 @@ def main():
     # Create scene based on indenter type
     if args_cli.indenter_type == "cube":
         scene_cfg = CubeTactileSceneCfg(num_envs=args_cli.num_envs, env_spacing=0.2)
-        # Juana: disabled force field for cube indenter because a SDF collision mesh cannot be created for the Cube Shape, not sure why
+        # disabled force field for cube indenter because a SDF collision mesh cannot be created for the Shape Prims
         scene_cfg.tactile_sensor.enable_force_field = False
         # Update tactile sensor configuration for cube
         scene_cfg.tactile_sensor.indenter_rigid_body = "indenter"
@@ -367,7 +367,7 @@ def main():
 
     scene = InteractiveScene(scene_cfg)
 
-    # Juana: this seems to only works after scene is initialized and before sim.reset() ?
+    # Setup compliant materials (required after scene initialization, can be skipped if materials are pre-configured and not needed to be changed)
     scene["tactile_sensor"].setup_compliant_materials()
 
     # Initialize simulation
