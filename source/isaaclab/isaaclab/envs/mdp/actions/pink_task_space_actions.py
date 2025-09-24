@@ -262,21 +262,18 @@ class PinkInverseKinematicsAction(ActionTerm):
         return self._controlled_frame_poses
 
     def _transform_poses_to_base_link_frame(self, poses: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        """Transform poses from world frame to base link frame.
+        """Interpret action poses as pelvis-relative and pass through.
 
         Args:
-            poses: Poses in world frame.
+            poses: Poses expressed in the base link (pelvis) frame with shape
+                (num_frame_tasks, num_envs, 4, 4).
 
         Returns:
             Tuple of (positions, rotation_matrices) in base link frame.
         """
-        # Transform poses to base link frame
-        base_link_inv = math_utils.pose_inv(self.base_link_frame_in_world_rf)
-        transformed_poses = math_utils.pose_in_A_to_pose_in_B(poses, base_link_inv)
-
-        # Extract position and rotation
-        positions, rotation_matrices = math_utils.unmake_pose(transformed_poses)
-
+        # Directly extract translation and rotation from the provided base-relative poses
+        positions = poses[:, :, :3, 3]
+        rotation_matrices = poses[:, :, :3, :3]
         return positions, rotation_matrices
 
     def _set_task_targets(self, transformed_poses: tuple[torch.Tensor, torch.Tensor]) -> None:
