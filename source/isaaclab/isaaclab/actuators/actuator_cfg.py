@@ -140,8 +140,8 @@ class ActuatorBaseCfg:
     If None, the armature is set to the value from the USD joint prim.
     """
 
-    static_friction: dict[str, float] | float | None = None
-    r"""The static friction torque of the joints in the group. Defaults to None.
+    friction: dict[str, float] | float | None = None
+    r"""The static friction coefficient of the joints in the group. Defaults to None.
 
     The joint static friction is a unitless quantity. It relates the magnitude of the spatial force transmitted
     from the parent body to the child body to the maximal static friction force that may be applied by the solver
@@ -154,44 +154,34 @@ class ActuatorBaseCfg:
 
     If None, the joint static friction is set to the value from the USD joint prim.
 
-    Note: In Isaac Sim 4.5, this attribute is a coefficient, rather than a torque.
+    Note: This parameter is kept for backward compatibility with Isaac Sim 4.5, where static friction
+    is modeled as a coefficient. In Isaac Sim 5.0 and later, static friction is modeled as a torque
+    (see :attr:`static_friction`). This field is therefore considered deprecated in newer versions.
+    """
+
+    static_friction: dict[str, float] | float | None = None
+    r"""The static friction torque of the joints in the group. Defaults to None.
+
+    Note: This parameter is the recommended field starting with Isaac Sim 5.0 and later,
+    replacing :attr:`friction`.
     """
 
     dynamic_friction: dict[str, float] | float | None = None
-    """The dynamic friction torque of the joints in the group. Defaults to None.
+    r"""The dynamic friction torque of the joints in the group. Defaults to None.
 
-    Note: In Isaac Sim 4.5, this attribute is a coefficient, rather than a torque.
+    The joint dynamic friction in this case is specified as an effort (force or torque) that the solver
+    applies while the joint is moving.
+
+    If None, the joint dynamic friction is set to the value from the USD joint prim.
+
+    Note: In Isaac Sim 4.5, this attribute is interpreted as a coefficient (unitless), rather than an
+    effort. In Isaac Sim 5.0 and later, it is defined as an effort (torque or force), consistent with
+    :attr:`static_friction`.
     """
 
     viscous_friction: dict[str, float] | float | None = None
     """The viscous friction coefficient of the joints in the group. Defaults to None.
     """
-
-    """
-    Deprecated attributes.
-    """
-
-    @property
-    def friction(self) -> dict[str, float] | float | None:
-        """Deprecated property. Please use :attr:`static_friction` instead."""
-        import omni
-
-        omni.log.warn(
-            "The `friction` property is deprecated and will be removed in a future release. "
-            "Please use `static_friction` instead."
-        )
-        return self.static_friction
-
-    @friction.setter
-    def friction(self, value: dict[str, float] | float | None) -> None:
-        """Deprecated property. Please use :attr:`static_friction` instead."""
-        import omni
-
-        omni.log.warn(
-            "Setting `friction` is deprecated and will be removed in a future release. "
-            "Please set `static_friction` instead."
-        )
-        self.static_friction = value
 
 
 """
