@@ -175,7 +175,7 @@ class ActuatorBaseCfg:
     If None, the joint dynamic friction is set to the value from the USD joint prim.
 
     Note: In Isaac Sim 4.5, this attribute is interpreted as a coefficient (unitless), rather than an
-    effort. In Isaac Sim 5.0 and later, it is defined as an effort (torque or force), consistent with
+    effort. In Isaac Sim 5.0 and later, it is defined as an torque, consistent with
     :attr:`static_friction`.
     """
 
