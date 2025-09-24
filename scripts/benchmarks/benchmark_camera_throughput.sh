@@ -64,6 +64,10 @@ run_with_watchdog() {
     echo "Finished: $CMD"
 }
 
+# redo default with RGB due to weird memory output
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --tiled_camera --usd_camera --data_type rgb
+
+
 # run the benchmark script with different configurations
 
 # --low resolution with usd camera
