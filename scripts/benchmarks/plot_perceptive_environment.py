@@ -34,8 +34,9 @@ MACHINE_NBR_GPUS_COLORS = {
 
 COMPARISON_ENVIRONMENTS = [
     {"tiled": "Isaac-Dexsuite-Kuka-Allegro-Lift-Depth-TiledCamera-v0", "raycaster": "Isaac-Dexsuite-Kuka-Allegro-Lift-Depth-RayCasterCamera-v0"},
-    # ["Isaac-Navigation-Flat-Anymal-C-TiledCamera-v0", "Isaac-Navigation-Flat-Anymal-C-RayCasterCamera-v0"]
+    {"raycaster": "Isaac-Navigation-Flat-Anymal-C-v0"},
 ]
+COMPARISON_ENVIRONMENTS_NAME = ["dexsuite", "navigation"]
 
 # 1) Load CSV (no headers so we can custom-parse)
 file_path = "/home/pascalr/Downloads/Isaac Lab Whitepaper Benchmarks - benchmark result.csv"
@@ -116,6 +117,9 @@ for i, comparison_environment in enumerate(COMPARISON_ENVIRONMENTS):
     x_ticks_machine = set()
 
     for perception_mode, style in [("tiled", "dashed"), ("raycaster", "dotted")]:
+        if perception_mode not in comparison_environment:
+            continue
+        
         sub = tidy[tidy["Task"] == comparison_environment[perception_mode]]
 
         for machine, color in MACHINE_NBR_GPUS_COLORS.items():
@@ -183,6 +187,6 @@ for i, comparison_environment in enumerate(COMPARISON_ENVIRONMENTS):
     # Extra space below for legends
     plt.tight_layout(pad=2.0, rect=[0, 0.05, 1, 1])
 
-    plt.savefig(f"benchmark_{comparison_environment['tiled']}_perceptive_environment.png", dpi=300,
+    plt.savefig(f"benchmark_{COMPARISON_ENVIRONMENTS_NAME[i]}_perceptive_environment.pdf", dpi=300,
                 bbox_extra_artists=(leg0, leg1), bbox_inches="tight")
     plt.close()
