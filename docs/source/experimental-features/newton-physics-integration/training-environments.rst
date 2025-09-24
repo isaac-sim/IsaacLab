@@ -16,6 +16,7 @@ The currently supported tasks are as follows:
 * Isaac-Velocity-Flat-Anymal-B-v0
 * Isaac-Velocity-Flat-Anymal-C-v0
 * Isaac-Velocity-Flat-Anymal-D-v0
+* Isaac-Velocity-Flat-Cassie-v0
 * Isaac-Velocity-Flat-G1-v0
 * Isaac-Velocity-Flat-G1-v1 (Sim-to-Real tested)
 * Isaac-Velocity-Flat-H1-v0
