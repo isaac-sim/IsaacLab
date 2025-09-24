@@ -162,8 +162,6 @@ class ContactSensor(SensorBase):
         # reset contact positions
         if self.cfg.track_contact_points:
             self._data.contact_pos_w[env_ids, :] = torch.nan
-            # buffer used during contact position aggregation
-            self._contact_position_aggregate_buffer[env_ids, :] = torch.nan
 
     def find_bodies(self, name_keys: str | Sequence[str], preserve_order: bool = False) -> tuple[list[int], list[str]]:
         """Find bodies in the articulation based on the name keys.
@@ -317,12 +315,6 @@ class ContactSensor(SensorBase):
                 torch.nan,
                 device=self._device,
             )
-            # buffer used during contact position aggregation
-            self._contact_position_aggregate_buffer = torch.full(
-                (self._num_bodies * self._num_envs, self.contact_physx_view.filter_count, 3),
-                torch.nan,
-                device=self._device,
-            )
         # -- air/contact time between contacts
         if self.cfg.track_air_time:
             self._data.last_air_time = torch.zeros(self._num_envs, self._num_bodies, device=self._device)
@@ -401,8 +393,7 @@ class ContactSensor(SensorBase):
                 agg = agg.zero_().index_add_(0, row_ids, pts) / counts.clamp_min(1).unsqueeze(1)
                 agg[counts == 0] = float("nan")
 
-            self._contact_position_aggregate_buffer[:] = agg.view(self._num_envs * self.num_bodies, -1, 3)
-            self._data.contact_pos_w[env_ids] = self._contact_position_aggregate_buffer.view(
+            self._data.contact_pos_w[env_ids] = agg.view(self._num_envs * self.num_bodies, -1, 3).view(
                 self._num_envs, self._num_bodies, self.contact_physx_view.filter_count, 3
             )[env_ids]
 
