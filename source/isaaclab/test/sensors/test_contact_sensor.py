@@ -468,9 +468,9 @@ def _run_contact_sensor_test(
                     scene_cfg = ContactSensorSceneCfg(num_envs=1, env_spacing=1.0, lazy_sensor_update=False)
                     scene_cfg.terrain = terrain
                     scene_cfg.shape = shape_cfg
-                    test_contact_position = False
+                    test_contact_data = False
                     if (type(shape_cfg.spawn) is sim_utils.SphereCfg) and (terrain.terrain_type == "plane"):
-                        test_contact_position = True
+                        test_contact_data = True
                     elif track_contact_points:
                         continue
 
@@ -506,7 +506,7 @@ def _run_contact_sensor_test(
                         scene=scene,
                         sim_dt=sim_dt,
                         durations=durations,
-                        test_contact_position=test_contact_position,
+                        test_contact_data=test_contact_data,
                     )
                     _test_sensor_contact(
                         shape=scene["shape"],
@@ -516,7 +516,7 @@ def _run_contact_sensor_test(
                         scene=scene,
                         sim_dt=sim_dt,
                         durations=durations,
-                        test_contact_position=test_contact_position,
+                        test_contact_data=test_contact_data,
                     )
 
 
@@ -528,7 +528,7 @@ def _test_sensor_contact(
     scene: InteractiveScene,
     sim_dt: float,
     durations: list[float],
-    test_contact_position: bool = False,
+    test_contact_data: bool = False,
 ):
     """Test for the contact sensor.
 
@@ -595,8 +595,11 @@ def _test_sensor_contact(
                 expected_last_air_time=expected_last_test_contact_time,
                 dt=duration + sim_dt,
             )
-        if test_contact_position:
+
+        if test_contact_data:
             _test_contact_position(shape, sensor, mode)
+            _test_contact_forces(shape, sensor, mode)
+
         # switch the contact mode for 1 dt step before the next contact test begins.
         shape.write_root_pose_to_sim(root_pose=reset_pose)
         # perform simulation step
@@ -607,6 +610,16 @@ def _test_sensor_contact(
         expected_last_reset_contact_time = 2 * sim_dt
 
 
+def _test_contact_forces(shape: RigidObject, sensor: ContactSensor, mode: ContactTestMode) -> None:
+    if not sensor.cfg.track_friction_forces:
+        assert sensor._data.friction_forces_w is None
+        return
+
+    # check shape of the contact_pos_w tensor
+    num_bodies = sensor.num_bodies
+    assert sensor._data.friction_forces_w.shape == (sensor.num_instances / num_bodies, num_bodies, 1, 3)
+
+
 def _test_contact_position(shape: RigidObject, sensor: ContactSensor, mode: ContactTestMode) -> None:
     """Test for the contact positions (only implemented for sphere and flat terrain)
     checks that the contact position is radius distance away from the root of the object
@@ -615,22 +628,23 @@ def _test_contact_position(shape: RigidObject, sensor: ContactSensor, mode: Cont
         sensor: The sensor reporting data to be verified by the contact sensor test.
         mode: The contact test mode: either contact with ground plane or air time.
     """
-    if sensor.cfg.track_contact_points:
-        # check shape of the contact_pos_w tensor
-        num_bodies = sensor.num_bodies
-        assert sensor._data.contact_pos_w.shape == (sensor.num_instances / num_bodies, num_bodies, 1, 3)
-        # check contact positions
-        if mode == ContactTestMode.IN_CONTACT:
-            contact_position = sensor._data.pos_w + torch.tensor(
-                [[0.0, 0.0, -shape.cfg.spawn.radius]], device=sensor._data.pos_w.device
-            )
-            assert torch.all(
-                torch.abs(torch.norm(sensor._data.contact_pos_w - contact_position.unsqueeze(1), p=2, dim=-1)) < 1e-2
-            ).item()
-        elif mode == ContactTestMode.NON_CONTACT:
-            assert torch.all(torch.isnan(sensor._data.contact_pos_w)).item()
-    else:
+    if not sensor.cfg.track_contact_points:
         assert sensor._data.contact_pos_w is None
+        return
+
+    # check shape of the contact_pos_w tensor
+    num_bodies = sensor.num_bodies
+    assert sensor._data.contact_pos_w.shape == (sensor.num_instances / num_bodies, num_bodies, 1, 3)
+    # check contact positions
+    if mode == ContactTestMode.IN_CONTACT:
+        contact_position = sensor._data.pos_w + torch.tensor(
+            [[0.0, 0.0, -shape.cfg.spawn.radius]], device=sensor._data.pos_w.device
+        )
+        assert torch.all(
+            torch.abs(torch.norm(sensor._data.contact_pos_w - contact_position.unsqueeze(1), p=2, dim=-1)) < 1e-2
+        ).item()
+    elif mode == ContactTestMode.NON_CONTACT:
+        assert torch.all(torch.isnan(sensor._data.contact_pos_w)).item()
 
 
 def _check_prim_contact_state_times(
