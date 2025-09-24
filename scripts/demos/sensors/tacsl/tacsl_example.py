@@ -71,8 +71,6 @@ from isaaclab.sensors.tacsl_sensor.visuotactile_viz_utils import (
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
-ASSET_DIR = os.path.join(os.path.dirname(__file__), "assets")
-
 
 @configclass
 class TactileSensorsSceneCfg(InteractiveSceneCfg):
@@ -90,8 +88,7 @@ class TactileSensorsSceneCfg(InteractiveSceneCfg):
     robot = ArticulationCfg(
         prim_path="{ENV_REGEX_NS}/Robot",
         spawn=sim_utils.UsdFileCfg(
-            # use local path for now
-            usd_path=f"{ASSET_DIR}/gelsight_r15_finger.usd",
+            usd_path=f"{ISAACLAB_NUCLEUS_DIR}/TacSL/gelsight_r15_finger/gelsight_r15_finger.usd",
             rigid_props=sim_utils.RigidBodyPropertiesCfg(
                 disable_gravity=True,
                 max_depenetration_velocity=5.0,
@@ -143,20 +140,12 @@ class TactileSensorsSceneCfg(InteractiveSceneCfg):
         compliant_damping=args_cli.tactile_compliant_damping,
         ## Camera configuration
         camera_cfg=TiledCameraCfg(
-            prim_path="{ENV_REGEX_NS}/Robot/elastomer_tip/tactile_cam",
+            prim_path="{ENV_REGEX_NS}/Robot/elastomer_tip/cam",
             update_period=1 / 60,  # 60 Hz
             height=320,
             width=240,
             data_types=["distance_to_image_plane"],
-            spawn=sim_utils.PinholeCameraCfg(
-                focal_length=0.020342857142857145 * 100,
-                focus_distance=400.0 / 1000,
-                horizontal_aperture=0.0119885 * 2 * 100,
-                clipping_range=(0.0001, 1.0e5),
-            ),
-            offset=TiledCameraCfg.OffsetCfg(
-                pos=(0.0, 0.0, -0.020342857142857145 + 0.00175), rot=(0.5, 0.5, -0.5, 0.5), convention="world"
-            ),
+            spawn=None,  # the camera is already spawned in the scene, properties are set in the gelsight_r15_finger.usd file
         ),
         ## Debug Visualization
         trimesh_vis_tactile_points=args_cli.trimesh_vis_tactile_points,
@@ -200,7 +189,7 @@ class NutTactileSceneCfg(TactileSensorsSceneCfg):
     indenter = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/indenter",
         spawn=sim_utils.UsdFileCfg(
-            usd_path=f"{ASSET_DIR}/factory_nut_m16.usd",
+            usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Factory/factory_nut_m16.usd",
             rigid_props=sim_utils.RigidBodyPropertiesCfg(
                 disable_gravity=True,
                 solver_position_iteration_count=12,

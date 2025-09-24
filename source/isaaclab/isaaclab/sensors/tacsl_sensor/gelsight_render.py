@@ -25,36 +25,29 @@ import torch
 import cv2
 import imageio
 
-gelsight_path = os.path.dirname(os.path.realpath(__file__))
-conf_r10 = {
-    "background_path": os.path.join(gelsight_path, "gelsight_data/bg.jpg"),
-    "calib_path": os.path.join(gelsight_path, "gelsight_data/polycalib.npz"),
-    "real_bg": os.path.join(gelsight_path, "gelsight_data/real_bg.npy"),
-    "h": 480,
-    "w": 640,
-    "numBins": 120,
-    "pixmm": 0.0295,
-}
+from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
+
 conf_r15 = {
-    "background_path": os.path.join(gelsight_path, "gelsight_r15_data/bg.jpg"),
-    "calib_path": os.path.join(gelsight_path, "gelsight_r15_data/polycalib.npz"),
-    "real_bg": os.path.join(gelsight_path, "gelsight_r15_data/real_bg.npy"),
+    "data_dir": "gelsight_r15_data",
+    "background_path": "bg.jpg",
+    "calib_path": "polycalib.npz",
+    "real_bg": "real_bg.npy",
     "h": 320,
     "w": 240,
     "numBins": 120,
     "pixmm": 0.0877,
 }
 conf_gs_mini = {
-    "background_path": os.path.join(gelsight_path, "gs_mini_data/bg.jpg"),
-    "calib_path": os.path.join(gelsight_path, "gs_mini_data/polycalib.npz"),
-    "real_bg": os.path.join(gelsight_path, "gs_mini_data/real_bg.npy"),
+    "data_dir": "gs_mini_data",
+    "background_path": "bg.jpg",
+    "calib_path": "polycalib.npz",
+    "real_bg": "real_bg.npy",
     "h": 240,
     "w": 320,
     "numBins": 120,
     "pixmm": 0.065,
 }
 conf_options = {
-    "gelsight": conf_r10,
     "gelsight_r15": conf_r15,
     "gs_mini": conf_gs_mini,
 }
@@ -175,6 +168,36 @@ def gaussian_filtering(img_tensor, kernel_tensor):
     return img_tensor_output
 
 
+def get_gs_render_data(data_dir: str, file_name: str) -> str | None:
+    """Gets the path for the GelSight render data file.
+
+    If the data file is not cached locally then the file is downloaded from
+    the Isaac Lab Nucleus directory. The cached path is then returned.
+
+    Args:
+        data_dir: The data directory name containing the render data.
+        file_name: The specific file name to retrieve.
+
+    Returns:
+        The local path to the downloaded/cached file, or None if unavailable.
+    """
+    ov_path = os.path.join(ISAACLAB_NUCLEUS_DIR, "TacSL", data_dir, file_name)
+    download_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), data_dir)
+    os.makedirs(download_dir, exist_ok=True)
+    download_path = os.path.join(download_dir, file_name)
+
+    if not os.path.exists(download_path):
+        print(f"Fetching gs render data : {ov_path}")
+        try:
+            download_path = retrieve_file_path(ov_path, download_dir)
+        except Exception:
+            print("A gs render data is currently unavailable for this task.")
+            return None
+    else:
+        print("Using pre-fetched gs render data: ", download_path)
+    return download_path
+
+
 class CalibData:
     """
     Class to handle calibration data.
@@ -210,12 +233,16 @@ class gelsightRender:
         sensor_name (str): Name of the sensor.
         device (str): Device to use ('cpu' or 'cuda').
         """
+
         self.sensor_name = sensor_name
         self.device = device
         self.conf = conf_options[self.sensor_name]
-        self.background = imageio.imread(self.conf["background_path"])
-        self.calib_data = CalibData(self.conf["calib_path"])
-        print("Gelsight initialization done!")
+
+        bg_path = get_gs_render_data(self.conf["data_dir"], self.conf["background_path"])
+        calib_path = get_gs_render_data(self.conf["data_dir"], self.conf["calib_path"])
+
+        self.background = imageio.imread(bg_path)
+        self.calib_data = CalibData(calib_path)
         h, w = self.conf["h"], self.conf["w"]
         bins = self.conf["numBins"]
         [xx, yy] = np.meshgrid(range(w), range(h))
@@ -236,6 +263,7 @@ class gelsightRender:
 
         self.A_tensor = torch.tensor(self.A.reshape(h, w, 6), device=self.device).unsqueeze(0)
         self.background_tensor = torch.tensor(self.background, device=self.device)
+        print("Gelsight initialization done!")
 
     def render(self, heightMap):
         """
@@ -308,11 +336,3 @@ class gelsightRender:
         sim_img = sim_img_rgb_tensor + self.background_tensor  # /255.0
         sim_img = torch.clip(sim_img, 0, 255, out=sim_img).to(torch.uint8)
         return sim_img
-
-
-if __name__ == "__main__":
-    print("Test")
-    taxim_gelsight = gelsightRender("gelsight_r15")
-    import ipdb
-
-    ipdb.set_trace()
