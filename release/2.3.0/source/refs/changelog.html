@@ -2974,7 +2974,7 @@ to control whether the keyboard device should return a gripper command.</p></li>
 <section id="id21">
 <h4>Added<a class="headerlink" href="#id21" title="Permalink to this heading">#</a></h4>
 <ul class="simple">
-<li><p>Created <code class="xref py py-attr docutils literal notranslate"><span class="pre">target_eef_link_names</span></code> to <code class="xref py py-class docutils literal notranslate"><span class="pre">PinkIKControllerCfg</span></code>
+<li><p>Created <code class="xref py py-attr docutils literal notranslate"><span class="pre">target_eef_link_names</span></code> to <a class="reference internal" href="../api/lab/isaaclab.controllers.html#isaaclab.controllers.pink_ik.PinkIKControllerCfg" title="isaaclab.controllers.pink_ik.PinkIKControllerCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">PinkIKControllerCfg</span></code></a>
 to specify the target end-effector link names for the pink inverse kinematics controller.</p></li>
 </ul>
 </section>
@@ -2986,7 +2986,7 @@ to increase end-effector tracking accuracy and speed. Also added a null-space re
 <li><p>Improved the test_pink_ik script to more comprehensive test on controller accuracy. Also, migrated to use pytest. With the current IK controller
 improvements, our unit tests pass position and orientation accuracy test within <strong>(1 mm, 1 degree)</strong>. Previously, the position accuracy tolerances
 were set to <strong>(30 mm, 10 degrees)</strong>.</p></li>
-<li><p>Included a new config parameter <code class="xref py py-attr docutils literal notranslate"><span class="pre">fail_on_ik_error</span></code> to <code class="xref py py-class docutils literal notranslate"><span class="pre">PinkIKControllerCfg</span></code>
+<li><p>Included a new config parameter <code class="xref py py-attr docutils literal notranslate"><span class="pre">fail_on_ik_error</span></code> to <a class="reference internal" href="../api/lab/isaaclab.controllers.html#isaaclab.controllers.pink_ik.PinkIKControllerCfg" title="isaaclab.controllers.pink_ik.PinkIKControllerCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">PinkIKControllerCfg</span></code></a>
 to control whether the IK controller raise an exception if robot joint limits are exceeded. In the case of an exception, the controller will hold the
 last joint position. This adds to stability of the controller and avoids operator experiencing what is perceived as sudden large delays in robot control.</p></li>
 </ul>

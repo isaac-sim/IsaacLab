@@ -701,8 +701,36 @@
 </li>
 </ul>
 </li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#pink-ik-controller">Pink IK Controller</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#available-pink-ik-tasks">Available Pink IK Tasks</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-isaaclab.controllers.pink_ik">Pink IK Controller</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.controllers.pink_ik.PinkIKController"><code class="docutils literal notranslate"><span class="pre">PinkIKController</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.controllers.pink_ik.PinkIKController.__init__"><code class="docutils literal notranslate"><span class="pre">PinkIKController.__init__()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.controllers.pink_ik.PinkIKController.update_null_space_joint_targets"><code class="docutils literal notranslate"><span class="pre">PinkIKController.update_null_space_joint_targets()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.controllers.pink_ik.PinkIKController.compute"><code class="docutils literal notranslate"><span class="pre">PinkIKController.compute()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.controllers.pink_ik.PinkIKControllerCfg"><code class="docutils literal notranslate"><span class="pre">PinkIKControllerCfg</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.controllers.pink_ik.PinkIKControllerCfg.urdf_path"><code class="docutils literal notranslate"><span class="pre">PinkIKControllerCfg.urdf_path</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.controllers.pink_ik.PinkIKControllerCfg.mesh_path"><code class="docutils literal notranslate"><span class="pre">PinkIKControllerCfg.mesh_path</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.controllers.pink_ik.PinkIKControllerCfg.num_hand_joints"><code class="docutils literal notranslate"><span class="pre">PinkIKControllerCfg.num_hand_joints</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.controllers.pink_ik.PinkIKControllerCfg.variable_input_tasks"><code class="docutils literal notranslate"><span class="pre">PinkIKControllerCfg.variable_input_tasks</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.controllers.pink_ik.PinkIKControllerCfg.fixed_input_tasks"><code class="docutils literal notranslate"><span class="pre">PinkIKControllerCfg.fixed_input_tasks</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.controllers.pink_ik.PinkIKControllerCfg.joint_names"><code class="docutils literal notranslate"><span class="pre">PinkIKControllerCfg.joint_names</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.controllers.pink_ik.PinkIKControllerCfg.all_joint_names"><code class="docutils literal notranslate"><span class="pre">PinkIKControllerCfg.all_joint_names</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.controllers.pink_ik.PinkIKControllerCfg.articulation_name"><code class="docutils literal notranslate"><span class="pre">PinkIKControllerCfg.articulation_name</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.controllers.pink_ik.PinkIKControllerCfg.base_link_name"><code class="docutils literal notranslate"><span class="pre">PinkIKControllerCfg.base_link_name</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.controllers.pink_ik.PinkIKControllerCfg.show_ik_warnings"><code class="docutils literal notranslate"><span class="pre">PinkIKControllerCfg.show_ik_warnings</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.controllers.pink_ik.PinkIKControllerCfg.fail_on_joint_limit_violation"><code class="docutils literal notranslate"><span class="pre">PinkIKControllerCfg.fail_on_joint_limit_violation</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.controllers.pink_ik.PinkIKControllerCfg.xr_enabled"><code class="docutils literal notranslate"><span class="pre">PinkIKControllerCfg.xr_enabled</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#available-pink-ik-tasks">Available Pink IK Tasks</a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.controllers.pink_ik.NullSpacePostureTask"><code class="docutils literal notranslate"><span class="pre">NullSpacePostureTask</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.controllers.pink_ik.NullSpacePostureTask.__init__"><code class="docutils literal notranslate"><span class="pre">NullSpacePostureTask.__init__()</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.controllers.pink_ik.NullSpacePostureTask.__new__"><code class="docutils literal notranslate"><span class="pre">NullSpacePostureTask.__new__()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
 </ul>
 </li>
 </ul>
@@ -737,6 +765,15 @@ commands to be sent to the robot.</p>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.controllers.OperationalSpaceControllerCfg" title="isaaclab.controllers.OperationalSpaceControllerCfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">OperationalSpaceControllerCfg</span></code></a></p></td>
 <td><p>Configuration for operational-space controller.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.controllers.pink_ik.PinkIKController" title="isaaclab.controllers.pink_ik.PinkIKController"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pink_ik.PinkIKController</span></code></a></p></td>
+<td><p>Integration of Pink IK controller with Isaac Lab.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.controllers.pink_ik.PinkIKControllerCfg" title="isaaclab.controllers.pink_ik.PinkIKControllerCfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pink_ik.PinkIKControllerCfg</span></code></a></p></td>
+<td><p>Configuration settings for the Pink IK Controller.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.controllers.pink_ik.NullSpacePostureTask" title="isaaclab.controllers.pink_ik.NullSpacePostureTask"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pink_ik.NullSpacePostureTask</span></code></a></p></td>
+<td><p>Pink-based task that adds a posture objective that is in the null space projection of other tasks.</p></td>
 </tr>
 </tbody>
 </table>
@@ -1318,10 +1355,328 @@ only the first three elements are used for the feedback loop.</p>
 </dd></dl>
 
 </section>
-<section id="pink-ik-controller">
-<h2>Pink IK Controller<a class="headerlink" href="#pink-ik-controller" title="Permalink to this heading">#</a></h2>
+<section id="module-isaaclab.controllers.pink_ik">
+<span id="pink-ik-controller"></span><h2>Pink IK Controller<a class="headerlink" href="#module-isaaclab.controllers.pink_ik" title="Permalink to this heading">#</a></h2>
+<p>Pink IK controller package for IsaacLab.</p>
+<p>This package provides integration between Pink inverse kinematics solver and IsaacLab.</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="isaaclab.controllers.pink_ik.PinkIKController">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab.controllers.pink_ik.</span></span><span class="sig-name descname"><span class="pre">PinkIKController</span></span><a class="reference internal" href="../../../_modules/isaaclab/controllers/pink_ik/pink_ik.html#PinkIKController"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.controllers.pink_ik.PinkIKController" title="Permalink to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>Integration of Pink IK controller with Isaac Lab.</p>
+<p>The Pink IK controller solves differential inverse kinematics through weighted tasks. Each task is defined
+by a residual function e(q) that is driven to zero (e.g., e(q) = p_target - p_ee(q) for end-effector positioning).
+The controller computes joint velocities v satisfying J_e(q)v = -αe(q), where J_e(q) is the task Jacobian.
+Multiple tasks are resolved through weighted optimization, formulating a quadratic program that minimizes
+weighted task errors while respecting joint velocity limits.</p>
+<p>It supports user defined tasks, and we have provided a NullSpacePostureTask for maintaining desired joint configurations.</p>
+<dl class="simple">
+<dt>Reference:</dt><dd><p>Pink IK Solver: <a class="github reference external" href="https://github.com/stephane-caron/pink">stephane-caron/pink</a></p>
+</dd>
+</dl>
+<p><strong>Methods:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.controllers.pink_ik.PinkIKController.__init__" title="isaaclab.controllers.pink_ik.PinkIKController.__init__"><code class="xref py py-obj docutils literal notranslate"><span class="pre">__init__</span></code></a>(cfg, robot_cfg, device, ...)</p></td>
+<td><p>Initialize the Pink IK Controller.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.controllers.pink_ik.PinkIKController.update_null_space_joint_targets" title="isaaclab.controllers.pink_ik.PinkIKController.update_null_space_joint_targets"><code class="xref py py-obj docutils literal notranslate"><span class="pre">update_null_space_joint_targets</span></code></a>(curr_joint_pos)</p></td>
+<td><p>Update the null space joint targets.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.controllers.pink_ik.PinkIKController.compute" title="isaaclab.controllers.pink_ik.PinkIKController.compute"><code class="xref py py-obj docutils literal notranslate"><span class="pre">compute</span></code></a>(curr_joint_pos, dt)</p></td>
+<td><p>Compute the target joint positions based on current state and tasks.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab.controllers.pink_ik.PinkIKController.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#isaaclab.controllers.pink_ik.PinkIKControllerCfg" title="isaaclab.controllers.pink_ik.PinkIKControllerCfg"><span class="pre">PinkIKControllerCfg</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">robot_cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="isaaclab.assets.html#isaaclab.assets.ArticulationCfg" title="isaaclab.assets.ArticulationCfg"><span class="pre">ArticulationCfg</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">device</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">controlled_joint_indices</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.13)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab/controllers/pink_ik/pink_ik.html#PinkIKController.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.controllers.pink_ik.PinkIKController.__init__" title="Permalink to this definition">#</a></dt>
+<dd><p>Initialize the Pink IK Controller.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>cfg</strong> – The configuration for the Pink IK controller containing task definitions, solver parameters,
+and joint configurations.</p></li>
+<li><p><strong>robot_cfg</strong> – The robot articulation configuration containing initial joint positions and robot
+specifications.</p></li>
+<li><p><strong>device</strong> – The device to use for computations (e.g., ‘cuda:0’, ‘cpu’).</p></li>
+<li><p><strong>controlled_joint_indices</strong> – A list of joint indices in the USD asset controlled by the Pink IK controller.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.13)"><strong>ValueError</strong></a> – When joint_names or all_joint_names are not provided in the configuration.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab.controllers.pink_ik.PinkIKController.update_null_space_joint_targets">
+<span class="sig-name descname"><span class="pre">update_null_space_joint_targets</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">curr_joint_pos</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.3)"><span class="pre">numpy.ndarray</span></a></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab/controllers/pink_ik/pink_ik.html#PinkIKController.update_null_space_joint_targets"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.controllers.pink_ik.PinkIKController.update_null_space_joint_targets" title="Permalink to this definition">#</a></dt>
+<dd><p>Update the null space joint targets.</p>
+<p>This method updates the target joint positions for null space posture tasks based on the current
+joint configuration. This is useful for maintaining desired joint configurations when the primary
+task allows redundancy.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>curr_joint_pos</strong> – The current joint positions of shape (num_joints,).</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab.controllers.pink_ik.PinkIKController.compute">
+<span class="sig-name descname"><span class="pre">compute</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">curr_joint_pos</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.3)"><span class="pre">numpy.ndarray</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">dt</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.8)"><span class="pre">torch.Tensor</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab/controllers/pink_ik/pink_ik.html#PinkIKController.compute"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.controllers.pink_ik.PinkIKController.compute" title="Permalink to this definition">#</a></dt>
+<dd><p>Compute the target joint positions based on current state and tasks.</p>
+<p>Performs inverse kinematics using the Pink solver to compute target joint positions that satisfy
+the defined tasks. The solver uses quadratic programming to find optimal joint velocities that
+minimize task errors while respecting constraints.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>curr_joint_pos</strong> – The current joint positions of shape (num_joints,).</p></li>
+<li><p><strong>dt</strong> – The time step for computing joint position changes in seconds.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The target joint positions as a tensor of shape (num_joints,) on the specified device.
+If the IK solver fails, returns the current joint positions unchanged to maintain stability.</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="isaaclab.controllers.pink_ik.PinkIKControllerCfg">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab.controllers.pink_ik.</span></span><span class="sig-name descname"><span class="pre">PinkIKControllerCfg</span></span><a class="reference internal" href="../../../_modules/isaaclab/controllers/pink_ik/pink_ik_cfg.html#PinkIKControllerCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.controllers.pink_ik.PinkIKControllerCfg" title="Permalink to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>Configuration settings for the Pink IK Controller.</p>
+<p>The Pink IK controller can be found at: <a class="github reference external" href="https://github.com/stephane-caron/pink">stephane-caron/pink</a></p>
+<p><strong>Attributes:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.controllers.pink_ik.PinkIKControllerCfg.urdf_path" title="isaaclab.controllers.pink_ik.PinkIKControllerCfg.urdf_path"><code class="xref py py-obj docutils literal notranslate"><span class="pre">urdf_path</span></code></a></p></td>
+<td><p>Path to the robot's URDF file.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.controllers.pink_ik.PinkIKControllerCfg.mesh_path" title="isaaclab.controllers.pink_ik.PinkIKControllerCfg.mesh_path"><code class="xref py py-obj docutils literal notranslate"><span class="pre">mesh_path</span></code></a></p></td>
+<td><p>Path to the mesh files associated with the robot.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.controllers.pink_ik.PinkIKControllerCfg.num_hand_joints" title="isaaclab.controllers.pink_ik.PinkIKControllerCfg.num_hand_joints"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_hand_joints</span></code></a></p></td>
+<td><p>The number of hand joints in the robot.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.controllers.pink_ik.PinkIKControllerCfg.variable_input_tasks" title="isaaclab.controllers.pink_ik.PinkIKControllerCfg.variable_input_tasks"><code class="xref py py-obj docutils literal notranslate"><span class="pre">variable_input_tasks</span></code></a></p></td>
+<td><p>A list of tasks for the Pink IK controller.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.controllers.pink_ik.PinkIKControllerCfg.fixed_input_tasks" title="isaaclab.controllers.pink_ik.PinkIKControllerCfg.fixed_input_tasks"><code class="xref py py-obj docutils literal notranslate"><span class="pre">fixed_input_tasks</span></code></a></p></td>
+<td><p>A list of tasks for the Pink IK controller.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.controllers.pink_ik.PinkIKControllerCfg.joint_names" title="isaaclab.controllers.pink_ik.PinkIKControllerCfg.joint_names"><code class="xref py py-obj docutils literal notranslate"><span class="pre">joint_names</span></code></a></p></td>
+<td><p>A list of joint names in the USD asset controlled by the Pink IK controller.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.controllers.pink_ik.PinkIKControllerCfg.all_joint_names" title="isaaclab.controllers.pink_ik.PinkIKControllerCfg.all_joint_names"><code class="xref py py-obj docutils literal notranslate"><span class="pre">all_joint_names</span></code></a></p></td>
+<td><p>A list of joint names in the USD asset.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.controllers.pink_ik.PinkIKControllerCfg.articulation_name" title="isaaclab.controllers.pink_ik.PinkIKControllerCfg.articulation_name"><code class="xref py py-obj docutils literal notranslate"><span class="pre">articulation_name</span></code></a></p></td>
+<td><p>The name of the articulation USD asset in the scene.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.controllers.pink_ik.PinkIKControllerCfg.base_link_name" title="isaaclab.controllers.pink_ik.PinkIKControllerCfg.base_link_name"><code class="xref py py-obj docutils literal notranslate"><span class="pre">base_link_name</span></code></a></p></td>
+<td><p>The name of the base link in the USD asset.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.controllers.pink_ik.PinkIKControllerCfg.show_ik_warnings" title="isaaclab.controllers.pink_ik.PinkIKControllerCfg.show_ik_warnings"><code class="xref py py-obj docutils literal notranslate"><span class="pre">show_ik_warnings</span></code></a></p></td>
+<td><p>Show warning if IK solver fails to find a solution.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.controllers.pink_ik.PinkIKControllerCfg.fail_on_joint_limit_violation" title="isaaclab.controllers.pink_ik.PinkIKControllerCfg.fail_on_joint_limit_violation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">fail_on_joint_limit_violation</span></code></a></p></td>
+<td><p>If True, the Pink IK solver will fail and raise an error if any joint limit is violated during optimization.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.controllers.pink_ik.PinkIKControllerCfg.xr_enabled" title="isaaclab.controllers.pink_ik.PinkIKControllerCfg.xr_enabled"><code class="xref py py-obj docutils literal notranslate"><span class="pre">xr_enabled</span></code></a></p></td>
+<td><p>If True, the Pink IK controller will send information to the XRVisualization.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab.controllers.pink_ik.PinkIKControllerCfg.urdf_path">
+<span class="sig-name descname"><span class="pre">urdf_path</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab.controllers.pink_ik.PinkIKControllerCfg.urdf_path" title="Permalink to this definition">#</a></dt>
+<dd><p>Path to the robot’s URDF file. This file is used by Pinocchio’s <cite>robot_wrapper.BuildFromURDF</cite> to load the robot model.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab.controllers.pink_ik.PinkIKControllerCfg.mesh_path">
+<span class="sig-name descname"><span class="pre">mesh_path</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab.controllers.pink_ik.PinkIKControllerCfg.mesh_path" title="Permalink to this definition">#</a></dt>
+<dd><p>Path to the mesh files associated with the robot. These files are also loaded by Pinocchio’s <cite>robot_wrapper.BuildFromURDF</cite>.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab.controllers.pink_ik.PinkIKControllerCfg.num_hand_joints">
+<span class="sig-name descname"><span class="pre">num_hand_joints</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a></em><a class="headerlink" href="#isaaclab.controllers.pink_ik.PinkIKControllerCfg.num_hand_joints" title="Permalink to this definition">#</a></dt>
+<dd><p>The number of hand joints in the robot. The action space for the controller contains the pose_dim(7)*num_controlled_frames + num_hand_joints.
+The last num_hand_joints values of the action are the hand joint angles.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab.controllers.pink_ik.PinkIKControllerCfg.variable_input_tasks">
+<span class="sig-name descname"><span class="pre">variable_input_tasks</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.13)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><span class="pre">pink.tasks.FrameTask</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#isaaclab.controllers.pink_ik.PinkIKControllerCfg.variable_input_tasks" title="Permalink to this definition">#</a></dt>
+<dd><p>A list of tasks for the Pink IK controller. These tasks are controllable by the env action.</p>
+<p>These tasks can be used to control the pose of a frame or the angles of joints.
+For more details, visit: <a class="github reference external" href="https://github.com/stephane-caron/pink">stephane-caron/pink</a></p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab.controllers.pink_ik.PinkIKControllerCfg.fixed_input_tasks">
+<span class="sig-name descname"><span class="pre">fixed_input_tasks</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.13)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><span class="pre">pink.tasks.FrameTask</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#isaaclab.controllers.pink_ik.PinkIKControllerCfg.fixed_input_tasks" title="Permalink to this definition">#</a></dt>
+<dd><p>A list of tasks for the Pink IK controller. These tasks are fixed and not controllable by the env action.</p>
+<p>These tasks can be used to fix the pose of a frame or the angles of joints to a desired configuration.
+For more details, visit: <a class="github reference external" href="https://github.com/stephane-caron/pink">stephane-caron/pink</a></p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab.controllers.pink_ik.PinkIKControllerCfg.joint_names">
+<span class="sig-name descname"><span class="pre">joint_names</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.13)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab.controllers.pink_ik.PinkIKControllerCfg.joint_names" title="Permalink to this definition">#</a></dt>
+<dd><p>A list of joint names in the USD asset controlled by the Pink IK controller. This is required because the joint naming conventions differ between USD and URDF files.
+This value is currently designed to be automatically populated by the action term in a manager based environment.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab.controllers.pink_ik.PinkIKControllerCfg.all_joint_names">
+<span class="sig-name descname"><span class="pre">all_joint_names</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.13)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab.controllers.pink_ik.PinkIKControllerCfg.all_joint_names" title="Permalink to this definition">#</a></dt>
+<dd><p>A list of joint names in the USD asset. This is required because the joint naming conventions differ between USD and URDF files.
+This value is currently designed to be automatically populated by the action term in a manager based environment.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab.controllers.pink_ik.PinkIKControllerCfg.articulation_name">
+<span class="sig-name descname"><span class="pre">articulation_name</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></em><a class="headerlink" href="#isaaclab.controllers.pink_ik.PinkIKControllerCfg.articulation_name" title="Permalink to this definition">#</a></dt>
+<dd><p>The name of the articulation USD asset in the scene.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab.controllers.pink_ik.PinkIKControllerCfg.base_link_name">
+<span class="sig-name descname"><span class="pre">base_link_name</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></em><a class="headerlink" href="#isaaclab.controllers.pink_ik.PinkIKControllerCfg.base_link_name" title="Permalink to this definition">#</a></dt>
+<dd><p>The name of the base link in the USD asset.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab.controllers.pink_ik.PinkIKControllerCfg.show_ik_warnings">
+<span class="sig-name descname"><span class="pre">show_ik_warnings</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></em><a class="headerlink" href="#isaaclab.controllers.pink_ik.PinkIKControllerCfg.show_ik_warnings" title="Permalink to this definition">#</a></dt>
+<dd><p>Show warning if IK solver fails to find a solution.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab.controllers.pink_ik.PinkIKControllerCfg.fail_on_joint_limit_violation">
+<span class="sig-name descname"><span class="pre">fail_on_joint_limit_violation</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></em><a class="headerlink" href="#isaaclab.controllers.pink_ik.PinkIKControllerCfg.fail_on_joint_limit_violation" title="Permalink to this definition">#</a></dt>
+<dd><p>If True, the Pink IK solver will fail and raise an error if any joint limit is violated during optimization. PinkIKController
+will handle the error by setting the last joint positions. If False, the solver will ignore joint limit violations and return the
+closest solution found.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab.controllers.pink_ik.PinkIKControllerCfg.xr_enabled">
+<span class="sig-name descname"><span class="pre">xr_enabled</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></em><a class="headerlink" href="#isaaclab.controllers.pink_ik.PinkIKControllerCfg.xr_enabled" title="Permalink to this definition">#</a></dt>
+<dd><p>If True, the Pink IK controller will send information to the XRVisualization.</p>
+</dd></dl>
+
+</dd></dl>
+
 <section id="available-pink-ik-tasks">
 <h3>Available Pink IK Tasks<a class="headerlink" href="#available-pink-ik-tasks" title="Permalink to this heading">#</a></h3>
+<dl class="py class">
+<dt class="sig sig-object py" id="isaaclab.controllers.pink_ik.NullSpacePostureTask">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab.controllers.pink_ik.</span></span><span class="sig-name descname"><span class="pre">NullSpacePostureTask</span></span><a class="reference internal" href="../../../_modules/isaaclab/controllers/pink_ik/null_space_posture_task.html#NullSpacePostureTask"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.controllers.pink_ik.NullSpacePostureTask" title="Permalink to this definition">#</a></dt>
+<dd><p>Pink-based task that adds a posture objective that is in the null space projection of other tasks.</p>
+<p>This task implements posture control in the null space of higher priority tasks
+(typically end-effector pose tasks) within the Pink inverse kinematics framework.</p>
+<p><strong>Mathematical Formulation:</strong></p>
+<p>For details on Pink Inverse Kinematics optimization formulation visit: <a class="github reference external" href="https://github.com/stephane-caron/pink">stephane-caron/pink</a></p>
+<p><strong>Null Space Posture Task Implementation:</strong></p>
+<p>This task consists of two components:</p>
+<ol class="arabic simple">
+<li><p><strong>Error Function</strong>: The posture error is computed as:</p></li>
+</ol>
+<div class="math notranslate nohighlight">
+\[\mathbf{e}(\mathbf{q}) = \mathbf{M} \cdot (\mathbf{q}^* - \mathbf{q})\]</div>
+<dl class="simple">
+<dt>where:</dt><dd><ul class="simple">
+<li><p><span class="math notranslate nohighlight">\(\mathbf{q}^*\)</span> is the target joint configuration</p></li>
+<li><p><span class="math notranslate nohighlight">\(\mathbf{q}\)</span> is the current joint configuration</p></li>
+<li><p><span class="math notranslate nohighlight">\(\mathbf{M}\)</span> is a joint selection mask matrix</p></li>
+</ul>
+</dd>
+</dl>
+<ol class="arabic simple" start="2">
+<li><p><strong>Jacobian Matrix</strong>: The task Jacobian is the null space projector:</p></li>
+</ol>
+<div class="math notranslate nohighlight">
+\[\mathbf{J}_{\text{posture}}(\mathbf{q}) = \mathbf{N}(\mathbf{q}) = \mathbf{I} - \mathbf{J}_{\text{primary}}^+ \mathbf{J}_{\text{primary}}\]</div>
+<dl class="simple">
+<dt>where:</dt><dd><ul class="simple">
+<li><p><span class="math notranslate nohighlight">\(\mathbf{J}_{\text{primary}}\)</span> is the combined Jacobian of all higher priority tasks</p></li>
+<li><p><span class="math notranslate nohighlight">\(\mathbf{J}_{\text{primary}}^+\)</span> is the pseudoinverse of the primary task Jacobian</p></li>
+<li><p><span class="math notranslate nohighlight">\(\mathbf{N}(\mathbf{q})\)</span> is the null space projector matrix</p></li>
+</ul>
+</dd>
+</dl>
+<p>For example, if there are two frame tasks (e.g., controlling the pose of two end-effectors), the combined Jacobian
+<span class="math notranslate nohighlight">\(\mathbf{J}_{\text{primary}}\)</span> is constructed by stacking the individual Jacobians for each frame vertically:</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}\mathbf{J}_{\text{primary}} =
+\begin{bmatrix}
+    \mathbf{J}_1(\mathbf{q}) \\
+    \mathbf{J}_2(\mathbf{q})
+\end{bmatrix}\end{split}\]</div>
+<p>where <span class="math notranslate nohighlight">\(\mathbf{J}_1(\mathbf{q})\)</span> and <span class="math notranslate nohighlight">\(\mathbf{J}_2(\mathbf{q})\)</span> are the Jacobians for the first and second frame tasks, respectively.</p>
+<p>The null space projector ensures that joint velocities in the null space produce zero velocity
+for the primary tasks: <span class="math notranslate nohighlight">\(\mathbf{J}_{\text{primary}} \cdot \dot{\mathbf{q}}_{\text{null}} = \mathbf{0}\)</span>.</p>
+<p><strong>Task Integration:</strong></p>
+<p>When integrated into the Pink framework, this task contributes to the optimization as:</p>
+<div class="math notranslate nohighlight">
+\[\left\| \mathbf{N}(\mathbf{q}) \mathbf{v} + \mathbf{M} \cdot (\mathbf{q}^* - \mathbf{q}) \right\|_{W_{\text{posture}}}^2\]</div>
+<p>This formulation allows the robot to maintain a desired posture while respecting the constraints
+imposed by higher priority tasks (e.g., end-effector positioning).</p>
+<p><strong>Methods:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.controllers.pink_ik.NullSpacePostureTask.__init__" title="isaaclab.controllers.pink_ik.NullSpacePostureTask.__init__"><code class="xref py py-obj docutils literal notranslate"><span class="pre">__init__</span></code></a>(cost[, lm_damping, gain, ...])</p></td>
+<td><p>Initialize the null space posture task.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.controllers.pink_ik.NullSpacePostureTask.__new__" title="isaaclab.controllers.pink_ik.NullSpacePostureTask.__new__"><code class="xref py py-obj docutils literal notranslate"><span class="pre">__new__</span></code></a>(cls, *args, **kwargs)</p></td>
+<td><p></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab.controllers.pink_ik.NullSpacePostureTask.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cost</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">lm_damping</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gain</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">controlled_frames</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.13)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">controlled_joints</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.13)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab/controllers/pink_ik/null_space_posture_task.html#NullSpacePostureTask.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.controllers.pink_ik.NullSpacePostureTask.__init__" title="Permalink to this definition">#</a></dt>
+<dd><p>Initialize the null space posture task.</p>
+<p>This task maintains a desired joint posture in the null space of higher-priority
+frame tasks. Joint selection allows excluding specific joints (e.g., wrist joints
+in humanoid manipulation) to prevent large rotational ranges from overwhelming
+errors in critical joints like shoulders and waist.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>cost</strong> – Task weighting factor in the optimization objective.
+Units: <span class="math notranslate nohighlight">\([\text{cost}] / [\text{rad}]\)</span>.</p></li>
+<li><p><strong>lm_damping</strong> – Levenberg-Marquardt regularization scale (unitless). Defaults to 0.0.</p></li>
+<li><p><strong>gain</strong> – Task gain <span class="math notranslate nohighlight">\(\alpha \in [0, 1]\)</span> for low-pass filtering.
+Defaults to 1.0 (no filtering).</p></li>
+<li><p><strong>controlled_frames</strong> – Frame names whose Jacobians define the primary tasks for
+null space projection. If None or empty, no projection is applied.</p></li>
+<li><p><strong>controlled_joints</strong> – Joint names to control in the posture task. If None or
+empty, all actuated joints are controlled.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab.controllers.pink_ik.NullSpacePostureTask.__new__">
+<em class="property"><span class="pre">static</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">__new__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cls</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.13)"><span class="pre">Any</span></a></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.13)"><span class="pre">Any</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.13)"><span class="pre">Any</span></a></span></span><a class="headerlink" href="#isaaclab.controllers.pink_ik.NullSpacePostureTask.__new__" title="Permalink to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
 </section>
 </section>
 </section>
@@ -1419,8 +1774,36 @@ only the first three elements are used for the feedback loop.</p>
 </li>
 </ul>
 </li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#pink-ik-controller">Pink IK Controller</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#available-pink-ik-tasks">Available Pink IK Tasks</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-isaaclab.controllers.pink_ik">Pink IK Controller</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.controllers.pink_ik.PinkIKController"><code class="docutils literal notranslate"><span class="pre">PinkIKController</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.controllers.pink_ik.PinkIKController.__init__"><code class="docutils literal notranslate"><span class="pre">PinkIKController.__init__()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.controllers.pink_ik.PinkIKController.update_null_space_joint_targets"><code class="docutils literal notranslate"><span class="pre">PinkIKController.update_null_space_joint_targets()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.controllers.pink_ik.PinkIKController.compute"><code class="docutils literal notranslate"><span class="pre">PinkIKController.compute()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.controllers.pink_ik.PinkIKControllerCfg"><code class="docutils literal notranslate"><span class="pre">PinkIKControllerCfg</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.controllers.pink_ik.PinkIKControllerCfg.urdf_path"><code class="docutils literal notranslate"><span class="pre">PinkIKControllerCfg.urdf_path</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.controllers.pink_ik.PinkIKControllerCfg.mesh_path"><code class="docutils literal notranslate"><span class="pre">PinkIKControllerCfg.mesh_path</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.controllers.pink_ik.PinkIKControllerCfg.num_hand_joints"><code class="docutils literal notranslate"><span class="pre">PinkIKControllerCfg.num_hand_joints</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.controllers.pink_ik.PinkIKControllerCfg.variable_input_tasks"><code class="docutils literal notranslate"><span class="pre">PinkIKControllerCfg.variable_input_tasks</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.controllers.pink_ik.PinkIKControllerCfg.fixed_input_tasks"><code class="docutils literal notranslate"><span class="pre">PinkIKControllerCfg.fixed_input_tasks</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.controllers.pink_ik.PinkIKControllerCfg.joint_names"><code class="docutils literal notranslate"><span class="pre">PinkIKControllerCfg.joint_names</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.controllers.pink_ik.PinkIKControllerCfg.all_joint_names"><code class="docutils literal notranslate"><span class="pre">PinkIKControllerCfg.all_joint_names</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.controllers.pink_ik.PinkIKControllerCfg.articulation_name"><code class="docutils literal notranslate"><span class="pre">PinkIKControllerCfg.articulation_name</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.controllers.pink_ik.PinkIKControllerCfg.base_link_name"><code class="docutils literal notranslate"><span class="pre">PinkIKControllerCfg.base_link_name</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.controllers.pink_ik.PinkIKControllerCfg.show_ik_warnings"><code class="docutils literal notranslate"><span class="pre">PinkIKControllerCfg.show_ik_warnings</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.controllers.pink_ik.PinkIKControllerCfg.fail_on_joint_limit_violation"><code class="docutils literal notranslate"><span class="pre">PinkIKControllerCfg.fail_on_joint_limit_violation</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.controllers.pink_ik.PinkIKControllerCfg.xr_enabled"><code class="docutils literal notranslate"><span class="pre">PinkIKControllerCfg.xr_enabled</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#available-pink-ik-tasks">Available Pink IK Tasks</a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.controllers.pink_ik.NullSpacePostureTask"><code class="docutils literal notranslate"><span class="pre">NullSpacePostureTask</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.controllers.pink_ik.NullSpacePostureTask.__init__"><code class="docutils literal notranslate"><span class="pre">NullSpacePostureTask.__init__()</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.controllers.pink_ik.NullSpacePostureTask.__new__"><code class="docutils literal notranslate"><span class="pre">NullSpacePostureTask.__new__()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
 </ul>
 </li>
 </ul>

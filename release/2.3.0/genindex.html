@@ -665,6 +665,10 @@
 </li>
         <li><a href="source/api/lab/isaaclab.controllers.html#isaaclab.controllers.OperationalSpaceController.__init__">(isaaclab.controllers.OperationalSpaceController method)</a>
 </li>
+        <li><a href="source/api/lab/isaaclab.controllers.html#isaaclab.controllers.pink_ik.NullSpacePostureTask.__init__">(isaaclab.controllers.pink_ik.NullSpacePostureTask method)</a>
+</li>
+        <li><a href="source/api/lab/isaaclab.controllers.html#isaaclab.controllers.pink_ik.PinkIKController.__init__">(isaaclab.controllers.pink_ik.PinkIKController method)</a>
+</li>
         <li><a href="source/api/lab/isaaclab.devices.html#isaaclab.devices.DeviceBase.__init__">(isaaclab.devices.DeviceBase method)</a>
 </li>
         <li><a href="source/api/lab/isaaclab.devices.html#isaaclab.devices.ManusVive.__init__">(isaaclab.devices.ManusVive method)</a>
@@ -858,9 +862,11 @@
       </ul></li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="source/api/lab/isaaclab.managers.html#isaaclab.managers.RewardTermCfg.__new__">__new__() (isaaclab.managers.RewardTermCfg method)</a>
+      <li><a href="source/api/lab/isaaclab.controllers.html#isaaclab.controllers.pink_ik.NullSpacePostureTask.__new__">__new__() (isaaclab.controllers.pink_ik.NullSpacePostureTask static method)</a>
 
       <ul>
+        <li><a href="source/api/lab/isaaclab.managers.html#isaaclab.managers.RewardTermCfg.__new__">(isaaclab.managers.RewardTermCfg method)</a>
+</li>
         <li><a href="source/api/lab/isaaclab.sim.html#isaaclab.sim.SimulationContext.RenderMode.__new__">(isaaclab.sim.SimulationContext.RenderMode method)</a>
 </li>
       </ul></li>
@@ -1108,6 +1114,8 @@
       </ul></li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="source/api/lab/isaaclab.controllers.html#isaaclab.controllers.pink_ik.PinkIKControllerCfg.all_joint_names">all_joint_names (isaaclab.controllers.pink_ik.PinkIKControllerCfg attribute)</a>
+</li>
       <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.actions.actions_cfg.EMAJointPositionToLimitsActionCfg.alpha">alpha (isaaclab.envs.mdp.actions.actions_cfg.EMAJointPositionToLimitsActionCfg attribute)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.terrains.html#isaaclab.terrains.height_field.hf_terrains_cfg.HfWaveTerrainCfg.amplitude_range">amplitude_range (isaaclab.terrains.height_field.hf_terrains_cfg.HfWaveTerrainCfg attribute)</a>
@@ -1207,6 +1215,8 @@
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.Articulation">Articulation (class in isaaclab.assets)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.sim.schemas.html#isaaclab.sim.schemas.ArticulationRootPropertiesCfg.articulation_enabled">articulation_enabled (isaaclab.sim.schemas.ArticulationRootPropertiesCfg attribute)</a>
+</li>
+      <li><a href="source/api/lab/isaaclab.controllers.html#isaaclab.controllers.pink_ik.PinkIKControllerCfg.articulation_name">articulation_name (isaaclab.controllers.pink_ik.PinkIKControllerCfg attribute)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.sim.spawners.html#isaaclab.sim.spawners.from_files.UrdfFileCfg.articulation_props">articulation_props (isaaclab.sim.spawners.from_files.UrdfFileCfg attribute)</a>
 
@@ -1345,6 +1355,8 @@
       <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.rewards.base_height_l2">base_height_l2() (in module isaaclab.envs.mdp.rewards)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.observations.base_lin_vel">base_lin_vel() (in module isaaclab.envs.mdp.observations)</a>
+</li>
+      <li><a href="source/api/lab/isaaclab.controllers.html#isaaclab.controllers.pink_ik.PinkIKControllerCfg.base_link_name">base_link_name (isaaclab.controllers.pink_ik.PinkIKControllerCfg attribute)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.observations.base_pos_z">base_pos_z() (in module isaaclab.envs.mdp.observations)</a>
 </li>
@@ -1488,14 +1500,14 @@
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectData.body_lin_vel_w">(isaaclab.assets.RigidObjectData property)</a>
 </li>
       </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.body_link_ang_vel_w">body_link_ang_vel_w (isaaclab.assets.ArticulationData property)</a>
 
       <ul>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.RigidObjectData.body_link_ang_vel_w">(isaaclab.assets.RigidObjectData property)</a>
 </li>
       </ul></li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.body_link_lin_vel_w">body_link_lin_vel_w (isaaclab.assets.ArticulationData property)</a>
 
       <ul>
@@ -2048,6 +2060,8 @@
         <li><a href="source/api/lab/isaaclab.controllers.html#isaaclab.controllers.DifferentialIKController.compute">(isaaclab.controllers.DifferentialIKController method)</a>
 </li>
         <li><a href="source/api/lab/isaaclab.controllers.html#isaaclab.controllers.OperationalSpaceController.compute">(isaaclab.controllers.OperationalSpaceController method)</a>
+</li>
+        <li><a href="source/api/lab/isaaclab.controllers.html#isaaclab.controllers.pink_ik.PinkIKController.compute">(isaaclab.controllers.pink_ik.PinkIKController method)</a>
 </li>
         <li><a href="source/api/lab/isaaclab.managers.html#isaaclab.managers.CommandManager.compute">(isaaclab.managers.CommandManager method)</a>
 </li>
@@ -3078,6 +3092,8 @@
         <li><a href="source/api/lab/isaaclab.sim.spawners.html#isaaclab.sim.spawners.sensors.PinholeCameraCfg.f_stop">(isaaclab.sim.spawners.sensors.PinholeCameraCfg attribute)</a>
 </li>
       </ul></li>
+      <li><a href="source/api/lab/isaaclab.controllers.html#isaaclab.controllers.pink_ik.PinkIKControllerCfg.fail_on_joint_limit_violation">fail_on_joint_limit_violation (isaaclab.controllers.pink_ik.PinkIKControllerCfg attribute)</a>
+</li>
       <li><a href="source/api/lab/isaaclab.scene.html#isaaclab.scene.InteractiveSceneCfg.filter_collisions">filter_collisions (isaaclab.scene.InteractiveSceneCfg attribute)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.scene.html#isaaclab.scene.InteractiveScene.filter_collisions">filter_collisions() (isaaclab.scene.InteractiveScene method)</a>
@@ -3177,6 +3193,8 @@
 </li>
       </ul></li>
       <li><a href="source/api/lab/isaaclab.sim.schemas.html#isaaclab.sim.schemas.ArticulationRootPropertiesCfg.fix_root_link">fix_root_link (isaaclab.sim.schemas.ArticulationRootPropertiesCfg attribute)</a>
+</li>
+      <li><a href="source/api/lab/isaaclab.controllers.html#isaaclab.controllers.pink_ik.PinkIKControllerCfg.fixed_input_tasks">fixed_input_tasks (isaaclab.controllers.pink_ik.PinkIKControllerCfg attribute)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.fixed_tendon_damping">fixed_tendon_damping (isaaclab.assets.ArticulationData attribute)</a>
 </li>
@@ -4123,6 +4141,13 @@
 </li>
       </ul></li>
       <li>
+    isaaclab.controllers.pink_ik
+
+      <ul>
+        <li><a href="source/api/lab/isaaclab.controllers.html#module-isaaclab.controllers.pink_ik">module</a>
+</li>
+      </ul></li>
+      <li>
     isaaclab.devices
 
       <ul>
@@ -4615,6 +4640,8 @@
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.Articulation.joint_names">(isaaclab.assets.Articulation property)</a>
 </li>
         <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.joint_names">(isaaclab.assets.ArticulationData attribute)</a>
+</li>
+        <li><a href="source/api/lab/isaaclab.controllers.html#isaaclab.controllers.pink_ik.PinkIKControllerCfg.joint_names">(isaaclab.controllers.pink_ik.PinkIKControllerCfg attribute)</a>
 </li>
         <li><a href="source/api/lab/isaaclab.envs.mdp.html#isaaclab.envs.mdp.actions.actions_cfg.AbsBinaryJointPositionActionCfg.joint_names">(isaaclab.envs.mdp.actions.actions_cfg.AbsBinaryJointPositionActionCfg attribute)</a>
 </li>
@@ -5113,6 +5140,8 @@
       </ul></li>
       <li><a href="source/api/lab/isaaclab.sim.converters.html#isaaclab.sim.converters.MeshConverterCfg.mesh_collision_props">mesh_collision_props (isaaclab.sim.converters.MeshConverterCfg attribute)</a>
 </li>
+      <li><a href="source/api/lab/isaaclab.controllers.html#isaaclab.controllers.pink_ik.PinkIKControllerCfg.mesh_path">mesh_path (isaaclab.controllers.pink_ik.PinkIKControllerCfg attribute)</a>
+</li>
       <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.RayCasterCameraCfg.mesh_prim_paths">mesh_prim_paths (isaaclab.sensors.RayCasterCameraCfg attribute)</a>
 
       <ul>
@@ -5260,6 +5289,8 @@
         <li><a href="source/api/lab/isaaclab.assets.html#module-isaaclab.assets">isaaclab.assets</a>
 </li>
         <li><a href="source/api/lab/isaaclab.controllers.html#module-isaaclab.controllers">isaaclab.controllers</a>
+</li>
+        <li><a href="source/api/lab/isaaclab.controllers.html#module-isaaclab.controllers.pink_ik">isaaclab.controllers.pink_ik</a>
 </li>
         <li><a href="source/api/lab/isaaclab.devices.html#module-isaaclab.devices">isaaclab.devices</a>
 </li>
@@ -5538,6 +5569,8 @@
 </li>
       <li><a href="source/api/lab/isaaclab.controllers.html#isaaclab.controllers.OperationalSpaceControllerCfg.nullspace_stiffness">nullspace_stiffness (isaaclab.controllers.OperationalSpaceControllerCfg attribute)</a>
 </li>
+      <li><a href="source/api/lab/isaaclab.controllers.html#isaaclab.controllers.pink_ik.NullSpacePostureTask">NullSpacePostureTask (class in isaaclab.controllers.pink_ik)</a>
+</li>
       <li><a href="source/api/lab/isaaclab.envs.html#isaaclab.envs.DirectMARLEnvCfg.num_actions">num_actions (isaaclab.envs.DirectMARLEnvCfg attribute)</a>
 
       <ul>
@@ -5609,6 +5642,8 @@
       <li><a href="source/api/lab/isaaclab.envs.html#isaaclab.envs.SubTaskConfig.num_fixed_steps">num_fixed_steps (isaaclab.envs.SubTaskConfig attribute)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.Articulation.num_fixed_tendons">num_fixed_tendons (isaaclab.assets.Articulation property)</a>
+</li>
+      <li><a href="source/api/lab/isaaclab.controllers.html#isaaclab.controllers.pink_ik.PinkIKControllerCfg.num_hand_joints">num_hand_joints (isaaclab.controllers.pink_ik.PinkIKControllerCfg attribute)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.assets.html#isaaclab.assets.Articulation.num_instances">num_instances (isaaclab.assets.Articulation property)</a>
 
@@ -6085,6 +6120,10 @@
       <li><a href="source/api/lab/isaaclab.sim.spawners.html#isaaclab.sim.spawners.sensors.PinholeCameraCfg">PinholeCameraCfg (class in isaaclab.sim.spawners.sensors)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.sensors.patterns.html#isaaclab.sensors.patterns.PinholeCameraPatternCfg">PinholeCameraPatternCfg (class in isaaclab.sensors.patterns)</a>
+</li>
+      <li><a href="source/api/lab/isaaclab.controllers.html#isaaclab.controllers.pink_ik.PinkIKController">PinkIKController (class in isaaclab.controllers.pink_ik)</a>
+</li>
+      <li><a href="source/api/lab/isaaclab.controllers.html#isaaclab.controllers.pink_ik.PinkIKControllerCfg">PinkIKControllerCfg (class in isaaclab.controllers.pink_ik)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.terrains.html#isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshPitTerrainCfg.pit_depth_range">pit_depth_range (isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshPitTerrainCfg attribute)</a>
 </li>
@@ -7670,9 +7709,11 @@
         <li><a href="source/api/lab_mimic/isaaclab_mimic.envs.html#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv.setup_manager_visualizers">(isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnv method)</a>
 </li>
       </ul></li>
+      <li><a href="source/api/lab/isaaclab.sim.spawners.html#isaaclab.sim.spawners.shapes.ShapeCfg">ShapeCfg (class in isaaclab.sim.spawners.shapes)</a>
+</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="source/api/lab/isaaclab.sim.spawners.html#isaaclab.sim.spawners.shapes.ShapeCfg">ShapeCfg (class in isaaclab.sim.spawners.shapes)</a>
+      <li><a href="source/api/lab/isaaclab.controllers.html#isaaclab.controllers.pink_ik.PinkIKControllerCfg.show_ik_warnings">show_ik_warnings (isaaclab.controllers.pink_ik.PinkIKControllerCfg attribute)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.envs.html#isaaclab.envs.DirectMARLEnvCfg.sim">sim (isaaclab.envs.DirectMARLEnvCfg attribute)</a>
 
@@ -8370,6 +8411,8 @@
         <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.TiledCameraCfg.update_latest_camera_pose">(isaaclab.sensors.TiledCameraCfg attribute)</a>
 </li>
       </ul></li>
+      <li><a href="source/api/lab/isaaclab.controllers.html#isaaclab.controllers.pink_ik.PinkIKController.update_null_space_joint_targets">update_null_space_joint_targets() (isaaclab.controllers.pink_ik.PinkIKController method)</a>
+</li>
       <li><a href="source/api/lab/isaaclab.sensors.html#isaaclab.sensors.CameraCfg.update_period">update_period (isaaclab.sensors.CameraCfg attribute)</a>
 
       <ul>
@@ -8399,6 +8442,8 @@
       <li><a href="source/api/lab/isaaclab.envs.ui.html#isaaclab.envs.ui.ViewportCameraController.update_view_to_env">update_view_to_env() (isaaclab.envs.ui.ViewportCameraController method)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.envs.ui.html#isaaclab.envs.ui.ViewportCameraController.update_view_to_world">update_view_to_world() (isaaclab.envs.ui.ViewportCameraController method)</a>
+</li>
+      <li><a href="source/api/lab/isaaclab.controllers.html#isaaclab.controllers.pink_ik.PinkIKControllerCfg.urdf_path">urdf_path (isaaclab.controllers.pink_ik.PinkIKControllerCfg attribute)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.sim.converters.html#isaaclab.sim.converters.UrdfConverter">UrdfConverter (class in isaaclab.sim.converters)</a>
 </li>
@@ -8511,6 +8556,8 @@
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab_rl/isaaclab_rl.html#isaaclab_rl.rsl_rl.RslRlPpoAlgorithmCfg.value_loss_coef">value_loss_coef (isaaclab_rl.rsl_rl.RslRlPpoAlgorithmCfg attribute)</a>
+</li>
+      <li><a href="source/api/lab/isaaclab.controllers.html#isaaclab.controllers.pink_ik.PinkIKControllerCfg.variable_input_tasks">variable_input_tasks (isaaclab.controllers.pink_ik.PinkIKControllerCfg attribute)</a>
 </li>
       <li><a href="source/api/lab/isaaclab.sim.spawners.html#isaaclab.sim.spawners.from_files.UsdFileCfg.variants">variants (isaaclab.sim.spawners.from_files.UsdFileCfg attribute)</a>
 
@@ -9026,6 +9073,10 @@
         <li><a href="source/api/lab_mimic/isaaclab_mimic.envs.html#isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg.xr">(isaaclab_mimic.envs.FrankaCubeStackIKRelMimicEnvCfg attribute)</a>
 </li>
       </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="source/api/lab/isaaclab.controllers.html#isaaclab.controllers.pink_ik.PinkIKControllerCfg.xr_enabled">xr_enabled (isaaclab.controllers.pink_ik.PinkIKControllerCfg attribute)</a>
+</li>
   </ul></td>
 </tr></table>
 
