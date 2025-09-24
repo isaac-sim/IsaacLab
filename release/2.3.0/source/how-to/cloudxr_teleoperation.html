@@ -706,7 +706,7 @@ XR device back to Isaac Lab through CloudXR, where they can be used to control t
 teleoperation in Isaac Lab.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>Support for additional devices is planned for future releases.</p>
+<p>See <a class="reference internal" href="#manus-vive-handtracking"><span class="std std-ref">Manus + Vive Hand Tracking</span></a> for more information on supported hand-tracking peripherals.</p>
 </div>
 <section id="overview">
 <h2>Overview<a class="headerlink" href="#overview" title="Permalink to this heading">#</a></h2>
@@ -722,8 +722,8 @@ immersive streaming and teleoperation of an Isaac Lab simulation using CloudXR.<
 <p>This guide will walk you through how to:</p>
 <ul class="simple">
 <li><p><a class="reference internal" href="#run-isaac-lab-with-the-cloudxr-runtime"><span class="std std-ref">Run Isaac Lab with the CloudXR Runtime</span></a></p></li>
-<li><p><a class="reference internal" href="#use-apple-vision-pro"><span class="std std-ref">Use Apple Vision Pro for Teleoperation</span></a>, including how to <a class="reference internal" href="#build-apple-vision-pro"><span class="std std-ref">Build and Install the Isaac XR Teleop Sample Client App for Apple Vision Pro</span></a> and
-<a class="reference internal" href="#teleoperate-apple-vision-pro"><span class="std std-ref">Teleoperate an Isaac Lab Robot with Apple Vision Pro</span></a>.</p></li>
+<li><p><a class="reference internal" href="#use-apple-vision-pro"><span class="std std-ref">Use Apple Vision Pro for Teleoperation</span></a>, including how to <a class="reference internal" href="#build-apple-vision-pro"><span class="std std-ref">Build and Install the Isaac XR Teleop Sample Client App for Apple Vision Pro</span></a>,
+<a class="reference internal" href="#teleoperate-apple-vision-pro"><span class="std std-ref">Teleoperate an Isaac Lab Robot with Apple Vision Pro</span></a>, and <a class="reference internal" href="#manus-vive-handtracking"><span class="std std-ref">Manus + Vive Hand Tracking</span></a>.</p></li>
 <li><p><a class="reference internal" href="#develop-xr-isaac-lab"><span class="std std-ref">Develop for XR in Isaac Lab</span></a>, including how to <a class="reference internal" href="#run-isaac-lab-with-xr"><span class="std std-ref">Run Isaac Lab with XR Extensions Enabled</span></a>,
 <a class="reference internal" href="#configure-scene-placement"><span class="std std-ref">Configure XR Scene Placement</span></a>, and <a class="reference internal" href="#optimize-xr-performance"><span class="std std-ref">Optimize XR Performance</span></a>.</p></li>
 <li><p><a class="reference internal" href="#control-robot-with-xr"><span class="std std-ref">Control the Robot with XR Device Inputs</span></a>, including the <a class="reference internal" href="#openxr-device-architecture"><span class="std std-ref">OpenXR Device</span></a>,
@@ -742,15 +742,28 @@ immersive streaming and teleoperation of an Isaac Lab simulation using CloudXR.<
 <li><p><a class="reference external" href="https://docs.docker.com/desktop/install/linux-install/">Docker</a> 26.0.0+, <a class="reference external" href="https://docs.docker.com/compose/install/linux/#install-using-the-repository">Docker Compose</a> 2.25.0+, and the <a class="reference external" href="https://github.com/NVIDIA/nvidia-container-toolkit">NVIDIA Container Toolkit</a>. Refer to
 the Isaac Lab <a class="reference internal" href="../deployment/docker.html#deployment-docker"><span class="std std-ref">Docker Guide</span></a> for how to install.</p></li>
 <li><p>For details on driver requirements, please see the <a class="reference external" href="https://docs.omniverse.nvidia.com/materials-and-rendering/latest/common/technical-requirements.html">Technical Requirements</a> guide</p></li>
-<li><p>Required for best performance: 16 cores Intel Core i9, X-series or higher AMD Ryzen 9,
-Threadripper or higher</p></li>
-<li><p>Required for best performance: 64GB RAM</p></li>
-<li><p>Required for best performance: 2x RTX PRO 6000 GPUs (or equivalent e.g. 2x RTX 5090)</p></li>
+<li><dl class="simple">
+<dt>CPU</dt><dd><ul>
+<li><p>Intel: 16-core Intel Core i9, X-series or higher</p></li>
+<li><p>AMD: Ryzen 9 5900XT, Ryzen Threadripper PRO 5955WX or higher</p></li>
+</ul>
+</dd>
+</dl>
+</li>
+<li><p>Memory: 64GB RAM</p></li>
+<li><dl class="simple">
+<dt>GPU</dt><dd><ul>
+<li><p>Minimum: 1x RTX PRO 6000 GPUs (or equivalent e.g. 1x RTX 5090)</p></li>
+<li><p>Recommended: 2x RTX PRO 6000 GPUs (or equivalent e.g. 2x RTX 5090)</p></li>
+</ul>
+</dd>
+</dl>
+</li>
 </ul>
 </li>
 <li><p>Apple Vision Pro</p>
 <ul>
-<li><p>visionOS 2.0+</p></li>
+<li><p>visionOS 26</p></li>
 <li><p>Apple M3 Pro chip with an 11-core CPU with at least 5 performance cores and 6 efficiency cores</p></li>
 <li><p>16GB unified memory</p></li>
 <li><p>256 GB SSD</p></li>
@@ -759,7 +772,8 @@ Threadripper or higher</p></li>
 <li><p>Apple Silicon based Mac (for building the Isaac XR Teleop Sample Client App for Apple Vision Pro
 with Xcode)</p>
 <ul>
-<li><p>macOS Sonoma 14.5 or later</p></li>
+<li><p>macOS Sequoia 15.6 or later</p></li>
+<li><p>Xcode 26.0</p></li>
 </ul>
 </li>
 <li><p>Wifi 6 capable router</p>
@@ -923,22 +937,25 @@ Apple Vision Pro, connecting to Isaac Lab, and teleoperating a simulated robot.<
 </pre></div>
 </div>
 </li>
-<li><p>Check out the version tag corresponding to your Isaac Lab version:</p>
+<li><p>Check out the App version that matches your Isaac Lab version:</p>
 <div class="pst-scrollable-table-container"><table class="table">
 <tbody>
 <tr class="row-odd"><td><p>Isaac Lab Version</p></td>
-<td><p>Client Version Tag</p></td>
+<td><p>Client App Version</p></td>
 </tr>
-<tr class="row-even"><td><p>2.2.x</p></td>
+<tr class="row-even"><td><p>2.3.x</p></td>
+<td><p>v2.3.0</p></td>
+</tr>
+<tr class="row-odd"><td><p>2.2.x</p></td>
 <td><p>v2.2.0</p></td>
 </tr>
-<tr class="row-odd"><td><p>2.1.x</p></td>
+<tr class="row-even"><td><p>2.1.x</p></td>
 <td><p>v1.0.0</p></td>
 </tr>
 </tbody>
 </table>
 </div>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>checkout<span class="w"> </span>&lt;version_tag&gt;
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>checkout<span class="w"> </span>&lt;client_app_version&gt;
 </pre></div>
 </div>
 </li>
@@ -1020,7 +1037,7 @@ connected.</p></li>
 </figure>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>The dots represent the tracked position of the hand joints. Latency or offset between the
+<p>The red dots represent the tracked position of the hand joints. Latency or offset between the
 motion of the dots and the robot may be caused by the limits of the robot joints and/or robot
 controller.</p>
 </div>
@@ -1556,11 +1573,6 @@ additional retargeters can be developed to map this data to various robot contro
 <section id="known-issues">
 <span id="xr-known-issues"></span><h2>Known Issues<a class="headerlink" href="#known-issues" title="Permalink to this heading">#</a></h2>
 <ul>
-<li><p><code class="docutils literal notranslate"><span class="pre">[omni.kit.xr.system.openxr.plugin]</span> <span class="pre">Message</span> <span class="pre">received</span> <span class="pre">from</span> <span class="pre">CloudXR</span> <span class="pre">does</span> <span class="pre">not</span> <span class="pre">have</span> <span class="pre">a</span> <span class="pre">field</span> <span class="pre">called</span> <span class="pre">'type'</span></code></p>
-<p>This error message can be safely ignored. It is caused by a deprecated, non-backwards-compatible
-data message sent by the CloudXR Framework from Apple Vision Pro, and will be fixed in future
-CloudXR Framework versions.</p>
-</li>
 <li><p><code class="docutils literal notranslate"><span class="pre">XR_ERROR_VALIDATION_FAILURE:</span> <span class="pre">xrWaitFrame(frameState-&gt;type</span> <span class="pre">==</span> <span class="pre">0)</span></code> when stopping AR Mode</p>
 <p>This error message can be safely ignored. It is caused by a race condition in the exit handler for
 AR Mode.</p>
