@@ -68,7 +68,7 @@ Prior to using CloudXR with Isaac Lab, please review the following system requir
     * For details on driver requirements, please see the `Technical Requirements <https://docs.omniverse.nvidia.com/materials-and-rendering/latest/common/technical-requirements.html>`_ guide
     * CPU
        * Intel: 16-core Intel Core i9, X-series or higher
-       * AMD: Ryzen 9 5900XT, Ryzen Threadripper PRO 5955WX or higher 
+       * AMD: Ryzen 9 5900XT, Ryzen Threadripper PRO 5955WX or higher
     * Memory: 64GB RAM
     * GPU
        * Minimum: 1x RTX PRO 6000 GPUs (or equivalent e.g. 1x RTX 5090)
