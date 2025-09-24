@@ -162,6 +162,9 @@ class ContactSensor(SensorBase):
         # reset contact positions
         if self.cfg.track_contact_points:
             self._data.contact_pos_w[env_ids, :] = torch.nan
+        # reset friction forces
+        if self.cfg.track_friction_forces:
+            self._data.friction_forces_w[env_ids, :] = torch.nan
 
     def find_bodies(self, name_keys: str | Sequence[str], preserve_order: bool = False) -> tuple[list[int], list[str]]:
         """Find bodies in the articulation based on the name keys.
@@ -315,6 +318,13 @@ class ContactSensor(SensorBase):
                 torch.nan,
                 device=self._device,
             )
+        # -- friction forces at contact points
+        if self.cfg.track_friction_forces:
+            self._data.friction_forces_w = torch.full(
+                (self._num_envs, self._num_bodies, self.contact_physx_view.filter_count, 3),
+                torch.nan,
+                device=self._device,
+            )
         # -- air/contact time between contacts
         if self.cfg.track_air_time:
             self._data.last_air_time = torch.zeros(self._num_envs, self._num_bodies, device=self._device)
@@ -369,11 +379,7 @@ class ContactSensor(SensorBase):
             pose[..., 3:] = convert_quat(pose[..., 3:], to="wxyz")
             self._data.pos_w[env_ids], self._data.quat_w[env_ids] = pose.split([3, 4], dim=-1)
 
-        # obtain contact points
-        if self.cfg.track_contact_points:
-            _, buffer_contact_points, _, _, buffer_count, buffer_start_indices = (
-                self.contact_physx_view.get_contact_data(dt=self._sim_physics_dt)
-            )
+        def unpack_contact_points(contact_points, buffer_count, buffer_start_indices):
             # unpack the contact points: see RigidContactView.get_contact_data() documentation for details:
             # https://docs.omniverse.nvidia.com/kit/docs/omni_physics/107.3/extensions/runtime/source/omni.physics.tensors/docs/api/python.html#omni.physics.tensors.impl.api.RigidContactView.get_net_contact_forces
             # buffer_count: (N_envs * N_bodies, N_filters), buffer_contact_points: (N_envs * N_bodies, 3)
@@ -393,9 +399,25 @@ class ContactSensor(SensorBase):
                 agg = agg.zero_().index_add_(0, row_ids, pts) / counts.clamp_min(1).unsqueeze(1)
                 agg[counts == 0] = float("nan")
 
-            self._data.contact_pos_w[env_ids] = agg.view(self._num_envs * self.num_bodies, -1, 3).view(
+            return agg.view(self._num_envs * self.num_bodies, -1, 3).view(
                 self._num_envs, self._num_bodies, self.contact_physx_view.filter_count, 3
-            )[env_ids]
+            )
+
+        # obtain contact points
+        if self.cfg.track_contact_points:
+            _, buffer_contact_points, _, _, buffer_count, buffer_start_indices = (
+                self.contact_physx_view.get_contact_data(dt=self._sim_physics_dt)
+            )
+            self._data.contact_pos_w[env_ids] = unpack_contact_points(
+                buffer_contact_points, buffer_count, buffer_start_indices)[env_ids]
+
+        # obtain friction forces
+        if self.cfg.track_friction_forces:
+            friction_forces, buffer_count, buffer_start_indices = (
+                self.contact_physx_view.get_friction_forces(dt=self._sim_physics_dt)
+            )
+            self._data.friction_forces_w[env_ids] = unpack_contact_points(
+                friction_forces, buffer_count, buffer_start_indices)[env_ids]
 
         # obtain the air time
         if self.cfg.track_air_time:
