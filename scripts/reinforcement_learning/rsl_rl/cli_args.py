@@ -10,7 +10,7 @@ import random
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg
+    from isaaclab_rl.rsl_rl import RslRlBaseRunnerCfg
 
 
 def add_rsl_rl_args(parser: argparse.ArgumentParser):
@@ -39,7 +39,7 @@ def add_rsl_rl_args(parser: argparse.ArgumentParser):
     )
 
 
-def parse_rsl_rl_cfg(task_name: str, args_cli: argparse.Namespace) -> RslRlOnPolicyRunnerCfg:
+def parse_rsl_rl_cfg(task_name: str, args_cli: argparse.Namespace) -> RslRlBaseRunnerCfg:
     """Parse configuration for RSL-RL agent based on inputs.
 
     Args:
@@ -52,12 +52,12 @@ def parse_rsl_rl_cfg(task_name: str, args_cli: argparse.Namespace) -> RslRlOnPol
     from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 
     # load the default configuration
-    rslrl_cfg: RslRlOnPolicyRunnerCfg = load_cfg_from_registry(task_name, "rsl_rl_cfg_entry_point")
+    rslrl_cfg: RslRlBaseRunnerCfg = load_cfg_from_registry(task_name, "rsl_rl_cfg_entry_point")
     rslrl_cfg = update_rsl_rl_cfg(rslrl_cfg, args_cli)
     return rslrl_cfg
 
 
-def update_rsl_rl_cfg(agent_cfg: RslRlOnPolicyRunnerCfg, args_cli: argparse.Namespace):
+def update_rsl_rl_cfg(agent_cfg: RslRlBaseRunnerCfg, args_cli: argparse.Namespace):
     """Update configuration for RSL-RL agent based on inputs.
 
     Args:
