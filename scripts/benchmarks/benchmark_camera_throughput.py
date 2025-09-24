@@ -17,12 +17,12 @@ Examples:
 
   - Benchmark all camera types across resolutions:
       ./isaaclab.sh -p scripts/benchmarks/benchmark_camera_throughput.py \\
-        --num_envs 256 512 --impls standard,tiled,ray_caster \\
+        --num_envs 256 512 \\
         --resolutions 240x320,480x640 --steps 200 --warmup 20 --headless
 
   - Only standard camera at 720p:
       ./isaaclab.sh -p scripts/benchmarks/benchmark_camera_throughput.py \\
-        --num_envs 256 --impls standard --resolutions 720x1280 --steps 200 --warmup 20 --headless
+        --num_envs 256 --resolutions 720x1280 --steps 200 --warmup 20 --headless
 """
 
 """Launch Isaac Sim Simulator first."""
@@ -45,10 +45,22 @@ parser.add_argument(
     help="List of environment counts to benchmark (e.g., 256 512 1024).",
 )
 parser.add_argument(
-    "--impls",
-    type=str,
-    default="standard,tiled,ray_caster",
-    help="Comma-separated list of implementations: standard,tiled,ray_caster",
+    "--usd_camera",
+    action="store_true",
+    default=False,
+    help="Whether to benchmark the USD camera.",
+)
+parser.add_argument(
+    "--tiled_camera",
+    action="store_true",
+    default=False,
+    help="Whether to benchmark the tiled camera.",
+)
+parser.add_argument(
+    "--ray_caster_camera",
+    action="store_true",
+    default=False,
+    help="Whether to benchmark the ray caster camera.",
 )
 parser.add_argument(
     "--resolutions",
@@ -56,13 +68,20 @@ parser.add_argument(
     default="240x320,480x640",
     help="Comma-separated list of HxW resolutions, e.g., 240x320,480x640",
 )
+parser.add_argument(
+    "--data_type",
+    type=str,
+    default="distance_to_image_plane",
+    help="Data type, e.g., distance_to_image_plane,rgb",
+)
 parser.add_argument("--steps", type=int, default=500, help="Steps per run to time.")
 parser.add_argument("--warmup", type=int, default=50, help="Warmup steps per run before timing.")
 
 # Append AppLauncher CLI args and parse
 AppLauncher.add_app_launcher_args(parser)
 args_cli, _ = parser.parse_known_args()
-args_cli.enable_cameras = True
+if args_cli.tiled_camera or args_cli.usd_camera:
+    args_cli.enable_cameras = True
 args_cli.headless = True
 
 # launch omniverse app
@@ -93,6 +112,7 @@ def _parse_resolutions(res_str: str) -> list[tuple[int, int]]:
     for token in [s for s in res_str.split(",") if s]:
         h, w = token.lower().split("x")
         resolutions.append((int(h), int(w)))
+    print("[INFO]: Resolutions: ", resolutions)
     return resolutions
 
 
@@ -230,18 +250,24 @@ def main():
     """Main function."""
     # Prepare benchmark
     resolutions = _parse_resolutions(args_cli.resolutions)
-    cameras = ["usd_camera", "tiled_camera", "ray_caster_camera"]
+    cameras = []
+    if args_cli.usd_camera:
+        cameras.append("usd_camera")
+    if args_cli.tiled_camera:
+        cameras.append("tiled_camera")
+    if args_cli.ray_caster_camera:
+        cameras.append("ray_caster_camera")
+    data_types = [args_cli.data_type]
     device_name = (
         torch.cuda.get_device_name(torch.cuda.current_device()) if torch.cuda.is_available() else platform.processor()
     )
 
     # BENCHMARK 1 - Compare Depth Camera
-    print("=== Benchmarking DEPTH CAMERA ===")
+    print(f"=== Benchmarking {args_cli.data_type} CAMERA ===")
     results: list[dict[str, object]] = []
 
     for idx, num_envs in enumerate(args_cli.num_envs):
         print(f"\n[INFO]: Benchmarking with {num_envs} envs. {idx + 1} / {len(args_cli.num_envs)}")
-        data_types = ["distance_to_image_plane"]
         for resolution in resolutions:
             
             for camera in cameras: 
@@ -269,6 +295,10 @@ def main():
                 
                 # Multi-Mesh RayCaster Camera
                 elif camera == "ray_caster_camera":
+
+                    if args_cli.data_type == "rgb":
+                        continue
+                    
                     single_scene_cfg = _make_scene_cfg_ray_caster(
                         num_envs=num_envs,
                         height=resolution[0],
@@ -285,73 +315,16 @@ def main():
                 results.append(result)
                 del single_scene_cfg
 
-    df_distance_to_image_plane = pd.DataFrame(results)
-    df_distance_to_image_plane["device"] = device_name
+    df_camera = pd.DataFrame(results)
+    df_camera["device"] = device_name
     os.makedirs("outputs/benchmarks", exist_ok=True)
-    df_distance_to_image_plane.to_csv("outputs/benchmarks/camera_distance_to_image_plane.csv", index=False)
-
-    # BENCHMARK 2 - Compare RGB Camera
-    print("\n=== Benchmarking RGB CAMERA ===")
-    results: list[dict[str, object]] = []
-
-    for idx, num_envs in enumerate(args_cli.num_envs):
-        print(f"\n[INFO]: Benchmarking with {num_envs} envs. {idx + 1} / {len(args_cli.num_envs)}")
-        data_types = ["rgb"]
-        data_types = ["distance_to_image_plane"]
-        for resolution in resolutions:
-            
-            for camera in cameras: 
-                # USD Camera              
-                if camera == "usd_camera":
-                    single_scene_cfg = _make_scene_cfg_usd(
-                        num_envs=num_envs,
-                        height=resolution[0],
-                        width=resolution[1],
-                        data_types=data_types,
-                        debug_vis=not args_cli.headless,
-                    )
-                    result = _run_benchmark(single_scene_cfg, "usd_camera")
-            
-                # Tiled Camera
-                elif camera == "tiled_camera":
-                    single_scene_cfg = _make_scene_cfg_tiled(
-                        num_envs=num_envs,
-                        height=resolution[0],
-                        width=resolution[1],
-                        data_types=data_types,
-                        debug_vis=not args_cli.headless,
-                    )
-                    result = _run_benchmark(single_scene_cfg, "tiled_camera")
-                
-                # Multi-Mesh RayCaster Camera
-                elif camera == "ray_caster_camera":
-                    # single_scene_cfg = _make_scene_cfg_ray_caster(
-                    #     num_envs=num_envs,
-                    #     height=resolution[0],
-                    #     width=resolution[1],
-                    #     data_types=data_types,
-                    #     debug_vis=not args_cli.headless,
-                    # )
-                    # result = _run_benchmark(single_scene_cfg, "ray_caster_camera")
-                    continue
-            
-                result["num_envs"] = num_envs
-                result["resolution"] = resolution
-                result["mode"] = camera
-                result["data_types"] = data_types
-                results.append(result)
-                del single_scene_cfg
-
-    df_rgb = pd.DataFrame(results)
-    df_rgb["device"] = device_name
-    os.makedirs("outputs/benchmarks", exist_ok=True)
-    df_rgb.to_csv("outputs/benchmarks/camera_rgb.csv", index=False)
+    df_camera.to_csv(f"outputs/benchmarks/camera_{args_cli.data_type}_USD_{args_cli.usd_camera}_Tiled_{args_cli.tiled_camera}_RayCaster_{args_cli.ray_caster_camera}_Resolution_{args_cli.resolutions}.csv", index=False)
 
     # Create .md file with all three tables
     for df, title in zip(
-        [df_rgb, df_distance_to_image_plane], ["RGB", "Distance to Image Plane"]
+        [df_camera], [args_cli.data_type]
     ):
-        with open(f"outputs/benchmarks/camera_benchmark_{title}.md", "w") as f:
+        with open(f"outputs/benchmarks/camera_benchmark_USD_{args_cli.usd_camera}_Tiled_{args_cli.tiled_camera}_RayCaster_{args_cli.ray_caster_camera}_Resolution_{args_cli.resolutions}_{title}.md", "w") as f:
             f.write(f"# {title}\n\n")
             f.write(dataframe_to_markdown(df, floatfmt=".3f"))
             f.write("\n\n")
