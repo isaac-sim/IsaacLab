@@ -19,7 +19,8 @@ To run the disjoint navigation replay script execute the following command.
     --lift_step=70 \
     --navigate_step=120 \
     --enable_pinocchio \
-    --output_file=datasets/dataset_generated_disjoint_nav.hdf5
+    --output_file=datasets/dataset_generated_disjoint_nav.hdf5 \
+    --enable_cameras
 ```
 
 

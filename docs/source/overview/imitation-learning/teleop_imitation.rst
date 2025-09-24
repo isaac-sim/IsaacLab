@@ -652,7 +652,8 @@ To generate the navigation dataset, use the following command:
        --lift_step 70 \
        --navigate_step 120 \
        --enable_pinocchio \
-       --output_file ./datasets/generated_dataset_g1_navigation.hdf5
+       --output_file ./datasets/generated_dataset_g1_navigation.hdf5 \
+       --enable_cameras
 
 .. note::
 
