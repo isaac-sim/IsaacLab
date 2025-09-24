@@ -231,10 +231,10 @@ class ForgeEnv(FactoryEnv):
 
         rew_dict, rew_scales = {}, {}
         # Calculate action penalty for the asset-relative action space.
-        pos_error = torch.norm(self.delta_pos, p=2, dim=-1) / self.cfg.ctrl.pos_action_threshold[0]
+        pos_error = torch.linalg.norm(self.delta_pos, p=2, dim=-1) / self.cfg.ctrl.pos_action_threshold[0]
         rot_error = torch.abs(self.delta_yaw) / self.cfg.ctrl.rot_action_threshold[0]
         # Contact penalty.
-        contact_force = torch.norm(self.force_sensor_smooth[:, 0:3], p=2, dim=-1, keepdim=False)
+        contact_force = torch.linalg.norm(self.force_sensor_smooth[:, 0:3], p=2, dim=-1, keepdim=False)
         contact_penalty = torch.nn.functional.relu(contact_force - self.contact_penalty_thresholds)
         # Add success prediction rewards.
         check_rot = self.cfg_task.name == "nut_thread"

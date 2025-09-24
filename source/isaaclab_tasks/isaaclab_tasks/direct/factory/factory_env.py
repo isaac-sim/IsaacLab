@@ -224,7 +224,7 @@ class FactoryEnv(DirectRLEnv):
         rot_actions = actions[:, 3:6]
 
         # Convert to quat and set rot target
-        angle = torch.norm(rot_actions, p=2, dim=-1)
+        angle = torch.linalg.norm(rot_actions, p=2, dim=-1)
         axis = rot_actions / angle.unsqueeze(-1)
 
         rot_actions_quat = torch_utils.quat_from_angle_axis(angle, axis)
@@ -276,7 +276,7 @@ class FactoryEnv(DirectRLEnv):
         ctrl_target_fingertip_midpoint_pos = fixed_pos_action_frame + pos_error_clipped
 
         # Convert to quat and set rot target
-        angle = torch.norm(rot_actions, p=2, dim=-1)
+        angle = torch.linalg.norm(rot_actions, p=2, dim=-1)
         axis = rot_actions / angle.unsqueeze(-1)
 
         rot_actions_quat = torch_utils.quat_from_angle_axis(angle, axis)
@@ -455,14 +455,14 @@ class FactoryEnv(DirectRLEnv):
                 torch.tensor([1.0, 0.0, 0.0, 0.0], device=self.device).unsqueeze(0).repeat(self.num_envs, 1),
                 keypoint_offset.repeat(self.num_envs, 1),
             )[1]
-        keypoint_dist = torch.norm(keypoints_held - keypoints_fixed, p=2, dim=-1).mean(-1)
+        keypoint_dist = torch.linalg.norm(keypoints_held - keypoints_fixed, p=2, dim=-1).mean(-1)
 
         a0, b0 = self.cfg_task.keypoint_coef_baseline
         a1, b1 = self.cfg_task.keypoint_coef_coarse
         a2, b2 = self.cfg_task.keypoint_coef_fine
         # Action penalties.
-        action_penalty_ee = torch.norm(self.actions, p=2)
-        action_grad_penalty = torch.norm(self.actions - self.prev_actions, p=2, dim=-1)
+        action_penalty_ee = torch.linalg.norm(self.actions, p=2)
+        action_grad_penalty = torch.linalg.norm(self.actions - self.prev_actions, p=2, dim=-1)
         curr_engaged = self._get_curr_successes(success_threshold=self.cfg_task.engage_threshold, check_rot=False)
 
         rew_dict = {
@@ -707,7 +707,7 @@ class FactoryEnv(DirectRLEnv):
                 env_ids=bad_envs,
             )
             pos_error = torch.linalg.norm(pos_error, dim=1) > 1e-3
-            angle_error = torch.norm(aa_error, dim=1) > 1e-3
+            angle_error = torch.linalg.norm(aa_error, dim=1) > 1e-3
             any_error = torch.logical_or(pos_error, angle_error)
             bad_envs = bad_envs[any_error.nonzero(as_tuple=False).squeeze(-1)]
 
