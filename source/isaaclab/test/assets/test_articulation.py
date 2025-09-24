@@ -2001,10 +2001,12 @@ def test_write_joint_frictions_to_sim(sim, num_articulations, device, add_ground
     # Guarantee that the dynamic friction is not greater than the static friction
     dynamic_friction = torch.min(dynamic_friction, friction)
 
+    # The static friction must be set first to be sure the dynamic friction is not greater than static
+    # when both are set.
+    articulation.write_joint_friction_coefficient_to_sim(friction)
     if int(get_version()[2]) >= 5:
         articulation.write_joint_dynamic_friction_coefficient_to_sim(dynamic_friction)
         articulation.write_joint_viscous_friction_coefficient_to_sim(viscous_friction)
-    articulation.write_joint_friction_coefficient_to_sim(friction)
     articulation.write_data_to_sim()
 
     for _ in range(100):
