@@ -598,7 +598,7 @@ def _test_sensor_contact(
 
         if test_contact_data:
             _test_contact_position(shape, sensor, mode)
-            _test_contact_forces(shape, sensor, mode)
+            _test_friction_forces(shape, sensor, mode)
 
         # switch the contact mode for 1 dt step before the next contact test begins.
         shape.write_root_pose_to_sim(root_pose=reset_pose)
@@ -610,7 +610,7 @@ def _test_sensor_contact(
         expected_last_reset_contact_time = 2 * sim_dt
 
 
-def _test_contact_forces(shape: RigidObject, sensor: ContactSensor, mode: ContactTestMode) -> None:
+def _test_friction_forces(shape: RigidObject, sensor: ContactSensor, mode: ContactTestMode) -> None:
     if not sensor.cfg.track_friction_forces:
         assert sensor._data.friction_forces_w is None
         return
@@ -618,6 +618,11 @@ def _test_contact_forces(shape: RigidObject, sensor: ContactSensor, mode: Contac
     # check shape of the contact_pos_w tensor
     num_bodies = sensor.num_bodies
     assert sensor._data.friction_forces_w.shape == (sensor.num_instances / num_bodies, num_bodies, 1, 3)
+    # check friction forces
+    if mode == ContactTestMode.IN_CONTACT:
+        pass
+    elif mode == ContactTestMode.NON_CONTACT:
+        assert torch.all(torch.isnan(sensor._data.friction_forces_w)).item()
 
 
 def _test_contact_position(shape: RigidObject, sensor: ContactSensor, mode: ContactTestMode) -> None:
