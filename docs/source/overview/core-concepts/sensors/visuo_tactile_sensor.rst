@@ -6,7 +6,7 @@ Visuo-Tactile Sensor
 ====================
 
 
-The visuo-tactile sensor in Isaac Lab provides realistic tactile feedback through integration with TacSL (Tactile Sensor Learning) [Akinola2025]_. This sensor is designed to simulate high-fidelity tactile interactions, generating both visual and force-based data that mirrors real-world tactile sensors like GelSight devices. The sensor can provide tactile RGB images, force field distributions, and other relevant tactile measurements that are essential for robotic manipulation tasks requiring fine tactile feedback.
+The visuo-tactile sensor in Isaac Lab provides realistic tactile feedback through integration with TacSL (Tactile Sensor Learning) [Akinola2025]_. It is designed to simulate high-fidelity tactile interactions, generating both visual and force-based data that mirror real-world tactile sensors like GelSight devices. The sensor can provide tactile RGB images, force field distributions, and other intermediate tactile measurements essential for robotic manipulation tasks requiring fine tactile feedback.
 
 
 .. figure:: ../../../_static/overview/sensors/tacsl_diagram.png
@@ -68,7 +68,7 @@ Tactile sensors require specific configuration parameters to define their behavi
 
     )
 
-The configuration allows for comprehensive customization of:
+The configuration supports customization of:
 
 * **Sensor Type**: Specify the tactile sensor model (e.g., ``"gelsight_r15"``)
 * **Tactile Modalities**:
@@ -100,7 +100,7 @@ Configuration Requirements
    **SDF Computation**
       When force field computation is enabled, penalty-based normal and shear forces are computed using Signed Distance Field (SDF) queries. To achieve GPU acceleration:
 
-      * Interacting objects should have pre-computed SDF collision meshes
+      * Interacting objects should have SDF collision meshes
       * An SDFView must be defined during initialization, therefore interacting objects should be specified before simulation.
 
    **Elastomer Configuration**
@@ -142,10 +142,13 @@ For a complete list of available options:
 
     python tacsl_example.py -h
 
+.. note::
+   The demo examples are based on the Gelsight R1.5, which is a prototype sensor that is now discontinued. The same procedure can be adapted for other visuotactile sensors.
+
 .. figure:: ../../../_static/overview/sensors/tacsl_demo.png
     :align: center
     :figwidth: 100%
-    :alt: TacSL tactile sensor demonstration results showing RGB tactile images and force field visualizations
+    :alt: TacSL tactile sensor demo showing RGB tactile images and force field visualizations
 
 The tactile sensor supports multiple data modalities that provide comprehensive information about contact interactions:
 
@@ -157,7 +160,7 @@ Output Tactile Data
 
 
 **Force Fields**
-    Detailed force field of contact forces and pressure distributions across the sensor surface. This provides quantitative information about the magnitude and direction of applied forces.
+    Detailed contact force field and pressure distributions across the sensor surface, including normal and shear components.
 
 .. list-table::
    :widths: 50 50
@@ -198,5 +201,5 @@ The tactile sensor is designed to integrate seamlessly with reinforcement learni
 References
 ~~~~~~~~~~
 
-.. [Akinola2025] Akinola, I., Xu, J., Carius, J., Fox, D., & Narang, Y. (2025). Tacsl: A library for visuotactile sensor simulation and learning. *IEEE Transactions on Robotics*.
-.. [Si2022] Si, Z., & Yuan, W. (2022). Taxim: An example-based simulation model for gelsight tactile sensors. *IEEE Robotics and Automation Letters*, 7(2), 2361-2368.
+.. [Akinola2025] Akinola, I., Xu, J., Carius, J., Fox, D., & Narang, Y. (2025). TacSL: A library for visuotactile sensor simulation and learning. *IEEE Transactions on Robotics*.
+.. [Si2022] Si, Z., & Yuan, W. (2022). Taxim: An example-based simulation model for GelSight tactile sensors. *IEEE Robotics and Automation Letters*, 7(2), 2361-2368.
