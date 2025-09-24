@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
 import numpy as np
 
 import pinocchio as pin
@@ -30,7 +32,7 @@ class PinkKinematicsConfiguration(Configuration):
         self,
         controlled_joint_names: list[str],
         urdf_path: str,
-        mesh_path: str = None,
+        mesh_path: str | None = None,
         copy_data: bool = True,
         forward_kinematics: bool = True,
     ):

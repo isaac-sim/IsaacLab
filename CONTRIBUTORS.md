@@ -130,6 +130,7 @@ Guidelines for modifications:
 * Shundo Kishi
 * Stefan Van de Mosselaer
 * Stephan Pleines
+* Tiffany Chen
 * Tyler Lum
 * Victor Khaustov
 * Virgilio Gómez Lambo
