@@ -638,8 +638,6 @@ Here's an example of setting up hand tracking:
        if terminated or truncated:
            break
 
-.. _control-robot-with-xr-callbacks:
-
 Here's a diagram for the dataflow and algorithm used in humanoid teleoperation. Using Apple Vision Pro, we collect 26 keypoints for each hand.
 The wrist keypoint is used to control the hand end-effector, while the remaining hand keypoints are used for hand retargeting.
 
@@ -656,6 +654,8 @@ to the image below for hand asset selection, find a suitable hand asset, or add 
   :align: center
   :figwidth: 60%
   :alt: hand_asset
+
+.. _control-robot-with-xr-callbacks:
 
 Adding Callbacks for XR UI Events
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

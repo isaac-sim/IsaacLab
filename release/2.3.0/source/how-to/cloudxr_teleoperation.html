@@ -64,7 +64,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Sep 23, 2025"/>
+    <meta name="docbuild:last-update" content="Sep 24, 2025"/>
   </head>
   
   
@@ -159,10 +159,10 @@
             <label for="version-select" style="font-weight: bold; display: block;">Version</label>
           </div>
           <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
-            <option value="cloudxr_teleoperation.html" selected>release/2.3.0</option>
             <option value="../../../../main/source/how-to/cloudxr_teleoperation.html" >main</option>
             <option value="../../../2.1.0/index.html" >release/2.1.0</option>
             <option value="../../../2.2.0/source/how-to/cloudxr_teleoperation.html" >release/2.2.0</option>
+            <option value="cloudxr_teleoperation.html" selected>release/2.3.0</option>
             <option value="../../../../v2.2.1/source/how-to/cloudxr_teleoperation.html" >v2.2.1</option>
             <option value="../../../../v2.2.0/source/how-to/cloudxr_teleoperation.html" >v2.2.0</option>
             <option value="../../../../v2.1.1/source/how-to/cloudxr_teleoperation.html" >v2.1.1</option>
@@ -205,7 +205,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.1.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.0.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -727,7 +727,7 @@ immersive streaming and teleoperation of an Isaac Lab simulation using CloudXR.<
 <li><p><a class="reference internal" href="#develop-xr-isaac-lab"><span class="std std-ref">Develop for XR in Isaac Lab</span></a>, including how to <a class="reference internal" href="#run-isaac-lab-with-xr"><span class="std std-ref">Run Isaac Lab with XR Extensions Enabled</span></a>,
 <a class="reference internal" href="#configure-scene-placement"><span class="std std-ref">Configure XR Scene Placement</span></a>, and <a class="reference internal" href="#optimize-xr-performance"><span class="std std-ref">Optimize XR Performance</span></a>.</p></li>
 <li><p><a class="reference internal" href="#control-robot-with-xr"><span class="std std-ref">Control the Robot with XR Device Inputs</span></a>, including the <a class="reference internal" href="#openxr-device-architecture"><span class="std std-ref">OpenXR Device</span></a>,
-<a class="reference internal" href="#control-robot-with-xr-retargeters"><span class="std std-ref">Retargeting Architecture</span></a>, and how to implement <span class="xref std std-ref">control-robot-with-xr-callbacks</span>.</p></li>
+<a class="reference internal" href="#control-robot-with-xr-retargeters"><span class="std std-ref">Retargeting Architecture</span></a>, and how to implement <a class="reference internal" href="#control-robot-with-xr-callbacks"><span class="std std-ref">Adding Callbacks for XR UI Events</span></a>.</p></li>
 </ul>
 <p>As well as <a class="reference internal" href="#xr-known-issues"><span class="std std-ref">Known Issues</span></a>.</p>
 </section>
@@ -1243,7 +1243,7 @@ the OpenXRDevice during initialization.</p>
         <span class="k">break</span>
 </pre></div>
 </div>
-<p id="control-robot-with-xr-callbacks">Here’s a diagram for the dataflow and algorithm used in humanoid teleoperation. Using Apple Vision Pro, we collect 26 keypoints for each hand.
+<p>Here’s a diagram for the dataflow and algorithm used in humanoid teleoperation. Using Apple Vision Pro, we collect 26 keypoints for each hand.
 The wrist keypoint is used to control the hand end-effector, while the remaining hand keypoints are used for hand retargeting.</p>
 <figure class="align-center" style="width: 80%">
 <img alt="teleop_diagram" src="../../_images/teleop_diagram.jpg" />
@@ -1256,7 +1256,7 @@ to the image below for hand asset selection, find a suitable hand asset, or add 
 </figure>
 </section>
 <section id="adding-callbacks-for-xr-ui-events">
-<h4>Adding Callbacks for XR UI Events<a class="headerlink" href="#adding-callbacks-for-xr-ui-events" title="Permalink to this heading">#</a></h4>
+<span id="control-robot-with-xr-callbacks"></span><h4>Adding Callbacks for XR UI Events<a class="headerlink" href="#adding-callbacks-for-xr-ui-events" title="Permalink to this heading">#</a></h4>
 <p>The OpenXRDevice can handle events triggered by user interactions with XR UI elements like buttons and menus.
 When a user interacts with these elements, the device triggers registered callback functions:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Register callbacks for teleop control events</span>
@@ -1688,7 +1688,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Sep 23, 2025.
+  Last updated on Sep 24, 2025.
   <br/>
 </p>
   </div>
