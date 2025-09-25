@@ -429,6 +429,16 @@ class ContactSensor(SensorBase):
         # unpack the contact points: see RigidContactView.get_contact_data() documentation for details:
         # https://docs.omniverse.nvidia.com/kit/docs/omni_physics/107.3/extensions/runtime/source/omni.physics.tensors/docs/api/python.html#omni.physics.tensors.impl.api.RigidContactView.get_net_contact_forces
         # buffer_count: (N_envs * N_bodies, N_filters), contact_points: (N_envs * N_bodies, 3)
+        """
+        Vectorizes the following nested loop:
+        for i in range(self._num_bodies * self._num_envs):
+            for j in range(self.contact_physx_view.filter_count):
+                start_index_ij = buffer_start_indices[i, j]
+                count_ij = buffer_count[i, j]
+                self._contact_position_aggregate_buffer[i, j, :] = torch.mean(
+                    contact_points[start_index_ij : (start_index_ij + count_ij), :], dim=0
+                )
+        """
         counts, starts = buffer_count.view(-1), buffer_start_indices.view(-1)
         n_rows, total = counts.numel(), int(counts.sum())
         # default to NaN rows
