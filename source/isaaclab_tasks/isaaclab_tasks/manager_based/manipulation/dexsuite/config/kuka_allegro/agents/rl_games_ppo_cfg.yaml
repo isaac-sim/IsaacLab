@@ -94,7 +94,7 @@ pbt:
   objective: episode.Curriculum/adr
 
   # PBT hyperparams
-  interval_steps: 5000
+  interval_steps: 50000000
   threshold_std: 0.1
   threshold_abs: 0.025
   mutation_rate: 0.25
