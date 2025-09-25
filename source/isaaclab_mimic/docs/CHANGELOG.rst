@@ -1,6 +1,14 @@
 Changelog
 ---------
 
+1.0.15 (2025-09-25)
+
+Fixed
+^^^^^
+
+* Fixed a bug in the instruction UI logic that caused incorrect switching between XR and non-XR display modes. The instruction display now properly detects and updates the UI based on the teleoperation device (e.g., handtracking/XR vs. keyboard).
+
+
 1.0.14 (2025-09-08)
 ~~~~~~~~~~~~~~~~~~~
 
