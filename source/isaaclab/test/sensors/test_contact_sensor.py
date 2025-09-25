@@ -461,7 +461,7 @@ def _run_contact_sensor_test(
     """
     for device in devices:
         for terrain in terrains:
-            for track_contact_points in [True, False]:
+            for track_contact_data in [True, False]:
                 with build_simulation_context(device=device, dt=sim_dt, add_lighting=True) as sim:
                     sim._app_control_on_stop_handle = None
 
@@ -471,10 +471,10 @@ def _run_contact_sensor_test(
                     test_contact_data = False
                     if (type(shape_cfg.spawn) is sim_utils.SphereCfg) and (terrain.terrain_type == "plane"):
                         test_contact_data = True
-                    elif track_contact_points:
+                    elif track_contact_data:
                         continue
 
-                    if track_contact_points:
+                    if track_contact_data:
                         if terrain.terrain_type == "plane":
                             filter_prim_paths_expr = [terrain.prim_path + "/terrain/GroundPlane/CollisionPlane"]
                         elif terrain.terrain_type == "generator":
@@ -489,7 +489,8 @@ def _run_contact_sensor_test(
                         update_period=0.0,
                         track_air_time=True,
                         history_length=3,
-                        track_contact_points=track_contact_points,
+                        track_contact_points=track_contact_data,
+                        track_friction_forces=track_contact_data,
                         filter_prim_paths_expr=filter_prim_paths_expr,
                     )
                     scene = InteractiveScene(scene_cfg)
@@ -620,7 +621,7 @@ def _test_friction_forces(shape: RigidObject, sensor: ContactSensor, mode: Conta
     assert sensor._data.friction_forces_w.shape == (sensor.num_instances / num_bodies, num_bodies, 1, 3)
     # check friction forces
     if mode == ContactTestMode.IN_CONTACT:
-        pass
+        assert not torch.any(torch.isnan(sensor._data.friction_forces_w)).item()
     elif mode == ContactTestMode.NON_CONTACT:
         assert torch.all(torch.isnan(sensor._data.friction_forces_w)).item()
 
