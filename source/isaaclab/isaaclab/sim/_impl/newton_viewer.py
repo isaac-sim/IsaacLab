@@ -20,11 +20,12 @@ from newton.viewer import ViewerGL
 
 
 class NewtonViewerGL(ViewerGL):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, train_mode: bool = True, **kwargs):
         super().__init__(*args, **kwargs)
         self._paused_training: bool = False
         self._paused_rendering: bool = False
         self._fallback_draw_controls: bool = False
+        self._is_train_mode: bool = train_mode  # Convert train_mode to play_mode
 
         try:
             self.register_ui_callback(self._render_training_controls, position="side")
@@ -40,17 +41,23 @@ class NewtonViewerGL(ViewerGL):
     # UI callback rendered inside the "Example Options" panel of the left sidebar
     def _render_training_controls(self, imgui):
         imgui.separator()
-        imgui.text("IsaacLab Training Controls")
-
-        # Toggle button for training pause
-        training_label = "Resume Training" if self._paused_training else "Pause Training"
-        if imgui.button(training_label):
+        
+        # Use simple flag to adjust labels
+        if self._is_train_mode:
+            imgui.text("IsaacLab Training Controls")
+            pause_label = "Resume Training" if self._paused_training else "Pause Training"
+        else:
+            imgui.text("IsaacLab Playback Controls")
+            pause_label = "Resume Playing" if self._paused_training else "Pause Playing"
+        
+        if imgui.button(pause_label):
             self._paused_training = not self._paused_training
-
-        # Toggle button for rendering pause
-        rendering_label = "Resume Rendering" if self._paused_rendering else "Pause Rendering"
-        if imgui.button(rendering_label):
-            self._paused_rendering = not self._paused_rendering
+        
+        # Only show rendering controls when in training mode
+        if self._is_train_mode:
+            rendering_label = "Resume Rendering" if self._paused_rendering else "Pause Rendering"
+            if imgui.button(rendering_label):
+                self._paused_rendering = not self._paused_rendering
 
         # Import NewtonManager locally to avoid circular imports
         from .newton_manager import NewtonManager  # noqa: PLC0415

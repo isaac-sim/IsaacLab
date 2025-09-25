@@ -116,6 +116,18 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg, agent_cfg: RslRlBaseRun
     # set the log directory for the environment (works for all environment types)
     env_cfg.log_dir = log_dir
 
+    # Set play mode for Newton viewer if using Newton visualizer
+    if args_cli.newton_visualizer:
+        # Set visualizer to play mode in Newton config
+        if hasattr(env_cfg.sim, 'newton_cfg'):
+            env_cfg.sim.newton_cfg.visualizer_train_mode = False
+        else:
+            # Create newton_cfg if it doesn't exist
+            from isaaclab.sim._impl.newton_manager_cfg import NewtonCfg
+            newton_cfg = NewtonCfg()
+            newton_cfg.visualizer_train_mode = False
+            env_cfg.sim.newton_cfg = newton_cfg
+
     # create isaac environment
     env = gym.make(args_cli.task, cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None)
 
