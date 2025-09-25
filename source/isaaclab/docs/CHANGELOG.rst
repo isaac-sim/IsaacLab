@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.46.3 (2025-09-17)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Exposed parameter :attr:`~isaaclab.sim.spawners.PhysxCfg.solve_articulation_contact_last` 
+   to configure USD attribute ``physxscene:solveArticulationContactLast``. This parameter may
+   help improve solver stability with grippers, which previously required reducing simulation time-steps.
+  :class:`~isaaclab.sim.spawners.PhysxCfg`
+
 
 0.46.2 (2025-09-13)
 ~~~~~~~~~~~~~~~~~~~
