@@ -21,6 +21,7 @@ from enum import Enum
 import carb
 import pytest
 from flaky import flaky
+from pxr import Gf, UsdPhysics
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObject, RigidObjectCfg
@@ -29,8 +30,6 @@ from isaaclab.sensors import ContactSensor, ContactSensorCfg
 from isaaclab.sim import SimulationContext, build_simulation_context
 from isaaclab.terrains import HfRandomUniformTerrainCfg, TerrainGeneratorCfg, TerrainImporterCfg
 from isaaclab.utils import configclass
-
-from pxr import Gf, UsdPhysics
 
 ##
 # Custom helper classes.
@@ -425,7 +424,8 @@ def test_friction_reporting(setup_simulation, grav_dir):
             track_air_time=True,
             history_length=3,
             track_friction_forces=True,
-            filter_prim_paths_expr=filter_prim_paths_expr)
+            filter_prim_paths_expr=filter_prim_paths_expr,
+        )
 
         scene = InteractiveScene(scene_cfg)
 
@@ -435,7 +435,9 @@ def test_friction_reporting(setup_simulation, grav_dir):
         sim.reset()
 
         scene["contact_sensor"].reset()
-        scene["shape"].write_root_pose_to_sim(root_pose=torch.tensor([0, 0.0, CUBE_CFG.spawn.size[2] / 2.0, 1, 0, 0, 0]))
+        scene["shape"].write_root_pose_to_sim(
+            root_pose=torch.tensor([0, 0.0, CUBE_CFG.spawn.size[2] / 2.0, 1, 0, 0, 0])
+        )
 
         # step sim once to compute friction forces
         _perform_sim_step(sim, scene, sim_dt)
@@ -443,14 +445,16 @@ def test_friction_reporting(setup_simulation, grav_dir):
         friction_force = scene["contact_sensor"]._data.friction_forces_w[0, 0, :]
         friction_magnitude = friction_force.norm().item()
 
-        assert friction_magnitude > 1e-6, "Friction forces should be non-zero"
+        assert friction_magnitude > 1e-2, "Friction forces should be non-zero"
 
         grav = torch.tensor(grav_dir, device=device)
         norm_friction = friction_force / friction_force.norm()
         norm_gravity = grav / grav.norm()
         dot = torch.dot(norm_friction.squeeze(), norm_gravity)
 
-        assert torch.isclose(torch.abs(dot), torch.tensor(1.0, device=device), atol=1e-2), "Friction force should be roughly opposite gravity direction"
+        assert torch.isclose(
+            torch.abs(dot), torch.tensor(1.0, device=device), atol=1e-2
+        ), "Friction force should be roughly opposite gravity direction"
 
 
 """
