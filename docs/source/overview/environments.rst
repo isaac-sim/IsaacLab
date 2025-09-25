@@ -112,6 +112,8 @@ for the lift-cube environment:
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+
     | |lift-cube|             | |lift-cube-link|             | Pick a cube and bring it to a sampled target position with the Franka robot |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+
+    | |push-cube|             | |push-cube-link|             | Push a cube to a sampled target position with the Franka robot              |
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+
     | |stack-cube|            | |stack-cube-link|            | Stack three cubes (bottom to top: blue, red, green) with the Franka robot.  |
     |                         |                              | Blueprint env used for the NVIDIA Isaac GR00T blueprint for synthetic       |
     |                         | |stack-cube-bp-link|         | manipulation motion generation                                              |
@@ -158,6 +160,7 @@ for the lift-cube environment:
 .. |reach-ur10| image:: ../_static/tasks/manipulation/ur10_reach.jpg
 .. |deploy-reach-ur10e| image:: ../_static/tasks/manipulation/ur10e_reach.jpg
 .. |lift-cube| image:: ../_static/tasks/manipulation/franka_lift.jpg
+.. |push-cube| image:: ../_static/tasks/manipulation/franka_push.jpg
 .. |cabi-franka| image:: ../_static/tasks/manipulation/franka_open_drawer.jpg
 .. |cube-allegro| image:: ../_static/tasks/manipulation/allegro_cube.jpg
 .. |cube-shadow| image:: ../_static/tasks/manipulation/shadow_cube.jpg
@@ -175,6 +178,7 @@ for the lift-cube environment:
 .. |reach-ur10-link| replace:: `Isaac-Reach-UR10-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/reach/config/ur_10/joint_pos_env_cfg.py>`__
 .. |deploy-reach-ur10e-link| replace:: `Isaac-Deploy-Reach-UR10e-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/deploy/reach/config/ur_10e/joint_pos_env_cfg.py>`__
 .. |lift-cube-link| replace:: `Isaac-Lift-Cube-Franka-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/lift/config/franka/joint_pos_env_cfg.py>`__
+.. |push-cube-link| replace:: `Isaac-Push-Cube-Franka-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/push/config/franka/joint_pos_env_cfg.py>`__
 .. |lift-cube-ik-abs-link| replace:: `Isaac-Lift-Cube-Franka-IK-Abs-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/lift/config/franka/ik_abs_env_cfg.py>`__
 .. |lift-cube-ik-rel-link| replace:: `Isaac-Lift-Cube-Franka-IK-Rel-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/lift/config/franka/ik_rel_env_cfg.py>`__
 .. |cabi-franka-link| replace:: `Isaac-Open-Drawer-Franka-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/cabinet/config/franka/joint_pos_env_cfg.py>`__
@@ -864,6 +868,10 @@ inferencing, including reading from an already trained checkpoint and disabling 
       -
     * - Isaac-Lift-Cube-Franka-v0
       - Isaac-Lift-Cube-Franka-Play-v0
+      - Manager Based
+      - **rsl_rl** (PPO), **skrl** (PPO), **rl_games** (PPO), **sb3** (PPO)
+    * - Isaac-Push-Cube-Franka-v0
+      - Isaac-Push-Cube-Franka-Play-v0
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO), **rl_games** (PPO), **sb3** (PPO)
     * - Isaac-Lift-Teddy-Bear-Franka-IK-Abs-v0
