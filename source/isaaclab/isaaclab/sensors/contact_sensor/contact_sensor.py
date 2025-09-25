@@ -384,7 +384,7 @@ class ContactSensor(SensorBase):
             _, buffer_contact_points, _, _, buffer_count, buffer_start_indices = (
                 self.contact_physx_view.get_contact_data(dt=self._sim_physics_dt)
             )
-            self._data.contact_pos_w[env_ids] = self._unpack_contact_points(
+            self._data.contact_pos_w[env_ids] = self._unpack_contact_data(
                 buffer_contact_points, buffer_count, buffer_start_indices
             )[env_ids]
 
@@ -393,7 +393,7 @@ class ContactSensor(SensorBase):
             friction_forces, _, buffer_count, buffer_start_indices = self.contact_physx_view.get_friction_data(
                 dt=self._sim_physics_dt
             )
-            self._data.friction_forces_w[env_ids] = self._unpack_contact_points(
+            self._data.friction_forces_w[env_ids] = self._unpack_contact_data(
                 friction_forces, buffer_count, buffer_start_indices, avg=False
             )[env_ids]
 
@@ -427,7 +427,7 @@ class ContactSensor(SensorBase):
                 is_contact, self._data.current_contact_time[env_ids] + elapsed_time.unsqueeze(-1), 0.0
             )
 
-    def _unpack_contact_points(self, contact_points, buffer_count, buffer_start_indices, avg=True):
+    def _unpack_contact_data(self, contact_data, buffer_count, buffer_start_indices, avg=True):
         # unpack the contact points: see RigidContactView.get_contact_data() documentation for details:
         # https://docs.omniverse.nvidia.com/kit/docs/omni_physics/107.3/extensions/runtime/source/omni.physics.tensors/docs/api/python.html#omni.physics.tensors.impl.api.RigidContactView.get_net_contact_forces
         # buffer_count: (N_envs * N_bodies, N_filters), contact_points: (N_envs * N_bodies, 3)
@@ -444,7 +444,7 @@ class ContactSensor(SensorBase):
         counts, starts = buffer_count.view(-1), buffer_start_indices.view(-1)
         n_rows, total = counts.numel(), int(counts.sum())
         # default to NaN rows
-        agg = torch.full((n_rows, 3), float("nan"), device=self._device, dtype=contact_points.dtype)
+        agg = torch.full((n_rows, 3), float("nan"), device=self._device, dtype=contact_data.dtype)
         if total > 0:
             row_ids = torch.repeat_interleave(torch.arange(n_rows, device=self._device), counts)
             total = row_ids.numel()
@@ -453,7 +453,7 @@ class ContactSensor(SensorBase):
             deltas = torch.arange(total, device=counts.device) - block_starts.repeat_interleave(counts)
             flat_idx = starts[row_ids] + deltas
 
-            pts = contact_points.index_select(0, flat_idx)
+            pts = contact_data.index_select(0, flat_idx)
             agg = agg.zero_().index_add_(0, row_ids, pts)
             agg = agg / counts.unsqueeze(-1) if avg else agg
             agg[counts == 0] = float("nan")
