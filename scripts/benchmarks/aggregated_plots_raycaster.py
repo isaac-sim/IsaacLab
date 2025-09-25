@@ -229,7 +229,7 @@ def plot_num_assets_reference():
             kfps_to_mrays = lambda y: y * rays_per_env / 1e3
             mrays_to_kfps = lambda y: y * 1e3 / rays_per_env
             ax_right = axes.secondary_yaxis('right', functions=(kfps_to_mrays, mrays_to_kfps))
-            ax_right.set_ylabel(r"Throughput (Rays) $\times 10^6$")
+            ax_right.set_ylabel(r"Throughput (Rays / s) $\times 10^6$")
     axes.set_xlabel("Number of assets")
     axes.set_ylabel(r"Throughput (FPS) $\times 10^3$")
     #axes.set_title(f"Throughput vs number of assets ({int(df['num_envs'].iloc[0])} envs)")
@@ -317,6 +317,49 @@ def compare_single_vs_multi_resolution():
     axes.legend(frameon=False, ncol=1, loc="best")
     return axes
 
+
+def compare_single_vs_multi_fps():
+    df = get_dataframe(
+        "single_vs_multi",
+        fields=["avg_memory", "per_step_ms", "fps", "kfps", "mrays_per_s", "total_rays"],
+        keys=["device", "num_envs", "resolution", "mode"],
+    )
+    # df = df[df["mode"] == "multi"]
+    
+    fig, axes = plt.subplots(1, 1, figsize=(7.2, 5.61), dpi=600, constrained_layout=True)
+    # build color and line-style maps: color per device, style per resolution
+    devices = sorted(df["device"].unique())
+    style_cycle = ["-", "--", "-.", ":", (0, (3, 1, 1, 1)), (0, (5, 2, 1, 2))]
+    style_map = {}
+    for dev in devices:
+        res_list = sorted(df[df["device"] == dev]["resolution"].unique())
+        for idx, r in enumerate(res_list):
+            style_map[(dev, r)] = style_cycle[idx % len(style_cycle)]
+
+    idx = 0
+    # group by device and resolution
+    for (device, res, mode), group in df.groupby(["device", "resolution", "mode"]):
+        if mode != "multi":
+            continue
+        color = get_color(device, res)
+        group = group.sort_values("num_envs")
+        label = f"{device} - ({(5.0 / res)**1:.0f}$\\times${(5.0 / res)**1:.0f})" # - {mode}"
+        # shade the std deviation with device color
+        x = group["num_envs"].to_numpy(dtype=float)
+        y = (group["kfps"].to_numpy(dtype=float) if "kfps" in group.columns else (group["fps"].to_numpy(dtype=float) / 1e3))
+        ystd = (
+            group["kfps_std"].to_numpy(dtype=float) if "kfps_std" in group.columns else
+            (group["fps_std"].to_numpy(dtype=float) / 1e3 if "fps_std" in group.columns else np.zeros_like(y))
+        )
+        axes.fill_between(list(x), list(y - ystd), list(y + ystd), alpha=0.2, color=color)
+        axes.plot(list(x), list(y), marker="o", label=label, linestyle=style_map.get((device, res), "-"), color=color)
+    axes.set_xlabel("Number of environments")
+    axes.set_ylabel(r"Throughput (FPS) $\times 10^3$")
+    #axes.set_title("Throughput vs number of environments")
+    _format_axes(axes)
+    axes.legend(frameon=False, ncol=1, loc="best")
+    return axes
+
 def compare_memory_consumption():
     df = get_dataframe(
         "single_vs_multi",
@@ -377,6 +420,13 @@ if __name__ == "__main__":
         print(f"Saved plot to {os.path.join(OUTPUT_DIR, 'single_vs_multi_resolution.png')}")
     except Exception as e:
         print(f"Failed to plot single_vs_multi_resolution: {e}")
+        
+    try:
+        axes = compare_single_vs_multi_fps()
+        plt.savefig(os.path.join(OUTPUT_DIR, "single_vs_multi_fps.png"), dpi=800)
+        print(f"Saved plot to {os.path.join(OUTPUT_DIR, 'single_vs_multi_fps.png')}")
+    except Exception as e:
+        print(f"Failed to plot single_vs_multi_fps: {e}")
         
     try:
         axes = compare_memory_consumption()
