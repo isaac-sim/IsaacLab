@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.11.1 (2025-09-24)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added dextrous lifting pbt configuration example cfg for rl_games.
+
+
 0.11.0 (2025-09-07)
 ~~~~~~~~~~~~~~~~~~~~
 
