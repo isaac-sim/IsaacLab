@@ -38,60 +38,6 @@ conf_options = {
 }
 
 
-def padding(img):
-    """
-    Apply symmetric padding to the input image.
-
-    Parameters:
-    img (numpy.ndarray): Input image.
-
-    Returns:
-    numpy.ndarray: Padded image.
-    """
-    if len(img.shape) == 2:
-        return np.pad(img, ((1, 1), (1, 1)), "symmetric")
-    elif len(img.shape) == 3:
-        return np.pad(img, ((1, 1), (1, 1), (0, 0)), "symmetric")
-
-
-def compute_image_gradient(image):
-    """
-    Compute the gradient of an image.
-
-    Parameters:
-    image (numpy.ndarray): Input image.
-
-    Returns:
-    tuple: Gradients in x and y directions.
-    """
-    dzdx, dzdy = np.gradient(image)
-    dzdx = dzdx[1:-1, 1:-1]  # remove boundary values. Note edge_order=1 is used to calculate boundary values
-    dzdy = dzdy[1:-1, 1:-1]
-    return dzdx, dzdy
-
-
-def generate_normals(height_map):
-    """
-    Generate the gradient magnitude and direction of the height map.
-
-    Parameters:
-    height_map (numpy.ndarray): Input height map.
-
-    Returns:
-    tuple: Gradient magnitude, gradient direction, and None.
-    """
-    dzdx, dzdy = compute_image_gradient(height_map)
-
-    grad_mag_orig = np.sqrt(dzdx**2 + dzdy**2)
-    grad_mag = np.arctan(grad_mag_orig)  # seems that arctan is used as a squashing function
-    grad_dir = np.arctan2(dzdx, dzdy)
-    grad_dir[grad_mag_orig == 0] = 0
-
-    grad_mag = padding(grad_mag)
-    grad_dir = padding(grad_dir)
-    return grad_mag, grad_dir, None
-
-
 def generate_normals_tensor(img_tensor):
     """
     Generate the gradient magnitude and direction of the height map using tensors.
@@ -250,42 +196,6 @@ class gelsightRender:
         self.A_tensor = torch.tensor(self.A.reshape(h, w, 6), device=self.device).unsqueeze(0)
         self.background_tensor = torch.tensor(self.background, device=self.device)
         print("Gelsight initialization done!")
-
-    def render(self, heightMap):
-        """
-        Render the height map using the GelSight sensor.
-
-        Parameters:
-        heightMap (numpy.ndarray): Input height map.
-
-        Returns:
-        numpy.ndarray: Rendered image.
-        """
-        # print("gelsight render")
-        height_map = heightMap.copy()
-        height_map[np.abs(height_map) < 1e-6] = 0  # remove minor artifact
-        height_map = height_map * -1000.0
-        height_map /= self.conf["pixmm"]
-
-        height_map = cv2.GaussianBlur(height_map.astype(np.float32), (5, 5), 0)
-        grad_mag, grad_dir, _ = generate_normals(height_map)
-
-        h, w = self.conf["h"], self.conf["w"]
-        sim_img_rgb = np.zeros((h, w, 3))
-        idx_x = np.floor(grad_mag / self.x_binr).astype("int")
-        idx_y = np.floor((grad_dir + np.pi) / self.y_binr).astype("int")
-
-        params_r = self.calib_data.grad_r[idx_x, idx_y, :]
-        params_g = self.calib_data.grad_g[idx_x, idx_y, :]
-        params_b = self.calib_data.grad_b[idx_x, idx_y, :]
-
-        sim_img_rgb[:, :, 0] = np.sum(self.A.reshape(*grad_mag.shape, 6) * params_r, axis=-1)  # R
-        sim_img_rgb[:, :, 1] = np.sum(self.A.reshape(*grad_mag.shape, 6) * params_g, axis=-1)  # G
-        sim_img_rgb[:, :, 2] = np.sum(self.A.reshape(*grad_mag.shape, 6) * params_b, axis=-1)  # B
-
-        # write tactile image
-        sim_img = sim_img_rgb + self.background  # /255.0
-        return sim_img
 
     def render_tensorized(self, heightMap):
         """
