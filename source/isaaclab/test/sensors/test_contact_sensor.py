@@ -395,7 +395,8 @@ def test_sensor_print(setup_simulation):
         print(scene.sensors["contact_sensor"])
 
 
-@pytest.mark.parametrize("grav_dir", [(-10.0, 0.0, -1.0), (0.0, -10.0, -1.0)])
+# minor gravity force in -z to ensure object stays on ground plane
+@pytest.mark.parametrize("grav_dir", [(-10.0, 0.0, -.1), (0.0, -10.0, -0.1)])
 @pytest.mark.isaacsim_ci
 def test_friction_reporting(setup_simulation, grav_dir):
     """
@@ -453,7 +454,7 @@ def test_friction_reporting(setup_simulation, grav_dir):
         dot = torch.dot(norm_friction.squeeze(), norm_gravity)
 
         assert torch.isclose(
-            torch.abs(dot), torch.tensor(1.0, device=device), atol=1e-2
+            torch.abs(dot), torch.tensor(1.0, device=device), atol=1e-4
         ), "Friction force should be roughly opposite gravity direction"
 
 
