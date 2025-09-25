@@ -53,6 +53,7 @@ class NavigationAction(JointAction):
         
     def apply_actions(self):
         # set joint navigation targets
+        self.processed_actions[:] = torch.clamp(self.processed_actions, min=-1.0, max=1.0)
         wrench_command = self._lvc.compute(self.processed_actions)
         thrust_commands = (torch.pinverse(self._asset._allocation_matrix) @ wrench_command.T).T
         self._asset.set_thrust_target(thrust_commands, joint_ids=self._joint_ids)

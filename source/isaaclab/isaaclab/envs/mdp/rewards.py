@@ -127,6 +127,52 @@ def body_lin_acc_l2(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEnt
     asset: Articulation = env.scene[asset_cfg.name]
     return torch.sum(torch.norm(asset.data.body_lin_acc_w[:, asset_cfg.body_ids, :], dim=-1), dim=1)
 
+def distance_to_goal_l2(env: ManagerBasedRLEnv,
+                        goal_position: torch.Tensor = 0.0,
+                        asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
+    """Penalize the distance to a goal position using L2 squared kernel.
+
+    Args:
+        env (ManagerBasedRLEnv): The environment instance.
+        goal_position (torch.Tensor): The target goal position of shape (3,) or (N, 3) where N is the number of environments.
+        asset_cfg (SceneEntityCfg, optional): Configuration for the asset. Defaults to SceneEntityCfg("robot").
+
+    Returns:
+        torch.Tensor: The computed L2 squared distance to the goal for each environment.
+    """
+    # extract the used quantities (to enable type-hinting)
+    asset: RigidObject = env.scene[asset_cfg.name]
+    target_position_w = goal_position + env.scene.env_origins
+    target_position_w[:, 2] += 1.5
+    return  torch.sum(torch.square(asset.data.root_pos_w - target_position_w), dim=1)
+
+
+def distance_to_goal_exp(
+        env: ManagerBasedRLEnv,
+        goal_position: torch.Tensor = 0.0,
+        asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+        std: float = 1.0,
+    ) -> torch.Tensor:
+    """Reward the distance to a goal position using an exponential kernel."""
+    # extract the used quantities (to enable type-hinting)
+    asset: RigidObject = env.scene[asset_cfg.name]
+    # print name of the asset
+    # print("Asset name:", asset_cfg.name)
+    # get the center of the environment
+
+    target_position_w = goal_position + env.scene.env_origins
+    target_position_w[:, 2] += 1.5
+    # print("Target position 1:", target_position_w[10])
+    # print("Current position 1:", asset.data.root_pos_w[10])
+
+    # compute the error
+    position_error_square = torch.sum(torch.square(target_position_w - asset.data.root_pos_w), dim=1)
+    # print("Target position:", target_position_w[0])
+    # print the world position
+    # print("Current position:", asset.data.root_pos_w[0])
+    # print("Position error square:", position_error_square[0])
+    # print("Reward value: ", torch.exp(-position_error_square[0] / std**2))
+    return torch.exp(-position_error_square / std**2)
 
 """
 Joint penalties.
