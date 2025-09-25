@@ -622,6 +622,16 @@ def _test_friction_forces(shape: RigidObject, sensor: ContactSensor, mode: Conta
     # check friction forces
     if mode == ContactTestMode.IN_CONTACT:
         assert not torch.any(torch.isnan(sensor._data.friction_forces_w)).item()
+        friction_forces, _, buffer_count, buffer_start_indices = sensor.contact_physx_view.get_friction_data(dt=sensor._sim_physics_dt)
+        for i in range(sensor.num_instances * num_bodies):
+            for j in range(sensor.contact_physx_view.filter_count):
+                start_index_ij = buffer_start_indices[i, j]
+                count_ij = buffer_count[i, j]
+                force = torch.sum(
+                    friction_forces[start_index_ij : (start_index_ij + count_ij), :], dim=0
+                )
+                assert torch.allclose(force, sensor._data.friction_forces_w[i, j, :], atol=1e-5)
+
     elif mode == ContactTestMode.NON_CONTACT:
         assert torch.all(torch.isnan(sensor._data.friction_forces_w)).item()
 
