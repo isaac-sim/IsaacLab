@@ -1,11 +1,12 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 import scienceplots
+from matplotlib.ticker import ScalarFormatter
 
 plt.style.use(['science'])
 SMALL_SIZE  = 24
 MEDIUM_SIZE = 28
-LEGEND_SIZE = 24
+LEGEND_SIZE = 20
 BIGGER_SIZE = 32
 
 plt.rc('font', size=20)          # controls default text sizes
@@ -31,6 +32,20 @@ MACHINE_NBR_GPUS_COLORS = {  # L40 + 5090
     "5090": "#a3be8c"
 }
 
+TASK_WITH_LEGEND = "Isaac-Velocity-Rough-Digit-v0"
+TASKS = ["Isaac-Velocity-Rough-G1-v0", "Isaac-Velocity-Rough-Digit-v0"]  # Isaac-Factory-GearMesh-Direct-v0
+
+
+def _format_axes(ax: plt.Axes, grid: bool = True):
+    """Apply consistent, publication-ready formatting to axes."""
+    if grid:
+        ax.grid(True, which="major", linestyle="--", linewidth=0.6, alpha=0.6)
+        ax.grid(True, which="minor", linestyle=":", linewidth=0.4, alpha=0.5)
+    # Use scalar formatter without offset/scientific on axes unless necessary
+    ax.xaxis.set_major_formatter(ScalarFormatter(useMathText=True))
+    ax.yaxis.set_major_formatter(ScalarFormatter(useMathText=True))
+    for spine in ax.spines.values():
+        spine.set_linewidth(0.8)
 
 # 1) Load CSV (no headers so we can custom-parse)
 file_path = "/home/pascalr/Downloads/Isaac Lab Whitepaper Benchmarks - benchmark result.csv"
@@ -104,8 +119,10 @@ tidy = tidy.dropna(subset=["Envs", "Mean"])
 tasks = tidy["Task"].dropna().unique()
 machines = tidy["Machine"].dropna().unique()
 
-for i, task in enumerate(tasks):
-    plt.figure(figsize=(12, 8), dpi=300)
+fig, axes = plt.subplots(1, len(TASKS), figsize=(12 * len(TASKS), 8), sharey=True)
+
+for i, task in enumerate(TASKS):
+    ax = axes[i]
     sub = tidy[tidy["Task"] == task]
 
     x_ticks = set()
@@ -117,8 +134,8 @@ for i, task in enumerate(tasks):
             x = g["Envs"].astype(int)
             y = g["Mean"]
             yerr = g["Std"].fillna(0)
-            plt.plot(x, y, label=f"{machine} - Single-GPU", linestyle="dashdot", marker="o", color=color)
-            plt.fill_between(x, y - yerr, y + yerr, color=color, alpha=0.2)
+            ax.plot(x, y, label=f"{machine} - Single-GPU", linestyle="dashdot", marker="o", color=color)
+            ax.fill_between(x, y - yerr, y + yerr, color=color, alpha=0.2)
 
             x_ticks.update(x)
 
@@ -129,26 +146,30 @@ for i, task in enumerate(tasks):
             x = g["Envs"].astype(int)
             y = g["Mean"]
             yerr = g["Std"].fillna(0)
-            plt.plot(x, y, label=f"RTX PRO 6000 - {gpu}", color=NBR_GPUS_COLORS[gpu], marker="o")
-            plt.fill_between(x, y - yerr, y + yerr, color=NBR_GPUS_COLORS[gpu], alpha=0.2)
+            ax.plot(x, y, label=f"RTX PRO 6000 - {gpu}", color=NBR_GPUS_COLORS[gpu], marker="o")
+            ax.fill_between(x, y - yerr, y + yerr, color=NBR_GPUS_COLORS[gpu], alpha=0.2)
 
             x_ticks.update(x)
 
     # Axes styling
-    plt.xscale("log", base=2)
-    plt.yscale("log")
-    plt.xticks(list(x_ticks), [str(x) for x in x_ticks])
-    plt.xlabel("Number of Environments")
-    plt.legend(
-        loc="upper left",
-        frameon=True,                 # draw a box around the legend
-        facecolor='white',            # white background
-        edgecolor='black',            # optional: black border
-        framealpha=0.8                # transparency of the box (0.0 to 1.0)
-    )
-    plt.ylabel("FPS")
-    # plt.title(task, weight="bold")
+    ax.set_xscale("log", base=2)
+    ax.set_yscale("log")
+    ax.set_xticks(list(x_ticks), [str(x) for x in x_ticks])
+    ax.set_xlabel("Number of Environments")
+    if task == TASK_WITH_LEGEND:
+        ax.legend(
+            loc="upper right",
+            frameon=True,                 # draw a box around the legend
+            facecolor='white',            # white background
+            edgecolor='black',            # optional: black border
+            framealpha=0.8,
+            ncol=2               # transparency of the box (0.0 to 1.0)
+        )
+        
 
-    plt.tight_layout(pad=2.0)
-    plt.savefig(f"benchmark_{task}_gpu_model_nbr_comparison.png", dpi=300)
-    plt.close()
+    _format_axes(ax)
+
+axes[0].set_ylabel("FPS")
+plt.tight_layout(pad=2.0)
+plt.savefig(f"benchmark_gpu_model_nbr_comparison.png", dpi=600)
+plt.close()

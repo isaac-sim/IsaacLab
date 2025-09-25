@@ -4,10 +4,10 @@ import scienceplots
 from matplotlib.ticker import ScalarFormatter
 
 plt.style.use(['science'])
-SMALL_SIZE  = 24
-MEDIUM_SIZE = 28
-LEGEND_SIZE = 18
-BIGGER_SIZE = 32
+SMALL_SIZE  = 20
+MEDIUM_SIZE = 24
+LEGEND_SIZE = 15
+BIGGER_SIZE = 24
 
 plt.rc('font', size=20)          # controls default text sizes
 plt.rc('axes', titlesize=SMALL_SIZE)     # fontsize of the axes title
@@ -34,10 +34,10 @@ MACHINE_NBR_GPUS_COLORS = {
 }
 
 COMPARISON_ENVIRONMENTS = [
-    {"tiled": "Isaac-Navigation-Anymal-C-Tiled-v0", "raycaster": "Isaac-Navigation-Anymal-C-RayCaster-v0"},
-    {"tiled": "Isaac-Dexsuite-Kuka-Allegro-Lift-Depth-TiledCamera-v0", "raycaster": "Isaac-Dexsuite-Kuka-Allegro-Lift-Depth-RayCasterCamera-v0"},
+    {"direct": "Isaac-Velocity-Rough-Anymal-C-Direct-v0", "manager": "Isaac-Velocity-Rough-Anymal-C-v0"},
+    # {"direct": "Isaac-Franka-Cabinet-Direct-v0", "manager": "Isaac-Open-Drawer-Franka-v0"},
 ]
-COMPARISON_ENVIRONMENTS_NAME = ["dexsuite", "navigation"]
+COMPARISON_ENVIRONMENTS_NAME = ["ANYmal Locomotion", "Franka Cabinet"]
 
 def _format_axes(ax: plt.Axes, grid: bool = True):
     """Apply consistent, publication-ready formatting to axes."""
@@ -122,13 +122,23 @@ tidy = tidy.dropna(subset=["Envs", "Mean"])
 tasks = tidy["Task"].dropna().unique()
 machines = tidy["Machine"].dropna().unique()
 
-fig, axs = plt.subplots(len(COMPARISON_ENVIRONMENTS), 2, figsize=(16, 6 * len(COMPARISON_ENVIRONMENTS)), sharey=False, sharex=True)
+if len(COMPARISON_ENVIRONMENTS) == 1:
+    fig_width = 14
+    fig_length_factor = 8
+else:
+    fig_width = 16
+    fig_length_factor = 6
+
+fig, axs = plt.subplots(len(COMPARISON_ENVIRONMENTS), 2, figsize=(fig_width, fig_length_factor * len(COMPARISON_ENVIRONMENTS)), sharey=False, sharex=True)
 x_ticks_nbr_gpus = set()
 x_ticks_machine = set()
 
+if len(COMPARISON_ENVIRONMENTS) == 1:
+    axs = axs[None, :]
+
 for i, comparison_environment in enumerate(COMPARISON_ENVIRONMENTS):
 
-    for perception_mode, style in [("tiled", "dashed"), ("raycaster", "dotted")]:
+    for perception_mode, style in [("direct", "dashed"), ("manager", "dotted")]:
         if perception_mode not in comparison_environment:
             continue
         
@@ -153,6 +163,7 @@ for i, comparison_environment in enumerate(COMPARISON_ENVIRONMENTS):
                 axs[i, 1].plot(x, y, label=f"{gpu} - {perception_mode}", linestyle=style, color=NBR_GPUS_COLORS[gpu], marker="o")
                 axs[i, 1].fill_between(x, y - yerr, y + yerr, color=NBR_GPUS_COLORS[gpu], alpha=0.2)
                 x_ticks_nbr_gpus.update(x)
+    
     # Axes styling
     axs[i, 0].set_xscale("log", base=2)
     axs[i, 0].set_yscale("log")
@@ -177,7 +188,7 @@ handles1, labels1 = axs[-1, 1].get_legend_handles_labels()
 leg0 = axs[-1, 0].legend(
     handles0, labels0,
     loc="upper center",
-    bbox_to_anchor=(-0.1, -0.25, 1.2, 0),  # full width of subplot
+    bbox_to_anchor=(-0.1, -0.25, 1.15, 0),  # full width of subplot
     mode="expand",                    # expand across width
     ncol=2,
     frameon=True,
@@ -191,7 +202,7 @@ leg0 = axs[-1, 0].legend(
 leg1 = axs[-1, 1].legend(
     handles1, labels1,
     loc="upper center",
-    bbox_to_anchor=(-0.1, -0.25, 1.2, 0),  # full width of subplot
+    bbox_to_anchor=(-0.05, -0.25, 1.15, 0),  # full width of subplot
     mode="expand",
     ncol=2,
     frameon=True,
@@ -204,7 +215,7 @@ leg1 = axs[-1, 1].legend(
 # Extra space below for legends
 plt.tight_layout(pad=2.0, rect=[0, 0.05, 1, 1])
 
-plt.savefig(f"benchmark_perceptive_environment.png", dpi=600,
+plt.savefig(f"benchmark_workflow_environment.png", dpi=600,
             bbox_extra_artists=(leg0, leg1), bbox_inches="tight")
 plt.show()
 plt.close()

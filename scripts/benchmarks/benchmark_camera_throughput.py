@@ -150,12 +150,17 @@ class CameraBenchmarkSceneCfg(InteractiveSceneCfg):
 def _make_scene_cfg_usd(num_envs: int, height: int, width: int, data_types: list[str], debug_vis: bool) -> CameraBenchmarkSceneCfg:
     scene_cfg = CameraBenchmarkSceneCfg(num_envs=num_envs, env_spacing=2.0)
     scene_cfg.usd_camera = CameraCfg(
-        prim_path="{ENV_REGEX_NS}/Camera",
+        prim_path="{ENV_REGEX_NS}/Robot/Camera",
         height=height,
         width=width,
         data_types=data_types,
         spawn=sim_utils.PinholeCameraCfg(
             focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 1e4)
+        ),
+        offset=CameraCfg.OffsetCfg(
+            pos=(0.4761, 0.0035, 0.1055),
+            rot=(0.9914449, 0.0, 0.1305262, 0.0),
+            convention="world",  # 15 degrees downward tilted
         ),
         debug_vis=debug_vis,
     )
@@ -165,12 +170,17 @@ def _make_scene_cfg_usd(num_envs: int, height: int, width: int, data_types: list
 def _make_scene_cfg_tiled(num_envs: int, height: int, width: int, data_types: list[str], debug_vis: bool) -> CameraBenchmarkSceneCfg:
     scene_cfg = CameraBenchmarkSceneCfg(num_envs=num_envs, env_spacing=2.0)
     scene_cfg.tiled_camera = TiledCameraCfg(
-        prim_path="{ENV_REGEX_NS}/TiledCamera",
+        prim_path="{ENV_REGEX_NS}/Robot/TiledCamera",
         height=height,
         width=width,
         data_types=data_types,
         spawn=sim_utils.PinholeCameraCfg(
             focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 1e4)
+        ),
+        offset=TiledCameraCfg.OffsetCfg(
+            pos=(0.4761, 0.0035, 0.1055),
+            rot=(0.9914449, 0.0, 0.1305262, 0.0),
+            convention="world",  # 15 degrees downward tilted
         ),
         debug_vis=debug_vis,
     )
@@ -184,6 +194,11 @@ def _make_scene_cfg_ray_caster(num_envs: int, height: int, width: int, data_type
         mesh_prim_paths=["/World/ground", "/World/envs/env_.*/cube"],
         pattern_cfg=patterns.PinholeCameraPatternCfg(
             focal_length=24.0, horizontal_aperture=20.955, height=height, width=width
+        ),
+        offset=MultiMeshRayCasterCameraCfg.OffsetCfg(
+            pos=(0.4761, 0.0035, 0.1055),
+            rot=(0.9914449, 0.0, 0.1305262, 0.0),
+            convention="world",  # 15 degrees downward tilted
         ),
         data_types=data_types,
         debug_vis=debug_vis,
@@ -318,13 +333,13 @@ def main():
     df_camera = pd.DataFrame(results)
     df_camera["device"] = device_name
     os.makedirs("outputs/benchmarks", exist_ok=True)
-    df_camera.to_csv(f"outputs/benchmarks/camera_{args_cli.data_type}_USD_{args_cli.usd_camera}_Tiled_{args_cli.tiled_camera}_RayCaster_{args_cli.ray_caster_camera}_Resolution_{args_cli.resolutions}.csv", index=False)
+    df_camera.to_csv(f"outputs/benchmarks/camera_{args_cli.data_type}_USD_{args_cli.usd_camera}_Tiled_{args_cli.tiled_camera}_RayCaster_{args_cli.ray_caster_camera}_Resolution_{args_cli.resolutions}_Envs_{args_cli.num_envs}.csv", index=False)
 
     # Create .md file with all three tables
     for df, title in zip(
         [df_camera], [args_cli.data_type]
     ):
-        with open(f"outputs/benchmarks/camera_benchmark_USD_{args_cli.usd_camera}_Tiled_{args_cli.tiled_camera}_RayCaster_{args_cli.ray_caster_camera}_Resolution_{args_cli.resolutions}_{title}.md", "w") as f:
+        with open(f"outputs/benchmarks/camera_benchmark_USD_{args_cli.usd_camera}_Tiled_{args_cli.tiled_camera}_RayCaster_{args_cli.ray_caster_camera}_Resolution_{args_cli.resolutions}_Envs_{args_cli.num_envs}_{title}.md", "w") as f:
             f.write(f"# {title}\n\n")
             f.write(dataframe_to_markdown(df, floatfmt=".3f"))
             f.write("\n\n")
