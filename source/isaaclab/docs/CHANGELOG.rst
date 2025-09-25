@@ -1,6 +1,14 @@
 Changelog
 ---------
 
+0.46.3 (2025-09-17)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Modified setter to support for viscous and dynamic joint friction coefficients in articulation based on IsaacSim 5.0.
+* Added randomization of viscous and dynamic joint friction coefficients in event term.
 
 0.46.2 (2025-09-13)
 ~~~~~~~~~~~~~~~~~~~
@@ -30,7 +38,6 @@ Added
   :meth:`~isaaclab.sim.utils.get_first_matching_child_prim` to control whether to traverse instance prims
   during the traversal. Earlier, instanced prims were skipped since :meth:`Usd.Prim.GetChildren` did not return
   instanced prims, which is now fixed.
-
 
 Changed
 ^^^^^^^
