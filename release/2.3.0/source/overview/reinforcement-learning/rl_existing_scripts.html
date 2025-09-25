@@ -845,10 +845,10 @@ To install a compatible version of JAX for CUDA 12 use <code class="docutils lit
 </div>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># install python module (for skrl)</span>
 ./isaaclab.sh<span class="w"> </span>-i<span class="w"> </span>skrl
-<span class="c1"># install skrl dependencies for JAX</span>
-./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>skrl<span class="o">[</span><span class="s2">&quot;jax&quot;</span><span class="o">]</span>
 <span class="c1"># install jax&lt;0.6.0 for torch 2.7</span>
 ./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;jax[cuda12]&lt;0.6.0&quot;</span><span class="w"> </span><span class="s2">&quot;flax&lt;0.10.7&quot;</span>
+<span class="c1"># install skrl dependencies for JAX</span>
+./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>skrl<span class="o">[</span><span class="s2">&quot;jax&quot;</span><span class="o">]</span>
 <span class="c1"># run script for training</span>
 ./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/reinforcement_learning/skrl/train.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Reach-Franka-v0<span class="w"> </span>--headless<span class="w"> </span>--ml_framework<span class="w"> </span>jax
 <span class="c1"># run script for playing with 32 environments</span>
