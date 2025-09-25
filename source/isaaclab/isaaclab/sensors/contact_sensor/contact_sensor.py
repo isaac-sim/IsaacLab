@@ -385,15 +385,17 @@ class ContactSensor(SensorBase):
                 self.contact_physx_view.get_contact_data(dt=self._sim_physics_dt)
             )
             self._data.contact_pos_w[env_ids] = self._unpack_contact_points(
-                buffer_contact_points, buffer_count, buffer_start_indices)[env_ids]
+                buffer_contact_points, buffer_count, buffer_start_indices
+            )[env_ids]
 
         # obtain friction forces
         if self.cfg.track_friction_forces:
-            friction_forces, _, buffer_count, buffer_start_indices = (
-                self.contact_physx_view.get_friction_data(dt=self._sim_physics_dt)
+            friction_forces, _, buffer_count, buffer_start_indices = self.contact_physx_view.get_friction_data(
+                dt=self._sim_physics_dt
             )
             self._data.friction_forces_w[env_ids] = self._unpack_contact_points(
-                friction_forces, buffer_count, buffer_start_indices, avg=False)[env_ids]
+                friction_forces, buffer_count, buffer_start_indices, avg=False
+            )[env_ids]
 
         # obtain the air time
         if self.cfg.track_air_time:
