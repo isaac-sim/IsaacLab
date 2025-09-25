@@ -22,7 +22,7 @@ teleoperation in Isaac Lab.
 
 .. note::
 
-   Support for additional devices is planned for future releases.
+   See :ref:`manus-vive-handtracking` for more information on supported hand-tracking peripherals.
 
 
 Overview
@@ -43,8 +43,8 @@ This guide will walk you through how to:
 
 * :ref:`run-isaac-lab-with-the-cloudxr-runtime`
 
-* :ref:`use-apple-vision-pro`, including how to :ref:`build-apple-vision-pro` and
-  :ref:`teleoperate-apple-vision-pro`.
+* :ref:`use-apple-vision-pro`, including how to :ref:`build-apple-vision-pro`,
+  :ref:`teleoperate-apple-vision-pro`, and :ref:`manus-vive-handtracking`.
 
 * :ref:`develop-xr-isaac-lab`, including how to :ref:`run-isaac-lab-with-xr`,
   :ref:`configure-scene-placement`, and :ref:`optimize-xr-performance`.
@@ -66,14 +66,17 @@ Prior to using CloudXR with Isaac Lab, please review the following system requir
     * `Docker`_ 26.0.0+, `Docker Compose`_ 2.25.0+, and the `NVIDIA Container Toolkit`_. Refer to
       the Isaac Lab :ref:`deployment-docker` for how to install.
     * For details on driver requirements, please see the `Technical Requirements <https://docs.omniverse.nvidia.com/materials-and-rendering/latest/common/technical-requirements.html>`_ guide
-    * Required for best performance: 16 cores Intel Core i9, X-series or higher AMD Ryzen 9,
-      Threadripper or higher
-    * Required for best performance: 64GB RAM
-    * Required for best performance: 2x RTX PRO 6000 GPUs (or equivalent e.g. 2x RTX 5090)
+    * CPU
+       * Intel: 16-core Intel Core i9, X-series or higher
+       * AMD: Ryzen 9 5900XT, Ryzen Threadripper PRO 5955WX or higher
+    * Memory: 64GB RAM
+    * GPU
+       * Minimum: 1x RTX PRO 6000 GPUs (or equivalent e.g. 1x RTX 5090)
+       * Recommended: 2x RTX PRO 6000 GPUs (or equivalent e.g. 2x RTX 5090)
 
   * Apple Vision Pro
 
-    * visionOS 2.0+
+    * visionOS 26
     * Apple M3 Pro chip with an 11-core CPU with at least 5 performance cores and 6 efficiency cores
     * 16GB unified memory
     * 256 GB SSD
@@ -81,7 +84,8 @@ Prior to using CloudXR with Isaac Lab, please review the following system requir
   * Apple Silicon based Mac (for building the Isaac XR Teleop Sample Client App for Apple Vision Pro
     with Xcode)
 
-    * macOS Sonoma 14.5 or later
+    * macOS Sequoia 15.6 or later
+    * Xcode 26.0
 
   * Wifi 6 capable router
 
@@ -273,10 +277,12 @@ On your Mac:
 
       git clone git@github.com:isaac-sim/isaac-xr-teleop-sample-client-apple.git
 
-#. Check out the version tag corresponding to your Isaac Lab version:
+#. Check out the App version that matches your Isaac Lab version:
 
    +-------------------+---------------------+
-   | Isaac Lab Version | Client Version Tag  |
+   | Isaac Lab Version | Client App Version  |
+   +-------------------+---------------------+
+   | 2.3.x             | v2.3.0              |
    +-------------------+---------------------+
    | 2.2.x             | v2.2.0              |
    +-------------------+---------------------+
@@ -285,7 +291,7 @@ On your Mac:
 
    .. code-block:: bash
 
-      git checkout <version_tag>
+      git checkout <client_app_version>
 
 #. Follow the README in the repository to build and install the app on your Apple Vision Pro.
 
@@ -378,7 +384,7 @@ Back on your Apple Vision Pro:
 
    .. note::
 
-      The dots represent the tracked position of the hand joints. Latency or offset between the
+      The red dots represent the tracked position of the hand joints. Latency or offset between the
       motion of the dots and the robot may be caused by the limits of the robot joints and/or robot
       controller.
 
@@ -409,7 +415,7 @@ Manus + Vive Hand Tracking
 
 Manus gloves and HTC Vive trackers can provide hand tracking when optical hand tracking from a headset is occluded.
 This setup expects Manus gloves with a Manus SDK license and Vive trackers attached to the gloves.
-Requires Isaac Sim >=5.1.
+Requires Isaac Sim 5.1 or later.
 
 Run the teleoperation example with Manus + Vive tracking:
 
@@ -424,6 +430,10 @@ Run the teleoperation example with Manus + Vive tracking:
 Begin the session with your palms facing up.
 This is necessary for calibrating Vive tracker poses using Apple Vision Pro wrist poses from a few initial frames,
 as the Vive trackers attached to the back of the hands occlude the optical hand tracking.
+
+For optimal performance, position the lighthouse above the hands, tilted slightly downward.
+One lighthouse is sufficient if both hands are visible.
+Ensure the lighthouse remains stable; a stand is recommended to prevent wobbling.
 
 .. note::
 
@@ -972,12 +982,6 @@ You can create and register your own custom teleoperation devices by following t
 
 Known Issues
 ------------
-
-* ``[omni.kit.xr.system.openxr.plugin] Message received from CloudXR does not have a field called 'type'``
-
-  This error message can be safely ignored. It is caused by a deprecated, non-backwards-compatible
-  data message sent by the CloudXR Framework from Apple Vision Pro, and will be fixed in future
-  CloudXR Framework versions.
 
 * ``XR_ERROR_VALIDATION_FAILURE: xrWaitFrame(frameState->type == 0)`` when stopping AR Mode
 
