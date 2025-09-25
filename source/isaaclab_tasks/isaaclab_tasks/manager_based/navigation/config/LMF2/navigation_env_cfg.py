@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-20 , The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -17,7 +17,7 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sensors import CameraCfg
+from isaaclab.sensors import CameraCfg, ContactSensorCfg
 from isaaclab.sim import PinholeCameraCfg
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass
@@ -63,16 +63,21 @@ class MySceneCfg(InteractiveSceneCfg):
     # sensors
     depth_camera = CameraCfg(
         prim_path="{ENV_REGEX_NS}/Robot/base_link/depth_camera",
-        offset=CameraCfg.OffsetCfg(pos=(0.0, 0.0, 0.0)),
+        offset=CameraCfg.OffsetCfg(pos=(0.15, 0.0, 0.04), rot=(1.0, 0.0, 0.0, 0.0), convention="world"),
         update_period=0.1,
         spawn=PinholeCameraCfg(
-            focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 1.0e5)
+            focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.01, 1.0e1)
         ),
         height=270, 
         width=480,
         data_types=["depth"],
     )
-    contact_forces = None
+    contact_forces = ContactSensorCfg(
+        prim_path="{ENV_REGEX_NS}/Robot/.*",
+        update_period=0.0,
+        history_length=6,
+        debug_vis=False,
+    )
     # lights
     sky_light = AssetBaseCfg(
         prim_path="/World/skyLight",
@@ -108,10 +113,10 @@ class CommandsCfg:
 class ActionsCfg:
     """Action specifications for the MDP."""
 
-    thrust = mdp.NavigationActionCfg(asset_name="robot", 
+    velocity_commands = mdp.NavigationActionCfg(asset_name="robot", 
                                      joint_names=[".*"], 
-                                     scale=0.5, 
-                                     use_default_offset=True,
+                                     scale=1.0, 
+                                     use_default_offset=False,
                                      controller_cfg=LeeVelControllerCfg())
 
 @configclass
@@ -154,8 +159,8 @@ class EventCfg:
             "pose_range": {
                 "x": (-2.0, 2.0),
                 "y": (-2.0, 2.0),
-                "z": (-2.0, 2.0),
-                "yaw": (-1.0, 1.0),
+                "z": (0.5, 2.0),
+                "yaw": (-3.1415, 3.1415),
             },  # yaw translated from xyzw (0, 0, 0.5236, 1) from aerial gym
             "velocity_range": {
                 "x": (-0.2, 0.2),
@@ -172,25 +177,23 @@ class EventCfg:
 @configclass
 class RewardsCfg:
     """Reward terms for the MDP."""
-
-    # -- task
-    track_lin_vel_xy_exp = RewTerm(
-        func=mdp.track_lin_vel_xy_exp, weight=1.0, params={"command_name": "base_velocity", "std": math.sqrt(0.25)}
-    )
-    track_ang_vel_z_exp = RewTerm(
-        func=mdp.track_ang_vel_z_exp, weight=0.5, params={"command_name": "base_velocity", "std": math.sqrt(0.25)}
-    )
-    # -- penalties
-    lin_vel_z_l2 = RewTerm(func=mdp.lin_vel_z_l2, weight=-2.0)
-    ang_vel_xy_l2 = RewTerm(func=mdp.ang_vel_xy_l2, weight=-0.05)
-    action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=-0.01)
+    goal_dist_exp1 = RewTerm(func=mdp.distance_to_goal_exp, weight=2.0,
+                             params={"asset_cfg": SceneEntityCfg("robot"), "std": 3.0})
+    goal_dist_exp2 = RewTerm(func=mdp.distance_to_goal_exp, weight=4.0,
+                             params={"asset_cfg": SceneEntityCfg("robot"), "std": 1.0})
+    l2_goal_dist = RewTerm(func=mdp.distance_to_goal_l2, weight=-0.2)
+    crash_penalty = RewTerm(func=mdp.undesired_contacts, weight=-2.0, params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*"), "threshold": 1.0})
 
 
 @configclass
 class TerminationsCfg:
     """Termination terms for the MDP."""
-
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
+    collision = DoneTerm(
+        func=mdp.illegal_contact,
+        params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*"), "threshold": 1.0},
+        time_out=False,
+    )
 
 
 @configclass
@@ -223,7 +226,7 @@ class NavigationVelocityFloatingObstacleEnvCfg(ManagerBasedRLEnvCfg):
         """Post initialization."""
         # general settings
         self.decimation = 4
-        self.episode_length_s = 20.0
+        self.episode_length_s = 10.0
         # simulation settings
         self.sim.dt = 0.01
         self.sim.render_interval = self.decimation

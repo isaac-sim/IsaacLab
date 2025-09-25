@@ -421,7 +421,7 @@ def image(
 
     return images.clone()
 
-_vae_model = None #TODO this is bad, need fix
+_vae_model = None #TODO @mihirk @welfr this is bad, need fix
 
 def image_latents(
     env: ManagerBasedEnv,
@@ -472,14 +472,23 @@ def image_latents(
             mean_tensor = torch.mean(images, dim=(1, 2), keepdim=True)
             images -= mean_tensor
         elif "distance_to" in data_type or "depth" in data_type:
-            images[images == float("inf")] = 0
+            images[images == float("inf")] = 10.0
+            images[images > 10.0] = 10.0
+            images = images / 10.0  # normalize to 0-1
+            images[images < 0.02] = -1.0  # set very close values to -1
         elif "normals" in data_type:
             images = (images + 1.0) * 0.5
-    
     global _vae_model
     if _vae_model is None:
         _vae_model = vae()
-    return _vae_model.encode(images)
+    latents = _vae_model.encode(images.clone())
+    reconstructed = _vae_model.decode(latents)
+    # print min max mean decoded image
+    # save depth image 0 and reconstructed image 0
+    # import matplotlib.pyplot as plt
+    # plt.imsave("original_image.png", images[0].squeeze(-1).cpu().numpy(), cmap='gray')
+    # plt.imsave("reconstructed_image.png", reconstructed[0].squeeze(0).cpu().numpy(), cmap='gray')
+    return latents
 
 class image_features(ManagerTermBase):
     """Extracted image features from a pre-trained frozen encoder.

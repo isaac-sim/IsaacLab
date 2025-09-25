@@ -20,7 +20,7 @@ FLOATING_OBSTACLES_CFG = TerrainGeneratorCfg(
     use_cache=False,
     sub_terrains={
         "floating_obstacles": terrain_gen.MeshFloatingObstaclesTerrainCfg(
-            max_num_obstacles=40,
+            max_num_obstacles=100,
             env_size=(12.0, 8.0, 6.0),
         ),
     },
