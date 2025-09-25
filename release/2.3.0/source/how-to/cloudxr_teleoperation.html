@@ -64,7 +64,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Sep 24, 2025"/>
+    <meta name="docbuild:last-update" content="Sep 25, 2025"/>
   </head>
   
   
@@ -159,10 +159,10 @@
             <label for="version-select" style="font-weight: bold; display: block;">Version</label>
           </div>
           <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
-            <option value="cloudxr_teleoperation.html" selected>release/2.3.0</option>
             <option value="../../../../main/source/how-to/cloudxr_teleoperation.html" >main</option>
             <option value="../../../2.1.0/index.html" >release/2.1.0</option>
             <option value="../../../2.2.0/source/how-to/cloudxr_teleoperation.html" >release/2.2.0</option>
+            <option value="cloudxr_teleoperation.html" selected>release/2.3.0</option>
             <option value="../../../../v2.2.1/source/how-to/cloudxr_teleoperation.html" >v2.2.1</option>
             <option value="../../../../v2.2.0/source/how-to/cloudxr_teleoperation.html" >v2.2.0</option>
             <option value="../../../../v2.1.1/source/how-to/cloudxr_teleoperation.html" >v2.1.1</option>
@@ -205,7 +205,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.1.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.0.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -1063,7 +1063,7 @@ and build teleoperation and imitation learning workflows with Isaac Lab.</p>
 <span id="manus-vive-handtracking"></span><h3>Manus + Vive Hand Tracking<a class="headerlink" href="#manus-vive-hand-tracking" title="Permalink to this heading">#</a></h3>
 <p>Manus gloves and HTC Vive trackers can provide hand tracking when optical hand tracking from a headset is occluded.
 This setup expects Manus gloves with a Manus SDK license and Vive trackers attached to the gloves.
-Requires Isaac Sim &gt;=5.1.</p>
+Requires Isaac Sim 5.1 or later.</p>
 <p>Run the teleoperation example with Manus + Vive tracking:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/environments/teleoperation/teleop_se3_agent.py<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--task<span class="w"> </span>Isaac-PickPlace-GR1T2-Abs-v0<span class="w"> </span><span class="se">\</span>
@@ -1075,6 +1075,9 @@ Requires Isaac Sim &gt;=5.1.</p>
 <p>Begin the session with your palms facing up.
 This is necessary for calibrating Vive tracker poses using Apple Vision Pro wrist poses from a few initial frames,
 as the Vive trackers attached to the back of the hands occlude the optical hand tracking.</p>
+<p>For optimal performance, position the lighthouse above the hands, tilted slightly downward.
+One lighthouse is sufficient if both hands are visible.
+Ensure the lighthouse remains stable; a stand is recommended to prevent wobbling.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>To avoid resource contention and crashes, ensure Manus and Vive devices are connected to different USB controllers/buses.
@@ -1700,7 +1703,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Sep 24, 2025.
+  Last updated on Sep 25, 2025.
   <br/>
 </p>
   </div>
