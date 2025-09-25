@@ -379,45 +379,21 @@ class ContactSensor(SensorBase):
             pose[..., 3:] = convert_quat(pose[..., 3:], to="wxyz")
             self._data.pos_w[env_ids], self._data.quat_w[env_ids] = pose.split([3, 4], dim=-1)
 
-        def unpack_contact_points(contact_points, buffer_count, buffer_start_indices):
-            # unpack the contact points: see RigidContactView.get_contact_data() documentation for details:
-            # https://docs.omniverse.nvidia.com/kit/docs/omni_physics/107.3/extensions/runtime/source/omni.physics.tensors/docs/api/python.html#omni.physics.tensors.impl.api.RigidContactView.get_net_contact_forces
-            # buffer_count: (N_envs * N_bodies, N_filters), buffer_contact_points: (N_envs * N_bodies, 3)
-            counts, starts = buffer_count.view(-1), buffer_start_indices.view(-1)
-            n_rows, total = counts.numel(), int(counts.sum())
-            # default to NaN rows
-            agg = torch.full((n_rows, 3), float("nan"), device=self._device, dtype=buffer_contact_points.dtype)
-            if total > 0:
-                row_ids = torch.repeat_interleave(torch.arange(n_rows, device=self._device), counts)
-                total = row_ids.numel()
-
-                block_starts = counts.cumsum(0) - counts
-                deltas = torch.arange(total, device=counts.device) - block_starts.repeat_interleave(counts)
-                flat_idx = starts[row_ids] + deltas
-
-                pts = buffer_contact_points.index_select(0, flat_idx)
-                agg = agg.zero_().index_add_(0, row_ids, pts) / counts.clamp_min(1).unsqueeze(1)
-                agg[counts == 0] = float("nan")
-
-            return agg.view(self._num_envs * self.num_bodies, -1, 3).view(
-                self._num_envs, self._num_bodies, self.contact_physx_view.filter_count, 3
-            )
-
         # obtain contact points
         if self.cfg.track_contact_points:
             _, buffer_contact_points, _, _, buffer_count, buffer_start_indices = (
                 self.contact_physx_view.get_contact_data(dt=self._sim_physics_dt)
             )
-            self._data.contact_pos_w[env_ids] = unpack_contact_points(
+            self._data.contact_pos_w[env_ids] = self._unpack_contact_points(
                 buffer_contact_points, buffer_count, buffer_start_indices)[env_ids]
 
         # obtain friction forces
         if self.cfg.track_friction_forces:
-            friction_forces, buffer_count, buffer_start_indices = (
-                self.contact_physx_view.get_friction_forces(dt=self._sim_physics_dt)
+            friction_forces, _, buffer_count, buffer_start_indices = (
+                self.contact_physx_view.get_friction_data(dt=self._sim_physics_dt)
             )
-            self._data.friction_forces_w[env_ids] = unpack_contact_points(
-                friction_forces, buffer_count, buffer_start_indices)[env_ids]
+            self._data.friction_forces_w[env_ids] = self._unpack_contact_points(
+                friction_forces, buffer_count, buffer_start_indices, avg=False)[env_ids]
 
         # obtain the air time
         if self.cfg.track_air_time:
@@ -448,6 +424,31 @@ class ContactSensor(SensorBase):
             self._data.current_contact_time[env_ids] = torch.where(
                 is_contact, self._data.current_contact_time[env_ids] + elapsed_time.unsqueeze(-1), 0.0
             )
+
+    def _unpack_contact_points(self, contact_points, buffer_count, buffer_start_indices, avg=True):
+        # unpack the contact points: see RigidContactView.get_contact_data() documentation for details:
+        # https://docs.omniverse.nvidia.com/kit/docs/omni_physics/107.3/extensions/runtime/source/omni.physics.tensors/docs/api/python.html#omni.physics.tensors.impl.api.RigidContactView.get_net_contact_forces
+        # buffer_count: (N_envs * N_bodies, N_filters), contact_points: (N_envs * N_bodies, 3)
+        counts, starts = buffer_count.view(-1), buffer_start_indices.view(-1)
+        n_rows, total = counts.numel(), int(counts.sum())
+        # default to NaN rows
+        agg = torch.full((n_rows, 3), float("nan"), device=self._device, dtype=contact_points.dtype)
+        if total > 0:
+            row_ids = torch.repeat_interleave(torch.arange(n_rows, device=self._device), counts)
+            total = row_ids.numel()
+
+            block_starts = counts.cumsum(0) - counts
+            deltas = torch.arange(total, device=counts.device) - block_starts.repeat_interleave(counts)
+            flat_idx = starts[row_ids] + deltas
+
+            pts = contact_points.index_select(0, flat_idx)
+            agg = agg.zero_().index_add_(0, row_ids, pts)
+            agg = agg / counts.unsqueeze(-1) if avg else agg
+            agg[counts == 0] = float("nan")
+
+        return agg.view(self._num_envs * self.num_bodies, -1, 3).view(
+            self._num_envs, self._num_bodies, self.contact_physx_view.filter_count, 3
+        )
 
     def _set_debug_vis_impl(self, debug_vis: bool):
         # set visibility of markers
