@@ -244,7 +244,7 @@ def _spawn_geom_from_prim_type(
     instancing and physics work. The rigid body component must be added to each instance and not the
     referenced asset (i.e. the prototype prim itself). This is because the rigid body component defines
     properties that are specific to each instance and cannot be shared under the referenced asset. For
-    more information, please check the `documentation <https://docs.omniverse.nvidia.com/extensions/latest/ext_physics/rigid-bodies.html#instancing-rigid-bodies>`_.
+    more information, please check the `documentation <https://docs.isaacsim.omniverse.nvidia.com/latest/physics/simulation_fundamentals.html#rigid-body>`_.
 
     Due to the above, we follow the following structure:
 
