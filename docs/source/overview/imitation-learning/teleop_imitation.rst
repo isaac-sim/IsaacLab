@@ -675,6 +675,21 @@ This process creates a dataset where the robot performs the manipulation task at
 
       ./isaaclab.sh -p scripts/imitation_learning/disjoint_navigation/plot_navigation_trajectory.py --input_file datasets/generated_dataset_g1_navigation.hdf5 --output_dir /PATH/TO/DESIRED_OUTPUT_DIR
 
+The data generated from this locomanipulation pipeline can also be used to finetune an imitation learning policy using GR00T N1.5.  To do this,
+you may convert the generated dataset to LeRobot format as expected by GR00T N1.5, and then run the finetuning script provided
+in the GR00T N1.5 repository.  An example closed-loop policy rollout is shown in the video below:
+
+.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/disjoint_navigation.gif
+   :width: 100%
+   :align: center
+   :alt: Simulation rollout of GR00T N1.5 policy finetuned for locomanipulation
+   :figclass: align-center
+
+   Simulation rollout of GR00T N1.5 policy finetuned for locomanipulation.
+   
+The policy shown above uses the camera image, hand poses, hand joint positions, object pose, and base goal pose as inputs.
+The output of the model is the target base velocity, hand poses, and hand joint positions for the next several timesteps.
+
 
 Demo 3: Visuomotor Policy for a Humanoid Robot
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
