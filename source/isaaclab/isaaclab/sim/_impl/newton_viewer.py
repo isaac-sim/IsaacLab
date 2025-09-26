@@ -41,7 +41,7 @@ class NewtonViewerGL(ViewerGL):
     # UI callback rendered inside the "Example Options" panel of the left sidebar
     def _render_training_controls(self, imgui):
         imgui.separator()
-        
+
         # Use simple flag to adjust labels
         if self._is_train_mode:
             imgui.text("IsaacLab Training Controls")
@@ -49,10 +49,10 @@ class NewtonViewerGL(ViewerGL):
         else:
             imgui.text("IsaacLab Playback Controls")
             pause_label = "Resume Playing" if self._paused_training else "Pause Playing"
-        
+
         if imgui.button(pause_label):
             self._paused_training = not self._paused_training
-        
+
         # Only show rendering controls when in training mode
         if self._is_train_mode:
             rendering_label = "Resume Rendering" if self._paused_rendering else "Pause Rendering"
