@@ -59,37 +59,37 @@ class ComprehensiveBenchmark:
         self.task_configs = {
             # new batch of benchmark environments
             #COMPARISON ENVIRONMENTS FOR ManagerBased vs Direct
-            "Isaac-Velocity-Rough-Anymal-C-v0": {  # ManagerBased
-                "enable_cameras": False,
-                "env_counts": [2048, 4096, 8192, 16384],
-                "training_scripts": ["rsl_rl"],
-            },
-            "Isaac-Velocity-Rough-Anymal-C-Direct-v0": {  # Direct
-                "enable_cameras": False,
-                "env_counts": [2048, 4096, 8192, 16384],
-                "training_scripts": ["rsl_rl"],
-            },
-            "Isaac-Open-Drawer-Franka-v0": {  # ManagerBased
-                "enable_cameras": False,
-                "env_counts": [2048, 4096, 8192, 16384],
-                "training_scripts": ["rsl_rl"],
-            },
-            "Isaac-Franka-Cabinet-Direct-v0": {  # Direct
-                "enable_cameras": False,
-                "env_counts": [2048, 4096, 8192, 16384],
-                "training_scripts": ["rsl_rl"],
-            },
-            "Isaac-Velocity-Rough-Digit-v0": {
-                "enable_cameras": False,
-                "env_counts": [2048, 4096, 8192, 16384],
-                "training_scripts": ["rsl_rl"],
-            },
-            "Isaac-Factory-GearMesh-Direct-v0": {
-                "enable_cameras": False,
-                "env_counts": [1024, 2048, 4096],
-                "training_scripts": ["rl_games"],
-                "max_iterations": 25,
-            },            
+            # "Isaac-Velocity-Rough-Anymal-C-v0": {  # ManagerBased
+            #     "enable_cameras": False,
+            #     "env_counts": [2048, 4096, 8192, 16384],
+            #     "training_scripts": ["rsl_rl"],
+            # },
+            # "Isaac-Velocity-Rough-Anymal-C-Direct-v0": {  # Direct
+            #     "enable_cameras": False,
+            #     "env_counts": [2048, 4096, 8192, 16384],
+            #     "training_scripts": ["rsl_rl"],
+            # },
+            # "Isaac-Open-Drawer-Franka-v0": {  # ManagerBased
+            #     "enable_cameras": False,
+            #     "env_counts": [2048, 4096, 8192, 16384],
+            #     "training_scripts": ["rsl_rl"],
+            # },
+            # "Isaac-Franka-Cabinet-Direct-v0": {  # Direct
+            #     "enable_cameras": False,
+            #     "env_counts": [2048, 4096, 8192, 16384],
+            #     "training_scripts": ["rsl_rl"],
+            # },
+            # "Isaac-Velocity-Rough-Digit-v0": {
+            #     "enable_cameras": False,
+            #     "env_counts": [2048, 4096, 8192, 16384],
+            #     "training_scripts": ["rsl_rl"],
+            # },
+            # "Isaac-Factory-GearMesh-Direct-v0": {
+            #     "enable_cameras": False,
+            #     "env_counts": [1024, 2048, 4096],
+            #     "training_scripts": ["rl_games"],
+            #     "max_iterations": 25,
+            # },            
 
             # # Camera-enabled task
             # "Isaac-Dexsuite-Kuka-Allegro-Lift-Depth-TiledCamera-v0": {
@@ -149,7 +149,7 @@ class ComprehensiveBenchmark:
             
         }
 
-        self.gpu_counts = [1, 2, 4, 8]
+        self.gpu_counts = [4, 8]
         self.results = []
 
     def _build_command(self, task: str, num_envs: int, num_gpus: int, training_script: str) -> list[str]:
