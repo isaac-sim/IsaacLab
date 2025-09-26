@@ -359,6 +359,8 @@ def modify_collision_properties(
         return False
     # retrieve the USD collision api
     usd_collision_api = UsdPhysics.CollisionAPI(collider_prim)
+    # retrieve the mesh collision api
+    usd_mesh_collision_api = UsdPhysics.MeshCollisionAPI(collider_prim)
     # retrieve the collision api
     physx_collision_api = PhysxSchema.PhysxCollisionAPI(collider_prim)
     if not physx_collision_api:
@@ -370,6 +372,9 @@ def modify_collision_properties(
     for attr_name in ["collision_enabled"]:
         value = cfg.pop(attr_name, None)
         safe_set_attribute_on_usd_schema(usd_collision_api, attr_name, value, camel_case=True)
+    for attr_name in ["approximation"]:
+        value = cfg.pop(attr_name, None)
+        safe_set_attribute_on_usd_schema(usd_mesh_collision_api, attr_name, value, camel_case=True)
     # set into PhysX API
     for attr_name, value in cfg.items():
         safe_set_attribute_on_usd_schema(physx_collision_api, attr_name, value, camel_case=True)
