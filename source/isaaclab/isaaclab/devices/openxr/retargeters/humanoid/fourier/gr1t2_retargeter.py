@@ -51,7 +51,9 @@ class GR1T2Retargeter(RetargeterBase):
         """
 
         self._hand_joint_names = cfg.hand_joint_names
-        self._hands_controller = GR1TR2DexRetargeting(self._hand_joint_names, calibrate_scaling_factor=cfg.calibrate_scaling_factor)
+        self._hands_controller = GR1TR2DexRetargeting(
+            self._hand_joint_names, calibrate_scaling_factor=cfg.calibrate_scaling_factor
+        )
 
         # Initialize visualization if enabled
         self._enable_visualization = cfg.enable_visualization

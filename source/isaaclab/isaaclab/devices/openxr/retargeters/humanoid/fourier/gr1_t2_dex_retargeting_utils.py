@@ -140,7 +140,9 @@ class GR1TR2DexRetargeting:
         except Exception as e:
             omni.log.error(f"Error updating YAML file {yaml_path}: {e}")
 
-    def convert_hand_joints(self, joint_positions: np.ndarray, wrist: np.ndarray, operator2mano: np.ndarray) -> np.ndarray:
+    def convert_hand_joints(
+        self, joint_positions: np.ndarray, wrist: np.ndarray, operator2mano: np.ndarray
+    ) -> np.ndarray:
         """Prepares the hand joints data for retargeting.
 
         Args:
@@ -242,7 +244,9 @@ class GR1TR2DexRetargeting:
         if left_joint_positions is not None and left_wrist is not None:
             # Collect hand length measurement for scaling factor calculation
             self.collect_hand_length_measurement(left_joint_positions, left_wrist)
-            left_hand_q = self.compute_one_hand(left_joint_positions, left_wrist, self._dex_left_hand, _OPERATOR2MANO_LEFT)
+            left_hand_q = self.compute_one_hand(
+                left_joint_positions, left_wrist, self._dex_left_hand, _OPERATOR2MANO_LEFT
+            )
         else:
             left_hand_q = np.zeros(len(_LEFT_HAND_JOINT_NAMES))
         return left_hand_q
@@ -260,14 +264,16 @@ class GR1TR2DexRetargeting:
         if right_joint_positions is not None and right_wrist is not None:
             # Collect hand length measurement for scaling factor calculation
             self.collect_hand_length_measurement(right_joint_positions, right_wrist)
-            right_hand_q = self.compute_one_hand(right_joint_positions, right_wrist, self._dex_right_hand, _OPERATOR2MANO_RIGHT)
+            right_hand_q = self.compute_one_hand(
+                right_joint_positions, right_wrist, self._dex_right_hand, _OPERATOR2MANO_RIGHT
+            )
         else:
             right_hand_q = np.zeros(len(_RIGHT_HAND_JOINT_NAMES))
         return right_hand_q
 
     def collect_hand_length_measurement(self, joint_positions: np.ndarray, wrist: np.ndarray):
         """Collect hand length measurement for scaling factor calculation.
-        
+
         Args:
             joint_positions: Array of joint positions from OpenXR
             wrist: Wrist pose [x, y, z, qw, qx, qy, qz]
@@ -278,7 +284,9 @@ class GR1TR2DexRetargeting:
             return
         # Calculate hand length (distance from wrist to middle finger tip)
         palm_dir = (joint_positions[12] - wrist[:3]) / np.linalg.norm(joint_positions[12] - wrist[:3])
-        middle_finger_dir = (joint_positions[15] - joint_positions[12]) / np.linalg.norm(joint_positions[15] - joint_positions[12])
+        middle_finger_dir = (joint_positions[15] - joint_positions[12]) / np.linalg.norm(
+            joint_positions[15] - joint_positions[12]
+        )
         is_hand_open = np.dot(palm_dir, middle_finger_dir) > 0.9
         hand_length = np.linalg.norm(wrist[:3] - joint_positions[15])
         if is_hand_open and 0.12 < hand_length < 0.27:
@@ -288,7 +296,7 @@ class GR1TR2DexRetargeting:
 
     def calibrate_scaling_factors(self, min_measurements: int = 50):
         """Update scaling factors directly in retargeting optimizers based on the collected hand length measurements.
-        
+
         Args:
             min_measurements: Minimum number of measurements required before updating scaling factors
         """
@@ -304,9 +312,9 @@ class GR1TR2DexRetargeting:
 
             # Update hand scaling factor
             try:
-                if hasattr(self._dex_left_hand, 'optimizer') and hasattr(self._dex_left_hand.optimizer, 'scaling'):
+                if hasattr(self._dex_left_hand, "optimizer") and hasattr(self._dex_left_hand.optimizer, "scaling"):
                     self._dex_left_hand.optimizer.scaling *= scaling_factor
-                if hasattr(self._dex_right_hand, 'optimizer') and hasattr(self._dex_right_hand.optimizer, 'scaling'):
+                if hasattr(self._dex_right_hand, "optimizer") and hasattr(self._dex_right_hand.optimizer, "scaling"):
                     self._dex_right_hand.optimizer.scaling *= scaling_factor
                     omni.log.info(f"Successfully updated hand scaling factor to {scaling_factor:.3f}")
                 else:
@@ -315,5 +323,6 @@ class GR1TR2DexRetargeting:
                 omni.log.warn(f"Failed to update scaling factor: {e}")
 
             self.scaling_factor_calibrated = True
-            omni.log.info(f"Calibrated scaling factor to {scaling_factor:.3f} "
-                         f"(hand length average: {hand_length:.3f}m)")
+            omni.log.info(
+                f"Calibrated scaling factor to {scaling_factor:.3f} (hand length average: {hand_length:.3f}m)"
+            )
