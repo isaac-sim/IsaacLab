@@ -26,6 +26,7 @@ class GR1T2RetargeterCfg(RetargeterCfg):
     enable_visualization: bool = False
     num_open_xr_hand_joints: int = 100
     hand_joint_names: list[str] | None = None  # List of robot hand joint names
+    calibrate_scaling_factor: bool = False
 
 
 class GR1T2Retargeter(RetargeterBase):
@@ -46,10 +47,11 @@ class GR1T2Retargeter(RetargeterBase):
             num_open_xr_hand_joints: Number of joints tracked by OpenXR
             device: PyTorch device for computations
             hand_joint_names: List of robot hand joint names
+            calibrate_scaling_factor: If True, calibrate the scaling factor for the robot hands
         """
 
         self._hand_joint_names = cfg.hand_joint_names
-        self._hands_controller = GR1TR2DexRetargeting(self._hand_joint_names)
+        self._hands_controller = GR1TR2DexRetargeting(self._hand_joint_names, calibrate_scaling_factor=cfg.calibrate_scaling_factor)
 
         # Initialize visualization if enabled
         self._enable_visualization = cfg.enable_visualization
@@ -87,22 +89,25 @@ class GR1T2Retargeter(RetargeterBase):
         left_wrist = left_hand_poses.get("wrist")
         right_wrist = right_hand_poses.get("wrist")
 
+        left_joint_positions = np.array([pose[:3] for pose in left_hand_poses.values()])
+        right_joint_positions = np.array([pose[:3] for pose in right_hand_poses.values()])
+
         if self._enable_visualization:
             joints_position = np.zeros((self._num_open_xr_hand_joints, 3))
 
-            joints_position[::2] = np.array([pose[:3] for pose in left_hand_poses.values()])
-            joints_position[1::2] = np.array([pose[:3] for pose in right_hand_poses.values()])
+            joints_position[::2] = left_joint_positions
+            joints_position[1::2] = right_joint_positions
 
             self._markers.visualize(translations=torch.tensor(joints_position, device=self._sim_device))
 
         # Create array of zeros with length matching number of joint names
-        left_hands_pos = self._hands_controller.compute_left(left_hand_poses)
+        left_hands_pos = self._hands_controller.compute_left(left_joint_positions, left_wrist)
         indexes = [self._hand_joint_names.index(name) for name in self._hands_controller.get_left_joint_names()]
         left_retargeted_hand_joints = np.zeros(len(self._hands_controller.get_joint_names()))
         left_retargeted_hand_joints[indexes] = left_hands_pos
         left_hand_joints = left_retargeted_hand_joints
 
-        right_hands_pos = self._hands_controller.compute_right(right_hand_poses)
+        right_hands_pos = self._hands_controller.compute_right(right_joint_positions, right_wrist)
         indexes = [self._hand_joint_names.index(name) for name in self._hands_controller.get_right_joint_names()]
         right_retargeted_hand_joints = np.zeros(len(self._hands_controller.get_joint_names()))
         right_retargeted_hand_joints[indexes] = right_hands_pos

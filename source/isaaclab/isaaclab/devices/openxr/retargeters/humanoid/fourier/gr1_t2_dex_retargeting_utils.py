@@ -74,6 +74,7 @@ class GR1TR2DexRetargeting:
         left_hand_config_filename: str = "fourier_hand_left_dexpilot.yml",
         left_hand_urdf_path: str = f"{ISAACLAB_NUCLEUS_DIR}/Mimic/GR1T2_assets/GR1_T2_left_hand.urdf",
         right_hand_urdf_path: str = f"{ISAACLAB_NUCLEUS_DIR}/Mimic/GR1T2_assets/GR1_T2_right_hand.urdf",
+        calibrate_scaling_factor: bool = False,
     ):
         """Initialize the hand retargeting.
 
@@ -81,6 +82,7 @@ class GR1TR2DexRetargeting:
             hand_joint_names: Names of hand joints in the robot model
             right_hand_config_filename: Config file for right hand retargeting
             left_hand_config_filename: Config file for left hand retargeting
+            calibrate_scaling_factor: If True, calibrate the scaling factor for the robot hands
         """
         data_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "data/"))
         config_dir = os.path.join(data_dir, "configs/dex-retargeting")
@@ -103,6 +105,12 @@ class GR1TR2DexRetargeting:
         self.right_dof_names = self._dex_right_hand.optimizer.robot.dof_joint_names
         self.dof_names = self.left_dof_names + self.right_dof_names
         self.isaac_lab_hand_joint_names = hand_joint_names
+
+        # Hand length measurement
+        self.hand_length = []
+        self.max_measurements = 200
+        self.scaling_factor_calibrated = False
+        self.calibrate_scaling_factor = calibrate_scaling_factor
 
         omni.log.info("[GR1T2DexRetargeter] init done.")
 
