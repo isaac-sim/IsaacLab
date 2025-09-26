@@ -427,7 +427,14 @@ class ContactSensor(SensorBase):
                 is_contact, self._data.current_contact_time[env_ids] + elapsed_time.unsqueeze(-1), 0.0
             )
 
-    def _unpack_contact_data(self, contact_data: torch.Tensor, buffer_count: torch.Tensor, buffer_start_indices: torch.Tensor, avg: bool = True, default: float = float("nan")) -> torch.Tensor:
+    def _unpack_contact_data(
+        self,
+        contact_data: torch.Tensor,
+        buffer_count: torch.Tensor,
+        buffer_start_indices: torch.Tensor,
+        avg: bool = True,
+        default: float = float("nan"),
+    ) -> torch.Tensor:
         """
         Unpacks and aggregates contact data for each (env, body, filter) group.
 
