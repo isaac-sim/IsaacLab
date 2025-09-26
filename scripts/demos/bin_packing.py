@@ -71,6 +71,7 @@ RANDOM_YCB_RIGID_OBJECT_CFG = RigidObjectCfg(
             sim_utils.UsdFileCfg(
                 usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/YCB/Axis_Aligned_Physics/006_mustard_bottle.usd",
             ),
+            # note: the placeholder, this allows the effect of having less objects in some env ids
             sim_utils.SphereCfg(
                 radius=0.1, collision_props=sim_utils.CollisionPropertiesCfg(collision_enabled=False), visible=False
             ),
