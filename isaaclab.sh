@@ -429,7 +429,7 @@ setup_uv_env() {
     local env_path="${ISAACLAB_PATH}/${env_name}"
     if [ ! -d "${env_path}" ]; then
         echo -e "[INFO] Creating uv environment named '${env_name}'..."
-        uv venv --clear --python "${python_path}" "${env_path}"
+        uv venv --clear ${python_path:+--python "$python_path"} "${env_path}"
     else
         echo "[INFO] uv environment '${env_name}' already exists."
     fi
@@ -496,7 +496,18 @@ print_help () {
     echo -e "\t-d, --docs           Build the documentation from source using sphinx."
     echo -e "\t-n, --new            Create a new external project or internal task from template."
     echo -e "\t-c, --conda [NAME]   Create the conda environment for Isaac Lab. Default name is 'env_isaaclab'."
-    echo -e "\t-u, --uv [NAME]      Create the uv environment for Isaac Lab. Default name is 'env_isaaclab'."
+    echo -e "\t-u, --uv [NAME] [--python PYTHON_PATH]"
+    echo -e "\t                          Create the uv environment for Isaac Lab. Default name is 'env_isaaclab'."
+    echo -e "\t                          Optionally specify a Python interpreter path to use for the environment."
+    echo -e "\nExamples:"
+    echo -e "\t 1. uv environment creation:"
+    echo -e "\t\t1.a create env_isaaclab with system python3"
+    echo -e "\t\t$(basename "$0") --uv"
+    echo -e "\t\t1.b create myenv with system python3"
+    echo -e "\t\t$(basename "$0") --uv myenv               "
+    echo -e "\t\t1.c create myenv with specified Python 3.11"
+    echo -e "\t\t$(basename "$0") --uv myenv --python ${HOME}/isaacsim50/kit/python/bin/python3"
+    echo -e "\t"
     echo -e "\n" >&2
 }
 
@@ -590,18 +601,20 @@ while [[ $# -gt 0 ]]; do
             shift # past argument
             ;;
         -u|--uv)
-            # use default name if not provided
-            if [ -z "$2" ]; then
-                echo "[INFO] Using default uv environment name: env_isaaclab"
-                uv_env_name="env_isaaclab"
-            else
-                echo "[INFO] Using uv environment name: $2"
-                uv_env_name=$2
-                shift # past argument
+            uv_env_name="env_isaaclab"
+            python_path=""
+            # consume env name
+            if [[ -n "$2" && "$2" != "--python" ]]; then
+                uv_env_name="$2"
+                shift
             fi
-            # setup the uv environment for Isaac Lab
-            setup_uv_env ${uv_env_name}
-            shift # past argument
+            # consume python path
+            if [[ "$2" == "--python" && -n "$3" ]]; then
+                python_path="$3"
+                shift 2
+            fi
+            setup_uv_env "${uv_env_name}" "${python_path}"
+            shift
             ;;
         -f|--format)
             # reset the python path to avoid conflicts with pre-commit
