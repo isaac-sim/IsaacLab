@@ -133,7 +133,7 @@ class NewtonManager:
         for callback in NewtonManager._on_init_callbacks:
             callback()
         print(f"[INFO] Finalizing model on device: {NewtonManager._device}")
-        NewtonManager._builder.gravity = np.array(NewtonManager._gravity_vector)
+        NewtonManager._builder.gravity = np.array(NewtonManager._gravity_vector)[-1]
         NewtonManager._builder.up_axis = Axis.from_string(NewtonManager._up_axis)
         with Timer(name="newton_finalize_builder", msg="Finalize builder took:", enable=True, format="ms"):
             NewtonManager._model = NewtonManager._builder.finalize(device=NewtonManager._device)
@@ -311,8 +311,8 @@ class NewtonManager:
                         NewtonManager._visualizer_disabled = True
                         NewtonManager._renderer = None
                         return False
-            except Exception as e:
-                print(f"[ERROR] Error in _render_call: {e}")
+            except:
+                pass
 
         try:
             render_func()
