@@ -250,12 +250,13 @@ class ManagerBasedEnv:
         IO_descriptors = self.get_IO_descriptors
 
         if output_dir is None:
-            output_dir = self.cfg.io_descriptors_output_dir
-        if output_dir is None:
-            raise ValueError(
-                "Output directory is not set. Please set the output directory using the `io_descriptors_output_dir`"
-                " configuration."
-            )
+            if self.cfg.log_dir is not None:
+                output_dir = os.path.join(self.cfg.log_dir, "io_descriptors")
+            else:
+                raise ValueError(
+                    "Output directory is not set. Please set the log directory using the `log_dir`"
+                    " configuration or provide an explicit output_dir parameter."
+                )
 
         if not os.path.exists(output_dir):
             os.makedirs(output_dir, exist_ok=True)
