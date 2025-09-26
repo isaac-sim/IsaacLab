@@ -208,6 +208,13 @@ class HumanoidEnvCfg(ManagerBasedRLEnvCfg):
         # simulation settings
         self.sim.dt = 1 / 120.0
         self.sim.newton_cfg.num_substeps = 2
+        self.sim.newton_cfg.solver_cfg.njmax = 80
+        self.sim.newton_cfg.solver_cfg.ncon_per_env = 25
+        self.sim.newton_cfg.solver_cfg.ls_iterations = 15
+        self.sim.newton_cfg.solver_cfg.ls_parallel = True
+        self.sim.newton_cfg.solver_cfg.cone = "pyramidal"
+        self.sim.newton_cfg.solver_cfg.update_data_interval = 2
+        self.sim.newton_cfg.solver_cfg.impratio = 1
         self.sim.render_interval = self.decimation
         # default friction material
         self.sim.physics_material.static_friction = 1.0

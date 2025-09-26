@@ -167,6 +167,12 @@ class AntEnvCfg(ManagerBasedRLEnvCfg):
         # simulation settings
         self.sim.dt = 1 / 120.0
         self.sim.render_interval = self.decimation
+        self.sim.newton_cfg.solver_cfg.njmax = 38
+        self.sim.newton_cfg.solver_cfg.ncon_per_env = 15
+        self.sim.newton_cfg.solver_cfg.ls_iterations = 10
+        self.sim.newton_cfg.solver_cfg.ls_parallel = True
+        self.sim.newton_cfg.solver_cfg.cone = "pyramidal"
+        self.sim.newton_cfg.solver_cfg.impratio = 1
         # default friction material
         self.sim.physics_material.static_friction = 1.0
         self.sim.physics_material.dynamic_friction = 1.0
