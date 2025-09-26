@@ -25,6 +25,8 @@ RESOLUTION_COLORS = {
     (480, 640): "#b48ead"
 }
 
+ADD_MEM_TEST = False
+
 
 def _format_axes(ax: plt.Axes, grid: bool = True):
     """Apply consistent, publication-ready formatting to axes."""
@@ -38,12 +40,15 @@ def _format_axes(ax: plt.Axes, grid: bool = True):
         spine.set_linewidth(0.8)
 
 # 1) Load CSV (no headers so we can custom-parse)
-file_path = "/home/pascalr/Downloads/Isaac Lab Whitepaper Benchmarks - camera benchmarks.csv"
+file_path = "/home/pascalr/Downloads/Isaac Lab Whitepaper Benchmarks - camera benchmark run3.csv"
 raw = pd.read_csv(file_path)
 
 # Compute FPS
 df = raw.copy()
 df["FPS"] = (1.0 / df["per_step_ms"]) * df["num_envs"] * 1000.0
+
+# drop nan values
+df = df.dropna()
 
 # Parse resolution strings "(240, 320)" -> (240, 320)
 df["resolution"] = df["resolution"].str.strip("()").str.split(",").apply(lambda x: tuple(map(int, x)))
@@ -71,11 +76,14 @@ for dtype in data_types:
 
             color = RESOLUTION_COLORS.get(res, "gray")
             ax.plot(x, y, marker="o", label=f"{res}", color=color)
-            for xi, yi, mi in zip(x, y, mem):
-                ax.text(xi, yi * 1.05, f"{mi:.0f}", ha="center", va="bottom", fontsize=8)
+            if ADD_MEM_TEST:
+                for xi, yi, mi in zip(x, y, mem):
+                    ax.text(xi, yi * 1.05, f"{mi:.0f}", ha="center", va="bottom", fontsize=8)
 
         ax.set_title(f"{mode.replace('_', ' ')}", weight="bold")
         ax.set_xlabel("Number of Environments")
+        ax.set_xscale("log", base=2)
+        ax.set_yscale("log")
         _format_axes(ax)
 
     axes[0].set_ylabel("FPS")
