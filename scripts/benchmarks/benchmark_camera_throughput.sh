@@ -73,7 +73,7 @@ run_with_watchdog() {
 # run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 64x64,120x160 --num_envs 96 --tiled_camera --ray_caster_camera --usd_camera --data_type distance_to_image_plane
 # run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 64x64,120x160 --num_envs 256 512 1024 --tiled_camera --data_type rgb
 
-# ### SECTION 2 - LOW RESOLUTION - HIGH ENVS (9 FILES)
+# ### SECTION 2 - LOW RESOLUTION - HIGH ENVS (11 CSV FILES)
 run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 64x64,120x160 --num_envs 96 --tiled_camera --ray_caster_camera --data_type distance_to_image_plane
 run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 64x64,120x160 --num_envs 2048 --tiled_camera --data_type rgb
 run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 64x64,120x160 --num_envs 2048 --tiled_camera --data_type distance_to_image_plane
