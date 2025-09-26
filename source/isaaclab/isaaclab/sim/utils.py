@@ -724,7 +724,10 @@ def get_first_matching_child_prim(
         if predicate(child_prim):
             return child_prim
         # add children to list
-        all_prims += child_prim.GetFilteredChildren(Usd.TraverseInstanceProxies())
+        if traverse_instance_prims:
+            all_prims += child_prim.GetFilteredChildren(Usd.TraverseInstanceProxies())
+        else:
+            all_prims += child_prim.GetChildren()
     return None
 
 
@@ -795,9 +798,13 @@ def get_all_matching_child_prims(
             output_prims.append(child_prim)
         # add children to list
         if depth is None or current_depth < depth:
-            all_prims_queue += [
-                (child, current_depth + 1) for child in child_prim.GetFilteredChildren(Usd.TraverseInstanceProxies())
-            ]
+            # resolve prims under the current prim
+            if traverse_instance_prims:
+                children = child_prim.GetFilteredChildren(Usd.TraverseInstanceProxies())
+            else:
+                children = child_prim.GetChildren()
+            # add children to list
+            all_prims_queue += [(child, current_depth + 1) for child in children]
 
     return output_prims
 

@@ -282,16 +282,25 @@ class GoalCommandTerm(CommandTerm):
 
         # make every snipped the same length by repeating prev. indexes
         split_lengths = [len(subgrid) for subgrid in split_traversability_map]
-        self.split_max_length = max(split_lengths)
-        assert min(split_lengths) > 0, "Every subgrid must have at least one point"
+        self.split_max_length = int(np.median(split_lengths))
 
         self._split_traversability_map = torch.concat(
             [
-                subgrid[torch.randint(0, split_lengths[idx], (self.split_max_length,))].unsqueeze(0)
+                subgrid[torch.randint(0, max(split_lengths[idx], 1), (self.split_max_length,))].unsqueeze(0)
                 for idx, subgrid in enumerate(split_traversability_map)
             ],
             dim=0,
         )
+
+        # for cells where there is no accessible points, randomly assign points of another cell
+        zero_split_lengths = np.array(split_lengths) == 0
+        if np.sum(zero_split_lengths) > 0:
+            while True:
+                rand_cell_idx = torch.randint(0, len(split_traversability_map), (np.sum(zero_split_lengths),))
+                if np.all(np.array(split_lengths)[rand_cell_idx] > 0):
+                    break
+            self._split_traversability_map[zero_split_lengths] = self._split_traversability_map[rand_cell_idx]
+
 
     """
     Visualization

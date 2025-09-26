@@ -239,7 +239,7 @@ class RayCaster(SensorBase):
         """Updates the ray information buffers."""
 
         pos_w, quat_w = sim_utils.obtain_world_pose_from_view(self._view, env_ids)
-        pos_w, quat_w = math_utils.combine_frame_transforms(pos_w, quat_w, self._offset[0], self._offset[1])
+        pos_w, quat_w = math_utils.combine_frame_transforms(pos_w, quat_w, self._offset[0][env_ids], self._offset[1][env_ids])
         # apply drift to ray starting position in world frame
         pos_w += self.drift[env_ids]
         # store the poses
