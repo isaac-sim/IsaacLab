@@ -396,7 +396,7 @@ def test_sensor_print(setup_simulation):
 
 
 # minor gravity force in -z to ensure object stays on ground plane
-@pytest.mark.parametrize("grav_dir", [(-10.0, 0.0, -.1), (0.0, -10.0, -0.1)])
+@pytest.mark.parametrize("grav_dir", [(-10.0, 0.0, -0.1), (0.0, -10.0, -0.1)])
 @pytest.mark.isaacsim_ci
 def test_friction_reporting(setup_simulation, grav_dir):
     """
