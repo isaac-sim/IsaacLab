@@ -311,8 +311,8 @@ class NewtonManager:
                         NewtonManager._visualizer_disabled = True
                         NewtonManager._renderer = None
                         return False
-            except:
-                pass
+            except Exception as e:
+                print(f"[ERROR] Error in _render_call: {e}")
 
         try:
             render_func()
