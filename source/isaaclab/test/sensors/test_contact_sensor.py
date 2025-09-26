@@ -488,15 +488,16 @@ def test_friction_reporting(setup_simulation, grav_dir):
         # step sim once to compute friction forces
         _perform_sim_step(sim, scene, sim_dt)
 
-        friction_force = scene["contact_sensor"]._data.friction_forces_w[0, 0, :]
-        friction_magnitude = friction_force.norm().item()
+        # check that forces are being reported match expected friction forces
+        expected_friction, _, _, _ = scene["contact_sensor"].contact_physx_view.get_friction_data(dt=sim_dt)
+        reported_friction = scene["contact_sensor"].data.friction_forces_w[0, 0, :]
 
-        assert friction_magnitude > 1e-2, "Friction forces should be non-zero"
+        assert torch.allclose(expected_friction.sum(dim=0), reported_friction[0], atol=1e-4)
 
         grav = torch.tensor(grav_dir, device=device)
-        norm_friction = friction_force / friction_force.norm()
+        norm_reported_friction = reported_friction / reported_friction.norm()
         norm_gravity = grav / grav.norm()
-        dot = torch.dot(norm_friction.squeeze(), norm_gravity)
+        dot = torch.dot(norm_reported_friction[0], norm_gravity)
 
         assert torch.isclose(
             torch.abs(dot), torch.tensor(1.0, device=device), atol=1e-4
