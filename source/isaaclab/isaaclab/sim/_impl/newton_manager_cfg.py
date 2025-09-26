@@ -33,4 +33,7 @@ class NewtonCfg:
     newton_viewer_camera_pos: tuple[float, float, float] = (10.0, 0.0, 3.0)
     """Position of the camera in the Newton viewer."""
 
+    visualizer_train_mode: bool = True
+    """Whether the visualizer is in training mode (True) or play mode (False)."""
+
     solver_cfg: NewtonSolverCfg = MJWarpSolverCfg()
