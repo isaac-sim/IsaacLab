@@ -3,25 +3,60 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+# Code adapted from https://github.com/leggedrobotics/nav-suite
+
+# Copyright (c) 2025, The Nav-Suite Project Developers (https://github.com/leggedrobotics/nav-suite/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 import torch
 from typing import TYPE_CHECKING
 
+from isaaclab.assets import Articulation
+from isaaclab.managers import SceneEntityCfg
+
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
 
 
-def position_command_error_tanh(env: ManagerBasedRLEnv, std: float, command_name: str) -> torch.Tensor:
-    """Reward position tracking with tanh kernel."""
-    command = env.command_manager.get_command(command_name)
-    des_pos_b = command[:, :3]
-    distance = torch.norm(des_pos_b, dim=1)
-    return 1 - torch.tanh(distance / std)
+def backwards_movement(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
+    """Reward the agent for moving backwards using L2-Kernel
+
+    Args:
+        env: The learning environment.
+        asset_cfg: The name of the robot asset.
+
+    Returns:
+        Dense reward [0, +1] based on the backward velocity.
+    """
+    asset: Articulation = env.scene[asset_cfg.name]
+    # compute the reward
+    forward_velocity = asset.data.root_lin_vel_b[:, 0]
+    backward_movement_idx = torch.where(
+        forward_velocity < 0.0, torch.ones_like(forward_velocity), torch.zeros_like(forward_velocity)
+    )
+    reward = torch.square(backward_movement_idx * forward_velocity)
+    reward = torch.clip(reward, min=0, max=1.0)
+    return reward
 
 
-def heading_command_error_abs(env: ManagerBasedRLEnv, command_name: str) -> torch.Tensor:
-    """Penalize tracking orientation error."""
-    command = env.command_manager.get_command(command_name)
-    heading_b = command[:, 3]
-    return heading_b.abs()
+def lateral_movement(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
+    """
+    Reward the agent for moving lateral using L2-Kernel
+
+    Args:
+        env: The learning environment.
+        asset_cfg: The name of the robot asset.
+
+    Returns:
+        Dense reward [0, +1] based on the lateral velocity.
+    """
+    asset: Articulation = env.scene[asset_cfg.name]
+    # compute the reward
+    lateral_velocity = asset.data.root_lin_vel_b[:, 1]
+    reward = torch.square(lateral_velocity)
+    reward = torch.clip(reward, min=0, max=1.0)
+    return reward
