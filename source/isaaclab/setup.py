@@ -50,7 +50,7 @@ INSTALL_REQUIRES = [
     "usd-core==25.05.0",
     "mujoco>=3.3.7.dev811775910",
     "mujoco-warp @ git+https://github.com/google-deepmind/mujoco_warp.git@df3d9faac49bf004b26a85d71e339ddb8e6e94f3",
-    "newton @ git+https://github.com/newton-physics/newton.git@6461b0a7405d805a334bceb7834cf9abf3847f94",
+    "newton @ git+https://github.com/newton-physics/newton.git@a3763a73ba4aeb0414b1b6663a767ee661b39250",
     "imgui-bundle==1.92.0",
     "PyOpenGL-accelerate==3.1.10",
 ]
