@@ -55,7 +55,7 @@ POSE_RANGE = {"roll": (-3.14, 3.14), "pitch": (-3.14, 3.14), "yaw": (-3.14, 3.14
 VELOCITY_RANGE = {"roll": (-0.76, 0.76), "pitch": (-0.76, 0.76), "yaw": (-0.76, 0.76)}
 
 
-random_rigid_object_cfg = RigidObjectCfg(
+RANDOM_YCB_RIGID_OBJECT_CFG = RigidObjectCfg(
     prim_path="/World/envs/env_.*/Object",
     spawn=sim_utils.MultiAssetSpawnerCfg(
         assets_cfg=[
@@ -100,14 +100,9 @@ class MultiObjectSceneCfg(InteractiveSceneCfg):
     # rigid object
     object: RigidObjectCfg = RigidObjectCfg(
         prim_path="/World/envs/env_.*/Object",
-        spawn=sim_utils.MultiAssetSpawnerCfg(
-            assets_cfg=[
-                sim_utils.UsdFileCfg(
-                    usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/KLT_Bin/small_KLT.usd",
-                    scale=(2.0, 2.0, 2.0),
-                ),
-            ],
-            random_choice=True,
+        spawn=sim_utils.UsdFileCfg(
+            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/KLT_Bin/small_KLT.usd",
+            scale=(2.0, 2.0, 2.0),
             rigid_props=sim_utils.RigidBodyPropertiesCfg(
                 solver_position_iteration_count=4, solver_velocity_iteration_count=0, kinematic_enabled=True
             ),
@@ -119,35 +114,35 @@ class MultiObjectSceneCfg(InteractiveSceneCfg):
     # object collection
     object_collection: RigidObjectCollectionCfg = RigidObjectCollectionCfg(
         rigid_objects={
-            "Object_A_Layer1": random_rigid_object_cfg.replace(
+            "Object_A_Layer1": RANDOM_YCB_RIGID_OBJECT_CFG.replace(
                 prim_path="/World/envs/env_.*/Object_A_Layer1",
                 init_state=RigidObjectCfg.InitialStateCfg(pos=(-0.085, -0.12, 0.2)),
             ),
-            "Object_B_Layer1": random_rigid_object_cfg.replace(
+            "Object_B_Layer1": RANDOM_YCB_RIGID_OBJECT_CFG.replace(
                 prim_path="/World/envs/env_.*/Object_B_Layer1",
                 init_state=RigidObjectCfg.InitialStateCfg(pos=(-0.085, 0.12, 0.2)),
             ),
-            "Object_C_Layer1": random_rigid_object_cfg.replace(
+            "Object_C_Layer1": RANDOM_YCB_RIGID_OBJECT_CFG.replace(
                 prim_path="/World/envs/env_.*/Object_C_Layer1",
                 init_state=RigidObjectCfg.InitialStateCfg(pos=(0.085, 0.12, 0.2)),
             ),
-            "Object_D_Layer1": random_rigid_object_cfg.replace(
+            "Object_D_Layer1": RANDOM_YCB_RIGID_OBJECT_CFG.replace(
                 prim_path="/World/envs/env_.*/Object_D_Layer1",
                 init_state=RigidObjectCfg.InitialStateCfg(pos=(0.085, -0.12, 0.2)),
             ),
-            "Object_A_Layer2": random_rigid_object_cfg.replace(
+            "Object_A_Layer2": RANDOM_YCB_RIGID_OBJECT_CFG.replace(
                 prim_path="/World/envs/env_.*/Object_A_Layer2",
                 init_state=RigidObjectCfg.InitialStateCfg(pos=(-0.085, -0.12, 0.4)),
             ),
-            "Object_B_Layer2": random_rigid_object_cfg.replace(
+            "Object_B_Layer2": RANDOM_YCB_RIGID_OBJECT_CFG.replace(
                 prim_path="/World/envs/env_.*/Object_B_Layer2",
                 init_state=RigidObjectCfg.InitialStateCfg(pos=(-0.085, 0.12, 0.4)),
             ),
-            "Object_C_Layer2": random_rigid_object_cfg.replace(
+            "Object_C_Layer2": RANDOM_YCB_RIGID_OBJECT_CFG.replace(
                 prim_path="/World/envs/env_.*/Object_C_Layer2",
                 init_state=RigidObjectCfg.InitialStateCfg(pos=(0.085, 0.12, 0.4)),
             ),
-            "Object_D_Layer2": random_rigid_object_cfg.replace(
+            "Object_D_Layer2": RANDOM_YCB_RIGID_OBJECT_CFG.replace(
                 prim_path="/World/envs/env_.*/Object_D_Layer2",
                 init_state=RigidObjectCfg.InitialStateCfg(pos=(0.085, -0.12, 0.4)),
             ),
