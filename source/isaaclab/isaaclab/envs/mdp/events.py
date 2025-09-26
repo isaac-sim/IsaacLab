@@ -43,7 +43,43 @@ def randomize_rigid_body_scale(
 
 class randomize_rigid_body_material(ManagerTermBase):
     def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):
-        raise NotImplementedError("Not implemented")
+        """Initialize the term.
+
+        Args:
+            cfg: The configuration of the event term.
+            env: The environment instance.
+
+        Raises:
+            ValueError: If the asset is not an Articulation.
+        """
+        super().__init__(cfg, env)
+
+        # extract the used quantities (to enable type-hinting)
+        self.asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
+        self.asset: Articulation = env.scene[self.asset_cfg.name]
+
+        if not isinstance(self.asset, (Articulation)):
+            raise ValueError(
+                f"Randomization term 'randomize_rigid_body_material' not supported for asset: '{self.asset_cfg.name}'"
+                f" with type: '{type(self.asset)}'."
+            )
+
+        # compute prefix scan for efficient indexing (shape counts come from Articulation)
+        self.shape_start_indices = None
+        if isinstance(self.asset, Articulation) and self.asset_cfg.body_ids != slice(None):
+            # get shapes per body from Articulation class
+            num_shapes_per_body = self.asset.num_shapes_per_body
+
+            # compute prefix scan for faster lookup during randomization
+            self.shape_start_indices = [0]  # First body starts at index 0
+            for i in range(len(num_shapes_per_body) - 1):
+                self.shape_start_indices.append(self.shape_start_indices[-1] + num_shapes_per_body[i])
+
+        # cache default material properties for consistent randomization baseline
+        self.default_material_mu = None
+
+        # cache mask tensor for efficient reuse
+        self.env_mask = torch.zeros((env.scene.num_envs,), dtype=torch.bool, device=env.device)
 
     def __call__(
         self,
@@ -56,7 +92,91 @@ class randomize_rigid_body_material(ManagerTermBase):
         asset_cfg: SceneEntityCfg,
         make_consistent: bool = False,
     ):
-        raise NotImplementedError("Not implemented")
+        """Randomize the material properties of rigid bodies.
+
+        This function randomizes the friction coefficient of rigid body shapes. Due to Newton physics
+        (mjwarp) limitations, only the static friction coefficient is actually applied to the simulation.
+
+        Args:
+            env: The environment instance.
+            env_ids: The environment indices to apply the randomization to. If None, all environments are used.
+            static_friction_range: Range for static friction coefficient. This is the only parameter that
+                actually affects the simulation in Newton physics.
+            dynamic_friction_range: Range for dynamic friction coefficient. **NOT USED** - Newton physics
+                only supports a single friction coefficient per shape.
+            restitution_range: Range for restitution coefficient. **NOT USED** - Newton physics does not
+                currently support restitution randomization through this interface.
+            num_buckets: Number of material buckets. **NOT USED** - materials are sampled dynamically.
+            asset_cfg: The asset configuration specifying which asset and bodies to randomize.
+            make_consistent: Whether to ensure dynamic friction <= static friction. **NOT USED** - only
+                static friction is applied.
+
+        Note:
+            Newton physics only supports setting a single friction coefficient (mu) per shape. The dynamic_friction_range and restitution_range parameters
+            are kept for API consistency but do not affect the simulation.
+        """
+
+        # resolve environment ids
+        if env_ids is None:
+            env_ids = torch.arange(env.scene.num_envs, device="cpu")
+        else:
+            env_ids = env_ids.cpu()
+
+        # env_ids is guaranteed to be a tensor at this point
+        num_env_ids = env_ids.shape[0]
+
+        # cache default material properties on first call for consistent randomization baseline
+        if self.default_material_mu is None:
+            self.default_material_mu = wp.to_torch(
+                self.asset.root_newton_view.get_attribute("shape_material_mu", self.asset.root_newton_model)
+            ).clone()
+
+        # start with default values and clone for safe modification
+        material_mu = self.default_material_mu.clone()
+
+        # sample friction coefficients dynamically for each call
+        # Newton physics uses a single friction coefficient (mu) per shape
+        # Note: Only static_friction_range is used; dynamic_friction_range and restitution_range are ignored
+        total_num_shapes = material_mu.shape[1]
+
+        # sample friction values directly for the environments and shapes that need updating
+        if self.shape_start_indices is not None:
+            # sample friction coefficients for specific body shapes using efficient indexing
+            for body_id in self.asset_cfg.body_ids:
+                # use precomputed indices for fast lookup
+                start_idx = self.shape_start_indices[body_id]
+                end_idx = start_idx + self.asset.num_shapes_per_body[body_id]
+                num_shapes_in_body = end_idx - start_idx
+
+                # sample friction coefficients using only static_friction_range
+                friction_samples = math_utils.sample_uniform(
+                    static_friction_range[0],
+                    static_friction_range[1],
+                    (num_env_ids, num_shapes_in_body),
+                    device=self.asset.device,
+                )
+
+                # assign the new friction coefficients
+                material_mu[env_ids, start_idx:end_idx] = friction_samples
+        else:
+            # sample friction coefficients for all shapes
+            friction_samples = math_utils.sample_uniform(
+                static_friction_range[0],
+                static_friction_range[1],
+                (num_env_ids, total_num_shapes),
+                device=self.asset.device,
+            )
+
+            # assign all the friction coefficients
+            material_mu[env_ids, :] = friction_samples
+
+        # apply to simulation using cached mask
+        self.env_mask.fill_(False)  # reset all to False
+        self.env_mask[env_ids] = True
+        self.asset.root_newton_view.set_attribute(
+            "shape_material_mu", self.asset.root_newton_model, wp.from_torch(material_mu), mask=self.env_mask
+        )
+        NewtonManager._solver.notify_model_changed(SolverNotifyFlags.SHAPE_PROPERTIES)
 
 
 def randomize_rigid_body_mass(
