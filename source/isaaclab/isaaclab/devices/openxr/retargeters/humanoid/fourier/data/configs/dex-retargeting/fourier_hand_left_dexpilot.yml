@@ -24,7 +24,6 @@ retargeting:
   - L_thumb_proximal_yaw_joint
   - L_thumb_proximal_pitch_joint
   - L_thumb_distal_joint
-  - L_thumb_distal_joint
   type: DexPilot
   urdf_path: /tmp/GR1_T2_left_hand.urdf
   wrist_link_name: l_hand_base_link
