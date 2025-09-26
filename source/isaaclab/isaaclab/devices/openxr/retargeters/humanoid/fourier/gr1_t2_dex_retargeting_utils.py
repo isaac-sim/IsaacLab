@@ -140,25 +140,21 @@ class GR1TR2DexRetargeting:
         except Exception as e:
             omni.log.error(f"Error updating YAML file {yaml_path}: {e}")
 
-    def convert_hand_joints(self, hand_poses: dict[str, np.ndarray], operator2mano: np.ndarray) -> np.ndarray:
+    def convert_hand_joints(self, joint_positions: np.ndarray, wrist: np.ndarray, operator2mano: np.ndarray) -> np.ndarray:
         """Prepares the hand joints data for retargeting.
 
         Args:
-            hand_poses: Dictionary containing hand pose data with joint positions and rotations
+            joint_positions: Array of joint positions from OpenXR
+            wrist: Wrist pose [x, y, z, qw, qx, qy, qz]
             operator2mano: Transformation matrix to convert from operator to MANO frame
 
         Returns:
             Joint positions with shape (21, 3)
         """
-        joint_position = np.zeros((21, 3))
-        hand_joints = list(hand_poses.values())
-        for i in range(len(_HAND_JOINTS_INDEX)):
-            joint = hand_joints[_HAND_JOINTS_INDEX[i]]
-            joint_position[i] = joint[:3]
-
+        joint_position = joint_positions[_HAND_JOINTS_INDEX]
         # Convert hand pose to the canonical frame.
-        joint_position = joint_position - joint_position[0:1, :]
-        xr_wrist_quat = hand_poses.get("wrist")[3:]
+        joint_position -= joint_position[0:1, :]
+        xr_wrist_quat = wrist[3:]
         # OpenXR hand uses w,x,y,z order for quaternions but scipy uses x,y,z,w order
         wrist_rot = R.from_quat([xr_wrist_quat[1], xr_wrist_quat[2], xr_wrist_quat[3], xr_wrist_quat[0]]).as_matrix()
 
@@ -184,19 +180,20 @@ class GR1TR2DexRetargeting:
             return ref_value
 
     def compute_one_hand(
-        self, hand_joints: dict[str, np.ndarray], retargeting: RetargetingConfig, operator2mano: np.ndarray
+        self, joint_positions: np.ndarray, wrist: np.ndarray, retargeting: RetargetingConfig, operator2mano: np.ndarray
     ) -> np.ndarray:
         """Computes retargeted joint angles for one hand.
 
         Args:
-            hand_joints: Dictionary containing hand joint data
+            joint_positions: Array of joint positions from OpenXR
+            wrist: Wrist pose [x, y, z, qw, qx, qy, qz]
             retargeting: Retargeting configuration object
             operator2mano: Transformation matrix from operator to MANO frame
 
         Returns:
             Retargeted joint angles
         """
-        joint_pos = self.convert_hand_joints(hand_joints, operator2mano)
+        joint_pos = self.convert_hand_joints(joint_positions, wrist, operator2mano)
         ref_value = self.compute_ref_value(
             joint_pos,
             indices=retargeting.optimizer.target_link_human_indices,
@@ -232,32 +229,91 @@ class GR1TR2DexRetargeting:
         """
         return np.array([robot.dof_names.index(name) for name in self.dof_names], dtype=np.int64)
 
-    def compute_left(self, left_hand_poses: dict[str, np.ndarray]) -> np.ndarray:
+    def compute_left(self, left_joint_positions: np.ndarray, left_wrist: np.ndarray) -> np.ndarray:
         """Computes retargeted joints for left hand.
 
         Args:
-            left_hand_poses: Dictionary of left hand joint poses
+            left_joint_positions: Array of left hand joint positions from OpenXR
+            left_wrist: Left wrist pose [x, y, z, qw, qx, qy, qz]
 
         Returns:
             Retargeted joint angles for left hand
         """
-        if left_hand_poses is not None:
-            left_hand_q = self.compute_one_hand(left_hand_poses, self._dex_left_hand, _OPERATOR2MANO_LEFT)
+        if left_joint_positions is not None and left_wrist is not None:
+            # Collect hand length measurement for scaling factor calculation
+            self.collect_hand_length_measurement(left_joint_positions, left_wrist)
+            left_hand_q = self.compute_one_hand(left_joint_positions, left_wrist, self._dex_left_hand, _OPERATOR2MANO_LEFT)
         else:
             left_hand_q = np.zeros(len(_LEFT_HAND_JOINT_NAMES))
         return left_hand_q
 
-    def compute_right(self, right_hand_poses: dict[str, np.ndarray]) -> np.ndarray:
+    def compute_right(self, right_joint_positions: np.ndarray, right_wrist: np.ndarray) -> np.ndarray:
         """Computes retargeted joints for right hand.
 
         Args:
-            right_hand_poses: Dictionary of right hand joint poses
+            right_joint_positions: Array of right hand joint positions from OpenXR
+            right_wrist: Right wrist pose [x, y, z, qw, qx, qy, qz]
 
         Returns:
             Retargeted joint angles for right hand
         """
-        if right_hand_poses is not None:
-            right_hand_q = self.compute_one_hand(right_hand_poses, self._dex_right_hand, _OPERATOR2MANO_RIGHT)
+        if right_joint_positions is not None and right_wrist is not None:
+            # Collect hand length measurement for scaling factor calculation
+            self.collect_hand_length_measurement(right_joint_positions, right_wrist)
+            right_hand_q = self.compute_one_hand(right_joint_positions, right_wrist, self._dex_right_hand, _OPERATOR2MANO_RIGHT)
         else:
             right_hand_q = np.zeros(len(_RIGHT_HAND_JOINT_NAMES))
         return right_hand_q
+
+    def collect_hand_length_measurement(self, joint_positions: np.ndarray, wrist: np.ndarray):
+        """Collect hand length measurement for scaling factor calculation.
+        
+        Args:
+            joint_positions: Array of joint positions from OpenXR
+            wrist: Wrist pose [x, y, z, qw, qx, qy, qz]
+        """
+        if not self.calibrate_scaling_factor or self.scaling_factor_calibrated:
+            return
+        if np.linalg.norm(wrist[:3]) == 0 or len(self.hand_length) >= self.max_measurements:
+            return
+        # Calculate hand length (distance from wrist to middle finger tip)
+        palm_dir = (joint_positions[12] - wrist[:3]) / np.linalg.norm(joint_positions[12] - wrist[:3])
+        middle_finger_dir = (joint_positions[15] - joint_positions[12]) / np.linalg.norm(joint_positions[15] - joint_positions[12])
+        is_hand_open = np.dot(palm_dir, middle_finger_dir) > 0.9
+        hand_length = np.linalg.norm(wrist[:3] - joint_positions[15])
+        if is_hand_open and 0.12 < hand_length < 0.27:
+            self.hand_length.append(hand_length)
+            if len(self.hand_length) >= self.max_measurements:
+                self.calibrate_scaling_factors()
+
+    def calibrate_scaling_factors(self, min_measurements: int = 50):
+        """Update scaling factors directly in retargeting optimizers based on the collected hand length measurements.
+        
+        Args:
+            min_measurements: Minimum number of measurements required before updating scaling factors
+        """
+        # Update hand scaling factor directly in optimizers
+        if len(self.hand_length) >= min_measurements:
+            hand_length_array = np.array(self.hand_length)
+            q25 = np.percentile(hand_length_array, 25)
+            q75 = np.percentile(hand_length_array, 75)
+            filtered_data = hand_length_array[(hand_length_array >= q25) & (hand_length_array <= q75)]
+            hand_length = float(np.mean(filtered_data))
+            reference_hand_length = 0.19  # average adult hand length (meters)
+            scaling_factor = reference_hand_length / hand_length
+
+            # Update hand scaling factor
+            try:
+                if hasattr(self._dex_left_hand, 'optimizer') and hasattr(self._dex_left_hand.optimizer, 'scaling'):
+                    self._dex_left_hand.optimizer.scaling *= scaling_factor
+                if hasattr(self._dex_right_hand, 'optimizer') and hasattr(self._dex_right_hand.optimizer, 'scaling'):
+                    self._dex_right_hand.optimizer.scaling *= scaling_factor
+                    omni.log.info(f"Successfully updated hand scaling factor to {scaling_factor:.3f}")
+                else:
+                    omni.log.warn("Optimizer does not have 'scaling' attribute")
+            except Exception as e:
+                omni.log.warn(f"Failed to update scaling factor: {e}")
+
+            self.scaling_factor_calibrated = True
+            omni.log.info(f"Calibrated scaling factor to {scaling_factor:.3f} "
+                         f"(hand length average: {hand_length:.3f}m)")
