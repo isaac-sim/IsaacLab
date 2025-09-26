@@ -11,6 +11,7 @@ import contextlib
 import functools
 import inspect
 import re
+import torch
 from collections.abc import Callable, Generator
 from typing import TYPE_CHECKING, Any
 
@@ -19,11 +20,15 @@ import isaacsim.core.utils.stage as stage_utils
 import omni
 import omni.kit.commands
 import omni.log
+import omni.physics.tensors.impl.api as physx
 from isaacsim.core.cloner import Cloner
+from isaacsim.core.prims import XFormPrim
 from isaacsim.core.utils.carb import get_carb_setting
 from isaacsim.core.utils.stage import get_current_stage
 from isaacsim.core.version import get_version
 from pxr import PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics, UsdShade, UsdUtils
+
+from isaaclab.utils.math import convert_quat
 
 # from Isaac Sim 4.2 onwards, pxr.Semantics is deprecated
 try:
@@ -571,6 +576,92 @@ def make_uninstanceable(prim_path: str | Sdf.Path, stage: Usd.Stage | None = Non
         all_prims += child_prim.GetFilteredChildren(Usd.TraverseInstanceProxies())
 
 
+def resolve_prim_pose(
+    prim: Usd.Prim, ref_prim: Usd.Prim | None = None
+) -> tuple[tuple[float, float, float], tuple[float, float, float, float]]:
+    """Resolve the pose of a prim with respect to another prim.
+
+    Note:
+        This function ignores scale and skew by orthonormalizing the transformation
+        matrix at the final step. However, if any ancestor prim in the hierarchy
+        has non-uniform scale, that scale will still affect the resulting position
+        and orientation of the prim (because it's baked into the transform before
+        scale removal).
+
+        In other words: scale **is not removed hierarchically**. If you need
+        completely scale-free poses, you must walk the transform chain and strip
+        scale at each level. Please open an issue if you need this functionality.
+
+    Args:
+        prim: The USD prim to resolve the pose for.
+        ref_prim: The USD prim to compute the pose with respect to.
+            Defaults to None, in which case the world frame is used.
+
+    Returns:
+        A tuple containing the position (as a 3D vector) and the quaternion orientation
+        in the (w, x, y, z) format.
+
+    Raises:
+        ValueError: If the prim or ref prim is not valid.
+    """
+    # check if prim is valid
+    if not prim.IsValid():
+        raise ValueError(f"Prim at path '{prim.GetPath().pathString}' is not valid.")
+    # get prim xform
+    xform = UsdGeom.Xformable(prim)
+    prim_tf = xform.ComputeLocalToWorldTransform(Usd.TimeCode.Default())
+    # sanitize quaternion
+    # this is needed, otherwise the quaternion might be non-normalized
+    prim_tf = prim_tf.GetOrthonormalized()
+
+    if ref_prim is not None:
+        # check if ref prim is valid
+        if not ref_prim.IsValid():
+            raise ValueError(f"Ref prim at path '{ref_prim.GetPath().pathString}' is not valid.")
+        # get ref prim xform
+        ref_xform = UsdGeom.Xformable(ref_prim)
+        ref_tf = ref_xform.ComputeLocalToWorldTransform(Usd.TimeCode.Default())
+        # make sure ref tf is orthonormal
+        ref_tf = ref_tf.GetOrthonormalized()
+        # compute relative transform to get prim in ref frame
+        prim_tf = prim_tf * ref_tf.GetInverse()
+
+    # extract position and orientation
+    prim_pos = [*prim_tf.ExtractTranslation()]
+    prim_quat = [prim_tf.ExtractRotationQuat().real, *prim_tf.ExtractRotationQuat().imaginary]
+    return tuple(prim_pos), tuple(prim_quat)
+
+
+def resolve_prim_scale(prim: Usd.Prim) -> tuple[float, float, float]:
+    """Resolve the scale of a prim in the world frame.
+
+    At an attribute level, a USD prim's scale is a scaling transformation applied to the prim with
+    respect to its parent prim. This function resolves the scale of the prim in the world frame,
+    by computing the local to world transform of the prim. This is equivalent to traversing up
+    the prim hierarchy and accounting for the rotations and scales of the prims.
+
+    For instance, if a prim has a scale of (1, 2, 3) and it is a child of a prim with a scale of (4, 5, 6),
+    then the scale of the prim in the world frame is (4, 10, 18).
+
+    Args:
+        prim: The USD prim to resolve the scale for.
+
+    Returns:
+        The scale of the prim in the x, y, and z directions in the world frame.
+
+    Raises:
+        ValueError: If the prim is not valid.
+    """
+    # check if prim is valid
+    if not prim.IsValid():
+        raise ValueError(f"Prim at path '{prim.GetPath().pathString}' is not valid.")
+    # compute local to world transform
+    xform = UsdGeom.Xformable(prim)
+    world_transform = xform.ComputeLocalToWorldTransform(Usd.TimeCode.Default())
+    # extract scale
+    return tuple([*(v.GetLength() for v in world_transform.ExtractRotationMatrix())])
+
+
 """
 USD Stage traversal.
 """
@@ -633,10 +724,7 @@ def get_first_matching_child_prim(
         if predicate(child_prim):
             return child_prim
         # add children to list
-        if traverse_instance_prims:
-            all_prims += child_prim.GetFilteredChildren(Usd.TraverseInstanceProxies())
-        else:
-            all_prims += child_prim.GetChildren()
+        all_prims += child_prim.GetFilteredChildren(Usd.TraverseInstanceProxies())
     return None
 
 
@@ -707,13 +795,9 @@ def get_all_matching_child_prims(
             output_prims.append(child_prim)
         # add children to list
         if depth is None or current_depth < depth:
-            # resolve prims under the current prim
-            if traverse_instance_prims:
-                children = child_prim.GetFilteredChildren(Usd.TraverseInstanceProxies())
-            else:
-                children = child_prim.GetChildren()
-            # add children to list
-            all_prims_queue += [(child, current_depth + 1) for child in children]
+            all_prims_queue += [
+                (child, current_depth + 1) for child in child_prim.GetFilteredChildren(Usd.TraverseInstanceProxies())
+            ]
 
     return output_prims
 
@@ -1093,3 +1177,42 @@ def get_current_stage_id() -> int:
     if stage_id < 0:
         stage_id = stage_cache.Insert(stage).ToLongInt()
     return stage_id
+
+
+"""
+PhysX prim views utils.
+"""
+
+
+def obtain_world_pose_from_view(
+    physx_view: XFormPrim | physx.ArticulationView | physx.RigidBodyView,
+    env_ids: torch.Tensor,
+    clone: bool = False,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Get the world poses of the prim referenced by the prim view.
+
+    Args:
+        physx_view: The prim view to get the world poses from.
+        env_ids: The environment ids of the prims to get the world poses for.
+
+    Returns:
+        A tuple containing the world positions and orientations of the prims. Orientation is in wxyz format.
+
+    Raises:
+        NotImplementedError: If the prim view is not of the correct type.
+    """
+    if isinstance(physx_view, XFormPrim):
+        pos_w, quat_w = physx_view.get_world_poses(env_ids)
+    elif isinstance(physx_view, physx.ArticulationView):
+        pos_w, quat_w = physx_view.get_root_transforms()[env_ids].split([3, 4], dim=-1)
+        quat_w = convert_quat(quat_w, to="wxyz")
+    elif isinstance(physx_view, physx.RigidBodyView):
+        pos_w, quat_w = physx_view.get_transforms()[env_ids].split([3, 4], dim=-1)
+        quat_w = convert_quat(quat_w, to="wxyz")
+    else:
+        raise NotImplementedError(f"Cannot get world poses for prim view of type '{type(physx_view)}'.")
+
+    if clone:
+        return pos_w.clone(), quat_w.clone()
+    else:
+        return pos_w, quat_w

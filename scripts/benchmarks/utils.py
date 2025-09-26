@@ -102,3 +102,5 @@ def log_rl_policy_episode_lengths(benchmark: BaseIsaacBenchmark, value: list):
     # log max episode length
     measurement = SingleMeasurement(name="Max Episode Lengths", value=max(value), unit="float")
     benchmark.store_custom_measurement("train", measurement)
+
+
