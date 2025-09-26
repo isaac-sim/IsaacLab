@@ -7,14 +7,9 @@ import torch
 from dataclasses import dataclass
 from typing import Optional
 
-from isaaclab.devices.retargeter_base import RetargeterBase, RetargeterCfg
-
 # Local foot pedal handler
-from isaaclab.devices.openxr.retargeters.humanoid.foot_pedal_handler import (
-    FootPedalHandler,
-    FootPedalOutput,
-    PedalMode,
-)
+from isaaclab.devices.openxr.retargeters.humanoid.foot_pedal_handler import FootPedalHandler, FootPedalOutput, PedalMode
+from isaaclab.devices.retargeter_base import RetargeterBase, RetargeterCfg
 
 
 @dataclass
@@ -64,7 +59,7 @@ class G1LowerBodyFootPedalRetargeter(RetargeterBase):
     def __init__(self, cfg: G1LowerBodyFootPedalRetargeterCfg):
         """Initialize the retargeter and start the foot pedal handler if available."""
         self.cfg = cfg
-        self._handler: Optional[FootPedalHandler] = None
+        self._handler: FootPedalHandler | None = None
         self._started: bool = False
 
         # Ensure sensible hip height defaults
@@ -137,7 +132,10 @@ class G1LowerBodyFootPedalRetargeter(RetargeterBase):
 
         # Rudder contributes to yaw rate with small threshold
         if abs(rudder) > 0.1:
-            wz = max(-self.cfg.max_angular_vel_radps, min(self.cfg.max_angular_vel_radps, rudder * self.cfg.max_angular_vel_radps))
+            wz = max(
+                -self.cfg.max_angular_vel_radps,
+                min(self.cfg.max_angular_vel_radps, rudder * self.cfg.max_angular_vel_radps),
+            )
 
         return torch.tensor([vx, vy, wz, hip], device=self.cfg.sim_device)
 

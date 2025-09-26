@@ -1,21 +1,27 @@
-from dataclasses import dataclass
-from enum import Enum
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 import os
 import select
 import struct
 import threading
 import time
 import torch
+from dataclasses import dataclass
+from enum import Enum
 from typing import NamedTuple
 
 import omni.log
 
+
 class PedalMode(Enum):
     """Enumeration of foot pedal operation modes."""
 
-    FORWARD_MODE = 'forward'
-    REVERSE_MODE = 'reverse'
-    VERTICAL_MODE = 'vertical'
+    FORWARD_MODE = "forward"
+    REVERSE_MODE = "reverse"
+    VERTICAL_MODE = "vertical"
 
 
 class ClickState(NamedTuple):
@@ -70,7 +76,7 @@ class FootPedalHandler:
 
     # Linux joystick event structure: time(4) + value(2) + type(1) + number(1) = 8 bytes
     # https://www.kernel.org/doc/html/v6.8/input/joydev/joystick-api.html#event-reading
-    _JS_EVENT_FMT = 'IhBB'
+    _JS_EVENT_FMT = "IhBB"
     _JS_EVENT_SIZE = struct.calcsize(_JS_EVENT_FMT)
 
     # Event types
@@ -81,7 +87,7 @@ class FootPedalHandler:
     def __init__(
         self,
         *,
-        device_path: str = '/dev/input/js0',
+        device_path: str = "/dev/input/js0",
         foot_pedal_update_interval: float = 0.02,  # 50Hz default
     ):
         """Initialize the foot pedal handler.
@@ -116,12 +122,8 @@ class FootPedalHandler:
         self._mode_lock = threading.Lock()  # Lock for mode state access
 
         # Click detection state for left (axis 0) and right (axis 1) pedals
-        self._left_click_state = ClickState(
-            is_pressed=False, press_start_time=0.0, max_value_reached=0.0
-        )
-        self._right_click_state = ClickState(
-            is_pressed=False, press_start_time=0.0, max_value_reached=0.0
-        )
+        self._left_click_state = ClickState(is_pressed=False, press_start_time=0.0, max_value_reached=0.0)
+        self._right_click_state = ClickState(is_pressed=False, press_start_time=0.0, max_value_reached=0.0)
 
     def __enter__(self):
         self.start()
@@ -144,23 +146,21 @@ class FootPedalHandler:
         try:
             # Open the joystick device
             if not os.path.exists(self._device_path):
-                raise FileNotFoundError(f'Joystick device not found: {self._device_path}')
+                raise FileNotFoundError(f"Joystick device not found: {self._device_path}")
 
             self._device_fd = os.open(self._device_path, os.O_RDONLY | os.O_NONBLOCK)
-            print(f'Opened joystick device: {self._device_path}')
+            print(f"Opened joystick device: {self._device_path}")
 
             # Only mark as running after device is successfully opened
             self.is_running = True
 
             # Start the input thread
-            self.input_thread = threading.Thread(
-                target=self._read_input, name='FootPedalInputThread'
-            )
+            self.input_thread = threading.Thread(target=self._read_input, name="FootPedalInputThread")
             self.input_thread.daemon = True
             self.input_thread.start()
-        except (IOError, OSError, PermissionError) as e:
+        except (OSError, PermissionError) as e:
             # Handle device setup errors
-            omni.log.error(f'Failed to open joystick device {self._device_path}: {e}')
+            omni.log.error(f"Failed to open joystick device {self._device_path}: {e}")
             # Clean up partially opened resources
             if self._device_fd is not None:
                 try:
@@ -186,9 +186,9 @@ class FootPedalHandler:
         if self._device_fd is not None:
             try:
                 os.close(self._device_fd)
-                print(f'Closed joystick device: {self._device_path}')
+                print(f"Closed joystick device: {self._device_path}")
             except OSError as e:
-                omni.log.warning(f'Failed to close joystick device: {e}')
+                omni.log.warning(f"Failed to close joystick device: {e}")
             finally:
                 self._device_fd = None
 
@@ -258,15 +258,10 @@ class FootPedalHandler:
             if normalized_value <= self._click_release_threshold:
                 # Check if this constitutes a valid click
                 press_duration = current_time - click_state.press_start_time
-                valid_click = (
-                    press_duration <= self._click_max_duration
-                    and max_value >= self._click_press_threshold
-                )
+                valid_click = press_duration <= self._click_max_duration and max_value >= self._click_press_threshold
 
                 # Reset click state
-                reset_state = ClickState(
-                    is_pressed=False, press_start_time=0.0, max_value_reached=0.0
-                )
+                reset_state = ClickState(is_pressed=False, press_start_time=0.0, max_value_reached=0.0)
                 if axis_number == 0:
                     self._left_click_state = reset_state
                 else:
@@ -322,7 +317,7 @@ class FootPedalHandler:
             try:
                 # Check that device is open
                 if self._device_fd is None:
-                    omni.log.error('Device file descriptor is None')
+                    omni.log.error("Device file descriptor is None")
                     self.stop()
                     break
 
@@ -335,14 +330,14 @@ class FootPedalHandler:
                             event = self._parse_joystick_event(data)
                             if event:
                                 self._handle_joystick_event(event)
-                    except (OSError, IOError) as e:
+                    except OSError as e:
                         # Handle input errors gracefully
-                        omni.log.error(f'Input error: {e}')
+                        omni.log.error(f"Input error: {e}")
                         self.stop()
                         break
-            except (OSError, IOError, ValueError, RuntimeError) as e:
+            except (OSError, ValueError, RuntimeError) as e:
                 # Catch specific exceptions to ensure device state is cleaned up
-                omni.log.error(f'Error in foot pedal handler: {e}')
+                omni.log.error(f"Error in foot pedal handler: {e}")
                 self.stop()
                 break
 
@@ -359,7 +354,7 @@ class FootPedalHandler:
             event_time, value, event_type, number = struct.unpack(self._JS_EVENT_FMT, data)
             return JoystickEvent(time=event_time, value=value, type=event_type, number=number)
         except struct.error as e:
-            omni.log.warning(f'Failed to parse joystick event: {e}')
+            omni.log.warning(f"Failed to parse joystick event: {e}")
             return None
 
     def _handle_joystick_event(self, event: JoystickEvent):
@@ -370,16 +365,16 @@ class FootPedalHandler:
         """
         if event.type & self._JS_EVENT_INIT:
             # Skip initialization events
-            print(f'Initialization event: axis={event.number}, value={event.value}')
+            print(f"Initialization event: axis={event.number}, value={event.value}")
             self._handle_axis_event(event.number, event.value)
         elif event.type & self._JS_EVENT_AXIS:
             # Handle axis events
             self._handle_axis_event(event.number, event.value)
         elif event.type & self._JS_EVENT_BUTTON:
             # For foot pedals, we typically don't have buttons, but log if received
-            omni.log.warning(f'Unexpected button event: button={event.number}')
+            omni.log.warning(f"Unexpected button event: button={event.number}")
         else:
-            omni.log.warning(f'Unexpected event: type={event.type}, number={event.number}')
+            omni.log.warning(f"Unexpected event: type={event.type}, number={event.number}")
 
     def _handle_axis_event(self, axis_number: int, raw_value: int):
         """Handle joystick axis movement.
@@ -393,7 +388,7 @@ class FootPedalHandler:
 
         with self._vel_lock:
             if axis_number < 0 or axis_number > 2:
-                omni.log.warning(f'Unexpected axis number: {axis_number}')
+                omni.log.warning(f"Unexpected axis number: {axis_number}")
                 return
 
             # Update raw axis values
