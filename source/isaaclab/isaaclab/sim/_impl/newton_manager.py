@@ -306,14 +306,14 @@ class NewtonManager:
     def _render_call(cls, render_func) -> bool:
         if NewtonManager._renderer is not None:
             try:
-                if hasattr(NewtonManager._renderer, 'renderer') and hasattr(NewtonManager._renderer.renderer, 'window'):
+                if hasattr(NewtonManager._renderer, "renderer") and hasattr(NewtonManager._renderer.renderer, "window"):
                     if NewtonManager._renderer.renderer.window.has_exit:
                         NewtonManager._visualizer_disabled = True
                         NewtonManager._renderer = None
                         return False
-            except:
-                pass
-        
+            except Exception as e:
+                print(f"[ERROR] Error in _render_call: {e}")
+
         try:
             render_func()
             return True
@@ -323,8 +323,8 @@ class NewtonManager:
                 if NewtonManager._renderer is not None:
                     try:
                         NewtonManager._renderer.close()
-                    except:
-                        pass
+                    except Exception as e:
+                        print(f"[ERROR] Error in _render_call: {e}")
                     NewtonManager._renderer = None
                 return False
             else:
@@ -334,7 +334,7 @@ class NewtonManager:
     def render(cls) -> None:
         if NewtonManager._visualizer_disabled:
             return
-            
+
         if NewtonManager._renderer is None:
             NewtonManager._visualizer_train_mode = NewtonManager._cfg.visualizer_train_mode
             NewtonManager._renderer = NewtonViewerGL(
@@ -347,30 +347,34 @@ class NewtonManager:
             NewtonManager._renderer._paused = False
         else:
             while NewtonManager._renderer is not None and NewtonManager._renderer.is_training_paused():
+
                 def render_frame():
                     NewtonManager._renderer.begin_frame(NewtonManager._sim_time)
                     NewtonManager._renderer.log_state(NewtonManager._state_0)
                     NewtonManager._renderer.end_frame()
-                
+
                 if not NewtonManager._render_call(render_frame):
                     return
 
             NewtonManager._visualizer_update_counter += 1
-            if NewtonManager._renderer is not None and NewtonManager._visualizer_update_counter >= NewtonManager._visualizer_update_frequency:
+            if (
+                NewtonManager._renderer is not None
+                and NewtonManager._visualizer_update_counter >= NewtonManager._visualizer_update_frequency
+            ):
                 if not NewtonManager._renderer.is_paused():
+
                     def render_frame():
                         NewtonManager._renderer.begin_frame(NewtonManager._sim_time)
                         NewtonManager._renderer.log_state(NewtonManager._state_0)
                         NewtonManager._renderer.end_frame()
-                    
+
                     if not NewtonManager._render_call(render_frame):
                         return
                 else:
                     if not NewtonManager._render_call(lambda: NewtonManager._renderer._update()):
                         return
-                        
-                NewtonManager._visualizer_update_counter = 0
 
+                NewtonManager._visualizer_update_counter = 0
 
     @classmethod
     def sync_fabric_transforms(cls) -> None:
