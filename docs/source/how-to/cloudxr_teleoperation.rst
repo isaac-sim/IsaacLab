@@ -434,6 +434,47 @@ as the Vive trackers attached to the back of the hands occlude the optical hand 
    This auto-mapping calculation supports up to 2 Vive trackers;
    if more than 2 Vive trackers are detected, it uses the first two trackers detected for calibration, which may not be correct.
 
+
+.. _lower-body-control-with-foot-pedals:
+
+Lower Body Control with Foot Pedals
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Lower body control is supported by foot pedals. This setup expects a 3-axis foot pedal (left, right, rudder) recognized as a Linux joystick.
+
+Run the teleoperation example with foot pedals for lower body control:
+
+.. code-block:: bash
+
+   ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
+       --task Isaac-PickPlace-Locomanipulation-G1-Abs-v0 \
+       --teleop_device xrlocomotion \
+       --xr \
+       --enable_pinocchio
+
+Modes
+-----
+
+Quick-tap the left/right pedal to switch modes (press and release within ~0.3 s):
+
+* FORWARD_MODE (default)
+* REVERSE_MODE
+* VERTICAL_MODE (squat)
+
+Switch between FORWARD_MODE and REVERSE_MODE by tapping the left pedal. Enter/exit VERTICAL_MODE by tapping the right pedal.
+
+Movements
+---------
+
+* Yaw (turn): twist the rudder axis (center bar)
+* [FORWARD_MODE] Forward: press both pedals together (balanced; deeper = faster)
+* [REVERSE_MODE] Backward: press the right pedal
+* [FORWARD_MODE] Strafe left: press only the left pedal
+* [FORWARD_MODE] Strafe right: press only the right pedal
+* [VERTICAL_MODE] Squat down: press the left pedal (lower hips)
+* [VERTICAL_MODE] Stand up: release the left pedal (return to standing height)
+
+
 .. _develop-xr-isaac-lab:
 
 Develop for XR in Isaac Lab

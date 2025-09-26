@@ -2,7 +2,7 @@
 
 ## Overview
 
-Three modes are available and you switch them with quick pedal taps (press past ~0.6 and release within ~0.3s):
+Three modes are available and you switch them with quick pedal taps (press and release within ~0.3s):
 
 - FORWARD_MODE (default)
 - REVERSE_MODE
