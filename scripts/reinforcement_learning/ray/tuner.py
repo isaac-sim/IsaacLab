@@ -80,7 +80,7 @@ class IsaacLabTuneTrainable(tune.Trainable):
         self.experiment = None
 
     def reset_config(self, new_config: dict):
-        """Allow environments to be re-used by fetching a new invocation command"""
+        """Allow environments to be reused by fetching a new invocation command"""
         self.setup(new_config)
         return True
 
