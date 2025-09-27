@@ -61,26 +61,29 @@ RANDOM_YCB_RIGID_OBJECT_CFG = RigidObjectCfg(
         assets_cfg=[
             sim_utils.UsdFileCfg(
                 usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/YCB/Axis_Aligned_Physics/004_sugar_box.usd",
+                rigid_props=sim_utils.RigidBodyPropertiesCfg(solver_position_iteration_count=4),
             ),
             sim_utils.UsdFileCfg(
                 usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/YCB/Axis_Aligned_Physics/003_cracker_box.usd",
+                rigid_props=sim_utils.RigidBodyPropertiesCfg(solver_position_iteration_count=4),
             ),
             sim_utils.UsdFileCfg(
                 usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/YCB/Axis_Aligned_Physics/005_tomato_soup_can.usd",
+                rigid_props=sim_utils.RigidBodyPropertiesCfg(solver_position_iteration_count=4),
             ),
             sim_utils.UsdFileCfg(
                 usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/YCB/Axis_Aligned_Physics/006_mustard_bottle.usd",
+                rigid_props=sim_utils.RigidBodyPropertiesCfg(solver_position_iteration_count=4),
             ),
             # note: the placeholder, this allows the effect of having less objects in some env ids
             sim_utils.SphereCfg(
-                radius=0.1, collision_props=sim_utils.CollisionPropertiesCfg(collision_enabled=False), visible=False
+                radius=0.1,
+                rigid_props=sim_utils.RigidBodyPropertiesCfg(disable_gravity=True),
+                collision_props=sim_utils.CollisionPropertiesCfg(collision_enabled=False),
+                visible=False
             ),
         ],
         random_choice=True,
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
-            solver_position_iteration_count=4, solver_velocity_iteration_count=0
-        ),
-        mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
     ),
     init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 2.0)),
 )
@@ -117,38 +120,66 @@ class MultiObjectSceneCfg(InteractiveSceneCfg):
         rigid_objects={
             "Object_A_Layer1": RANDOM_YCB_RIGID_OBJECT_CFG.replace(
                 prim_path="/World/envs/env_.*/Object_A_Layer1",
-                init_state=RigidObjectCfg.InitialStateCfg(pos=(-0.085, -0.12, 0.2)),
+                init_state=RigidObjectCfg.InitialStateCfg(pos=(-0.035, -0.06, 0.2)),
             ),
             "Object_B_Layer1": RANDOM_YCB_RIGID_OBJECT_CFG.replace(
                 prim_path="/World/envs/env_.*/Object_B_Layer1",
-                init_state=RigidObjectCfg.InitialStateCfg(pos=(-0.085, 0.12, 0.2)),
+                init_state=RigidObjectCfg.InitialStateCfg(pos=(-0.035, 0.06, 0.2)),
             ),
             "Object_C_Layer1": RANDOM_YCB_RIGID_OBJECT_CFG.replace(
                 prim_path="/World/envs/env_.*/Object_C_Layer1",
-                init_state=RigidObjectCfg.InitialStateCfg(pos=(0.085, 0.12, 0.2)),
+                init_state=RigidObjectCfg.InitialStateCfg(pos=(0.035, 0.06, 0.2)),
             ),
             "Object_D_Layer1": RANDOM_YCB_RIGID_OBJECT_CFG.replace(
                 prim_path="/World/envs/env_.*/Object_D_Layer1",
-                init_state=RigidObjectCfg.InitialStateCfg(pos=(0.085, -0.12, 0.2)),
+                init_state=RigidObjectCfg.InitialStateCfg(pos=(0.035, -0.06, 0.2)),
             ),
             "Object_A_Layer2": RANDOM_YCB_RIGID_OBJECT_CFG.replace(
                 prim_path="/World/envs/env_.*/Object_A_Layer2",
-                init_state=RigidObjectCfg.InitialStateCfg(pos=(-0.085, -0.12, 0.4)),
+                init_state=RigidObjectCfg.InitialStateCfg(pos=(-0.035, -0.06, 0.4)),
             ),
             "Object_B_Layer2": RANDOM_YCB_RIGID_OBJECT_CFG.replace(
                 prim_path="/World/envs/env_.*/Object_B_Layer2",
-                init_state=RigidObjectCfg.InitialStateCfg(pos=(-0.085, 0.12, 0.4)),
+                init_state=RigidObjectCfg.InitialStateCfg(pos=(-0.035, 0.06, 0.4)),
             ),
             "Object_C_Layer2": RANDOM_YCB_RIGID_OBJECT_CFG.replace(
                 prim_path="/World/envs/env_.*/Object_C_Layer2",
-                init_state=RigidObjectCfg.InitialStateCfg(pos=(0.085, 0.12, 0.4)),
+                init_state=RigidObjectCfg.InitialStateCfg(pos=(0.035, 0.06, 0.4)),
             ),
             "Object_D_Layer2": RANDOM_YCB_RIGID_OBJECT_CFG.replace(
                 prim_path="/World/envs/env_.*/Object_D_Layer2",
-                init_state=RigidObjectCfg.InitialStateCfg(pos=(0.085, -0.12, 0.4)),
+                init_state=RigidObjectCfg.InitialStateCfg(pos=(0.035, -0.06, 0.4)),
             ),
         }
     )
+
+
+def reset_object_collections(scene: InteractiveScene, view_ids: torch.Tensor):
+    if len(view_ids) == 0:
+        return
+    rigid_object_collection: RigidObjectCollection = scene["object_collection"]
+    default_state_w = rigid_object_collection.data.default_object_state.clone()
+    default_state_w[..., :3] = default_state_w[..., :3] + scene.env_origins.unsqueeze(1)
+    default_state_w_view = rigid_object_collection.reshape_data_to_view(default_state_w)[view_ids]
+    range_list = [POSE_RANGE.get(key, (0.0, 0.0)) for key in ["x", "y", "z", "roll", "pitch", "yaw"]]
+    ranges = torch.tensor(range_list, device=scene.device)
+    samples = math_utils.sample_uniform(ranges[:, 0], ranges[:, 1], (len(view_ids), 6), device=scene.device)
+
+    positions = default_state_w_view[:, :3] + samples[..., 0:3]
+    orientations_delta = math_utils.quat_from_euler_xyz(samples[..., 3], samples[..., 4], samples[..., 5])
+    orientations = math_utils.quat_mul(default_state_w_view[:, 3:7], orientations_delta)
+    # velocities
+    range_list = [VELOCITY_RANGE.get(key, (0.0, 0.0)) for key in ["x", "y", "z", "roll", "pitch", "yaw"]]
+    ranges = torch.tensor(range_list, device=scene.device)
+    samples = math_utils.sample_uniform(ranges[:, 0], ranges[:, 1], (len(view_ids), 6), device=scene.device)
+
+    velocities = default_state_w_view[:, 7:13] + samples
+    new_poses = torch.concat((positions, orientations), dim=-1)
+
+    new_poses[..., 3:] = math_utils.convert_quat(new_poses[..., 3:], to="xyzw")
+    rigid_object_collection.root_physx_view.set_transforms(new_poses, indices=view_ids.view(-1, 1))
+    rigid_object_collection.root_physx_view.set_velocities(velocities, indices=view_ids.view(-1, 1))
+
 
 
 ##
@@ -162,7 +193,7 @@ def run_simulator(sim: SimulationContext, scene: InteractiveScene):
     # note: we only do this here for readability.
     rigid_object: RigidObject = scene["object"]
     rigid_object_collection: RigidObjectCollection = scene["object_collection"]
-    # robot: Articulation = scene["robot"]
+    view_indices = torch.arange(scene.num_envs * rigid_object_collection.num_objects, device=scene.device)
     # Define simulation stepping
     sim_dt = sim.get_physics_dt()
     count = 0
@@ -179,29 +210,7 @@ def run_simulator(sim: SimulationContext, scene: InteractiveScene):
             rigid_object.write_root_pose_to_sim(root_state[:, :7])
             rigid_object.write_root_velocity_to_sim(root_state[:, 7:])
             # object collection
-            object_state = rigid_object_collection.data.default_object_state.clone()
-            range_list = [POSE_RANGE.get(key, (0.0, 0.0)) for key in ["x", "y", "z", "roll", "pitch", "yaw"]]
-            ranges = torch.tensor(range_list, device=sim.device)
-            rand_samples = math_utils.sample_uniform(
-                ranges[:, 0], ranges[:, 1], (scene.num_envs, rigid_object_collection.num_objects, 6), device=sim.device
-            )
-
-            positions = object_state[..., :3] + scene.env_origins.unsqueeze(1) + rand_samples[..., 0:3]
-            orientations_delta = math_utils.quat_from_euler_xyz(
-                rand_samples[..., 3], rand_samples[..., 4], rand_samples[..., 5]
-            )
-            orientations = math_utils.quat_mul(object_state[..., 3:7], orientations_delta)
-            # velocities
-            range_list = [VELOCITY_RANGE.get(key, (0.0, 0.0)) for key in ["x", "y", "z", "roll", "pitch", "yaw"]]
-            ranges = torch.tensor(range_list, device=sim.device)
-            rand_samples = math_utils.sample_uniform(
-                ranges[:, 0], ranges[:, 1], (scene.num_envs, rigid_object_collection.num_objects, 6), device=sim.device
-            )
-
-            velocities = object_state[..., 7:13] + rand_samples
-            new_state = torch.concat((positions, orientations, velocities), dim=-1)
-            rigid_object_collection.write_object_state_to_sim(new_state)
-
+            reset_object_collections(scene, view_indices)
             scene.reset()
             print("[INFO]: Resetting scene state...")
 
@@ -209,6 +218,11 @@ def run_simulator(sim: SimulationContext, scene: InteractiveScene):
         scene.write_data_to_sim()
         # Perform step
         sim.step()
+        object_pos_b = rigid_object_collection.data.object_pos_w - scene.env_origins.unsqueeze(1)
+        object_pos_b_view = rigid_object_collection.reshape_data_to_view(object_pos_b)
+        inbound_mask = (-1.0 < object_pos_b_view[:, 0]) & (object_pos_b_view[:, 0] < 1.0)
+        inbound_mask &= (-1.0 < object_pos_b_view[:, 1]) & (object_pos_b_view[:, 1] < 1.0)
+        reset_object_collections(scene, view_indices[~inbound_mask])
         # Increment counter
         count += 1
         # Update buffers
