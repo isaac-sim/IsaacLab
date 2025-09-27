@@ -21,8 +21,9 @@ class G1_29_DOFs_RoughPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     max_iterations = 3000
     save_interval = 50
     experiment_name = "g1_29_dofs_rough"
-    empirical_normalization = False
     policy = RslRlPpoActorCriticCfg(
+        actor_obs_normalization=False,
+        critic_obs_normalization=False,
         init_noise_std=1.0,
         actor_hidden_dims=[512, 256, 128],
         critic_hidden_dims=[512, 256, 128],
