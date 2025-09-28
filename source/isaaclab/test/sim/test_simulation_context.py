@@ -19,6 +19,7 @@ import pytest
 from isaacsim.core.api.simulation_context import SimulationContext as IsaacSimulationContext
 
 from isaaclab.sim import SimulationCfg, SimulationContext
+from isaaclab.sim._impl.newton_manager import NewtonManager
 
 
 @pytest.fixture(autouse=True)
@@ -71,8 +72,7 @@ def test_initialization():
     assert prim_utils.is_prim_path_valid("/Physics/PhysX")
     assert prim_utils.is_prim_path_valid("/Physics/PhysX/defaultMaterial")
     # check valid gravity
-    gravity_dir, gravity_mag = sim.get_physics_context().get_gravity()
-    gravity = np.array(gravity_dir) * gravity_mag
+    gravity = np.array(NewtonManager._gravity_vector)
     np.testing.assert_almost_equal(gravity, cfg.gravity)
 
 
@@ -135,8 +135,7 @@ def test_zero_gravity():
     """Test that gravity can be properly disabled."""
     cfg = SimulationCfg(gravity=(0.0, 0.0, 0.0))
 
-    sim = SimulationContext(cfg)
+    SimulationContext(cfg)
 
-    gravity_dir, gravity_mag = sim.get_physics_context().get_gravity()
-    gravity = np.array(gravity_dir) * gravity_mag
+    gravity = np.array(NewtonManager._gravity_vector)
     np.testing.assert_almost_equal(gravity, cfg.gravity)

@@ -23,7 +23,8 @@ class G1_29_DOFs_FlatEnvCfg(G1_29_DOFs_RoughEnvCfg):
     sim: SimulationCfg = SimulationCfg(
         newton_cfg=NewtonCfg(
             solver_cfg=MJWarpSolverCfg(
-                nefc_per_env=100,
+                njmax=210,
+                ncon_per_env=35,
                 ls_iterations=10,
                 ls_parallel=True,
                 cone="pyramidal",

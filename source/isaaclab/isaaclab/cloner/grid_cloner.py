@@ -142,7 +142,7 @@ class GridCloner(Cloner):
         root_path: str = None,
         copy_from_source: bool = False,
         enable_env_ids: bool = False,
-        spawn_offset: tuple[float] = (0.0, 0.0, 20.0),
+        spawn_offset: tuple[float] = (0.0, 0.0, 0.0),
     ):
         """Creates clones in a grid fashion. Positions of clones are computed automatically.
 

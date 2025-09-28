@@ -154,6 +154,20 @@ class CollisionPropertiesCfg:
     min_torsional_patch_radius: float | None = None
     """Minimum radius of the contact patch for applying torsional friction (in m)."""
 
+    approximation: (
+        Literal["none", "convexDecomposition", "convexHull", "boundingSphere", "boundingCube", "meshSimplification"]
+        | None
+    ) = None
+    """Approximation method to use for the collision shape.
+
+    If the approximation is "none", the collision shape is not approximated.
+    If the approximation is "convexDecomposition", the collision shape is approximated by a convex decomposition.
+    If the approximation is "convexHull", the collision shape is approximated by a convex hull.
+    If the approximation is "boundingSphere", the collision shape is approximated by a bounding sphere.
+    If the approximation is "boundingCube", the collision shape is approximated by a bounding cube.
+    If the approximation is "meshSimplification", the collision shape is approximated by a mesh simplification.
+    """
+
 
 @configclass
 class MassPropertiesCfg:

@@ -36,7 +36,7 @@ INSTALL_REQUIRES = [
     # image processing
     "transformers",
     "einops",  # needed for transformers, doesn't always auto-install
-    "warp-lang",
+    "warp-lang>=1.9.0.dev20250825",
     # make sure this is consistent with isaac sim version
     "pillow==11.2.1",
     # livestream
@@ -48,9 +48,11 @@ INSTALL_REQUIRES = [
     "flatdict==4.0.1",
     # newton
     "usd-core==25.05.0",
-    "mujoco==3.3.6.dev798190254",
-    "mujoco-warp @ git+https://github.com/google-deepmind/mujoco_warp.git@baeb10e73237df13802217d310788e1f02dcf92d",
-    "newton-physics @ git+https://github.com/newton-physics/newton.git@alpha-1",
+    "mujoco>=3.3.6.dev802089588",
+    "mujoco-warp @ git+https://github.com/google-deepmind/mujoco_warp.git@64bb938f87b6aaf840753ef9ddc198db655020c0",
+    "newton @ git+https://github.com/newton-physics/newton.git@beta-1-1",
+    "imgui-bundle==1.92.0",
+    "PyOpenGL-accelerate==3.1.10",
 ]
 
 

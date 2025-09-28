@@ -8,7 +8,7 @@ from typing import Any
 
 import warp as wp
 from newton import AxisType, ModelBuilder
-from newton.utils import parse_usd
+from pxr import Usd
 
 from isaaclab.utils.timer import Timer
 
@@ -47,10 +47,8 @@ def replicate_environment(
     with Timer(name="newton_env_builder", msg="Env Builder took:", enable=True, format="ms"):
         builder = ModelBuilder(up_axis=up_axis)
 
-        # first, load everything except the prototype env
-        stage_info = parse_usd(
+        stage_info = builder.add_usd(
             source,
-            builder,
             ignore_paths=[prototype_path],
             **usd_kwargs,
         )
@@ -61,15 +59,35 @@ def replicate_environment(
             print(f"WARNING: up_axis '{up_axis}' does not match USD stage up_axis '{stage_up_axis}'")
 
     with Timer(name="newton_prototype_builder", msg="Prototype Builder took:", enable=True, format="ms"):
-        # load just the prototype env
+        # Get child xforms from the prototype path
+        child_xforms = []
+        if isinstance(source, str):
+            # If source is a file path, load the stage
+            stage = Usd.Stage.Open(source)
+        else:
+            # If source is already a stage
+            stage = source
+
+        # Get the prototype prim
+        prototype_prim = stage.GetPrimAtPath(prototype_path)
+        if prototype_prim.IsValid():
+            # Get all child prims that are Xforms
+            for child_prim in prototype_prim.GetAllChildren():
+                if child_prim.GetTypeName() == "Xform":
+                    child_xforms.append(child_prim.GetPath().pathString)
+
+        # If no child xforms found, use the prototype path itself
+        if not child_xforms:
+            child_xforms = [prototype_path]
+
         prototype_builder = ModelBuilder(up_axis=up_axis)
-        parse_usd(
-            source,
-            prototype_builder,
-            root_path=prototype_path,
-            load_non_physics_prims=False,
-            **usd_kwargs,
-        )
+        for child_path in child_xforms:
+            prototype_builder.add_usd(
+                source,
+                root_path=child_path,
+                load_non_physics_prims=False,
+                **usd_kwargs,
+            )
         prototype_builder.approximate_meshes("convex_hull")
 
     with Timer(name="newton_multiple_add_to_builder", msg="All add to builder took:", enable=True, format="ms"):
@@ -80,21 +98,20 @@ def replicate_environment(
             joint_start = builder.joint_count
             articulation_start = builder.articulation_count
 
-            with Timer(name="newton_add_builder", msg="Add builder took:", enable=False, format="ms"):
-                builder.add_builder(
-                    prototype_builder, xform=wp.transform(np.array(pos) + np.array(spawn_offset), wp.quat_identity())
-                )
+            builder.add_builder(
+                prototype_builder, xform=wp.transform(np.array(pos) + np.array(spawn_offset), wp.quat_identity())
+            )
 
-                if i > 0:
-                    update_paths(
-                        builder,
-                        prototype_path,
-                        path_pattern.format(i),
-                        body_start=body_start,
-                        shape_start=shape_start,
-                        joint_start=joint_start,
-                        articulation_start=articulation_start,
-                    )
+            if i > 0:
+                update_paths(
+                    builder,
+                    prototype_path,
+                    path_pattern.format(i),
+                    body_start=body_start,
+                    shape_start=shape_start,
+                    joint_start=joint_start,
+                    articulation_start=articulation_start,
+                )
 
     return builder, stage_info
 

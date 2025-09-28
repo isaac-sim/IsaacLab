@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import ctypes
 import numpy as np
 import re
 
@@ -13,10 +14,9 @@ from newton import Axis, Contacts, Control, Model, ModelBuilder, State, eval_fk
 from newton.sensors import ContactSensor as NewtonContactSensor
 from newton.sensors import populate_contacts
 from newton.solvers import SolverBase, SolverFeatherstone, SolverMuJoCo, SolverXPBD
-from newton.utils import parse_usd
-from newton.viewer import RendererOpenGL
 
 from isaaclab.sim._impl.newton_manager_cfg import NewtonCfg
+from isaaclab.sim._impl.newton_viewer import NewtonViewerGL
 from isaaclab.utils.timer import Timer
 
 
@@ -76,6 +76,10 @@ class NewtonManager:
     _gravity_vector: tuple[float, float, float] = (0.0, 0.0, -9.81)
     _up_axis: str = "Z"
     _num_envs: int = None
+    _visualizer_update_counter: int = 0
+    _visualizer_update_frequency: int = 1  # Configurable frequency for all rendering updates
+    _visualizer_train_mode: bool = True  # Whether visualizer is in training mode
+    _visualizer_disabled: bool = False  # Whether visualizer has been disabled by user
 
     @classmethod
     def clear(cls):
@@ -99,6 +103,9 @@ class NewtonManager:
         NewtonManager._cfg = NewtonCfg()
         NewtonManager._up_axis = "Z"
         NewtonManager._first_call = True
+        NewtonManager._visualizer_update_counter = 0
+        NewtonManager._visualizer_disabled = False
+        NewtonManager._visualizer_update_frequency = NewtonManager._cfg.newton_viewer_update_frequency
 
     @classmethod
     def set_builder(cls, builder):
@@ -157,7 +164,7 @@ class NewtonManager:
         stage = omni.usd.get_context().get_stage()
         up_axis = UsdGeom.GetStageUpAxis(stage)
         builder = ModelBuilder(up_axis=up_axis)
-        parse_usd(stage, builder)
+        builder.add_usd(stage)
         NewtonManager.set_builder(builder)
 
     @classmethod
@@ -271,7 +278,7 @@ class NewtonManager:
 
         if NewtonManager._cfg.debug_mode:
             convergence_data = NewtonManager.get_solver_convergence_steps()
-            print(f"solver niter: {convergence_data}")
+            # print(f"solver niter: {convergence_data}")
             if convergence_data["max"] == NewtonManager._solver.mjw_model.opt.iterations:
                 print("solver didn't converge!", convergence_data["max"])
 
@@ -296,25 +303,78 @@ class NewtonManager:
         NewtonManager._dt = dt
 
     @classmethod
-    def render(cls) -> None:
-        """Renders the simulation.
+    def _render_call(cls, render_func) -> bool:
+        if NewtonManager._renderer is not None:
+            try:
+                if hasattr(NewtonManager._renderer, "renderer") and hasattr(NewtonManager._renderer.renderer, "window"):
+                    if NewtonManager._renderer.renderer.window.has_exit:
+                        NewtonManager._visualizer_disabled = True
+                        NewtonManager._renderer = None
+                        return False
+            except Exception as e:
+                print(f"[ERROR] Error in _render_call: {e}")
 
-        This function renders the simulation using the OpenGL renderer.
-        """
+        try:
+            render_func()
+            return True
+        except (ctypes.ArgumentError, Exception) as e:
+            if "wrong type" in str(e) or "ArgumentError" in str(e):
+                NewtonManager._visualizer_disabled = True
+                if NewtonManager._renderer is not None:
+                    try:
+                        NewtonManager._renderer.close()
+                    except Exception as e:
+                        print(f"[ERROR] Error in _render_call: {e}")
+                    NewtonManager._renderer = None
+                return False
+            else:
+                raise
+
+    @classmethod
+    def render(cls) -> None:
+        if NewtonManager._visualizer_disabled:
+            return
+
         if NewtonManager._renderer is None:
-            NewtonManager._renderer = RendererOpenGL(
-                path="example.usd",
-                model=NewtonManager._model,
-                scaling=1.0,
-                up_axis=NewtonManager._up_axis,
-                screen_width=1280,
-                screen_height=720,
-                camera_pos=(0, 3, 10),
+            NewtonManager._visualizer_train_mode = NewtonManager._cfg.visualizer_train_mode
+            NewtonManager._renderer = NewtonViewerGL(
+                width=1280, height=720, train_mode=NewtonManager._visualizer_train_mode
             )
+            NewtonManager._renderer.set_model(NewtonManager._model)
+            NewtonManager._renderer.camera.pos = wp.vec3(*NewtonManager._cfg.newton_viewer_camera_pos)
+            NewtonManager._renderer.up_axis = NewtonManager._up_axis
+            NewtonManager._renderer.scaling = 1.0
+            NewtonManager._renderer._paused = False
         else:
-            NewtonManager._renderer.begin_frame(NewtonManager._sim_time)
-            NewtonManager._renderer.render(NewtonManager._state_0)
-            NewtonManager._renderer.end_frame()
+            while NewtonManager._renderer is not None and NewtonManager._renderer.is_training_paused():
+
+                def render_frame():
+                    NewtonManager._renderer.begin_frame(NewtonManager._sim_time)
+                    NewtonManager._renderer.log_state(NewtonManager._state_0)
+                    NewtonManager._renderer.end_frame()
+
+                if not NewtonManager._render_call(render_frame):
+                    return
+
+            NewtonManager._visualizer_update_counter += 1
+            if (
+                NewtonManager._renderer is not None
+                and NewtonManager._visualizer_update_counter >= NewtonManager._visualizer_update_frequency
+            ):
+                if not NewtonManager._renderer.is_paused():
+
+                    def render_frame():
+                        NewtonManager._renderer.begin_frame(NewtonManager._sim_time)
+                        NewtonManager._renderer.log_state(NewtonManager._state_0)
+                        NewtonManager._renderer.end_frame()
+
+                    if not NewtonManager._render_call(render_frame):
+                        return
+                else:
+                    if not NewtonManager._render_call(lambda: NewtonManager._renderer._update()):
+                        return
+
+                NewtonManager._visualizer_update_counter = 0
 
     @classmethod
     def sync_fabric_transforms(cls) -> None:
