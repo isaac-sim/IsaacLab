@@ -54,16 +54,18 @@ df = df.dropna()
 df["resolution"] = df["resolution"].str.strip("()").str.split(",").apply(lambda x: tuple(map(int, x)))
 
 data_types = df["data_types"].unique()
+modes = df["mode"].unique()
 
-for dtype in data_types:
+fig, axes = plt.subplots(len(data_types), len(modes), figsize=(6 * len(modes), 12), sharey=True, sharex=False)
+
+if len(modes) == 1:
+    axes = axes[None, :]
+    
+for idx, dtype in enumerate(data_types):
     sub_dtype = df[df["data_types"] == dtype]
-    modes = sub_dtype["mode"].unique()
-
-    fig, axes = plt.subplots(1, len(modes), figsize=(6 * len(modes), 5), sharey=True)
-    if len(modes) == 1:
-        axes = [axes]
-
-    for ax, mode in zip(axes, modes):
+    
+    for jdx, mode in enumerate(modes):
+        ax = axes[idx, jdx]
         sub_mode = sub_dtype[sub_dtype["mode"] == mode]
 
         for res, g in sub_mode.groupby("resolution"):
@@ -80,16 +82,19 @@ for dtype in data_types:
                 for xi, yi, mi in zip(x, y, mem):
                     ax.text(xi, yi * 1.05, f"{mi:.0f}", ha="center", va="bottom", fontsize=8)
 
-        ax.set_title(f"{mode.replace('_', ' ')}", weight="bold")
-        ax.set_xlabel("Number of Environments")
+        if idx == 0:
+            ax.set_title(f"{mode.replace('_', ' ')}", weight="bold")
+        if jdx == 0:
+            ax.set_ylabel("FPS")
+        if idx == len(data_types) - 1 and jdx == 1:
+            ax.set_xlabel("Number of Environments")
+        
         ax.set_xscale("log", base=2)
         ax.set_yscale("log")
         _format_axes(ax)
 
-    axes[0].set_ylabel("FPS")
-    axes[0].legend(loc="upper left")
+axes[0, 0].legend(loc="upper right")
 
-    plt.tight_layout()
-    dtype_name = dtype.replace("['", "").replace("']", "")
-    plt.savefig(f"camera_benchmarks_{dtype_name}.pdf", dpi=600)
-    plt.show()
+plt.tight_layout()
+plt.savefig(f"camera_benchmarks.png", dpi=600)
+plt.show()

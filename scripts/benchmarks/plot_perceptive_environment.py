@@ -34,7 +34,8 @@ MACHINE_NBR_GPUS_COLORS = {
 }
 
 COMPARISON_ENVIRONMENTS = [
-    {"tiled": "Isaac-Navigation-Anymal-C-Tiled-v0", "raycaster": "Isaac-Navigation-Anymal-C-RayCaster-v0"},
+    # {"raycaster": "Isaac-Navigation-Anymal-C-RayCaster-v0"},
+    # {"tiled": "Isaac-Navigation-Anymal-C-Tiled-v0", "raycaster": "Isaac-Navigation-Anymal-C-RayCaster-v0"},
     {"tiled": "Isaac-Dexsuite-Kuka-Allegro-Lift-Depth-TiledCamera-v0", "raycaster": "Isaac-Dexsuite-Kuka-Allegro-Lift-Depth-RayCasterCamera-v0"},
 ]
 COMPARISON_ENVIRONMENTS_NAME = ["dexsuite", "navigation"]
@@ -122,9 +123,17 @@ tidy = tidy.dropna(subset=["Envs", "Mean"])
 tasks = tidy["Task"].dropna().unique()
 machines = tidy["Machine"].dropna().unique()
 
-fig, axs = plt.subplots(len(COMPARISON_ENVIRONMENTS), 2, figsize=(16, 6 * len(COMPARISON_ENVIRONMENTS)), sharey=False, sharex=True)
+if len(COMPARISON_ENVIRONMENTS) == 1:
+    fig_length_factor = 10
+else:
+    fig_length_factor = 6
+
+fig, axs = plt.subplots(len(COMPARISON_ENVIRONMENTS), 2, figsize=(16, fig_length_factor * len(COMPARISON_ENVIRONMENTS)), sharey=True, sharex=True)
 x_ticks_nbr_gpus = set()
 x_ticks_machine = set()
+
+if len(COMPARISON_ENVIRONMENTS) == 1:
+    axs = axs[None, :]
 
 for i, comparison_environment in enumerate(COMPARISON_ENVIRONMENTS):
 
@@ -177,7 +186,7 @@ handles1, labels1 = axs[-1, 1].get_legend_handles_labels()
 leg0 = axs[-1, 0].legend(
     handles0, labels0,
     loc="upper center",
-    bbox_to_anchor=(-0.1, -0.25, 1.2, 0),  # full width of subplot
+    bbox_to_anchor=(-0.05, -0.25, 1.1, 0),  # full width of subplot
     mode="expand",                    # expand across width
     ncol=2,
     frameon=True,
@@ -191,7 +200,7 @@ leg0 = axs[-1, 0].legend(
 leg1 = axs[-1, 1].legend(
     handles1, labels1,
     loc="upper center",
-    bbox_to_anchor=(-0.1, -0.25, 1.2, 0),  # full width of subplot
+    bbox_to_anchor=(-0.05, -0.25, 1.1, 0),  # full width of subplot
     mode="expand",
     ncol=2,
     frameon=True,

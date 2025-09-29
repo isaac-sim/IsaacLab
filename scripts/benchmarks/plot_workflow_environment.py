@@ -129,7 +129,7 @@ else:
     fig_width = 16
     fig_length_factor = 6
 
-fig, axs = plt.subplots(len(COMPARISON_ENVIRONMENTS), 2, figsize=(fig_width, fig_length_factor * len(COMPARISON_ENVIRONMENTS)), sharey=False, sharex=True)
+fig, axs = plt.subplots(len(COMPARISON_ENVIRONMENTS), 2, figsize=(fig_width, fig_length_factor * len(COMPARISON_ENVIRONMENTS)), sharey=True, sharex=True)
 x_ticks_nbr_gpus = set()
 x_ticks_machine = set()
 

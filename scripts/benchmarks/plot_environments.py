@@ -4,12 +4,12 @@ import scienceplots
 from matplotlib.ticker import ScalarFormatter
 
 plt.style.use(['science'])
-SMALL_SIZE  = 24
-MEDIUM_SIZE = 28
-LEGEND_SIZE = 20
-BIGGER_SIZE = 32
+SMALL_SIZE  = 28
+MEDIUM_SIZE = 32
+LEGEND_SIZE = 23
+BIGGER_SIZE = 36
 
-plt.rc('font', size=20)          # controls default text sizes
+plt.rc('font', size=25)          # controls default text sizes
 plt.rc('axes', titlesize=SMALL_SIZE)     # fontsize of the axes title
 plt.rc('axes', labelsize=MEDIUM_SIZE)    # fontsize of the x and y labels
 plt.rc('xtick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
@@ -32,9 +32,10 @@ MACHINE_NBR_GPUS_COLORS = {  # L40 + 5090
     "5090": "#a3be8c"
 }
 
+LEGEND_BELOW_FIGURE = False
 TASK_WITH_LEGEND = "Isaac-Velocity-Rough-Digit-v0"
 TASKS = ["Isaac-Velocity-Rough-G1-v0", "Isaac-Velocity-Rough-Digit-v0"]  # Isaac-Factory-GearMesh-Direct-v0
-
+# TASKS = ["Isaac-Dexsuite-Kuka-Allegro-Lift-v0", "Isaac-Open-Drawer-Franka-v0"]
 
 def _format_axes(ax: plt.Axes, grid: bool = True):
     """Apply consistent, publication-ready formatting to axes."""
@@ -121,6 +122,10 @@ machines = tidy["Machine"].dropna().unique()
 
 fig, axes = plt.subplots(1, len(TASKS), figsize=(12 * len(TASKS), 8), sharey=True)
 
+if LEGEND_BELOW_FIGURE:
+    all_handles = []
+    all_labels = []
+
 for i, task in enumerate(TASKS):
     ax = axes[i]
     sub = tidy[tidy["Task"] == task]
@@ -134,9 +139,12 @@ for i, task in enumerate(TASKS):
             x = g["Envs"].astype(int)
             y = g["Mean"]
             yerr = g["Std"].fillna(0)
-            ax.plot(x, y, label=f"{machine} - Single-GPU", linestyle="dashdot", marker="o", color=color)
+            line, =ax.plot(x, y, label=f"{machine} - Single-GPU", linestyle="dashdot", marker="o", color=color)
             ax.fill_between(x, y - yerr, y + yerr, color=color, alpha=0.2)
 
+            if LEGEND_BELOW_FIGURE and i == 0:
+                all_handles.append(line)
+                all_labels.append(f"{machine} - Single-GPU")
             x_ticks.update(x)
 
     # --- Plot RTX PRO 6000 (all GPU configs) ---
@@ -146,8 +154,12 @@ for i, task in enumerate(TASKS):
             x = g["Envs"].astype(int)
             y = g["Mean"]
             yerr = g["Std"].fillna(0)
-            ax.plot(x, y, label=f"RTX PRO 6000 - {gpu}", color=NBR_GPUS_COLORS[gpu], marker="o")
+            line, =ax.plot(x, y, label=f"RTX PRO 6000 - {gpu}", color=NBR_GPUS_COLORS[gpu], marker="o")
             ax.fill_between(x, y - yerr, y + yerr, color=NBR_GPUS_COLORS[gpu], alpha=0.2)
+
+            if LEGEND_BELOW_FIGURE and i == 0:
+                all_handles.append(line)
+                all_labels.append(f"RTX PRO 6000 - {gpu}")
 
             x_ticks.update(x)
 
@@ -155,8 +167,7 @@ for i, task in enumerate(TASKS):
     ax.set_xscale("log", base=2)
     ax.set_yscale("log")
     ax.set_xticks(list(x_ticks), [str(x) for x in x_ticks])
-    ax.set_xlabel("Number of Environments")
-    if task == TASK_WITH_LEGEND:
+    if task == TASK_WITH_LEGEND and not LEGEND_BELOW_FIGURE:
         ax.legend(
             loc="upper right",
             frameon=True,                 # draw a box around the legend
@@ -170,6 +181,27 @@ for i, task in enumerate(TASKS):
     _format_axes(ax)
 
 axes[0].set_ylabel("FPS")
+axes[0].set_xlabel("Number of Environments")
+axes[1].set_xlabel("Number of Environments")
+
+# --- Put legend below the plots ---
+if LEGEND_BELOW_FIGURE:
+    fig.legend(
+        all_handles,
+        all_labels,
+        loc="lower center",
+        bbox_to_anchor=(0.5, -0.10),   # place below figure
+        ncol=3,                        # adjust number of columns
+        frameon=True,
+        facecolor="white",
+        edgecolor="black",
+        framealpha=0.8
+    )
+
+    plt.subplots_adjust(wspace=0.01, bottom=0.2)  # leave room at bottom for legend
+    plt.tight_layout(pad=2.0)
+else:
+    plt.subplots_adjust(wspace=0.01)
 plt.tight_layout(pad=2.0)
 plt.savefig(f"benchmark_gpu_model_nbr_comparison.png", dpi=600)
 plt.close()
