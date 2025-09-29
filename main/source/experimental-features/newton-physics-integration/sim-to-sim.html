@@ -64,7 +64,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.2.1" />
-    <meta name="docbuild:last-update" content="Sep 28, 2025"/>
+    <meta name="docbuild:last-update" content="Sep 29, 2025"/>
   </head>
   
   
@@ -654,8 +654,9 @@
                 <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#overview">Overview</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#what-you-need">What you need</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#how-to-run">How to run</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#notes-and-limitations">Notes and limitations</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#physx-to-newton-transfer">PhysX-to-Newton Transfer</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#newton-to-physx-transfer">Newton-to-PhysX Transfer</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#notes-and-limitations">Notes and Limitations</a></li>
 </ul>
 </li>
 </ul>
@@ -671,27 +672,28 @@
                   
   <section id="sim-to-sim-policy-transfer">
 <span id="sim2sim"></span><h1>Sim-to-Sim Policy Transfer<a class="headerlink" href="#sim-to-sim-policy-transfer" title="Permalink to this heading">#</a></h1>
-<p>This section provides examples of sim-to-sim policy transfer using the Newton backend. Sim-to-sim transfer is an essential step before real robot deployment because it verifies that policies work across different simulators. Policies that pass sim-to-sim verification are much more likely to succeed on real robots.</p>
+<p>This section provides examples of sim-to-sim policy transfer between PhysX and Newton backends. Sim-to-sim transfer is an essential step before real robot deployment because it verifies that policies work across different simulators. Policies that pass sim-to-sim verification are much more likely to succeed on real robots.</p>
 <section id="overview">
 <h2>Overview<a class="headerlink" href="#overview" title="Permalink to this heading">#</a></h2>
-<p>This guide shows how to run a PhysX-trained policy on the Newton backend. While the method works for any robot and physics engine, it has only been tested with Unitree G1, Unitree H1, and ANYmal-D robots using PhysX-trained policies.</p>
-<p>PhysX-trained policies expect joints and links in a specific order determined by how PhysX parses the robot model. However, Newton may parse the same robot with different joint and link ordering.</p>
+<p>This guide shows how to transfer policies between PhysX and Newton backends in both directions. The main challenge is that different physics engines may parse the same robot model with different joint and link ordering.</p>
+<p>Policies trained in one backend expect joints and links in a specific order determined by how that backend parses the robot model. When transferring to another backend, the joint ordering may be different, requiring remapping of observations and actions.</p>
 <p>In the future, we plan to solve this using <strong>robot schema</strong> that standardizes joint and link ordering across different backends.</p>
-<p>Currently, we solve this by remapping observations and actions using joint mappings defined in YAML files. These files specify joint names in both PhysX order (source) and Newton order (target). During policy execution, we use this mapping to reorder observations and actions so they work correctly with Newton.</p>
+<p>Currently, we solve this by remapping observations and actions using joint mappings defined in YAML files. These files specify joint names in both source and target backend orders. During policy execution, we use this mapping to reorder observations and actions so they work correctly with the target backend.</p>
+<p>The method has been tested with Unitree G1, Unitree Go2, Unitree H1, and ANYmal-D robots for both transfer directions.</p>
 <section id="what-you-need">
 <h3>What you need<a class="headerlink" href="#what-you-need" title="Permalink to this heading">#</a></h3>
 <ul class="simple">
-<li><p>A policy checkpoint trained with PhysX (RSL-RL).</p></li>
-<li><p>A joint mapping YAML for your robot under <code class="docutils literal notranslate"><span class="pre">scripts/newton_sim2sim/mappings/</span></code>.</p></li>
-<li><p>The provided player script: <code class="docutils literal notranslate"><span class="pre">scripts/newton_sim2sim/rsl_rl_transfer.py</span></code>.</p></li>
+<li><p>A policy checkpoint trained with either PhysX or Newton (RSL-RL).</p></li>
+<li><p>A joint mapping YAML for your robot under <code class="docutils literal notranslate"><span class="pre">scripts/sim2sim_transfer/config/</span></code>.</p></li>
+<li><p>The provided player script: <code class="docutils literal notranslate"><span class="pre">scripts/sim2sim_transfer/rsl_rl_transfer.py</span></code>.</p></li>
 </ul>
 <p>To add a new robot, create a YAML file with two lists where each joint name appears exactly once in both:</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># Example structure</span>
-<span class="nt">source_joint_names</span><span class="p">:</span><span class="w">  </span><span class="c1"># PhysX joint order</span>
+<span class="nt">source_joint_names</span><span class="p">:</span><span class="w">  </span><span class="c1"># Source backend joint order</span>
 <span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">joint_1</span>
 <span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">joint_2</span>
 <span class="w">  </span><span class="c1"># ...</span>
-<span class="nt">target_joint_names</span><span class="p">:</span><span class="w">  </span><span class="c1"># Newton joint order</span>
+<span class="nt">target_joint_names</span><span class="p">:</span><span class="w">  </span><span class="c1"># Target backend joint order</span>
 <span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">joint_1</span>
 <span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">joint_2</span>
 <span class="w">  </span><span class="c1"># ...</span>
@@ -699,10 +701,10 @@
 </div>
 <p>The script automatically computes the necessary mappings for locomotion tasks.</p>
 </section>
-<section id="how-to-run">
-<h3>How to run<a class="headerlink" href="#how-to-run" title="Permalink to this heading">#</a></h3>
-<p>Use this command template to run a PhysX-trained policy with Newton:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/newton_sim2sim/rsl_rl_transfer.py<span class="w"> </span><span class="se">\</span>
+<section id="physx-to-newton-transfer">
+<h3>PhysX-to-Newton Transfer<a class="headerlink" href="#physx-to-newton-transfer" title="Permalink to this heading">#</a></h3>
+<p>To run a PhysX-trained policy with the Newton backend, use this command template:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/sim2sim_transfer/rsl_rl_transfer.py<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--task<span class="o">=</span>&lt;TASK_ID&gt;<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--num_envs<span class="o">=</span><span class="m">32</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--checkpoint<span class="w"> </span>&lt;PATH_TO_PHYSX_CHECKPOINT&gt;<span class="w"> </span><span class="se">\</span>
@@ -713,39 +715,98 @@
 <ol class="arabic simple">
 <li><p>Unitree G1</p></li>
 </ol>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/newton_sim2sim/rsl_rl_transfer.py<span class="w"> </span><span class="se">\</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/sim2sim_transfer/rsl_rl_transfer.py<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--task<span class="o">=</span>Isaac-Velocity-Flat-G1-v0<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--num_envs<span class="o">=</span><span class="m">32</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--checkpoint<span class="w"> </span>&lt;PATH_TO_PHYSX_CHECKPOINT&gt;<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--policy_transfer_file<span class="w"> </span>scripts/newton_sim2sim/mappings/sim2sim_g1.yaml
+<span class="w">    </span>--policy_transfer_file<span class="w"> </span>scripts/sim2sim_transfer/config/physx_to_newton_g1.yaml
 </pre></div>
 </div>
 <ol class="arabic simple" start="2">
 <li><p>Unitree H1</p></li>
 </ol>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/newton_sim2sim/rsl_rl_transfer.py<span class="w"> </span><span class="se">\</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/sim2sim_transfer/rsl_rl_transfer.py<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--task<span class="o">=</span>Isaac-Velocity-Flat-H1-v0<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--num_envs<span class="o">=</span><span class="m">32</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--checkpoint<span class="w"> </span>&lt;PATH_TO_PHYSX_CHECKPOINT&gt;<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--policy_transfer_file<span class="w"> </span>scripts/newton_sim2sim/mappings/sim2sim_h1.yaml
+<span class="w">    </span>--policy_transfer_file<span class="w"> </span>scripts/sim2sim_transfer/config/physx_to_newton_h1.yaml
 </pre></div>
 </div>
 <ol class="arabic simple" start="3">
+<li><p>Unitree Go2</p></li>
+</ol>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/sim2sim_transfer/rsl_rl_transfer.py<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--task<span class="o">=</span>Isaac-Velocity-Flat-Go2-v0<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--num_envs<span class="o">=</span><span class="m">32</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--checkpoint<span class="w"> </span>&lt;PATH_TO_PHYSX_CHECKPOINT&gt;<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--policy_transfer_file<span class="w"> </span>scripts/sim2sim_transfer/config/physx_to_newton_go2.yaml
+</pre></div>
+</div>
+<ol class="arabic simple" start="4">
 <li><p>ANYmal-D</p></li>
 </ol>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/newton_sim2sim/rsl_rl_transfer.py<span class="w"> </span><span class="se">\</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/sim2sim_transfer/rsl_rl_transfer.py<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--task<span class="o">=</span>Isaac-Velocity-Flat-Anymal-D-v0<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--num_envs<span class="o">=</span><span class="m">32</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--checkpoint<span class="w"> </span>&lt;PATH_TO_PHYSX_CHECKPOINT&gt;<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--policy_transfer_file<span class="w"> </span>scripts/newton_sim2sim/mappings/sim2sim_anymal_d.yaml
+<span class="w">    </span>--policy_transfer_file<span class="w"> </span>scripts/sim2sim_transfer/config/physx_to_newton_anymal_d.yaml
 </pre></div>
 </div>
+<p>Note that to run this, you need to checkout the Newton-based branch of IsaacLab such as <code class="docutils literal notranslate"><span class="pre">feature/newton</span></code>.</p>
+</section>
+<section id="newton-to-physx-transfer">
+<h3>Newton-to-PhysX Transfer<a class="headerlink" href="#newton-to-physx-transfer" title="Permalink to this heading">#</a></h3>
+<p>To transfer Newton-trained policies to PhysX-based IsaacLab, use the reverse mapping files:</p>
+<p>Here are examples for different robots:</p>
+<ol class="arabic simple">
+<li><p>Unitree G1</p></li>
+</ol>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/sim2sim_transfer/rsl_rl_transfer.py<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--task<span class="o">=</span>Isaac-Velocity-Flat-G1-v0<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--num_envs<span class="o">=</span><span class="m">32</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--checkpoint<span class="w"> </span>&lt;PATH_TO_NEWTON_CHECKPOINT&gt;<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--policy_transfer_file<span class="w"> </span>scripts/sim2sim_transfer/config/newton_to_physx_g1.yaml
+</pre></div>
+</div>
+<ol class="arabic simple" start="2">
+<li><p>Unitree H1</p></li>
+</ol>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/sim2sim_transfer/rsl_rl_transfer.py<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--task<span class="o">=</span>Isaac-Velocity-Flat-H1-v0<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--num_envs<span class="o">=</span><span class="m">32</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--checkpoint<span class="w"> </span>&lt;PATH_TO_NEWTON_CHECKPOINT&gt;<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--policy_transfer_file<span class="w"> </span>scripts/sim2sim_transfer/config/newton_to_physx_h1.yaml
+</pre></div>
+</div>
+<ol class="arabic simple" start="3">
+<li><p>Unitree Go2</p></li>
+</ol>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/sim2sim_transfer/rsl_rl_transfer.py<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--task<span class="o">=</span>Isaac-Velocity-Flat-Go2-v0<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--num_envs<span class="o">=</span><span class="m">32</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--checkpoint<span class="w"> </span>&lt;PATH_TO_NEWTON_CHECKPOINT&gt;<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--policy_transfer_file<span class="w"> </span>scripts/sim2sim_transfer/config/newton_to_physx_go2.yaml
+</pre></div>
+</div>
+<ol class="arabic simple" start="4">
+<li><p>ANYmal-D</p></li>
+</ol>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/sim2sim_transfer/rsl_rl_transfer.py<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--task<span class="o">=</span>Isaac-Velocity-Flat-Anymal-D-v0<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--num_envs<span class="o">=</span><span class="m">32</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--checkpoint<span class="w"> </span>&lt;PATH_TO_NEWTON_CHECKPOINT&gt;<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--policy_transfer_file<span class="w"> </span>scripts/sim2sim_transfer/config/newton_to_physx_anymal_d.yaml
+</pre></div>
+</div>
+<p>The key difference is using the <code class="docutils literal notranslate"><span class="pre">newton_to_physx_*.yaml</span></code> mapping files instead of <code class="docutils literal notranslate"><span class="pre">physx_to_newton_*.yaml</span></code> files. Also note that you need to checkout a PhysX-based IsaacLab branch such as <code class="docutils literal notranslate"><span class="pre">main</span></code>.</p>
 </section>
 <section id="notes-and-limitations">
-<h3>Notes and limitations<a class="headerlink" href="#notes-and-limitations" title="Permalink to this heading">#</a></h3>
+<h3>Notes and Limitations<a class="headerlink" href="#notes-and-limitations" title="Permalink to this heading">#</a></h3>
 <ul class="simple">
-<li><p>This transfer method has only been tested with Unitree G1, Unitree H1, and ANYmal-D using PhysX-trained policies.</p></li>
-<li><p>The observation remapping assumes a locomotion layout with base observations followed by joint observations. For different observation layouts, you’ll need to modify <code class="docutils literal notranslate"><span class="pre">scripts/newton_sim2sim/policy_mapping.py</span></code>.</p></li>
+<li><p>Both transfer directions have been tested with Unitree G1, Unitree Go2, Unitree H1, and ANYmal-D robots.</p></li>
+<li><p>PhysX-to-Newton transfer uses <code class="docutils literal notranslate"><span class="pre">physx_to_newton_*.yaml</span></code> mapping files.</p></li>
+<li><p>Newton-to-PhysX transfer requires the corresponding <code class="docutils literal notranslate"><span class="pre">newton_to_physx_*.yaml</span></code> mapping files and the PhysX branch of IsaacLab.</p></li>
+<li><p>The observation remapping assumes a locomotion layout with base observations followed by joint observations. For different observation layouts, you’ll need to modify the <code class="docutils literal notranslate"><span class="pre">get_joint_mappings</span></code> function in <code class="docutils literal notranslate"><span class="pre">scripts/sim2sim_transfer/rsl_rl_transfer.py</span></code>.</p></li>
 <li><p>When adding new robots or backends, make sure both source and target have identical joint names, and that the YAML lists reflect how each backend orders these joints.</p></li>
 </ul>
 </section>
@@ -800,8 +861,9 @@
     <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#overview">Overview</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#what-you-need">What you need</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#how-to-run">How to run</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#notes-and-limitations">Notes and limitations</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#physx-to-newton-transfer">PhysX-to-Newton Transfer</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#newton-to-physx-transfer">Newton-to-PhysX Transfer</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#notes-and-limitations">Notes and Limitations</a></li>
 </ul>
 </li>
 </ul>
@@ -837,7 +899,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Sep 28, 2025.
+  Last updated on Sep 29, 2025.
   <br/>
 </p>
   </div>

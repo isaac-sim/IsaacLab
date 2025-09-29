@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.2.1" />
-    <meta name="docbuild:last-update" content="Sep 28, 2025"/>
+    <meta name="docbuild:last-update" content="Sep 29, 2025"/>
   </head>
   
   
@@ -1305,8 +1305,56 @@
                 <span class="n">operation</span><span class="o">=</span><span class="n">operation</span><span class="p">,</span>
                 <span class="n">distribution</span><span class="o">=</span><span class="n">distribution</span><span class="p">,</span>
             <span class="p">)</span>
+
+            <span class="c1"># ensure the friction coefficient is non-negative</span>
+            <span class="n">friction_coeff</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">clamp</span><span class="p">(</span><span class="n">friction_coeff</span><span class="p">,</span> <span class="nb">min</span><span class="o">=</span><span class="mf">0.0</span><span class="p">)</span>
+
+            <span class="c1"># Always set static friction (indexed once)</span>
+            <span class="n">static_friction_coeff</span> <span class="o">=</span> <span class="n">friction_coeff</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">joint_ids</span><span class="p">]</span>
+
+            <span class="c1"># if isaacsim version is lower than 5.0.0 we can set only the static friction coefficient</span>
+            <span class="n">major_version</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">get_version</span><span class="p">()[</span><span class="mi">0</span><span class="p">])</span>
+            <span class="k">if</span> <span class="n">major_version</span> <span class="o">&gt;=</span> <span class="mi">5</span><span class="p">:</span>
+                <span class="c1"># Randomize raw tensors</span>
+                <span class="n">dynamic_friction_coeff</span> <span class="o">=</span> <span class="n">_randomize_prop_by_op</span><span class="p">(</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">asset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_dynamic_friction_coeff</span><span class="o">.</span><span class="n">clone</span><span class="p">(),</span>
+                    <span class="n">friction_distribution_params</span><span class="p">,</span>
+                    <span class="n">env_ids</span><span class="p">,</span>
+                    <span class="n">joint_ids</span><span class="p">,</span>
+                    <span class="n">operation</span><span class="o">=</span><span class="n">operation</span><span class="p">,</span>
+                    <span class="n">distribution</span><span class="o">=</span><span class="n">distribution</span><span class="p">,</span>
+                <span class="p">)</span>
+                <span class="n">viscous_friction_coeff</span> <span class="o">=</span> <span class="n">_randomize_prop_by_op</span><span class="p">(</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">asset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_viscous_friction_coeff</span><span class="o">.</span><span class="n">clone</span><span class="p">(),</span>
+                    <span class="n">friction_distribution_params</span><span class="p">,</span>
+                    <span class="n">env_ids</span><span class="p">,</span>
+                    <span class="n">joint_ids</span><span class="p">,</span>
+                    <span class="n">operation</span><span class="o">=</span><span class="n">operation</span><span class="p">,</span>
+                    <span class="n">distribution</span><span class="o">=</span><span class="n">distribution</span><span class="p">,</span>
+                <span class="p">)</span>
+
+                <span class="c1"># Clamp to non-negative</span>
+                <span class="n">dynamic_friction_coeff</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">clamp</span><span class="p">(</span><span class="n">dynamic_friction_coeff</span><span class="p">,</span> <span class="nb">min</span><span class="o">=</span><span class="mf">0.0</span><span class="p">)</span>
+                <span class="n">viscous_friction_coeff</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">clamp</span><span class="p">(</span><span class="n">viscous_friction_coeff</span><span class="p">,</span> <span class="nb">min</span><span class="o">=</span><span class="mf">0.0</span><span class="p">)</span>
+
+                <span class="c1"># Ensure dynamic ≤ static (same shape before indexing)</span>
+                <span class="n">dynamic_friction_coeff</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">minimum</span><span class="p">(</span><span class="n">dynamic_friction_coeff</span><span class="p">,</span> <span class="n">friction_coeff</span><span class="p">)</span>
+
+                <span class="c1"># Index once at the end</span>
+                <span class="n">dynamic_friction_coeff</span> <span class="o">=</span> <span class="n">dynamic_friction_coeff</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">joint_ids</span><span class="p">]</span>
+                <span class="n">viscous_friction_coeff</span> <span class="o">=</span> <span class="n">viscous_friction_coeff</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">joint_ids</span><span class="p">]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># For versions &lt; 5.0.0, we do not set these values</span>
+                <span class="n">dynamic_friction_coeff</span> <span class="o">=</span> <span class="kc">None</span>
+                <span class="n">viscous_friction_coeff</span> <span class="o">=</span> <span class="kc">None</span>
+
+            <span class="c1"># Single write call for all versions</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">asset</span><span class="o">.</span><span class="n">write_joint_friction_coefficient_to_sim</span><span class="p">(</span>
-                <span class="n">friction_coeff</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">joint_ids</span><span class="p">],</span> <span class="n">joint_ids</span><span class="o">=</span><span class="n">joint_ids</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span>
+                <span class="n">joint_friction_coeff</span><span class="o">=</span><span class="n">static_friction_coeff</span><span class="p">,</span>
+                <span class="n">joint_dynamic_friction_coeff</span><span class="o">=</span><span class="n">dynamic_friction_coeff</span><span class="p">,</span>
+                <span class="n">joint_viscous_friction_coeff</span><span class="o">=</span><span class="n">viscous_friction_coeff</span><span class="p">,</span>
+                <span class="n">joint_ids</span><span class="o">=</span><span class="n">joint_ids</span><span class="p">,</span>
+                <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">,</span>
             <span class="p">)</span>
 
         <span class="c1"># joint armature</span>
@@ -2388,7 +2436,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Sep 28, 2025.
+  Last updated on Sep 29, 2025.
   <br/>
 </p>
   </div>
