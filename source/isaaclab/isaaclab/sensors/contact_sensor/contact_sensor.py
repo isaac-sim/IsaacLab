@@ -455,6 +455,7 @@ class ContactSensor(SensorBase):
             buffer_count (torch.Tensor): Number of contact points per (env, body, filter), shape (N_envs * N_bodies, N_filters).
             buffer_start_indices (torch.Tensor): Start indices for each (env, body, filter), shape (N_envs * N_bodies, N_filters).
             avg (bool, optional): If True, average the contact data for each group; if False, sum the data. Defaults to True.
+            default (float, optional): Default value to use for groups with zero contacts. Defaults to NaN.
 
         Returns:
             torch.Tensor: Aggregated contact data, shape (N_envs, N_bodies, N_filters, 3).
