@@ -9,15 +9,6 @@ from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlPpoActorCriticCfg, R
 
 
 @configclass
-class UpdatedRslRlPpoActorCriticRecurrentCfg(RslRlPpoActorCriticRecurrentCfg):
-    state_dependent_std = False
-    share_weights = False
-
-@configclass
-class UpdatedRslRlPpoAlgorithmCfg(RslRlPpoAlgorithmCfg):
-    bounds_loss_coef = 0.0
-
-@configclass
 class UR10GearAssemblyPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     num_steps_per_env = 512
     max_iterations = 1500
@@ -56,8 +47,8 @@ class UR10GearAssemblyRNNPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     empirical_normalization = True
     clip_actions = 1.0
     resume = False
-    policy = UpdatedRslRlPpoActorCriticRecurrentCfg(
-        state_dependent_std=False,
+    policy = RslRlPpoActorCriticRecurrentCfg(
+        state_dependent_std=True,
         init_noise_std=1.0,
         actor_hidden_dims=[256, 128, 64],
         critic_hidden_dims=[256, 128, 64],
