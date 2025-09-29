@@ -65,83 +65,169 @@ run_with_watchdog() {
 }
 
 
-### SECTION 1 - LOW RESOLUTION - LOW ENVS  (6 FILES)
-# run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --tiled_camera --usd_camera --data_type rgb
-# run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 64x64,120x160 --num_envs 12 24 48 --tiled_camera --usd_camera --data_type rgb
-# run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 64x64,120x160 --num_envs 96 --tiled_camera --usd_camera --data_type rgb
-# run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 64x64,120x160 --num_envs 12 24 48 --tiled_camera --ray_caster_camera --usd_camera --data_type distance_to_image_plane
-# run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 64x64,120x160 --num_envs 96 --tiled_camera --ray_caster_camera --usd_camera --data_type distance_to_image_plane
-# run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 64x64,120x160 --num_envs 256 512 1024 --tiled_camera --data_type rgb
-
-# ### SECTION 2 - LOW RESOLUTION - HIGH ENVS (11 CSV FILES)
-run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 64x64,120x160 --num_envs 96 --tiled_camera --ray_caster_camera --data_type distance_to_image_plane
-run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 64x64,120x160 --num_envs 2048 --tiled_camera --data_type rgb
-run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 64x64,120x160 --num_envs 2048 --tiled_camera --data_type distance_to_image_plane
-run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 64x64,120x160 --num_envs 2048 --ray_caster_camera --data_type distance_to_image_plane
-run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 240x320 --num_envs 3072 --ray_caster_camera --data_type distance_to_image_plane
+### RESOLUTION 64x64
+# ------ RGB ------
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 64x64 --num_envs 12 --tiled_camera --data_type rgb
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 64x64 --num_envs 12 --usd_camera --data_type rgb
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 64x64 --num_envs 24 --tiled_camera --data_type rgb
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 64x64 --num_envs 24 --usd_camera --data_type rgb
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 64x64 --num_envs 48 --tiled_camera --data_type rgb
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 64x64 --num_envs 48 --usd_camera --data_type rgb
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 64x64 --num_envs 96 --tiled_camera --data_type rgb
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 64x64 --num_envs 256 --tiled_camera --data_type rgb
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 64x64 --num_envs 512 --tiled_camera --data_type rgb
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 64x64 --num_envs 1024 --tiled_camera --data_type rgb
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 64x64 --num_envs 2048 --tiled_camera --data_type rgb
 run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 64x64 --num_envs 4096 --tiled_camera --data_type rgb
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 64x64 --num_envs 8192 --tiled_camera --data_type rgb
+
+# ------ DISTANCE TO IMAGE PLANE ------
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 64x64 --num_envs 12 --tiled_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 64x64 --num_envs 12 --usd_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 64x64 --num_envs 12 --ray_caster_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 64x64 --num_envs 24 --tiled_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 64x64 --num_envs 24 --usd_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 64x64 --num_envs 24 --ray_caster_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 64x64 --num_envs 48 --tiled_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 64x64 --num_envs 48 --usd_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 64x64 --num_envs 48 --ray_caster_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 64x64 --num_envs 96 --tiled_camera --data_type distance_to_image_plane  # STOP USD CAMERA
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 64x64 --num_envs 96 --ray_caster_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 64x64 --num_envs 256 --tiled_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 64x64 --num_envs 256 --ray_caster_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 64x64 --num_envs 512 --tiled_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 64x64 --num_envs 512 --ray_caster_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 64x64 --num_envs 1024 --tiled_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 64x64 --num_envs 1024 --ray_caster_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 64x64 --num_envs 2048 --tiled_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 64x64 --num_envs 2048 --ray_caster_camera --data_type distance_to_image_plane
 run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 64x64 --num_envs 4096 --tiled_camera --data_type distance_to_image_plane
 run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 64x64 --num_envs 4096 --ray_caster_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 64x64 --num_envs 8192 --tiled_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 64x64 --num_envs 8192 --ray_caster_camera --data_type distance_to_image_plane
+
+
+### RESOLUTION 120x160
+# ------ RGB ------
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 120x160 --num_envs 12 --tiled_camera --data_type rgb
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 120x160 --num_envs 12 --usd_camera --data_type rgb
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 120x160 --num_envs 24 --tiled_camera --data_type rgb
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 120x160 --num_envs 24 --usd_camera --data_type rgb
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 120x160 --num_envs 48 --tiled_camera --data_type rgb
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 120x160 --num_envs 48 --usd_camera --data_type rgb
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 120x160 --num_envs 96 --tiled_camera --data_type rgb  # STOP USD CAMERA
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 120x160 --num_envs 256 --tiled_camera --data_type rgb
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 120x160 --num_envs 512 --tiled_camera --data_type rgb
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 120x160 --num_envs 1024 --tiled_camera --data_type rgb
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 120x160 --num_envs 2048 --tiled_camera --data_type rgb
 run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 120x160 --num_envs 4096 --tiled_camera --data_type rgb
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 120x160 --num_envs 8192 --tiled_camera --data_type rgb
+
+# ------ DISTANCE TO IMAGE PLANE ------
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 120x160 --num_envs 12 --tiled_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 120x160 --num_envs 12 --usd_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 120x160 --num_envs 12 --ray_caster_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 120x160 --num_envs 24 --tiled_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 120x160 --num_envs 24 --usd_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 120x160 --num_envs 24 --ray_caster_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 120x160 --num_envs 48 --tiled_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 120x160 --num_envs 48 --usd_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 120x160 --num_envs 48 --ray_caster_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 120x160 --num_envs 96 --tiled_camera --data_type distance_to_image_plane  # STOP USD CAMERA
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 120x160 --num_envs 96 --ray_caster_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 120x160 --num_envs 256 --tiled_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 120x160 --num_envs 256 --ray_caster_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 120x160 --num_envs 512 --tiled_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 120x160 --num_envs 512 --ray_caster_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 120x160 --num_envs 1024 --tiled_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 120x160 --num_envs 1024 --ray_caster_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 120x160 --num_envs 2048 --tiled_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 120x160 --num_envs 2048 --ray_caster_camera --data_type distance_to_image_plane
 run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 120x160 --num_envs 4096 --tiled_camera --data_type distance_to_image_plane
 run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 120x160 --num_envs 4096 --ray_caster_camera --data_type distance_to_image_plane
-
-# ### SECTION 3 - HIGH RESOLUTION - LOW ENVS  (6 FILES)
-# run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 240x320,480x640 --num_envs 96 --usd_camera --data_type rgb
-# run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 240x320,480x640 --num_envs 96 --usd_camera --data_type distance_to_image_plane
-# run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 240x320,480x640 --num_envs 96 256 --tiled_camera --data_type rgb
-# run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 240x320,480x640 --num_envs 512 --tiled_camera --data_type rgb
-# run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 240x320,480x640 --num_envs 96 256 --tiled_camera --ray_caster_camera --data_type distance_to_image_plane
-# run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 240x320,480x640 --num_envs 512 --tiled_camera --ray_caster_camera --data_type distance_to_image_plane
-
-# ### SECTION 4 - HIGH RESOLUTION - 1024 ENVS  (6 FILES)
-# run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 240x320 --num_envs 1024 --tiled_camera --data_type rgb
-# run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 240x320 --num_envs 1024 --tiled_camera --data_type distance_to_image_plane
-# run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 240x320 --num_envs 1024 --ray_caster_camera --data_type distance_to_image_plane
-# run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 480x640 --num_envs 1024 --tiled_camera --data_type rgb
-# run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 480x640 --num_envs 1024 --tiled_camera --data_type distance_to_image_plane
-# run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 480x640 --num_envs 1024 --ray_caster_camera --data_type distance_to_image_plane
-
-# ### SECTION 5 - HIGH RESOLUTION - 2048 ENVS  (5 FILES)
-# run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 240x320 --num_envs 2048 --tiled_camera --data_type rgb
-# run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 240x320 --num_envs 2048 --tiled_camera --data_type distance_to_image_plane
-# run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 240x320 --num_envs 2048 --ray_caster_camera --data_type distance_to_image_plane
-# run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 480x640 --num_envs 2048 --tiled_camera --data_type distance_to_image_plane
-# run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 480x640 --num_envs 2048 --ray_caster_camera --data_type distance_to_image_plane
-
-# ### SECTION 6 - HIGH RESOLUTION - 3072 ENVS  (5 FILES)
-# run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 240x320 --num_envs 3072 --tiled_camera --data_type rgb
-# run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 240x320 --num_envs 3072 --tiled_camera --data_type distance_to_image_plane
-# run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 240x320 --num_envs 3072 --ray_caster_camera --data_type distance_to_image_plane
-# run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 480x640 --num_envs 3072 --tiled_camera --data_type distance_to_image_plane
-# run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 480x640 --num_envs 3072 --ray_caster_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 120x160 --num_envs 8192 --tiled_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 120x160 --num_envs 8192 --ray_caster_camera --data_type distance_to_image_plane
 
 
-# ### SECTION 7 - HIGH RESOLUTION - 4096 ENVS  (likely out of memory for many)  (8 FILES)
-# run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 240x320 --num_envs 4096 --tiled_camera --data_type distance_to_image_plane
-# run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 240x320 --num_envs 4096 --ray_caster_camera --data_type distance_to_image_plane
-# run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 480x640 --num_envs 4096 --tiled_camera --data_type distance_to_image_plane
-# run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 480x640 --num_envs 4096 --ray_caster_camera --data_type distance_to_image_plane
-# run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 240x320 --num_envs 8192 --tiled_camera --data_type distance_to_image_plane
-# run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 240x320 --num_envs 8192 --ray_caster_camera --data_type distance_to_image_plane
-# run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 480x640 --num_envs 8192 --tiled_camera --data_type distance_to_image_plane
-# run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 480x640 --num_envs 8192 --ray_caster_camera --data_type distance_to_image_plane
+### RESOLUTION 240x320
+# ------ RGB ------
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 240x320 --num_envs 12 --tiled_camera --data_type rgb
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 240x320 --num_envs 12 --usd_camera --data_type rgb
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 240x320 --num_envs 24 --tiled_camera --data_type rgb
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 240x320 --num_envs 24 --usd_camera --data_type rgb
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 240x320 --num_envs 48 --tiled_camera --data_type rgb
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 240x320 --num_envs 48 --usd_camera --data_type rgb
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 240x320 --num_envs 96 --tiled_camera --data_type rgb  # STOP USD CAMERA
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 240x320 --num_envs 256 --tiled_camera --data_type rgb
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 240x320 --num_envs 512 --tiled_camera --data_type rgb
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 240x320 --num_envs 1024 --tiled_camera --data_type rgb
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 240x320 --num_envs 2048 --tiled_camera --data_type rgb
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 240x320 --num_envs 4096 --tiled_camera --data_type rgb
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 240x320 --num_envs 8192 --tiled_camera --data_type rgb
 
-### SECTION 8 - HIGH RESOLUTION - 8192 ENVS  (nearly certain out of memory - only run when time)
-# run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 240x320 --num_envs 4096 --tiled_camera --data_type rgb
-# run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 480x640 --num_envs 4096 --tiled_camera --data_type rgb
-# run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 240x320 --num_envs 8192 --tiled_camera --data_type rgb
-# run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 480x640 --num_envs 8192 --tiled_camera --data_type rgb
+# ------ DISTANCE TO IMAGE PLANE ------
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 240x320 --num_envs 12 --tiled_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 240x320 --num_envs 12 --usd_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 240x320 --num_envs 12 --ray_caster_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 240x320 --num_envs 24 --tiled_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 240x320 --num_envs 24 --usd_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 240x320 --num_envs 24 --ray_caster_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 240x320 --num_envs 48 --tiled_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 240x320 --num_envs 48 --usd_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 240x320 --num_envs 48 --ray_caster_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 240x320 --num_envs 96 --tiled_camera --data_type distance_to_image_plane  # STOP USD CAMERA
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 240x320 --num_envs 96 --ray_caster_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 240x320 --num_envs 256 --tiled_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 240x320 --num_envs 256 --ray_caster_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 240x320 --num_envs 512 --tiled_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 240x320 --num_envs 512 --ray_caster_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 240x320 --num_envs 1024 --tiled_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 240x320 --num_envs 1024 --ray_caster_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 240x320 --num_envs 2048 --tiled_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 240x320 --num_envs 2048 --ray_caster_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 240x320 --num_envs 4096 --tiled_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 240x320 --num_envs 4096 --ray_caster_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 240x320 --num_envs 8192 --tiled_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 240x320 --num_envs 8192 --ray_caster_camera --data_type distance_to_image_plane
 
 
-# COMPLETED RUNS
+### RESOLUTION 480x640
+# ------ RGB ------
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 480x640 --num_envs 12 --tiled_camera --data_type rgb
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 480x640 --num_envs 12 --usd_camera --data_type rgb
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 480x640 --num_envs 24 --tiled_camera --data_type rgb
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 480x640 --num_envs 24 --usd_camera --data_type rgb
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 480x640 --num_envs 48 --tiled_camera --data_type rgb
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 480x640 --num_envs 48 --usd_camera --data_type rgb
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 480x640 --num_envs 96 --tiled_camera --data_type rgb  # STOP USD CAMERA
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 480x640 --num_envs 256 --tiled_camera --data_type rgb
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 480x640 --num_envs 512 --tiled_camera --data_type rgb
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 480x640 --num_envs 1024 --tiled_camera --data_type rgb
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 480x640 --num_envs 2048 --tiled_camera --data_type rgb
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 480x640 --num_envs 4096 --tiled_camera --data_type rgb
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 480x640 --num_envs 8192 --tiled_camera --data_type rgb
 
-# run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 64x64 --num_envs 8192 --tiled_camera --data_type rgb
-# run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 64x64 --num_envs 8192 --tiled_camera --data_type distance_to_image_plane
-# run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 64x64 --num_envs 8192 --ray_caster_camera --data_type distance_to_image_plane
-# run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 64x64,120x160 --num_envs 3072 --tiled_camera --data_type rgb
-# run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 64x64,120x160 --num_envs 3072 --tiled_camera --data_type distance_to_image_plane
-# run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 64x64,120x160 --num_envs 3072 --ray_caster_camera --data_type distance_to_image_plane
-# run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 120x160 --num_envs 8192 --tiled_camera --data_type rgb
-# run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 120x160 --num_envs 8192 --tiled_camera --data_type distance_to_image_plane
-# run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 120x160 --num_envs 8192 --ray_caster_camera --data_type distance_to_image_plane
+# ------ DISTANCE TO IMAGE PLANE ------
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 480x640 --num_envs 12 --tiled_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 480x640 --num_envs 12 --usd_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 480x640 --num_envs 12 --ray_caster_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 480x640 --num_envs 24 --tiled_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 480x640 --num_envs 24 --usd_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 480x640 --num_envs 24 --ray_caster_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 480x640 --num_envs 48 --tiled_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 480x640 --num_envs 48 --usd_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 480x640 --num_envs 48 --ray_caster_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 480x640 --num_envs 96 --tiled_camera --data_type distance_to_image_plane  # STOP USD CAMERA
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 480x640 --num_envs 96 --ray_caster_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 480x640 --num_envs 256 --tiled_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 480x640 --num_envs 256 --ray_caster_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 480x640 --num_envs 512 --tiled_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 480x640 --num_envs 512 --ray_caster_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 480x640 --num_envs 1024 --tiled_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 480x640 --num_envs 1024 --ray_caster_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 480x640 --num_envs 2048 --tiled_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 480x640 --num_envs 2048 --ray_caster_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 480x640 --num_envs 4096 --tiled_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 480x640 --num_envs 4096 --ray_caster_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 480x640 --num_envs 8192 --tiled_camera --data_type distance_to_image_plane
+run_with_watchdog ${ISAACLAB_SH} -p ${SCRIPT_PATH}/benchmark_camera_throughput.py --resolutions 480x640 --num_envs 8192 --ray_caster_camera --data_type distance_to_image_plane
