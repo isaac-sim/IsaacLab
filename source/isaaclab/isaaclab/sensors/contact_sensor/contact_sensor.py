@@ -164,7 +164,7 @@ class ContactSensor(SensorBase):
             self._data.contact_pos_w[env_ids, :] = torch.nan
         # reset friction forces
         if self.cfg.track_friction_forces:
-            self._data.friction_forces_w[env_ids, :] = torch.zeros
+            self._data.friction_forces_w[env_ids, :] = 0.0
 
     def find_bodies(self, name_keys: str | Sequence[str], preserve_order: bool = False) -> tuple[list[int], list[str]]:
         """Find bodies in the articulation based on the name keys.
@@ -322,7 +322,7 @@ class ContactSensor(SensorBase):
         if self.cfg.track_friction_forces:
             self._data.friction_forces_w = torch.full(
                 (self._num_envs, self._num_bodies, self.contact_physx_view.filter_count, 3),
-                torch.nan,
+                0.0,
                 device=self._device,
             )
         # -- air/contact time between contacts
