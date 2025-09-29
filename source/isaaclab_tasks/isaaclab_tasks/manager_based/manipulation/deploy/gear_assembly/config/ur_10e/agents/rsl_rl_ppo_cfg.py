@@ -10,7 +10,7 @@ from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlPpoActorCriticCfg, R
 
 @configclass
 class UpdatedRslRlPpoActorCriticRecurrentCfg(RslRlPpoActorCriticRecurrentCfg):
-    fixed_sigma = False
+    state_dependent_std = False
     share_weights = False
 
 @configclass
@@ -57,7 +57,7 @@ class UR10GearAssemblyRNNPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     clip_actions = 1.0
     resume = False
     policy = UpdatedRslRlPpoActorCriticRecurrentCfg(
-        fixed_sigma=False,
+        state_dependent_std=False,
         init_noise_std=1.0,
         actor_hidden_dims=[256, 128, 64],
         critic_hidden_dims=[256, 128, 64],
@@ -67,8 +67,7 @@ class UR10GearAssemblyRNNPPORunnerCfg(RslRlOnPolicyRunnerCfg):
         rnn_hidden_dim=256,
         rnn_num_layers=2,
     )
-    algorithm = UpdatedRslRlPpoAlgorithmCfg(
-        bounds_loss_coef=0.0001,
+    algorithm = RslRlPpoAlgorithmCfg(
         value_loss_coef=1.0,
         use_clipped_value_loss=True,
         clip_param=0.2,
