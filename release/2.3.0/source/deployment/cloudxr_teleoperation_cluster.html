@@ -741,14 +741,14 @@
 </div>
 <ol class="arabic">
 <li><p>Download the Helm chart from NGC (get your NGC API key based on the <a class="reference external" href="https://docs.nvidia.com/ngc/ngc-overview/index.html#generating-api-key">public guide</a>):</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>helm<span class="w"> </span>fetch<span class="w"> </span>https://helm.ngc.nvidia.com/nvidia/charts/isaac-lab-teleop-2.2.0.tgz<span class="w"> </span><span class="se">\</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>helm<span class="w"> </span>fetch<span class="w"> </span>https://helm.ngc.nvidia.com/nvidia/charts/isaac-lab-teleop-2.3.0.tgz<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--username<span class="o">=</span><span class="s1">&#39;$oauthtoken&#39;</span><span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--password<span class="o">=</span>&lt;your-ngc-api-key&gt;
 </pre></div>
 </div>
 </li>
 <li><p>Install and run the CloudXR Teleoperation for Isaac Lab pod in the default namespace, consuming all host GPUs:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>helm<span class="w"> </span>upgrade<span class="w"> </span>--install<span class="w"> </span>hello-isaac-teleop<span class="w"> </span>isaac-lab-teleop-2.2.0.tgz<span class="w"> </span><span class="se">\</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>helm<span class="w"> </span>upgrade<span class="w"> </span>--install<span class="w"> </span>hello-isaac-teleop<span class="w"> </span>isaac-lab-teleop-2.3.0.tgz<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--set<span class="w"> </span><span class="nv">fullnameOverride</span><span class="o">=</span>hello-isaac-teleop<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--set<span class="w"> </span><span class="nv">hostNetwork</span><span class="o">=</span><span class="s2">&quot;true&quot;</span>
 </pre></div>
@@ -768,7 +768,7 @@
 </div>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># command</span>
 helm<span class="w"> </span>upgrade<span class="w"> </span>--install<span class="w"> </span>--values<span class="w"> </span>local_values.yml<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>hello-isaac-teleop<span class="w"> </span>isaac-lab-teleop-2.2.0.tgz
+<span class="w">  </span>hello-isaac-teleop<span class="w"> </span>isaac-lab-teleop-2.3.0.tgz
 </pre></div>
 </div>
 </div>
