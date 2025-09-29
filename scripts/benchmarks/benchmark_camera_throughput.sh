@@ -8,12 +8,19 @@ ISAACLAB_SH=${SCRIPT_PATH}/../../isaaclab.sh
 
 GPU_ID=0
 
+# logging
+LOG_DIR=${SCRIPT_PATH}/../../outputs/benchmarks
+LOG_FILE=${LOG_DIR}/cam_benchmark.log
+mkdir -p "$LOG_DIR"
+
 # GPU watchdog wrapper
 run_with_watchdog() {
     CMD="$@"
 
     echo "Starting: $CMD"
-    $CMD &
+    printf "\n" >> "$LOG_FILE"
+    echo "Starting: $CMD" >> "$LOG_FILE"
+    "$@" >> "$LOG_FILE" 2>&1 &
     MAIN_PID=$!
 
     # Settings
@@ -61,6 +68,8 @@ run_with_watchdog() {
     done
 
     wait $MAIN_PID
+    echo "Finished: $CMD" >> "$LOG_FILE"
+    printf "\n" >> "$LOG_FILE"
     echo "Finished: $CMD"
 }
 
