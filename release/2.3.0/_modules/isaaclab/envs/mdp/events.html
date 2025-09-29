@@ -158,10 +158,10 @@
             <label for="version-select" style="font-weight: bold; display: block;">Version</label>
           </div>
           <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
+            <option value="events.html" selected>release/2.3.0</option>
             <option value="../../../../../../main/index.html" >main</option>
             <option value="../../../../../2.1.0/index.html" >release/2.1.0</option>
             <option value="../../../../../2.2.0/index.html" >release/2.2.0</option>
-            <option value="events.html" selected>release/2.3.0</option>
             <option value="../../../../../../v2.2.1/index.html" >v2.2.1</option>
             <option value="../../../../../../v2.2.0/index.html" >v2.2.0</option>
             <option value="../../../../../../v2.1.1/index.html" >v2.1.1</option>
@@ -204,7 +204,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.0.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.1.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -1305,8 +1305,56 @@
                 <span class="n">operation</span><span class="o">=</span><span class="n">operation</span><span class="p">,</span>
                 <span class="n">distribution</span><span class="o">=</span><span class="n">distribution</span><span class="p">,</span>
             <span class="p">)</span>
+
+            <span class="c1"># ensure the friction coefficient is non-negative</span>
+            <span class="n">friction_coeff</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">clamp</span><span class="p">(</span><span class="n">friction_coeff</span><span class="p">,</span> <span class="nb">min</span><span class="o">=</span><span class="mf">0.0</span><span class="p">)</span>
+
+            <span class="c1"># Always set static friction (indexed once)</span>
+            <span class="n">static_friction_coeff</span> <span class="o">=</span> <span class="n">friction_coeff</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">joint_ids</span><span class="p">]</span>
+
+            <span class="c1"># if isaacsim version is lower than 5.0.0 we can set only the static friction coefficient</span>
+            <span class="n">major_version</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">get_version</span><span class="p">()[</span><span class="mi">0</span><span class="p">])</span>
+            <span class="k">if</span> <span class="n">major_version</span> <span class="o">&gt;=</span> <span class="mi">5</span><span class="p">:</span>
+                <span class="c1"># Randomize raw tensors</span>
+                <span class="n">dynamic_friction_coeff</span> <span class="o">=</span> <span class="n">_randomize_prop_by_op</span><span class="p">(</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">asset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_dynamic_friction_coeff</span><span class="o">.</span><span class="n">clone</span><span class="p">(),</span>
+                    <span class="n">friction_distribution_params</span><span class="p">,</span>
+                    <span class="n">env_ids</span><span class="p">,</span>
+                    <span class="n">joint_ids</span><span class="p">,</span>
+                    <span class="n">operation</span><span class="o">=</span><span class="n">operation</span><span class="p">,</span>
+                    <span class="n">distribution</span><span class="o">=</span><span class="n">distribution</span><span class="p">,</span>
+                <span class="p">)</span>
+                <span class="n">viscous_friction_coeff</span> <span class="o">=</span> <span class="n">_randomize_prop_by_op</span><span class="p">(</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">asset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_viscous_friction_coeff</span><span class="o">.</span><span class="n">clone</span><span class="p">(),</span>
+                    <span class="n">friction_distribution_params</span><span class="p">,</span>
+                    <span class="n">env_ids</span><span class="p">,</span>
+                    <span class="n">joint_ids</span><span class="p">,</span>
+                    <span class="n">operation</span><span class="o">=</span><span class="n">operation</span><span class="p">,</span>
+                    <span class="n">distribution</span><span class="o">=</span><span class="n">distribution</span><span class="p">,</span>
+                <span class="p">)</span>
+
+                <span class="c1"># Clamp to non-negative</span>
+                <span class="n">dynamic_friction_coeff</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">clamp</span><span class="p">(</span><span class="n">dynamic_friction_coeff</span><span class="p">,</span> <span class="nb">min</span><span class="o">=</span><span class="mf">0.0</span><span class="p">)</span>
+                <span class="n">viscous_friction_coeff</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">clamp</span><span class="p">(</span><span class="n">viscous_friction_coeff</span><span class="p">,</span> <span class="nb">min</span><span class="o">=</span><span class="mf">0.0</span><span class="p">)</span>
+
+                <span class="c1"># Ensure dynamic ≤ static (same shape before indexing)</span>
+                <span class="n">dynamic_friction_coeff</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">minimum</span><span class="p">(</span><span class="n">dynamic_friction_coeff</span><span class="p">,</span> <span class="n">friction_coeff</span><span class="p">)</span>
+
+                <span class="c1"># Index once at the end</span>
+                <span class="n">dynamic_friction_coeff</span> <span class="o">=</span> <span class="n">dynamic_friction_coeff</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">joint_ids</span><span class="p">]</span>
+                <span class="n">viscous_friction_coeff</span> <span class="o">=</span> <span class="n">viscous_friction_coeff</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">joint_ids</span><span class="p">]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># For versions &lt; 5.0.0, we do not set these values</span>
+                <span class="n">dynamic_friction_coeff</span> <span class="o">=</span> <span class="kc">None</span>
+                <span class="n">viscous_friction_coeff</span> <span class="o">=</span> <span class="kc">None</span>
+
+            <span class="c1"># Single write call for all versions</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">asset</span><span class="o">.</span><span class="n">write_joint_friction_coefficient_to_sim</span><span class="p">(</span>
-                <span class="n">friction_coeff</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">joint_ids</span><span class="p">],</span> <span class="n">joint_ids</span><span class="o">=</span><span class="n">joint_ids</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span>
+                <span class="n">joint_friction_coeff</span><span class="o">=</span><span class="n">static_friction_coeff</span><span class="p">,</span>
+                <span class="n">joint_dynamic_friction_coeff</span><span class="o">=</span><span class="n">dynamic_friction_coeff</span><span class="p">,</span>
+                <span class="n">joint_viscous_friction_coeff</span><span class="o">=</span><span class="n">viscous_friction_coeff</span><span class="p">,</span>
+                <span class="n">joint_ids</span><span class="o">=</span><span class="n">joint_ids</span><span class="p">,</span>
+                <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">,</span>
             <span class="p">)</span>
 
         <span class="c1"># joint armature</span>

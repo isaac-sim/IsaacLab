@@ -158,10 +158,10 @@
             <label for="version-select" style="font-weight: bold; display: block;">Version</label>
           </div>
           <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
+            <option value="articulation.html" selected>release/2.3.0</option>
             <option value="../../../../../../main/index.html" >main</option>
             <option value="../../../../../2.1.0/index.html" >release/2.1.0</option>
             <option value="../../../../../2.2.0/index.html" >release/2.2.0</option>
-            <option value="articulation.html" selected>release/2.3.0</option>
             <option value="../../../../../../v2.2.1/index.html" >v2.2.1</option>
             <option value="../../../../../../v2.2.0/index.html" >v2.2.0</option>
             <option value="../../../../../../v2.1.1/index.html" >v2.1.1</option>
@@ -204,7 +204,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.0.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.1.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -1418,24 +1418,33 @@
 <div class="viewcode-block" id="Articulation.write_joint_friction_coefficient_to_sim"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.assets.html#isaaclab.assets.Articulation.write_joint_friction_coefficient_to_sim">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">write_joint_friction_coefficient_to_sim</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
         <span class="n">joint_friction_coeff</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="nb">float</span><span class="p">,</span>
+        <span class="n">joint_dynamic_friction_coeff</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">joint_viscous_friction_coeff</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">joint_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="nb">slice</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="p">):</span>
-<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Write joint static friction coefficients into the simulation.</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Write joint friction coefficients into the simulation.</span>
 
-<span class="sd">        The joint static friction is a unitless quantity. It relates the magnitude of the spatial force transmitted</span>
-<span class="sd">        from the parent body to the child body to the maximal static friction force that may be applied by the solver</span>
-<span class="sd">        to resist the joint motion.</span>
+<span class="sd">        For Isaac Sim versions below 5.0, only the static friction coefficient is set.</span>
+<span class="sd">        This limits the resisting force or torque up to a maximum proportional to the transmitted</span>
+<span class="sd">        spatial force: :math:`\|F_{resist}\| \leq \mu_s \, \|F_{spatial}\|`.</span>
 
-<span class="sd">        Mathematically, this means that: :math:`F_{resist} \leq \mu F_{spatial}`, where :math:`F_{resist}`</span>
-<span class="sd">        is the resisting force applied by the solver and :math:`F_{spatial}` is the spatial force</span>
-<span class="sd">        transmitted from the parent body to the child body. The simulated static friction effect is therefore</span>
-<span class="sd">        similar to static and Coulomb static friction.</span>
+<span class="sd">        For Isaac Sim versions 5.0 and above, the static, dynamic, and viscous friction coefficients</span>
+<span class="sd">        are set. The model combines Coulomb (static &amp; dynamic) friction with a viscous term:</span>
+
+<span class="sd">        - Static friction :math:`\mu_s` defines the maximum effort that prevents motion at rest.</span>
+<span class="sd">        - Dynamic friction :math:`\mu_d` applies once motion begins and remains constant during motion.</span>
+<span class="sd">        - Viscous friction :math:`c_v` is a velocity-proportional resistive term.</span>
 
 <span class="sd">        Args:</span>
-<span class="sd">            joint_friction_coeff: Joint static friction coefficient. Shape is (len(env_ids), len(joint_ids)).</span>
-<span class="sd">            joint_ids: The joint indices to set the joint torque limits for. Defaults to None (all joints).</span>
-<span class="sd">            env_ids: The environment indices to set the joint torque limits for. Defaults to None (all environments).</span>
+<span class="sd">            joint_friction_coeff: Static friction coefficient :math:`\mu_s`.</span>
+<span class="sd">                Shape is (len(env_ids), len(joint_ids)). Scalars are broadcast to all selections.</span>
+<span class="sd">            joint_dynamic_friction_coeff: Dynamic (Coulomb) friction coefficient :math:`\mu_d`.</span>
+<span class="sd">                Same shape as above. If None, the dynamic coefficient is not updated.</span>
+<span class="sd">            joint_viscous_friction_coeff: Viscous friction coefficient :math:`c_v`.</span>
+<span class="sd">                Same shape as above. If None, the viscous coefficient is not updated.</span>
+<span class="sd">            joint_ids: The joint indices to set the friction coefficients for. Defaults to None (all joints).</span>
+<span class="sd">            env_ids: The environment indices to set the friction coefficients for. Defaults to None (all environments).</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># resolve indices</span>
         <span class="n">physx_env_ids</span> <span class="o">=</span> <span class="n">env_ids</span>
@@ -1449,15 +1458,38 @@
             <span class="n">env_ids</span> <span class="o">=</span> <span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span>
         <span class="c1"># set into internal buffers</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">joint_friction_coeff</span><span class="p">[</span><span class="n">env_ids</span><span class="p">,</span> <span class="n">joint_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">joint_friction_coeff</span>
+
+        <span class="c1"># if dynamic or viscous friction coeffs are provided, set them too</span>
+        <span class="k">if</span> <span class="n">joint_dynamic_friction_coeff</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">joint_dynamic_friction_coeff</span><span class="p">[</span><span class="n">env_ids</span><span class="p">,</span> <span class="n">joint_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">joint_dynamic_friction_coeff</span>
+        <span class="k">if</span> <span class="n">joint_viscous_friction_coeff</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">joint_viscous_friction_coeff</span><span class="p">[</span><span class="n">env_ids</span><span class="p">,</span> <span class="n">joint_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">joint_viscous_friction_coeff</span>
+
+        <span class="c1"># move the indices to cpu</span>
+        <span class="n">physx_envs_ids_cpu</span> <span class="o">=</span> <span class="n">physx_env_ids</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span>
+
         <span class="c1"># set into simulation</span>
         <span class="k">if</span> <span class="nb">int</span><span class="p">(</span><span class="n">get_version</span><span class="p">()[</span><span class="mi">2</span><span class="p">])</span> <span class="o">&lt;</span> <span class="mi">5</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">set_dof_friction_coefficients</span><span class="p">(</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">joint_friction_coeff</span><span class="o">.</span><span class="n">cpu</span><span class="p">(),</span> <span class="n">indices</span><span class="o">=</span><span class="n">physx_env_ids</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">joint_friction_coeff</span><span class="o">.</span><span class="n">cpu</span><span class="p">(),</span> <span class="n">indices</span><span class="o">=</span><span class="n">physx_envs_ids_cpu</span>
             <span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">friction_props</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">get_dof_friction_properties</span><span class="p">()</span>
-            <span class="n">friction_props</span><span class="p">[</span><span class="n">physx_env_ids</span><span class="o">.</span><span class="n">cpu</span><span class="p">(),</span> <span class="p">:,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">joint_friction_coeff</span><span class="p">[</span><span class="n">physx_env_ids</span><span class="p">,</span> <span class="p">:]</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">set_dof_friction_properties</span><span class="p">(</span><span class="n">friction_props</span><span class="p">,</span> <span class="n">indices</span><span class="o">=</span><span class="n">physx_env_ids</span><span class="o">.</span><span class="n">cpu</span><span class="p">())</span></div>
+            <span class="n">friction_props</span><span class="p">[</span><span class="n">physx_envs_ids_cpu</span><span class="p">,</span> <span class="p">:,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">joint_friction_coeff</span><span class="p">[</span><span class="n">physx_envs_ids_cpu</span><span class="p">,</span> <span class="p">:]</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span>
+
+            <span class="c1"># only set dynamic and viscous friction if provided</span>
+            <span class="k">if</span> <span class="n">joint_dynamic_friction_coeff</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">friction_props</span><span class="p">[</span><span class="n">physx_envs_ids_cpu</span><span class="p">,</span> <span class="p">:,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">joint_dynamic_friction_coeff</span><span class="p">[</span>
+                    <span class="n">physx_envs_ids_cpu</span><span class="p">,</span> <span class="p">:</span>
+                <span class="p">]</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span>
+
+            <span class="c1"># only set viscous friction if provided</span>
+            <span class="k">if</span> <span class="n">joint_viscous_friction_coeff</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">friction_props</span><span class="p">[</span><span class="n">physx_envs_ids_cpu</span><span class="p">,</span> <span class="p">:,</span> <span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">joint_viscous_friction_coeff</span><span class="p">[</span>
+                    <span class="n">physx_envs_ids_cpu</span><span class="p">,</span> <span class="p">:</span>
+                <span class="p">]</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">set_dof_friction_properties</span><span class="p">(</span><span class="n">friction_props</span><span class="p">,</span> <span class="n">indices</span><span class="o">=</span><span class="n">physx_envs_ids_cpu</span><span class="p">)</span></div>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">write_joint_dynamic_friction_coefficient_to_sim</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
