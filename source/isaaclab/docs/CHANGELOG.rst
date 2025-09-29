@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.46.3 (2025-09-15)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Renamed joint_friction_coeff to joint_static_friction_effort & joint_dynamic_friction_coeff to joint_dynamic_friction_effort in Articulation classes.
+* Added proxies to preserve old names and mark them as deprecated.
+
 
 0.46.2 (2025-09-13)
 ~~~~~~~~~~~~~~~~~~~
