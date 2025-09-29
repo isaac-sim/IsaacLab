@@ -250,7 +250,7 @@ class ComprehensiveBenchmark:
                 print(f"DEBUG: Available log keys: {list(log_data.keys())}")
                 
                 if "Perf/total_fps" in log_data and log_data["Perf/total_fps"]:
-                    fps_values = np.array(log_data["Perf/total_fps"]) * num_gpus  # Scale by number of GPUs
+                    fps_values = np.array(log_data["Perf/total_fps"])
                     fps_stats = {
                         "min_fps": float(np.min(fps_values)),
                         "max_fps": float(np.max(fps_values)),
