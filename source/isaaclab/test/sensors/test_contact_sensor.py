@@ -21,7 +21,6 @@ from enum import Enum
 import carb
 import pytest
 from flaky import flaky
-from pxr import Gf, UsdPhysics
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObject, RigidObjectCfg
