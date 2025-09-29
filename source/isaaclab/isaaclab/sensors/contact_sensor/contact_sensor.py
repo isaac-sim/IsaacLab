@@ -439,13 +439,14 @@ class ContactSensor(SensorBase):
         Unpacks and aggregates contact data for each (env, body, filter) group.
 
         This function vectorizes the following nested loop:
-            for i in range(self._num_bodies * self._num_envs):
-                for j in range(self.contact_physx_view.filter_count):
-                    start_index_ij = buffer_start_indices[i, j]
-                    count_ij = buffer_count[i, j]
-                    self._contact_position_aggregate_buffer[i, j, :] = torch.mean(
-                        contact_data[start_index_ij : (start_index_ij + count_ij), :], dim=0
-                    )
+
+        for i in range(self._num_bodies * self._num_envs):
+            for j in range(self.contact_physx_view.filter_count):
+                start_index_ij = buffer_start_indices[i, j]
+                count_ij = buffer_count[i, j]
+                self._contact_position_aggregate_buffer[i, j, :] = torch.mean(
+                    contact_data[start_index_ij : (start_index_ij + count_ij), :], dim=0
+                )
 
         For more details, see the RigidContactView.get_contact_data() documentation:
         https://docs.omniverse.nvidia.com/kit/docs/omni_physics/107.3/extensions/runtime/source/omni.physics.tensors/docs/api/python.html#omni.physics.tensors.impl.api.RigidContactView.get_net_contact_forces
