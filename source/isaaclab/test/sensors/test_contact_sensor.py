@@ -27,7 +27,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObject, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import ContactSensor, ContactSensorCfg
-from isaaclab.sim import SimulationContext, build_simulation_context
+from isaaclab.sim import SimulationContext, SimulationCfg, build_simulation_context
 from isaaclab.terrains import HfRandomUniformTerrainCfg, TerrainGeneratorCfg, TerrainImporterCfg
 from isaaclab.utils import configclass
 
@@ -453,7 +453,8 @@ def test_friction_reporting(setup_simulation, grav_dir):
     sim_dt, _, _, _, carb_settings_iface = setup_simulation
     carb_settings_iface.set_bool("/physics/disableContactProcessing", True)
     device = "cuda:0"
-    with build_simulation_context(device=device, dt=sim_dt, add_lighting=False) as sim:
+    sim_cfg = SimulationCfg(dt=sim_dt, device=device, gravity=grav_dir)
+    with build_simulation_context(sim_cfg=sim_cfg, add_lighting=False) as sim:
         sim._app_control_on_stop_handle = None
 
         scene_cfg = ContactSensorSceneCfg(num_envs=1, env_spacing=1.0, lazy_sensor_update=False)
@@ -474,9 +475,6 @@ def test_friction_reporting(setup_simulation, grav_dir):
         )
 
         scene = InteractiveScene(scene_cfg)
-
-        # set custom gravity
-        UsdPhysics.Scene.Get(scene.stage, "/physicsScene").CreateGravityDirectionAttr().Set(Gf.Vec3f(*grav_dir))
 
         sim.reset()
 
