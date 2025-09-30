@@ -34,6 +34,28 @@ parser.add_argument(
     help="Use the pre-trained checkpoint from Nucleus.",
 )
 parser.add_argument("--real-time", action="store_true", default=False, help="Run in real-time, if possible.")
+# Additional exports: USD Isaac Robot Schema joint order support
+parser.add_argument(
+    "--import_robot_schema_policy",
+    action="store_true",
+    default=False,
+    help="Import policy using USD Isaac Robot Schema joint order to current engine representation.",
+)
+parser.add_argument(
+    "--export_robot_schema_policy",
+    action="store_true",
+    default=False,
+    help="Export additional JIT policies using USD Isaac Robot Schema joint order.",
+)
+parser.add_argument(
+    "--robot_schema_file",
+    type=str,
+    default=None,
+    help=(
+        "Path to YAML file containing joint order to treat as Robot Schema order for import/export (uses key"
+        " 'robot_schema_joint_names' by default)."
+    ),
+)
 # append RSL-RL cli arguments
 cli_args.add_rsl_rl_args(parser)
 # append AppLauncher cli args
@@ -58,6 +80,7 @@ import os
 import time
 import torch
 
+from policy_mapping_helpers import export_robot_schema_policy, import_robot_schema_policy
 from rsl_rl.runners import DistillationRunner, OnPolicyRunner
 
 from isaaclab.envs import (
@@ -82,7 +105,26 @@ from isaaclab_tasks.utils.hydra import hydra_task_config
 
 @hydra_task_config(args_cli.task, args_cli.agent)
 def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agent_cfg: RslRlBaseRunnerCfg):
-    """Play with RSL-RL agent."""
+    """Play with RSL-RL agent.
+    You can use this script to export a policy in robot schema joint order, and import a policy from robot schema order to the current engine representation.
+    To export a policy in robot schema order, you can use the following command:
+    Example:
+    ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/play.py\
+    --task=Isaac-Velocity-Flat-Anymal-D-v0 \
+    --num_envs=32 \
+    --export_robot_schema_policy \
+    --robot_schema_file ../IsaacLab/scripts/newton_sim2sim/mappings/sim2sim_anymal_d.yaml
+
+    This will save JIT and runner checkpoint in the exported directory. You can use this to import the policy to the physX-based Isaac Lab.
+    To import a policy from robot schema order, you can use the following command:
+    Example:
+    ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/play.py\
+    --task=Isaac-Velocity-Flat-Anymal-D-v0 \
+    --num_envs=32 \
+    --import_robot_schema_policy \
+    --robot_schema_file ../IsaacLab/scripts/newton_sim2sim/mappings/sim2sim_anymal_d.yaml \
+    --checkpoint /path/to/exported/policy_runner_schema_order.pt
+    """
     # grab task name for checkpoint path
     task_name = args_cli.task.split(":")[-1]
     train_task_name = task_name.replace("-Play", "")
@@ -172,10 +214,50 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     export_policy_as_jit(policy_nn, normalizer=normalizer, path=export_model_dir, filename="policy.pt")
     export_policy_as_onnx(policy_nn, normalizer=normalizer, path=export_model_dir, filename="policy.onnx")
 
+    # Optionally export schema-ordered policy variant (JIT and runner checkpoint)
+    if args_cli.export_robot_schema_policy:
+        export_robot_schema_policy(
+            base_env=env.unwrapped,
+            runner=runner,
+            policy_nn=policy_nn,
+            normalizer=normalizer,
+            export_model_dir=export_model_dir,
+            robot_schema_file=args_cli.robot_schema_file,
+        )
+
+    # Schema import functionality - remap observations and actions for imported policies
+    if args_cli.import_robot_schema_policy:
+        obs_remap_fn, action_remap_fn = import_robot_schema_policy(
+            base_env=env.unwrapped,
+            robot_schema_file=args_cli.robot_schema_file,
+        )
+    else:
+        obs_remap_fn, action_remap_fn = None, None
+
     dt = env.unwrapped.step_dt
 
     # reset environment
     obs = env.get_observations()
+    # Align runner/policy devices with observation device
+    try:
+        if isinstance(obs, dict) or (hasattr(obs, "__getitem__") and "policy" in obs):
+            target_device = obs["policy"].device
+        else:
+            target_device = obs.device
+        if hasattr(runner, "alg") and hasattr(runner.alg, "to"):
+            runner.alg.to(target_device)
+        if hasattr(policy_nn, "to"):
+            policy_nn.to(target_device)
+        if hasattr(policy_nn, "actor") and isinstance(policy_nn.actor, torch.nn.Module):
+            policy_nn.actor.to(target_device)
+        if hasattr(policy_nn, "student") and isinstance(policy_nn.student, torch.nn.Module):
+            policy_nn.student.to(target_device)
+        if hasattr(policy_nn, "memory_a") and hasattr(policy_nn.memory_a, "rnn"):
+            policy_nn.memory_a.rnn.to(target_device)
+        if hasattr(policy_nn, "memory_s") and hasattr(policy_nn.memory_s, "rnn"):
+            policy_nn.memory_s.rnn.to(target_device)
+    except Exception:
+        pass
     timestep = 0
     # simulate environment
     while simulation_app.is_running():
@@ -183,9 +265,13 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         # run everything in inference mode
         with torch.inference_mode():
             # agent stepping
-            actions = policy(obs)
+            # Apply observation remapping if schema import is enabled
+            policy_input = obs_remap_fn(obs) if obs_remap_fn else obs
+            actions = policy(policy_input)
+            # Apply action remapping if schema import is enabled
+            env_actions = action_remap_fn(actions) if action_remap_fn else actions
             # env stepping
-            obs, _, _, _ = env.step(actions)
+            obs, _, _, _ = env.step(env_actions)
         if args_cli.video:
             timestep += 1
             # Exit the play loop after recording one video
