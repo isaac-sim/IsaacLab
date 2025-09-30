@@ -1,6 +1,14 @@
 Changelog
 ---------
 
+0.46.5 (2025-09-30)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+* Fixed finger joint indices with manus extension.
+
+
 0.46.4 (2025-09-30)
 ~~~~~~~~~~~~~~~~~~~
 
