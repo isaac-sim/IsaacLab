@@ -512,9 +512,9 @@ if "%arg%"=="-i" (
     echo [INFO] Using python from: !python_exe!
     REM Loop through all arguments - mimic shift
     for /f "tokens=1,* delims= " %%a in ("%*") do (
-        set "args_without_first=%%b"
+        set "allArgs=%%b"
     )
-    call !python_exe! !args_without_first!
+    call !python_exe! !allArgs!
     goto :end
 ) else if "%arg%"=="--python" (
     rem run the python provided by Isaac Sim
@@ -522,9 +522,9 @@ if "%arg%"=="-i" (
     echo [INFO] Using python from: !python_exe!
     REM Loop through all arguments - mimic shift
     for /f "tokens=1,* delims= " %%a in ("%*") do (
-        set "args_without_first=%%b"
+        set "allArgs=%%b"
     )
-    call !python_exe! !args_without_first!
+    call !python_exe! !allArgs!
     goto :end
 ) else if "%arg%"=="-s" (
     rem run the simulator exe provided by isaacsim
