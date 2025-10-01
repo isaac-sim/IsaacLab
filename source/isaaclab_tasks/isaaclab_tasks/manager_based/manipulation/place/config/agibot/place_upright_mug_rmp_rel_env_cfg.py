@@ -9,6 +9,9 @@ from dataclasses import MISSING
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
 from isaaclab.devices.device_base import DevicesCfg
 from isaaclab.devices.keyboard import Se3KeyboardCfg
+from isaaclab.devices.openxr.openxr_device import OpenXRDevice, OpenXRDeviceCfg
+from isaaclab.devices.openxr.retargeters.manipulator.gripper_retargeter import GripperRetargeterCfg
+from isaaclab.devices.openxr.retargeters.manipulator.se3_rel_retargeter import Se3RelRetargeterCfg
 from isaaclab.devices.spacemouse import Se3SpaceMouseCfg
 from isaaclab.envs.mdp.actions.rmpflow_actions_cfg import RMPFlowActionCfg
 from isaaclab.managers import EventTermCfg as EventTerm
@@ -270,6 +273,24 @@ class RmpFlowAgibotPlaceUprightMugEnvCfg(place_toy2box_rmp_rel_env_cfg.PlaceToy2
                     pos_sensitivity=0.05,
                     rot_sensitivity=0.05,
                     sim_device=self.sim.device,
+                ),
+                "handtracking": OpenXRDeviceCfg(
+                    retargeters=[
+                        Se3RelRetargeterCfg(
+                            bound_hand=OpenXRDevice.TrackingTarget.HAND_RIGHT,
+                            zero_out_xy_rotation=True,
+                            use_wrist_rotation=False,
+                            use_wrist_position=True,
+                            delta_pos_scale_factor=10.0,
+                            delta_rot_scale_factor=10.0,
+                            sim_device=self.sim.device,
+                        ),
+                        GripperRetargeterCfg(
+                            bound_hand=OpenXRDevice.TrackingTarget.HAND_RIGHT, sim_device=self.sim.device
+                        ),
+                    ],
+                    sim_device=self.sim.device,
+                    xr_cfg=self.xr,
                 ),
             }
         )
