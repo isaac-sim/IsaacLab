@@ -511,32 +511,20 @@ if "%arg%"=="-i" (
     call :extract_python_exe
     echo [INFO] Using python from: !python_exe!
     REM Loop through all arguments - mimic shift
-    set "allArgs="
-    for %%a in (%*) do (
-        REM Append each argument to the variable, skip the first one
-        if defined skip (
-            set "allArgs=!allArgs! %%a"
-        ) else (
-            set "skip=1"
-        )
+    for /f "tokens=1,* delims= " %%a in ("%*") do (
+        set "args_without_first=%%b"
     )
-    call !python_exe! !allArgs!
+    call !python_exe! !args_without_first!
     goto :end
 ) else if "%arg%"=="--python" (
     rem run the python provided by Isaac Sim
     call :extract_python_exe
     echo [INFO] Using python from: !python_exe!
     REM Loop through all arguments - mimic shift
-    set "allArgs="
-    for %%a in (%*) do (
-        REM Append each argument to the variable, skip the first one
-        if defined skip (
-            set "allArgs=!allArgs! %%a"
-        ) else (
-            set "skip=1"
-        )
+    for /f "tokens=1,* delims= " %%a in ("%*") do (
+        set "args_without_first=%%b"
     )
-    call !python_exe! !allArgs!
+    call !python_exe! !args_without_first!
     goto :end
 ) else if "%arg%"=="-s" (
     rem run the simulator exe provided by isaacsim
