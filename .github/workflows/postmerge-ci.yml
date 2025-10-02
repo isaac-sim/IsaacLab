@@ -46,6 +46,8 @@ jobs:
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
+      with:
+        platforms: linux/amd64,linux/arm64
 
     - name: Login to NGC
       run: |
@@ -104,9 +106,9 @@ jobs:
           echo "Building image: ${{ env.ISAACLAB_IMAGE_NAME }}:$COMBINED_TAG"
           echo "IsaacSim version: $IMAGE_BASE_VERSION"
 
-          # Build Docker image once with both tags
+          # Build Docker image once with both tags for multiple architectures
           docker buildx build \
-            --platform linux/amd64 \
+            --platform linux/amd64,linux/arm64 \
             --progress=plain \
             -t ${{ env.ISAACLAB_IMAGE_NAME }}:$COMBINED_TAG \
             -t ${{ env.ISAACLAB_IMAGE_NAME }}:$BUILD_TAG \
