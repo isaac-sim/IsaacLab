@@ -21,7 +21,7 @@ import tempfile
 import time
 from typing import Literal
 
-# import carb
+import carb
 import omni.client
 
 # import logger
