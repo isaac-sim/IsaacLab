@@ -451,15 +451,14 @@ def image_latents(
     Returns:
         The images produced at the last time-step
     """
+    
+    # TODO @mihirk change to use image_features API  
+    
     # extract the used quantities (to enable type-hinting)
     sensor: TiledCamera | Camera | RayCasterCamera = env.scene.sensors[sensor_cfg.name]
 
     # obtain the input image
     images = sensor.data.output[data_type]
-    
-    # plt.figure()
-    # plt.imshow(images[0].cpu().numpy())
-    # plt.show()
 
     # depth image conversion
     if (data_type == "distance_to_camera") and convert_perspective_to_orthogonal:

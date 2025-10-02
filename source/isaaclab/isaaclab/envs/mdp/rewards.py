@@ -143,7 +143,7 @@ def distance_to_goal_l2(env: ManagerBasedRLEnv,
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
     target_position_w = goal_position + env.scene.env_origins
-    target_position_w[:, 2] = 1.5
+    target_position_w[:, 2] += 1.5
     return  torch.sum(torch.square(asset.data.root_pos_w - target_position_w), dim=1)
 
 
@@ -156,23 +156,13 @@ def distance_to_goal_exp(
     """Reward the distance to a goal position using an exponential kernel."""
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
-    # print name of the asset
-    # print("Asset name:", asset_cfg.name)
-    # get the center of the environment
 
     target_position_w = goal_position + env.scene.env_origins
-    target_position_w[:, 2] = 1.5
+    target_position_w[:, 2] += 1.5
     target_position_w[:, 0] += 10.0
-    # print("Target position 1:", target_position_w[10])
-    # print("Current position 1:", asset.data.root_pos_w[10])
 
     # compute the error
     position_error_square = torch.sum(torch.square(target_position_w - asset.data.root_pos_w), dim=1)
-    # print("Target position:", target_position_w[50])
-    # print("Current position:", asset.data.root_pos_w[50])
-    # print("Position error square:", position_error_square[50])
-    # print("Reward value: ", torch.exp(-position_error_square[0] / std**2))
-    # print the world position
     return torch.exp(-position_error_square / std**2)
 
 """

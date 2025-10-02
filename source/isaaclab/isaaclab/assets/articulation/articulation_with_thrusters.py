@@ -247,16 +247,12 @@ class ArticulationWithThrusters(Articulation):
         # self.root_physx_view.set_dof_actuation_forces(self._joint_effort_target_sim, self._ALL_INDICES)
         # apply thruster actions
         self._combine_thrusts()
-        # TODO apply force to center of gravity instead (important for arbitrary robots)
-        # TODO grab correct index in a flexible way
-        # TODO check what is_global does
+        # TODO make sure force is applied to center of gravity (important for arbitrary robots)
         # TODO @mihirk check and ask what is the correct way to include all indices of the robots.
         
         root_body_id = 0
         all_indices = torch.arange(self._internal_force_target_sim.shape[0], device=self.device)
 
-        # print("applying forces: ", self._internal_force_target_sim.view(-1,3))
-        # print("applying torques: ", self._internal_torque_target_sim.view(-1,3))
         self.root_physx_view.apply_forces_and_torques_at_position(force_data=self._internal_force_target_sim.view(-1,3),
                                                                  torque_data = self._internal_torque_target_sim.view(-1,3),
                                                                  position_data=None,
