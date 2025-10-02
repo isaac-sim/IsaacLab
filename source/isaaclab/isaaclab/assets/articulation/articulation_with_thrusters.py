@@ -243,7 +243,8 @@ class ArticulationWithThrusters(Articulation):
         # apply actuator models
         self._apply_actuator_model()
         # write actions into simulation
-        self.root_physx_view.set_dof_actuation_forces(self._joint_effort_target_sim, self._ALL_INDICES)
+        # TODO @mihirk @welfr @greg fince a nice way to only apply this when needed.
+        # self.root_physx_view.set_dof_actuation_forces(self._joint_effort_target_sim, self._ALL_INDICES)
         # apply thruster actions
         self._combine_thrusts()
         # TODO make sure force is applied to center of gravity (important for arbitrary robots)

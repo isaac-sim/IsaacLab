@@ -18,7 +18,9 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg, ContactSensorCfg
-from isaaclab.sim import PinholeCameraCfg
+# from isaaclab.sim import PinholeCameraCfg
+from isaaclab.sensors.ray_caster.ray_caster_camera_cfg import RayCasterCameraCfg
+from isaaclab.sensors.ray_caster.patterns import PinholeCameraPatternCfg
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
@@ -61,16 +63,17 @@ class MySceneCfg(InteractiveSceneCfg):
     # robots
     robot: ArticulationWithThrustersCfg = MISSING
     # sensors
-    depth_camera = CameraCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/base_link/depth_camera",
-        offset=CameraCfg.OffsetCfg(pos=(0.15, 0.0, 0.04), rot=(1.0, 0.0, 0.0, 0.0), convention="world"),
+    depth_camera = RayCasterCameraCfg(
+        prim_path="{ENV_REGEX_NS}/Robot/base_link",
+        mesh_prim_paths=["/World/ground"],
+        offset=RayCasterCameraCfg.OffsetCfg(pos=(0.15, 0.0, 0.04), rot=(1.0, 0.0, 0.0, 0.0), convention="world"),
         update_period=0.1,
-        spawn=PinholeCameraCfg(
-            focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.01, 1.0e1)
+        pattern_cfg=PinholeCameraPatternCfg(
+            focal_length=24.0, width=480, height=270
         ),
-        height=270, 
-        width=480,
-        data_types=["depth"],
+        data_types=["distance_to_image_plane"],
+        max_distance=10.0,
+        depth_clipping_behavior="max",
     )
     contact_forces = ContactSensorCfg(
         prim_path="{ENV_REGEX_NS}/Robot/.*",
@@ -134,8 +137,8 @@ class ObservationsCfg:
         base_ang_vel = ObsTerm(func=mdp.base_ang_vel, noise=Unoise(n_min=-0.2, n_max=0.2))
         depth_latent = ObsTerm(
             func=mdp.image_latents,
-            params={"sensor_cfg": SceneEntityCfg("depth_camera"), "data_type": "depth", "vae": VAEImageEncoder}, 
-            clip=(-1000000.0, 100000.0),
+            params={"sensor_cfg": SceneEntityCfg("depth_camera"), "data_type": "distance_to_image_plane", "vae": VAEImageEncoder},
+            scale=0.1,
         )
 
         def __post_init__(self):
@@ -163,12 +166,12 @@ class EventCfg:
                 "yaw": (-3.1415, 3.1415),
             },  # yaw translated from xyzw (0, 0, 0.5236, 1) from aerial gym
             "velocity_range": {
-                "x": (-0.2, 0.2),
-                "y": (-0.2, 0.2),
-                "z": (-0.2, 0.2),
-                "roll": (-0.2, 0.2),
-                "pitch": (-0.2, 0.2),
-                "yaw": (-0.2, 0.2),
+                "x": (-0.0, 0.0),
+                "y": (-0.0, 0.0),
+                "z": (-0.0, 0.0),
+                "roll": (-0.0, 0.0),
+                "pitch": (-0.0, 0.0),
+                "yaw": (-0.0, 0.0),
             },
         },
     )
@@ -178,11 +181,13 @@ class EventCfg:
 class RewardsCfg:
     """Reward terms for the MDP."""
     goal_dist_exp1 = RewTerm(func=mdp.distance_to_goal_exp, weight=2.0,
-                             params={"asset_cfg": SceneEntityCfg("robot"), "std": 3.0})
+                             params={"asset_cfg": SceneEntityCfg("robot"), "std": 7.0})
     goal_dist_exp2 = RewTerm(func=mdp.distance_to_goal_exp, weight=4.0,
-                             params={"asset_cfg": SceneEntityCfg("robot"), "std": 1.0})
-    l2_goal_dist = RewTerm(func=mdp.distance_to_goal_l2, weight=-0.2)
-    crash_penalty = RewTerm(func=mdp.undesired_contacts, weight=-2.0, params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*"), "threshold": 1.0})
+                             params={"asset_cfg": SceneEntityCfg("robot"), "std": 0.5})
+    # l2_goal_dist = RewTerm(func=mdp.distance_to_goal_l2, weight=-0.05)
+    velocity_reward = RewTerm(func=mdp.velocity_to_goal_reward, weight=0.5,
+                              params={"asset_cfg": SceneEntityCfg("robot"),})
+    crash_penalty = RewTerm(func=mdp.undesired_contacts, weight=-20.0, params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*"), "threshold": 1.0})
 
 
 @configclass
@@ -225,7 +230,7 @@ class NavigationVelocityFloatingObstacleEnvCfg(ManagerBasedRLEnvCfg):
     def __post_init__(self):
         """Post initialization."""
         # general settings
-        self.decimation = 4
+        self.decimation = 10
         self.episode_length_s = 10.0
         # simulation settings
         self.sim.dt = 0.01
@@ -234,8 +239,6 @@ class NavigationVelocityFloatingObstacleEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.physx.gpu_max_rigid_patch_count = 10 * 2**15
         # update sensor update periods
         # we tick all the sensors based on the smallest update period (physics update period)
-        if self.scene.depth_camera is not None:
-            self.scene.depth_camera.update_period = self.decimation * self.sim.dt
         if self.scene.contact_forces is not None:
             self.scene.contact_forces.update_period = self.sim.dt
 
