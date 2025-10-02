@@ -143,7 +143,7 @@ def distance_to_goal_l2(env: ManagerBasedRLEnv,
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
     target_position_w = goal_position + env.scene.env_origins
-    target_position_w[:, 2] += 1.5
+    target_position_w[:, 2] = 1.5
     return  torch.sum(torch.square(asset.data.root_pos_w - target_position_w), dim=1)
 
 
@@ -161,17 +161,18 @@ def distance_to_goal_exp(
     # get the center of the environment
 
     target_position_w = goal_position + env.scene.env_origins
-    target_position_w[:, 2] += 1.5
+    target_position_w[:, 2] = 1.5
+    target_position_w[:, 0] += 10.0
     # print("Target position 1:", target_position_w[10])
     # print("Current position 1:", asset.data.root_pos_w[10])
 
     # compute the error
     position_error_square = torch.sum(torch.square(target_position_w - asset.data.root_pos_w), dim=1)
-    # print("Target position:", target_position_w[0])
-    # print the world position
-    # print("Current position:", asset.data.root_pos_w[0])
-    # print("Position error square:", position_error_square[0])
+    # print("Target position:", target_position_w[50])
+    # print("Current position:", asset.data.root_pos_w[50])
+    # print("Position error square:", position_error_square[50])
     # print("Reward value: ", torch.exp(-position_error_square[0] / std**2))
+    # print the world position
     return torch.exp(-position_error_square / std**2)
 
 """
@@ -363,3 +364,21 @@ def track_ang_vel_z_exp(
     # compute the error
     ang_vel_error = torch.square(env.command_manager.get_command(command_name)[:, 2] - asset.data.root_ang_vel_b[:, 2])
     return torch.exp(-ang_vel_error / std**2)
+
+def velocity_to_goal_reward(
+    env: ManagerBasedRLEnv,
+    goal_position: torch.Tensor = 0.0,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+) -> torch.Tensor:
+    """Reward the velocity towards a goal position using a dot product between the velocity and the direction to the goal."""
+    # extract the used quantities (to enable type-hinting)
+    asset: RigidObject = env.scene[asset_cfg.name]
+    # get the center of the environment
+    goal_position = goal_position + env.scene.env_origins
+    goal_position[:, 2] = 1.5
+    goal_position[:, 0] += 10.0
+    direction_to_goal = goal_position - asset.data.root_pos_w
+    direction_to_goal = direction_to_goal / (torch.norm(direction_to_goal, dim=1, keepdim=True) + 1e-8)
+    # compute the reward as the dot product between the velocity and the direction to the goal
+    velocity_towards_goal = torch.sum(asset.data.root_lin_vel_w * direction_to_goal, dim=1)
+    return velocity_towards_goal

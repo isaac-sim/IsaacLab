@@ -473,6 +473,7 @@ def image_latents(
             images -= mean_tensor
         elif "distance_to" in data_type or "depth" in data_type:
             images[images == float("inf")] = 10.0
+            images[images == -float("inf")] = 10.0
             images[images > 10.0] = 10.0
             images = images / 10.0  # normalize to 0-1
             images[images < 0.02] = -1.0  # set very close values to -1
@@ -482,7 +483,7 @@ def image_latents(
     if _vae_model is None:
         _vae_model = vae()
     latents = _vae_model.encode(images.clone())
-    reconstructed = _vae_model.decode(latents)
+    # reconstructed = _vae_model.decode(latents)
     # print min max mean decoded image
     # save depth image 0 and reconstructed image 0
     # import matplotlib.pyplot as plt

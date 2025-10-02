@@ -18,10 +18,10 @@ class vae_config:
         model_file = (
             "ICRA_test_set_more_sim_data_kld_beta_3_LD_64_epoch_49.pth"
         )
-        model_folder = "/home/welf/workspaces/IsaacLab/source/isaaclab_tasks/isaaclab_tasks/manager_based/navigation/config/LMF2/vae/weights/"
+        model_folder = "/home/arl/ntnu_isaaclab/IsaacLab/source/isaaclab_tasks/isaaclab_tasks/manager_based/navigation/config/LMF2/vae/weights/"
         image_res = (270, 480)
         interpolation_mode = "nearest"
-        return_sampled_latent = True
+        return_sampled_latent = False
 
 class VAEImageEncoder:
     """
