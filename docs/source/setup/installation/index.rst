@@ -68,6 +68,11 @@ may work but have not been validated against all Omniverse tests.
   driver from the `Unix Driver Archive <https://www.nvidia.com/en-us/drivers/unix/>`_
   using the ``.run`` installer.
 
+DGX Spark: details and limitations
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The DGX spark is a stand-alone machine learning device with unique requirements and specifications due to it's specialized SBC nature. These details are...
+
 Troubleshooting
 ~~~~~~~~~~~~~~~
 
