@@ -81,7 +81,7 @@ def terrain_levels_vel(
     crashed = env.termination_manager.terminated[env_ids]
     # robots that are within 0.25m range should progress to harder terrains
     move_up = position_error < 1.0
-    move_down = crashed
+    move_down = crashed | (position_error > 1.0)
     # robots that are NOT within 0.25m range should progress to easier terrains
     # move_down = position_error > 1.25
     move_down *= ~move_up
