@@ -20,11 +20,10 @@ import tempfile
 import time
 from typing import Literal
 
-# import carb
+import carb
 import omni.client
 
-NUCLEUS_ASSET_ROOT_DIR = (  # carb.settings.get_settings().get("/persistent/isaac/asset_root/cloud")
-    "omniverse://isaac-dev.ov.nvidia.com"
+NUCLEUS_ASSET_ROOT_DIR = (carb.settings.get_settings().get("/persistent/isaac/asset_root/cloud")
 )
 """Path to the root directory on the Nucleus Server."""
 
