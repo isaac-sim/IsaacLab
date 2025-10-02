@@ -419,6 +419,20 @@ Requires Isaac Sim 5.1 or later.
 
 Run the teleoperation example with Manus + Vive tracking:
 
+.. dropdown:: Installation instructions
+   :open:
+
+   The Manus integration is provided through the Isaac Sim teleoperation input plugin framework.
+   Install the plugin by following the build and installation steps in `isaac-teleop-device-plugins <https://github.com/isaac-sim/isaac-teleop-device-plugins>`_.
+
+In the same terminal from which you will launch Isaac Lab, set:
+
+.. code-block:: bash
+
+      export ISAACSIM_HANDTRACKER_LIB=<path to isaac-teleop-device-plugins>/build-manus-default/lib/libIsaacSimManusHandTracking.so
+
+Once the plugin is installed, run the teleoperation example:
+
 .. code-block:: bash
 
    ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
@@ -427,20 +441,28 @@ Run the teleoperation example with Manus + Vive tracking:
        --xr \
        --enable_pinocchio
 
-Begin the session with your palms facing up.
-This is necessary for calibrating Vive tracker poses using Apple Vision Pro wrist poses from a few initial frames,
-as the Vive trackers attached to the back of the hands occlude the optical hand tracking.
+The recommended workflow, is to start Isaac Lab, click **Start AR**, and then put on the Manus gloves, vive trackers, and
+headset. Once you are ready to begin the session, use voice commands to launch the Isaac XR teleop sample client and
+connect to Isaac Lab.
+
+Isaac Lab automatically calibrates the Vive trackers using wrist pose data from the Apple Vision Pro during the initial
+frames of the session. If calibration fails, for example, if the red dots do not accurately follow the teleoperator's
+hands, restart Isaac Lab and begin with your hands in a palm-up position to improve calibration reliability.
 
 For optimal performance, position the lighthouse above the hands, tilted slightly downward.
-One lighthouse is sufficient if both hands are visible.
 Ensure the lighthouse remains stable; a stand is recommended to prevent wobbling.
+
+Ensure that while the task is being teleoperated, the hands remain stable and visible to the lighthouse at all times.
+See: `Installing the Base Stations <https://www.vive.com/us/support/vive/category_howto/installing-the-base-stations.html>`_
+and `Tips for Setting Up the Base Stations <https://www.vive.com/us/support/vive/category_howto/tips-for-setting-up-the-base-stations.html>`_
 
 .. note::
 
    To avoid resource contention and crashes, ensure Manus and Vive devices are connected to different USB controllers/buses.
    Use ``lsusb -t`` to identify different buses and connect devices accordingly.
 
-   Vive trackers are automatically calculated to map to the left and right wrist joints.
+   Vive trackers are automatically calculated to map to the left and right wrist joints obtained from a stable
+   OpenXR hand tracking wrist pose.
    This auto-mapping calculation supports up to 2 Vive trackers;
    if more than 2 Vive trackers are detected, it uses the first two trackers detected for calibration, which may not be correct.
 
