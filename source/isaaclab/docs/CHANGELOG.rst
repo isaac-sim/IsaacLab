@@ -1,6 +1,14 @@
 Changelog
 ---------
 
+0.46.6 (2025-10-02)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+* Fixed scaling factor for retargeting of GR1T2 hand.
+
+
 0.46.5 (2025-09-30)
 ~~~~~~~~~~~~~~~~~~~
 
