@@ -679,7 +679,7 @@ The data generated from this locomanipulation pipeline can also be used to finet
 you may convert the generated dataset to LeRobot format as expected by GR00T N1.5, and then run the finetuning script provided
 in the GR00T N1.5 repository.  An example closed-loop policy rollout is shown in the video below:
 
-.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/disjoint_navigation.gif
+.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/locomanipulation_sdg_disjoint_nav_groot_policy_4x.gif
    :width: 100%
    :align: center
    :alt: Simulation rollout of GR00T N1.5 policy finetuned for locomanipulation
