@@ -1,5 +1,9 @@
+[tool.black]
+line-length = 120
+
 [tool.isort]
 
+profile = "black"
 py_version = 310
 line_length = 120
 group_by_package = true
