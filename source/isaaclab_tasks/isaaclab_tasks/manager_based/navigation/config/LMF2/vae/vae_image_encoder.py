@@ -1,6 +1,7 @@
 import torch
 import os
 from .VAE import VAE
+from isaaclab import ISAACLAB_EXT_DIR
 
 def clean_state_dict(state_dict):
     clean_dict = {}
@@ -18,7 +19,7 @@ class vae_config:
         model_file = (
             "ICRA_test_set_more_sim_data_kld_beta_3_LD_64_epoch_49.pth"
         )
-        model_folder = "/home/arl/ntnu_isaaclab/IsaacLab/source/isaaclab_tasks/isaaclab_tasks/manager_based/navigation/config/LMF2/vae/weights/"
+        model_folder = f"{ISAACLAB_EXT_DIR}/..//isaaclab_tasks/isaaclab_tasks/manager_based/navigation/config/LMF2/vae/weights/"
         image_res = (270, 480)
         interpolation_mode = "nearest"
         return_sampled_latent = False
