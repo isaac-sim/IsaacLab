@@ -22,17 +22,17 @@ which defines the common interface for all actuator models. The actuator models 
 and called by the :class:`isaaclab.assets.Articulation` class.
 """
 
-from .actuator_base import ActuatorBase
+from .actuator_base import ActuatorBaseDirect
 from .actuator_cfg import (
-    ActuatorBaseCfg,
-    ActuatorNetLSTMCfg,
-    ActuatorNetMLPCfg,
-    DCMotorCfg,
-    DelayedPDActuatorCfg,
-    IdealPDActuatorCfg,
-    ImplicitActuatorCfg,
-    RemotizedPDActuatorCfg,
+    ActuatorBaseDirectCfg,
+    #ActuatorNetLSTMCfg,
+    #ActuatorNetMLPCfg,
+    DCMotorDirectCfg,
+    #DelayedPDActuatorCfg,
+    IdealPDActuatorDirectCfg,
+    ImplicitActuatorDirectCfg,
+    #RemotizedPDActuatorCfg,
 )
-from .actuator_net import ActuatorNetLSTM, ActuatorNetMLP
-from .actuator_pd import DCMotor, DelayedPDActuator, IdealPDActuator, ImplicitActuator, RemotizedPDActuator
-from .actuator_data import ActuatorData
+#from .actuator_net import ActuatorNetLSTM, ActuatorNetMLP
+#from .actuator_pd import DCMotor, DelayedPDActuator, IdealPDActuator, ImplicitActuator, RemotizedPDActuator
+from .actuator_pd import DCMotorDirect, IdealPDActuatorDirect, ImplicitActuatorDirect

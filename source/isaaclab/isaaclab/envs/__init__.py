@@ -45,6 +45,7 @@ For more information about the workflow design patterns, see the `Task Design Wo
 from . import mdp, ui
 from .common import VecEnvObs, VecEnvStepReturn, ViewerCfg
 from .direct_rl_env import DirectRLEnv
+from .direct_rl_env_direct import DirectRLEnvDirect
 from .direct_rl_env_cfg import DirectRLEnvCfg
 from .manager_based_env import ManagerBasedEnv
 from .manager_based_env_cfg import ManagerBasedEnvCfg

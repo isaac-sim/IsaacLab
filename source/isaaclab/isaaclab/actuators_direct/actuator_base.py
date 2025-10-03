@@ -11,15 +11,15 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING, ClassVar, Literal
 
 import isaaclab.utils.string as string_utils
-from isaaclab.utils.types import ArticulationActions
-from .actuator_data import ActuatorData
-from isaaclab.assets.articulation_direct.kernels import *
+from isaaclab.actuators_direct.kernels import clip_efforts_with_limits
+from isaaclab.assets.articulation_direct.kernels import update_joint_array_with_value, update_joint_array_with_value_int, populate_empty_array, update_joint_array_with_value_array
 
 if TYPE_CHECKING:
-    from .actuator_cfg import ActuatorBaseCfg
+    from .actuator_cfg import ActuatorBaseDirectCfg
+    from isaaclab.assets.articulation_direct.articulation import ArticulationDataDirect
 
 
-class ActuatorBase(ABC):
+class ActuatorBaseDirect(ABC):
     """Base class for actuator models over a collection of actuated joints in an articulation.
 
     Actuator models augment the simulated articulation joints with an external drive dynamics model.
@@ -44,8 +44,8 @@ class ActuatorBase(ABC):
     If a class inherits from :class:`ImplicitActuator`, then this flag should be set to :obj:`True`.
     """
 
-    data: ActuatorData
-    """The data for the actuator group. Shape is (num_envs, num_joints)."""
+    data: ArticulationDataDirect
+    """The data of the articulation."""
 
     _DEFAULT_MAX_EFFORT_SIM: ClassVar[float] = 1.0e9
     """The default maximum effort for the actuator joints in the simulation. Defaults to 1.0e9.
@@ -60,7 +60,8 @@ class ActuatorBase(ABC):
         cfg: ActuatorBaseCfg,
         joint_names: list[str],
         joint_mask: wp.array,
-        articulation_data: ActuatorData,
+        env_mask: wp.array,
+        articulation_data: ArticulationDataDirect,
         device: str,
     ):
         """Initialize the actuator.
@@ -75,27 +76,35 @@ class ActuatorBase(ABC):
         Args:
             cfg: The configuration of the actuator model.
             joint_names: The joint names in the articulation.
-            joint_ids: The joint indices in the articulation. If :obj:`slice(None)`, then all
-                the joints in the articulation are part of the group.
-            num_envs: Number of articulations in the view.
-            num_joints: Number of joints in the articulation.
-            device: Device used for processing.
             joint_mask: The mask of joints to use.
+            env_mask: The mask of environments to use.
             articulation_data: The data for the articulation.
+            device: Device used for processing.
         """
         # save parameters
         self.cfg = cfg
         self._device = device
         self._joint_names = joint_names
         self._joint_mask = joint_mask
+        self._env_mask = env_mask
         # Get the number of environments and joints from the articulation data
-        self._num_envs = articulation_data.all_env_mask.shape[0]
-        self._num_joints = articulation_data.all_joint_mask.shape[0]
+        self._num_envs = env_mask.shape[0]
+        self._num_joints = joint_mask.shape[0]
+        # Get the data from the articulation
+        self.data = articulation_data
 
         # For explicit models, we do not want to enforce the effort limit through the solver
         # (unless it is explicitly set)
         if not self.is_implicit_model and self.cfg.effort_limit_sim is None:
             self.cfg.effort_limit_sim = self._DEFAULT_MAX_EFFORT_SIM
+
+        # Parse the joint commands:
+        if self.cfg.control_mode == "position":
+            self.cfg.control_mode = 1
+        elif self.cfg.control_mode == "velocity":
+            self.cfg.control_mode = 2
+        elif self.cfg.control_mode == "none":
+            self.cfg.control_mode = 0
 
         # resolve usd, actuator configuration values
         # case 1: if usd_value == actuator_cfg_value: all good,
@@ -103,16 +112,18 @@ class ActuatorBase(ABC):
         # case 3: if actuator_cfg_value is None: we use usd_value
 
         to_check = [
-            ("velocity_limit_sim", self.data.velocity_limit_sim),
-            ("effort_limit_sim", self.data.effort_limit_sim),
-            ("stiffness", self.data.stiffness),
-            ("damping", self.data.damping),
-            ("armature", self.data.armature),
-            ("friction", self.data.friction),
-            ("dynamic_friction", self.data.dynamic_friction),
-            ("viscous_friction", self.data.viscous_friction),
+            ("velocity_limit_sim", self.data.sim_bind_joint_vel_limits_sim),
+            ("effort_limit_sim", self.data.sim_bind_joint_effort_limits_sim),
+            ("stiffness", self.data.joint_stiffness),
+            ("damping", self.data.joint_damping),
+            ("armature", self.data.sim_bind_joint_armature),
+            ("friction", self.data.sim_bind_joint_friction_coeff),
+            ("dynamic_friction", self.data.joint_dynamic_friction),
+            ("viscous_friction", self.data.joint_viscous_friction),
+            ("control_mode", self.data.joint_control_mode),
         ]
         for param_name, newton_val in to_check:
+            print("param_name", param_name)
             cfg_val = getattr(self.cfg, param_name)
             self._parse_joint_parameter(cfg_val, newton_val)
 
@@ -164,20 +175,19 @@ class ActuatorBase(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def compute(
-        self, control_action: ArticulationActions, joint_pos: wp.array, joint_vel: wp.array) -> ArticulationActions:
+    def compute(self):
         """Process the actuator group actions and compute the articulation actions.
 
-        It computes the articulation actions based on the actuator model type
+        It computes the articulation actions based on the actuator model type. To do so, it reads
+        the following quantities from the articulation data:
+        - sim_bind_joint_pos, the current joint positions
+        - sim_bind_joint_vel, the current joint velocities
+        - joint_control_mode, the current joint control mode
+        - joint_stiffness, the current joint stiffness
+        - joint_damping, the current joint damping
 
-        Args:
-            control_action: The joint action instance comprising of the desired joint positions, joint velocities
-                and (feed-forward) joint efforts.
-            joint_pos: The current joint positions of the joints in the group. Shape is (num_envs, num_joints).
-            joint_vel: The current joint velocities of the joints in the group. Shape is (num_envs, num_joints).
+        With these, it updates the following quantities:
 
-        Returns:
-            The computed desired joint positions, joint velocities and joint efforts.
         """
         raise NotImplementedError
 
@@ -214,8 +224,8 @@ class ActuatorBase(ABC):
                     inputs=[
                         float(cfg_value),
                         original_value,
-                        self.data.all_env_mask,
-                        self.data.all_joint_mask,
+                        self._env_mask,
+                        self._joint_mask,
                     ]
                 )
             elif isinstance(cfg_value, int):
@@ -224,10 +234,10 @@ class ActuatorBase(ABC):
                     update_joint_array_with_value_int,
                     dim=(self._num_envs, self._num_joints),
                     inputs=[
-                        float(cfg_value),
+                        cfg_value,
                         original_value,
-                        self.data.all_env_mask,
-                        self.data.all_joint_mask,
+                        self._env_mask,
+                        self._joint_mask,
                     ]
                 )
             elif isinstance(cfg_value, dict):
@@ -249,8 +259,8 @@ class ActuatorBase(ABC):
                     inputs=[
                         tmp_param,
                         original_value,
-                        self.data.all_env_mask,
-                        self.data.all_joint_mask,
+                        self._env_mask,
+                        self._joint_mask,
                     ]
                 )
             else:
@@ -258,10 +268,10 @@ class ActuatorBase(ABC):
                     f"Invalid type for parameter value: {type(cfg_value)} for "
                     + f"actuator on joints {self.joint_names}. Expected float or dict."
                 )
-        else:
+        elif original_value is None:
             raise ValueError("The parameter value is None and no newton value is provided.")
 
-    def _clip_effort(self, effort: wp.array) -> None:
+    def _clip_effort(self, effort: wp.array, clipped_effort: wp.array) -> None:
         """Clip the desired torques based on the motor limits.
 
         .. note:: The array is modified in place.
@@ -273,13 +283,13 @@ class ActuatorBase(ABC):
             The clipped torques.
         """
         wp.launch(
-            clip_joint_array_with_limits_masked,
+            clip_efforts_with_limits,
             dim=(self._num_envs, self._num_joints),
             inputs=[
-                self.data.effort_limit_sim,
-                self.data.effort_limit_sim,
+                self.data.joint_effort_limits_sim,
                 effort,
-                self.data.all_env_mask,
+                clipped_effort,
+                self._env_mask,
                 self.joint_mask,
             ]
         )

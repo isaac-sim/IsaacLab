@@ -5,6 +5,6 @@
 
 """Sub-module for rigid articulated assets."""
 
-from .articulation import Articulation
-from .articulation_cfg import ArticulationCfg
-from .articulation_data import ArticulationData
+from .articulation import ArticulationDirect
+from .articulation_data import ArticulationDataDirect
+from .articulation_cfg import ArticulationDirectCfg

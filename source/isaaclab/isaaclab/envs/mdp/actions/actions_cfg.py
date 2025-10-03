@@ -5,11 +5,10 @@
 
 from dataclasses import MISSING
 
-from isaaclab.controllers import DifferentialIKControllerCfg#, OperationalSpaceControllerCfg
 from isaaclab.managers.action_manager import ActionTerm, ActionTermCfg
 from isaaclab.utils import configclass
 
-from . import binary_joint_actions, joint_actions, joint_actions_to_limits, non_holonomic_actions, task_space_actions
+from . import binary_joint_actions, joint_actions, joint_actions_to_limits, non_holonomic_actions
 
 ##
 # Joint actions.
@@ -218,34 +217,34 @@ class DifferentialInverseKinematicsActionCfg(ActionTermCfg):
 
     See :class:`DifferentialInverseKinematicsAction` for more details.
     """
+    pass
+    #@configclass
+    #class OffsetCfg:
+    #    """The offset pose from parent frame to child frame.
 
-    @configclass
-    class OffsetCfg:
-        """The offset pose from parent frame to child frame.
+    #    On many robots, end-effector frames are fictitious frames that do not have a corresponding
+    #    rigid body. In such cases, it is easier to define this transform w.r.t. their parent rigid body.
+    #    For instance, for the Franka Emika arm, the end-effector is defined at an offset to the the
+    #    "panda_hand" frame.
+    #    """
 
-        On many robots, end-effector frames are fictitious frames that do not have a corresponding
-        rigid body. In such cases, it is easier to define this transform w.r.t. their parent rigid body.
-        For instance, for the Franka Emika arm, the end-effector is defined at an offset to the the
-        "panda_hand" frame.
-        """
+    #    pos: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    #    """Translation w.r.t. the parent frame. Defaults to (0.0, 0.0, 0.0)."""
+    #    rot: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0)
+    #    """Quaternion rotation ``(w, x, y, z)`` w.r.t. the parent frame. Defaults to (1.0, 0.0, 0.0, 0.0)."""
 
-        pos: tuple[float, float, float] = (0.0, 0.0, 0.0)
-        """Translation w.r.t. the parent frame. Defaults to (0.0, 0.0, 0.0)."""
-        rot: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0)
-        """Quaternion rotation ``(w, x, y, z)`` w.r.t. the parent frame. Defaults to (1.0, 0.0, 0.0, 0.0)."""
+    #class_type: type[ActionTerm] = task_space_actions.DifferentialInverseKinematicsAction
 
-    class_type: type[ActionTerm] = task_space_actions.DifferentialInverseKinematicsAction
-
-    joint_names: list[str] = MISSING
-    """List of joint names or regex expressions that the action will be mapped to."""
-    body_name: str = MISSING
-    """Name of the body or frame for which IK is performed."""
-    body_offset: OffsetCfg | None = None
-    """Offset of target frame w.r.t. to the body frame. Defaults to None, in which case no offset is applied."""
-    scale: float | tuple[float, ...] = 1.0
-    """Scale factor for the action. Defaults to 1.0."""
-    controller: DifferentialIKControllerCfg = MISSING
-    """The configuration for the differential IK controller."""
+    #joint_names: list[str] = MISSING
+    #"""List of joint names or regex expressions that the action will be mapped to."""
+    #body_name: str = MISSING
+    #"""Name of the body or frame for which IK is performed."""
+    #body_offset: OffsetCfg | None = None
+    #"""Offset of target frame w.r.t. to the body frame. Defaults to None, in which case no offset is applied."""
+    #scale: float | tuple[float, ...] = 1.0
+    #"""Scale factor for the action. Defaults to 1.0."""
+    #controller: DifferentialIKControllerCfg = MISSING
+    #"""The configuration for the differential IK controller."""
 
 @configclass
 class DifferentialInverseKinematicsNewtonActionCfg(ActionTermCfg):
@@ -253,34 +252,35 @@ class DifferentialInverseKinematicsNewtonActionCfg(ActionTermCfg):
 
     See :class:`DifferentialInverseKinematicsAction` for more details.
     """
+    pass
 
-    @configclass
-    class OffsetCfg:
-        """The offset pose from parent frame to child frame.
+    #@configclass
+    #class OffsetCfg:
+    #    """The offset pose from parent frame to child frame.
 
-        On many robots, end-effector frames are fictitious frames that do not have a corresponding
-        rigid body. In such cases, it is easier to define this transform w.r.t. their parent rigid body.
-        For instance, for the Franka Emika arm, the end-effector is defined at an offset to the the
-        "panda_hand" frame.
-        """
+    #    On many robots, end-effector frames are fictitious frames that do not have a corresponding
+    #    rigid body. In such cases, it is easier to define this transform w.r.t. their parent rigid body.
+    #    For instance, for the Franka Emika arm, the end-effector is defined at an offset to the the
+    #    "panda_hand" frame.
+    #    """
 
-        pos: tuple[float, float, float] = (0.0, 0.0, 0.0)
-        """Translation w.r.t. the parent frame. Defaults to (0.0, 0.0, 0.0)."""
-        rot: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0)
-        """Quaternion rotation ``(w, x, y, z)`` w.r.t. the parent frame. Defaults to (1.0, 0.0, 0.0, 0.0)."""
+    #    pos: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    #    """Translation w.r.t. the parent frame. Defaults to (0.0, 0.0, 0.0)."""
+    #    rot: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0)
+    #    """Quaternion rotation ``(w, x, y, z)`` w.r.t. the parent frame. Defaults to (1.0, 0.0, 0.0, 0.0)."""
 
-    class_type: type[ActionTerm] = task_space_actions.DifferentialInverseKinematicsNewtonAction
+    #class_type: type[ActionTerm] = task_space_actions.DifferentialInverseKinematicsNewtonAction
 
-    joint_names: list[str] = MISSING
-    """List of joint names or regex expressions that the action will be mapped to."""
-    body_name: str = MISSING
-    """Name of the body or frame for which IK is performed."""
-    body_offset: OffsetCfg | None = None
-    """Offset of target frame w.r.t. to the body frame. Defaults to None, in which case no offset is applied."""
-    scale: float | tuple[float, ...] = 1.0
-    """Scale factor for the action. Defaults to 1.0."""
-    controller: DifferentialIKControllerCfg = MISSING
-    """The configuration for the differential IK controller."""
+    #joint_names: list[str] = MISSING
+    #"""List of joint names or regex expressions that the action will be mapped to."""
+    #body_name: str = MISSING
+    #"""Name of the body or frame for which IK is performed."""
+    #body_offset: OffsetCfg | None = None
+    #"""Offset of target frame w.r.t. to the body frame. Defaults to None, in which case no offset is applied."""
+    #scale: float | tuple[float, ...] = 1.0
+    #"""Scale factor for the action. Defaults to 1.0."""
+    #controller: DifferentialIKControllerCfg = MISSING
+    #"""The configuration for the differential IK controller."""
 
 @configclass
 class OperationalSpaceControllerActionCfg(ActionTermCfg):
@@ -289,56 +289,58 @@ class OperationalSpaceControllerActionCfg(ActionTermCfg):
     See :class:`OperationalSpaceControllerAction` for more details.
     """
 
-    @configclass
-    class OffsetCfg:
-        """The offset pose from parent frame to child frame.
+    pass
 
-        On many robots, end-effector frames are fictitious frames that do not have a corresponding
-        rigid body. In such cases, it is easier to define this transform w.r.t. their parent rigid body.
-        For instance, for the Franka Emika arm, the end-effector is defined at an offset to the the
-        "panda_hand" frame.
-        """
+    #@configclass
+    #class OffsetCfg:
+    #    """The offset pose from parent frame to child frame.
 
-        pos: tuple[float, float, float] = (0.0, 0.0, 0.0)
-        """Translation w.r.t. the parent frame. Defaults to (0.0, 0.0, 0.0)."""
-        rot: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0)
-        """Quaternion rotation ``(w, x, y, z)`` w.r.t. the parent frame. Defaults to (1.0, 0.0, 0.0, 0.0)."""
+    #    On many robots, end-effector frames are fictitious frames that do not have a corresponding
+    #    rigid body. In such cases, it is easier to define this transform w.r.t. their parent rigid body.
+    #    For instance, for the Franka Emika arm, the end-effector is defined at an offset to the the
+    #    "panda_hand" frame.
+    #    """
 
-    #class_type: type[ActionTerm] = task_space_actions.OperationalSpaceControllerAction
+    #    pos: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    #    """Translation w.r.t. the parent frame. Defaults to (0.0, 0.0, 0.0)."""
+    #    rot: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0)
+    #    """Quaternion rotation ``(w, x, y, z)`` w.r.t. the parent frame. Defaults to (1.0, 0.0, 0.0, 0.0)."""
 
-    joint_names: list[str] = MISSING
-    """List of joint names or regex expressions that the action will be mapped to."""
+    ##class_type: type[ActionTerm] = task_space_actions.OperationalSpaceControllerAction
 
-    body_name: str = MISSING
-    """Name of the body or frame for which motion/force control is performed."""
+    #joint_names: list[str] = MISSING
+    #"""List of joint names or regex expressions that the action will be mapped to."""
 
-    body_offset: OffsetCfg | None = None
-    """Offset of target frame w.r.t. to the body frame. Defaults to None, in which case no offset is applied."""
+    #body_name: str = MISSING
+    #"""Name of the body or frame for which motion/force control is performed."""
 
-    task_frame_rel_path: str = None
-    """The path of a ``RigidObject``, relative to the sub-environment, representing task frame. Defaults to None."""
+    #body_offset: OffsetCfg | None = None
+    #"""Offset of target frame w.r.t. to the body frame. Defaults to None, in which case no offset is applied."""
 
-    #controller_cfg: OperationalSpaceControllerCfg = MISSING
-    """The configuration for the operational space controller."""
+    #task_frame_rel_path: str = None
+    #"""The path of a ``RigidObject``, relative to the sub-environment, representing task frame. Defaults to None."""
 
-    position_scale: float = 1.0
-    """Scale factor for the position targets. Defaults to 1.0."""
+    ##controller_cfg: OperationalSpaceControllerCfg = MISSING
+    #"""The configuration for the operational space controller."""
 
-    orientation_scale: float = 1.0
-    """Scale factor for the orientation (quad for ``pose_abs`` or axis-angle for ``pose_rel``). Defaults to 1.0."""
+    #position_scale: float = 1.0
+    #"""Scale factor for the position targets. Defaults to 1.0."""
 
-    wrench_scale: float = 1.0
-    """Scale factor for the wrench targets. Defaults to 1.0."""
+    #orientation_scale: float = 1.0
+    #"""Scale factor for the orientation (quad for ``pose_abs`` or axis-angle for ``pose_rel``). Defaults to 1.0."""
 
-    stiffness_scale: float = 1.0
-    """Scale factor for the stiffness commands. Defaults to 1.0."""
+    #wrench_scale: float = 1.0
+    #"""Scale factor for the wrench targets. Defaults to 1.0."""
 
-    damping_ratio_scale: float = 1.0
-    """Scale factor for the damping ratio commands. Defaults to 1.0."""
+    #stiffness_scale: float = 1.0
+    #"""Scale factor for the stiffness commands. Defaults to 1.0."""
 
-    nullspace_joint_pos_target: str = "none"
-    """The joint targets for the null-space control: ``"none"``, ``"zero"``, ``"default"``, ``"center"``.
+    #damping_ratio_scale: float = 1.0
+    #"""Scale factor for the damping ratio commands. Defaults to 1.0."""
 
-    Note: Functional only when ``nullspace_control`` is set to ``"position"`` within the
-        ``OperationalSpaceControllerCfg``.
-    """
+    #nullspace_joint_pos_target: str = "none"
+    #"""The joint targets for the null-space control: ``"none"``, ``"zero"``, ``"default"``, ``"center"``.
+
+    #Note: Functional only when ``nullspace_control`` is set to ``"position"`` within the
+    #    ``OperationalSpaceControllerCfg``.
+    #"""

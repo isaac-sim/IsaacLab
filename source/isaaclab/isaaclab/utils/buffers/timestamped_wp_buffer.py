@@ -29,7 +29,7 @@ class TimestampedWarpBuffer:
     shape: tuple[int, ...] | None = None
     """Shape of the data stored in the buffer. Default is None, indicating that the buffer is empty."""
 
-    dtype: wp.dtype | None = None
+    dtype: type | None = None
     """Dtype of the data stored in the buffer. Default is None, indicating that the buffer is empty."""
 
     def __post_init__(self):

@@ -5,15 +5,15 @@
 
 from dataclasses import MISSING
 
-from isaaclab.actuators import ActuatorBaseCfg
+from isaaclab.actuators_direct import ActuatorBaseDirectCfg
 from isaaclab.utils import configclass
 
 from ..asset_base_cfg import AssetBaseCfg
-from .articulation import Articulation
+from .articulation import ArticulationDirect
 
 
 @configclass
-class ArticulationCfg(AssetBaseCfg):
+class ArticulationDirectCfg(AssetBaseCfg):
     """Configuration parameters for an articulation."""
 
     @configclass
@@ -36,7 +36,7 @@ class ArticulationCfg(AssetBaseCfg):
     # Initialize configurations.
     ##
 
-    class_type: type = Articulation
+    class_type: type = ArticulationDirect
 
     articulation_root_prim_path: str | None = None
     """Path to the articulation root prim in the USD file.
@@ -57,5 +57,5 @@ class ArticulationCfg(AssetBaseCfg):
     The soft joint position limits are accessible through the :attr:`ArticulationData.soft_joint_pos_limits` attribute.
     """
 
-    actuators: dict[str, ActuatorBaseCfg] = MISSING
+    actuators: dict[str, ActuatorBaseDirectCfg] = MISSING
     """Actuators for the robot with corresponding joint names."""

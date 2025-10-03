@@ -65,13 +65,12 @@ def velocity_projector(
     Returns:
         wp.spatial_vectorf: The projected velocity in the link frame. Shape is (6,).
     """
-    return wp.spatial_vectorf(
-        wp.spatial_top(com_velocity),
-        wp.spatial_bottom(com_velocity) + wp.cross(
+    u = wp.spatial_top(com_velocity)
+    w = wp.spatial_bottom(com_velocity) + wp.cross(
             wp.spatial_bottom(com_velocity),
-            wp.quat_rotate(link_pose.q, -com_position),
-        ),
-    )
+            wp.quat_rotate(wp.transform_get_rotation(link_pose), -com_position),
+        )
+    return wp.spatial_vectorf(u[0], u[1], u[2], w[0], w[1], w[2])
 
 
 @wp.func
@@ -98,13 +97,12 @@ def velocity_projector_inv(
     Returns:
         wp.spatial_vectorf: The projected velocity in the com frame. Shape is (6,).
     """
-    return wp.spatial_vectorf(
-        wp.spatial_top(com_velocity),
-        wp.spatial_bottom(com_velocity) + wp.cross(
+    u = wp.spatial_top(com_velocity)
+    w = wp.spatial_bottom(com_velocity) + wp.cross(
             wp.spatial_bottom(com_velocity),
-            wp.quat_rotate(link_pose.q, com_position),
-        ),
-    )
+            wp.quat_rotate(wp.transform_get_rotation(link_pose), com_position),
+        )
+    return wp.spatial_vectorf(u[0], u[1], u[2], w[0], w[1], w[2])
 
 """
 Kernels to project velocities to and from the com frame

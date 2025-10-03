@@ -4,6 +4,9 @@ import warp as wp
 Splite/Combine pose kernels
 """
 
+vec13f = wp.types.vector(length=13, dtype=wp.float32)
+
+
 @wp.kernel
 def get_position(pose: wp.array(dtype=wp.transformf), position: wp.array(dtype=wp.vec3f)):
     """
@@ -14,7 +17,7 @@ def get_position(pose: wp.array(dtype=wp.transformf), position: wp.array(dtype=w
         position: The position. Shape is (num_instances, 3). (modified)
     """
     index = wp.tid()
-    position[index] = pose.p[index]
+    position[index] = wp.transform_get_translation(pose[index])
 
 
 @wp.kernel
@@ -27,7 +30,7 @@ def get_quat(pose: wp.array(dtype=wp.transformf), quat: wp.array(dtype=wp.quatf)
         quat: The quaternion. Shape is (num_instances, 4). (modified)
     """
     index = wp.tid()
-    quat[index] = pose.q[index]
+    quat[index] = wp.transform_get_rotation(pose[index])
 
 
 @wp.kernel
@@ -51,7 +54,7 @@ Split/Combine state kernels
 
 @wp.func
 def split_state_to_pose(
-    state: wp.array(dtype=wp.float32),
+    state: vec13f,
 ) -> wp.transformf:
     """
     Split a state into a pose.
@@ -69,7 +72,7 @@ def split_state_to_pose(
 
 @wp.func
 def split_state_to_velocity(
-    state: wp.array(dtype=wp.float32),
+    state: vec13f,
 ) -> wp.spatial_vectorf:
     """
     Split a state into a velocity.
@@ -80,16 +83,13 @@ def split_state_to_velocity(
 
     .. caution:: The velocity is given with angular velocity first and linear velocity second.
     """
-    return wp.spatial_vectorf(
-        wp.vec3f(state[7], state[8], state[9]),
-        wp.vec3f(state[10], state[11], state[12])
-    )
+    return wp.spatial_vectorf(state[7], state[8], state[9], state[10], state[11], state[12])
 
 @wp.kernel
 def split_state(
-    root_state: wp.array2d(dtype=wp.float32),
-    root_pose:wp.array2d(dtype=wp.transformf),
-    root_velocity:wp.array2d(dtype=wp.spatial_vectorf),
+    root_state: wp.array(dtype=vec13f),
+    root_pose:wp.array(dtype=wp.transformf),
+    root_velocity:wp.array(dtype=wp.spatial_vectorf),
     env_mask: wp.array(dtype=wp.bool),
 ):
     """
@@ -116,7 +116,7 @@ def split_state(
 def combine_state(
     pose: wp.transformf,
     velocity: wp.spatial_vectorf,
-) -> wp.array(dtype=wp.float32):
+) -> vec13f:
     """
     Combine a pose and a velocity into a state.
 
@@ -135,7 +135,7 @@ def combine_state(
     """
     position = wp.transform_get_translation(pose)
     quaternion = wp.transform_get_rotation(pose)
-    return wp.array(
+    return vec13f(
         position[0], position[1], position[2], quaternion[0], quaternion[1], quaternion[2], quaternion[3],
         velocity[0], velocity[1], velocity[2], velocity[3], velocity[4], velocity[5]
     )
@@ -144,7 +144,7 @@ def combine_state(
 def combine_pose_and_velocity_to_state(
     root_pose: wp.array(dtype=wp.transformf),
     root_velocity: wp.array(dtype=wp.spatial_vectorf),
-    root_state: wp.array2d(dtype=wp.float32),
+    root_state: wp.array(dtype=vec13f),
 ):
     """
     Combine a pose and a velocity into a state.
@@ -167,7 +167,7 @@ def combine_pose_and_velocity_to_state(
 def combine_pose_and_velocity_to_state_masked(
     root_pose: wp.array(dtype=wp.transformf),
     root_velocity: wp.array(dtype=wp.spatial_vectorf),
-    root_state: wp.array2d(dtype=wp.float32),
+    root_state: wp.array(dtype=vec13f),
     env_mask: wp.array(dtype=wp.bool),
 ):
     """
@@ -193,7 +193,7 @@ def combine_pose_and_velocity_to_state_masked(
 def combine_pose_and_velocity_to_state_batched(
     root_pose: wp.array2d(dtype=wp.transformf),
     root_velocity: wp.array2d(dtype=wp.spatial_vectorf),
-    root_state: wp.array2d(dtype=wp.float32),
+    root_state: wp.array2d(dtype=vec13f),
 ):
     """
     Combine a pose and a velocity into a state.
@@ -216,7 +216,7 @@ def combine_pose_and_velocity_to_state_batched(
 def combine_pose_and_velocity_to_state_batched_masked(
     root_pose: wp.array2d(dtype=wp.transformf),
     root_velocity: wp.array2d(dtype=wp.spatial_vectorf),
-    root_state: wp.array2d(dtype=wp.float32),
+    root_state: wp.array2d(dtype=vec13f),
     env_mask: wp.array(dtype=wp.bool),
     body_mask: wp.array(dtype=wp.bool),
 ):
@@ -388,10 +388,9 @@ def project_velocity_to_frame(
         pose: The pose. Shape is (1, 7).
         resulting_velocity: The resulting velocity. Shape is (6,). (modified)
     """
-    return wp.spatial_vectorf(
-        wp.quat_rotate_inv(pose.q, wp.spatial_top(velocity)),
-        wp.quat_rotate_inv(pose.q, wp.spatial_bottom(velocity))
-    )
+    w = wp.quat_rotate_inv(wp.transform_get_rotation(pose), wp.spatial_top(velocity))
+    v = wp.quat_rotate_inv(wp.transform_get_rotation(pose), wp.spatial_bottom(velocity))
+    return wp.spatial_vectorf(w[0], w[1], w[2], v[0], v[1], v[2])
 
 @wp.kernel
 def project_velocities_to_frame(
@@ -416,7 +415,7 @@ Heading utility kernels
 
 @wp.func
 def heading_vec_b(quat: wp.quatf, vec: wp.vec3f) -> float:
-    quat_rot: wp.quatf = wp.quat_rotate(quat, vec)
+    quat_rot = wp.quat_rotate(quat, vec)
     return wp.atan2(quat_rot[0], quat_rot[3])
 
 

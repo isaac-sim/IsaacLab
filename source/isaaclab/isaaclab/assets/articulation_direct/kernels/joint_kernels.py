@@ -56,7 +56,7 @@ def update_joint_array_int(
 @wp.kernel
 def update_joint_array_with_value_array(
     value: wp.array(dtype=wp.float32),
-    joint_data: wp.array2d(dtype=wp.vec2f),
+    joint_data: wp.array2d(dtype=wp.float32),
     env_mask: wp.array(dtype=bool),
     joint_mask: wp.array(dtype=bool),
 ):
@@ -96,7 +96,8 @@ def update_joint_array_with_value(
         joint_mask: The joint mask to update the joint data for. Shape is (num_joints,).
     """
     env_index, joint_index = wp.tid()
-    joint_data[env_ids[env_index], joint_ids[joint_index]] = value
+    if env_mask[env_index] and joint_mask[joint_index]:
+        joint_data[env_index, joint_index] = value
 
 @wp.kernel
 def update_joint_array_with_value_int(
@@ -118,7 +119,8 @@ def update_joint_array_with_value_int(
         joint_mask: The joint mask to update the joint data for. Shape is (num_joints,).
     """
     env_index, joint_index = wp.tid()
-    joint_data[env_ids[env_index], joint_ids[joint_index]] = value
+    if env_mask[env_index] and joint_mask[joint_index]:
+        joint_data[env_index, joint_index] = value
 
 """
 Kernels to update joint limits.
@@ -136,10 +138,10 @@ def get_soft_joint_limits(lower_limit: float, upper_limit: float, soft_factor: f
     Returns:
         The soft joint limits. Shape is (2,).
     """
-    mean: float = (lower_limit + upper_limit) / 2.0
-    range: float = (upper_limit - lower_limit) / 2.0
-    upper_limit: float = mean - 0.5 * range * soft_factor
-    lower_limit: float = mean + 0.5 * range * soft_factor
+    mean = (lower_limit + upper_limit) / 2.0
+    range = (upper_limit - lower_limit) / 2.0
+    upper_limit = mean - 0.5 * range * soft_factor
+    lower_limit = mean + 0.5 * range * soft_factor
     return wp.vec2f(lower_limit, upper_limit)
 
 @wp.kernel
@@ -218,8 +220,8 @@ def update_joint_limits_with_value(
 def update_joint_limits_value_vec2f(
     new_limits: wp.vec2f,
     soft_factor: float,
-    lower_limits: wp.array2d(dtype=wp.int32),
-    upper_limits: wp.array2d(dtype=wp.int32),
+    lower_limits: wp.array2d(dtype=wp.float32),
+    upper_limits: wp.array2d(dtype=wp.float32),
     soft_joint_limits: wp.array2d(dtype=wp.vec2f),
     env_mask: wp.array(dtype=bool),
     joint_mask: wp.array(dtype=bool),
@@ -364,9 +366,9 @@ def update_soft_joint_pos_limits(
     """Update the soft joint position limits for the given environment and joint indices.
 
     Args:
-        soft_joint_pos_limits: The soft joint position limits to update. Shape is (num_instances, num_joints, 2). (destination)
         joint_pos_limits_lower: The lower limits to update the soft joint position limits with. Shape is (num_instances, num_joints).
         joint_pos_limits_upper: The upper limits to update the soft joint position limits with. Shape is (num_instances, num_joints).
+        soft_joint_pos_limits: The soft joint position limits to update. Shape is (num_instances, num_joints). (modified)
         soft_factor: The soft factor to use for the soft joint position limits.
     """
     env_index, joint_index = wp.tid()
@@ -391,14 +393,35 @@ def derive_joint_acceleration_from_velocity(
     Derive the joint acceleration from the velocity.
 
     Args:
-        joint_velocity: The joint velocity. Shape is (num_instances, 6).
-        previous_joint_velocity: The previous joint velocity. Shape is (num_instances, 6).
+        joint_velocity: The joint velocity. Shape is (num_instances, num_joints).
+        previous_joint_velocity: The previous joint velocity. Shape is (num_instances, num_joints).
         dt: The time step.
-        joint_acceleration: The joint acceleration. Shape is (num_instances, 6). (modified)
+        joint_acceleration: The joint acceleration. Shape is (num_instances, num_joints). (modified)
     """
-    index = wp.tid()
+    env_index, joint_index = wp.tid()
     # compute acceleration
-    joint_acceleration[index] = (joint_velocity[index] - previous_joint_velocity[index]) / dt
+    joint_acceleration[env_index, joint_index] = (joint_velocity[env_index, joint_index] - previous_joint_velocity[env_index, joint_index]) / dt
 
     # update previous velocity
-    previous_joint_velocity[index] = joint_velocity[index]
+    previous_joint_velocity[env_index, joint_index] = joint_velocity[env_index, joint_index]
+
+@wp.kernel
+def clip_joint_array_with_limits_masked(
+    lower_limits: wp.array(dtype=wp.float32),
+    upper_limits: wp.array(dtype=wp.float32),
+    joint_array: wp.array(dtype=wp.float32),
+    env_mask: wp.array(dtype=wp.bool),
+    joint_mask: wp.array(dtype=wp.bool),
+):
+    joint_index = wp.tid()
+    if env_mask[joint_index] and joint_mask[joint_index]:
+        joint_array[joint_index] = wp.clamp(joint_array[joint_index], lower_limits[joint_index], upper_limits[joint_index])
+
+@wp.kernel
+def clip_joint_array_with_limits(
+    lower_limits: wp.array(dtype=wp.float32),
+    upper_limits: wp.array(dtype=wp.float32),
+    joint_array: wp.array(dtype=wp.float32),
+):
+    index = wp.tid()
+    joint_array[index] = wp.clamp(joint_array[index], lower_limits[index], upper_limits[index])

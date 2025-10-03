@@ -39,5 +39,6 @@ the corresponding actuator torques.
 """
 
 from .articulation import Articulation, ArticulationCfg, ArticulationData
+from .articulation_direct import ArticulationDirect, ArticulationDirectCfg, ArticulationDataDirect
 from .asset_base import AssetBase
 from .asset_base_cfg import AssetBaseCfg

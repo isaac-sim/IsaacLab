@@ -12,19 +12,18 @@ from typing import TYPE_CHECKING
 import omni.log
 
 from isaaclab.utils import DelayBuffer, LinearInterpolation
-from isaaclab.utils.types import ArticulationActions
 
 import warp as wp
-from .actuator_base import ActuatorBase
-from .kernels import compute_implicit_actuator
+from .actuator_base import ActuatorBaseDirect
+from .kernels import compute_pd_actuator, clip_efforts_dc_motor
 
 if TYPE_CHECKING:
     from .actuator_cfg import (
-        DCMotorCfg,
-        DelayedPDActuatorCfg,
-        IdealPDActuatorCfg,
+        DCMotorDirectCfg,
+        #DelayedPDActuatorCfg,
+        IdealPDActuatorDirectCfg,
         ImplicitActuatorCfg,
-        RemotizedPDActuatorCfg,
+        #RemotizedPDActuatorCfg,
     )
 
 
@@ -33,7 +32,7 @@ Implicit Actuator Models.
 """
 
 
-class ImplicitActuator(ActuatorBase):
+class ImplicitActuatorDirect(ActuatorBaseDirect):
     """Implicit actuator model that is handled by the simulation.
 
     This performs a similar function as the :class:`IdealPDActuator` class. However, the PD control is handled
@@ -102,7 +101,7 @@ class ImplicitActuator(ActuatorBase):
                 )
 
         # set implicit actuator model flag
-        ImplicitActuator.is_implicit_model = True
+        ImplicitActuatorDirect.is_implicit_model = True
         # call the base class
         super().__init__(cfg, *args, **kwargs)
 
@@ -114,9 +113,7 @@ class ImplicitActuator(ActuatorBase):
         # This is a no-op. There is no state to reset for implicit actuators.
         pass
 
-    def compute(
-        self, control_action: ArticulationActions, joint_pos: torch.Tensor, joint_vel: torch.Tensor
-    ) -> ArticulationActions:
+    def compute(self):
         """Process the actuator group actions and compute the articulation actions.
 
         In case of implicit actuator, the control action is directly returned as the computed action.
@@ -134,22 +131,22 @@ class ImplicitActuator(ActuatorBase):
             The computed desired joint positions, joint velocities and joint efforts.
         """
         wp.launch(
-            compute_implicit_actuator,
+            compute_pd_actuator,
             dim=(self._num_envs, self._num_joints),
             inputs=[
-                self.data.stiffness,
-                self.data.damping,
-                self.data.effort,
-                self.data.effort_limit_sim,
-                joint_pos,
-                joint_vel,
-                control_action.joint_targets,
+                self.data.joint_target,
+                self.data.joint_effort_target,
+                self.data.sim_bind_joint_pos,
+                self.data.sim_bind_joint_vel,
+                self.data.joint_stiffness,
+                self.data.joint_damping,
+                self.data.joint_control_mode,
                 self.data.computed_effort,
-                self.data.applied_effort,
-                self.data.all_env_mask,
-                self.joint_mask,
+                self._env_mask,
+                self._joint_mask,
             ]
         )
+        self._clip_effort(self.data.computed_effort, self.data.applied_effort)
 
 
 """
@@ -157,7 +154,7 @@ Explicit Actuator Models.
 """
 
 
-class IdealPDActuator(ActuatorBase):
+class IdealPDActuatorDirect(ActuatorBaseDirect):
     r"""Ideal torque-controlled actuator model with a simple saturation model.
 
     It employs the following model for computing torques for the actuated joint :math:`j`:
@@ -183,7 +180,7 @@ class IdealPDActuator(ActuatorBase):
     the configuration instance passed to the class.
     """
 
-    cfg: IdealPDActuatorCfg
+    cfg: IdealPDActuatorDirectCfg
     """The configuration for the actuator model."""
 
     """
@@ -193,27 +190,27 @@ class IdealPDActuator(ActuatorBase):
     def reset(self, env_ids: Sequence[int]):
         pass
 
-    def compute(
-        self, control_action: ArticulationActions, joint_pos: torch.Tensor, joint_vel: torch.Tensor
-    ) -> ArticulationActions:
-        # compute errors
-        if self.control_mode == "position":
-            error_pos = control_action.joint_targets - joint_pos
-            error_vel = torch.zeros_like(joint_vel) - joint_vel
-        elif self.control_mode == "velocity":
-            error_pos = torch.zeros_like(joint_pos) - joint_pos
-            error_vel = control_action.joint_targets - joint_vel
-        # calculate the desired joint torques
-        self.computed_effort = self.stiffness * error_pos + self.damping * error_vel + control_action.joint_efforts
-        # clip the torques based on the motor limits
-        self.applied_effort = self._clip_effort(self.computed_effort)
-        # set the computed actions back into the control action
-        control_action.joint_efforts = self.applied_effort
-        control_action.joint_targets = None
-        return control_action
+    def compute(self):
+        wp.launch(
+            compute_pd_actuator,
+            dim=(self._num_envs, self._num_joints),
+            inputs=[
+                self.data.joint_target,
+                self.data.joint_effort_target,
+                self.data.sim_bind_joint_pos,
+                self.data.sim_bind_joint_vel,
+                self.data.joint_stiffness,
+                self.data.joint_damping,
+                self.data.joint_control_mode,
+                self.data.computed_effort,
+                self._env_mask,
+                self._joint_mask,
+            ]
+        )
+        self._clip_effort(self.data.computed_effort, self.data.sim_bind_joint_effort)
 
 
-class DCMotor(IdealPDActuator):
+class DCMotorDirect(IdealPDActuatorDirect):
     r"""Direct control (DC) motor actuator model with velocity-based saturation model.
 
     It uses the same model as the :class:`IdealActuator` for computing the torques from input commands.
@@ -254,20 +251,16 @@ class DCMotor(IdealPDActuator):
 
     """
 
-    cfg: DCMotorCfg
+    cfg: DCMotorDirectCfg
     """The configuration for the actuator model."""
 
-    def __init__(self, cfg: DCMotorCfg, *args, **kwargs):
+    def __init__(self, cfg: DCMotorDirectCfg, *args, **kwargs):
         super().__init__(cfg, *args, **kwargs)
         # parse configuration
         if self.cfg.saturation_effort is not None:
             self._saturation_effort = self.cfg.saturation_effort
         else:
             self._saturation_effort = torch.inf
-        # prepare joint vel buffer for max effort computation
-        self._joint_vel = torch.zeros_like(self.computed_effort)
-        # create buffer for zeros effort
-        self._zeros_effort = torch.zeros_like(self.computed_effort)
         # check that quantities are provided
         if self.cfg.velocity_limit is None:
             raise ValueError("The velocity limit must be provided for the DC motor actuator model.")
@@ -276,164 +269,164 @@ class DCMotor(IdealPDActuator):
     Operations.
     """
 
-    def compute(
-        self, control_action: ArticulationActions, joint_pos: torch.Tensor, joint_vel: torch.Tensor
-    ) -> ArticulationActions:
-        # save current joint vel
-        self._joint_vel[:] = joint_vel
+    def compute(self):
         # calculate the desired joint torques
-        return super().compute(control_action, joint_pos, joint_vel)
+        return super().compute()
 
     """
     Helper functions.
     """
 
-    def _clip_effort(self, effort: torch.Tensor) -> torch.Tensor:
-        # compute torque limits
-        # -- max limit
-        max_effort = self._saturation_effort * (1.0 - self._joint_vel / self.velocity_limit)
-        max_effort = torch.clip(max_effort, min=self._zeros_effort, max=self.effort_limit)
-        # -- min limit
-        min_effort = self._saturation_effort * (-1.0 - self._joint_vel / self.velocity_limit)
-        min_effort = torch.clip(min_effort, min=-self.effort_limit, max=self._zeros_effort)
-
-        # clip the torques based on the motor limits
-        return torch.clip(effort, min=min_effort, max=max_effort)
-
-
-class DelayedPDActuator(IdealPDActuator):
-    """Ideal PD actuator with delayed command application.
-
-    This class extends the :class:`IdealPDActuator` class by adding a delay to the actuator commands. The delay
-    is implemented using a circular buffer that stores the actuator commands for a certain number of physics steps.
-    The most recent actuation value is pushed to the buffer at every physics step, but the final actuation value
-    applied to the simulation is lagged by a certain number of physics steps.
-
-    The amount of time lag is configurable and can be set to a random value between the minimum and maximum time
-    lag bounds at every reset. The minimum and maximum time lag values are set in the configuration instance passed
-    to the class.
-    """
-
-    cfg: DelayedPDActuatorCfg
-    """The configuration for the actuator model."""
-
-    def __init__(self, cfg: DelayedPDActuatorCfg, *args, **kwargs):
-        super().__init__(cfg, *args, **kwargs)
-        # instantiate the delay buffers
-        self.joint_targets_delay_buffer = DelayBuffer(cfg.max_delay, self._num_envs, device=self._device)
-        self.efforts_delay_buffer = DelayBuffer(cfg.max_delay, self._num_envs, device=self._device)
-        # all of the envs
-        self._ALL_INDICES = torch.arange(self._num_envs, dtype=torch.long, device=self._device)
-
-    def reset(self, env_ids: Sequence[int]):
-        super().reset(env_ids)
-        # number of environments (since env_ids can be a slice)
-        if env_ids is None or env_ids == slice(None):
-            num_envs = self._num_envs
-        else:
-            num_envs = len(env_ids)
-        # set a new random delay for environments in env_ids
-        time_lags = torch.randint(
-            low=self.cfg.min_delay,
-            high=self.cfg.max_delay + 1,
-            size=(num_envs,),
-            dtype=torch.int,
-            device=self._device,
+    def _clip_effort(self, effort: wp.array, clipped_effort: wp.array) -> None:
+        wp.launch(
+            clip_efforts_dc_motor,
+            dim=(self._num_envs, self._num_joints),
+            inputs=[
+                self._saturation_effort,
+                self.data.sim_bind_joint_effort_limits_sim,
+                self.data.sim_bind_joint_vel_limits_sim,
+                self.data.sim_bind_joint_vel,
+                effort,
+                clipped_effort,
+                self._env_mask,
+                self._joint_mask,
+            ]
         )
-        # set delays
-        self.joint_targets_delay_buffer.set_time_lag(time_lags, env_ids)
-        self.efforts_delay_buffer.set_time_lag(time_lags, env_ids)
-        # reset buffers
-        self.joint_targets_delay_buffer.reset(env_ids)
-        self.efforts_delay_buffer.reset(env_ids)
-
-    def compute(
-        self, control_action: ArticulationActions, joint_pos: torch.Tensor, joint_vel: torch.Tensor
-    ) -> ArticulationActions:
-        # apply delay based on the delay the model for all the setpoints
-        control_action.joint_targets = self.joint_targets_delay_buffer.compute(control_action.joint_targets)
-        control_action.joint_efforts = self.efforts_delay_buffer.compute(control_action.joint_efforts)
-        # compte actuator model
-        return super().compute(control_action, joint_pos, joint_vel)
 
 
-class RemotizedPDActuator(DelayedPDActuator):
-    """Ideal PD actuator with angle-dependent torque limits.
-
-    This class extends the :class:`DelayedPDActuator` class by adding angle-dependent torque limits to the actuator.
-    The torque limits are applied by querying a lookup table describing the relationship between the joint angle
-    and the maximum output torque. The lookup table is provided in the configuration instance passed to the class.
-
-    The torque limits are interpolated based on the current joint positions and applied to the actuator commands.
-    """
-
-    def __init__(
-        self,
-        cfg: RemotizedPDActuatorCfg,
-        joint_names: list[str],
-        joint_ids: Sequence[int],
-        num_envs: int,
-        device: str,
-        control_mode: str = "position",
-        stiffness: torch.Tensor | float = 0.0,
-        damping: torch.Tensor | float = 0.0,
-        armature: torch.Tensor | float = 0.0,
-        friction: torch.Tensor | float = 0.0,
-        effort_limit: torch.Tensor | float = torch.inf,
-        velocity_limit: torch.Tensor | float = torch.inf,
-    ):
-        # remove effort and velocity box constraints from the base class
-        cfg.effort_limit = torch.inf
-        cfg.velocity_limit = torch.inf
-        # call the base method and set default effort_limit and velocity_limit to inf
-        super().__init__(
-            cfg,
-            joint_names,
-            joint_ids,
-            num_envs,
-            device,
-            control_mode,
-            stiffness,
-            damping,
-            armature,
-            friction,
-            torch.inf,
-            torch.inf,
-        )
-        self._joint_parameter_lookup = torch.tensor(cfg.joint_parameter_lookup, device=device)
-        # define remotized joint torque limit
-        self._torque_limit = LinearInterpolation(self.angle_samples, self.max_torque_samples, device=device)
-
-    """
-    Properties.
-    """
-
-    @property
-    def angle_samples(self) -> torch.Tensor:
-        return self._joint_parameter_lookup[:, 0]
-
-    @property
-    def transmission_ratio_samples(self) -> torch.Tensor:
-        return self._joint_parameter_lookup[:, 1]
-
-    @property
-    def max_torque_samples(self) -> torch.Tensor:
-        return self._joint_parameter_lookup[:, 2]
-
-    """
-    Operations.
-    """
-
-    def compute(
-        self, control_action: ArticulationActions, joint_pos: torch.Tensor, joint_vel: torch.Tensor
-    ) -> ArticulationActions:
-        # call the base method
-        control_action = super().compute(control_action, joint_pos, joint_vel)
-        # compute the absolute torque limits for the current joint positions
-        abs_torque_limits = self._torque_limit.compute(joint_pos)
-        # apply the limits
-        control_action.joint_efforts = torch.clamp(
-            control_action.joint_efforts, min=-abs_torque_limits, max=abs_torque_limits
-        )
-        self.applied_effort = control_action.joint_efforts
-        return control_action
+#class DelayedPDActuator(IdealPDActuator):
+#    """Ideal PD actuator with delayed command application.
+#
+#    This class extends the :class:`IdealPDActuator` class by adding a delay to the actuator commands. The delay
+#    is implemented using a circular buffer that stores the actuator commands for a certain number of physics steps.
+#    The most recent actuation value is pushed to the buffer at every physics step, but the final actuation value
+#    applied to the simulation is lagged by a certain number of physics steps.
+#
+#    The amount of time lag is configurable and can be set to a random value between the minimum and maximum time
+#    lag bounds at every reset. The minimum and maximum time lag values are set in the configuration instance passed
+#    to the class.
+#    """
+#
+#    cfg: DelayedPDActuatorCfg
+#    """The configuration for the actuator model."""
+#
+#    def __init__(self, cfg: DelayedPDActuatorCfg, *args, **kwargs):
+#        super().__init__(cfg, *args, **kwargs)
+#        # instantiate the delay buffers
+#        self.joint_targets_delay_buffer = DelayBuffer(cfg.max_delay, self._num_envs, device=self._device)
+#        self.efforts_delay_buffer = DelayBuffer(cfg.max_delay, self._num_envs, device=self._device)
+#        # all of the envs
+#        self._ALL_INDICES = torch.arange(self._num_envs, dtype=torch.long, device=self._device)
+#
+#    def reset(self, env_ids: Sequence[int]):
+#        super().reset(env_ids)
+#        # number of environments (since env_ids can be a slice)
+#        if env_ids is None or env_ids == slice(None):
+#            num_envs = self._num_envs
+#        else:
+#            num_envs = len(env_ids)
+#        # set a new random delay for environments in env_ids
+#        time_lags = torch.randint(
+#            low=self.cfg.min_delay,
+#            high=self.cfg.max_delay + 1,
+#            size=(num_envs,),
+#            dtype=torch.int,
+#            device=self._device,
+#        )
+#        # set delays
+#        self.joint_targets_delay_buffer.set_time_lag(time_lags, env_ids)
+#        self.efforts_delay_buffer.set_time_lag(time_lags, env_ids)
+#        # reset buffers
+#        self.joint_targets_delay_buffer.reset(env_ids)
+#        self.efforts_delay_buffer.reset(env_ids)
+#
+#    def compute(
+#        self, control_action: ArticulationActions, joint_pos: torch.Tensor, joint_vel: torch.Tensor
+#    ) -> ArticulationActions:
+#        # apply delay based on the delay the model for all the setpoints
+#        control_action.joint_targets = self.joint_targets_delay_buffer.compute(control_action.joint_targets)
+#        control_action.joint_efforts = self.efforts_delay_buffer.compute(control_action.joint_efforts)
+#        # compte actuator model
+#        return super().compute(control_action, joint_pos, joint_vel)
+#
+#
+#class RemotizedPDActuator(DelayedPDActuator):
+#    """Ideal PD actuator with angle-dependent torque limits.
+#
+#    This class extends the :class:`DelayedPDActuator` class by adding angle-dependent torque limits to the actuator.
+#    The torque limits are applied by querying a lookup table describing the relationship between the joint angle
+#    and the maximum output torque. The lookup table is provided in the configuration instance passed to the class.
+#
+#    The torque limits are interpolated based on the current joint positions and applied to the actuator commands.
+#    """
+#
+#    def __init__(
+#        self,
+#        cfg: RemotizedPDActuatorCfg,
+#        joint_names: list[str],
+#        joint_ids: Sequence[int],
+#        num_envs: int,
+#        device: str,
+#        control_mode: str = "position",
+#        stiffness: torch.Tensor | float = 0.0,
+#        damping: torch.Tensor | float = 0.0,
+#        armature: torch.Tensor | float = 0.0,
+#        friction: torch.Tensor | float = 0.0,
+#        effort_limit: torch.Tensor | float = torch.inf,
+#        velocity_limit: torch.Tensor | float = torch.inf,
+#    ):
+#        # remove effort and velocity box constraints from the base class
+#        cfg.effort_limit = torch.inf
+#        cfg.velocity_limit = torch.inf
+#        # call the base method and set default effort_limit and velocity_limit to inf
+#        super().__init__(
+#            cfg,
+#            joint_names,
+#            joint_ids,
+#            num_envs,
+#            device,
+#            control_mode,
+#            stiffness,
+#            damping,
+#            armature,
+#            friction,
+#            torch.inf,
+#            torch.inf,
+#        )
+#        self._joint_parameter_lookup = torch.tensor(cfg.joint_parameter_lookup, device=device)
+#        # define remotized joint torque limit
+#        self._torque_limit = LinearInterpolation(self.angle_samples, self.max_torque_samples, device=device)
+#
+#    """
+#    Properties.
+#    """
+#
+#    @property
+#    def angle_samples(self) -> torch.Tensor:
+#        return self._joint_parameter_lookup[:, 0]
+#
+#    @property
+#    def transmission_ratio_samples(self) -> torch.Tensor:
+#        return self._joint_parameter_lookup[:, 1]
+#
+#    @property
+#    def max_torque_samples(self) -> torch.Tensor:
+#        return self._joint_parameter_lookup[:, 2]
+#
+#    """
+#    Operations.
+#    """
+#
+#    def compute(
+#        self, control_action: ArticulationActions, joint_pos: torch.Tensor, joint_vel: torch.Tensor
+#    ) -> ArticulationActions:
+#        # call the base method
+#        control_action = super().compute(control_action, joint_pos, joint_vel)
+#        # compute the absolute torque limits for the current joint positions
+#        abs_torque_limits = self._torque_limit.compute(joint_pos)
+#        # apply the limits
+#        control_action.joint_efforts = torch.clamp(
+#            control_action.joint_efforts, min=-abs_torque_limits, max=abs_torque_limits
+#        )
+#        self.applied_effort = control_action.joint_efforts
+#        return control_action
