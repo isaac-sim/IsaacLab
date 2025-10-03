@@ -79,6 +79,13 @@ exclude = [
     ".vscode",
 ]
 
+extraPaths = [
+    "source/isaaclab",
+    "source/isaaclab_assets",
+    "source/isaaclab_rl",
+    "source/isaaclab_tasks",
+]
+
 typeCheckingMode = "basic"
 pythonVersion = "3.11"
 pythonPlatform = "Linux"
