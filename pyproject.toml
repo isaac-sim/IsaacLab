@@ -1,5 +1,9 @@
+[tool.black]
+line-length = 120
+
 [tool.isort]
 
+profile = "black"
 py_version = 310
 line_length = 120
 group_by_package = true
@@ -73,6 +77,13 @@ exclude = [
     "**/logs",
     ".git",
     ".vscode",
+]
+
+extraPaths = [
+    "source/isaaclab",
+    "source/isaaclab_assets",
+    "source/isaaclab_rl",
+    "source/isaaclab_tasks",
 ]
 
 typeCheckingMode = "basic"
