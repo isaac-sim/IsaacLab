@@ -11,7 +11,7 @@ To run the locomanipulation SDG replay script execute the following command.
 
 ```bash
 ./isaaclab.sh -p \
-    scripts/imitation_learning/locomanipulation_sdg/generate_navigation.py \
+    scripts/imitation_learning/locomanipulation_sdg/generate_data.py \
     --device cpu \
     --kit_args="--enable isaacsim.replicator.mobility_gen" \
     --task="Isaac-G1-Locomanipulation-SDG" \

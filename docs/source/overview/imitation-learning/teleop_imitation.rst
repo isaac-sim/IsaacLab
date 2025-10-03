@@ -636,14 +636,14 @@ To create a comprehensive locomanipulation dataset that combines both manipulati
 
    G1 humanoid robot performing locomanipulation with navigation capabilities.
 
-The navigation dataset generation process takes the previously generated manipulation dataset and creates scenarios where the robot must navigate from one location to another while performing manipulation tasks. This creates a more complex dataset that includes both locomotion and manipulation behaviors.
+The locomanipulation dataset generation process takes the previously generated manipulation dataset and creates scenarios where the robot must navigate from one location to another while performing manipulation tasks. This creates a more complex dataset that includes both locomotion and manipulation behaviors.
 
-To generate the navigation dataset, use the following command:
+To generate the locomanipulation dataset, use the following command:
 
 .. code:: bash
 
    ./isaaclab.sh -p \
-       scripts/imitation_learning/locomanipulation_sdg/generate_navigation.py \
+       scripts/imitation_learning/locomanipulation_sdg/generate_data.py \
        --device cpu \
        --kit_args="--enable isaacsim.replicator.mobility_gen" \
        --task="Isaac-G1-Locomanipulation-SDG" \
@@ -659,10 +659,10 @@ To generate the navigation dataset, use the following command:
 
    The input dataset (``--dataset``) should be the manipulation dataset generated in the previous step. You can specify any output filename using the ``--output_file_name`` parameter.
 
-The key parameters for navigation dataset generation are:
+The key parameters for locomanipulation dataset generation are:
 
-* ``--lift_step 70``: Number of steps for the lifting phase of the manipulation task
-* ``--navigate_step 120``: Number of steps for the navigation phase between locations
+* ``--lift_step 70``: Number of steps for the lifting phase of the manipulation task.  This should mark the point immediately after the robot has grasped the object.
+* ``--navigate_step 120``: Number of steps for the navigation phase between locations.  This should make the point where the robot has lifted the object and is ready to walk.
 * ``--output_file``: Name of the output dataset file
 
 This process creates a dataset where the robot performs the manipulation task at different locations, requiring it to navigate between points while maintaining the learned manipulation behaviors. The resulting dataset can be used to train policies that combine both locomotion and manipulation capabilities.
