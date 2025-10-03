@@ -673,7 +673,7 @@ This process creates a dataset where the robot performs the manipulation task at
 
    .. code:: bash
 
-      ./isaaclab.sh -p scripts/imitation_learning/locomanipulation_sdg/plot_navigation_trajectory.py --input_file datasets/generated_dataset_g1_navigation.hdf5 --output_dir /PATH/TO/DESIRED_OUTPUT_DIR
+      ./isaaclab.sh -p scripts/imitation_learning/locomanipulation_sdg/plot_navigation_trajectory.py --input_file datasets/generated_dataset_g1_locomanipulation_sdg.hdf5 --output_dir /PATH/TO/DESIRED_OUTPUT_DIR
 
 The data generated from this locomanipulation pipeline can also be used to finetune an imitation learning policy using GR00T N1.5.  To do this,
 you may convert the generated dataset to LeRobot format as expected by GR00T N1.5, and then run the finetuning script provided
