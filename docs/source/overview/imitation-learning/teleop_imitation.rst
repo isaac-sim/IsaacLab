@@ -643,16 +643,16 @@ To generate the navigation dataset, use the following command:
 .. code:: bash
 
    ./isaaclab.sh -p \
-       scripts/imitation_learning/disjoint_navigation/generate_navigation.py \
+       scripts/imitation_learning/locomanipulation_sdg/generate_navigation.py \
        --device cpu \
        --kit_args="--enable isaacsim.replicator.mobility_gen" \
-       --task="Isaac-G1-Disjoint-Navigation" \
+       --task="Isaac-G1-Locomanipulation-SDG" \
        --dataset ./datasets/generated_dataset_g1_locomanip.hdf5 \
        --num_runs 1 \
        --lift_step 70 \
        --navigate_step 120 \
        --enable_pinocchio \
-       --output_file ./datasets/generated_dataset_g1_navigation.hdf5 \
+       --output_file ./datasets/generated_dataset_g1_locomanipulation_sdg.hdf5 \
        --enable_cameras
 
 .. note::
@@ -673,7 +673,7 @@ This process creates a dataset where the robot performs the manipulation task at
 
    .. code:: bash
 
-      ./isaaclab.sh -p scripts/imitation_learning/disjoint_navigation/plot_navigation_trajectory.py --input_file datasets/generated_dataset_g1_navigation.hdf5 --output_dir /PATH/TO/DESIRED_OUTPUT_DIR
+      ./isaaclab.sh -p scripts/imitation_learning/locomanipulation_sdg/plot_navigation_trajectory.py --input_file datasets/generated_dataset_g1_navigation.hdf5 --output_dir /PATH/TO/DESIRED_OUTPUT_DIR
 
 The data generated from this locomanipulation pipeline can also be used to finetune an imitation learning policy using GR00T N1.5.  To do this,
 you may convert the generated dataset to LeRobot format as expected by GR00T N1.5, and then run the finetuning script provided

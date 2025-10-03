@@ -9,7 +9,7 @@ import torch
 
 import isaaclab.utils.math as math_utils
 
-from .disjoint_nav_transform_utils import transform_mul
+from .transform_utils import transform_mul
 from .occupancy_map_utils import OccupancyMap, intersect_occupancy_maps
 
 
