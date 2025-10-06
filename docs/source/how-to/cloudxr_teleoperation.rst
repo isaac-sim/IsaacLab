@@ -985,10 +985,10 @@ Known Issues
   This error message can be safely ignored. It is caused by a race condition in the exit handler for
   AR Mode.
 
-* ``XR_ERROR_INSTANCE_LOST in xrPollEvent: Call to "xrt_session_poll_events" failed``  
+* ``XR_ERROR_INSTANCE_LOST in xrPollEvent: Call to "xrt_session_poll_events" failed``
 
-  This error may occur if the CloudXR runtime exits before Isaac Lab. Restarting the CloudXR 
-  runtime to resume teleoperation. 
+  This error may occur if the CloudXR runtime exits before Isaac Lab. Restarting the CloudXR
+  runtime to resume teleoperation.
 
 * ``[omni.usd] TF_PYTHON_EXCEPTION`` when starting/stopping AR Mode
 
@@ -1006,7 +1006,7 @@ Known Issues
   to load on the wrong GPU. To fix this, set `NV_GPU_INDEX` in the runtime container to `0`, `1`,
   or `2` to ensure the GPU selected by CUDA matches the host.
 
-  
+
 Kubernetes Deployment
 ---------------------
 
