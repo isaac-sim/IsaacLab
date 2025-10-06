@@ -7,6 +7,6 @@ with Isaac Lab.
 .. toctree::
   :maxdepth: 1
 
-  augmented_imitation
   teleop_imitation
+  augmented_imitation
   skillgen
