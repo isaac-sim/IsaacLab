@@ -405,6 +405,22 @@ class SimulationContext(_SimulationContext):
             set_carb_setting(self.carb_settings, "/rtx/rendermode", "RaytracedLighting")
 
     """
+    Properties - Override.
+    """
+
+    @property
+    def device(self) -> str:
+        """Device used by the simulation.
+
+        Note:
+            This is the same as the :attr:`SimulationCfg.device` attribute.
+        """
+        # Note: Since we fix the device from the configuration and don't expect users to change it at runtime,
+        # we can bypass the SimulationManager.get_physics_sim_device() function and directly return the device
+        # from the configuration. This reduces the overhead of calling the function.
+        return self.cfg.device
+
+    """
     Operations - New.
     """
 
