@@ -1003,8 +1003,8 @@ Known Issues
 * The XR device connects successfully, but no video is displayed, even though the Isaac Lab viewport responds to tracking.
 
   This error occurs when the GPU index differs between the host and the container, causing CUDA
-  to load on the wrong GPU. To fix this, set `NV_GPU_INDEX` in the runtime container to `0`, `1`,
-  or `2` to ensure the GPU selected by CUDA matches the host.
+  to load on the wrong GPU. To fix this, set ``NV_GPU_INDEX`` in the runtime container to ``0``, ``1``,
+  or ``2`` to ensure the GPU selected by CUDA matches the host.
 
 
 Kubernetes Deployment
