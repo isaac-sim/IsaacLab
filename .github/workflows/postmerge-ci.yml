@@ -44,10 +44,17 @@ jobs:
         fetch-depth: 0
         lfs: true
 
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v3
+      with:
+        platforms: linux/arm64
+
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
       with:
         platforms: linux/amd64,linux/arm64
+        driver-opts: |
+          image=moby/buildkit:buildx-stable-1
 
     - name: Login to NGC
       run: |
@@ -103,12 +110,37 @@ jobs:
           COMBINED_TAG="${REPO_SHORT_NAME}-${SAFE_BRANCH_NAME}-${IMAGE_BASE_VERSION}"
           BUILD_TAG="${COMBINED_TAG}-b${{ github.run_number }}"
 
+          # Determine if multiarch is supported based on IsaacSim version
+          # Multiarch only works with IsaacSim >= 5.1.0
+          VERSION_STRING=$(echo "$IMAGE_BASE_VERSION" | grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)?' | head -n1)
+
+          if [ -z "$VERSION_STRING" ]; then
+            echo "⚠️  Could not parse version from: $IMAGE_BASE_VERSION"
+            echo "Defaulting to AMD64 only for safety"
+            BUILD_PLATFORMS="linux/amd64"
+          else
+            # Extract major and minor version numbers
+            MAJOR_VERSION=$(echo "$VERSION_STRING" | cut -d. -f1)
+            MINOR_VERSION=$(echo "$VERSION_STRING" | cut -d. -f2)
+
+            # Check if version >= 5.1.0
+            if [ "$MAJOR_VERSION" -gt 5 ] || ([ "$MAJOR_VERSION" -eq 5 ] && [ "$MINOR_VERSION" -ge 1 ]); then
+              echo "✅ IsaacSim version $VERSION_STRING supports multiarch"
+              BUILD_PLATFORMS="linux/amd64,linux/arm64"
+            else
+              echo "⚠️  IsaacSim version $VERSION_STRING does not support multiarch (requires >= 5.1.0)"
+              echo "Building for AMD64 only"
+              BUILD_PLATFORMS="linux/amd64"
+            fi
+          fi
+
           echo "Building image: ${{ env.ISAACLAB_IMAGE_NAME }}:$COMBINED_TAG"
-          echo "IsaacSim version: $IMAGE_BASE_VERSION"
+          echo "IsaacSim version: $IMAGE_BASE_VERSION (parsed: $VERSION_STRING)"
+          echo "Target platforms: $BUILD_PLATFORMS"
 
           # Build Docker image once with both tags for multiple architectures
           docker buildx build \
-            --platform linux/amd64,linux/arm64 \
+            --platform $BUILD_PLATFORMS \
             --progress=plain \
             -t ${{ env.ISAACLAB_IMAGE_NAME }}:$COMBINED_TAG \
             -t ${{ env.ISAACLAB_IMAGE_NAME }}:$BUILD_TAG \
@@ -122,6 +154,6 @@ jobs:
             -f docker/Dockerfile.base \
             --push .
 
-          echo "✅ Successfully built and pushed: ${{ env.ISAACLAB_IMAGE_NAME }}:$COMBINED_TAG"
-          echo "✅ Successfully built and pushed: ${{ env.ISAACLAB_IMAGE_NAME }}:$BUILD_TAG"
+          echo "✅ Successfully built and pushed: ${{ env.ISAACLAB_IMAGE_NAME }}:$COMBINED_TAG (platforms: $BUILD_PLATFORMS)"
+          echo "✅ Successfully built and pushed: ${{ env.ISAACLAB_IMAGE_NAME }}:$BUILD_TAG (platforms: $BUILD_PLATFORMS)"
         done
