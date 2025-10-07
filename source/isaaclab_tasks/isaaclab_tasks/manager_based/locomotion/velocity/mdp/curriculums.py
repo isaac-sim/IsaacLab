@@ -55,7 +55,7 @@ if TYPE_CHECKING:
 #     return torch.mean(terrain.terrain_levels.float())
 
 def terrain_levels_vel(
-    env: ManagerBasedRLEnv, env_ids: Sequence[int], asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
+    env: ManagerBasedRLEnv, env_ids: Sequence[int], asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"), command_name: str = "target_pose"
 ) -> torch.Tensor:
     """Curriculum based on the distance the robot walked when commanded to move at a desired velocity.
 
@@ -72,19 +72,19 @@ def terrain_levels_vel(
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
     terrain: TerrainImporter = env.scene.terrain
-    target_position_w = env.scene.env_origins.clone()
-    target_position_w[:, 2] = 1.5
-    target_position_w[:, 0] += 10.0
-    position_error = torch.norm(target_position_w[env_ids, :2] - asset.data.root_pos_w[env_ids, :2], dim=1)
+    command = env.command_manager.get_command(command_name)
+
+    target_position_w = command[:, :3].clone()
+
+    current_position = asset.data.root_pos_w - env.scene.env_origins
+    position_error = torch.norm(target_position_w[env_ids] - current_position[env_ids], dim=1)
 
     # move down those that have crashed
     crashed = env.termination_manager.terminated[env_ids]
-    # robots that are within 0.25m range should progress to harder terrains
+    # robots that are within 1m range should progress to harder terrains
     move_up = position_error < 1.0
-    move_down = crashed | (position_error > 1.0)
-    # robots that are NOT within 0.25m range should progress to easier terrains
-    # move_down = position_error > 1.25
-    move_down *= ~move_up
+    # move_down = ~move_up
+    move_down = crashed.clone()
     # update terrain levels
     terrain.update_env_origins(env_ids, move_up, move_down)
     # return the mean terrain level

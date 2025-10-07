@@ -149,20 +149,20 @@ def distance_to_goal_l2(env: ManagerBasedRLEnv,
 
 def distance_to_goal_exp(
         env: ManagerBasedRLEnv,
-        goal_position: torch.Tensor = 0.0,
         asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
         std: float = 1.0,
+        command_name: str = "target_pose"
     ) -> torch.Tensor:
     """Reward the distance to a goal position using an exponential kernel."""
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
+    command = env.command_manager.get_command(command_name)
 
-    target_position_w = goal_position + env.scene.env_origins
-    target_position_w[:, 2] += 1.5
-    target_position_w[:, 0] += 10.0
+    target_position_w = command[:, :3].clone()
+    current_position = asset.data.root_pos_w - env.scene.env_origins
 
     # compute the error
-    position_error_square = torch.sum(torch.square(target_position_w - asset.data.root_pos_w), dim=1)
+    position_error_square = torch.sum(torch.square(target_position_w - current_position), dim=1)
     return torch.exp(-position_error_square / std**2)
 
 """
@@ -357,17 +357,18 @@ def track_ang_vel_z_exp(
 
 def velocity_to_goal_reward(
     env: ManagerBasedRLEnv,
-    goal_position: torch.Tensor = 0.0,
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    command_name: str = "target_pose"
 ) -> torch.Tensor:
     """Reward the velocity towards a goal position using a dot product between the velocity and the direction to the goal."""
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
     # get the center of the environment
-    goal_position = goal_position + env.scene.env_origins
-    goal_position[:, 2] = 1.5
-    goal_position[:, 0] += 10.0
-    direction_to_goal = goal_position - asset.data.root_pos_w
+    command = env.command_manager.get_command(command_name)
+
+    target_position_w = command[:, :3].clone()
+    current_position = asset.data.root_pos_w - env.scene.env_origins
+    direction_to_goal = target_position_w - current_position
     direction_to_goal = direction_to_goal / (torch.norm(direction_to_goal, dim=1, keepdim=True) + 1e-8)
     # compute the reward as the dot product between the velocity and the direction to the goal
     velocity_towards_goal = torch.sum(asset.data.root_lin_vel_w * direction_to_goal, dim=1)

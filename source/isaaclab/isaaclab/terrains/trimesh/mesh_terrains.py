@@ -882,6 +882,9 @@ def floating_obstacles_terrain(
                                  center,
                                  0.0,
                                  degrees= True)
+        color = np.random.randint(0, 256, size=3, dtype=np.uint8)
+        color = np.append(color, 255) 
+        wall_mesh.visual.vertex_colors = np.tile(color, (len(wall_mesh.vertices), 1))
         meshes_list.append(wall_mesh)
     
     num_obstacles = int(difficulty * cfg.max_num_obstacles)

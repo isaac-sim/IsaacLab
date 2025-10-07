@@ -307,67 +307,66 @@ class MeshFloatingObstaclesTerrainCfg(SubTerrainBaseCfg):
     panel_obs_cfg = BoxCfg()
     panel_obs_cfg.size = (0.1, 1.2, 3.0)
     panel_obs_cfg.center_ratio_min = (0.3, 0.05, 0.05)
-    panel_obs_cfg.center_ratio_max = (0.85, 0.95, 0.95)
+    panel_obs_cfg.center_ratio_max = (0.8, 0.95, 0.95)
 
     small_wall_obs_cfg  = BoxCfg()
     small_wall_obs_cfg.size = (0.1, 0.5, 0.5)
     small_wall_obs_cfg.center_ratio_min = (0.3, 0.05, 0.05)
-    small_wall_obs_cfg.center_ratio_max = (0.85, 0.9, 0.9)
+    small_wall_obs_cfg.center_ratio_max = (0.8, 0.9, 0.9)
 
     big_wall_obs_cfg = BoxCfg()
     big_wall_obs_cfg.size = (0.1, 1.0, 1.0)
     big_wall_obs_cfg.center_ratio_min = (0.3, 0.05, 0.05)
-    big_wall_obs_cfg.center_ratio_max = (0.85, 0.9, 0.9)
+    big_wall_obs_cfg.center_ratio_max = (0.8, 0.9, 0.9)
 
     small_cube_obs_cfg = BoxCfg()
     small_cube_obs_cfg.size = (0.4, 0.4, 0.4)
     small_cube_obs_cfg.center_ratio_min = (0.3, 0.05, 0.05)
-    small_cube_obs_cfg.center_ratio_max = (0.85, 0.9, 0.9)
+    small_cube_obs_cfg.center_ratio_max = (0.8, 0.9, 0.9)
 
     rod_obs_cfg = BoxCfg()
     rod_obs_cfg.size = (0.1, 0.1, 2.0)
     rod_obs_cfg.center_ratio_min = (0.3, 0.05, 0.05)
-    rod_obs_cfg.center_ratio_max = (0.85, 0.9, 0.9)
+    rod_obs_cfg.center_ratio_max = (0.8, 0.9, 0.9)
 
     left_wall_cfg = BoxCfg()
-    left_wall_cfg.size = (20.0, 0.2, 20.0)
+    left_wall_cfg.size = (12.0, 0.2, 6.0)
     left_wall_cfg.center_ratio_min = (0.5, 1.0, 0.5)
     left_wall_cfg.center_ratio_max = (0.5, 1.0, 0.5)
 
     right_wall_cfg = BoxCfg()
-    right_wall_cfg.size = (20.0, 0.2, 20.0)
+    right_wall_cfg.size = (12.0, 0.2, 6.0)
     right_wall_cfg.center_ratio_min = (0.5, 0.0, 0.5)
     right_wall_cfg.center_ratio_max = (0.5, 0.0, 0.5)
 
     back_wall_cfg = BoxCfg()
-    back_wall_cfg.size = (0.2, 20.0, 20.0)
+    back_wall_cfg.size = (0.2, 8.0, 6.0)
     back_wall_cfg.center_ratio_min = (0.0, 0.5, 0.5)
     back_wall_cfg.center_ratio_max = (0.0, 0.5, 0.5)
 
     front_wall_cfg = BoxCfg()
-    front_wall_cfg.size = (0.2, 20.0, 20.0)
+    front_wall_cfg.size = (0.2, 8.0, 6.0)
     front_wall_cfg.center_ratio_min = (1.0, 0.5, 0.5)
     front_wall_cfg.center_ratio_max = (1.0, 0.5, 0.5)
 
     top_wall_cfg = BoxCfg()
-    top_wall_cfg.size = (20.0, 20.0, 0.2)
+    top_wall_cfg.size = (12.0, 8.0, 0.2)
     top_wall_cfg.center_ratio_min = (0.5, 0.5, 1.0)
     top_wall_cfg.center_ratio_max = (0.5, 0.5, 1.0)
 
     bottom_wall_cfg = BoxCfg()
-    bottom_wall_cfg.size = (20.0, 20.0, 0.2)
+    bottom_wall_cfg.size = (12.0, 8.0, 0.2)
     bottom_wall_cfg.center_ratio_min = (0.5, 0.5, 0.0)
     bottom_wall_cfg.center_ratio_max = (0.5, 0.5, 0.0)
 
-    wall_cfgs = [bottom_wall_cfg]
-    # [
-    #     left_wall_cfg,
-    #     right_wall_cfg,
-    #     back_wall_cfg,
-    #     front_wall_cfg,
-    #     #  top_wall_cfg,
-    #     bottom_wall_cfg
-    # ]
+    wall_cfgs = [
+        left_wall_cfg,
+        right_wall_cfg,
+        back_wall_cfg,
+        front_wall_cfg,
+        top_wall_cfg,
+        bottom_wall_cfg,
+    ]
 
     obstacle_cfgs = [small_wall_obs_cfg,
                      big_wall_obs_cfg,

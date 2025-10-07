@@ -69,7 +69,7 @@ class MySceneCfg(InteractiveSceneCfg):
         offset=RayCasterCameraCfg.OffsetCfg(pos=(0.15, 0.0, 0.04), rot=(1.0, 0.0, 0.0, 0.0), convention="world"),
         update_period=0.1,
         pattern_cfg=PinholeCameraPatternCfg(
-            focal_length=24.0, width=480, height=270
+            width=480, height=270
         ),
         data_types=["distance_to_image_plane"],
         max_distance=10.0,
@@ -78,7 +78,7 @@ class MySceneCfg(InteractiveSceneCfg):
     contact_forces = ContactSensorCfg(
         prim_path="{ENV_REGEX_NS}/Robot/.*",
         update_period=0.0,
-        history_length=6,
+        history_length=10,
         debug_vis=False,
     )
     # lights
@@ -98,16 +98,18 @@ class MySceneCfg(InteractiveSceneCfg):
 class CommandsCfg:
     """Command specifications for the MDP."""
 
-    base_velocity = mdp.UniformVelocityCommandCfg(
+    target_pose = mdp.UniformPoseCommandCfg(
         asset_name="robot",
+        body_name="base_link",
         resampling_time_range=(10.0, 10.0),
-        rel_standing_envs=0.02,
-        rel_heading_envs=1.0,
-        heading_command=True,
-        heading_control_stiffness=0.5,
         debug_vis=True,
-        ranges=mdp.UniformVelocityCommandCfg.Ranges(
-            lin_vel_x=(-1.0, 1.0), lin_vel_y=(-1.0, 1.0), ang_vel_z=(-1.0, 1.0), heading=(-math.pi, math.pi)
+        ranges=mdp.UniformPoseCommandCfg.Ranges(
+            pos_x=(9.5, 10.5),
+            pos_y=(2.0, 6.0),
+            pos_z=(1.0, 3.0),
+            roll=(-0.0, 0.0),
+            pitch=(-0.0, 0.0),
+            yaw=(-math.pi / 2.0, math.pi / 2.0),
         ),
     )
 
@@ -160,10 +162,10 @@ class EventCfg:
         mode="reset",
         params={
             "pose_range": {
-                "x": (-2.0, 2.0),
-                "y": (-2.0, 2.0),
-                "z": (0.5, 2.0),
-                "yaw": (-3.1415, 3.1415),
+                "x": (0.5, 1.5),
+                "y": (1.0, 7.0),
+                "z": (1.0, 5.0),
+                "yaw": (-math.pi / 2.0, math.pi / 2.0),
             },  # yaw translated from xyzw (0, 0, 0.5236, 1) from aerial gym
             "velocity_range": {
                 "x": (-0.0, 0.0),
@@ -181,14 +183,28 @@ class EventCfg:
 class RewardsCfg:
     """Reward terms for the MDP."""
     goal_dist_exp1 = RewTerm(func=mdp.distance_to_goal_exp, weight=2.0,
-                             params={"asset_cfg": SceneEntityCfg("robot"), "std": 7.0})
+                             params={
+                                 "asset_cfg": SceneEntityCfg("robot"), 
+                                 "std": 7.0,
+                                 "command_name": "target_pose",
+                                     })
     goal_dist_exp2 = RewTerm(func=mdp.distance_to_goal_exp, weight=4.0,
-                             params={"asset_cfg": SceneEntityCfg("robot"), "std": 0.5})
+                             params={
+                                 "asset_cfg": SceneEntityCfg("robot"), 
+                                 "std": 0.5,
+                                 "command_name": "target_pose",
+                                 })
     # l2_goal_dist = RewTerm(func=mdp.distance_to_goal_l2, weight=-0.05)
-    velocity_reward = RewTerm(func=mdp.velocity_to_goal_reward, weight=0.5,
-                              params={"asset_cfg": SceneEntityCfg("robot"),})
-    crash_penalty = RewTerm(func=mdp.undesired_contacts, weight=-20.0, params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*"), "threshold": 1.0})
-
+    # velocity_reward = RewTerm(func=mdp.velocity_to_goal_reward, weight=0.5,
+    #                           params={
+    #                               "asset_cfg": SceneEntityCfg("robot"), 
+    #                               "command_name": "target_pose",
+    #                               })
+    # crash_penalty = RewTerm(func=mdp.undesired_contacts, weight=-20.0, params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*"), "threshold": 1.0})
+    termination_penalty = RewTerm(
+        func=mdp.is_terminated,
+        weight=-100.0,
+    )
 
 @configclass
 class TerminationsCfg:
@@ -205,7 +221,11 @@ class TerminationsCfg:
 class CurriculumCfg:
     """Curriculum terms for the MDP."""
 
-    terrain_levels = CurrTerm(func=mdp.terrain_levels_vel)
+    terrain_levels = CurrTerm(func=mdp.terrain_levels_vel,
+                              params={
+                                  "asset_cfg": SceneEntityCfg("robot"), 
+                                  "command_name": "target_pose"},
+                                  )
 
 ##
 # Environment configuration
