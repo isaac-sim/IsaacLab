@@ -7,13 +7,11 @@
 
 import gymnasium as gym
 
-from .g1_locomanipulation_sdg_env import G1LocomanipulationSDGEnvCfg
-
 gym.register(
-    id="Isaac-G1-Locomanipulation-SDG",
-    entry_point="isaaclab_mimic.locomanipulation_sdg.envs.g1_locomanipulation_sdg_env:G1LocomanipulationSDGEnv",
+    id="Isaac-G1-SteeringWheel-Pickup-Dropoff",
+    entry_point=f"{__name__}.g1_locomanipulation_sdg_env:G1LocomanipulationSDGEnv",
     kwargs={
-        "env_cfg_entry_point": G1LocomanipulationSDGEnvCfg,
+        "env_cfg_entry_point": f"{__name__}.g1_locomanipulation_sdg_env:G1LocomanipulationSDGEnvCfg",
     },
     disable_env_checker=True,
 )
