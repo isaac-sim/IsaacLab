@@ -5,18 +5,18 @@
 import argparse
 import importlib.util
 import os
+import random
 import subprocess
 import sys
 from time import sleep, time
 
 import ray
 import util
-import random
 from ray import air, tune
+from ray.tune import Callback
 from ray.tune.search.optuna import OptunaSearch
 from ray.tune.search.repeater import Repeater
 from ray.tune.stopper import CombinedStopper
-from ray.tune import Callback
 
 """
 This script breaks down an aggregate tuning job, as defined by a hyperparameter sweep configuration,
@@ -205,6 +205,7 @@ class LogExtractionErrorStopper(tune.Stopper):
         else:
             return False
 
+
 class ProcessCleanupCallback(Callback):
     """Callback to clean up processes when trials are stopped."""
 
@@ -223,7 +224,7 @@ class ProcessCleanupCallback(Callback):
             sleep(5)
         except Exception as e:
             print(f"[ERROR]: Failed to cleanup trial {trial.trial_id}: {e}")
-            
+
 
 def invoke_tuning_run(
     cfg: dict,
