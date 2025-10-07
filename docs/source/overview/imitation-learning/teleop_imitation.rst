@@ -646,7 +646,7 @@ To generate the locomanipulation dataset, use the following command:
        scripts/imitation_learning/locomanipulation_sdg/generate_data.py \
        --device cpu \
        --kit_args="--enable isaacsim.replicator.mobility_gen" \
-       --task="Isaac-G1-SteeringWheel-Pickup-Dropoff" \
+       --task="Isaac-G1-SteeringWheel-Locomanipulation" \
        --dataset ./datasets/generated_dataset_g1_locomanip.hdf5 \
        --num_runs 1 \
        --lift_step 70 \
