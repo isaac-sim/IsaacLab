@@ -511,11 +511,17 @@ Visualize the results of the trained policy by running the following command, us
 Demo 2: Visuomotor Policy for a Humanoid Robot
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/gr-1_nut_pouring_policy.gif
+   :width: 100%
+   :align: center
+   :alt: GR-1 humanoid robot performing a pouring task
+   :figclass: align-center
+
 Download the Dataset
 ^^^^^^^^^^^^^^^^^^^^
 
-Download the pre-generated dataset from `here <https://download.isaacsim.omniverse.nvidia.com/isaaclab/dataset/generated_dataset_gr1_nut_pouring.hdf5>`__ and place it under ``IsaacLab/datasets/generated_dataset_gr1_nut_pouring.hdf5``.
-The dataset contains 1000 demonstrations of a humanoid robot performing a pouring/placing task that was
+Download the pre-generated dataset from `here <https://download.isaacsim.omniverse.nvidia.com/isaaclab/dataset/generated_dataset_gr1_nut_pouring.hdf5>`__ and place it under ``IsaacLab/datasets/generated_dataset_gr1_nut_pouring.hdf5``
+(**Note: The dataset size is approximately 12GB**). The dataset contains 1000 demonstrations of a humanoid robot performing a pouring/placing task that was
 generated using Isaac Lab Mimic for the ``Isaac-NutPour-GR1T2-Pink-IK-Abs-Mimic-v0`` task.
 
 .. hint::
@@ -526,7 +532,11 @@ generated using Isaac Lab Mimic for the ``Isaac-NutPour-GR1T2-Pink-IK-Abs-Mimic-
    Then, it drops the red beaker into the blue bin. Lastly, it places the yellow bowl onto the white scale.
    See the video in the :ref:`visualize-results-demo-2` section below for a visual demonstration of the task.
 
-   **Note that the following commands are only for your reference and are not required for this demo.**
+   **The success criteria for this task requires the red beaker to be placed in the blue bin, the green nut to be in the yellow bowl,
+   and the yellow bowl to be placed on top of the white scale.**
+
+   .. attention::
+      **The following commands are only for your reference and are not required for this demo.**
 
    To collect demonstrations:
 
@@ -593,6 +603,10 @@ Record the normalization parameters for later use in the visualization step.
 
 .. note::
    By default the trained models and logs will be saved to ``IsaacLab/logs/robomimic``.
+
+You can also post-train a `GR00T <https://github.com/NVIDIA/Isaac-GR00T>`__ foundation model to deploy a Vision-Language-Action policy for the task.
+
+Please refer to the `IsaacLabEvalTasks <https://github.com/isaac-sim/IsaacLabEvalTasks/>`__ repository for more details.
 
 .. _visualize-results-demo-2:
 
