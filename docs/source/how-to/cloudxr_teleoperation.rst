@@ -422,6 +422,14 @@ Run the teleoperation example with Manus + Vive tracking:
 .. dropdown:: Installation instructions
    :open:
 
+   Vive tracker integration is provided through the libsurvive library. Install the required udev rules by copying
+   `81-vive.rules <https://github.com/collabora/libsurvive/blob/32cf62c52744fdc32003ef8169e8b81f6f31526b/useful_files/81-vive.rules>`_
+   to ``/etc/udev/rules.d/`` and restarting the udev service.
+
+   .. code-block:: bash
+
+      sudo udevadm control --reload-rules && sudo udevadm trigger
+
    The Manus integration is provided through the Isaac Sim teleoperation input plugin framework.
    Install the plugin by following the build and installation steps in `isaac-teleop-device-plugins <https://github.com/isaac-sim/isaac-teleop-device-plugins>`_.
 
