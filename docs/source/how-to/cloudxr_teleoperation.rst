@@ -63,7 +63,7 @@ Prior to using CloudXR with Isaac Lab, please review the following system requir
   * Isaac Lab workstation
 
     * Ubuntu 22.04 or Ubuntu 24.04
-    * Minimum hardware requirements to sustain 45 FPS with a 120Hz physics simulation:
+    * Hardware requirements to sustain 45 FPS with a 120Hz physics simulation:
        * CPU: 16-Cores AMD Ryzen Threadripper Pro 5955WX or higher
        * Memory: 64GB RAM
        * GPU: 1x RTX PRO 6000 GPUs (or equivalent e.g. 1x RTX 5090) or higher
@@ -987,7 +987,7 @@ Known Issues
 
 * ``XR_ERROR_INSTANCE_LOST in xrPollEvent: Call to "xrt_session_poll_events" failed``
 
-  This error may occur if the CloudXR runtime exits before Isaac Lab. Restarting the CloudXR
+  This error may occur if the CloudXR runtime exits before Isaac Lab. Restart the CloudXR
   runtime to resume teleoperation.
 
 * ``[omni.usd] TF_PYTHON_EXCEPTION`` when starting/stopping AR Mode
