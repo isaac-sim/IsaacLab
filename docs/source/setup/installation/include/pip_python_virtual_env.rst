@@ -62,7 +62,7 @@ If you wish to install Isaac Sim 4.5, please use modify the instructions accordi
 
       .. tab-item::  Conda Environment
 
-         To install conda, please follow the instructions `here <https://docs.conda.io/projects/conda/en/latest/user-guide/install/index.html>__`.
+         To install conda, please follow the instructions `here <https://docs.conda.io/projects/conda/en/latest/user-guide/install/index.html>`__.
          You can create the Isaac Lab environment using the following commands.
 
          We recommend using `Miniconda <https://www.anaconda.com/docs/getting-started/miniconda/main/>`_,
