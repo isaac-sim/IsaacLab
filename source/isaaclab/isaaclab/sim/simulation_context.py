@@ -26,6 +26,7 @@ import omni.log
 import omni.physx
 import omni.usd
 from isaacsim.core.api.simulation_context import SimulationContext as _SimulationContext
+from isaacsim.core.simulation_manager import SimulationManager
 from isaacsim.core.utils.carb import get_carb_setting, set_carb_setting
 from isaacsim.core.utils.viewports import set_camera_view
 from isaacsim.core.version import get_version
@@ -283,6 +284,14 @@ class SimulationContext(_SimulationContext):
                 stage=self._initial_stage,
             )
 
+        # obtain the parsed device
+        # This device should be the same as "self.cfg.device". However, for cases, where users specify the device
+        # as "cuda" and not "cuda:X", then it fetches the current device from SimulationManager.
+        # Note: Since we fix the device from the configuration and don't expect users to change it at runtime,
+        #   we can obtain the device once from the SimulationManager.get_physics_sim_device() function.
+        #   This reduces the overhead of calling the function.
+        self._physics_device = SimulationManager.get_physics_sim_device()
+
     def _apply_physics_settings(self):
         """Sets various carb physics settings."""
         # enable hydra scene-graph instancing
@@ -413,12 +422,10 @@ class SimulationContext(_SimulationContext):
         """Device used by the simulation.
 
         Note:
-            This is the same as the :attr:`SimulationCfg.device` attribute.
+            In Omniverse, it is possible to configure multiple GPUs for rendering, while physics engine
+            operates on a single GPU. This function returns the device that is used for physics simulation.
         """
-        # Note: Since we fix the device from the configuration and don't expect users to change it at runtime,
-        # we can bypass the SimulationManager.get_physics_sim_device() function and directly return the device
-        # from the configuration. This reduces the overhead of calling the function.
-        return self.cfg.device
+        return self._physics_device
 
     """
     Operations - New.
