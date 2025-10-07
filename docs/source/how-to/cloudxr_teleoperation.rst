@@ -458,6 +458,15 @@ and `Tips for Setting Up the Base Stations <https://www.vive.com/us/support/vive
 
 .. note::
 
+   On first launch of the Manus Vive device, the Vive lighthouses may take a few seconds to calibrate. Keep the Vive trackers
+   stable and visible to the lighthouse during this time. If the light houses are moved or if tracking fails or is unstable,
+   calibration can be forced by deleting the calibration file at: ``$XDG_RUNTIME_DIR/libsurvive/config.json``. If XDG_RUNTIME_DIR
+   is not set, the default directory is ``~/.config/libsurvive``.
+
+   For more information consult the libsurvive documentation: `libsurvive <https://github.com/collabora/libsurvive>`_.
+
+.. note::
+
    To avoid resource contention and crashes, ensure Manus and Vive devices are connected to different USB controllers/buses.
    Use ``lsusb -t`` to identify different buses and connect devices accordingly.
 
