@@ -64,7 +64,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.2.1" />
-    <meta name="docbuild:last-update" content="Oct 07, 2025"/>
+    <meta name="docbuild:last-update" content="Oct 08, 2025"/>
   </head>
   
   
@@ -159,10 +159,10 @@
             <label for="version-select" style="font-weight: bold; display: block;">Version</label>
           </div>
           <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
-            <option value="../../../release/2.3.0/source/how-to/optimize_stage_creation.html" >release/2.3.0</option>
             <option value="optimize_stage_creation.html" selected>main</option>
             <option value="../../../release/2.1.0/index.html" >release/2.1.0</option>
             <option value="../../../release/2.2.0/source/how-to/optimize_stage_creation.html" >release/2.2.0</option>
+            <option value="../../../release/2.3.0/source/how-to/optimize_stage_creation.html" >release/2.3.0</option>
             <option value="../../../v2.2.1/source/how-to/optimize_stage_creation.html" >v2.2.1</option>
             <option value="../../../v2.2.0/source/how-to/optimize_stage_creation.html" >v2.2.0</option>
             <option value="../../../v2.1.1/index.html" >v2.1.1</option>
@@ -205,7 +205,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.1.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.0.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -707,7 +707,7 @@ These features are particularly effective for large-scale RL setups with thousan
 </pre></div>
 </div>
 <p>Note, if stage in memory is enabled without using an existing RL environment class, a few more steps are need.
-The stage creation steps should be wrapped in a <a class="reference external" href="https://docs.python.org/3/reference/compound_stmts.html#with" title="(in Python v3.13)"><code class="xref std std-keyword docutils literal notranslate"><span class="pre">with</span></code></a> statement to set the stage context.
+The stage creation steps should be wrapped in a <a class="reference external" href="https://docs.python.org/3/reference/compound_stmts.html#with" title="(in Python v3.14)"><code class="xref std std-keyword docutils literal notranslate"><span class="pre">with</span></code></a> statement to set the stage context.
 If the stage needs to be attached, the <a class="reference internal" href="../api/lab/isaaclab.sim.html#isaaclab.sim.utils.attach_stage_to_usd_context" title="isaaclab.sim.utils.attach_stage_to_usd_context"><code class="xref py py-meth docutils literal notranslate"><span class="pre">attach_stage_to_usd_context()</span></code></a> function should
 be called after the stage is created.</p>
 <p><strong>Using Stage in Memory with a manual scene setup</strong></p>
@@ -920,7 +920,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Oct 07, 2025.
+  Last updated on Oct 08, 2025.
   <br/>
 </p>
   </div>
