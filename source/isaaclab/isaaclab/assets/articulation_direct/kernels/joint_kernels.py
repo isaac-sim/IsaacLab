@@ -139,9 +139,9 @@ def get_soft_joint_limits(lower_limit: float, upper_limit: float, soft_factor: f
         The soft joint limits. Shape is (2,).
     """
     mean = (lower_limit + upper_limit) / 2.0
-    range = (upper_limit - lower_limit) / 2.0
-    upper_limit = mean - 0.5 * range * soft_factor
-    lower_limit = mean + 0.5 * range * soft_factor
+    range = (upper_limit - lower_limit)
+    lower_limit = mean - 0.5 * range * soft_factor
+    upper_limit = mean + 0.5 * range * soft_factor
     return wp.vec2f(lower_limit, upper_limit)
 
 @wp.kernel

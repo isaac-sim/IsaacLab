@@ -22,7 +22,7 @@ if TYPE_CHECKING:
         DCMotorDirectCfg,
         #DelayedPDActuatorCfg,
         IdealPDActuatorDirectCfg,
-        ImplicitActuatorCfg,
+        ImplicitActuatorDirectCfg,
         #RemotizedPDActuatorCfg,
     )
 
@@ -51,10 +51,10 @@ class ImplicitActuatorDirect(ActuatorBaseDirect):
         functionality and should not be used. All values should be set to the simulation directly.
     """
 
-    cfg: ImplicitActuatorCfg
+    cfg: ImplicitActuatorDirectCfg
     """The configuration for the actuator model."""
 
-    def __init__(self, cfg: ImplicitActuatorCfg, *args, **kwargs):
+    def __init__(self, cfg: ImplicitActuatorDirectCfg, *args, **kwargs):
         # effort limits
         if cfg.effort_limit_sim is None and cfg.effort_limit is not None:
             # throw a warning that we have a replacement for the deprecated parameter

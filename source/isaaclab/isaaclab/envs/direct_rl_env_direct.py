@@ -10,6 +10,7 @@ import gymnasium as gym
 import inspect
 import math
 import numpy as np
+import warp as wp
 import torch
 import weakref
 from abc import abstractmethod
@@ -36,6 +37,22 @@ from .direct_rl_env_cfg import DirectRLEnvCfg
 from .ui import ViewportCameraController
 from .utils.spaces import sample_space, spec_to_gym_space
 
+@wp.kernel
+def zero_mask_int32(
+    mask: wp.array(dtype=wp.bool),
+    data: wp.array(dtype=wp.int32),
+):
+    env_index = wp.tid()
+    if mask[env_index]:
+        data[env_index] = 0
+
+@wp.kernel
+def add_to_env(
+    data: wp.array(dtype=wp.int32),
+    value: wp.int32,
+):
+    env_index = wp.tid()
+    data[env_index] += value
 
 class DirectRLEnvDirect(gym.Env):
     """The superclass for the direct workflow to design environments.
@@ -57,7 +74,6 @@ class DirectRLEnvDirect(gym.Env):
         For vectorized environments, it is recommended to **only** call the :meth:`reset`
         method once before the first call to :meth:`step`, i.e. after the environment is created.
         After that, the :meth:`step` function handles the reset of terminated sub-environments.
-        This is because the simulator does not support resetting individual sub-environments
         in a vectorized environment.
 
     """
@@ -189,10 +205,25 @@ class DirectRLEnvDirect(gym.Env):
         # -- counter for curriculum
         self.common_step_counter = 0
         # -- init buffers
-        self.episode_length_buf = torch.zeros(self.num_envs, device=self.device, dtype=torch.long)
-        self.reset_terminated = torch.zeros(self.num_envs, device=self.device, dtype=torch.bool)
-        self.reset_time_outs = torch.zeros_like(self.reset_terminated)
-        self.reset_buf = torch.zeros(self.num_envs, dtype=torch.bool, device=self.sim.device)
+        self.episode_length_buf = wp.zeros(self.num_envs, dtype=wp.int32, device=self.device)
+        #self.episode_length_buf = torch.zeros(self.num_envs, device=self.device, dtype=torch.long)
+        self.reset_terminated = wp.zeros(self.num_envs, dtype=wp.bool, device=self.device)
+        self.reset_time_outs = wp.zeros(self.num_envs, dtype=wp.bool, device=self.device)
+        self.reset_buf = wp.zeros(self.num_envs, dtype=wp.bool, device=self.device)
+        self._ALL_ENV_MASK = wp.ones(self.num_envs, dtype=wp.bool, device=self.device)
+
+        # Expected bindings:
+        self.torch_obs_buf: torch.Tensor = None
+        self.torch_reward_buf: torch.Tensor = None
+        self.torch_reset_terminated: torch.Tensor = None
+        self.torch_reset_time_outs: torch.Tensor = None
+        self.torch_episode_length_buf: torch.Tensor = None
+
+        # Graph captured by torch
+        self.step_graph = None
+        self.graph_end_step = None
+        self.graph_start_step = None
+        self.graph_captured = False
 
         # setup the action and observation spaces for Gym
         self._configure_gym_env_spaces()
@@ -292,8 +323,7 @@ class DirectRLEnvDirect(gym.Env):
             self.seed(seed)
 
         # reset state of scene
-        indices = torch.arange(self.num_envs, dtype=torch.int64, device=self.device)
-        self._reset_idx(indices)
+        self._reset_idx(self._ALL_ENV_MASK)
 
         # update articulation kinematics
         self.scene.write_data_to_sim()
@@ -307,7 +337,8 @@ class DirectRLEnvDirect(gym.Env):
                 self.sim.render()
 
         # return observations
-        return self._get_observations(), self.extras
+        self._get_observations()
+        return self.torch_obs_buf.clone(), self.extras
 
     @Timer(name="env_step", msg="Step took:", enable=True, format="us")
     def step(self, action: torch.Tensor) -> VecEnvStepReturn:
@@ -334,13 +365,15 @@ class DirectRLEnvDirect(gym.Env):
         Returns:
             A tuple containing the observations, rewards, resets (terminated and truncated) and extras.
         """
+
         action = action.to(self.device)
+    
         # add action noise
-        if self.cfg.action_noise_model:
-            action = self._action_noise_model(action)
+        #if self.cfg.action_noise_model:
+        #    action = self._action_noise_model(action)
 
         # process actions
-        self._pre_physics_step(action)
+        self._pre_physics_step(wp.from_torch(action))
 
         # check if we need to do rendering within the physics loop
         # note: checked here once to avoid multiple checks within the loop
@@ -350,54 +383,76 @@ class DirectRLEnvDirect(gym.Env):
         for _ in range(self.cfg.decimation):
             self._sim_step_counter += 1
             # set actions into buffers
-            self._apply_action()
-            # set actions into simulator
-            self.scene.write_data_to_sim()
             # simulate
+            with Timer(name="apply_action", msg="Action processing step took:", enable=True, format="us"):
+                if self.graph_start_step is None:
+                    with wp.ScopedCapture() as capture:
+                        self.step_warp_action()
+                    self.graph_start_step = capture.graph
+                else:
+                    wp.capture_launch(self.graph_start_step)
+
             with Timer(name="simulate", msg="Newton simulation step took:", enable=True, format="us"):
                 self.sim.step(render=False)
             # render between steps only if the GUI or an RTX sensor needs it
             # note: we assume the render interval to be the shortest accepted rendering interval.
             #    If a camera needs rendering at a faster frequency, this will lead to unexpected behavior.
-            if self._sim_step_counter % self.cfg.sim.render_interval == 0 and is_rendering:
-                self.sim.render()
+            #if self._sim_step_counter % self.cfg.sim.render_interval == 0 and is_rendering:
+            #    self.sim.render()
             # update buffers at sim dt
             self.scene.update(dt=self.physics_dt)
 
-        # post-step:
-        # -- update env counters (used for curriculum generation)
-        self.episode_length_buf += 1  # step in current episode (per env)
-        self.common_step_counter += 1  # total step (common for all envs)
-
-        self.reset_terminated[:], self.reset_time_outs[:] = self._get_dones()
-        self.reset_buf = self.reset_terminated | self.reset_time_outs
-        self.reward_buf = self._get_rewards()
-
-        # -- reset envs that terminated/timed-out and log the episode information
-        reset_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1)
-        if len(reset_env_ids) > 0:
-            self._reset_idx(reset_env_ids)
-            # update articulation kinematics
-            self.scene.write_data_to_sim()
-            # if sensors are added to the scene, make sure we render to reflect changes in reset
-            if self.sim.has_rtx_sensors() and self.cfg.rerender_on_reset:
-                self.sim.render()
-
-        # post-step: step interval event
-        if self.cfg.events:
-            if "interval" in self.event_manager.available_modes:
-                self.event_manager.apply(mode="interval", dt=self.step_dt)
-
-        # update observations
-        self.obs_buf = self._get_observations()
+        with Timer(name="post_processing", msg="Post-Processing step took:", enable=True, format="us"):
+            if self.graph_end_step is None:
+                with wp.ScopedCapture() as capture:
+                    self.step_warp_end()
+                self.graph_end_step = capture.graph
+            else:
+                wp.capture_launch(self.graph_end_step)
 
         # add observation noise
         # note: we apply no noise to the state space (since it is used for critic networks)
-        if self.cfg.observation_noise_model:
-            self.obs_buf["policy"] = self._observation_noise_model(self.obs_buf["policy"])
+        #if self.cfg.observation_noise_model:
+        #    self.obs_buf["policy"] = self._observation_noise_model(self.obs_buf["policy"])
 
         # return observations, rewards, resets and extras
-        return self.obs_buf, self.reward_buf, self.reset_terminated, self.reset_time_outs, self.extras
+        return {"policy": self.torch_obs_buf.clone()}, self.torch_reward_buf, self.torch_reset_terminated, self.torch_reset_time_outs, self.extras
+
+    def step_warp_action(self) -> None:
+        self._apply_action()
+        # set actions into simulator
+        self.scene.write_data_to_sim()
+
+    def step_warp_end(self) -> None:
+        wp.launch(
+            add_to_env,
+            dim=self.num_envs,
+            inputs=[
+                self.episode_length_buf,
+                1,
+            ]
+        )
+        self._get_dones()
+        self._get_rewards()
+
+        # -- reset envs that terminated/timed-out and log the episode information
+        #reset_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1)
+        self._reset_idx(self.reset_buf)
+        # update articulation kinematics
+        self.scene.write_data_to_sim()
+        # if sensors are added to the scene, make sure we render to reflect changes in reset
+        #if self.sim.has_rtx_sensors() and self.cfg.rerender_on_reset:
+        #    self.sim.render()
+
+        # post-step: step interval event
+        #if self.cfg.events:
+        #    if "interval" in self.event_manager.available_modes:
+        #        self.event_manager.apply(mode="interval", dt=self.step_dt)
+
+        # update observations
+        self._get_observations()
+
+
 
     @staticmethod
     def seed(seed: int = -1) -> int:
@@ -586,28 +641,38 @@ class DirectRLEnvDirect(gym.Env):
         # instantiate actions (needed for tasks for which the observations computation is dependent on the actions)
         self.actions = sample_space(self.single_action_space, self.sim.device, batch_size=self.num_envs, fill_value=0)
 
-    def _reset_idx(self, env_ids: Sequence[int]):
+    def _reset_idx(self, mask: wp.array | None = None):
         """Reset environments based on specified indices.
 
         Args:
             env_ids: List of environment ids which must be reset
         """
-        self.scene.reset(env_ids)
+        if mask is None:
+            mask = self._ALL_ENV_MASK
+
+        self.scene.reset(mask)
 
         # apply events such as randomization for environments that need a reset
-        if self.cfg.events:
-            if "reset" in self.event_manager.available_modes:
-                env_step_count = self._sim_step_counter // self.cfg.decimation
-                self.event_manager.apply(mode="reset", env_ids=env_ids, global_env_step_count=env_step_count)
+        #if self.cfg.events:
+        #    if "reset" in self.event_manager.available_modes:
+        #        env_step_count = self._sim_step_counter // self.cfg.decimation
+        #        self.event_manager.apply(mode="reset", env_ids=env_ids, global_env_step_count=env_step_count)
 
         # reset noise models
-        if self.cfg.action_noise_model:
-            self._action_noise_model.reset(env_ids)
-        if self.cfg.observation_noise_model:
-            self._observation_noise_model.reset(env_ids)
+        #if self.cfg.action_noise_model:
+        #    self._action_noise_model.reset(env_ids)
+        #if self.cfg.observation_noise_model:
+        #    self._observation_noise_model.reset(env_ids)
 
         # reset the episode length buffer
-        self.episode_length_buf[env_ids] = 0
+        wp.launch(
+            zero_mask_int32,
+            dim=self.num_envs,
+            inputs=[
+                mask,
+                self.episode_length_buf,
+            ]
+        )
 
     """
     Implementation-specific functions.

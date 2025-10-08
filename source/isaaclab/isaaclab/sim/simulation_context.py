@@ -636,6 +636,36 @@ class SimulationContext(_SimulationContext):
         if "cuda" in self.device:
             torch.cuda.set_device(self.device)
 
+    def step_warp(self, render: bool = True):
+        """Steps the simulation.
+
+        .. note::
+            This function blocks if the timeline is paused. It only returns when the timeline is playing.
+
+        Args:
+            render: Whether to render the scene after stepping the physics simulation.
+                    If set to False, the scene is not rendered and only the physics simulation is stepped.
+        """
+
+        if render:
+            # physics dt is zero, no need to step physics, just render
+            if self.is_playing():
+                NewtonManager.step()
+            if self.get_physics_dt() == 0:  # noqa: SIM114
+                SimulationContext.render(self)
+            # rendering dt is zero, but physics is not, call step and then render
+            elif self.get_rendering_dt() == 0 and self.get_physics_dt() != 0:  # noqa: SIM114
+                SimulationContext.render(self)
+            else:
+                self._app.update()
+        else:
+            if self.is_playing():
+                NewtonManager.step()
+
+        # Use the NewtonManager to render the scene if enabled
+        if self.cfg.enable_newton_rendering:
+            NewtonManager.render()
+
     def render(self, mode: RenderMode | None = None):
         """Refreshes the rendering components including UI elements and view-ports depending on the render mode.
 

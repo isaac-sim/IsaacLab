@@ -35,6 +35,7 @@ class CartpoleEnvCfg(DirectRLEnvCfg):
 
     solver_cfg = MJWarpSolverCfg(
         njmax=5,
+        ncon_per_env=3,
         ls_iterations=3,
         cone="pyramidal",
         impratio=1,
@@ -44,6 +45,7 @@ class CartpoleEnvCfg(DirectRLEnvCfg):
         solver_cfg=solver_cfg,
         num_substeps=1,
         debug_mode=False,
+        use_cuda_graph=True,
     )
 
     # simulation

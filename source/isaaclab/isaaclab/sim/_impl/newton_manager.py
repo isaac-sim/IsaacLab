@@ -290,7 +290,7 @@ class NewtonManager:
 
         if NewtonManager._cfg.debug_mode:
             convergence_data = NewtonManager.get_solver_convergence_steps()
-            # print(f"solver niter: {convergence_data}")
+            print(f"solver niter: {convergence_data}")
             if convergence_data["max"] == NewtonManager._solver.mjw_model.opt.iterations:
                 print("solver didn't converge!", convergence_data["max"])
 

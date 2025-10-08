@@ -180,21 +180,10 @@ class ArticulationDirect(AssetBase):
     Operations.
     """
 
-    def reset(self, env_ids: wp.array):
+    def reset(self, mask: wp.array):
         # use ellipses object to skip initial indices.
-        if env_ids is None:
-            env_ids = self._ALL_ENV_MASK
-        elif not isinstance(env_ids, wp.array):
-            mask = self._ENV_MASK
-            mask.fill_(False)
-            wp.launch(
-                generate_mask_from_ids,
-                dim=(self.num_instances,),
-                inputs=[
-                    mask,
-                    wp.array(env_ids, dtype=wp.int32, device=self.device),
-                ]
-            )
+        if mask is None:
+            mask = self._ALL_ENV_MASK
 
         # reset actuators
         for actuator in self.actuators.values():
@@ -238,7 +227,7 @@ class ArticulationDirect(AssetBase):
     Operations - Finders.
     """
 
-    def find_bodies(self, name_keys: str | Sequence[str], preserve_order: bool = False) -> tuple[list[int], list[str]]:
+    def find_bodies(self, name_keys: str | Sequence[str], preserve_order: bool = False) -> tuple[wp.array, list[str], list[int]]:
         """Find bodies in the articulation based on the name keys.
 
         Please check the :meth:`isaaclab.utils.string_utils.resolve_matching_names` function for more
@@ -249,25 +238,25 @@ class ArticulationDirect(AssetBase):
             preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
 
         Returns:
-            A tuple of lists containing the body indices and names.
+            A tuple of lists containing the body mask, names, and indices.
         """
         indices, names = string_utils.resolve_matching_names(name_keys, self.body_names, preserve_order)
         self._BODY_MASK.fill_(False)
         mask = wp.clone(self._BODY_MASK)
         wp.launch(
             generate_mask_from_ids,
-            dim=(self.num_bodies,),
+            dim=(len(indices),),
             inputs=[
                 mask,
                 wp.array(indices, dtype=wp.int32, device=self.device),
             ]
         )
-        return mask, names
+        return mask, names, indices
 
 
     def find_joints(
         self, name_keys: str | Sequence[str], joint_subset: list[str] | None = None, preserve_order: bool = False
-    ) -> tuple[wp.array, list[str]]:
+    ) -> tuple[wp.array, list[str], list[int]]:
         """Find joints in the articulation based on the name keys.
 
         Please see the :func:`isaaclab.utils.string.resolve_matching_names` function for more information
@@ -280,7 +269,7 @@ class ArticulationDirect(AssetBase):
             preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
 
         Returns:
-            A tuple of lists containing the joint indices and names.
+            A tuple of lists containing the joint mask, names, and indices.
         """
         if joint_subset is None:
             joint_subset = self.joint_names
@@ -290,13 +279,13 @@ class ArticulationDirect(AssetBase):
         mask = wp.clone(self._JOINT_MASK)
         wp.launch(
             generate_mask_from_ids,
-            dim=(self.num_joints,),
+            dim=(len(indices),),
             inputs=[
                 mask,
                 wp.array(indices, dtype=wp.int32, device=self.device),
             ]
         )
-        return mask, names
+        return mask, names, indices
 
     def find_fixed_tendons(
         self, name_keys: str | Sequence[str], tendon_subsets: list[str] | None = None, preserve_order: bool = False
@@ -325,7 +314,7 @@ class ArticulationDirect(AssetBase):
         mask = wp.clone(self._FIXED_TENDON_MASK)
         wp.launch(
             generate_mask_from_ids,
-            dim=(self.num_fixed_tendons,),
+            dim=(len(indices),),
             inputs=[
                 mask,
                 wp.array(indices, dtype=wp.int32, device=self.device),
@@ -358,7 +347,7 @@ class ArticulationDirect(AssetBase):
         mask = wp.clone(self._SPATIAL_TENDON_MASK)
         wp.launch(
             generate_mask_from_ids,
-            dim=(self.num_spatial_tendons,),
+            dim=(len(indices),),
             inputs=[
                 mask,
                 wp.array(indices, dtype=wp.int32, device=self.device),
@@ -1574,6 +1563,31 @@ class ArticulationDirect(AssetBase):
         self.update(0.0)
         # log joint information
         #self._log_articulation_info()
+        generated_pose = wp.to_torch(self._data.default_root_pose).clone()
+        generated_pose[:, :2] += wp.to_torch(self._root_newton_view.get_root_transforms(NewtonManager.get_model()))[
+            :, :2
+        ]
+        self._root_newton_view.set_root_transforms(NewtonManager.get_state_0(), generated_pose)
+        self._root_newton_view.set_root_transforms(NewtonManager.get_model(), generated_pose)
+
+#@wp.func
+#def combine_transform_xy(
+#    transform: wp.transformf,
+#    translation: wp.transformf,
+#) -> wp.transformf:
+#    combined_translation = wp.vec3f(translation[0]+transform[0], translation[1] + transform[1], transform[2])
+#    return wp.transform(combined_translation, wp.transform_get_rotation(transform))
+#
+#@wp.kernel
+#def move_default_pose(
+#    default_root_pose: wp.array(dtype=wp.transformf),
+#    new_pose: wp.array(dtype=wp.transformf),
+#    source_pose: wp.array(dtype=wp.transformf),
+#    env_mask: wp.array(dtype=wp.bool),
+#):
+#    env_id = wp.tid()
+#    if env_mask[env_id]:
+#        new_pose[env_id] = combine_transform_xy(default_root_pose[env_id], source_pose[env_id])
 
     def _create_simulation_bindings(self):
         """Create simulation bindings for the articulation.
@@ -1767,11 +1781,10 @@ class ArticulationDirect(AssetBase):
 
         # iterate over all actuator configurations
         for actuator_name, actuator_cfg in self.cfg.actuators.items():
-            print(actuator_name, actuator_cfg)
             # type annotation for type checkers
             actuator_cfg: ActuatorBaseDirectCfg
             # create actuator group
-            joint_mask, joint_names = self.find_joints(actuator_cfg.joint_names_expr)
+            joint_mask, joint_names, joint_indices = self.find_joints(actuator_cfg.joint_names_expr)
             # check if any joints are found
             if len(joint_names) == 0:
                 raise ValueError(
@@ -1784,7 +1797,7 @@ class ArticulationDirect(AssetBase):
                 cfg=actuator_cfg,
                 joint_names=joint_names,
                 joint_mask=joint_mask,
-                env_mask=self._ENV_MASK,
+                env_mask=self._ALL_ENV_MASK,
                 articulation_data=self._data,
                 device=self.device,
             )
@@ -1818,11 +1831,11 @@ class ArticulationDirect(AssetBase):
                 # Set the control mode to None when using explicit actuators
                 self.write_joint_control_mode_to_sim(0, joint_mask=actuator._joint_mask)
                 # Bind the applied effort to the simulation effort
-                self.data.applied_effort = self.data.sim_bind_joint_effort
+                #self.data.applied_effort = self.data.sim_bind_joint_effort
 
             # Set common properties into the simulation
-            #self.write_joint_effort_limit_to_sim(actuator.effort_limit_sim, joint_ids=actuator.joint_indices)
-            #self.write_joint_velocity_limit_to_sim(actuator.velocity_limit_sim, joint_ids=actuator.joint_indices)
+            #self.write_joint_effort_limit_to_sim(self._data.sim_bind_joint_effort_limits_sim, joint_mask=actuator._joint_mask)
+            #self.write_joint_velocity_limit_to_sim(self._data.sim_bind_joint_vel_limits_sim, joint_mask=actuator._joint_mask)
             #self.write_joint_armature_to_sim(actuator.armature, joint_ids=actuator.joint_indices)
             #self.write_joint_friction_coefficient_to_sim(actuator.friction, joint_ids=actuator.joint_indices)
 

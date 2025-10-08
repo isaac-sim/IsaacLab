@@ -14,6 +14,7 @@ from isaacsim.core.prims import XFormPrim
 from isaacsim.core.utils.stage import get_current_stage
 from isaacsim.core.version import get_version
 from pxr import PhysxSchema
+import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationDirect, ArticulationCfg, AssetBaseCfg
@@ -404,7 +405,7 @@ class InteractiveSceneDirect:
     Operations.
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None):
+    def reset(self, mask: wp.array | None = None):
         """Resets the scene entities.
 
         Args:
@@ -413,10 +414,10 @@ class InteractiveSceneDirect:
         """
         # -- assets
         for articulation in self._articulations.values():
-            articulation.reset(env_ids)
+            articulation.reset(mask)
         # -- sensors
-        for sensor in self._sensors.values():
-            sensor.reset(env_ids)
+        #for sensor in self._sensors.values():
+        #    sensor.reset(mask)
 
     def write_data_to_sim(self):
         """Writes the data of the scene entities to the simulation."""

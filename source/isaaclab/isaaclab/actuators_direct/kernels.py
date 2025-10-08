@@ -17,21 +17,21 @@ def compute_pd_actuator(
     if env_mask[env_index] and joint_mask[joint_index]:
         # No control
         if control_mode[env_index, joint_index] == 0:
-            computed_effort[env_index, joint_index] = stiffness[env_index, joint_index] * (0 - joint_pos[env_index, joint_index]) + damping[env_index, joint_index] * (0 - joint_vel[env_index, joint_index]) + added_effort[env_index, joint_index]
+            computed_effort[env_index, joint_index] = stiffness[env_index, joint_index] * (- joint_pos[env_index, joint_index]) + damping[env_index, joint_index] * (- joint_vel[env_index, joint_index]) + added_effort[env_index, joint_index]
         # Position control
         elif control_mode[env_index, joint_index] == 1:
-            computed_effort[env_index, joint_index] = stiffness[env_index, joint_index] * (joint_targets[env_index, joint_index] - joint_pos[env_index, joint_index]) + damping[env_index, joint_index] * (0 - joint_vel[env_index, joint_index]) + added_effort[env_index, joint_index]
+            computed_effort[env_index, joint_index] = stiffness[env_index, joint_index] * (joint_targets[env_index, joint_index] - joint_pos[env_index, joint_index]) + damping[env_index, joint_index] * (- joint_vel[env_index, joint_index]) + added_effort[env_index, joint_index]
         # Velocity control
         elif control_mode[env_index, joint_index] == 2:
-            computed_effort[env_index, joint_index] = stiffness[env_index, joint_index] * (0 - joint_pos[env_index, joint_index]) + damping[env_index, joint_index] * (joint_targets[env_index, joint_index] - joint_vel[env_index, joint_index]) + added_effort[env_index, joint_index]
+            computed_effort[env_index, joint_index] = stiffness[env_index, joint_index] * (- joint_pos[env_index, joint_index]) + damping[env_index, joint_index] * (joint_targets[env_index, joint_index] - joint_vel[env_index, joint_index]) + added_effort[env_index, joint_index]
 
 @wp.kernel
 def clip_efforts_with_limits(
     limits: wp.array2d(dtype=wp.float32),
     joint_array: wp.array2d(dtype=wp.float32),
     clipped_joint_array: wp.array2d(dtype=wp.float32),
-    env_mask: wp.array2d(dtype=wp.bool),
-    joint_mask: wp.array2d(dtype=wp.bool),
+    env_mask: wp.array(dtype=wp.bool),
+    joint_mask: wp.array(dtype=wp.bool),
 ):
     env_index, joint_index = wp.tid()
     if env_mask[env_index] and joint_mask[joint_index]:
@@ -48,8 +48,8 @@ def clip_effort_dc_motor(
 ):
     max_effort = saturation_effort * (1.0 - joint_vel)/vel_limit
     min_effort = saturation_effort * (-1.0 - joint_vel)/vel_limit
-    max_effort = wp.clamp(max_effort, 0, effort_limit)
-    min_effort = wp.clamp(min_effort, -effort_limit, 0)
+    max_effort = wp.clamp(max_effort, 0.0, effort_limit)
+    min_effort = wp.clamp(min_effort, -effort_limit, 0.0)
     return wp.clamp(effort, min_effort, max_effort)
 
 @wp.kernel
@@ -60,8 +60,8 @@ def clip_efforts_dc_motor(
     joint_vel: wp.array2d(dtype=wp.float32),
     joint_array: wp.array2d(dtype=wp.float32),
     clipped_joint_array: wp.array2d(dtype=wp.float32),
-    env_mask: wp.array2d(dtype=wp.bool),
-    joint_mask: wp.array2d(dtype=wp.bool),
+    env_mask: wp.array(dtype=wp.bool),
+    joint_mask: wp.array(dtype=wp.bool),
 ):
     env_index, joint_index = wp.tid()
     if env_mask[env_index] and joint_mask[joint_index]:

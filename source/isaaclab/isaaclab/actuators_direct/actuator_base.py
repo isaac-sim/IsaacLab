@@ -123,10 +123,8 @@ class ActuatorBaseDirect(ABC):
             ("control_mode", self.data.joint_control_mode),
         ]
         for param_name, newton_val in to_check:
-            print("param_name", param_name)
             cfg_val = getattr(self.cfg, param_name)
             self._parse_joint_parameter(cfg_val, newton_val)
-
 
     def __str__(self) -> str:
         """Returns: A string representation of the actuator group."""
@@ -246,10 +244,10 @@ class ActuatorBaseDirect(ABC):
                 tmp_param =wp.zeros((self._num_joints,), dtype=wp.float32, device=self._device)
                 wp.launch(
                     populate_empty_array,
-                    dim=(self._num_envs, self._num_joints),
+                    dim=(self._num_joints,),
                     inputs=[
-                        tmp_param,
                         wp.array(values, dtype=wp.float32, device=self._device),
+                        tmp_param,
                         wp.array(indices, dtype=wp.int32, device=self._device),
                     ]
                 )
