@@ -137,6 +137,7 @@ class ObservationsCfg:
         base_orientation = ObsTerm(func=mdp.root_quat_w, noise=Unoise(n_min=-0.1, n_max=0.1))
         base_lin_vel = ObsTerm(func=mdp.base_lin_vel, noise=Unoise(n_min=-0.1, n_max=0.1))
         base_ang_vel = ObsTerm(func=mdp.base_ang_vel, noise=Unoise(n_min=-0.2, n_max=0.2))
+        last_action = ObsTerm(func=mdp.last_action, noise=Unoise(n_min=-0.1, n_max=0.1))
         depth_latent = ObsTerm(
             func=mdp.image_latents,
             params={"sensor_cfg": SceneEntityCfg("depth_camera"), "data_type": "distance_to_image_plane", "vae": VAEImageEncoder},

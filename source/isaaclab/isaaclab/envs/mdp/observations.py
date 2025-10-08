@@ -726,12 +726,28 @@ def last_action(env: ManagerBasedEnv, action_name: str | None = None) -> torch.T
     The name of the action term for which the action is required. If None, the
     entire action tensor is returned.
     """
-    if action_name is None:
-        return env.action_manager.action
-    else:
-        return env.action_manager.get_term(action_name).raw_actions
+    clamped_action = torch.clamp(env.action_manager.action, min=-1.0, max=1.0)
+    max_speed = 2.0  # [m/s]
+    max_yawrate = torch.pi / 3.0  # [rad/s]
+    max_inclination_angle = torch.pi / 4.0  # [rad]
 
-
+    clamped_action[:, 0] = max_speed * torch.clamp(clamped_action[:, 0], min=0.0, max=1.0)  # only allow positive thrust commands [0, 1]
+    processed_actions = clamped_action.clone()
+    processed_actions[:, 0] = (
+        clamped_action[:, 0]
+        * torch.cos(max_inclination_angle * clamped_action[:, 1])
+        * max_speed
+        / 2.0
+    )
+    processed_actions[:, 1] = 0.0  # set lateral thrust command to 0
+    processed_actions[:, 2] = (
+        clamped_action[:, 0]
+        * torch.sin(max_inclination_angle * clamped_action[:, 1])
+        * max_speed
+        / 2.0
+    )
+    processed_actions[:, 3] = clamped_action[:, 2] * max_yawrate
+    return processed_actions
 """
 Commands.
 """
