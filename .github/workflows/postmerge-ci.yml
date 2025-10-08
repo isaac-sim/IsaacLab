@@ -110,32 +110,43 @@ jobs:
           COMBINED_TAG="${REPO_SHORT_NAME}-${SAFE_BRANCH_NAME}-${IMAGE_BASE_VERSION}"
           BUILD_TAG="${COMBINED_TAG}-b${{ github.run_number }}"
 
-          # Determine if multiarch is supported based on IsaacSim version
-          # Multiarch only works with IsaacSim >= 5.1.0
-          VERSION_STRING=$(echo "$IMAGE_BASE_VERSION" | grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)?' | head -n1)
+          # Determine if multiarch is supported by inspecting the base image manifest
+          echo "Checking if base image supports multiarch..."
+          BASE_IMAGE_FULL="${{ env.ISAACSIM_BASE_IMAGE }}:${IMAGE_BASE_VERSION}"
 
-          if [ -z "$VERSION_STRING" ]; then
-            echo "⚠️  Could not parse version from: $IMAGE_BASE_VERSION"
+          # Get architectures from the base image manifest
+          ARCHITECTURES=$(docker manifest inspect "$BASE_IMAGE_FULL" 2>/dev/null | grep -o '"architecture": "[^"]*"' | cut -d'"' -f4 | sort -u)
+
+          if [ -z "$ARCHITECTURES" ]; then
+            echo "Could not inspect base image manifest: $BASE_IMAGE_FULL"
             echo "Defaulting to AMD64 only for safety"
             BUILD_PLATFORMS="linux/amd64"
           else
-            # Extract major and minor version numbers
-            MAJOR_VERSION=$(echo "$VERSION_STRING" | cut -d. -f1)
-            MINOR_VERSION=$(echo "$VERSION_STRING" | cut -d. -f2)
+            echo "Base image architectures found:"
+            echo "$ARCHITECTURES" | sed 's/^/  - /'
 
-            # Check if version >= 5.1.0
-            if [ "$MAJOR_VERSION" -gt 5 ] || ([ "$MAJOR_VERSION" -eq 5 ] && [ "$MINOR_VERSION" -ge 1 ]); then
-              echo "✅ IsaacSim version $VERSION_STRING supports multiarch"
+            # Check if both amd64 and arm64 are present
+            HAS_AMD64=$(echo "$ARCHITECTURES" | grep -c "amd64" || true)
+            HAS_ARM64=$(echo "$ARCHITECTURES" | grep -c "arm64" || true)
+
+            if [ "$HAS_AMD64" -gt 0 ] && [ "$HAS_ARM64" -gt 0 ]; then
+              echo "Base image supports multiarch (amd64 + arm64)"
               BUILD_PLATFORMS="linux/amd64,linux/arm64"
+            elif [ "$HAS_AMD64" -gt 0 ]; then
+              echo "Base image only supports amd64"
+              BUILD_PLATFORMS="linux/amd64"
+            elif [ "$HAS_ARM64" -gt 0 ]; then
+              echo "Base image only supports arm64"
+              BUILD_PLATFORMS="linux/arm64"
             else
-              echo "⚠️  IsaacSim version $VERSION_STRING does not support multiarch (requires >= 5.1.0)"
-              echo "Building for AMD64 only"
+              echo "Unknown architecture support, defaulting to amd64"
               BUILD_PLATFORMS="linux/amd64"
             fi
           fi
 
           echo "Building image: ${{ env.ISAACLAB_IMAGE_NAME }}:$COMBINED_TAG"
-          echo "IsaacSim version: $IMAGE_BASE_VERSION (parsed: $VERSION_STRING)"
+          echo "IsaacSim version: $IMAGE_BASE_VERSION"
+          echo "Base image: $BASE_IMAGE_FULL"
           echo "Target platforms: $BUILD_PLATFORMS"
 
           # Build Docker image once with both tags for multiple architectures
