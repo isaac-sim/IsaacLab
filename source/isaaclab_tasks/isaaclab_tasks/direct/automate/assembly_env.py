@@ -246,7 +246,7 @@ class AssemblyEnv(DirectRLEnv):
             # offset each trajectory to be relative to the goal
             eef_pos_traj.append(curr_ee_traj - curr_ee_goal)
 
-        self.eef_pos_traj = torch.tensor(eef_pos_traj, dtype=torch.float32, device=self.device).squeeze()
+        self.eef_pos_traj = torch.tensor(np.array(eef_pos_traj), dtype=torch.float32, device=self.device).squeeze()
 
     def _get_keypoint_offsets(self, num_keypoints):
         """Get uniformly-spaced keypoints along a line of unit length, centered at 0."""
