@@ -61,9 +61,9 @@ def main():
 
     bash_command = None
     if sys.platform.startswith("win"):
-        bash_command = "isaaclab.bat -p"
+        bash_command = "NUMBA_CUDA_LOW_OCCUPANCY_WARNINGS=0 isaaclab.bat -p"
     elif sys.platform.startswith("linux"):
-        bash_command = "./isaaclab.sh -p"
+        bash_command = "NUMBA_CUDA_LOW_OCCUPANCY_WARNINGS=0 ./isaaclab.sh -p"
     if args.train:
         bash_command += " scripts/reinforcement_learning/rl_games/train.py --task=Isaac-AutoMate-Assembly-Direct-v0"
         bash_command += f" --seed={str(args.seed)} --max_iterations={str(args.max_iterations)}"
