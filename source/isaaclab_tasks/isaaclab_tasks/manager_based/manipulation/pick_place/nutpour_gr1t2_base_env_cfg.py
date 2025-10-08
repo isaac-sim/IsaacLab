@@ -246,7 +246,7 @@ class TerminationsCfg:
         func=mdp.root_height_below_minimum, params={"minimum_height": 0.5, "asset_cfg": SceneEntityCfg("factory_nut")}
     )
 
-    success = DoneTerm(func=mdp.task_done_nut_pour, params={"relevant_link_name": "right_hand_roll_link"})
+    success = DoneTerm(func=mdp.task_done_nut_pour)
 
 
 @configclass

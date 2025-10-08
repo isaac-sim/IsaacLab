@@ -219,7 +219,7 @@ class TerminationsCfg:
         params={"minimum_height": 0.5, "asset_cfg": SceneEntityCfg("blue_exhaust_pipe")},
     )
 
-    success = DoneTerm(func=mdp.task_done_exhaust_pipe, params={"relevant_link_name": "right_hand_roll_link"})
+    success = DoneTerm(func=mdp.task_done_exhaust_pipe)
 
 
 @configclass
