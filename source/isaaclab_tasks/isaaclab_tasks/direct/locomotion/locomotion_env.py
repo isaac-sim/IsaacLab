@@ -46,6 +46,22 @@ class LocomotionEnv(DirectRLEnv):
         self.basis_vec0 = self.heading_vec.clone()
         self.basis_vec1 = self.up_vec.clone()
 
+        # Get the values from the robot data
+        print("joint_pos_limits_lower", self.robot.data.joint_pos_limits[0, :, 0])
+        print("joint_pos_limits_upper", self.robot.data.joint_pos_limits[0, :, 1])
+        print("joint_stiffness_sim", self.robot.data.joint_stiffness[0])
+        print("joint_damping_sim", self.robot.data.joint_damping[0])
+        print("joint_armature", self.robot.data.joint_armature[0])
+        print("joint_friction_coeff", self.robot.data.joint_friction_coeff[0])
+        print("joint_vel_limits_sim", self.robot.data.joint_vel_limits[0])
+        print("joint_effort_limits_sim", self.robot.data.joint_effort_limits[0])
+        print("joint_control_mode_sim", self.robot.data.joint_control_mode[0])
+        print("joint_pos", self.robot.data.joint_pos[0])
+        print("joint_vel", self.robot.data.joint_vel[0])
+        print("joint_effort", self.robot.data.joint_effort_target[0])
+        print("joint_target", self.robot.data.joint_target[0])
+        print("soft_joint_pos_limits", self.robot.data.soft_joint_pos_limits[0])
+
     def _setup_scene(self):
         self.robot = Articulation(self.cfg.robot)
         # add ground plane

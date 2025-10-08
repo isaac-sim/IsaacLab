@@ -33,7 +33,7 @@ HUMANOID_CFG = ArticulationCfg(
     actuators={
         "body": ImplicitActuatorCfg(
             joint_names_expr=[".*"],
-            control_mode="none",
+            control_mode="position",
             stiffness={
                 ".*_waist.*": 20.0,
                 ".*_upper_arm.*": 10.0,
@@ -81,7 +81,7 @@ HUMANOID_CFG_DIRECT = ArticulationDirectCfg(
     actuators={
         "body": ImplicitActuatorDirectCfg(
             joint_names_expr=[".*"],
-            control_mode="none",
+            control_mode="position",
             stiffness={
                 ".*_waist.*": 20.0,
                 ".*_upper_arm.*": 10.0,
