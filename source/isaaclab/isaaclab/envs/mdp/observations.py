@@ -11,7 +11,7 @@ the observation introduced by the function.
 
 from __future__ import annotations
 
-import torch
+import torch, torch.jit
 from typing import TYPE_CHECKING
 
 import isaaclab.utils.math as math_utils
@@ -479,9 +479,18 @@ def image_latents(
         elif "normals" in data_type:
             images = (images + 1.0) * 0.5
     global _vae_model
+    # if _vae_model is None:
+    #     _vae_model = vae()
+    # latents = _vae_model.encode(images.clone())
     if _vae_model is None:
-        _vae_model = vae()
-    latents = _vae_model.encode(images.clone())
+        # load the model from the pt file in the same directory as this file
+        import os
+        model_path = os.path.join(os.path.dirname(__file__), "vae_model.pt")
+        _vae_model = torch.jit.load(model_path, map_location=env.device)
+        _vae_model.eval()
+    # latents = _vae_model.encode(images.clone())
+    with torch.no_grad():
+        latents = _vae_model(images.squeeze(-1).half())
     # reconstructed = _vae_model.decode(latents)
     # print min max mean decoded image
     # save depth image 0 and reconstructed image 0
