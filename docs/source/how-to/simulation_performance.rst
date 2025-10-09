@@ -1,5 +1,5 @@
-Simulation Performance
-=======================
+Simulation Performance  and Tuning
+====================================
 
 The performance of the simulation can be affected by various factors, including the number of objects in the scene,
 the complexity of the physics simulation, and the hardware being used. Here are some tips to improve performance:
@@ -45,6 +45,12 @@ if the geometry is not part of a dynamic rigid body.
 
 Additional Performance Guides
 -----------------------------
+
+There are many ways to "tune" the performance of the simulation, but the way you choose largely defends on what you are trying to simulate. In general, the first place
+you will want to look for performance gains is with the `physics engine <https://docs.omniverse.nvidia.com/kit/docs/omni_physics/107.3/dev_guide/guides.html>`_. This is because
+specializing the engine to task will reduce the cost of something that must be called every newly rendered frame, so specializing the engine usually leads to large performance gains (in frame rate).
+
+For additional details, you should also checkout these guides!
 
 * `Isaac Sim Performance Optimization Handbook <https://docs.isaacsim.omniverse.nvidia.com/latest/reference_material/sim_performance_optimization_handbook.html>`_
 * `Omni Physics Simulation Performance Guide <https://docs.omniverse.nvidia.com/kit/docs/omni_physics/latest/dev_guide/guides/physics-performance.html>`_
