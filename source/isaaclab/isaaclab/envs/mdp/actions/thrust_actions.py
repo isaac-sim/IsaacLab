@@ -56,27 +56,28 @@ class NavigationAction(JointAction):
         # self.processed_actions[:] = torch.clamp(self.processed_actions, min=-1.0, max=1.0)
 
         clamped_action = torch.clamp(self.processed_actions, min=-1.0, max=1.0)
+        processed_actions = torch.zeros(self.num_envs, 4, device=self.device)
         max_speed = 2.0  # [m/s]
         max_yawrate = torch.pi / 3.0  # [rad/s]
         max_inclination_angle = torch.pi / 4.0  # [rad]
         
-        clamped_action[:, 0] = max_speed * torch.clamp(clamped_action[:, 0], min=0.0, max=1.0)  # only allow positive thrust commands [0, 1]
+        clamped_action[:, 0] += 1.0  # only allow positive thrust commands [0, 2]
 
-        self.processed_actions[:, 0] = (
+        processed_actions[:, 0] = (
             clamped_action[:, 0]
             * torch.cos(max_inclination_angle * clamped_action[:, 1])
             * max_speed
             / 2.0
         )
-        self.processed_actions[:, 1] = 0.0  # set lateral thrust command to 0
-        self.processed_actions[:, 2] = (
+        processed_actions[:, 1] = 0.0  # set lateral thrust command to 0
+        processed_actions[:, 2] = (
             clamped_action[:, 0]
             * torch.sin(max_inclination_angle * clamped_action[:, 1])
             * max_speed
             / 2.0
         )
-        self.processed_actions[:, 3] = clamped_action[:, 2] * max_yawrate
+        processed_actions[:, 3] = clamped_action[:, 2] * max_yawrate
 
-        wrench_command = self._lvc.compute(self.processed_actions)
+        wrench_command = self._lvc.compute(processed_actions)
         thrust_commands = (torch.pinverse(self._asset._allocation_matrix) @ wrench_command.T).T
         self._asset.set_thrust_target(thrust_commands, joint_ids=self._joint_ids)

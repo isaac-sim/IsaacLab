@@ -736,12 +736,12 @@ def last_action(env: ManagerBasedEnv, action_name: str | None = None) -> torch.T
     entire action tensor is returned.
     """
     clamped_action = torch.clamp(env.action_manager.action, min=-1.0, max=1.0)
+    processed_actions = torch.zeros(env.num_envs, 4, device=env.device)
     max_speed = 2.0  # [m/s]
     max_yawrate = torch.pi / 3.0  # [rad/s]
     max_inclination_angle = torch.pi / 4.0  # [rad]
 
-    clamped_action[:, 0] = max_speed * torch.clamp(clamped_action[:, 0], min=0.0, max=1.0)  # only allow positive thrust commands [0, 1]
-    processed_actions = clamped_action.clone()
+    clamped_action[:, 0] += 1.0  # only allow positive thrust commands [0, 2]
     processed_actions[:, 0] = (
         clamped_action[:, 0]
         * torch.cos(max_inclination_angle * clamped_action[:, 1])
@@ -769,8 +769,21 @@ def generated_commands(env: ManagerBasedRLEnv, command_name: str | None = None, 
     current_position_w = asset.data.root_pos_w - env.scene.env_origins
     command = env.command_manager.get_command(command_name)
     current_position_b = math_utils.quat_apply_inverse(asset.data.root_link_quat_w, command[:, :3] - current_position_w)
-    return current_position_b
+    current_position_b_dir = current_position_b / (torch.norm(current_position_b, dim=-1, keepdim=True) + 1e-8)
+    current_position_b_mag = torch.norm(current_position_b, dim=-1, keepdim=True)
+    return torch.cat((current_position_b_dir, current_position_b_mag), dim=-1)
 
+def base_roll_pitch(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
+    """Roll and pitch of the base in the simulation world frame."""
+    # extract the used quantities (to enable type-hinting)
+    asset: Articulation = env.scene[asset_cfg.name]
+    # extract euler angles (in world frame)
+    roll, pitch, _ = math_utils.euler_xyz_from_quat(asset.data.root_quat_w)
+    # normalize angle to [-pi, pi]
+    roll = torch.atan2(torch.sin(roll), torch.cos(roll))
+    pitch = torch.atan2(torch.sin(pitch), torch.cos(pitch))
+
+    return torch.cat((roll.unsqueeze(-1), pitch.unsqueeze(-1)), dim=-1)
 
 """
 Time.
