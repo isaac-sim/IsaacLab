@@ -138,14 +138,13 @@ class ObservationsCfg:
             func=mdp.generated_commands,
             params={"command_name": "target_pose", "asset_cfg": SceneEntityCfg("robot")},
         )
-        base_orientation = ObsTerm(func=mdp.root_quat_w, noise=Unoise(n_min=-0.1, n_max=0.1))
+        base_roll_pitch = ObsTerm(func=mdp.base_roll_pitch, noise=Unoise(n_min=-0.1, n_max=0.1))
         base_lin_vel = ObsTerm(func=mdp.base_lin_vel, noise=Unoise(n_min=-0.1, n_max=0.1))
         base_ang_vel = ObsTerm(func=mdp.base_ang_vel, noise=Unoise(n_min=-0.2, n_max=0.2))
         last_action = ObsTerm(func=mdp.last_action, noise=Unoise(n_min=-0.1, n_max=0.1))
         depth_latent = ObsTerm(
             func=mdp.image_latents,
             params={"sensor_cfg": SceneEntityCfg("depth_camera"), "data_type": "distance_to_image_plane", "vae": VAEImageEncoder},
-            scale=0.1,
         )
 
         def __post_init__(self):
@@ -200,11 +199,11 @@ class RewardsCfg:
                                  "command_name": "target_pose",
                                  })
     # l2_goal_dist = RewTerm(func=mdp.distance_to_goal_l2, weight=-0.05)
-    # velocity_reward = RewTerm(func=mdp.velocity_to_goal_reward, weight=0.5,
-    #                           params={
-    #                               "asset_cfg": SceneEntityCfg("robot"), 
-    #                               "command_name": "target_pose",
-    #                               })
+    velocity_reward = RewTerm(func=mdp.velocity_to_goal_reward, weight=0.5,
+                              params={
+                                  "asset_cfg": SceneEntityCfg("robot"), 
+                                  "command_name": "target_pose",
+                                  })
     # crash_penalty = RewTerm(func=mdp.undesired_contacts, weight=-20.0, params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*"), "threshold": 1.0})
     termination_penalty = RewTerm(
         func=mdp.is_terminated,
