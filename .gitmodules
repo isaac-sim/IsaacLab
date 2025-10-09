@@ -1,3 +1,6 @@
 [submodule "Isaaclab_Parkour"]
 	path = Isaaclab_Parkour
 	url = git@github.com:muzi2018/Isaaclab_Parkour.git
+[submodule "go2_parkour_deploy"]
+	path = go2_parkour_deploy
+	url = git@github.com:muzi2018/go2_parkour_deploy.git
