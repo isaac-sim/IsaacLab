@@ -52,9 +52,8 @@ class NavigationAction(JointAction):
         
         
     def apply_actions(self):
-        # set joint navigation targets
-        # self.processed_actions[:] = torch.clamp(self.processed_actions, min=-1.0, max=1.0)
-
+        """Apply the processed actions as velocity commands."""
+        # process the actions to be in the correct range
         clamped_action = torch.clamp(self.processed_actions, min=-1.0, max=1.0)
         processed_actions = torch.zeros(self.num_envs, 4, device=self.device)
         max_speed = 2.0  # [m/s]
@@ -83,5 +82,6 @@ class NavigationAction(JointAction):
         self._asset.set_thrust_target(thrust_commands, joint_ids=self._joint_ids)
 
     def reset(self, env_ids: torch.Tensor):
+        """Reset the controller internal states for the given environments."""
         super().reset(env_ids)
         self._lvc.reset_idx(env_ids)  # reset the controller internal states
