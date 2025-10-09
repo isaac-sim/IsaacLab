@@ -79,12 +79,9 @@ def terrain_levels_vel(
     current_position = asset.data.root_pos_w - env.scene.env_origins
     position_error = torch.norm(target_position_w[env_ids] - current_position[env_ids], dim=1)
 
-    # move down those that have crashed
-    crashed = env.termination_manager.terminated[env_ids]
     # robots that are within 1m range should progress to harder terrains
     move_up = position_error < 1.0
-    # move_down = ~move_up
-    move_down = crashed.clone()
+    move_down = env.termination_manager.terminated[env_ids]
     # update terrain levels
     terrain.update_env_origins(env_ids, move_up, move_down)
     # return the mean terrain level
