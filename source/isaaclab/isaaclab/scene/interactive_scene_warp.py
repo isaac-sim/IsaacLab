@@ -17,7 +17,7 @@ from pxr import PhysxSchema
 import warp as wp
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import ArticulationDirect, ArticulationCfg, AssetBaseCfg
+from isaaclab.assets import ArticulationWarp, ArticulationWarpCfg, AssetBaseCfg
 from isaaclab.cloner import GridCloner
 from isaaclab.sensors import ContactSensorCfg, SensorBase, SensorBaseCfg
 from isaaclab.sim import SimulationContext
@@ -27,7 +27,7 @@ from isaaclab.terrains import TerrainImporter, TerrainImporterCfg
 from .interactive_scene_cfg import InteractiveSceneCfg
 
 
-class InteractiveSceneDirect:
+class InteractiveSceneWarp:
     """A scene that contains entities added to the simulation.
 
     The interactive scene parses the :class:`InteractiveSceneCfg` class to create the scene.
@@ -345,7 +345,7 @@ class InteractiveSceneDirect:
         return self._terrain
 
     @property
-    def articulations(self) -> dict[str, ArticulationDirect]:
+    def articulations(self) -> dict[str, ArticulationWarp]:
         """A dictionary of articulations in the scene."""
         return self._articulations
 

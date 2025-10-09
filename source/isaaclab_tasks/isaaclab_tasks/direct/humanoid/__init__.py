@@ -28,11 +28,11 @@ gym.register(
 )
 
 gym.register(
-    id="Isaac-Humanoid-Direct-Direct-v0",
-    entry_point=f"{__name__}.humanoid_direct_env:HumanoidDirectEnv",
+    id="Isaac-Humanoid-Warp-v0",
+    entry_point=f"{__name__}.humanoid_warp_env:HumanoidWarpEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": f"{__name__}.humanoid_direct_env:HumanoidDirectEnvCfg",
+        "env_cfg_entry_point": f"{__name__}.humanoid_warp_env:HumanoidWarpEnvCfg",
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_cfg.yaml",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:HumanoidPPORunnerCfg",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_ppo_cfg.yaml",

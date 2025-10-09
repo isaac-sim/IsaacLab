@@ -13,45 +13,10 @@ from isaaclab.sim._impl.newton_manager import NewtonManager
 from isaaclab.utils.buffers import TimestampedWarpBuffer
 
 from .kernels import *
-
-def deprecate(*dargs, **dkwargs):
-    def decorator(func):
-        # Get name safely (property or normal function)
-        if isinstance(func, property):
-            name = func.fget.__name__
-        else:
-            name = getattr(func, "__name__", repr(func))
-
-        replacement = dkwargs.get("replacement")
-        if replacement:
-            omni.log.warn(
-                f"DeprecationWarning: {name} is deprecated and will be removed "
-                f"in a future version. Use {replacement} instead."
-            )
-        else:
-            omni.log.warn(
-                f"DeprecationWarning: {name} is deprecated and will be removed in a future version."
-            )
-
-        # Return a wrapped function (or property) instead of calling it
-        if isinstance(func, property):
-            return property(func.fget, func.fset, func.fdel, func.__doc__)
-        else:
-            @functools.wraps(func)
-            def wrapped(*args, **kwargs):
-                return func(*args, **kwargs)
-            return wrapped
-
-    return decorator
-
-def warn_overhead_cost(*args, **kwargs):
-    def wrapper(func):
-        omni.log.warn(f"OverheadWarning: {func.__name__} is expensive and should be avoided. Instead of getting sliced data, use the whole data in the target kernel.")
-        return func(*args, **kwargs)
-    return wrapper
+from isaaclab.utils.helpers import deprecated, warn_overhead_cost
 
 
-class ArticulationDataDirect:
+class ArticulationDataWarp:
     """Data container for an articulation.
 
     This class contains the data for an articulation in the simulation. The data includes the state of
@@ -99,25 +64,17 @@ class ArticulationDataDirect:
 
         # Initialize the lazy buffers.
         # -- link frame w.r.t. world frame
-        #self._root_link_pose_w = TimestampedWarpBuffer(shape=(self._root_newton_view.count), dtype=wp.transformf)
         self._root_link_vel_w = TimestampedWarpBuffer(shape=(self._root_newton_view.count), dtype=wp.spatial_vectorf)
         self._root_link_vel_b = TimestampedWarpBuffer(shape=(self._root_newton_view.count), dtype=wp.spatial_vectorf)
-        #self._body_link_pose_w = TimestampedWarpBuffer(shape=(self._root_newton_view.count, self._root_newton_view.num_bodies), dtype=wp.transformf)
         self._body_link_vel_w = TimestampedWarpBuffer(shape=(self._root_newton_view.count, self._root_newton_view.link_count), dtype=wp.spatial_vectorf)
         self._projected_gravity_b = TimestampedWarpBuffer(shape=(self._root_newton_view.count, 3), dtype=wp.vec3f)
         self._heading_w = TimestampedWarpBuffer(shape=(self._root_newton_view.count), dtype=wp.float32)
-        # -- com frame w.r.t. link frame
-        #self._body_com_position_b = TimestampedWarpBuffer(shape=(self._root_newton_view.count, self._root_newton_view.num_bodies), dtype=wp.vec3f)
         # -- com frame w.r.t. world frame
         self._root_com_pose_w = TimestampedWarpBuffer(shape=(self._root_newton_view.count), dtype=wp.transformf)
-        #self._root_com_vel_w = TimestampedWarpBuffer(shape=(self._root_newton_view.count), dtype=wp.spatial_vectorf)
         self._root_com_vel_b = TimestampedWarpBuffer(shape=(self._root_newton_view.count), dtype=wp.spatial_vectorf)
         self._body_com_pose_w = TimestampedWarpBuffer(shape=(self._root_newton_view.count, self._root_newton_view.link_count), dtype=wp.transformf)
-        #self._body_com_vel_w = TimestampedWarpBuffer(shape=(self._root_newton_view.count, self._root_newton_view.num_bodies), dtype=wp.spatial_vectorf)
         self._body_com_acc_w = TimestampedWarpBuffer(shape=(self._root_newton_view.count, self._root_newton_view.link_count), dtype=wp.spatial_vectorf)
         # -- joint state
-        #self._joint_pos = TimestampedWarpBuffer(shape=(self._root_newton_view.count, self._root_newton_view.num_joints), dtype=wp.float32)
-        #self._joint_vel = TimestampedWarpBuffer(shape=(self._root_newton_view.count, self._root_newton_view.num_joints), dtype=wp.float32)
         self._joint_acc = TimestampedWarpBuffer(shape=(self._root_newton_view.count, self._root_newton_view.joint_dof_count), dtype=wp.float32)
         #self._body_incoming_joint_wrench_b = TimestampedWarpBuffer()
 
@@ -668,8 +625,8 @@ class ArticulationDataDirect:
             self._body_com_pose_w.timestamp = self._sim_timestamp
         return self._body_com_pose_w.data
 
-    @warn_overhead_cost
     @property
+    @warn_overhead_cost("body_link_pose_w and/or body_com_vel_w", "This function outputs the state of the link frame, containing both pose and velocity. However, Newton outputs pose and velocities separately. Consider using only one of them instead. If both are required, use both body_link_pose_w and body_com_vel_w instead.")
     def body_state_w(self) -> wp.array:
         """State of all bodies ``[wp.transformf, wp.spatial_vectorf]`` in simulation world frame.
 
@@ -692,8 +649,8 @@ class ArticulationDataDirect:
         )
         return state
 
-    @warn_overhead_cost
     @property
+    @warn_overhead_cost("body_link_pose_w and/or body_link_vel_w", "This function outputs the state of the link frame, containing both pose and velocity. However, Newton outputs pose and velocities separately. Consider using only one of them instead. If both are required, use both body_link_pose_w and body_link_vel_w instead.")
     def body_link_state_w(self) -> wp.array:
         """State of all bodies' link frame ``[wp.transformf, wp.spatial_vectorf]`` in simulation world frame.
 
@@ -715,8 +672,8 @@ class ArticulationDataDirect:
         )
         return state
 
-    @warn_overhead_cost
     @property
+    @warn_overhead_cost("body_com_pose_w and/or body_com_vel_w", "This function outputs the state of the CoM, containing both pose and velocity. However, Newton outputs pose and velocities separately. Consider using only one of them instead. If both are required, use both body_com_pose_w and body_com_vel_w instead.")
     def body_com_state_w(self) -> wp.array:
         """State of all bodies center of mass ``[wp.transformf, wp.spatial_vectorf]`` in simulation world frame.
 
@@ -763,8 +720,8 @@ class ArticulationDataDirect:
             self._body_com_acc_w.timestamp = self._sim_timestamp
         return self._body_com_acc_w.data
 
-    @warn_overhead_cost
     @property
+    @warn_overhead_cost("body_com_pose_b", "This function outputs the pose of the CoM, containing both position and orientation. However, in Newton, the CoM is always aligned with the link frame. This means that the quaternion is always [1, 0, 0, 0]. Consider using the position only instead.")
     def body_com_pose_b(self) -> wp.array:
         """Center of mass pose ``wp.transformf`` of all bodies in their respective body's link frames.
 
@@ -910,8 +867,8 @@ class ArticulationDataDirect:
     # Sliced properties.
     ##
 
-    @warn_overhead_cost
     @property
+    @warn_overhead_cost("root_link_pose_w", "This function extracts the position from the pose (containing both position and orientation). Consider using the whole of the pose instead.")
     def root_link_pos_w(self) -> wp.array:
         """Root link position ``wp.vec3f`` in simulation world frame. Shape is (num_instances).
 
@@ -928,8 +885,8 @@ class ArticulationDataDirect:
         )
         return out
 
-    @warn_overhead_cost
     @property
+    @warn_overhead_cost("root_link_pose_w", "This function extracts the position from the pose (containing both position and orientation). Consider using the whole of the pose instead.")
     def root_link_quat_w(self) -> wp.array:
         """Root link orientation ``wp.quatf`` in simulation world frame. Shape is (num_instances,).
 
@@ -947,8 +904,8 @@ class ArticulationDataDirect:
         )
         return out
 
-    @warn_overhead_cost
     @property
+    @warn_overhead_cost("root_link_vel_w", "This function extracts the linear velocity from the velocities (containing both linear and angular velocities). Consider using the whole of the velocities instead.")
     def root_link_lin_vel_w(self) -> wp.array:
         """Root linear velocity ``wp.vec3f`` in simulation world frame. Shape is (num_instances).
 
@@ -965,8 +922,8 @@ class ArticulationDataDirect:
         )
         return out
 
-    @warn_overhead_cost
     @property
+    @warn_overhead_cost("root_link_vel_w", "This function extracts the angular velocity from the velocities (containing both linear and angular velocities). Consider using the whole of the velocities instead.")
     def root_link_ang_vel_w(self) -> wp.array:
         """Root link angular velocity ``wp.vec3f`` in simulation world frame. Shape is (num_instances).
 
@@ -983,8 +940,8 @@ class ArticulationDataDirect:
         )
         return out
 
-    @warn_overhead_cost
     @property
+    @warn_overhead_cost("root_com_pose_w", "This function extracts the position from the pose (containing both position and orientation). Consider using the whole of the pose instead.")
     def root_com_pos_w(self) -> wp.array:
         """Root center of mass position in simulation world frame. Shape is (num_instances, 3).
 
@@ -1001,8 +958,8 @@ class ArticulationDataDirect:
         )
         return out
     
-    @warn_overhead_cost
     @property
+    @warn_overhead_cost("root_com_pose_w", "This function extracts the orientation from the pose (containing both position and orientation). Consider using the whole of the pose instead.")
     def root_com_quat_w(self) -> wp.array:
         """Root center of mass orientation ``wp.quatf`` in simulation world frame. Shape is (num_instances,).
 
@@ -1020,8 +977,8 @@ class ArticulationDataDirect:
         )
         return out
 
-    @warn_overhead_cost
     @property
+    @warn_overhead_cost("root_com_vel_w", "This function extracts the linear velocity from the velocities (containing both linear and angular velocities). Consider using the whole of the velocities instead.")
     def root_com_lin_vel_w(self) -> wp.array:
         """Root center of mass linear velocity ``wp.vec3f`` in simulation world frame. Shape is (num_instances,).
 
@@ -1038,8 +995,8 @@ class ArticulationDataDirect:
         )
         return out
 
-    @warn_overhead_cost
     @property
+    @warn_overhead_cost("root_com_vel_w", "This function extracts the angular velocity from the velocities (containing both linear and angular velocities). Consider using the whole of the velocities instead.")
     def root_com_ang_vel_w(self) -> wp.array:
         """Root center of mass angular velocity ``wp.vec3f`` in simulation world frame. Shape is (num_instances).
 
@@ -1056,8 +1013,8 @@ class ArticulationDataDirect:
         )
         return out
 
-    @warn_overhead_cost
     @property
+    @warn_overhead_cost("body_link_pose_w", "This function extracts the position from the pose (containing both position and orientation). Consider using the whole of the pose instead.")
     def body_link_pos_w(self) -> wp.array:
         """Positions of all bodies in simulation world frame ``wp.vec3f``. Shape is (num_instances, num_bodies).
 
@@ -1074,8 +1031,8 @@ class ArticulationDataDirect:
         )
         return out
 
-    @warn_overhead_cost
     @property
+    @warn_overhead_cost("body_link_pose_w", "This function extracts the orientation from the pose (containing both position and orientation). Consider using the whole of the pose instead.")
     def body_link_quat_w(self) -> wp.array:
         """Orientation ``wp.quatf`` of all bodies in simulation world frame. Shape is (num_instances, num_bodies).
 
@@ -1093,8 +1050,8 @@ class ArticulationDataDirect:
         )
         return out
 
-    @warn_overhead_cost
     @property
+    @warn_overhead_cost("body_link_vel_w", "This function extracts the linear velocity from the velocities (containing both linear and angular velocities). Consider using the whole of the velocities instead.")
     def body_link_lin_vel_w(self) -> wp.array:
         """Linear velocity ``wp.vec3f`` of all bodies in simulation world frame. Shape is (num_instances, num_bodies).
 
@@ -1111,8 +1068,8 @@ class ArticulationDataDirect:
         )
         return out
 
-    @warn_overhead_cost
     @property
+    @warn_overhead_cost("body_link_vel_w", "This function extracts the angular velocity from the velocities (containing both linear and angular velocities). Consider using the whole of the velocities instead.")
     def body_link_ang_vel_w(self) -> wp.array:
         """Angular velocity ``wp.vec3f`` of all bodies in simulation world frame. Shape is (num_instances, num_bodies).
 
@@ -1129,8 +1086,8 @@ class ArticulationDataDirect:
         )
         return out
 
-    @warn_overhead_cost
     @property
+    @warn_overhead_cost("body_com_pose_w", "This function extracts the position from the pose (containing both position and orientation). Consider using the whole of the pose instead.")
     def body_com_pos_w(self) -> wp.array:
         """Positions of all bodies in simulation world frame ``wp.vec3f``. Shape is (num_instances, num_bodies).
 
@@ -1147,8 +1104,8 @@ class ArticulationDataDirect:
         )
         return out
 
-    @warn_overhead_cost
     @property
+    @warn_overhead_cost("body_com_pose_w", "This function extracts the orientation from the pose (containing both position and orientation). Consider using the whole of the pose instead.")
     def body_com_quat_w(self) -> wp.array:
         """Orientation ``wp.quatf`` of all bodies in simulation world frame. Shape is (num_instances, num_bodies).
 
@@ -1166,8 +1123,8 @@ class ArticulationDataDirect:
         )
         return out
 
-    @warn_overhead_cost
     @property
+    @warn_overhead_cost("body_com_vel_w", "This function extracts the linear velocity from the velocities (containing both linear and angular velocities). Consider using the whole of the velocities instead.")
     def body_com_lin_vel_w(self) -> wp.array:
         """Linear velocity ``wp.vec3f`` of all bodies in simulation world frame. Shape is (num_instances, num_bodies).
 
@@ -1184,8 +1141,8 @@ class ArticulationDataDirect:
         )
         return out
 
-    @warn_overhead_cost
     @property
+    @warn_overhead_cost("body_com_vel_w", "This function extracts the angular velocity from the velocities (containing both linear and angular velocities). Consider using the whole of the velocities instead.")
     def body_com_ang_vel_w(self) -> wp.array:
         """Angular velocity ``wp.vec3f`` of all bodies in simulation world frame. Shape is (num_instances, num_bodies).
 
@@ -1202,8 +1159,8 @@ class ArticulationDataDirect:
         )
         return out
 
-    @warn_overhead_cost
     @property
+    @warn_overhead_cost("body_com_acc_w", "This function extracts the linear acceleration from the accelerations (containing both linear and angular accelerations). Consider using the whole of the accelerations instead.")
     def body_com_lin_acc_w(self) -> wp.array:
         """Linear acceleration ``wp.vec3f`` of all bodies in simulation world frame. Shape is (num_instances, num_bodies).
 
@@ -1220,8 +1177,8 @@ class ArticulationDataDirect:
         )
         return out
 
-    @warn_overhead_cost
     @property
+    @warn_overhead_cost("body_com_acc_w", "This function extracts the angular acceleration from the accelerations (containing both linear and angular accelerations). Consider using the whole of the accelerations instead.")
     def body_com_ang_acc_w(self) -> wp.array:
         """Angular acceleration ``wp.vec3f`` of all bodies in simulation world frame. Shape is (num_instances, num_bodies).
 
@@ -1238,8 +1195,8 @@ class ArticulationDataDirect:
         )
         return out
 
-    @warn_overhead_cost
     @property
+    @warn_overhead_cost("body_com_pose_b", "This function extracts the orientation from the pose (containing both position and orientation). Consider using the whole of the pose instead.")
     def body_com_quat_b(self) -> wp.array:
         """Orientation (x, y, z, w) of the principle axis of inertia of all of the bodies in their
         respective link frames. Shape is (num_instances, num_bodies, 4).
@@ -1257,8 +1214,8 @@ class ArticulationDataDirect:
         )
         return out
 
-    @warn_overhead_cost
     @property
+    @warn_overhead_cost("root_link_vel_b", "This function extracts the linear velocity from the velocities (containing both linear and angular velocities). Consider using the whole of the velocities instead.")
     def root_link_lin_vel_b(self) -> wp.array:
         """Root link linear velocity ``wp.vec3f`` in base frame. Shape is (num_instances).
 
@@ -1276,8 +1233,8 @@ class ArticulationDataDirect:
         )
         return out
 
-    @warn_overhead_cost
     @property
+    @warn_overhead_cost("root_link_vel_b", "This function extracts the angular velocity from the velocities (containing both linear and angular velocities). Consider using the whole of the velocities instead.")
     def root_link_ang_vel_b(self) -> wp.array:
         """Root link angular velocity ``wp.vec3f`` in base world frame. Shape is (num_instances).
 
@@ -1295,8 +1252,8 @@ class ArticulationDataDirect:
         )
         return out
 
-    @warn_overhead_cost
     @property
+    @warn_overhead_cost("root_com_vel_b", "This function extracts the linear velocity from the velocities (containing both linear and angular velocities). Consider using the whole of the velocities instead.")
     def root_com_lin_vel_b(self) -> wp.array:
         """Root center of mass linear velocity ``wp.vec3f`` in base frame. Shape is (num_instances).
 
@@ -1314,8 +1271,8 @@ class ArticulationDataDirect:
         )
         return out
 
-    @warn_overhead_cost
     @property
+    @warn_overhead_cost("root_com_vel_b", "This function extracts the angular velocity from the velocities (containing both linear and angular velocities). Consider using the whole of the velocities instead.")
     def root_com_ang_vel_b(self) -> wp.array:
         """Root center of mass angular velocity in base world frame. Shape is (num_instances, 3).
 
@@ -1333,8 +1290,8 @@ class ArticulationDataDirect:
         )
         return out
 
-    @warn_overhead_cost
     @property
+    @warn_overhead_cost("joint_pos_limits_lower or joint_pos_limits_upper", "This function combines both the lower and upper limits into a single array, use it only if necessary.")
     def joint_pos_limits(self) -> wp.array:
         """Joint position limits provided to the simulation. Shape is (num_instances, num_joints, 2).
 
@@ -1357,7 +1314,7 @@ class ArticulationDataDirect:
     ##
 
     @property
-    @deprecate(replacement="default_root_pose")
+    @deprecated("default_root_pose")
     def default_root_state(self) -> wp.array:
         """Same as :attr:`default_root_pose`."""
         state = wp.zeros((self._root_newton_view.count), dtype=vec13f, device=self.device)
@@ -1374,142 +1331,132 @@ class ArticulationDataDirect:
         return state
 
     @property
-    @deprecate(replacement="root_link_pose_w")
+    @deprecated("root_link_pose_w")
     def root_pose_w(self) -> wp.array:
         """Same as :attr:`root_link_pose_w`."""
         return self.sim_bind_root_link_pose_w
 
     @property
-    @deprecate(replacement="root_link_pos_w")
+    @deprecated("root_link_pos_w")
     def root_pos_w(self) -> wp.array:
         """Same as :attr:`root_link_pos_w`."""
         return self.root_link_pos_w
 
     @property
-    @deprecate(replacement="root_link_quat_w")
+    @deprecated("root_link_quat_w")
     def root_quat_w(self) -> wp.array:
         """Same as :attr:`root_link_quat_w`."""
         return self.root_link_quat_w
 
     @property
-    @deprecate(replacement="root_com_vel_w")
+    @deprecated("root_com_vel_w")
     def root_vel_w(self) -> wp.array:
         """Same as :attr:`root_com_vel_w`."""
         return self.sim_bind_root_com_vel_w
 
     @property
-    @deprecate(replacement="root_com_lin_vel_w")
+    @deprecated("root_com_lin_vel_w")
     def root_lin_vel_w(self) -> wp.array:
         """Same as :attr:`root_com_lin_vel_w`."""
         return self.root_com_lin_vel_w
 
     @property
-    @deprecate(replacement="root_com_ang_vel_w")
+    @deprecated("root_com_ang_vel_w")
     def root_ang_vel_w(self) -> wp.array:
         """Same as :attr:`root_com_ang_vel_w`."""
         return self.root_com_ang_vel_w
 
     @property
-    @deprecate(replacement="root_com_lin_vel_b")
+    @deprecated("root_com_lin_vel_b")
     def root_lin_vel_b(self) -> wp.array:
         """Same as :attr:`root_com_lin_vel_b`."""
         return self.root_com_lin_vel_b
 
     @property
-    @deprecate(replacement="root_com_ang_vel_b")
+    @deprecated("root_com_ang_vel_b")
     def root_ang_vel_b(self) -> wp.array:
         """Same as :attr:`root_com_ang_vel_b`."""
         return self.root_com_ang_vel_b
 
     @property
-    @deprecate(replacement="body_link_pose_w")
+    @deprecated("body_link_pose_w")
     def body_pose_w(self) -> wp.array:
         """Same as :attr:`body_link_pose_w`."""
         return self.sim_bind_body_link_pose_w
 
     @property
-    @deprecate(replacement="body_link_pos_w")
+    @deprecated("body_link_pos_w")
     def body_pos_w(self) -> wp.array:
         """Same as :attr:`body_link_pos_w`."""
         return self.body_link_pos_w
 
     @property
-    @deprecate(replacement="body_link_quat_w")
+    @deprecated("body_link_quat_w")
     def body_quat_w(self) -> wp.array:
         """Same as :attr:`body_link_quat_w`."""
         return self.body_link_quat_w
 
     @property
-    @deprecate(replacement="body_com_vel_w")
+    @deprecated("body_com_vel_w")
     def body_vel_w(self) -> wp.array:
         """Same as :attr:`body_com_vel_w`."""
         return self.sim_bind_body_com_vel_w
 
     @property
-    @deprecate(replacement="body_com_lin_vel_w")
+    @deprecated("body_com_lin_vel_w")
     def body_lin_vel_w(self) -> wp.array:
         """Same as :attr:`body_com_lin_vel_w`."""
         return self.body_com_lin_vel_w
 
     @property
-    @deprecate(replacement="body_com_ang_vel_w")
+    @deprecated("body_com_ang_vel_w")
     def body_ang_vel_w(self) -> wp.array:
         """Same as :attr:`body_com_ang_vel_w`."""
         return self.body_com_ang_vel_w
 
     @property
-    @deprecate(replacement="body_com_acc_w")
+    @deprecated("body_com_acc_w")
     def body_acc_w(self) -> wp.array:
         """Same as :attr:`body_com_acc_w`."""
         return self.body_com_acc_w
 
     @property
-    @deprecate(replacement="body_com_lin_acc_w")
+    @deprecated("body_com_lin_acc_w")
     def body_lin_acc_w(self) -> wp.array:
         """Same as :attr:`body_com_lin_acc_w`."""
         return self.body_com_lin_acc_w
 
     @property
-    @deprecate(replacement="body_com_ang_acc_w")
+    @deprecated("body_com_ang_acc_w")
     def body_ang_acc_w(self) -> wp.array:
         """Same as :attr:`body_com_ang_acc_w`."""
         return self.body_com_ang_acc_w
 
     @property
-    @deprecate(replacement="body_com_pos_b")
+    @deprecated("body_com_pos_b")
     def com_pos_b(self) -> wp.array:
         """Same as :attr:`body_com_pos_b`."""
         return self.sim_bind_body_com_pos_b
 
     @property
-    @deprecate(replacement="body_com_quat_b")
+    @deprecated("body_com_quat_b")
     def com_quat_b(self) -> wp.array:
         """Same as :attr:`body_com_quat_b`."""
         return self.body_com_quat_b
 
     @property
-    @deprecate(replacement="joint_pos_limits")
+    @deprecated("joint_pos_limits")
     def joint_limits(self) -> wp.array:
         """Deprecated property. Please use :attr:`joint_pos_limits` instead."""
-        omni.log.warn(
-            "The `joint_limits` property will be deprecated in a future release. Please use `joint_pos_limits` instead."
-        )
         return self.joint_pos_limits
 
+    @property
+    @deprecated("joint_friction_coeff")
     def joint_friction(self) -> wp.array:
         """Deprecated property. Please use :attr:`joint_friction_coeff` instead."""
-        omni.log.warn(
-            "The `joint_friction` property will be deprecated in a future release. Please use"
-            " `joint_friction_coeff` instead."
-        )
         return self.sim_bind_joint_friction_coeff
 
-    @deprecate(replacement="fixed_tendon_pos_limits")
     @property
+    @deprecated("fixed_tendon_pos_limits")
     def fixed_tendon_limit(self) -> wp.array:
-        """Deprecated property. Please use :attr:`fixed_tendon_pos_limits` instead."""
-        omni.log.warn(
-            "The `fixed_tendon_limit` property will be deprecated in a future release. Please use"
-            " `fixed_tendon_pos_limits` instead."
-        )
         return self.fixed_tendon_pos_limits

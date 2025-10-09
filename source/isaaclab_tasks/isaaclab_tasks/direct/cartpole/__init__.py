@@ -29,11 +29,11 @@ gym.register(
 )
 
 gym.register(
-    id="Isaac-Cartpole-Direct-Direct-v0",
-    entry_point=f"{__name__}.cartpole_direct_env:CartpoleDirectEnv",
+    id="Isaac-Cartpole-Warp-v0",
+    entry_point=f"{__name__}.cartpole_warp_env:CartpoleWarpEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": f"{__name__}.cartpole_direct_env:CartpoleDirectEnvCfg",
+        "env_cfg_entry_point": f"{__name__}.cartpole_warp_env:CartpoleWarpEnvCfg",
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_cfg.yaml",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:CartpolePPORunnerCfg",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_ppo_cfg.yaml",

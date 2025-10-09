@@ -28,7 +28,7 @@ gym.register(
 )
 
 gym.register(
-    id="Isaac-Ant-Direct-Direct-v0",
+    id="Isaac-Ant-Warp-v0",
     entry_point=f"{__name__}.ant_env_warp:AntWarpEnv",
     disable_env_checker=True,
     kwargs={

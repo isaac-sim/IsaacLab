@@ -16,8 +16,8 @@ from isaacsim.core.utils.torch.rotations import compute_rot as compute_rot_torch
 from isaacsim.core.utils.torch.rotations import quat_conjugate as quat_conjugate_torch
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import ArticulationDirect
-from isaaclab.envs import DirectRLEnvDirect, DirectRLEnvCfg
+from isaaclab.assets import ArticulationWarp
+from isaaclab.envs import DirectRLEnvWarp, DirectRLEnvCfg
 
 @wp.func
 def fmod(x: wp.float32, y: wp.float32) -> wp.float32:
@@ -314,7 +314,7 @@ def initialize_state(
     targets[env_index] = env_origins[env_index]
     targets[env_index] += wp.static(wp.vec3f(1000.0, 0.0, 0.0))
 
-class LocomotionWarpEnv(DirectRLEnvDirect):
+class LocomotionWarpEnv(DirectRLEnvWarp):
     cfg: DirectRLEnvCfg
 
     def __init__(self, cfg: DirectRLEnvCfg, render_mode: str | None = None, **kwargs):
@@ -392,7 +392,7 @@ class LocomotionWarpEnv(DirectRLEnvDirect):
         print("soft_joint_pos_limits", wp.to_torch(self.robot.data.soft_joint_pos_limits)[0])
 
     def _setup_scene(self) -> None:
-        self.robot = ArticulationDirect(self.cfg.robot)
+        self.robot = ArticulationWarp(self.cfg.robot)
         # add ground plane
         self.cfg.terrain.num_envs = self.scene.cfg.num_envs
         self.cfg.terrain.env_spacing = self.scene.cfg.env_spacing

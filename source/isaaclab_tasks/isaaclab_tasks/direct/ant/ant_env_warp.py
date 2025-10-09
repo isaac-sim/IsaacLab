@@ -5,10 +5,10 @@
 
 from __future__ import annotations
 
-from isaaclab_assets import ANT_CFG_DIRECT
+from isaaclab_assets import ANT_CFG_WARP
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import ArticulationDirectCfg
+from isaaclab.assets import ArticulationWarpCfg
 from isaaclab.envs import DirectRLEnvCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
@@ -68,7 +68,7 @@ class AntWarpEnvCfg(DirectRLEnvCfg):
     )
 
     # robot
-    robot: ArticulationDirectCfg = ANT_CFG_DIRECT.replace(prim_path="/World/envs/env_.*/Robot")
+    robot: ArticulationWarpCfg = ANT_CFG_WARP.replace(prim_path="/World/envs/env_.*/Robot")
     joint_gears: list = [15, 15, 15, 15, 15, 15, 15, 15]
 
     heading_weight: float = 0.5

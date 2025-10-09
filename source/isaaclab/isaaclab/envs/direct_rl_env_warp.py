@@ -26,7 +26,7 @@ from isaacsim.core.simulation_manager import SimulationManager
 from isaacsim.core.version import get_version
 
 from isaaclab.managers import EventManager
-from isaaclab.scene import InteractiveSceneDirect
+from isaaclab.scene import InteractiveSceneWarp
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils import attach_stage_to_usd_context, use_stage
 from isaaclab.utils.noise import NoiseModel
@@ -54,7 +54,7 @@ def add_to_env(
     env_index = wp.tid()
     data[env_index] += value
 
-class DirectRLEnvDirect(gym.Env):
+class DirectRLEnvWarp(gym.Env):
     """The superclass for the direct workflow to design environments.
 
     This class implements the core functionality for reinforcement learning (RL)
@@ -143,7 +143,7 @@ class DirectRLEnvDirect(gym.Env):
         with Timer("[INFO]: Time taken for scene creation", "scene_creation"):
             # set the stage context for scene creation steps which use the stage
             with use_stage(self.sim.get_initial_stage()):
-                self.scene = InteractiveSceneDirect(self.cfg.scene)
+                self.scene = InteractiveSceneWarp(self.cfg.scene)
                 self._setup_scene()
                 attach_stage_to_usd_context()
         print("[INFO]: Scene manager: ", self.scene)
@@ -220,10 +220,8 @@ class DirectRLEnvDirect(gym.Env):
         self.torch_episode_length_buf: torch.Tensor = None
 
         # Graph captured by torch
-        self.step_graph = None
         self.graph_end_step = None
-        self.graph_start_step = None
-        self.graph_captured = False
+        self.graph_action_step = None
 
         # setup the action and observation spaces for Gym
         self._configure_gym_env_spaces()
@@ -367,10 +365,9 @@ class DirectRLEnvDirect(gym.Env):
         """
 
         action = action.to(self.device)
-    
         # add action noise
-        #if self.cfg.action_noise_model:
-        #    action = self._action_noise_model(action)
+        if self.cfg.action_noise_model:
+            action = self._action_noise_model(action)
 
         # process actions
         self._pre_physics_step(wp.from_torch(action))
@@ -385,23 +382,24 @@ class DirectRLEnvDirect(gym.Env):
             # set actions into buffers
             # simulate
             with Timer(name="apply_action", msg="Action processing step took:", enable=True, format="us"):
-                if self.graph_start_step is None:
+                if self.graph_action_step is None:
                     with wp.ScopedCapture() as capture:
                         self.step_warp_action()
-                    self.graph_start_step = capture.graph
+                    self.graph_action_step = capture.graph
                 else:
-                    wp.capture_launch(self.graph_start_step)
+                    wp.capture_launch(self.graph_action_step)
 
             with Timer(name="simulate", msg="Newton simulation step took:", enable=True, format="us"):
                 self.sim.step(render=False)
             # render between steps only if the GUI or an RTX sensor needs it
             # note: we assume the render interval to be the shortest accepted rendering interval.
             #    If a camera needs rendering at a faster frequency, this will lead to unexpected behavior.
-            #if self._sim_step_counter % self.cfg.sim.render_interval == 0 and is_rendering:
-            #    self.sim.render()
+            if self._sim_step_counter % self.cfg.sim.render_interval == 0 and is_rendering:
+                self.sim.render()
             # update buffers at sim dt
             self.scene.update(dt=self.physics_dt)
 
+        self.common_step_counter += 1  # total step (common for all envs)
         with Timer(name="post_processing", msg="Post-Processing step took:", enable=True, format="us"):
             if self.graph_end_step is None:
                 with wp.ScopedCapture() as capture:
@@ -409,11 +407,6 @@ class DirectRLEnvDirect(gym.Env):
                 self.graph_end_step = capture.graph
             else:
                 wp.capture_launch(self.graph_end_step)
-
-        # add observation noise
-        # note: we apply no noise to the state space (since it is used for critic networks)
-        #if self.cfg.observation_noise_model:
-        #    self.obs_buf["policy"] = self._observation_noise_model(self.obs_buf["policy"])
 
         # return observations, rewards, resets and extras
         return {"policy": self.torch_obs_buf.clone()}, self.torch_reward_buf, self.torch_reset_terminated, self.torch_reset_time_outs, self.extras
@@ -436,7 +429,6 @@ class DirectRLEnvDirect(gym.Env):
         self._get_rewards()
 
         # -- reset envs that terminated/timed-out and log the episode information
-        #reset_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1)
         self._reset_idx(self.reset_buf)
         # update articulation kinematics
         self.scene.write_data_to_sim()
@@ -451,6 +443,11 @@ class DirectRLEnvDirect(gym.Env):
 
         # update observations
         self._get_observations()
+
+        # add observation noise
+        # note: we apply no noise to the state space (since it is used for critic networks)
+        #if self.cfg.observation_noise_model:
+        #    self.obs_buf["policy"] = self._observation_noise_model(self.obs_buf["policy"])
 
 
 

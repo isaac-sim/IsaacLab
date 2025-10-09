@@ -26,5 +26,5 @@ actions to the scene. All these are handled by different "managers" in the frame
 """
 
 from .interactive_scene import InteractiveScene
-from .interactive_scene_direct import InteractiveSceneDirect
+from .interactive_scene_warp import InteractiveSceneWarp
 from .interactive_scene_cfg import InteractiveSceneCfg

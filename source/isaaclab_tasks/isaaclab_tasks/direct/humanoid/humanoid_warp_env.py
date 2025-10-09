@@ -5,10 +5,10 @@
 
 from __future__ import annotations
 
-from isaaclab_assets import HUMANOID_CFG_DIRECT
+from isaaclab_assets import HUMANOID_CFG_WARP
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import ArticulationDirectCfg
+from isaaclab.assets import ArticulationWarpCfg
 from isaaclab.envs import DirectRLEnvCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
@@ -21,7 +21,7 @@ from isaaclab_tasks.direct.locomotion.locomotion_env_warp import LocomotionWarpE
 
 
 @configclass
-class HumanoidDirectEnvCfg(DirectRLEnvCfg):
+class HumanoidWarpEnvCfg(DirectRLEnvCfg):
     # env
     episode_length_s = 15.0
     decimation = 2
@@ -67,7 +67,7 @@ class HumanoidDirectEnvCfg(DirectRLEnvCfg):
     )
 
     # robot
-    robot: ArticulationDirectCfg = HUMANOID_CFG_DIRECT.replace(prim_path="/World/envs/env_.*/Robot")
+    robot: ArticulationWarpCfg = HUMANOID_CFG_WARP.replace(prim_path="/World/envs/env_.*/Robot")
     joint_gears: list = [
         67.5000,  # left_upper_arm
         67.5000,  # left_upper_arm
@@ -107,8 +107,8 @@ class HumanoidDirectEnvCfg(DirectRLEnvCfg):
     contact_force_scale: float = 0.01
 
 
-class HumanoidDirectEnv(LocomotionWarpEnv):
-    cfg: HumanoidDirectEnvCfg
+class HumanoidWarpEnv(LocomotionWarpEnv):
+    cfg: HumanoidWarpEnvCfg
 
-    def __init__(self, cfg: HumanoidDirectEnvCfg, render_mode: str | None = None, **kwargs):
+    def __init__(self, cfg: HumanoidWarpEnvCfg, render_mode: str | None = None, **kwargs):
         super().__init__(cfg, render_mode, **kwargs)

@@ -24,19 +24,20 @@ from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.string as string_utils
-from isaaclab.actuators_direct import ActuatorBaseDirect, ActuatorBaseDirectCfg, ImplicitActuatorDirect
+from isaaclab.actuators_warp import ActuatorBaseWarp, ActuatorBaseWarpCfg, ImplicitActuatorWarp
 from isaaclab.sim._impl.newton_manager import NewtonManager
 from .kernels import *
-from .utils import warn_overhead_cost
+
+from isaaclab.utils.helpers import warn_overhead_cost
 
 from ..asset_base import AssetBase
-from .articulation_data import ArticulationDataDirect
+from .articulation_data import ArticulationDataWarp
 
 if TYPE_CHECKING:
-    from .articulation_cfg import ArticulationDirectCfg
+    from .articulation_cfg import ArticulationWarpCfg
 
 
-class ArticulationDirect(AssetBase):
+class ArticulationWarp(AssetBase):
     """An articulation asset class.
 
     An articulation is a collection of rigid bodies connected by joints. The joints can be either
@@ -84,10 +85,10 @@ class ArticulationDirect(AssetBase):
 
     """
 
-    cfg: ArticulationDirectCfg
+    cfg: ArticulationWarpCfg
     """Configuration instance for the articulations."""
 
-    actuators: dict[str, ActuatorBase]
+    actuators: dict[str, ActuatorBaseWarp]
     """Dictionary of actuator instances for the articulation.
 
     The keys are the actuator names and the values are the actuator instances. The actuator instances
@@ -95,7 +96,7 @@ class ArticulationDirect(AssetBase):
     attribute. They are used to compute the joint commands during the :meth:`write_data_to_sim` function.
     """
 
-    def __init__(self, cfg: ArticulationDirectCfg):
+    def __init__(self, cfg: ArticulationWarpCfg):
         """Initialize the articulation.
 
         Args:
@@ -108,7 +109,7 @@ class ArticulationDirect(AssetBase):
     """
 
     @property
-    def data(self) -> ArticulationDataDirect:
+    def data(self) -> ArticulationDataWarp:
         return self._data
 
     @property
@@ -213,12 +214,6 @@ class ArticulationDirect(AssetBase):
         # Wrenches are automatically applied by set_external_force_and_torque.
         # apply actuator models
         self._apply_actuator_model()
-        # write actions into simulation
-        #self._root_newton_view.set_attribute("joint_f", NewtonManager.get_control(), self._joint_effort_target_sim)
-        # position and velocity targets only for implicit actuators
-        #if self._has_implicit_actuators:
-        #    # Sets the position or velocity target for the implicit actuators depending on the actuator type.
-        #    self._root_newton_view.set_attribute("joint_target", NewtonManager.get_control(), self._joint_target_sim)
 
     def update(self, dt: float):
         self._data.update(dt)
@@ -289,7 +284,7 @@ class ArticulationDirect(AssetBase):
 
     def find_fixed_tendons(
         self, name_keys: str | Sequence[str], tendon_subsets: list[str] | None = None, preserve_order: bool = False
-    ) -> tuple[wp.array, list[str]]:
+    ) -> tuple[wp.array, list[str], list[int]]:
         """Find fixed tendons in the articulation based on the name keys.
 
         Please see the :func:`isaaclab.utils.string.resolve_matching_names` function for more information
@@ -303,7 +298,7 @@ class ArticulationDirect(AssetBase):
             preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
 
         Returns:
-            A tuple of lists containing the tendon indices and names.
+            A tuple of lists containing the tendon mask, names, and indices.
         """
         if tendon_subsets is None:
             # tendons follow the joint names they are attached to
@@ -320,11 +315,11 @@ class ArticulationDirect(AssetBase):
                 wp.array(indices, dtype=wp.int32, device=self.device),
             ]
         )
-        return mask, names
+        return mask, names, indices
 
     def find_spatial_tendons(
         self, name_keys: str | Sequence[str], tendon_subsets: list[str] | None = None, preserve_order: bool = False
-    ) -> tuple[wp.array, list[str]]:
+    ) -> tuple[wp.array, list[str], list[int]]:
         """Find spatial tendons in the articulation based on the name keys.
 
         Please see the :func:`isaaclab.utils.string.resolve_matching_names` function for more information
@@ -337,7 +332,7 @@ class ArticulationDirect(AssetBase):
             preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
 
         Returns:
-            A tuple of lists containing the tendon indices and names.
+            A tuple of lists containing the tendon mask, names, and indices.
         """
         if tendon_subsets is None:
             tendon_subsets = self.spatial_tendon_names
@@ -353,13 +348,13 @@ class ArticulationDirect(AssetBase):
                 wp.array(indices, dtype=wp.int32, device=self.device),
             ]
         )
-        return mask, names
+        return mask, names, indices
 
     """
     Operations - State Writers.
     """
 
-    @warn_overhead_cost
+    @warn_overhead_cost("write_root_state_to_sim", "This function splits the root state into pose and velocity. Consider using write_root_link_pose_to_sim and write_root_com_velocity_to_sim instead. In general there is no good reasons to be using states with Newton.")
     def write_root_state_to_sim(self, root_state: wp.array, env_mask: wp.array | None = None):
         """Set the root state over selected environment indices into the simulation.
 
@@ -391,7 +386,7 @@ class ArticulationDirect(AssetBase):
         self.write_root_link_pose_to_sim(target_root_pose, env_mask=env_mask)
         self.write_root_com_velocity_to_sim(target_root_velocity, env_mask=env_mask)
 
-    @warn_overhead_cost
+    @warn_overhead_cost("write_root_state_to_sim", "This function splits the root state into pose and velocity. Consider using write_root_link_pose_to_sim and write_root_com_velocity_to_sim instead. In general there is no good reasons to be using states with Newton.")
     def write_root_com_state_to_sim(self, root_state: wp.array, env_mask: wp.array | None = None):
         """Set the root center of mass state over selected environment indices into the simulation.
 
@@ -422,7 +417,7 @@ class ArticulationDirect(AssetBase):
         self.write_root_com_pose_to_sim(target_root_pose, env_mask=env_mask)
         self.write_root_com_velocity_to_sim(target_root_velocity, env_mask=env_mask)
 
-    @warn_overhead_cost
+    @warn_overhead_cost("write_root_state_to_sim", "This function splits the root state into pose and velocity. Consider using write_root_link_pose_to_sim and write_root_com_velocity_to_sim instead. In general there is no good reasons to be using states with Newton.")
     def write_root_link_state_to_sim(self, root_state: wp.array, env_mask: wp.array | None = None):
         """Set the root link state over selected environment indices into the simulation.
 
@@ -490,7 +485,6 @@ class ArticulationDirect(AssetBase):
         # Need to invalidate the buffer to trigger the update with the new state.
         self._data._root_com_pose_w.timestamp = -1.0
         self._data._body_com_pose_w.timestamp = -1.0
-
 
     def write_root_com_pose_to_sim(self, root_pose: wp.array, env_mask: wp.array | None = None) -> None:
         """Set the root center of mass pose over selected environment indices into the simulation.
@@ -754,7 +748,7 @@ class ArticulationDirect(AssetBase):
         stiffness: wp.array | float,
         joint_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
-    ):
+    ) -> None:
         """Write joint stiffness into the simulation.
 
         Args:
@@ -800,7 +794,7 @@ class ArticulationDirect(AssetBase):
         damping: wp.array | float,
         joint_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
-    ):
+    ) -> None:
         """Write joint damping into the simulation.
 
         Args:
@@ -846,7 +840,7 @@ class ArticulationDirect(AssetBase):
         lower_limits: wp.array | float,
         joint_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
-    ):
+    ) -> None:
         """Write joint position limits into the simulation.
 
         Args:
@@ -925,7 +919,7 @@ class ArticulationDirect(AssetBase):
         limits: wp.array | float,
         joint_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
-    ):
+    ) -> None:
         """Write joint max velocity to the simulation.
 
         The velocity limit is used to constrain the joint velocities in the physics engine. The joint will only
@@ -979,7 +973,7 @@ class ArticulationDirect(AssetBase):
         limits: wp.array | float,
         joint_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
-    ):
+    ) -> None:
         """Write joint effort limits into the simulation.
 
         The effort limit is used to constrain the computed joint efforts in the physics engine. If the
@@ -1027,7 +1021,7 @@ class ArticulationDirect(AssetBase):
         armature: wp.array | float,
         joint_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
-    ):
+    ) -> None:
         """Write joint armature into the simulation.
 
         The armature is directly added to the corresponding joint-space inertia. It helps improve the
@@ -1074,7 +1068,7 @@ class ArticulationDirect(AssetBase):
         joint_friction_coeff: wp.array | float,
         joint_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
-    ):
+    ) -> None:
         r"""Write joint friction coefficients into the simulation.
 
         The joint friction is a unitless quantity. It relates the magnitude of the spatial force transmitted
@@ -1132,7 +1126,7 @@ class ArticulationDirect(AssetBase):
         torques: wp.array,
         body_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
-    ):
+    ) -> None:
         """Set external force and torque to apply on the asset's bodies in their local frame.
 
         For many applications, we want to keep the applied external force on rigid bodies constant over a period of
@@ -1195,7 +1189,7 @@ class ArticulationDirect(AssetBase):
         target: wp.array,
         joint_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
-    ):
+    ) -> None:
         """Set joint position targets into internal buffers.
 
         This function does not apply the joint targets to the simulation. It only fills the buffers with
@@ -1228,7 +1222,7 @@ class ArticulationDirect(AssetBase):
         target: wp.array,
         joint_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
-    ):
+    ) -> None:
         """Set joint velocity targets into internal buffers.
 
         This function does not apply the joint targets to the simulation. It only fills the buffers with
@@ -1261,7 +1255,7 @@ class ArticulationDirect(AssetBase):
         target: wp.array,
         joint_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
-    ):
+    ) -> None:
         """Set joint efforts into internal buffers.
 
         This function does not apply the joint targets to the simulation. It only fills the buffers with
@@ -1298,7 +1292,7 @@ class ArticulationDirect(AssetBase):
         stiffness: wp.array,
         fixed_tendon_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
-    ):
+    ) -> None:
         """Set fixed tendon stiffness into internal buffers.
 
         This function does not apply the tendon stiffness to the simulation. It only fills the buffers with
@@ -1316,7 +1310,7 @@ class ArticulationDirect(AssetBase):
         damping: wp.array,
         fixed_tendon_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
-    ):
+    ) -> None:
         """Set fixed tendon damping into internal buffers.
 
         This function does not apply the tendon damping to the simulation. It only fills the buffers with
@@ -1334,7 +1328,7 @@ class ArticulationDirect(AssetBase):
         limit_stiffness: wp.array,
         fixed_tendon_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
-    ):
+    ) -> None:
         """Set fixed tendon limit stiffness efforts into internal buffers.
 
         This function does not apply the tendon limit stiffness to the simulation. It only fills the buffers with
@@ -1352,7 +1346,7 @@ class ArticulationDirect(AssetBase):
         limit: wp.array,
         fixed_tendon_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
-    ):
+    ) -> None:
         """Set fixed tendon limit efforts into internal buffers.
 
         This function does not apply the tendon limit to the simulation. It only fills the buffers with
@@ -1370,7 +1364,7 @@ class ArticulationDirect(AssetBase):
         rest_length: wp.array,
         fixed_tendon_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
-    ):
+    ) -> None:
         """Set fixed tendon rest length efforts into internal buffers.
 
         This function does not apply the tendon rest length to the simulation. It only fills the buffers with
@@ -1388,7 +1382,7 @@ class ArticulationDirect(AssetBase):
         offset: wp.array,
         fixed_tendon_ids: wp.array | Sequence[int] | None = None,
         env_ids: wp.array | Sequence[int] | None = None,
-    ):
+    ) -> None:
         """Set fixed tendon offset efforts into internal buffers.
 
         This function does not apply the tendon offset to the simulation. It only fills the buffers with
@@ -1405,7 +1399,7 @@ class ArticulationDirect(AssetBase):
         self,
         fixed_tendon_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
-    ):
+    ) -> None:
         """Write fixed tendon properties into the simulation.
 
         Args:
@@ -1419,7 +1413,7 @@ class ArticulationDirect(AssetBase):
         stiffness: wp.array,
         spatial_tendon_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
-    ):
+    ) -> None:
         """Set spatial tendon stiffness into internal buffers.
 
         This function does not apply the tendon stiffness to the simulation. It only fills the buffers with
@@ -1437,7 +1431,7 @@ class ArticulationDirect(AssetBase):
         damping: wp.array,
         spatial_tendon_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
-    ):
+    ) -> None:
         """Set spatial tendon damping into internal buffers.
 
         This function does not apply the tendon damping to the simulation. It only fills the buffers with
@@ -1455,7 +1449,7 @@ class ArticulationDirect(AssetBase):
         limit_stiffness: wp.array,
         spatial_tendon_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
-    ):
+    ) -> None:
         """Set spatial tendon limit stiffness into internal buffers.
 
         This function does not apply the tendon limit stiffness to the simulation. It only fills the buffers with
@@ -1473,7 +1467,7 @@ class ArticulationDirect(AssetBase):
         offset: wp.array,
         spatial_tendon_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
-    ):
+    ) -> None:
         """Set spatial tendon offset efforts into internal buffers.
 
         This function does not apply the tendon offset to the simulation. It only fills the buffers with
@@ -1490,7 +1484,7 @@ class ArticulationDirect(AssetBase):
         self,
         spatial_tendon_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
-    ):
+    ) -> None:
         """Write spatial tendon properties into the simulation.
 
         Args:
@@ -1548,7 +1542,7 @@ class ArticulationDirect(AssetBase):
         )
 
         # container for data access
-        self._data = ArticulationDataDirect(self._root_newton_view, self.device)
+        self._data = ArticulationDataWarp(self._root_newton_view, self.device)
 
         # create simulation bindings and buffers
         self._create_simulation_bindings()
@@ -1562,7 +1556,11 @@ class ArticulationDirect(AssetBase):
         # update the robot data
         self.update(0.0)
         # log joint information
-        #self._log_articulation_info()
+        self._log_articulation_info()
+        # Offsets the spawned pose by the default root pose prior to initializing the solver. This ensures that the
+        # solver is initialized at the correct pose, avoiding potential miscalculations in the maximum number of
+        # constraints or contact required to run the simulation.
+        # TODO: Do this is warp directly?
         generated_pose = wp.to_torch(self._data.default_root_pose).clone()
         generated_pose[:, :2] += wp.to_torch(self._root_newton_view.get_root_transforms(NewtonManager.get_model()))[
             :, :2
@@ -1570,24 +1568,6 @@ class ArticulationDirect(AssetBase):
         self._root_newton_view.set_root_transforms(NewtonManager.get_state_0(), generated_pose)
         self._root_newton_view.set_root_transforms(NewtonManager.get_model(), generated_pose)
 
-#@wp.func
-#def combine_transform_xy(
-#    transform: wp.transformf,
-#    translation: wp.transformf,
-#) -> wp.transformf:
-#    combined_translation = wp.vec3f(translation[0]+transform[0], translation[1] + transform[1], transform[2])
-#    return wp.transform(combined_translation, wp.transform_get_rotation(transform))
-#
-#@wp.kernel
-#def move_default_pose(
-#    default_root_pose: wp.array(dtype=wp.transformf),
-#    new_pose: wp.array(dtype=wp.transformf),
-#    source_pose: wp.array(dtype=wp.transformf),
-#    env_mask: wp.array(dtype=wp.bool),
-#):
-#    env_id = wp.tid()
-#    if env_mask[env_id]:
-#        new_pose[env_id] = combine_transform_xy(default_root_pose[env_id], source_pose[env_id])
 
     def _create_simulation_bindings(self):
         """Create simulation bindings for the articulation.
@@ -1782,7 +1762,7 @@ class ArticulationDirect(AssetBase):
         # iterate over all actuator configurations
         for actuator_name, actuator_cfg in self.cfg.actuators.items():
             # type annotation for type checkers
-            actuator_cfg: ActuatorBaseDirectCfg
+            actuator_cfg: ActuatorBaseWarpCfg
             # create actuator group
             joint_mask, joint_names, joint_indices = self.find_joints(actuator_cfg.joint_names_expr)
             # check if any joints are found
@@ -1793,7 +1773,7 @@ class ArticulationDirect(AssetBase):
                 )
             # create actuator collection
             # note: for efficiency avoid indexing when over all indices
-            actuator: ActuatorBaseDirect = actuator_cfg.class_type(
+            actuator: ActuatorBaseWarp = actuator_cfg.class_type(
                 cfg=actuator_cfg,
                 joint_names=joint_names,
                 joint_mask=joint_mask,
@@ -1811,7 +1791,7 @@ class ArticulationDirect(AssetBase):
             self.actuators[actuator_name] = actuator
             # set the passed gains and limits into the simulation
             # TODO: write out all joint parameters from simulation
-            if isinstance(actuator, ImplicitActuatorDirect):
+            if isinstance(actuator, ImplicitActuatorWarp):
                 self._has_implicit_actuators = True
                 # the gains and limits are set into the simulation since actuator model is implicit
                 self.write_joint_stiffness_to_sim(self.data.joint_stiffness, joint_mask=actuator._joint_mask)
@@ -1831,20 +1811,7 @@ class ArticulationDirect(AssetBase):
                 # Set the control mode to None when using explicit actuators
                 self.write_joint_control_mode_to_sim(0, joint_mask=actuator._joint_mask)
                 # Bind the applied effort to the simulation effort
-                #self.data.applied_effort = self.data.sim_bind_joint_effort
-
-            # Set common properties into the simulation
-            #self.write_joint_effort_limit_to_sim(self._data.sim_bind_joint_effort_limits_sim, joint_mask=actuator._joint_mask)
-            #self.write_joint_velocity_limit_to_sim(self._data.sim_bind_joint_vel_limits_sim, joint_mask=actuator._joint_mask)
-            #self.write_joint_armature_to_sim(actuator.armature, joint_ids=actuator.joint_indices)
-            #self.write_joint_friction_coefficient_to_sim(actuator.friction, joint_ids=actuator.joint_indices)
-
-            # Store the configured values from the actuator model
-            # note: this is the value configured in the actuator model (for implicit and explicit actuators)
-            #self._data.default_joint_stiffness[:, actuator.joint_indices] = actuator.stiffness
-            #self._data.default_joint_damping[:, actuator.joint_indices] = actuator.damping
-            #self._data.default_joint_armature[:, actuator.joint_indices] = actuator.armature
-            #self._data.default_joint_friction_coeff[:, actuator.joint_indices] = actuator.friction
+                self.data.applied_effort = self.data.sim_bind_joint_effort
 
         # perform some sanity checks to ensure actuators are prepared correctly
         total_act_joints = sum(actuator.num_joints for actuator in self.actuators.values())
@@ -1871,30 +1838,7 @@ class ArticulationDirect(AssetBase):
         """
         # process actions per group
         for actuator in self.actuators.values():
-            # prepare input for actuator model based on cached data
-            # TODO : A tensor dict would be nice to do the indexing of all tensors together
-            #control_action = ArticulationActions(
-            #    joint_targets=self._data.joint_target[:, actuator.joint_indices],
-            #    joint_efforts=self._data.joint_effort_target[:, actuator.joint_indices],
-            #    joint_indices=actuator.joint_indices,
-            #)
-            # compute joint command from the actuator model
             actuator.compute()
-            #    control_action,
-            #    joint_pos=self._data.joint_pos[:, actuator.joint_indices],
-            #    joint_vel=self._data.joint_vel[:, actuator.joint_indices],
-            #)
-            # update targets (these are set into the simulation)
-            #if control_action.joint_targets is not None:
-            #    self._joint_target_sim[:, actuator.joint_indices] = control_action.joint_targets
-            #if control_action.joint_efforts is not None:
-            #    self._joint_effort_target_sim[:, actuator.joint_indices] = control_action.joint_efforts
-            # update state of the actuator model
-            # -- torques
-            #self._data.computed_torque[:, actuator.joint_indices] = actuator.computed_effort
-            #self._data.applied_torque[:, actuator.joint_indices] = actuator.applied_effort
-            # -- actuator data
-            #self._data.soft_joint_vel_limits[:, actuator.joint_indices] = actuator.velocity_limit
             # TODO: find a cleaner way to handle gear ratio. Only needed for variable gear ratio actuators.
             #if hasattr(actuator, "gear_ratio"):
             #    self._data.gear_ratio[:, actuator.joint_indices] = actuator.gear_ratio

@@ -14,15 +14,15 @@ import omni.log
 from isaaclab.utils import DelayBuffer, LinearInterpolation
 
 import warp as wp
-from .actuator_base import ActuatorBaseDirect
+from .actuator_base import ActuatorBaseWarp
 from .kernels import compute_pd_actuator, clip_efforts_dc_motor
 
 if TYPE_CHECKING:
     from .actuator_cfg import (
-        DCMotorDirectCfg,
+        DCMotorWarpCfg,
         #DelayedPDActuatorCfg,
-        IdealPDActuatorDirectCfg,
-        ImplicitActuatorDirectCfg,
+        IdealPDActuatorWarpCfg,
+        ImplicitActuatorWarpCfg,
         #RemotizedPDActuatorCfg,
     )
 
@@ -32,7 +32,7 @@ Implicit Actuator Models.
 """
 
 
-class ImplicitActuatorDirect(ActuatorBaseDirect):
+class ImplicitActuatorWarp(ActuatorBaseWarp):
     """Implicit actuator model that is handled by the simulation.
 
     This performs a similar function as the :class:`IdealPDActuator` class. However, the PD control is handled
@@ -51,10 +51,10 @@ class ImplicitActuatorDirect(ActuatorBaseDirect):
         functionality and should not be used. All values should be set to the simulation directly.
     """
 
-    cfg: ImplicitActuatorDirectCfg
+    cfg: ImplicitActuatorWarpCfg
     """The configuration for the actuator model."""
 
-    def __init__(self, cfg: ImplicitActuatorDirectCfg, *args, **kwargs):
+    def __init__(self, cfg: ImplicitActuatorWarpCfg, *args, **kwargs):
         # effort limits
         if cfg.effort_limit_sim is None and cfg.effort_limit is not None:
             # throw a warning that we have a replacement for the deprecated parameter
@@ -101,7 +101,7 @@ class ImplicitActuatorDirect(ActuatorBaseDirect):
                 )
 
         # set implicit actuator model flag
-        ImplicitActuatorDirect.is_implicit_model = True
+        ImplicitActuatorWarp.is_implicit_model = True
         # call the base class
         super().__init__(cfg, *args, **kwargs)
 
@@ -154,7 +154,7 @@ Explicit Actuator Models.
 """
 
 
-class IdealPDActuatorDirect(ActuatorBaseDirect):
+class IdealPDActuatorWarp(ActuatorBaseWarp):
     r"""Ideal torque-controlled actuator model with a simple saturation model.
 
     It employs the following model for computing torques for the actuated joint :math:`j`:
@@ -180,7 +180,7 @@ class IdealPDActuatorDirect(ActuatorBaseDirect):
     the configuration instance passed to the class.
     """
 
-    cfg: IdealPDActuatorDirectCfg
+    cfg: IdealPDActuatorWarpCfg
     """The configuration for the actuator model."""
 
     """
@@ -210,7 +210,7 @@ class IdealPDActuatorDirect(ActuatorBaseDirect):
         self._clip_effort(self.data.computed_effort, self.data.sim_bind_joint_effort)
 
 
-class DCMotorDirect(IdealPDActuatorDirect):
+class DCMotorWarp(IdealPDActuatorWarp):
     r"""Direct control (DC) motor actuator model with velocity-based saturation model.
 
     It uses the same model as the :class:`IdealActuator` for computing the torques from input commands.
@@ -251,10 +251,10 @@ class DCMotorDirect(IdealPDActuatorDirect):
 
     """
 
-    cfg: DCMotorDirectCfg
+    cfg: DCMotorWarpCfg
     """The configuration for the actuator model."""
 
-    def __init__(self, cfg: DCMotorDirectCfg, *args, **kwargs):
+    def __init__(self, cfg: DCMotorWarpCfg, *args, **kwargs):
         super().__init__(cfg, *args, **kwargs)
         # parse configuration
         if self.cfg.saturation_effort is not None:

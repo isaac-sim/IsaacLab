@@ -9,6 +9,7 @@ from .array import *
 from .buffers import *
 from .configclass import configclass
 from .dict import *
+from .helpers import deprecated, warn_overhead_cost
 from .interpolation import *
 from .modifiers import *
 from .string import *

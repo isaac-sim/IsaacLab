@@ -7,19 +7,18 @@ from __future__ import annotations
 
 import warp as wp
 from abc import ABC, abstractmethod
-from collections.abc import Sequence
-from typing import TYPE_CHECKING, ClassVar, Literal
+from typing import TYPE_CHECKING, ClassVar
 
 import isaaclab.utils.string as string_utils
-from isaaclab.actuators_direct.kernels import clip_efforts_with_limits
-from isaaclab.assets.articulation_direct.kernels import update_joint_array_with_value, update_joint_array_with_value_int, populate_empty_array, update_joint_array_with_value_array
+from isaaclab.actuators_warp.kernels import clip_efforts_with_limits
+from isaaclab.assets.articulation_warp.kernels import update_joint_array_with_value, update_joint_array_with_value_int, populate_empty_array, update_joint_array_with_value_array
 
 if TYPE_CHECKING:
-    from .actuator_cfg import ActuatorBaseDirectCfg
-    from isaaclab.assets.articulation_direct.articulation import ArticulationDataDirect
+    from .actuator_cfg import ActuatorBaseWarpCfg
+    from isaaclab.assets.articulation_warp.articulation import ArticulationDataWarp
 
 
-class ActuatorBaseDirect(ABC):
+class ActuatorBaseWarp(ABC):
     """Base class for actuator models over a collection of actuated joints in an articulation.
 
     Actuator models augment the simulated articulation joints with an external drive dynamics model.
@@ -44,7 +43,7 @@ class ActuatorBaseDirect(ABC):
     If a class inherits from :class:`ImplicitActuator`, then this flag should be set to :obj:`True`.
     """
 
-    data: ArticulationDataDirect
+    data: ArticulationDataWarp
     """The data of the articulation."""
 
     _DEFAULT_MAX_EFFORT_SIM: ClassVar[float] = 1.0e9
@@ -57,11 +56,11 @@ class ActuatorBaseDirect(ABC):
 
     def __init__(
         self,
-        cfg: ActuatorBaseCfg,
+        cfg: ActuatorBaseWarpCfg,
         joint_names: list[str],
         joint_mask: wp.array,
         env_mask: wp.array,
-        articulation_data: ArticulationDataDirect,
+        articulation_data: ArticulationDataWarp,
         device: str,
     ):
         """Initialize the actuator.

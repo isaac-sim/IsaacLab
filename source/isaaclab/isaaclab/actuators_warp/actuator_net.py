@@ -21,13 +21,13 @@ from typing import TYPE_CHECKING
 from isaaclab.utils.assets import read_file
 from isaaclab.utils.types import ArticulationActions
 
-from .actuator_pd import DCMotorDirect
+from .actuator_pd import DCMotorWarp
 
 if TYPE_CHECKING:
     from .actuator_cfg import ActuatorNetLSTMCfg, ActuatorNetMLPCfg
 
 
-class ActuatorNetLSTM(DCMotorDirect):
+class ActuatorNetLSTM(DCMotorWarp):
     """Actuator model based on recurrent neural network (LSTM).
 
     Unlike the MLP implementation :cite:t:`hwangbo2019learning`, this class implements

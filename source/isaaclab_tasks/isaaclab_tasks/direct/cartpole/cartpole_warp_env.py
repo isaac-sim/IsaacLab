@@ -7,11 +7,11 @@ from __future__ import annotations
 
 import math
 
-from isaaclab_assets.robots.cartpole import CARTPOLE_CFG_DIRECT
+from isaaclab_assets.robots.cartpole import CARTPOLE_CFG_WARP
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import ArticulationDirect, ArticulationDirectCfg
-from isaaclab.envs import DirectRLEnvDirect, DirectRLEnvCfg
+from isaaclab.assets import ArticulationWarp, ArticulationWarpCfg
+from isaaclab.envs import DirectRLEnvWarp, DirectRLEnvCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.sim._impl.newton_manager_cfg import NewtonCfg
@@ -20,11 +20,9 @@ from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
 from isaaclab.utils import configclass
 import warp as wp
 
-#wp.config.mode = "debug"
-#wp.config.verify_cuda = True
 
 @configclass
-class CartpoleDirectEnvCfg(DirectRLEnvCfg):
+class CartpoleWarpEnvCfg(DirectRLEnvCfg):
     # env
     decimation = 2
     episode_length_s = 5.0
@@ -53,7 +51,7 @@ class CartpoleDirectEnvCfg(DirectRLEnvCfg):
     sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation, newton_cfg=newton_cfg)
 
     # robot
-    robot_cfg: ArticulationDirectCfg = CARTPOLE_CFG_DIRECT.replace(prim_path="/World/envs/env_.*/Robot")
+    robot_cfg: ArticulationWarpCfg = CARTPOLE_CFG_WARP.replace(prim_path="/World/envs/env_.*/Robot")
     cart_dof_name = "slider_to_cart"
     pole_dof_name = "cart_to_pole"
 
@@ -204,10 +202,10 @@ def initialize_state(
     env_index = wp.tid()
     state[env_index] = wp.rand_init(seed, env_index)
 
-class CartpoleDirectEnv(DirectRLEnvDirect):
-    cfg: CartpoleDirectEnvCfg
+class CartpoleWarpEnv(DirectRLEnvWarp):
+    cfg: CartpoleWarpEnvCfg
 
-    def __init__(self, cfg: CartpoleDirectEnvCfg, render_mode: str | None = None, **kwargs) -> None:
+    def __init__(self, cfg: CartpoleWarpEnvCfg, render_mode: str | None = None, **kwargs) -> None:
         super().__init__(cfg, render_mode, **kwargs)
 
         # Get the indices
@@ -247,7 +245,7 @@ class CartpoleDirectEnv(DirectRLEnvDirect):
         self.torch_episode_length_buf = wp.to_torch(self.episode_length_buf)
 
     def _setup_scene(self) -> None:
-        self.cartpole = ArticulationDirect(self.cfg.robot_cfg)
+        self.cartpole = ArticulationWarp(self.cfg.robot_cfg)
         # add ground plane
         spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg())
         # clone and replicate

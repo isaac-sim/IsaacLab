@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
-from isaaclab.actuators_direct import ImplicitActuatorDirectCfg
-from isaaclab.assets import ArticulationCfg, ArticulationDirectCfg
+from isaaclab.actuators_warp import ImplicitActuatorWarpCfg
+from isaaclab.assets import ArticulationCfg, ArticulationWarpCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 ##
@@ -65,7 +65,7 @@ HUMANOID_CFG = ArticulationCfg(
 )
 """Configuration for the Mujoco Humanoid robot."""
 
-HUMANOID_CFG_DIRECT = ArticulationDirectCfg(
+HUMANOID_CFG_WARP = ArticulationWarpCfg(
     prim_path="{ENV_REGEX_NS}/Robot",
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/IsaacSim/Humanoid/humanoid_instanceable.usd",
@@ -74,12 +74,12 @@ HUMANOID_CFG_DIRECT = ArticulationDirectCfg(
         ),
         copy_from_source=False,
     ),
-    init_state=ArticulationDirectCfg.InitialStateCfg(
+    init_state=ArticulationWarpCfg.InitialStateCfg(
         pos=(0.0, 0.0, 1.34),
         joint_pos={".*": 0.0},
     ),
     actuators={
-        "body": ImplicitActuatorDirectCfg(
+        "body": ImplicitActuatorWarpCfg(
             joint_names_expr=[".*"],
             control_mode="position",
             stiffness={

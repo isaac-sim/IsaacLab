@@ -10,14 +10,14 @@ from typing import Literal
 from isaaclab.utils import configclass
 
 from . import actuator_pd
-from .actuator_base import ActuatorBaseDirect
+from .actuator_base import ActuatorBaseWarp
 
 
 @configclass
-class ActuatorBaseDirectCfg:
+class ActuatorBaseWarpCfg:
     """Configuration for default actuators in an articulation."""
 
-    class_type: type[ActuatorBaseDirect] = MISSING
+    class_type: type[ActuatorBaseWarp] = MISSING
     """The associated actuator class.
 
     The class should inherit from :class:`isaaclab.actuators.ActuatorBase`.
@@ -180,14 +180,14 @@ Implicit Actuator Models.
 
 
 @configclass
-class ImplicitActuatorDirectCfg(ActuatorBaseDirectCfg):
+class ImplicitActuatorWarpCfg(ActuatorBaseWarpCfg):
     """Configuration for an implicit actuator.
 
     Note:
         The PD control is handled implicitly by the simulation.
     """
 
-    class_type: type = actuator_pd.ImplicitActuatorDirect
+    class_type: type = actuator_pd.ImplicitActuatorWarp
 
 
 """
@@ -196,17 +196,17 @@ Explicit Actuator Models.
 
 
 @configclass
-class IdealPDActuatorDirectCfg(ActuatorBaseDirectCfg):
+class IdealPDActuatorWarpCfg(ActuatorBaseWarpCfg):
     """Configuration for an ideal PD actuator."""
 
-    class_type: type = actuator_pd.IdealPDActuatorDirect
+    class_type: type = actuator_pd.IdealPDActuatorWarp
 
 
 @configclass
-class DCMotorDirectCfg(IdealPDActuatorDirectCfg):
+class DCMotorWarpCfg(IdealPDActuatorWarpCfg):
     """Configuration for direct control (DC) motor actuator model."""
 
-    class_type: type = actuator_pd.DCMotorDirect
+    class_type: type = actuator_pd.DCMotorWarp
 
     saturation_effort: float = MISSING
     """Peak motor force/torque of the electric DC motor (in N-m)."""

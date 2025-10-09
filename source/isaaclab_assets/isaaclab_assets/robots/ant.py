@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
-from isaaclab.actuators_direct import ImplicitActuatorDirectCfg
-from isaaclab.assets import ArticulationCfg, ArticulationDirectCfg
+from isaaclab.actuators_warp import ImplicitActuatorWarpCfg
+from isaaclab.assets import ArticulationCfg, ArticulationWarpCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 ##
@@ -46,13 +46,13 @@ ANT_CFG = ArticulationCfg(
 )
 """Configuration for the Mujoco Ant robot."""
 
-ANT_CFG_DIRECT = ArticulationDirectCfg(
+ANT_CFG_WARP = ArticulationWarpCfg(
     prim_path="{ENV_REGEX_NS}/Robot",
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/IsaacSim/Ant/ant_instanceable.usd",
         copy_from_source=False,
     ),
-    init_state=ArticulationDirectCfg.InitialStateCfg(
+    init_state=ArticulationWarpCfg.InitialStateCfg(
         pos=(0.0, 0.0, 0.5),
         joint_pos={
             ".*_leg": 0.0,
@@ -63,7 +63,7 @@ ANT_CFG_DIRECT = ArticulationDirectCfg(
         },
     ),
     actuators={
-        "body": ImplicitActuatorDirectCfg(
+        "body": ImplicitActuatorWarpCfg(
             joint_names_expr=[".*"],
             control_mode="none",
             stiffness=0.0,
