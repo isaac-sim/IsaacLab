@@ -3,17 +3,33 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import functools
 import weakref
 
-import omni.log
 import warp as wp
 
 from isaaclab.sim._impl.newton_manager import NewtonManager
 from isaaclab.utils.buffers import TimestampedWarpBuffer
-
-from .kernels import *
 from isaaclab.utils.helpers import deprecated, warn_overhead_cost
+
+from .kernels import (
+    combine_frame_transforms_partial,
+    combine_frame_transforms_partial_batch,
+    combine_pose_and_velocity_to_state,
+    combine_pose_and_velocity_to_state_batched,
+    compute_heading,
+    derive_body_acceleration_from_velocity,
+    derive_joint_acceleration_from_velocity,
+    generate_pose_from_position_with_unit_quaternion,
+    get_angular_velocity,
+    get_linear_velocity,
+    get_position,
+    get_quat,
+    make_joint_pos_limits_from_lower_and_upper_limits,
+    project_com_velocity_to_link_frame_batch,
+    project_vec_from_quat_single,
+    project_velocities_to_frame,
+    vec13f,
+)
 
 
 class ArticulationDataWarp:
@@ -66,17 +82,25 @@ class ArticulationDataWarp:
         # -- link frame w.r.t. world frame
         self._root_link_vel_w = TimestampedWarpBuffer(shape=(self._root_newton_view.count), dtype=wp.spatial_vectorf)
         self._root_link_vel_b = TimestampedWarpBuffer(shape=(self._root_newton_view.count), dtype=wp.spatial_vectorf)
-        self._body_link_vel_w = TimestampedWarpBuffer(shape=(self._root_newton_view.count, self._root_newton_view.link_count), dtype=wp.spatial_vectorf)
+        self._body_link_vel_w = TimestampedWarpBuffer(
+            shape=(self._root_newton_view.count, self._root_newton_view.link_count), dtype=wp.spatial_vectorf
+        )
         self._projected_gravity_b = TimestampedWarpBuffer(shape=(self._root_newton_view.count, 3), dtype=wp.vec3f)
         self._heading_w = TimestampedWarpBuffer(shape=(self._root_newton_view.count), dtype=wp.float32)
         # -- com frame w.r.t. world frame
         self._root_com_pose_w = TimestampedWarpBuffer(shape=(self._root_newton_view.count), dtype=wp.transformf)
         self._root_com_vel_b = TimestampedWarpBuffer(shape=(self._root_newton_view.count), dtype=wp.spatial_vectorf)
-        self._body_com_pose_w = TimestampedWarpBuffer(shape=(self._root_newton_view.count, self._root_newton_view.link_count), dtype=wp.transformf)
-        self._body_com_acc_w = TimestampedWarpBuffer(shape=(self._root_newton_view.count, self._root_newton_view.link_count), dtype=wp.spatial_vectorf)
+        self._body_com_pose_w = TimestampedWarpBuffer(
+            shape=(self._root_newton_view.count, self._root_newton_view.link_count), dtype=wp.transformf
+        )
+        self._body_com_acc_w = TimestampedWarpBuffer(
+            shape=(self._root_newton_view.count, self._root_newton_view.link_count), dtype=wp.spatial_vectorf
+        )
         # -- joint state
-        self._joint_acc = TimestampedWarpBuffer(shape=(self._root_newton_view.count, self._root_newton_view.joint_dof_count), dtype=wp.float32)
-        #self._body_incoming_joint_wrench_b = TimestampedWarpBuffer()
+        self._joint_acc = TimestampedWarpBuffer(
+            shape=(self._root_newton_view.count, self._root_newton_view.joint_dof_count), dtype=wp.float32
+        )
+        # self._body_incoming_joint_wrench_b = TimestampedWarpBuffer()
 
     def get_from_newton(self, name: str, container):
         return self._root_newton_view.get_attribute(name, container)
@@ -119,9 +143,9 @@ class ArticulationDataWarp:
 
     default_root_vel: wp.array = None
     """Default root velocity ``[lin_vel, ang_vel]`` in the local environment frame. Shape is (num_instances, 6).
-    
+
     The linear and angular velocities are of the articulation root's center of mass frame.
-    
+
     This quantity is configured through the :attr:`isaaclab.assets.ArticulationCfg.init_state` parameter.
     """
 
@@ -137,20 +161,20 @@ class ArticulationDataWarp:
     This quantity is configured through the :attr:`isaaclab.assets.ArticulationCfg.init_state` parameter.
     """
 
-    #TODO: GIVE THEM A NAME THAT'S MORE EXPLICIT. I.E. _root_link_pose_w -> sim_bind_root_link_pose_w
+    # TODO: GIVE THEM A NAME THAT'S MORE EXPLICIT. I.E. _root_link_pose_w -> sim_bind_root_link_pose_w
     ##
     # Root state properties. (Directly binded to the simulation)
     ##
 
     sim_bind_root_link_pose_w: wp.array = None
     """Root link pose ``wp.transformf`` in the world frame. Shape is (num_instances,).
-    
+
     The pose is in the form of [pos, quat]. The orientation is provided in (x, y, z, w) format.
     """
 
     sim_bind_root_com_vel_w: wp.array = None
     """Root center of mass velocity ``wp.spatial_vectorf`` in the world frame. Shape is (num_instances,).
-    
+
     The velocity is in the form of [ang_vel, lin_vel].
     """
 
@@ -160,16 +184,16 @@ class ArticulationDataWarp:
 
     sim_bind_body_link_pose_w: wp.array = None
     """Body link pose ``wp.transformf`` in the world frame. Shape is (num_instances, num_bodies).
-    
+
     The pose is in the form of [pos, quat]. The orientation is provided in (x, y, z, w) format.
     """
 
     sim_bind_body_com_vel_w: wp.array = None
     """Body center of mass velocity ``wp.spatial_vectorf`` in the world frame. Shape is (num_instances, num_bodies).
-    
+
     The velocity is in the form of [ang_vel, lin_vel].
     """
-    
+
     sim_bind_body_com_pos_b: wp.array = None
     """Center of mass pose ``wp.transformf`` of all bodies in their respective body's link frames.
 
@@ -399,7 +423,7 @@ class ArticulationDataWarp:
     @property
     def body_com_pos_b(self) -> wp.array:
         return self.sim_bind_body_com_pos_b
-    
+
     @property
     def joint_control_mode_sim(self) -> wp.array:
         return self.sim_bind_joint_control_mode_sim
@@ -414,24 +438,24 @@ class ArticulationDataWarp:
 
     @property
     def joint_armature(self) -> wp.array:
-        return self.sim_bind_joint_armature 
+        return self.sim_bind_joint_armature
 
     @property
     def joint_friction_coeff(self) -> wp.array:
         return self.sim_bind_joint_friction_coeff
-    
+
     @property
     def joint_pos_limits_lower(self) -> wp.array:
         return self.sim_bind_joint_pos_limits_lower
-    
+
     @property
     def joint_pos_limits_upper(self) -> wp.array:
-        return self.sim_bind_joint_pos_limits_upper    
-    
+        return self.sim_bind_joint_pos_limits_upper
+
     @property
     def joint_vel_limits_sim(self) -> wp.array:
         return self.sim_bind_joint_vel_limits_sim
-    
+
     @property
     def joint_effort_limits_sim(self) -> wp.array:
         return self.sim_bind_joint_effort_limits_sim
@@ -451,7 +475,7 @@ class ArticulationDataWarp:
     @property
     def joint_effort_sim(self) -> wp.array:
         return self.sim_bind_joint_effort
-    
+
     ##
     # Root state properties.
     ##
@@ -474,7 +498,7 @@ class ArticulationDataWarp:
                     self.body_link_pose_w,
                     self.sim_bind_body_com_pos_b,
                     self._root_link_vel_w.data,
-                ]
+                ],
             )
             # set the buffer data and timestamp
             self._root_link_vel_w.timestamp = self._sim_timestamp
@@ -499,7 +523,7 @@ class ArticulationDataWarp:
                     self.sim_bind_root_link_pose_w,
                     self.sim_bind_body_com_pos_b,
                     self._root_com_pose_w.data,
-                ]
+                ],
             )
             # set the buffer data and timestamp
             self._root_com_pose_w.timestamp = self._sim_timestamp
@@ -524,7 +548,7 @@ class ArticulationDataWarp:
                 self.sim_bind_root_link_pose_w,
                 self.sim_bind_root_com_vel_w,
                 state,
-            ]
+            ],
         )
         return state
 
@@ -546,7 +570,7 @@ class ArticulationDataWarp:
                 self.sim_bind_root_link_pose_w,
                 self.root_link_vel_w,
                 state,
-            ]
+            ],
         )
         return state
 
@@ -568,7 +592,7 @@ class ArticulationDataWarp:
                 self.root_com_pose_w,
                 self.sim_bind_root_com_vel_w,
                 state,
-            ]
+            ],
         )
         return state
 
@@ -595,7 +619,7 @@ class ArticulationDataWarp:
                     self.sim_bind_body_link_pose_w,
                     self.sim_bind_body_com_pos_b,
                     self._body_link_vel_w.data,
-                ]
+                ],
             )
             # set the buffer data and timestamp
             self._body_link_vel_w.timestamp = self._sim_timestamp
@@ -619,14 +643,19 @@ class ArticulationDataWarp:
                     self.sim_bind_body_link_pose_w,
                     self.sim_bind_body_com_pos_b,
                     self._body_com_pose_w.data,
-                ]
+                ],
             )
             # set the buffer data and timestamp
             self._body_com_pose_w.timestamp = self._sim_timestamp
         return self._body_com_pose_w.data
 
     @property
-    @warn_overhead_cost("body_link_pose_w and/or body_com_vel_w", "This function outputs the state of the link frame, containing both pose and velocity. However, Newton outputs pose and velocities separately. Consider using only one of them instead. If both are required, use both body_link_pose_w and body_com_vel_w instead.")
+    @warn_overhead_cost(
+        "body_link_pose_w and/or body_com_vel_w",
+        "This function outputs the state of the link frame, containing both pose and velocity. However, Newton outputs"
+        " pose and velocities separately. Consider using only one of them instead. If both are required, use both"
+        " body_link_pose_w and body_com_vel_w instead.",
+    )
     def body_state_w(self) -> wp.array:
         """State of all bodies ``[wp.transformf, wp.spatial_vectorf]`` in simulation world frame.
 
@@ -636,7 +665,9 @@ class ArticulationDataWarp:
         The velocity is of the articulation links' center of mass frame.
         """
 
-        state = wp.zeros((self._root_newton_view.count, self._root_newton_view.link_count, 13), dtype=wp.float32, device=self.device)
+        state = wp.zeros(
+            (self._root_newton_view.count, self._root_newton_view.link_count, 13), dtype=wp.float32, device=self.device
+        )
         wp.launch(
             combine_pose_and_velocity_to_state_batched,
             dim=(self._root_newton_view.count, self._root_newton_view.link_count),
@@ -645,12 +676,17 @@ class ArticulationDataWarp:
                 self.sim_bind_body_link_pose_w,
                 self.sim_bind_body_com_vel_w,
                 state,
-            ]
+            ],
         )
         return state
 
     @property
-    @warn_overhead_cost("body_link_pose_w and/or body_link_vel_w", "This function outputs the state of the link frame, containing both pose and velocity. However, Newton outputs pose and velocities separately. Consider using only one of them instead. If both are required, use both body_link_pose_w and body_link_vel_w instead.")
+    @warn_overhead_cost(
+        "body_link_pose_w and/or body_link_vel_w",
+        "This function outputs the state of the link frame, containing both pose and velocity. However, Newton outputs"
+        " pose and velocities separately. Consider using only one of them instead. If both are required, use both"
+        " body_link_pose_w and body_link_vel_w instead.",
+    )
     def body_link_state_w(self) -> wp.array:
         """State of all bodies' link frame ``[wp.transformf, wp.spatial_vectorf]`` in simulation world frame.
 
@@ -659,7 +695,9 @@ class ArticulationDataWarp:
         The position, quaternion, and linear/angular velocity are of the body's link frame relative to the world.
         """
 
-        state = wp.zeros((self._root_newton_view.count, self._root_newton_view.link_count, 13), dtype=wp.float32, device=self.device)
+        state = wp.zeros(
+            (self._root_newton_view.count, self._root_newton_view.link_count, 13), dtype=wp.float32, device=self.device
+        )
         wp.launch(
             combine_pose_and_velocity_to_state_batched,
             dim=(self._root_newton_view.count, self._root_newton_view.link_count),
@@ -668,12 +706,17 @@ class ArticulationDataWarp:
                 self.sim_bind_body_link_pose_w,
                 self.body_link_vel_w,
                 state,
-            ]
+            ],
         )
         return state
 
     @property
-    @warn_overhead_cost("body_com_pose_w and/or body_com_vel_w", "This function outputs the state of the CoM, containing both pose and velocity. However, Newton outputs pose and velocities separately. Consider using only one of them instead. If both are required, use both body_com_pose_w and body_com_vel_w instead.")
+    @warn_overhead_cost(
+        "body_com_pose_w and/or body_com_vel_w",
+        "This function outputs the state of the CoM, containing both pose and velocity. However, Newton outputs pose"
+        " and velocities separately. Consider using only one of them instead. If both are required, use both"
+        " body_com_pose_w and body_com_vel_w instead.",
+    )
     def body_com_state_w(self) -> wp.array:
         """State of all bodies center of mass ``[wp.transformf, wp.spatial_vectorf]`` in simulation world frame.
 
@@ -685,7 +728,9 @@ class ArticulationDataWarp:
         principle inertia.
         """
 
-        state = wp.zeros((self._root_newton_view.count, self._root_newton_view.link_count, 13), dtype=wp.float32, device=self.device)
+        state = wp.zeros(
+            (self._root_newton_view.count, self._root_newton_view.link_count, 13), dtype=wp.float32, device=self.device
+        )
         wp.launch(
             combine_pose_and_velocity_to_state_batched,
             dim=(self._root_newton_view.count, self._root_newton_view.link_count),
@@ -694,7 +739,7 @@ class ArticulationDataWarp:
                 self.body_com_pose_w,
                 self.sim_bind_body_com_vel_w,
                 state,
-            ]
+            ],
         )
         return state
 
@@ -714,14 +759,19 @@ class ArticulationDataWarp:
                     self._previous_body_com_vel,
                     NewtonManager.get_dt(),
                     self._body_com_acc_w.data,
-                ]
+                ],
             )
             # set the buffer data and timestamp
             self._body_com_acc_w.timestamp = self._sim_timestamp
         return self._body_com_acc_w.data
 
     @property
-    @warn_overhead_cost("body_com_pose_b", "This function outputs the pose of the CoM, containing both position and orientation. However, in Newton, the CoM is always aligned with the link frame. This means that the quaternion is always [1, 0, 0, 0]. Consider using the position only instead.")
+    @warn_overhead_cost(
+        "body_com_pose_b",
+        "This function outputs the pose of the CoM, containing both position and orientation. However, in Newton, the"
+        " CoM is always aligned with the link frame. This means that the quaternion is always [1, 0, 0, 0]. Consider"
+        " using the position only instead.",
+    )
     def body_com_pose_b(self) -> wp.array:
         """Center of mass pose ``wp.transformf`` of all bodies in their respective body's link frames.
 
@@ -729,14 +779,16 @@ class ArticulationDataWarp:
         This quantity is the pose of the center of mass frame of the rigid body relative to the body's link frame.
         The orientation is provided in (x, y, z, w) format.
         """
-        out = wp.zeros((self._root_newton_view.count, self._root_newton_view.count), dtype=wp.transformf, device=self.device)
+        out = wp.zeros(
+            (self._root_newton_view.count, self._root_newton_view.count), dtype=wp.transformf, device=self.device
+        )
         wp.launch(
             generate_pose_from_position_with_unit_quaternion,
             dim=(self._root_newton_view.count, self._root_newton_view.link_count),
             inputs=[
                 self.body_com_pos_b,
                 out,
-            ]
+            ],
         )
         return out
 
@@ -773,7 +825,7 @@ class ArticulationDataWarp:
                     self._previous_joint_vel,
                     NewtonManager.get_dt(),
                     self._joint_acc.data,
-                ]
+                ],
             )
             self._joint_acc.timestamp = self._sim_timestamp
         return self._joint_acc.data
@@ -782,7 +834,7 @@ class ArticulationDataWarp:
     # Derived Properties.
     ##
 
-    #FIXME: USE SIM_BIND_LINK_POSE_W RATHER THAN JUST THE QUATERNION
+    # FIXME: USE SIM_BIND_LINK_POSE_W RATHER THAN JUST THE QUATERNION
     @property
     def projected_gravity_b(self):
         """Projection of the gravity direction on base frame. Shape is (num_instances, 3)."""
@@ -794,13 +846,13 @@ class ArticulationDataWarp:
                     self.GRAVITY_VEC_W,
                     self.root_link_quat_w,
                     self._projected_gravity_b.data,
-                ]
+                ],
             )
             # set the buffer data and timestamp
             self._projected_gravity_b.timestamp = self._sim_timestamp
         return self._projected_gravity_b.data
 
-    #FIXME: USE SIM_BIND_LINK_POSE_W RATHER THAN JUST THE QUATERNION
+    # FIXME: USE SIM_BIND_LINK_POSE_W RATHER THAN JUST THE QUATERNION
     @property
     def heading_w(self):
         """Yaw heading of the base frame (in radians). Shape is (num_instances,).
@@ -817,12 +869,11 @@ class ArticulationDataWarp:
                     self.FORWARD_VEC_B,
                     self.root_link_quat_w,
                     self._heading_w.data,
-                ]
+                ],
             )
             # set the buffer data and timestamp
             self._heading_w.timestamp = self._sim_timestamp
         return self._heading_w.data
-
 
     @property
     def root_link_vel_b(self) -> wp.array:
@@ -838,7 +889,7 @@ class ArticulationDataWarp:
                     self.root_link_vel_w,
                     self.sim_bind_root_link_pose_w,
                     self._root_link_vel_b.data,
-                ]
+                ],
             )
             self._root_link_vel_b.timestamp = self._sim_timestamp
         return self._root_link_vel_b.data
@@ -857,18 +908,21 @@ class ArticulationDataWarp:
                     self.sim_bind_root_com_vel_w,
                     self.sim_bind_root_link_pose_w,
                     self._root_com_vel_b.data,
-                ]
+                ],
             )
             self._root_com_vel_b.timestamp = self._sim_timestamp
         return self._root_com_vel_b.data
-
 
     ##
     # Sliced properties.
     ##
 
     @property
-    @warn_overhead_cost("root_link_pose_w", "This function extracts the position from the pose (containing both position and orientation). Consider using the whole of the pose instead.")
+    @warn_overhead_cost(
+        "root_link_pose_w",
+        "This function extracts the position from the pose (containing both position and orientation). Consider using"
+        " the whole of the pose instead.",
+    )
     def root_link_pos_w(self) -> wp.array:
         """Root link position ``wp.vec3f`` in simulation world frame. Shape is (num_instances).
 
@@ -881,12 +935,16 @@ class ArticulationDataWarp:
             inputs=[
                 self.sim_bind_root_link_pose_w,
                 out,
-            ]
+            ],
         )
         return out
 
     @property
-    @warn_overhead_cost("root_link_pose_w", "This function extracts the position from the pose (containing both position and orientation). Consider using the whole of the pose instead.")
+    @warn_overhead_cost(
+        "root_link_pose_w",
+        "This function extracts the position from the pose (containing both position and orientation). Consider using"
+        " the whole of the pose instead.",
+    )
     def root_link_quat_w(self) -> wp.array:
         """Root link orientation ``wp.quatf`` in simulation world frame. Shape is (num_instances,).
 
@@ -900,12 +958,16 @@ class ArticulationDataWarp:
             inputs=[
                 self.sim_bind_root_link_pose_w,
                 out,
-            ]
+            ],
         )
         return out
 
     @property
-    @warn_overhead_cost("root_link_vel_w", "This function extracts the linear velocity from the velocities (containing both linear and angular velocities). Consider using the whole of the velocities instead.")
+    @warn_overhead_cost(
+        "root_link_vel_w",
+        "This function extracts the linear velocity from the velocities (containing both linear and angular"
+        " velocities). Consider using the whole of the velocities instead.",
+    )
     def root_link_lin_vel_w(self) -> wp.array:
         """Root linear velocity ``wp.vec3f`` in simulation world frame. Shape is (num_instances).
 
@@ -918,12 +980,16 @@ class ArticulationDataWarp:
             inputs=[
                 self.root_link_vel_w,
                 out,
-            ]
+            ],
         )
         return out
 
     @property
-    @warn_overhead_cost("root_link_vel_w", "This function extracts the angular velocity from the velocities (containing both linear and angular velocities). Consider using the whole of the velocities instead.")
+    @warn_overhead_cost(
+        "root_link_vel_w",
+        "This function extracts the angular velocity from the velocities (containing both linear and angular"
+        " velocities). Consider using the whole of the velocities instead.",
+    )
     def root_link_ang_vel_w(self) -> wp.array:
         """Root link angular velocity ``wp.vec3f`` in simulation world frame. Shape is (num_instances).
 
@@ -936,12 +1002,16 @@ class ArticulationDataWarp:
             inputs=[
                 self.root_link_vel_w,
                 out,
-            ]
+            ],
         )
         return out
 
     @property
-    @warn_overhead_cost("root_com_pose_w", "This function extracts the position from the pose (containing both position and orientation). Consider using the whole of the pose instead.")
+    @warn_overhead_cost(
+        "root_com_pose_w",
+        "This function extracts the position from the pose (containing both position and orientation). Consider using"
+        " the whole of the pose instead.",
+    )
     def root_com_pos_w(self) -> wp.array:
         """Root center of mass position in simulation world frame. Shape is (num_instances, 3).
 
@@ -954,12 +1024,16 @@ class ArticulationDataWarp:
             inputs=[
                 self.root_com_pose_w,
                 out,
-            ]
+            ],
         )
         return out
-    
+
     @property
-    @warn_overhead_cost("root_com_pose_w", "This function extracts the orientation from the pose (containing both position and orientation). Consider using the whole of the pose instead.")
+    @warn_overhead_cost(
+        "root_com_pose_w",
+        "This function extracts the orientation from the pose (containing both position and orientation). Consider"
+        " using the whole of the pose instead.",
+    )
     def root_com_quat_w(self) -> wp.array:
         """Root center of mass orientation ``wp.quatf`` in simulation world frame. Shape is (num_instances,).
 
@@ -973,12 +1047,16 @@ class ArticulationDataWarp:
             inputs=[
                 self.root_com_pose_w,
                 out,
-            ]
+            ],
         )
         return out
 
     @property
-    @warn_overhead_cost("root_com_vel_w", "This function extracts the linear velocity from the velocities (containing both linear and angular velocities). Consider using the whole of the velocities instead.")
+    @warn_overhead_cost(
+        "root_com_vel_w",
+        "This function extracts the linear velocity from the velocities (containing both linear and angular"
+        " velocities). Consider using the whole of the velocities instead.",
+    )
     def root_com_lin_vel_w(self) -> wp.array:
         """Root center of mass linear velocity ``wp.vec3f`` in simulation world frame. Shape is (num_instances,).
 
@@ -991,12 +1069,16 @@ class ArticulationDataWarp:
             inputs=[
                 self.sim_bind_root_com_vel_w,
                 out,
-            ]
+            ],
         )
         return out
 
     @property
-    @warn_overhead_cost("root_com_vel_w", "This function extracts the angular velocity from the velocities (containing both linear and angular velocities). Consider using the whole of the velocities instead.")
+    @warn_overhead_cost(
+        "root_com_vel_w",
+        "This function extracts the angular velocity from the velocities (containing both linear and angular"
+        " velocities). Consider using the whole of the velocities instead.",
+    )
     def root_com_ang_vel_w(self) -> wp.array:
         """Root center of mass angular velocity ``wp.vec3f`` in simulation world frame. Shape is (num_instances).
 
@@ -1009,213 +1091,283 @@ class ArticulationDataWarp:
             inputs=[
                 self.sim_bind_root_com_vel_w,
                 out,
-            ]
+            ],
         )
         return out
 
     @property
-    @warn_overhead_cost("body_link_pose_w", "This function extracts the position from the pose (containing both position and orientation). Consider using the whole of the pose instead.")
+    @warn_overhead_cost(
+        "body_link_pose_w",
+        "This function extracts the position from the pose (containing both position and orientation). Consider using"
+        " the whole of the pose instead.",
+    )
     def body_link_pos_w(self) -> wp.array:
         """Positions of all bodies in simulation world frame ``wp.vec3f``. Shape is (num_instances, num_bodies).
 
         This quantity is the position of the articulation bodies' actor frame relative to the world.
         """
-        out = wp.zeros((self._root_newton_view.count, self._root_newton_view.link_count), dtype=wp.vec3f, device=self.device)
+        out = wp.zeros(
+            (self._root_newton_view.count, self._root_newton_view.link_count), dtype=wp.vec3f, device=self.device
+        )
         wp.launch(
             get_position,
             dim=(self._root_newton_view.count, self._root_newton_view.link_count),
             inputs=[
                 self.sim_bind_body_link_pose_w,
                 out,
-            ]
+            ],
         )
         return out
 
     @property
-    @warn_overhead_cost("body_link_pose_w", "This function extracts the orientation from the pose (containing both position and orientation). Consider using the whole of the pose instead.")
+    @warn_overhead_cost(
+        "body_link_pose_w",
+        "This function extracts the orientation from the pose (containing both position and orientation). Consider"
+        " using the whole of the pose instead.",
+    )
     def body_link_quat_w(self) -> wp.array:
         """Orientation ``wp.quatf`` of all bodies in simulation world frame. Shape is (num_instances, num_bodies).
 
         Format is ``(w, x, y, z)``.
         This quantity is the orientation of the articulation bodies' actor frame relative to the world.
         """
-        out = wp.zeros((self._root_newton_view.count, self._root_newton_view.link_count), dtype=wp.quatf, device=self.device)
+        out = wp.zeros(
+            (self._root_newton_view.count, self._root_newton_view.link_count), dtype=wp.quatf, device=self.device
+        )
         wp.launch(
             get_quat,
             dim=(self._root_newton_view.count, self._root_newton_view.link_count),
             inputs=[
                 self.sim_bind_body_link_pose_w,
                 out,
-            ]
+            ],
         )
         return out
 
     @property
-    @warn_overhead_cost("body_link_vel_w", "This function extracts the linear velocity from the velocities (containing both linear and angular velocities). Consider using the whole of the velocities instead.")
+    @warn_overhead_cost(
+        "body_link_vel_w",
+        "This function extracts the linear velocity from the velocities (containing both linear and angular"
+        " velocities). Consider using the whole of the velocities instead.",
+    )
     def body_link_lin_vel_w(self) -> wp.array:
         """Linear velocity ``wp.vec3f`` of all bodies in simulation world frame. Shape is (num_instances, num_bodies).
 
         This quantity is the linear velocity of the articulation bodies' center of mass frame relative to the world.
         """
-        out = wp.zeros((self._root_newton_view.count, self._root_newton_view.link_count), dtype=wp.vec3f, device=self.device)
+        out = wp.zeros(
+            (self._root_newton_view.count, self._root_newton_view.link_count), dtype=wp.vec3f, device=self.device
+        )
         wp.launch(
             get_linear_velocity,
             dim=(self._root_newton_view.count, self._root_newton_view.link_count),
             inputs=[
                 self.body_link_vel_w,
                 out,
-            ]
+            ],
         )
         return out
 
     @property
-    @warn_overhead_cost("body_link_vel_w", "This function extracts the angular velocity from the velocities (containing both linear and angular velocities). Consider using the whole of the velocities instead.")
+    @warn_overhead_cost(
+        "body_link_vel_w",
+        "This function extracts the angular velocity from the velocities (containing both linear and angular"
+        " velocities). Consider using the whole of the velocities instead.",
+    )
     def body_link_ang_vel_w(self) -> wp.array:
         """Angular velocity ``wp.vec3f`` of all bodies in simulation world frame. Shape is (num_instances, num_bodies).
 
         This quantity is the angular velocity of the articulation bodies' center of mass frame relative to the world.
         """
-        out = wp.zeros((self._root_newton_view.count, self._root_newton_view.link_count), dtype=wp.vec3f, device=self.device)
+        out = wp.zeros(
+            (self._root_newton_view.count, self._root_newton_view.link_count), dtype=wp.vec3f, device=self.device
+        )
         wp.launch(
             get_angular_velocity,
             dim=(self._root_newton_view.count, self._root_newton_view.link_count),
             inputs=[
                 self.body_link_vel_w,
                 out,
-            ]
+            ],
         )
         return out
 
     @property
-    @warn_overhead_cost("body_com_pose_w", "This function extracts the position from the pose (containing both position and orientation). Consider using the whole of the pose instead.")
+    @warn_overhead_cost(
+        "body_com_pose_w",
+        "This function extracts the position from the pose (containing both position and orientation). Consider using"
+        " the whole of the pose instead.",
+    )
     def body_com_pos_w(self) -> wp.array:
         """Positions of all bodies in simulation world frame ``wp.vec3f``. Shape is (num_instances, num_bodies).
 
         This quantity is the position of the articulation bodies' actor frame.
         """
-        out = wp.zeros((self._root_newton_view.count, self._root_newton_view.link_count), dtype=wp.vec3f, device=self.device)
+        out = wp.zeros(
+            (self._root_newton_view.count, self._root_newton_view.link_count), dtype=wp.vec3f, device=self.device
+        )
         wp.launch(
             get_position,
             dim=(self._root_newton_view.count, self._root_newton_view.link_count),
             inputs=[
                 self.body_com_pose_w,
                 out,
-            ]
+            ],
         )
         return out
 
     @property
-    @warn_overhead_cost("body_com_pose_w", "This function extracts the orientation from the pose (containing both position and orientation). Consider using the whole of the pose instead.")
+    @warn_overhead_cost(
+        "body_com_pose_w",
+        "This function extracts the orientation from the pose (containing both position and orientation). Consider"
+        " using the whole of the pose instead.",
+    )
     def body_com_quat_w(self) -> wp.array:
         """Orientation ``wp.quatf`` of all bodies in simulation world frame. Shape is (num_instances, num_bodies).
 
         Format is ``(w, x, y, z)``.
         This quantity is the orientation of the articulation bodies' actor frame.
         """
-        out = wp.zeros((self._root_newton_view.count, self._root_newton_view.link_count), dtype=wp.quatf, device=self.device)
+        out = wp.zeros(
+            (self._root_newton_view.count, self._root_newton_view.link_count), dtype=wp.quatf, device=self.device
+        )
         wp.launch(
             get_quat,
             dim=(self._root_newton_view.count, self._root_newton_view.link_count),
             inputs=[
                 self.body_com_pose_w,
                 out,
-            ]
+            ],
         )
         return out
 
     @property
-    @warn_overhead_cost("body_com_vel_w", "This function extracts the linear velocity from the velocities (containing both linear and angular velocities). Consider using the whole of the velocities instead.")
+    @warn_overhead_cost(
+        "body_com_vel_w",
+        "This function extracts the linear velocity from the velocities (containing both linear and angular"
+        " velocities). Consider using the whole of the velocities instead.",
+    )
     def body_com_lin_vel_w(self) -> wp.array:
         """Linear velocity ``wp.vec3f`` of all bodies in simulation world frame. Shape is (num_instances, num_bodies).
 
         This quantity is the linear velocity of the articulation bodies' center of mass frame.
         """
-        out = wp.zeros((self._root_newton_view.count, self._root_newton_view.link_count), dtype=wp.vec3f, device=self.device)
+        out = wp.zeros(
+            (self._root_newton_view.count, self._root_newton_view.link_count), dtype=wp.vec3f, device=self.device
+        )
         wp.launch(
             get_linear_velocity,
             dim=(self._root_newton_view.count, self._root_newton_view.link_count),
             inputs=[
                 self.sim_bind_body_com_vel_w,
                 out,
-            ]
+            ],
         )
         return out
 
     @property
-    @warn_overhead_cost("body_com_vel_w", "This function extracts the angular velocity from the velocities (containing both linear and angular velocities). Consider using the whole of the velocities instead.")
+    @warn_overhead_cost(
+        "body_com_vel_w",
+        "This function extracts the angular velocity from the velocities (containing both linear and angular"
+        " velocities). Consider using the whole of the velocities instead.",
+    )
     def body_com_ang_vel_w(self) -> wp.array:
         """Angular velocity ``wp.vec3f`` of all bodies in simulation world frame. Shape is (num_instances, num_bodies).
 
         This quantity is the angular velocity of the articulation bodies' center of mass frame.
         """
-        out = wp.zeros((self._root_newton_view.count, self._root_newton_view.link_count), dtype=wp.vec3f, device=self.device)
+        out = wp.zeros(
+            (self._root_newton_view.count, self._root_newton_view.link_count), dtype=wp.vec3f, device=self.device
+        )
         wp.launch(
             get_angular_velocity,
             dim=(self._root_newton_view.count, self._root_newton_view.link_count),
             inputs=[
                 self.sim_bind_body_com_vel_w,
                 out,
-            ]
+            ],
         )
         return out
 
     @property
-    @warn_overhead_cost("body_com_acc_w", "This function extracts the linear acceleration from the accelerations (containing both linear and angular accelerations). Consider using the whole of the accelerations instead.")
+    @warn_overhead_cost(
+        "body_com_acc_w",
+        "This function extracts the linear acceleration from the accelerations (containing both linear and angular"
+        " accelerations). Consider using the whole of the accelerations instead.",
+    )
     def body_com_lin_acc_w(self) -> wp.array:
         """Linear acceleration ``wp.vec3f`` of all bodies in simulation world frame. Shape is (num_instances, num_bodies).
 
         This quantity is the linear acceleration of the articulation bodies' center of mass frame.
         """
-        out = wp.zeros((self._root_newton_view.count, self._root_newton_view.link_count), dtype=wp.vec3f, device=self.device)
+        out = wp.zeros(
+            (self._root_newton_view.count, self._root_newton_view.link_count), dtype=wp.vec3f, device=self.device
+        )
         wp.launch(
             get_linear_velocity,
             dim=(self._root_newton_view.count, self._root_newton_view.link_count),
             inputs=[
                 self.body_com_acc_w,
                 out,
-            ]
+            ],
         )
         return out
 
     @property
-    @warn_overhead_cost("body_com_acc_w", "This function extracts the angular acceleration from the accelerations (containing both linear and angular accelerations). Consider using the whole of the accelerations instead.")
+    @warn_overhead_cost(
+        "body_com_acc_w",
+        "This function extracts the angular acceleration from the accelerations (containing both linear and angular"
+        " accelerations). Consider using the whole of the accelerations instead.",
+    )
     def body_com_ang_acc_w(self) -> wp.array:
         """Angular acceleration ``wp.vec3f`` of all bodies in simulation world frame. Shape is (num_instances, num_bodies).
 
         This quantity is the angular acceleration of the articulation bodies' center of mass frame.
         """
-        out = wp.zeros((self._root_newton_view.count, self._root_newton_view.link_count), dtype=wp.vec3f, device=self.device)
+        out = wp.zeros(
+            (self._root_newton_view.count, self._root_newton_view.link_count), dtype=wp.vec3f, device=self.device
+        )
         wp.launch(
             get_angular_velocity,
             dim=(self._root_newton_view.count, self._root_newton_view.link_count),
             inputs=[
                 self.body_com_acc_w,
                 out,
-            ]
+            ],
         )
         return out
 
     @property
-    @warn_overhead_cost("body_com_pose_b", "This function extracts the orientation from the pose (containing both position and orientation). Consider using the whole of the pose instead.")
+    @warn_overhead_cost(
+        "body_com_pose_b",
+        "This function extracts the orientation from the pose (containing both position and orientation). Consider"
+        " using the whole of the pose instead.",
+    )
     def body_com_quat_b(self) -> wp.array:
         """Orientation (x, y, z, w) of the principle axis of inertia of all of the bodies in their
         respective link frames. Shape is (num_instances, num_bodies, 4).
 
         This quantity is the orientation of the principles axes of inertia relative to its body's link frame.
         """
-        out = wp.zeros((self._root_newton_view.count, self._root_newton_view.link_count), dtype=wp.quatf, device=self.device)
+        out = wp.zeros(
+            (self._root_newton_view.count, self._root_newton_view.link_count), dtype=wp.quatf, device=self.device
+        )
         wp.launch(
             get_quat,
             dim=(self._root_newton_view.count, self._root_newton_view.link_count),
             inputs=[
                 self.body_com_pose_b,
                 out,
-            ]
+            ],
         )
         return out
 
     @property
-    @warn_overhead_cost("root_link_vel_b", "This function extracts the linear velocity from the velocities (containing both linear and angular velocities). Consider using the whole of the velocities instead.")
+    @warn_overhead_cost(
+        "root_link_vel_b",
+        "This function extracts the linear velocity from the velocities (containing both linear and angular"
+        " velocities). Consider using the whole of the velocities instead.",
+    )
     def root_link_lin_vel_b(self) -> wp.array:
         """Root link linear velocity ``wp.vec3f`` in base frame. Shape is (num_instances).
 
@@ -1229,12 +1381,16 @@ class ArticulationDataWarp:
             inputs=[
                 self.root_link_vel_b,
                 out,
-            ]
+            ],
         )
         return out
 
     @property
-    @warn_overhead_cost("root_link_vel_b", "This function extracts the angular velocity from the velocities (containing both linear and angular velocities). Consider using the whole of the velocities instead.")
+    @warn_overhead_cost(
+        "root_link_vel_b",
+        "This function extracts the angular velocity from the velocities (containing both linear and angular"
+        " velocities). Consider using the whole of the velocities instead.",
+    )
     def root_link_ang_vel_b(self) -> wp.array:
         """Root link angular velocity ``wp.vec3f`` in base world frame. Shape is (num_instances).
 
@@ -1248,12 +1404,16 @@ class ArticulationDataWarp:
             inputs=[
                 self.root_link_vel_b,
                 out,
-            ]
+            ],
         )
         return out
 
     @property
-    @warn_overhead_cost("root_com_vel_b", "This function extracts the linear velocity from the velocities (containing both linear and angular velocities). Consider using the whole of the velocities instead.")
+    @warn_overhead_cost(
+        "root_com_vel_b",
+        "This function extracts the linear velocity from the velocities (containing both linear and angular"
+        " velocities). Consider using the whole of the velocities instead.",
+    )
     def root_com_lin_vel_b(self) -> wp.array:
         """Root center of mass linear velocity ``wp.vec3f`` in base frame. Shape is (num_instances).
 
@@ -1267,12 +1427,16 @@ class ArticulationDataWarp:
             inputs=[
                 self.root_com_vel_b,
                 out,
-            ]
+            ],
         )
         return out
 
     @property
-    @warn_overhead_cost("root_com_vel_b", "This function extracts the angular velocity from the velocities (containing both linear and angular velocities). Consider using the whole of the velocities instead.")
+    @warn_overhead_cost(
+        "root_com_vel_b",
+        "This function extracts the angular velocity from the velocities (containing both linear and angular"
+        " velocities). Consider using the whole of the velocities instead.",
+    )
     def root_com_ang_vel_b(self) -> wp.array:
         """Root center of mass angular velocity in base world frame. Shape is (num_instances, 3).
 
@@ -1286,12 +1450,15 @@ class ArticulationDataWarp:
             inputs=[
                 self.root_com_vel_b,
                 out,
-            ]
+            ],
         )
         return out
 
     @property
-    @warn_overhead_cost("joint_pos_limits_lower or joint_pos_limits_upper", "This function combines both the lower and upper limits into a single array, use it only if necessary.")
+    @warn_overhead_cost(
+        "joint_pos_limits_lower or joint_pos_limits_upper",
+        "This function combines both the lower and upper limits into a single array, use it only if necessary.",
+    )
     def joint_pos_limits(self) -> wp.array:
         """Joint position limits provided to the simulation. Shape is (num_instances, num_joints, 2).
 
@@ -1305,7 +1472,7 @@ class ArticulationDataWarp:
                 self.sim_bind_joint_pos_limits_lower,
                 self.sim_bind_joint_pos_limits_upper,
                 out,
-            ]
+            ],
         )
         return out
 
@@ -1326,7 +1493,7 @@ class ArticulationDataWarp:
                 self.default_root_pose,
                 self.default_root_vel,
                 state,
-            ]
+            ],
         )
         return state
 

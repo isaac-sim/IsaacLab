@@ -6,8 +6,7 @@
 from __future__ import annotations
 
 import torch
-import warp as wp
-from isaaclab.sim._impl.newton_manager import NewtonManager
+
 import isaacsim.core.utils.torch as torch_utils
 from isaacsim.core.utils.torch.rotations import compute_heading_and_up, compute_rot, quat_conjugate
 

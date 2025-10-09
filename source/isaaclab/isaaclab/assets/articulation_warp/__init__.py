@@ -6,5 +6,5 @@
 """Sub-module for rigid articulated assets."""
 
 from .articulation import ArticulationWarp
-from .articulation_data import ArticulationDataWarp
 from .articulation_cfg import ArticulationWarpCfg
+from .articulation_data import ArticulationDataWarp

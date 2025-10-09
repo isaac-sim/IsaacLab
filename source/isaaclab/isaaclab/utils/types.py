@@ -11,6 +11,7 @@ import torch
 from collections.abc import Sequence
 from dataclasses import dataclass
 
+
 @dataclass
 class ArticulationActions:
     """Data container to store articulation's joints actions.

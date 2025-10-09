@@ -1,7 +1,12 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 import warp as wp
 
 """
-Splite/Combine pose kernels
+Split/Combine pose kernels
 """
 
 vec13f = wp.types.vector(length=13, dtype=wp.float32)
@@ -48,9 +53,11 @@ def generate_pose_from_position_with_unit_quaternion(
     index = wp.tid()
     pose[index] = wp.transformf(position[index], wp.quatf(0.0, 0.0, 0.0, 1.0))
 
+
 """
 Split/Combine state kernels
 """
+
 
 @wp.func
 def split_state_to_pose(
@@ -65,10 +72,8 @@ def split_state_to_pose(
 
     .. caution:: The velocity is given with angular velocity first and linear velocity second.
     """
-    return wp.transformf(
-        wp.vec3f(state[0], state[1], state[2]),
-        wp.quatf(state[3], state[4], state[5], state[6])
-    )
+    return wp.transformf(wp.vec3f(state[0], state[1], state[2]), wp.quatf(state[3], state[4], state[5], state[6]))
+
 
 @wp.func
 def split_state_to_velocity(
@@ -85,11 +90,12 @@ def split_state_to_velocity(
     """
     return wp.spatial_vectorf(state[7], state[8], state[9], state[10], state[11], state[12])
 
+
 @wp.kernel
 def split_state(
     root_state: wp.array(dtype=vec13f),
-    root_pose:wp.array(dtype=wp.transformf),
-    root_velocity:wp.array(dtype=wp.spatial_vectorf),
+    root_pose: wp.array(dtype=wp.transformf),
+    root_velocity: wp.array(dtype=wp.spatial_vectorf),
     env_mask: wp.array(dtype=wp.bool),
 ):
     """
@@ -112,6 +118,7 @@ def split_state(
         root_pose[env_index] = split_state_to_pose(root_state[env_index])
         root_velocity[env_index] = split_state_to_velocity(root_state[env_index])
 
+
 @wp.func
 def combine_state(
     pose: wp.transformf,
@@ -123,7 +130,7 @@ def combine_state(
     The state is given in the following format: (x, y, z, qx, qy, qz, qw, wx, wy, wz, vx, vy, vz).
 
     .. note:: The quaternion is given in the following format: (qx, qy, qz, qw).
-    
+
     .. caution:: The velocity is given with angular velocity first and linear velocity second.
 
     Args:
@@ -136,9 +143,21 @@ def combine_state(
     position = wp.transform_get_translation(pose)
     quaternion = wp.transform_get_rotation(pose)
     return vec13f(
-        position[0], position[1], position[2], quaternion[0], quaternion[1], quaternion[2], quaternion[3],
-        velocity[0], velocity[1], velocity[2], velocity[3], velocity[4], velocity[5]
+        position[0],
+        position[1],
+        position[2],
+        quaternion[0],
+        quaternion[1],
+        quaternion[2],
+        quaternion[3],
+        velocity[0],
+        velocity[1],
+        velocity[2],
+        velocity[3],
+        velocity[4],
+        velocity[5],
     )
+
 
 @wp.kernel
 def combine_pose_and_velocity_to_state(
@@ -150,7 +169,7 @@ def combine_pose_and_velocity_to_state(
     Combine a pose and a velocity into a state.
 
     The state is given in the following format: (x, y, z, qx, qy, qz, qw, wx, wy, wz, vx, vy, vz).
-    
+
     .. note:: The quaternion is given in the following format: (qx, qy, qz, qw).
 
     .. caution:: The velocity is given with angular velocity first and linear velocity second.
@@ -163,6 +182,7 @@ def combine_pose_and_velocity_to_state(
     env_index = wp.tid()
     root_state[env_index] = combine_state(root_pose[env_index], root_velocity[env_index])
 
+
 @wp.kernel
 def combine_pose_and_velocity_to_state_masked(
     root_pose: wp.array(dtype=wp.transformf),
@@ -174,7 +194,7 @@ def combine_pose_and_velocity_to_state_masked(
     Combine a pose and a velocity into a state.
 
     The state is given in the following format: (x, y, z, qx, qy, qz, qw, wx, wy, wz, vx, vy, vz).
-    
+
     .. note:: The quaternion is given in the following format: (qx, qy, qz, qw).
 
     .. caution:: The velocity is given with angular velocity first and linear velocity second.
@@ -189,6 +209,7 @@ def combine_pose_and_velocity_to_state_masked(
     if env_mask[env_index]:
         root_state[env_index] = combine_state(root_pose[env_index], root_velocity[env_index])
 
+
 @wp.kernel
 def combine_pose_and_velocity_to_state_batched(
     root_pose: wp.array2d(dtype=wp.transformf),
@@ -199,7 +220,7 @@ def combine_pose_and_velocity_to_state_batched(
     Combine a pose and a velocity into a state.
 
     The state is given in the following format: (x, y, z, qx, qy, qz, qw, wx, wy, wz, vx, vy, vz).
-    
+
     .. note:: The quaternion is given in the following format: (qx, qy, qz, qw).
 
     .. caution:: The velocity is given with angular velocity first and linear velocity second.
@@ -210,7 +231,10 @@ def combine_pose_and_velocity_to_state_batched(
         state: The state. Shape is (num_instances, num_bodies, 13). (modified)
     """
     env_index, body_index = wp.tid()
-    root_state[env_index, body_index] = combine_state(root_pose[env_index, body_index], root_velocity[env_index, body_index])
+    root_state[env_index, body_index] = combine_state(
+        root_pose[env_index, body_index], root_velocity[env_index, body_index]
+    )
+
 
 @wp.kernel
 def combine_pose_and_velocity_to_state_batched_masked(
@@ -224,7 +248,7 @@ def combine_pose_and_velocity_to_state_batched_masked(
     Combine a pose and a velocity into a state.
 
     The state is given in the following format: (x, y, z, qx, qy, qz, qw, wx, wy, wz, vx, vy, vz).
-    
+
     .. note:: The quaternion is given in the following format: (qx, qy, qz, qw).
 
     .. caution:: The velocity is given with angular velocity first and linear velocity second.
@@ -238,12 +262,15 @@ def combine_pose_and_velocity_to_state_batched_masked(
     """
     env_index, body_index = wp.tid()
     if env_mask[env_index] and body_mask[body_index]:
-        root_state[env_index, body_index] = combine_state(root_pose[env_index, body_index], root_velocity[env_index, body_index])
+        root_state[env_index, body_index] = combine_state(
+            root_pose[env_index, body_index], root_velocity[env_index, body_index]
+        )
 
 
 """
 Frame combination kernels
 """
+
 
 @wp.func
 def combine_transforms(p1: wp.vec3f, q1: wp.quatf, p2: wp.vec3f, q2: wp.quatf) -> wp.transformf:
@@ -259,16 +286,14 @@ def combine_transforms(p1: wp.vec3f, q1: wp.quatf, p2: wp.vec3f, q2: wp.quatf) -
     Returns:
         The combined transform. Shape is (1, 7).
     """
-    return wp.transformf(
-        p1 + wp.quat_rotate(q1, p2),
-        q1 * q2
-    )
+    return wp.transformf(p1 + wp.quat_rotate(q1, p2), q1 * q2)
+
 
 @wp.kernel
 def combine_frame_transforms_partial(
     pose_1: wp.array(dtype=wp.transformf),
     position_2: wp.array(dtype=wp.vec3f),
-    resulting_pose: wp.array(dtype=wp.transformf)
+    resulting_pose: wp.array(dtype=wp.transformf),
 ):
     """
     Combine a frame transform with a position.
@@ -283,7 +308,7 @@ def combine_frame_transforms_partial(
         wp.transform_get_translation(pose_1[index]),
         wp.transform_get_rotation(pose_1[index]),
         position_2[index],
-        wp.quatf(0.0, 0.0, 0.0, 1.0)
+        wp.quatf(0.0, 0.0, 0.0, 1.0),
     )
 
 
@@ -291,7 +316,7 @@ def combine_frame_transforms_partial(
 def combine_frame_transforms_partial_batch(
     pose_1: wp.array2d(dtype=wp.transformf),
     position_2: wp.array2d(dtype=wp.vec3f),
-    resulting_pose: wp.array2d(dtype=wp.transformf)
+    resulting_pose: wp.array2d(dtype=wp.transformf),
 ):
     """
     Combine a frame transform with a position.
@@ -306,7 +331,7 @@ def combine_frame_transforms_partial_batch(
         wp.transform_get_translation(pose_1[env_idx, body_idx]),
         wp.transform_get_rotation(pose_1[env_idx, body_idx]),
         position_2[env_idx, body_idx],
-        wp.quatf(0.0, 0.0, 0.0, 1.0)
+        wp.quatf(0.0, 0.0, 0.0, 1.0),
     )
 
 
@@ -314,7 +339,7 @@ def combine_frame_transforms_partial_batch(
 def combine_frame_transforms(
     pose_1: wp.array(dtype=wp.transformf),
     pose_2: wp.array(dtype=wp.transformf),
-    resulting_pose: wp.array(dtype=wp.transformf)
+    resulting_pose: wp.array(dtype=wp.transformf),
 ):
     """
     Combine two transforms.
@@ -329,7 +354,7 @@ def combine_frame_transforms(
         wp.transform_get_translation(pose_1[index]),
         wp.transform_get_rotation(pose_1[index]),
         wp.transform_get_translation(pose_2[index]),
-        wp.transform_get_rotation(pose_2[index])
+        wp.transform_get_rotation(pose_2[index]),
     )
 
 
@@ -337,7 +362,7 @@ def combine_frame_transforms(
 def combine_frame_transforms_batch(
     pose_1: wp.array2d(dtype=wp.transformf),
     pose_2: wp.array2d(dtype=wp.transformf),
-    resulting_pose: wp.array2d(dtype=wp.transformf)
+    resulting_pose: wp.array2d(dtype=wp.transformf),
 ):
     """
     Combine two transforms.
@@ -352,16 +377,13 @@ def combine_frame_transforms_batch(
         wp.transform_get_translation(pose_1[env_idx, body_idx]),
         wp.transform_get_rotation(pose_1[env_idx, body_idx]),
         wp.transform_get_translation(pose_2[env_idx, body_idx]),
-        wp.transform_get_rotation(pose_2[env_idx, body_idx])
+        wp.transform_get_rotation(pose_2[env_idx, body_idx]),
     )
-
 
 
 @wp.kernel
 def project_vec_from_quat_single(
-    vec: wp.vec3f,
-    quat: wp.array(dtype=wp.quatf),
-    resulting_vec: wp.array(dtype=wp.vec3f)
+    vec: wp.vec3f, quat: wp.array(dtype=wp.quatf), resulting_vec: wp.array(dtype=wp.vec3f)
 ):
     """
     Project a vector from a quaternion.
@@ -392,11 +414,12 @@ def project_velocity_to_frame(
     v = wp.quat_rotate_inv(wp.transform_get_rotation(pose), wp.spatial_bottom(velocity))
     return wp.spatial_vectorf(w[0], w[1], w[2], v[0], v[1], v[2])
 
+
 @wp.kernel
 def project_velocities_to_frame(
     velocity: wp.array(dtype=wp.spatial_vectorf),
     pose: wp.array(dtype=wp.transformf),
-    resulting_velocity: wp.array(dtype=wp.spatial_vectorf)
+    resulting_velocity: wp.array(dtype=wp.spatial_vectorf),
 ):
     """
     Project a velocity to a frame.
@@ -409,9 +432,11 @@ def project_velocities_to_frame(
     index = wp.tid()
     resulting_velocity[index] = project_velocity_to_frame(velocity[index], pose[index])
 
+
 """
 Heading utility kernels
 """
+
 
 @wp.func
 def heading_vec_b(quat: wp.quatf, vec: wp.vec3f) -> float:
@@ -420,17 +445,15 @@ def heading_vec_b(quat: wp.quatf, vec: wp.vec3f) -> float:
 
 
 @wp.kernel
-def compute_heading(
-    forward_vec_b: wp.vec3f,
-    quat_w: wp.array(dtype=wp.quatf),
-    heading: wp.array(dtype=wp.float32)
-):
+def compute_heading(forward_vec_b: wp.vec3f, quat_w: wp.array(dtype=wp.quatf), heading: wp.array(dtype=wp.float32)):
     index = wp.tid()
     heading[index] = heading_vec_b(quat_w[index], forward_vec_b)
+
 
 """
 Update kernels
 """
+
 
 @wp.kernel
 def update_transforms_array(
@@ -442,13 +465,14 @@ def update_transforms_array(
     Update a transforms array.
 
     Args:
-        new_pose: The new pose. Shape is (num_instances, 7). 
+        new_pose: The new pose. Shape is (num_instances, 7).
         pose: The pose. Shape is (num_instances, 7). (modified)
         env_mask: The mask of the environments to update the pose for. Shape is (num_instances,).
     """
     index = wp.tid()
     if env_mask[index]:
         pose[index] = new_pose[index]
+
 
 @wp.kernel
 def update_transforms_array_with_value(
@@ -462,11 +486,12 @@ def update_transforms_array_with_value(
     Args:
         value: The value. Shape is (7,).
         pose: The pose. Shape is (num_instances, 7). (modified)
-        env_mask: The mask of the environments to update the pose for. Shape is (num_instances,). 
+        env_mask: The mask of the environments to update the pose for. Shape is (num_instances,).
     """
     index = wp.tid()
     if env_mask[index]:
         pose[index] = value
+
 
 @wp.kernel
 def update_spatial_vector_array(
@@ -486,6 +511,7 @@ def update_spatial_vector_array(
     if env_mask[index]:
         velocity[index] = new_velocity[index]
 
+
 @wp.kernel
 def update_spatial_vector_array_with_value(
     value: wp.spatial_vectorf,
@@ -504,9 +530,11 @@ def update_spatial_vector_array_with_value(
     if env_mask[index]:
         velocity[index] = value
 
+
 """
 Transform kernels
 """
+
 
 @wp.kernel
 def transform_CoM_pose_to_link_frame(
@@ -529,8 +557,8 @@ def transform_CoM_pose_to_link_frame(
     index = wp.tid()
     if env_mask[index]:
         link_pose_w[index] = combine_transforms(
-        wp.transform_get_translation(com_pose_w[index]),
-        wp.transform_get_rotation(com_pose_w[index]),
+            wp.transform_get_translation(com_pose_w[index]),
+            wp.transform_get_rotation(com_pose_w[index]),
             wp.transform_get_translation(com_pose_link_frame[index]),
-            wp.quatf(0.0, 0.0, 0.0, 1.0)
+            wp.quatf(0.0, 0.0, 0.0, 1.0),
         )

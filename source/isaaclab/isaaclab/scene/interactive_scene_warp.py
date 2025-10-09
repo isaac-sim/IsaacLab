@@ -10,11 +10,11 @@ from typing import Any
 import carb
 import omni.log
 import omni.usd
+import warp as wp
 from isaacsim.core.prims import XFormPrim
 from isaacsim.core.utils.stage import get_current_stage
 from isaacsim.core.version import get_version
 from pxr import PhysxSchema
-import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationWarp, ArticulationWarpCfg, AssetBaseCfg
@@ -27,7 +27,7 @@ from isaaclab.terrains import TerrainImporter, TerrainImporterCfg
 from .interactive_scene_cfg import InteractiveSceneCfg
 
 
-class InteractiveSceneWarp:
+class InteractiveSceneDirect:
     """A scene that contains entities added to the simulation.
 
     The interactive scene parses the :class:`InteractiveSceneCfg` class to create the scene.
@@ -416,7 +416,7 @@ class InteractiveSceneWarp:
         for articulation in self._articulations.values():
             articulation.reset(mask)
         # -- sensors
-        #for sensor in self._sensors.values():
+        # for sensor in self._sensors.values():
         #    sensor.reset(mask)
 
     def write_data_to_sim(self):
@@ -629,7 +629,7 @@ class InteractiveSceneWarp:
                 asset_cfg.num_envs = self.cfg.num_envs
                 asset_cfg.env_spacing = self.cfg.env_spacing
                 self._terrain = asset_cfg.class_type(asset_cfg)
-            elif isinstance(asset_cfg, ArticulationCfg):
+            elif isinstance(asset_cfg, ArticulationWarpCfg):
                 self._articulations[asset_name] = asset_cfg.class_type(asset_cfg)
             elif isinstance(asset_cfg, SensorBaseCfg):
                 if isinstance(asset_cfg, ContactSensorCfg):

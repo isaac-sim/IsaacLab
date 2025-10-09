@@ -1,4 +1,10 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 import warp as wp
+
 
 @wp.kernel
 def compute_pd_actuator(
@@ -17,13 +23,28 @@ def compute_pd_actuator(
     if env_mask[env_index] and joint_mask[joint_index]:
         # No control
         if control_mode[env_index, joint_index] == 0:
-            computed_effort[env_index, joint_index] = stiffness[env_index, joint_index] * (- joint_pos[env_index, joint_index]) + damping[env_index, joint_index] * (- joint_vel[env_index, joint_index]) + added_effort[env_index, joint_index]
+            computed_effort[env_index, joint_index] = (
+                stiffness[env_index, joint_index] * (-joint_pos[env_index, joint_index])
+                + damping[env_index, joint_index] * (-joint_vel[env_index, joint_index])
+                + added_effort[env_index, joint_index]
+            )
         # Position control
         elif control_mode[env_index, joint_index] == 1:
-            computed_effort[env_index, joint_index] = stiffness[env_index, joint_index] * (joint_targets[env_index, joint_index] - joint_pos[env_index, joint_index]) + damping[env_index, joint_index] * (- joint_vel[env_index, joint_index]) + added_effort[env_index, joint_index]
+            computed_effort[env_index, joint_index] = (
+                stiffness[env_index, joint_index]
+                * (joint_targets[env_index, joint_index] - joint_pos[env_index, joint_index])
+                + damping[env_index, joint_index] * (-joint_vel[env_index, joint_index])
+                + added_effort[env_index, joint_index]
+            )
         # Velocity control
         elif control_mode[env_index, joint_index] == 2:
-            computed_effort[env_index, joint_index] = stiffness[env_index, joint_index] * (- joint_pos[env_index, joint_index]) + damping[env_index, joint_index] * (joint_targets[env_index, joint_index] - joint_vel[env_index, joint_index]) + added_effort[env_index, joint_index]
+            computed_effort[env_index, joint_index] = (
+                stiffness[env_index, joint_index] * (-joint_pos[env_index, joint_index])
+                + damping[env_index, joint_index]
+                * (joint_targets[env_index, joint_index] - joint_vel[env_index, joint_index])
+                + added_effort[env_index, joint_index]
+            )
+
 
 @wp.kernel
 def clip_efforts_with_limits(
@@ -35,7 +56,10 @@ def clip_efforts_with_limits(
 ):
     env_index, joint_index = wp.tid()
     if env_mask[env_index] and joint_mask[joint_index]:
-        clipped_joint_array[env_index, joint_index] = wp.clamp(joint_array[env_index, joint_index], -limits[env_index, joint_index], limits[env_index, joint_index])
+        clipped_joint_array[env_index, joint_index] = wp.clamp(
+            joint_array[env_index, joint_index], -limits[env_index, joint_index], limits[env_index, joint_index]
+        )
+
 
 @wp.func
 def clip_effort_dc_motor(
@@ -44,13 +68,13 @@ def clip_effort_dc_motor(
     effort_limit: float,
     joint_vel: float,
     effort: float,
-    
 ):
-    max_effort = saturation_effort * (1.0 - joint_vel)/vel_limit
-    min_effort = saturation_effort * (-1.0 - joint_vel)/vel_limit
+    max_effort = saturation_effort * (1.0 - joint_vel) / vel_limit
+    min_effort = saturation_effort * (-1.0 - joint_vel) / vel_limit
     max_effort = wp.clamp(max_effort, 0.0, effort_limit)
     min_effort = wp.clamp(min_effort, -effort_limit, 0.0)
     return wp.clamp(effort, min_effort, max_effort)
+
 
 @wp.kernel
 def clip_efforts_dc_motor(
@@ -65,4 +89,10 @@ def clip_efforts_dc_motor(
 ):
     env_index, joint_index = wp.tid()
     if env_mask[env_index] and joint_mask[joint_index]:
-        clipped_joint_array[env_index, joint_index] = clip_effort_dc_motor(saturation_effort[env_index, joint_index], vel_limit[env_index, joint_index], effort_limit[env_index, joint_index], joint_vel[env_index, joint_index], joint_array[env_index, joint_index])
+        clipped_joint_array[env_index, joint_index] = clip_effort_dc_motor(
+            saturation_effort[env_index, joint_index],
+            vel_limit[env_index, joint_index],
+            effort_limit[env_index, joint_index],
+            joint_vel[env_index, joint_index],
+            joint_array[env_index, joint_index],
+        )

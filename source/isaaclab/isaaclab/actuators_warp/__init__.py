@@ -23,16 +23,13 @@ and called by the :class:`isaaclab.assets.Articulation` class.
 """
 
 from .actuator_base import ActuatorBaseWarp
-from .actuator_cfg import (
+from .actuator_cfg import (  # ActuatorNetLSTMCfg,; ActuatorNetMLPCfg,; DelayedPDActuatorCfg,; RemotizedPDActuatorCfg,
     ActuatorBaseWarpCfg,
-    #ActuatorNetLSTMCfg,
-    #ActuatorNetMLPCfg,
     DCMotorWarpCfg,
-    #DelayedPDActuatorCfg,
     IdealPDActuatorWarpCfg,
     ImplicitActuatorWarpCfg,
-    #RemotizedPDActuatorCfg,
 )
-#from .actuator_net import ActuatorNetLSTM, ActuatorNetMLP
-#from .actuator_pd import DCMotor, DelayedPDActuator, IdealPDActuator, ImplicitActuator, RemotizedPDActuator
+
+# from .actuator_net import ActuatorNetLSTM, ActuatorNetMLP
+# from .actuator_pd import DCMotor, DelayedPDActuator, IdealPDActuator, ImplicitActuator, RemotizedPDActuator
 from .actuator_pd import DCMotorWarp, IdealPDActuatorWarp, ImplicitActuatorWarp

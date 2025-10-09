@@ -5,17 +5,24 @@
 
 from __future__ import annotations
 
-import warp as wp
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, ClassVar
 
+import warp as wp
+
 import isaaclab.utils.string as string_utils
 from isaaclab.actuators_warp.kernels import clip_efforts_with_limits
-from isaaclab.assets.articulation_warp.kernels import update_joint_array_with_value, update_joint_array_with_value_int, populate_empty_array, update_joint_array_with_value_array
+from isaaclab.assets.articulation_warp.kernels import (
+    populate_empty_array,
+    update_joint_array_with_value,
+    update_joint_array_with_value_array,
+    update_joint_array_with_value_int,
+)
 
 if TYPE_CHECKING:
-    from .actuator_cfg import ActuatorBaseWarpCfg
     from isaaclab.assets.articulation_warp.articulation import ArticulationDataWarp
+
+    from .actuator_cfg import ActuatorBaseWarpCfg
 
 
 class ActuatorBaseWarp(ABC):
@@ -52,7 +59,6 @@ class ActuatorBaseWarp(ABC):
     If the :attr:`ActuatorBaseCfg.effort_limit_sim` is not specified and the actuator is an explicit
     actuator, then this value is used.
     """
-
 
     def __init__(
         self,
@@ -192,9 +198,7 @@ class ActuatorBaseWarp(ABC):
     Helper functions.
     """
 
-    def _parse_joint_parameter(
-        self, cfg_value: float | dict[str, float] | None, original_value: wp.array | None
-    ):
+    def _parse_joint_parameter(self, cfg_value: float | dict[str, float] | None, original_value: wp.array | None):
         """Parse the joint parameter from the configuration.
 
         Args:
@@ -223,7 +227,7 @@ class ActuatorBaseWarp(ABC):
                         original_value,
                         self._env_mask,
                         self._joint_mask,
-                    ]
+                    ],
                 )
             elif isinstance(cfg_value, int):
                 # if int, then use the same value for all joints
@@ -235,12 +239,12 @@ class ActuatorBaseWarp(ABC):
                         original_value,
                         self._env_mask,
                         self._joint_mask,
-                    ]
+                    ],
                 )
             elif isinstance(cfg_value, dict):
                 # if dict, then parse the regular expression
                 indices, _, values = string_utils.resolve_matching_names_values(cfg_value, self.joint_names)
-                tmp_param =wp.zeros((self._num_joints,), dtype=wp.float32, device=self._device)
+                tmp_param = wp.zeros((self._num_joints,), dtype=wp.float32, device=self._device)
                 wp.launch(
                     populate_empty_array,
                     dim=(self._num_joints,),
@@ -248,7 +252,7 @@ class ActuatorBaseWarp(ABC):
                         wp.array(values, dtype=wp.float32, device=self._device),
                         tmp_param,
                         wp.array(indices, dtype=wp.int32, device=self._device),
-                    ]
+                    ],
                 )
                 wp.launch(
                     update_joint_array_with_value_array,
@@ -258,7 +262,7 @@ class ActuatorBaseWarp(ABC):
                         original_value,
                         self._env_mask,
                         self._joint_mask,
-                    ]
+                    ],
                 )
             else:
                 raise TypeError(
@@ -288,5 +292,5 @@ class ActuatorBaseWarp(ABC):
                 clipped_effort,
                 self._env_mask,
                 self.joint_mask,
-            ]
+            ],
         )

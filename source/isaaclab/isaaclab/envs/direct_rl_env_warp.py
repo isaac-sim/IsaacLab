@@ -10,11 +10,9 @@ import gymnasium as gym
 import inspect
 import math
 import numpy as np
-import warp as wp
 import torch
 import weakref
 from abc import abstractmethod
-from collections.abc import Sequence
 from dataclasses import MISSING
 from typing import Any, ClassVar
 
@@ -22,6 +20,7 @@ import isaacsim.core.utils.torch as torch_utils
 import omni.kit.app
 import omni.log
 import omni.physx
+import warp as wp
 from isaacsim.core.simulation_manager import SimulationManager
 from isaacsim.core.version import get_version
 
@@ -37,6 +36,7 @@ from .direct_rl_env_cfg import DirectRLEnvCfg
 from .ui import ViewportCameraController
 from .utils.spaces import sample_space, spec_to_gym_space
 
+
 @wp.kernel
 def zero_mask_int32(
     mask: wp.array(dtype=wp.bool),
@@ -46,6 +46,7 @@ def zero_mask_int32(
     if mask[env_index]:
         data[env_index] = 0
 
+
 @wp.kernel
 def add_to_env(
     data: wp.array(dtype=wp.int32),
@@ -53,6 +54,7 @@ def add_to_env(
 ):
     env_index = wp.tid()
     data[env_index] += value
+
 
 class DirectRLEnvWarp(gym.Env):
     """The superclass for the direct workflow to design environments.
@@ -206,7 +208,7 @@ class DirectRLEnvWarp(gym.Env):
         self.common_step_counter = 0
         # -- init buffers
         self.episode_length_buf = wp.zeros(self.num_envs, dtype=wp.int32, device=self.device)
-        #self.episode_length_buf = torch.zeros(self.num_envs, device=self.device, dtype=torch.long)
+        # self.episode_length_buf = torch.zeros(self.num_envs, device=self.device, dtype=torch.long)
         self.reset_terminated = wp.zeros(self.num_envs, dtype=wp.bool, device=self.device)
         self.reset_time_outs = wp.zeros(self.num_envs, dtype=wp.bool, device=self.device)
         self.reset_buf = wp.zeros(self.num_envs, dtype=wp.bool, device=self.device)
@@ -409,7 +411,13 @@ class DirectRLEnvWarp(gym.Env):
                 wp.capture_launch(self.graph_end_step)
 
         # return observations, rewards, resets and extras
-        return {"policy": self.torch_obs_buf.clone()}, self.torch_reward_buf, self.torch_reset_terminated, self.torch_reset_time_outs, self.extras
+        return (
+            {"policy": self.torch_obs_buf.clone()},
+            self.torch_reward_buf,
+            self.torch_reset_terminated,
+            self.torch_reset_time_outs,
+            self.extras,
+        )
 
     def step_warp_action(self) -> None:
         self._apply_action()
@@ -423,7 +431,7 @@ class DirectRLEnvWarp(gym.Env):
             inputs=[
                 self.episode_length_buf,
                 1,
-            ]
+            ],
         )
         self._get_dones()
         self._get_rewards()
@@ -433,11 +441,11 @@ class DirectRLEnvWarp(gym.Env):
         # update articulation kinematics
         self.scene.write_data_to_sim()
         # if sensors are added to the scene, make sure we render to reflect changes in reset
-        #if self.sim.has_rtx_sensors() and self.cfg.rerender_on_reset:
+        # if self.sim.has_rtx_sensors() and self.cfg.rerender_on_reset:
         #    self.sim.render()
 
         # post-step: step interval event
-        #if self.cfg.events:
+        # if self.cfg.events:
         #    if "interval" in self.event_manager.available_modes:
         #        self.event_manager.apply(mode="interval", dt=self.step_dt)
 
@@ -446,10 +454,8 @@ class DirectRLEnvWarp(gym.Env):
 
         # add observation noise
         # note: we apply no noise to the state space (since it is used for critic networks)
-        #if self.cfg.observation_noise_model:
+        # if self.cfg.observation_noise_model:
         #    self.obs_buf["policy"] = self._observation_noise_model(self.obs_buf["policy"])
-
-
 
     @staticmethod
     def seed(seed: int = -1) -> int:
@@ -650,15 +656,15 @@ class DirectRLEnvWarp(gym.Env):
         self.scene.reset(mask)
 
         # apply events such as randomization for environments that need a reset
-        #if self.cfg.events:
+        # if self.cfg.events:
         #    if "reset" in self.event_manager.available_modes:
         #        env_step_count = self._sim_step_counter // self.cfg.decimation
         #        self.event_manager.apply(mode="reset", env_ids=env_ids, global_env_step_count=env_step_count)
 
         # reset noise models
-        #if self.cfg.action_noise_model:
+        # if self.cfg.action_noise_model:
         #    self._action_noise_model.reset(env_ids)
-        #if self.cfg.observation_noise_model:
+        # if self.cfg.observation_noise_model:
         #    self._observation_noise_model.reset(env_ids)
 
         # reset the episode length buffer
@@ -668,7 +674,7 @@ class DirectRLEnvWarp(gym.Env):
             inputs=[
                 mask,
                 self.episode_length_buf,
-            ]
+            ],
         )
 
     """

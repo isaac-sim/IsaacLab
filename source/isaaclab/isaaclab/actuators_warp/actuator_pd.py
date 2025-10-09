@@ -10,20 +10,19 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import omni.log
-
-from isaaclab.utils import DelayBuffer, LinearInterpolation
-
 import warp as wp
+
 from .actuator_base import ActuatorBaseWarp
-from .kernels import compute_pd_actuator, clip_efforts_dc_motor
+from .kernels import clip_efforts_dc_motor, compute_pd_actuator
+
+# from isaaclab.utils import DelayBuffer, LinearInterpolation
+
 
 if TYPE_CHECKING:
-    from .actuator_cfg import (
+    from .actuator_cfg import (  # DelayedPDActuatorCfg,; RemotizedPDActuatorCfg,
         DCMotorWarpCfg,
-        #DelayedPDActuatorCfg,
         IdealPDActuatorWarpCfg,
         ImplicitActuatorWarpCfg,
-        #RemotizedPDActuatorCfg,
     )
 
 
@@ -144,7 +143,7 @@ class ImplicitActuatorWarp(ActuatorBaseWarp):
                 self.data.computed_effort,
                 self._env_mask,
                 self._joint_mask,
-            ]
+            ],
         )
         self._clip_effort(self.data.computed_effort, self.data.applied_effort)
 
@@ -205,7 +204,7 @@ class IdealPDActuatorWarp(ActuatorBaseWarp):
                 self.data.computed_effort,
                 self._env_mask,
                 self._joint_mask,
-            ]
+            ],
         )
         self._clip_effort(self.data.computed_effort, self.data.sim_bind_joint_effort)
 
@@ -290,11 +289,11 @@ class DCMotorWarp(IdealPDActuatorWarp):
                 clipped_effort,
                 self._env_mask,
                 self._joint_mask,
-            ]
+            ],
         )
 
 
-#class DelayedPDActuator(IdealPDActuator):
+# class DelayedPDActuator(IdealPDActuator):
 #    """Ideal PD actuator with delayed command application.
 #
 #    This class extends the :class:`IdealPDActuator` class by adding a delay to the actuator commands. The delay
@@ -350,7 +349,7 @@ class DCMotorWarp(IdealPDActuatorWarp):
 #        return super().compute(control_action, joint_pos, joint_vel)
 #
 #
-#class RemotizedPDActuator(DelayedPDActuator):
+# class RemotizedPDActuator(DelayedPDActuator):
 #    """Ideal PD actuator with angle-dependent torque limits.
 #
 #    This class extends the :class:`DelayedPDActuator` class by adding angle-dependent torque limits to the actuator.

@@ -3,8 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import warp as wp
 from dataclasses import dataclass
+
+import warp as wp
+
 
 @dataclass
 class TimestampedWarpBuffer:
@@ -19,7 +21,7 @@ class TimestampedWarpBuffer:
     useful when the data is expensive to compute or retrieve. For example usage, refer to the data classes in
     the :mod:`isaaclab.assets` module.
     """
-    
+
     data: wp.array = None  # type: ignore
     """The data stored in the buffer. Default is None, indicating that the buffer is empty."""
 

@@ -217,9 +217,10 @@ class DifferentialInverseKinematicsActionCfg(ActionTermCfg):
 
     See :class:`DifferentialInverseKinematicsAction` for more details.
     """
+
     pass
-    #@configclass
-    #class OffsetCfg:
+    # @configclass
+    # class OffsetCfg:
     #    """The offset pose from parent frame to child frame.
 
     #    On many robots, end-effector frames are fictitious frames that do not have a corresponding
@@ -233,18 +234,19 @@ class DifferentialInverseKinematicsActionCfg(ActionTermCfg):
     #    rot: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0)
     #    """Quaternion rotation ``(w, x, y, z)`` w.r.t. the parent frame. Defaults to (1.0, 0.0, 0.0, 0.0)."""
 
-    #class_type: type[ActionTerm] = task_space_actions.DifferentialInverseKinematicsAction
+    # class_type: type[ActionTerm] = task_space_actions.DifferentialInverseKinematicsAction
 
-    #joint_names: list[str] = MISSING
-    #"""List of joint names or regex expressions that the action will be mapped to."""
-    #body_name: str = MISSING
-    #"""Name of the body or frame for which IK is performed."""
-    #body_offset: OffsetCfg | None = None
-    #"""Offset of target frame w.r.t. to the body frame. Defaults to None, in which case no offset is applied."""
-    #scale: float | tuple[float, ...] = 1.0
-    #"""Scale factor for the action. Defaults to 1.0."""
-    #controller: DifferentialIKControllerCfg = MISSING
-    #"""The configuration for the differential IK controller."""
+    # joint_names: list[str] = MISSING
+    # """List of joint names or regex expressions that the action will be mapped to."""
+    # body_name: str = MISSING
+    # """Name of the body or frame for which IK is performed."""
+    # body_offset: OffsetCfg | None = None
+    # """Offset of target frame w.r.t. to the body frame. Defaults to None, in which case no offset is applied."""
+    # scale: float | tuple[float, ...] = 1.0
+    # """Scale factor for the action. Defaults to 1.0."""
+    # controller: DifferentialIKControllerCfg = MISSING
+    # """The configuration for the differential IK controller."""
+
 
 @configclass
 class DifferentialInverseKinematicsNewtonActionCfg(ActionTermCfg):
@@ -252,10 +254,11 @@ class DifferentialInverseKinematicsNewtonActionCfg(ActionTermCfg):
 
     See :class:`DifferentialInverseKinematicsAction` for more details.
     """
+
     pass
 
-    #@configclass
-    #class OffsetCfg:
+    # @configclass
+    # class OffsetCfg:
     #    """The offset pose from parent frame to child frame.
 
     #    On many robots, end-effector frames are fictitious frames that do not have a corresponding
@@ -269,18 +272,19 @@ class DifferentialInverseKinematicsNewtonActionCfg(ActionTermCfg):
     #    rot: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0)
     #    """Quaternion rotation ``(w, x, y, z)`` w.r.t. the parent frame. Defaults to (1.0, 0.0, 0.0, 0.0)."""
 
-    #class_type: type[ActionTerm] = task_space_actions.DifferentialInverseKinematicsNewtonAction
+    # class_type: type[ActionTerm] = task_space_actions.DifferentialInverseKinematicsNewtonAction
 
-    #joint_names: list[str] = MISSING
-    #"""List of joint names or regex expressions that the action will be mapped to."""
-    #body_name: str = MISSING
-    #"""Name of the body or frame for which IK is performed."""
-    #body_offset: OffsetCfg | None = None
-    #"""Offset of target frame w.r.t. to the body frame. Defaults to None, in which case no offset is applied."""
-    #scale: float | tuple[float, ...] = 1.0
-    #"""Scale factor for the action. Defaults to 1.0."""
-    #controller: DifferentialIKControllerCfg = MISSING
-    #"""The configuration for the differential IK controller."""
+    # joint_names: list[str] = MISSING
+    # """List of joint names or regex expressions that the action will be mapped to."""
+    # body_name: str = MISSING
+    # """Name of the body or frame for which IK is performed."""
+    # body_offset: OffsetCfg | None = None
+    # """Offset of target frame w.r.t. to the body frame. Defaults to None, in which case no offset is applied."""
+    # scale: float | tuple[float, ...] = 1.0
+    # """Scale factor for the action. Defaults to 1.0."""
+    # controller: DifferentialIKControllerCfg = MISSING
+    # """The configuration for the differential IK controller."""
+
 
 @configclass
 class OperationalSpaceControllerActionCfg(ActionTermCfg):
@@ -291,8 +295,8 @@ class OperationalSpaceControllerActionCfg(ActionTermCfg):
 
     pass
 
-    #@configclass
-    #class OffsetCfg:
+    # @configclass
+    # class OffsetCfg:
     #    """The offset pose from parent frame to child frame.
 
     #    On many robots, end-effector frames are fictitious frames that do not have a corresponding
@@ -306,41 +310,41 @@ class OperationalSpaceControllerActionCfg(ActionTermCfg):
     #    rot: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0)
     #    """Quaternion rotation ``(w, x, y, z)`` w.r.t. the parent frame. Defaults to (1.0, 0.0, 0.0, 0.0)."""
 
-    ##class_type: type[ActionTerm] = task_space_actions.OperationalSpaceControllerAction
+    # class_type: type[ActionTerm] = task_space_actions.OperationalSpaceControllerAction
 
-    #joint_names: list[str] = MISSING
-    #"""List of joint names or regex expressions that the action will be mapped to."""
+    # joint_names: list[str] = MISSING
+    # """List of joint names or regex expressions that the action will be mapped to."""
 
-    #body_name: str = MISSING
-    #"""Name of the body or frame for which motion/force control is performed."""
+    # body_name: str = MISSING
+    # """Name of the body or frame for which motion/force control is performed."""
 
-    #body_offset: OffsetCfg | None = None
-    #"""Offset of target frame w.r.t. to the body frame. Defaults to None, in which case no offset is applied."""
+    # body_offset: OffsetCfg | None = None
+    # """Offset of target frame w.r.t. to the body frame. Defaults to None, in which case no offset is applied."""
 
-    #task_frame_rel_path: str = None
-    #"""The path of a ``RigidObject``, relative to the sub-environment, representing task frame. Defaults to None."""
+    # task_frame_rel_path: str = None
+    # """The path of a ``RigidObject``, relative to the sub-environment, representing task frame. Defaults to None."""
 
-    ##controller_cfg: OperationalSpaceControllerCfg = MISSING
-    #"""The configuration for the operational space controller."""
+    # controller_cfg: OperationalSpaceControllerCfg = MISSING
+    # """The configuration for the operational space controller."""
 
-    #position_scale: float = 1.0
-    #"""Scale factor for the position targets. Defaults to 1.0."""
+    # position_scale: float = 1.0
+    # """Scale factor for the position targets. Defaults to 1.0."""
 
-    #orientation_scale: float = 1.0
-    #"""Scale factor for the orientation (quad for ``pose_abs`` or axis-angle for ``pose_rel``). Defaults to 1.0."""
+    # orientation_scale: float = 1.0
+    # """Scale factor for the orientation (quad for ``pose_abs`` or axis-angle for ``pose_rel``). Defaults to 1.0."""
 
-    #wrench_scale: float = 1.0
-    #"""Scale factor for the wrench targets. Defaults to 1.0."""
+    # wrench_scale: float = 1.0
+    # """Scale factor for the wrench targets. Defaults to 1.0."""
 
-    #stiffness_scale: float = 1.0
-    #"""Scale factor for the stiffness commands. Defaults to 1.0."""
+    # stiffness_scale: float = 1.0
+    # """Scale factor for the stiffness commands. Defaults to 1.0."""
 
-    #damping_ratio_scale: float = 1.0
-    #"""Scale factor for the damping ratio commands. Defaults to 1.0."""
+    # damping_ratio_scale: float = 1.0
+    # """Scale factor for the damping ratio commands. Defaults to 1.0."""
 
-    #nullspace_joint_pos_target: str = "none"
-    #"""The joint targets for the null-space control: ``"none"``, ``"zero"``, ``"default"``, ``"center"``.
+    # nullspace_joint_pos_target: str = "none"
+    # """The joint targets for the null-space control: ``"none"``, ``"zero"``, ``"default"``, ``"center"``.
 
-    #Note: Functional only when ``nullspace_control`` is set to ``"position"`` within the
+    # Note: Functional only when ``nullspace_control`` is set to ``"position"`` within the
     #    ``OperationalSpaceControllerCfg``.
-    #"""
+    # """

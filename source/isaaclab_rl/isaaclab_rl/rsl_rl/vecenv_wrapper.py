@@ -6,10 +6,11 @@
 import gymnasium as gym
 import torch
 from tensordict import TensorDict
+
 import warp as wp
 from rsl_rl.env import VecEnv
 
-from isaaclab.envs import DirectRLEnv, ManagerBasedRLEnv, DirectRLEnvWarp
+from isaaclab.envs import DirectRLEnv, DirectRLEnvWarp, ManagerBasedRLEnv
 
 
 class RslRlVecEnvWrapper(VecEnv):
@@ -39,7 +40,11 @@ class RslRlVecEnvWrapper(VecEnv):
         """
 
         # check that input is valid
-        if not isinstance(env.unwrapped, ManagerBasedRLEnv) and not isinstance(env.unwrapped, DirectRLEnv) and not isinstance(env.unwrapped, DirectRLEnvWarp):
+        if (
+            not isinstance(env.unwrapped, ManagerBasedRLEnv)
+            and not isinstance(env.unwrapped, DirectRLEnv)
+            and not isinstance(env.unwrapped, DirectRLEnvWarp)
+        ):
             raise ValueError(
                 "The environment must be inherited from ManagerBasedRLEnv or DirectRLEnv. Environment type:"
                 f" {type(env)}"

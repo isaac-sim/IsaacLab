@@ -7,18 +7,19 @@ from __future__ import annotations
 
 import math
 
+import warp as wp
+
 from isaaclab_assets.robots.cartpole import CARTPOLE_CFG_WARP
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationWarp, ArticulationWarpCfg
-from isaaclab.envs import DirectRLEnvWarp, DirectRLEnvCfg
+from isaaclab.envs import DirectRLEnvCfg, DirectRLEnvWarp
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.sim._impl.newton_manager_cfg import NewtonCfg
 from isaaclab.sim._impl.solvers_cfg import MJWarpSolverCfg
 from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
 from isaaclab.utils import configclass
-import warp as wp
 
 
 @configclass
@@ -86,6 +87,7 @@ def get_observations(
     observations[env_index][2] = joint_pos[env_index, cart_dof_idx]
     observations[env_index][3] = joint_vel[env_index, cart_dof_idx]
 
+
 @wp.kernel
 def update_actions(
     input_actions: wp.array2d(dtype=wp.float32),
@@ -94,6 +96,7 @@ def update_actions(
 ):
     env_index = wp.tid()
     actions[env_index, 0] = action_scale * input_actions[env_index, 0]
+
 
 @wp.kernel
 def get_dones(
@@ -108,27 +111,26 @@ def get_dones(
     reset: wp.array(dtype=wp.bool),
 ):
     env_index = wp.tid()
-    out_of_bounds[env_index] = (wp.abs(joint_pos[env_index, cart_dof_idx]) > max_cart_pos) or (wp.abs(joint_pos[env_index, pole_dof_idx]) > math.pi / 2.0)
+    out_of_bounds[env_index] = (wp.abs(joint_pos[env_index, cart_dof_idx]) > max_cart_pos) or (
+        wp.abs(joint_pos[env_index, pole_dof_idx]) > math.pi / 2.0
+    )
     time_out[env_index] = episode_length_buf[env_index] >= (max_episode_length - 1)
     reset[env_index] = out_of_bounds[env_index] or time_out[env_index]
 
+
 @wp.func
-def compute_rew_alive(
-    rew_scale_alive: wp.float32,
-    reset_terminated: bool
-) -> wp.float32:
+def compute_rew_alive(rew_scale_alive: wp.float32, reset_terminated: bool) -> wp.float32:
     if reset_terminated:
         return wp.float32(0.0)
     return rew_scale_alive
 
+
 @wp.func
-def compute_rew_termination(
-    rew_scale_terminated: wp.float32,
-    reset_terminated: bool
-) -> wp.float32:
+def compute_rew_termination(rew_scale_terminated: wp.float32, reset_terminated: bool) -> wp.float32:
     if reset_terminated:
         return rew_scale_terminated
     return wp.float32(0.0)
+
 
 @wp.func
 def compute_rew_pole_pos(
@@ -137,12 +139,14 @@ def compute_rew_pole_pos(
 ) -> wp.float32:
     return rew_scale_pole_pos * pole_pos * pole_pos
 
+
 @wp.func
 def compute_rew_cart_vel(
     rew_scale_cart_vel: wp.float32,
     cart_vel: wp.float32,
 ) -> wp.float32:
     return rew_scale_cart_vel * wp.abs(cart_vel)
+
 
 @wp.func
 def compute_rew_pole_vel(
@@ -167,11 +171,13 @@ def compute_rewards(
     reward: wp.array(dtype=wp.float32),
 ):
     env_index = wp.tid()
-    reward[env_index] = compute_rew_alive(rew_scale_alive, reset_terminated[env_index]) + \
-        compute_rew_termination(rew_scale_terminated, reset_terminated[env_index]) + \
-        compute_rew_pole_pos(rew_scale_pole_pos, joint_pos[env_index, pole_dof_idx]) + \
-        compute_rew_cart_vel(rew_scale_cart_vel, joint_vel[env_index, cart_dof_idx]) + \
-        compute_rew_pole_vel(rew_scale_pole_vel, joint_vel[env_index, pole_dof_idx])
+    reward[env_index] = (
+        compute_rew_alive(rew_scale_alive, reset_terminated[env_index])
+        + compute_rew_termination(rew_scale_terminated, reset_terminated[env_index])
+        + compute_rew_pole_pos(rew_scale_pole_pos, joint_pos[env_index, pole_dof_idx])
+        + compute_rew_cart_vel(rew_scale_cart_vel, joint_vel[env_index, cart_dof_idx])
+        + compute_rew_pole_vel(rew_scale_pole_vel, joint_vel[env_index, pole_dof_idx])
+    )
 
 
 @wp.kernel
@@ -189,10 +195,13 @@ def reset(
     env_index = wp.tid()
     if env_mask[env_index]:
         joint_pos[env_index, cart_dof_idx] = default_joint_pos[env_index, cart_dof_idx]
-        joint_pos[env_index, pole_dof_idx] = default_joint_pos[env_index, pole_dof_idx] + wp.randf(state[env_index], initial_pose_angle_range[0]*wp.pi, initial_pose_angle_range[1]*wp.pi)
+        joint_pos[env_index, pole_dof_idx] = default_joint_pos[env_index, pole_dof_idx] + wp.randf(
+            state[env_index], initial_pose_angle_range[0] * wp.pi, initial_pose_angle_range[1] * wp.pi
+        )
         joint_vel[env_index, 0] = default_joint_vel[env_index, 0]
         joint_vel[env_index, 1] = default_joint_vel[env_index, 1]
         state[env_index] += wp.uint32(1)
+
 
 @wp.kernel
 def initialize_state(
@@ -201,6 +210,7 @@ def initialize_state(
 ):
     env_index = wp.tid()
     state[env_index] = wp.rand_init(seed, env_index)
+
 
 class CartpoleWarpEnv(DirectRLEnvWarp):
     cfg: CartpoleWarpEnvCfg
@@ -234,7 +244,7 @@ class CartpoleWarpEnv(DirectRLEnvWarp):
             inputs=[
                 self.states,
                 self.cfg.seed,
-            ]
+            ],
         )
 
         # Bind torch buffers to warp buffers
@@ -267,7 +277,7 @@ class CartpoleWarpEnv(DirectRLEnvWarp):
                 actions,
                 self.actions,
                 self.action_scale,
-            ]
+            ],
         )
 
     def _apply_action(self) -> None:
@@ -283,7 +293,7 @@ class CartpoleWarpEnv(DirectRLEnvWarp):
                 self._cart_dof_idx[0],
                 self._pole_dof_idx[0],
                 self.observations,
-            ]
+            ],
         )
 
     def _get_rewards(self) -> None:
@@ -302,7 +312,7 @@ class CartpoleWarpEnv(DirectRLEnvWarp):
                 self._pole_dof_idx[0],
                 self.reset_terminated,
                 self.rewards,
-            ]
+            ],
         )
 
     def _get_dones(self) -> None:
@@ -319,7 +329,7 @@ class CartpoleWarpEnv(DirectRLEnvWarp):
                 self.reset_terminated,
                 self.reset_time_outs,
                 self.reset_buf,
-            ]
+            ],
         )
 
     def _reset_idx(self, mask: wp.array | None = None) -> None:
@@ -341,5 +351,5 @@ class CartpoleWarpEnv(DirectRLEnvWarp):
                 self.cfg.initial_pole_angle_range,
                 mask,
                 self.states,
-            ]
+            ],
         )

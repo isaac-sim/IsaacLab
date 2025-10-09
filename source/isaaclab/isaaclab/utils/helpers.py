@@ -1,11 +1,16 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 """Utility functions for functions."""
 
 import functools
 import inspect
-from typing import Callable, Dict
+import torch
+from collections.abc import Callable
 
 import omni.log
-import torch
 import warp as wp
 
 
@@ -167,7 +172,7 @@ def _convert_output_to_torch(data):
         return data
 
 
-def torch_frontend_method(tensor_args: Dict[str, any] | None = None, *, convert_output: bool = False):
+def torch_frontend_method(tensor_args: dict[str, any] | None = None, *, convert_output: bool = False):
     """A method decorator to specify tensor conversion rules for the torch frontend.
 
     This decorator attaches metadata to a method, which is then used by the

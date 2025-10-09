@@ -1,8 +1,14 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 import warp as wp
 
 """
 Helper kernels for updating joint data.
 """
+
 
 @wp.kernel
 def update_joint_array(
@@ -27,6 +33,7 @@ def update_joint_array(
     env_index, joint_index = wp.tid()
     if env_mask[env_index] and joint_mask[joint_index]:
         joint_data[env_index, joint_index] = new_data[env_index, joint_index]
+
 
 @wp.kernel
 def update_joint_array_int(
@@ -76,6 +83,7 @@ def update_joint_array_with_value_array(
     if env_mask[env_index] and joint_mask[joint_index]:
         joint_data[env_index, joint_index] = value[joint_index]
 
+
 @wp.kernel
 def update_joint_array_with_value(
     value: wp.float32,
@@ -98,6 +106,7 @@ def update_joint_array_with_value(
     env_index, joint_index = wp.tid()
     if env_mask[env_index] and joint_mask[joint_index]:
         joint_data[env_index, joint_index] = value
+
 
 @wp.kernel
 def update_joint_array_with_value_int(
@@ -122,9 +131,11 @@ def update_joint_array_with_value_int(
     if env_mask[env_index] and joint_mask[joint_index]:
         joint_data[env_index, joint_index] = value
 
+
 """
 Kernels to update joint limits.
 """
+
 
 @wp.func
 def get_soft_joint_limits(lower_limit: float, upper_limit: float, soft_factor: float) -> wp.vec2f:
@@ -139,10 +150,11 @@ def get_soft_joint_limits(lower_limit: float, upper_limit: float, soft_factor: f
         The soft joint limits. Shape is (2,).
     """
     mean = (lower_limit + upper_limit) / 2.0
-    range = (upper_limit - lower_limit)
+    range = upper_limit - lower_limit
     lower_limit = mean - 0.5 * range * soft_factor
     upper_limit = mean + 0.5 * range * soft_factor
     return wp.vec2f(lower_limit, upper_limit)
+
 
 @wp.kernel
 def update_joint_limits(
@@ -176,10 +188,9 @@ def update_joint_limits(
         upper_limits[env_index, joint_index] = new_limits_upper[env_index, joint_index]
 
         soft_joint_limits[env_index, joint_index] = get_soft_joint_limits(
-            lower_limits[env_index, joint_index],
-            upper_limits[env_index, joint_index],
-            soft_factor
+            lower_limits[env_index, joint_index], upper_limits[env_index, joint_index], soft_factor
         )
+
 
 @wp.kernel
 def update_joint_limits_with_value(
@@ -211,10 +222,9 @@ def update_joint_limits_with_value(
         upper_limits[env_index, joint_index] = new_limits
 
         soft_joint_limits[env_index, joint_index] = get_soft_joint_limits(
-            lower_limits[env_index, joint_index],
-            upper_limits[env_index, joint_index],
-            soft_factor
+            lower_limits[env_index, joint_index], upper_limits[env_index, joint_index], soft_factor
         )
+
 
 @wp.kernel
 def update_joint_limits_value_vec2f(
@@ -243,14 +253,14 @@ def update_joint_limits_value_vec2f(
         upper_limits[env_index, joint_index] = new_limits[1]
 
         soft_joint_limits[env_index, joint_index] = get_soft_joint_limits(
-            lower_limits[env_index, joint_index],
-            upper_limits[env_index, joint_index],
-            soft_factor
+            lower_limits[env_index, joint_index], upper_limits[env_index, joint_index], soft_factor
         )
+
 
 """
 Kernels to update joint position from joint limits.
 """
+
 
 @wp.kernel
 def update_joint_pos_with_limits(
@@ -277,8 +287,9 @@ def update_joint_pos_with_limits(
         joint_pos[env_index, joint_index] = wp.clamp(
             joint_pos[env_index, joint_index],
             joint_pos_limits_lower[env_index, joint_index],
-            joint_pos_limits_upper[env_index, joint_index]
+            joint_pos_limits_upper[env_index, joint_index],
         )
+
 
 @wp.kernel
 def update_joint_pos_with_limits_value(
@@ -301,10 +312,9 @@ def update_joint_pos_with_limits_value(
     env_index, joint_index = wp.tid()
     if env_mask[env_index] and joint_mask[joint_index]:
         joint_pos[env_index, joint_index] = wp.clamp(
-            joint_pos[env_index, joint_index],
-            joint_pos_limits,
-            joint_pos_limits
+            joint_pos[env_index, joint_index], joint_pos_limits, joint_pos_limits
         )
+
 
 @wp.kernel
 def update_joint_pos_with_limits_value_vec2f(
@@ -327,14 +337,14 @@ def update_joint_pos_with_limits_value_vec2f(
     env_index, joint_index = wp.tid()
     if env_mask[env_index] and joint_mask[joint_index]:
         joint_pos[env_index, joint_index] = wp.clamp(
-            joint_pos[env_index, joint_index],
-            joint_pos_limits[0],
-            joint_pos_limits[1]
-    )
+            joint_pos[env_index, joint_index], joint_pos_limits[0], joint_pos_limits[1]
+        )
+
 
 """
 Helper kernel to reconstruct limits
 """
+
 
 @wp.kernel
 def make_joint_pos_limits_from_lower_and_upper_limits(
@@ -350,11 +360,15 @@ def make_joint_pos_limits_from_lower_and_upper_limits(
         joint_pos_limits: The joint position limits to make. Shape is (num_instances, num_joints, 2). (destination)
     """
     env_index, joint_index = wp.tid()
-    joint_pos_limits[env_index, joint_index] = wp.vec2f(lower_limits[env_index, joint_index], upper_limits[env_index, joint_index])
+    joint_pos_limits[env_index, joint_index] = wp.vec2f(
+        lower_limits[env_index, joint_index], upper_limits[env_index, joint_index]
+    )
+
 
 """
 Helper kernel to update soft joint position limits.
 """
+
 
 @wp.kernel
 def update_soft_joint_pos_limits(
@@ -373,14 +387,14 @@ def update_soft_joint_pos_limits(
     """
     env_index, joint_index = wp.tid()
     soft_joint_pos_limits[env_index, joint_index] = get_soft_joint_limits(
-        joint_pos_limits_lower[env_index, joint_index],
-        joint_pos_limits_upper[env_index, joint_index],
-        soft_factor
+        joint_pos_limits_lower[env_index, joint_index], joint_pos_limits_upper[env_index, joint_index], soft_factor
     )
+
 
 """
 Kernels to derive joint acceleration from velocity.
 """
+
 
 @wp.kernel
 def derive_joint_acceleration_from_velocity(
@@ -400,10 +414,13 @@ def derive_joint_acceleration_from_velocity(
     """
     env_index, joint_index = wp.tid()
     # compute acceleration
-    joint_acceleration[env_index, joint_index] = (joint_velocity[env_index, joint_index] - previous_joint_velocity[env_index, joint_index]) / dt
+    joint_acceleration[env_index, joint_index] = (
+        joint_velocity[env_index, joint_index] - previous_joint_velocity[env_index, joint_index]
+    ) / dt
 
     # update previous velocity
     previous_joint_velocity[env_index, joint_index] = joint_velocity[env_index, joint_index]
+
 
 @wp.kernel
 def clip_joint_array_with_limits_masked(
@@ -415,7 +432,10 @@ def clip_joint_array_with_limits_masked(
 ):
     joint_index = wp.tid()
     if env_mask[joint_index] and joint_mask[joint_index]:
-        joint_array[joint_index] = wp.clamp(joint_array[joint_index], lower_limits[joint_index], upper_limits[joint_index])
+        joint_array[joint_index] = wp.clamp(
+            joint_array[joint_index], lower_limits[joint_index], upper_limits[joint_index]
+        )
+
 
 @wp.kernel
 def clip_joint_array_with_limits(

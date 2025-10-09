@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from collections.abc import Iterable
+# from collections.abc import Iterable
 from dataclasses import MISSING
 from typing import Literal
 
@@ -212,8 +212,8 @@ class DCMotorWarpCfg(IdealPDActuatorWarpCfg):
     """Peak motor force/torque of the electric DC motor (in N-m)."""
 
 
-#@configclass
-#class ActuatorNetLSTMCfg(DCMotorCfg):
+# @configclass
+# class ActuatorNetLSTMCfg(DCMotorCfg):
 #    """Configuration for LSTM-based actuator model."""
 #
 #    class_type: type = actuator_net.ActuatorNetLSTM
@@ -225,8 +225,8 @@ class DCMotorWarpCfg(IdealPDActuatorWarpCfg):
 #    """Path to the file containing network weights."""
 #
 #
-#@configclass
-#class ActuatorNetMLPCfg(DCMotorCfg):
+# @configclass
+# class ActuatorNetMLPCfg(DCMotorCfg):
 #    """Configuration for MLP-based actuator model."""
 #
 #    class_type: type = actuator_net.ActuatorNetMLP
@@ -262,8 +262,8 @@ class DCMotorWarpCfg(IdealPDActuatorWarpCfg):
 #    """
 #
 #
-#@configclass
-#class DelayedPDActuatorCfg(IdealPDActuatorCfg):
+# @configclass
+# class DelayedPDActuatorCfg(IdealPDActuatorCfg):
 #    """Configuration for a delayed PD actuator."""
 #
 #    class_type: type = actuator_pd.DelayedPDActuator
@@ -275,8 +275,8 @@ class DCMotorWarpCfg(IdealPDActuatorWarpCfg):
 #    """Maximum number of physics time-steps with which the actuator command may be delayed. Defaults to 0."""
 #
 #
-#@configclass
-#class RemotizedPDActuatorCfg(DelayedPDActuatorCfg):
+# @configclass
+# class RemotizedPDActuatorCfg(DelayedPDActuatorCfg):
 #    """Configuration for a remotized PD actuator.
 #
 #    Note:

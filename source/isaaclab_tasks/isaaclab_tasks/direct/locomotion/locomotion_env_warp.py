@@ -5,23 +5,17 @@
 
 from __future__ import annotations
 
-import torch
 import warp as wp
-import warp.sim as wp_sim
-from isaaclab.sim._impl.newton_manager import NewtonManager
-
-import isaacsim.core.utils.torch as torch_utils
-from isaacsim.core.utils.torch.rotations import compute_heading_and_up as compute_heading_and_up_torch
-from isaacsim.core.utils.torch.rotations import compute_rot as compute_rot_torch
-from isaacsim.core.utils.torch.rotations import quat_conjugate as quat_conjugate_torch
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationWarp
-from isaaclab.envs import DirectRLEnvWarp, DirectRLEnvCfg
+from isaaclab.envs import DirectRLEnvCfg, DirectRLEnvWarp
+
 
 @wp.func
 def fmod(x: wp.float32, y: wp.float32) -> wp.float32:
     return x - y * wp.floor(x / y)
+
 
 @wp.func
 def euler_from_quat(q: wp.quatf) -> wp.vec3f:
@@ -42,6 +36,7 @@ def euler_from_quat(q: wp.quatf) -> wp.vec3f:
         fmod(pitch, wp.static(2.0 * wp.pi)),
         fmod(yaw, wp.static(2.0 * wp.pi)),
     )
+
 
 @wp.kernel
 def get_dones(
@@ -99,6 +94,7 @@ def observations(
     for i in range(num_dof):
         observations[env_index, offset_2 + i] = actions[env_index, i]
 
+
 @wp.func
 def translate_transform(
     transform: wp.transformf,
@@ -108,6 +104,7 @@ def translate_transform(
         wp.transform_get_translation(transform) + translation,
         wp.transform_get_rotation(transform),
     )
+
 
 @wp.kernel
 def reset_root(
@@ -126,9 +123,12 @@ def reset_root(
         root_pose[env_index] = default_root_pose[env_index]
         root_pose[env_index] = translate_transform(root_pose[env_index], env_origins[env_index])
         root_vel[env_index] = default_root_vel[env_index]
-        to_targets[env_index] = wp.transform_get_translation(root_pose[env_index]) - wp.transform_get_translation(default_root_pose[env_index])
+        to_targets[env_index] = wp.transform_get_translation(root_pose[env_index]) - wp.transform_get_translation(
+            default_root_pose[env_index]
+        )
         to_targets[env_index][2] = 0.0
         potentials[env_index] = -wp.length(to_targets[env_index]) / dt
+
 
 @wp.kernel
 def reset_joints(
@@ -143,6 +143,7 @@ def reset_joints(
         joint_pos[env_index, joint_index] = default_joint_pos[env_index, joint_index]
         joint_vel[env_index, joint_index] = default_joint_vel[env_index, joint_index]
 
+
 @wp.func
 def heading_reward(
     heading_proj: wp.float32,
@@ -152,6 +153,7 @@ def heading_reward(
         return heading_weight
     else:
         return heading_weight * heading_proj / 0.8
+
 
 @wp.func
 def up_reward(
@@ -164,6 +166,7 @@ def up_reward(
     else:
         return 0.0
 
+
 @wp.func
 def progress_reward(
     current_value: wp.float32,
@@ -171,14 +174,16 @@ def progress_reward(
 ) -> wp.float32:
     return current_value - prev_value
 
+
 @wp.func
 def actions_cost(
     actions: wp.array(dtype=wp.float32),
 ) -> wp.float32:
     sum_ = wp.float32(0.0)
     for i in range(len(actions)):
-        sum_ += actions[i]*actions[i]
+        sum_ += actions[i] * actions[i]
     return sum_
+
 
 @wp.func
 def electricity_cost(
@@ -192,6 +197,7 @@ def electricity_cost(
         sum_ += wp.abs(actions[i] * dof_vel[i] * dof_vel_scale) * motor_effort_ratio[i]
     return sum_
 
+
 @wp.func
 def dof_at_limit_cost(
     dof_pos_scaled: wp.array(dtype=wp.float32),
@@ -201,6 +207,7 @@ def dof_at_limit_cost(
         if dof_pos_scaled[i] > 0.98:
             sum_ += 1.0
     return sum_
+
 
 @wp.kernel
 def compute_rewards(
@@ -232,9 +239,11 @@ def compute_rewards(
             + up_reward(up_proj[env_index], up_weight)
             + heading_reward(heading_proj[env_index], heading_weight)
             - actions_cost_scale * actions_cost(actions[env_index])
-            - energy_cost_scale * electricity_cost(actions[env_index], dof_vel[env_index], dof_vel_scale, motor_effort_ratio)
+            - energy_cost_scale
+            * electricity_cost(actions[env_index], dof_vel[env_index], dof_vel_scale, motor_effort_ratio)
             - dof_at_limit_cost(dof_pos_scaled[env_index])
         )
+
 
 @wp.kernel
 def compute_heading_and_up(
@@ -251,13 +260,16 @@ def compute_heading_and_up(
 ):
     env_index = wp.tid()
     up_vec[env_index] = wp.quat_rotate(wp.transform_get_rotation(torso_pose[env_index]), wp.static(wp.vec3f(0, 0, 1)))
-    heading_vec[env_index] = wp.quat_rotate(wp.transform_get_rotation(torso_pose[env_index]), wp.static(wp.vec3f(1, 0, 0)))
+    heading_vec[env_index] = wp.quat_rotate(
+        wp.transform_get_rotation(torso_pose[env_index]), wp.static(wp.vec3f(1, 0, 0))
+    )
     up_proj[env_index] = up_vec[env_index][2]
     to_targets[env_index] = targets[env_index] - wp.transform_get_translation(torso_pose[env_index])
     to_targets[env_index][2] = 0.0
     heading_proj[env_index] = wp.dot(heading_vec[env_index], wp.normalize(to_targets[env_index]))
     prev_potentials[env_index] = potentials[env_index]
     potentials[env_index] = -wp.length(to_targets[env_index]) / dt
+
 
 @wp.func
 def spatial_rotate_inv(quat: wp.quatf, vec: wp.spatial_vectorf) -> wp.spatial_vectorf:
@@ -266,9 +278,11 @@ def spatial_rotate_inv(quat: wp.quatf, vec: wp.spatial_vectorf) -> wp.spatial_ve
         wp.quat_rotate_inv(quat, wp.spatial_bottom(vec)),
     )
 
+
 @wp.func
 def unscale(x: wp.float32, lower: wp.float32, upper: wp.float32) -> wp.float32:
     return (2.0 * x - upper - lower) / (upper - lower)
+
 
 @wp.kernel
 def compute_rot(
@@ -282,7 +296,11 @@ def compute_rot(
     env_index = wp.tid()
     vec_loc[env_index] = spatial_rotate_inv(wp.transform_get_rotation(torso_pose[env_index]), velocity[env_index])
     rpy[env_index] = euler_from_quat(wp.transform_get_rotation(torso_pose[env_index]))
-    angle_to_target[env_index] = wp.atan2(targets[env_index][2] - torso_pose[env_index][2], targets[env_index][0] - torso_pose[env_index][0]) - rpy[env_index][2]
+    angle_to_target[env_index] = (
+        wp.atan2(targets[env_index][2] - torso_pose[env_index][2], targets[env_index][0] - torso_pose[env_index][0])
+        - rpy[env_index][2]
+    )
+
 
 @wp.kernel
 def scale_dof_pos(
@@ -291,7 +309,11 @@ def scale_dof_pos(
     dof_pos_scaled: wp.array2d(dtype=wp.float32),
 ):
     env_index, joint_index = wp.tid()
-    dof_pos_scaled[env_index, joint_index] = unscale(dof_pos[env_index, joint_index], dof_limits[env_index, joint_index][0], dof_limits[env_index, joint_index][1])
+    dof_pos_scaled[env_index, joint_index] = unscale(
+        dof_pos[env_index, joint_index], dof_limits[env_index, joint_index][0], dof_limits[env_index, joint_index][1]
+    )
+
+
 @wp.kernel
 def update_actions(
     input_actions: wp.array2d(dtype=wp.float32),
@@ -300,7 +322,10 @@ def update_actions(
     action_scale: wp.float32,
 ):
     env_index, joint_index = wp.tid()
-    actions[env_index, joint_index] = action_scale * joint_gears[joint_index] * wp.clamp(input_actions[env_index, joint_index], -1.0, 1.0)
+    actions[env_index, joint_index] = (
+        action_scale * joint_gears[joint_index] * wp.clamp(input_actions[env_index, joint_index], -1.0, 1.0)
+    )
+
 
 @wp.kernel
 def initialize_state(
@@ -313,6 +338,7 @@ def initialize_state(
     state[env_index] = wp.rand_init(seed, env_index)
     targets[env_index] = env_origins[env_index]
     targets[env_index] += wp.static(wp.vec3f(1000.0, 0.0, 0.0))
+
 
 class LocomotionWarpEnv(DirectRLEnvWarp):
     cfg: DirectRLEnvCfg
@@ -334,7 +360,9 @@ class LocomotionWarpEnv(DirectRLEnvWarp):
         self.soft_joint_pos_limits = self.robot.data.soft_joint_pos_limits
 
         # Buffers
-        self.observations = wp.zeros((self.num_envs, self.cfg.observation_space), dtype=wp.float32, device=self.sim.device)
+        self.observations = wp.zeros(
+            (self.num_envs, self.cfg.observation_space), dtype=wp.float32, device=self.sim.device
+        )
         self.rewards = wp.zeros((self.num_envs), dtype=wp.float32, device=self.sim.device)
         self.actions = wp.zeros((self.num_envs, self.robot.num_joints), dtype=wp.float32, device=self.sim.device)
         self.states = wp.zeros((self.num_envs), dtype=wp.uint32, device=self.sim.device)
@@ -365,7 +393,7 @@ class LocomotionWarpEnv(DirectRLEnvWarp):
                 self.targets,
                 self.states,
                 self.cfg.seed,
-            ]
+            ],
         )
 
         # Bind torch buffers to warp buffers
@@ -410,7 +438,7 @@ class LocomotionWarpEnv(DirectRLEnvWarp):
         wp.launch(
             update_actions,
             dim=(self.num_envs, self.robot.num_joints),
-            inputs=[actions, self.actions_mapped, self.joint_gears, self.action_scale]
+            inputs=[actions, self.actions_mapped, self.joint_gears, self.action_scale],
         )
 
     def _apply_action(self) -> None:
@@ -431,7 +459,7 @@ class LocomotionWarpEnv(DirectRLEnvWarp):
                 self.heading_vec,
                 self.potentials,
                 self.prev_potentials,
-            ]
+            ],
         )
 
         wp.launch(
@@ -444,7 +472,7 @@ class LocomotionWarpEnv(DirectRLEnvWarp):
                 self.vec_loc,
                 self.rpy,
                 self.angle_to_target,
-            ]
+            ],
         )
         wp.launch(
             scale_dof_pos,
@@ -453,9 +481,9 @@ class LocomotionWarpEnv(DirectRLEnvWarp):
                 self.joint_pos,
                 self.soft_joint_pos_limits,
                 self.dof_pos_scaled,
-            ]
+            ],
         )
-    
+
     def _get_observations(self) -> None:
         wp.launch(
             observations,
@@ -474,7 +502,7 @@ class LocomotionWarpEnv(DirectRLEnvWarp):
                 self.cfg.dof_vel_scale,
                 self.cfg.angular_velocity_scale,
                 self.robot.num_joints,
-            ]
+            ],
         )
 
     def _get_rewards(self) -> None:
@@ -499,7 +527,7 @@ class LocomotionWarpEnv(DirectRLEnvWarp):
                 self.cfg.death_cost,
                 self.cfg.alive_reward_scale,
                 self.rewards,
-            ]
+            ],
         )
 
     def _get_dones(self) -> None:
@@ -516,7 +544,7 @@ class LocomotionWarpEnv(DirectRLEnvWarp):
                 self.reset_terminated,
                 self.reset_time_outs,
                 self.reset_buf,
-            ]
+            ],
         )
 
     def _reset_idx(self, mask: wp.array | None = None):
@@ -538,7 +566,7 @@ class LocomotionWarpEnv(DirectRLEnvWarp):
                 self.root_pose_w,
                 self.root_vel_w,
                 mask,
-            ]
+            ],
         )
         wp.launch(
             reset_joints,
@@ -549,7 +577,7 @@ class LocomotionWarpEnv(DirectRLEnvWarp):
                 self.joint_pos,
                 self.joint_vel,
                 mask,
-            ]
+            ],
         )
 
         self._compute_intermediate_values()

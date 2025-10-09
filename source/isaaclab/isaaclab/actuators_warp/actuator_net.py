@@ -100,7 +100,7 @@ class ActuatorNetLSTM(DCMotorWarp):
         return control_action
 
 
-class ActuatorNetMLP(DCMotor):
+class ActuatorNetMLP(DCMotorWarp):
     """Actuator model based on multi-layer perceptron and joint history.
 
     Many times the analytical model is not sufficient to capture the actuator dynamics, the

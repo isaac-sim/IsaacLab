@@ -1,8 +1,14 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 import warp as wp
 
 """
 Casters from spatial velocity to linear and angular velocity
 """
+
 
 @wp.kernel
 def get_linear_velocity(velocity: wp.array(dtype=wp.spatial_vectorf), linear_velocity: wp.array(dtype=wp.vec3f)):
@@ -37,9 +43,11 @@ def get_angular_velocity(velocity: wp.array(dtype=wp.spatial_vectorf), angular_v
     index = wp.tid()
     angular_velocity[index] = wp.spatial_bottom(velocity[index])
 
+
 """
 Projectors from com frame to link frame and vice versa
 """
+
 
 @wp.func
 def velocity_projector(
@@ -67,9 +75,9 @@ def velocity_projector(
     """
     u = wp.spatial_top(com_velocity)
     w = wp.spatial_bottom(com_velocity) + wp.cross(
-            wp.spatial_bottom(com_velocity),
-            wp.quat_rotate(wp.transform_get_rotation(link_pose), -com_position),
-        )
+        wp.spatial_bottom(com_velocity),
+        wp.quat_rotate(wp.transform_get_rotation(link_pose), -com_position),
+    )
     return wp.spatial_vectorf(u[0], u[1], u[2], w[0], w[1], w[2])
 
 
@@ -99,21 +107,23 @@ def velocity_projector_inv(
     """
     u = wp.spatial_top(com_velocity)
     w = wp.spatial_bottom(com_velocity) + wp.cross(
-            wp.spatial_bottom(com_velocity),
-            wp.quat_rotate(wp.transform_get_rotation(link_pose), com_position),
-        )
+        wp.spatial_bottom(com_velocity),
+        wp.quat_rotate(wp.transform_get_rotation(link_pose), com_position),
+    )
     return wp.spatial_vectorf(u[0], u[1], u[2], w[0], w[1], w[2])
+
 
 """
 Kernels to project velocities to and from the com frame
 """
+
 
 @wp.kernel
 def project_com_velocity_to_link_frame(
     com_velocity: wp.array(dtype=wp.spatial_vectorf),
     link_pose: wp.array(dtype=wp.transformf),
     com_position: wp.array(dtype=wp.vec3f),
-    link_velocity: wp.array(dtype=wp.spatial_vectorf)
+    link_velocity: wp.array(dtype=wp.spatial_vectorf),
 ):
     """
     Project a velocity from the com frame to the link frame.
@@ -134,13 +144,14 @@ def project_com_velocity_to_link_frame(
     index = wp.tid()
     link_velocity[index] = velocity_projector(com_velocity[index], link_pose[index], com_position[index])
 
+
 @wp.kernel
 def project_com_velocity_to_link_frame_masked(
     com_velocity: wp.array(dtype=wp.spatial_vectorf),
     link_pose: wp.array(dtype=wp.transformf),
     com_position: wp.array(dtype=wp.vec3f),
     link_velocity: wp.array(dtype=wp.spatial_vectorf),
-    mask: wp.array(dtype=wp.bool)
+    mask: wp.array(dtype=wp.bool),
 ):
     """
     Project a velocity from the com frame to the link frame.
@@ -167,12 +178,13 @@ def project_com_velocity_to_link_frame_masked(
             com_position[index],
         )
 
+
 @wp.kernel
 def project_com_velocity_to_link_frame_batch(
     com_velocity: wp.array2d(dtype=wp.spatial_vectorf),
     link_pose: wp.array2d(dtype=wp.transformf),
     com_position: wp.array2d(dtype=wp.vec3f),
-    link_velocity: wp.array2d(dtype=wp.spatial_vectorf)
+    link_velocity: wp.array2d(dtype=wp.spatial_vectorf),
 ):
     """
     Project a velocity from the com frame to the link frame.
@@ -196,6 +208,7 @@ def project_com_velocity_to_link_frame_batch(
         link_pose[env_idx, body_idx],
         com_position[env_idx, body_idx],
     )
+
 
 @wp.kernel
 def project_com_velocity_to_link_frame_batch_masked(
@@ -238,7 +251,7 @@ def project_link_velocity_to_com_frame(
     link_velocity: wp.array(dtype=wp.spatial_vectorf),
     link_pose: wp.array(dtype=wp.transformf),
     com_position: wp.array(dtype=wp.vec3f),
-    com_velocity: wp.array(dtype=wp.spatial_vectorf)
+    com_velocity: wp.array(dtype=wp.spatial_vectorf),
 ):
     """
     Project a velocity from the link frame to the com frame.
@@ -266,7 +279,7 @@ def project_link_velocity_to_com_frame_masked(
     link_pose: wp.array(dtype=wp.transformf),
     com_position: wp.array(dtype=wp.vec3f),
     com_velocity: wp.array(dtype=wp.spatial_vectorf),
-    mask: wp.array(dtype=wp.bool)
+    mask: wp.array(dtype=wp.bool),
 ):
     """
     Project a velocity from the link frame to the com frame.
@@ -299,7 +312,7 @@ def project_link_velocity_to_com_frame_batch(
     link_velocity: wp.array2d(dtype=wp.spatial_vectorf),
     link_pose: wp.array2d(dtype=wp.transformf),
     com_position: wp.array2d(dtype=wp.vec3f),
-    com_velocity: wp.array2d(dtype=wp.spatial_vectorf)
+    com_velocity: wp.array2d(dtype=wp.spatial_vectorf),
 ):
     """
     Project a velocity from the link frame to the com frame.
@@ -319,10 +332,9 @@ def project_link_velocity_to_com_frame_batch(
     """
     env_idx, body_idx = wp.tid()
     com_velocity[env_idx, body_idx] = velocity_projector_inv(
-        link_velocity[env_idx, body_idx],
-        link_pose[env_idx, body_idx],
-        com_position[env_idx, body_idx]
+        link_velocity[env_idx, body_idx], link_pose[env_idx, body_idx], com_position[env_idx, body_idx]
     )
+
 
 @wp.kernel
 def project_link_velocity_to_com_frame_batch_masked(
@@ -359,9 +371,11 @@ def project_link_velocity_to_com_frame_batch_masked(
             com_position[env_idx, body_idx],
         )
 
+
 """
 Kernels to update velocity arrays
 """
+
 
 @wp.kernel
 def update_velocity_array(
@@ -410,9 +424,11 @@ def update_velocity_array_batch(
     if env_mask[env_idx] and body_mask[body_idx]:
         velocity[env_idx, body_idx] = new_velocity[env_idx, body_idx]
 
+
 """
 Kernels to derive body acceleration from velocity.
 """
+
 
 @wp.kernel
 def derive_body_acceleration_from_velocity(
