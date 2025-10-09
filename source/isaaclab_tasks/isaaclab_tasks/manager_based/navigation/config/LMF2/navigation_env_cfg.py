@@ -104,9 +104,9 @@ class CommandsCfg:
         resampling_time_range=(10.0, 10.0),
         debug_vis=True,
         ranges=mdp.UniformPoseCommandCfg.Ranges(
-            pos_x=(9.5, 10.5),
+            pos_x=(10.5, 11.5),
             pos_y=(1.0, 7.0),
-            pos_z=(1.0, 3.0),
+            pos_z=(1.0, 5.0),
             roll=(-0.0, 0.0),
             pitch=(-0.0, 0.0),
             yaw=(-0.0, 0.0),
@@ -133,15 +133,15 @@ class ObservationsCfg:
         """Observations for policy group."""
 
         # observation terms (order preserved)
-        # base_position = ObsTerm(func=mdp.root_pos_w, noise=Unoise(n_min=-0.1, n_max=0.1))
         base_link_position = ObsTerm(
             func=mdp.generated_commands,
             params={"command_name": "target_pose", "asset_cfg": SceneEntityCfg("robot")},
+            noise=Unoise(n_min=-0.1, n_max=0.1)
         )
         base_roll_pitch = ObsTerm(func=mdp.base_roll_pitch, noise=Unoise(n_min=-0.1, n_max=0.1))
         base_lin_vel = ObsTerm(func=mdp.base_lin_vel, noise=Unoise(n_min=-0.1, n_max=0.1))
         base_ang_vel = ObsTerm(func=mdp.base_ang_vel, noise=Unoise(n_min=-0.2, n_max=0.2))
-        last_action = ObsTerm(func=mdp.last_action, noise=Unoise(n_min=-0.1, n_max=0.1))
+        last_action = ObsTerm(func=mdp.last_action, noise=Unoise(n_min=-0.0, n_max=0.0))
         depth_latent = ObsTerm(
             func=mdp.image_latents,
             params={"sensor_cfg": SceneEntityCfg("depth_camera"), "data_type": "distance_to_image_plane", "vae": VAEImageEncoder},
@@ -198,13 +198,11 @@ class RewardsCfg:
                                  "std": 0.5,
                                  "command_name": "target_pose",
                                  })
-    # l2_goal_dist = RewTerm(func=mdp.distance_to_goal_l2, weight=-0.05)
     velocity_reward = RewTerm(func=mdp.velocity_to_goal_reward, weight=0.5,
                               params={
                                   "asset_cfg": SceneEntityCfg("robot"), 
                                   "command_name": "target_pose",
                                   })
-    # crash_penalty = RewTerm(func=mdp.undesired_contacts, weight=-20.0, params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*"), "threshold": 1.0})
     termination_penalty = RewTerm(
         func=mdp.is_terminated,
         weight=-100.0,
