@@ -123,8 +123,8 @@ class _SoftDTWCUDA(Function):
     def forward(ctx, D, gamma, bandwidth):
         dev = D.device
         dtype = D.dtype
-        gamma = torch.tensor([gamma], dtype=torch.float, device='cuda')
-        bandwidth = torch.tensor([bandwidth], dtype=torch.float, device='cuda')
+        gamma = torch.tensor([gamma], dtype=torch.float, device="cuda")
+        bandwidth = torch.tensor([bandwidth], dtype=torch.float, device="cuda")
 
         B = D.shape[0]
         N = D.shape[1]

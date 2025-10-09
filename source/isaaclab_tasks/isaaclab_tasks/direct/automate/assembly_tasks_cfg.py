@@ -139,6 +139,7 @@ class AssemblyTask:
     num_eval_trials: int = 100
     eval_filename: str = "evaluation_00015.h5"
 
+
 @configclass
 class Peg8mm(HeldAssetCfg):
     usd_path = "plug.usd"
