@@ -5,7 +5,6 @@
 
 
 from isaaclab_assets.robots.allegro import ALLEGRO_HAND_CFG
-
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, RigidObjectCfg
 from isaaclab.envs import DirectRLEnvCfg
@@ -15,7 +14,6 @@ from isaaclab.sim import PhysxCfg, SimulationCfg
 from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-
 
 @configclass
 class AllegroHandEnvCfg(DirectRLEnvCfg):
