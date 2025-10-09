@@ -47,8 +47,9 @@ Additional Performance Guides
 -----------------------------
 
 There are many ways to "tune" the performance of the simulation, but the way you choose largely defends on what you are trying to simulate. In general, the first place
-you will want to look for performance gains is with the `physics engine <https://docs.omniverse.nvidia.com/kit/docs/omni_physics/107.3/dev_guide/guides.html>`_. This is because
-specializing the engine to task will reduce the cost of something that must be called every newly rendered frame, so specializing the engine usually leads to large performance gains (in frame rate).
+you will want to look for performance gains is with the `physics engine <https://docs.omniverse.nvidia.com/kit/docs/omni_physics/107.3/dev_guide/guides.html>`_. Next to rendering 
+and running deep learning models, the physics engine is the most computationally costly. Tuning the physics sim to limit the scope to only the task of interest is a great place to 
+start hunting for performance gains.
 
 For additional details, you should also checkout these guides!
 
