@@ -81,3 +81,7 @@ class NavigationAction(JointAction):
         wrench_command = self._lvc.compute(processed_actions)
         thrust_commands = (torch.pinverse(self._asset._allocation_matrix) @ wrench_command.T).T
         self._asset.set_thrust_target(thrust_commands, joint_ids=self._joint_ids)
+
+    def reset(self, env_ids: torch.Tensor):
+        super().reset(env_ids)
+        self._lvc.reset_idx(env_ids)  # reset the controller internal states

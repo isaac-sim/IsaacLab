@@ -43,5 +43,5 @@ class LeeVelControllerCfg:
     max_yaw_rate: float = 1.0471975511965976
     """Maximum allowed yaw rate command [rad/s]."""
 
-    randomize_params: bool = False
+    randomize_params: bool = True
     """If True, sample controller gains uniformly between the provided min/max bounds at resets."""
