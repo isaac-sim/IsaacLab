@@ -71,7 +71,7 @@ class TerrainImporterCfg:
 
     use_terrain_origins: bool = True
     """Whether to set the environment origins based on the terrain origins or in a grid
-    according to ``env_spacing``. Defaults to True.
+    according to :attr:`env_spacing`. Defaults to True.
 
     Note:
       This parameter is used only when the ``terrain type`` is "generator".
