@@ -121,6 +121,24 @@ elif args_cli.asset_type == "multi":
                     radius=0.3,
                     visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0), metallic=0.2),
                 ),
+                sim_utils.CylinderCfg(
+                    radius=0.2,
+                    height=0.5,
+                    axis="Y",
+                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 0.0), metallic=0.2),
+                ),
+                sim_utils.CapsuleCfg(
+                    radius=0.15,
+                    height=0.5,
+                    axis="Z",
+                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 1.0, 0.0), metallic=0.2),
+                ),
+                sim_utils.ConeCfg(
+                    radius=0.2,
+                    height=0.5,
+                    axis="Z",
+                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 1.0), metallic=0.2),
+                ),
             ],
             random_choice=True,
             rigid_props=sim_utils.RigidBodyPropertiesCfg(

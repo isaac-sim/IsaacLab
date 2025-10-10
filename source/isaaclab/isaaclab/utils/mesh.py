@@ -121,11 +121,55 @@ def _create_sphere_trimesh(prim: Usd.Prim, subdivisions: int = 2) -> trimesh.Tri
     mesh = trimesh.creation.icosphere(radius=radius, subdivisions=subdivisions)
     return mesh
 
+def _create_cylinder_trimesh(prim: Usd.Prim) -> trimesh.Trimesh:
+    """Creates a trimesh for a cylinder primitive."""
+    radius = prim.GetAttribute("radius").Get()
+    height = prim.GetAttribute("height").Get()
+    mesh = trimesh.creation.cylinder(radius=radius, height=height)
+    axis = prim.GetAttribute("axis").Get()
+    if axis == "X":
+        # rotate −90° about Y to point the length along +X
+        R = trimesh.transformations.rotation_matrix(np.radians(-90), [0, 1, 0])
+        mesh.apply_transform(R)
+    elif axis == "Y":
+        # rotate +90° about X to point the length along +Y
+        R = trimesh.transformations.rotation_matrix(np.radians(90), [1, 0, 0])
+        mesh.apply_transform(R)
+    return mesh
+
+def _create_capsule_trimesh(prim: Usd.Prim) -> trimesh.Trimesh:
+    """Creates a trimesh for a capsule primitive."""
+    radius = prim.GetAttribute("radius").Get()
+    height = prim.GetAttribute("height").Get()
+    mesh = trimesh.creation.capsule(radius=radius, height=height)
+    axis = prim.GetAttribute("axis").Get()
+    if axis == "X":
+        # rotate −90° about Y to point the length along +X
+        R = trimesh.transformations.rotation_matrix(np.radians(-90), [0, 1, 0])
+        mesh.apply_transform(R)
+    elif axis == "Y":
+        # rotate +90° about X to point the length along +Y
+        R = trimesh.transformations.rotation_matrix(np.radians(90), [1, 0, 0])
+        mesh.apply_transform(R)
+    return mesh
+
+def _create_cone_trimesh(prim: Usd.Prim) -> trimesh.Trimesh:
+    """Creates a trimesh for a cone primitive."""
+    radius = prim.GetAttribute("radius").Get()
+    height = prim.GetAttribute("height").Get()
+    mesh = trimesh.creation.cone(radius=radius, height=height)
+    # shift all vertices down by height/2 for usd / trimesh cone primitive definiton discrepancy
+    mesh.apply_translation((0.0, 0.0, -height / 2.0))
+    return mesh
+
 
 _MESH_CONVERTERS_CALLBACKS: dict[str, callable] = {
     "Plane": _create_plane_trimesh,
     "Cube": _create_cube_trimesh,
     "Sphere": _create_sphere_trimesh,
+    "Cylinder": _create_cylinder_trimesh,
+    "Capsule": _create_capsule_trimesh,
+    "Cone": _create_cone_trimesh,
 }
 
 PRIMITIVE_MESH_TYPES = list(_MESH_CONVERTERS_CALLBACKS.keys())
