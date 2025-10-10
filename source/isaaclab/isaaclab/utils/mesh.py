@@ -67,7 +67,7 @@ def convert_faces_to_triangles(faces: np.ndarray, point_counts: np.ndarray) -> n
 
     Args:
         faces: The faces of the quad mesh as a one-dimensional array. Shape is (N,).
-        point_counts: The number of points per face. Shape is (N, 3) or (N, 4).
+        point_counts: The number of points per face. Shape is (N,).
 
     Returns:
         The new face ids with triangles. Shape is (n_faces_new, 3).
@@ -81,18 +81,10 @@ def convert_faces_to_triangles(faces: np.ndarray, point_counts: np.ndarray) -> n
     # Iterates over all triangles of the mesh.
     # could be very slow for large meshes
     for num_points in point_counts:
-        if num_points == 3:
-            # triangle
-            all_faces.append(faces[vertex_counter : vertex_counter + 3])
-        elif num_points == 4:
-            # quads. Subdivide into two triangles
-            f = faces[vertex_counter : vertex_counter + 4]
-            first_triangle = f[:3]
-            second_triangle = np.array([f[0], f[2], f[3]])
-            all_faces.append(first_triangle)
-            all_faces.append(second_triangle)
-        else:
-            raise RuntimeError(f"Invalid number of points per face: {num_points}")
+        # Triangulate n-gons (n>4) using fan triangulation
+        for i in range(num_points - 2):
+            triangle = np.array([faces[vertex_counter], faces[vertex_counter + 1 + i], faces[vertex_counter + 2 + i]])
+            all_faces.append(triangle)
 
         vertex_counter += num_points
     return np.asarray(all_faces)
