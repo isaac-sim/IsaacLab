@@ -292,127 +292,6 @@ class SimulationContext(_SimulationContext):
         #   This reduces the overhead of calling the function.
         self._physics_device = SimulationManager.get_physics_sim_device()
 
-    def _apply_physics_settings(self):
-        """Sets various carb physics settings."""
-        # enable hydra scene-graph instancing
-        # note: this allows rendering of instanceable assets on the GUI
-        set_carb_setting(self.carb_settings, "/persistent/omnihydra/useSceneGraphInstancing", True)
-        # change dispatcher to use the default dispatcher in PhysX SDK instead of carb tasking
-        # note: dispatcher handles how threads are launched for multi-threaded physics
-        set_carb_setting(self.carb_settings, "/physics/physxDispatcher", True)
-        # disable contact processing in omni.physx
-        # note: we disable it by default to avoid the overhead of contact processing when it isn't needed.
-        #   The physics flag gets enabled when a contact sensor is created.
-        if hasattr(self.cfg, "disable_contact_processing"):
-            omni.log.warn(
-                "The `disable_contact_processing` attribute is deprecated and always set to True"
-                " to avoid unnecessary overhead. Contact processing is automatically enabled when"
-                " a contact sensor is created, so manual configuration is no longer required."
-            )
-        # FIXME: From investigation, it seems this flag only affects CPU physics. For GPU physics, contacts
-        #  are always processed. The issue is reported to the PhysX team by @mmittal.
-        set_carb_setting(self.carb_settings, "/physics/disableContactProcessing", True)
-        # disable custom geometry for cylinder and cone collision shapes to allow contact reporting for them
-        # reason: cylinders and cones aren't natively supported by PhysX so we need to use custom geometry flags
-        # reference: https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/docs/Geometry.html?highlight=capsule#geometry
-        set_carb_setting(self.carb_settings, "/physics/collisionConeCustomGeometry", False)
-        set_carb_setting(self.carb_settings, "/physics/collisionCylinderCustomGeometry", False)
-        # hide the Simulation Settings window
-        set_carb_setting(self.carb_settings, "/physics/autoPopupSimulationOutputWindow", False)
-
-    def _apply_render_settings_from_cfg(self):
-        """Sets rtx settings specified in the RenderCfg."""
-
-        # define mapping of user-friendly RenderCfg names to native carb names
-        rendering_setting_name_mapping = {
-            "enable_translucency": "/rtx/translucency/enabled",
-            "enable_reflections": "/rtx/reflections/enabled",
-            "enable_global_illumination": "/rtx/indirectDiffuse/enabled",
-            "enable_dlssg": "/rtx-transient/dlssg/enabled",
-            "enable_dl_denoiser": "/rtx-transient/dldenoiser/enabled",
-            "dlss_mode": "/rtx/post/dlss/execMode",
-            "enable_direct_lighting": "/rtx/directLighting/enabled",
-            "samples_per_pixel": "/rtx/directLighting/sampledLighting/samplesPerPixel",
-            "enable_shadows": "/rtx/shadows/enabled",
-            "enable_ambient_occlusion": "/rtx/ambientOcclusion/enabled",
-        }
-
-        not_carb_settings = ["rendering_mode", "carb_settings", "antialiasing_mode"]
-
-        # grab the rendering mode using the following priority:
-        # 1. command line argument --rendering_mode, if provided
-        # 2. rendering_mode from Render Config, if set
-        # 3. lastly, default to "balanced" mode, if neither is specified
-        rendering_mode = get_carb_setting(self.carb_settings, "/isaaclab/rendering/rendering_mode")
-        if not rendering_mode:
-            rendering_mode = self.cfg.render.rendering_mode
-        if not rendering_mode:
-            rendering_mode = "balanced"
-
-        # set preset settings (same behavior as the CLI arg --rendering_mode)
-        if rendering_mode is not None:
-            # check if preset is supported
-            supported_rendering_modes = ["performance", "balanced", "quality"]
-            if rendering_mode not in supported_rendering_modes:
-                raise ValueError(
-                    f"RenderCfg rendering mode '{rendering_mode}' not in supported modes {supported_rendering_modes}."
-                )
-
-            # grab isaac lab apps path
-            isaaclab_app_exp_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), *[".."] * 4, "apps")
-            # for Isaac Sim 4.5 compatibility, we use the 4.5 rendering mode app files in a different folder
-            if float(".".join(self._isaacsim_version[2])) < 5:
-                isaaclab_app_exp_path = os.path.join(isaaclab_app_exp_path, "isaacsim_4_5")
-
-            # grab preset settings
-            preset_filename = os.path.join(isaaclab_app_exp_path, f"rendering_modes/{rendering_mode}.kit")
-            with open(preset_filename) as file:
-                preset_dict = toml.load(file)
-            preset_dict = dict(flatdict.FlatDict(preset_dict, delimiter="."))
-
-            # set presets
-            for key, value in preset_dict.items():
-                key = "/" + key.replace(".", "/")  # convert to carb setting format
-                set_carb_setting(self.carb_settings, key, value)
-
-        # set user-friendly named settings
-        for key, value in vars(self.cfg.render).items():
-            if value is None or key in not_carb_settings:
-                # skip unset settings and non-carb settings
-                continue
-            if key not in rendering_setting_name_mapping:
-                raise ValueError(
-                    f"'{key}' in RenderCfg not found. Note: internal 'rendering_setting_name_mapping' dictionary might"
-                    " need to be updated."
-                )
-            key = rendering_setting_name_mapping[key]
-            set_carb_setting(self.carb_settings, key, value)
-
-        # set general carb settings
-        carb_settings = self.cfg.render.carb_settings
-        if carb_settings is not None:
-            for key, value in carb_settings.items():
-                if "_" in key:
-                    key = "/" + key.replace("_", "/")  # convert from python variable style string
-                elif "." in key:
-                    key = "/" + key.replace(".", "/")  # convert from .kit file style string
-                if get_carb_setting(self.carb_settings, key) is None:
-                    raise ValueError(f"'{key}' in RenderCfg.general_parameters does not map to a carb setting.")
-                set_carb_setting(self.carb_settings, key, value)
-
-        # set denoiser mode
-        if self.cfg.render.antialiasing_mode is not None:
-            try:
-                import omni.replicator.core as rep
-
-                rep.settings.set_render_rtx_realtime(antialiasing=self.cfg.render.antialiasing_mode)
-            except Exception:
-                pass
-
-        # WAR: Ensure /rtx/renderMode RaytracedLighting is correctly cased.
-        if get_carb_setting(self.carb_settings, "/rtx/rendermode").lower() == "raytracedlighting":
-            set_carb_setting(self.carb_settings, "/rtx/rendermode", "RaytracedLighting")
-
     """
     Properties - Override.
     """
@@ -764,6 +643,127 @@ class SimulationContext(_SimulationContext):
     """
     Helper Functions
     """
+
+    def _apply_physics_settings(self):
+        """Sets various carb physics settings."""
+        # enable hydra scene-graph instancing
+        # note: this allows rendering of instanceable assets on the GUI
+        set_carb_setting(self.carb_settings, "/persistent/omnihydra/useSceneGraphInstancing", True)
+        # change dispatcher to use the default dispatcher in PhysX SDK instead of carb tasking
+        # note: dispatcher handles how threads are launched for multi-threaded physics
+        set_carb_setting(self.carb_settings, "/physics/physxDispatcher", True)
+        # disable contact processing in omni.physx
+        # note: we disable it by default to avoid the overhead of contact processing when it isn't needed.
+        #   The physics flag gets enabled when a contact sensor is created.
+        if hasattr(self.cfg, "disable_contact_processing"):
+            omni.log.warn(
+                "The `disable_contact_processing` attribute is deprecated and always set to True"
+                " to avoid unnecessary overhead. Contact processing is automatically enabled when"
+                " a contact sensor is created, so manual configuration is no longer required."
+            )
+        # FIXME: From investigation, it seems this flag only affects CPU physics. For GPU physics, contacts
+        #  are always processed. The issue is reported to the PhysX team by @mmittal.
+        set_carb_setting(self.carb_settings, "/physics/disableContactProcessing", True)
+        # disable custom geometry for cylinder and cone collision shapes to allow contact reporting for them
+        # reason: cylinders and cones aren't natively supported by PhysX so we need to use custom geometry flags
+        # reference: https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/docs/Geometry.html?highlight=capsule#geometry
+        set_carb_setting(self.carb_settings, "/physics/collisionConeCustomGeometry", False)
+        set_carb_setting(self.carb_settings, "/physics/collisionCylinderCustomGeometry", False)
+        # hide the Simulation Settings window
+        set_carb_setting(self.carb_settings, "/physics/autoPopupSimulationOutputWindow", False)
+
+    def _apply_render_settings_from_cfg(self):
+        """Sets rtx settings specified in the RenderCfg."""
+
+        # define mapping of user-friendly RenderCfg names to native carb names
+        rendering_setting_name_mapping = {
+            "enable_translucency": "/rtx/translucency/enabled",
+            "enable_reflections": "/rtx/reflections/enabled",
+            "enable_global_illumination": "/rtx/indirectDiffuse/enabled",
+            "enable_dlssg": "/rtx-transient/dlssg/enabled",
+            "enable_dl_denoiser": "/rtx-transient/dldenoiser/enabled",
+            "dlss_mode": "/rtx/post/dlss/execMode",
+            "enable_direct_lighting": "/rtx/directLighting/enabled",
+            "samples_per_pixel": "/rtx/directLighting/sampledLighting/samplesPerPixel",
+            "enable_shadows": "/rtx/shadows/enabled",
+            "enable_ambient_occlusion": "/rtx/ambientOcclusion/enabled",
+        }
+
+        not_carb_settings = ["rendering_mode", "carb_settings", "antialiasing_mode"]
+
+        # grab the rendering mode using the following priority:
+        # 1. command line argument --rendering_mode, if provided
+        # 2. rendering_mode from Render Config, if set
+        # 3. lastly, default to "balanced" mode, if neither is specified
+        rendering_mode = get_carb_setting(self.carb_settings, "/isaaclab/rendering/rendering_mode")
+        if not rendering_mode:
+            rendering_mode = self.cfg.render.rendering_mode
+        if not rendering_mode:
+            rendering_mode = "balanced"
+
+        # set preset settings (same behavior as the CLI arg --rendering_mode)
+        if rendering_mode is not None:
+            # check if preset is supported
+            supported_rendering_modes = ["performance", "balanced", "quality"]
+            if rendering_mode not in supported_rendering_modes:
+                raise ValueError(
+                    f"RenderCfg rendering mode '{rendering_mode}' not in supported modes {supported_rendering_modes}."
+                )
+
+            # grab isaac lab apps path
+            isaaclab_app_exp_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), *[".."] * 4, "apps")
+            # for Isaac Sim 4.5 compatibility, we use the 4.5 rendering mode app files in a different folder
+            if float(".".join(self._isaacsim_version[2])) < 5:
+                isaaclab_app_exp_path = os.path.join(isaaclab_app_exp_path, "isaacsim_4_5")
+
+            # grab preset settings
+            preset_filename = os.path.join(isaaclab_app_exp_path, f"rendering_modes/{rendering_mode}.kit")
+            with open(preset_filename) as file:
+                preset_dict = toml.load(file)
+            preset_dict = dict(flatdict.FlatDict(preset_dict, delimiter="."))
+
+            # set presets
+            for key, value in preset_dict.items():
+                key = "/" + key.replace(".", "/")  # convert to carb setting format
+                set_carb_setting(self.carb_settings, key, value)
+
+        # set user-friendly named settings
+        for key, value in vars(self.cfg.render).items():
+            if value is None or key in not_carb_settings:
+                # skip unset settings and non-carb settings
+                continue
+            if key not in rendering_setting_name_mapping:
+                raise ValueError(
+                    f"'{key}' in RenderCfg not found. Note: internal 'rendering_setting_name_mapping' dictionary might"
+                    " need to be updated."
+                )
+            key = rendering_setting_name_mapping[key]
+            set_carb_setting(self.carb_settings, key, value)
+
+        # set general carb settings
+        carb_settings = self.cfg.render.carb_settings
+        if carb_settings is not None:
+            for key, value in carb_settings.items():
+                if "_" in key:
+                    key = "/" + key.replace("_", "/")  # convert from python variable style string
+                elif "." in key:
+                    key = "/" + key.replace(".", "/")  # convert from .kit file style string
+                if get_carb_setting(self.carb_settings, key) is None:
+                    raise ValueError(f"'{key}' in RenderCfg.general_parameters does not map to a carb setting.")
+                set_carb_setting(self.carb_settings, key, value)
+
+        # set denoiser mode
+        if self.cfg.render.antialiasing_mode is not None:
+            try:
+                import omni.replicator.core as rep
+
+                rep.settings.set_render_rtx_realtime(antialiasing=self.cfg.render.antialiasing_mode)
+            except Exception:
+                pass
+
+        # WAR: Ensure /rtx/renderMode RaytracedLighting is correctly cased.
+        if get_carb_setting(self.carb_settings, "/rtx/rendermode").lower() == "raytracedlighting":
+            set_carb_setting(self.carb_settings, "/rtx/rendermode", "RaytracedLighting")
 
     def _set_additional_physx_params(self):
         """Sets additional PhysX parameters that are not directly supported by the parent class."""
