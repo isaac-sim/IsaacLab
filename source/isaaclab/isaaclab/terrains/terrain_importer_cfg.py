@@ -74,7 +74,7 @@ class TerrainImporterCfg:
     according to :attr:`env_spacing`. Defaults to True.
 
     Note:
-      This parameter is used only when the ``terrain type`` is "generator".
+      This parameter is used only when the :attr:`terrain type` is "generator".
     """
 
     visual_material: sim_utils.VisualMaterialCfg | None = sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 0.0))
