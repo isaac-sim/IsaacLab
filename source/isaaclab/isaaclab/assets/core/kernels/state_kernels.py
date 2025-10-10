@@ -11,33 +11,6 @@ Split/Combine pose kernels
 
 vec13f = wp.types.vector(length=13, dtype=wp.float32)
 
-
-@wp.kernel
-def get_position(pose: wp.array(dtype=wp.transformf), position: wp.array(dtype=wp.vec3f)):
-    """
-    Get the position from a pose.
-
-    Args:
-        pose: The pose. Shape is (num_instances, 7).
-        position: The position. Shape is (num_instances, 3). (modified)
-    """
-    index = wp.tid()
-    position[index] = wp.transform_get_translation(pose[index])
-
-
-@wp.kernel
-def get_quat(pose: wp.array(dtype=wp.transformf), quat: wp.array(dtype=wp.quatf)):
-    """
-    Get the quaternion from a pose.
-
-    Args:
-        pose: The pose. Shape is (num_instances, 7).
-        quat: The quaternion. Shape is (num_instances, 4). (modified)
-    """
-    index = wp.tid()
-    quat[index] = wp.transform_get_rotation(pose[index])
-
-
 @wp.kernel
 def generate_pose_from_position_with_unit_quaternion(
     position: wp.array(dtype=wp.vec3f),
@@ -52,6 +25,21 @@ def generate_pose_from_position_with_unit_quaternion(
     """
     index = wp.tid()
     pose[index] = wp.transformf(position[index], wp.quatf(0.0, 0.0, 0.0, 1.0))
+
+@wp.kernel
+def generate_pose_from_position_with_unit_quaternion_batched(
+    position: wp.array2d(dtype=wp.vec3f),
+    pose: wp.array2d(dtype=wp.transformf),
+):
+    """
+    Generate a pose from a position with a unit quaternion.
+
+    Args:
+        position: The position. Shape is (num_instances, num_bodies, 3).
+        pose: The pose. Shape is (num_instances, num_bodies, 7). (modified)
+    """
+    index, body_index = wp.tid()
+    pose[index, body_index] = wp.transformf(position[index, body_index], wp.quatf(0.0, 0.0, 0.0, 1.0))
 
 
 """
@@ -90,35 +78,6 @@ def split_state_to_velocity(
     """
     return wp.spatial_vectorf(state[7], state[8], state[9], state[10], state[11], state[12])
 
-
-@wp.kernel
-def split_state(
-    root_state: wp.array(dtype=vec13f),
-    root_pose: wp.array(dtype=wp.transformf),
-    root_velocity: wp.array(dtype=wp.spatial_vectorf),
-    env_mask: wp.array(dtype=wp.bool),
-):
-    """
-    Split a state into a pose and a velocity.
-
-    The state is given in the following format: (x, y, z, qx, qy, qz, qw, wx, wy, wz, vx, vy, vz).
-
-    .. note:: The quaternion is given in the following format: (qx, qy, qz, qw).
-
-    .. caution:: The velocity is given with angular velocity first and linear velocity second.
-
-    Args:
-        root_state: The state. Shape is (num_instances, 13).
-        root_pose: The pose. Shape is (num_instances, 7). (modified)
-        root_velocity: The velocity. Shape is (num_instances, 6). (modified)
-        env_mask: The mask of the environments to split the state for. Shape is (num_instances,).
-    """
-    env_index = wp.tid()
-    if env_mask[env_index]:
-        root_pose[env_index] = split_state_to_pose(root_state[env_index])
-        root_velocity[env_index] = split_state_to_velocity(root_state[env_index])
-
-
 @wp.func
 def combine_state(
     pose: wp.transformf,
@@ -140,16 +99,14 @@ def combine_state(
     Returns:
         The state. Shape is (1, 13).
     """
-    position = wp.transform_get_translation(pose)
-    quaternion = wp.transform_get_rotation(pose)
     return vec13f(
-        position[0],
-        position[1],
-        position[2],
-        quaternion[0],
-        quaternion[1],
-        quaternion[2],
-        quaternion[3],
+        pose[0],
+        pose[1],
+        pose[2],
+        pose[3],
+        pose[4],
+        pose[5],
+        pose[6],
         velocity[0],
         velocity[1],
         velocity[2],
@@ -537,7 +494,7 @@ Transform kernels
 
 
 @wp.kernel
-def transform_CoM_pose_to_link_frame(
+def transform_CoM_pose_to_link_frame_masked(
     com_pose_w: wp.array(dtype=wp.transformf),
     com_pose_link_frame: wp.array(dtype=wp.transformf),
     link_pose_w: wp.array(dtype=wp.transformf),

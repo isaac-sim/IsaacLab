@@ -371,8 +371,8 @@ class DirectRLEnvWarp(gym.Env):
         if self.cfg.action_noise_model:
             action = self._action_noise_model(action)
 
-        # process actions
-        self._pre_physics_step(wp.from_torch(action))
+        # process actions, #TODO pass the torch tensor directly.
+        self._pre_physics_step(wp.from_torch(action)) # Creates a tensor and throws it away. --> Not graphable unless the training loop is using the same pointer.
 
         # check if we need to do rendering within the physics loop
         # note: checked here once to avoid multiple checks within the loop
@@ -444,6 +444,7 @@ class DirectRLEnvWarp(gym.Env):
         # if self.sim.has_rtx_sensors() and self.cfg.rerender_on_reset:
         #    self.sim.render()
 
+        # TODO We could split it out.
         # post-step: step interval event
         # if self.cfg.events:
         #    if "interval" in self.event_manager.available_modes:

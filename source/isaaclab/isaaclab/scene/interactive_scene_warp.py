@@ -27,7 +27,7 @@ from isaaclab.terrains import TerrainImporter, TerrainImporterCfg
 from .interactive_scene_cfg import InteractiveSceneCfg
 
 
-class InteractiveSceneDirect:
+class InteractiveSceneWarp:
     """A scene that contains entities added to the simulation.
 
     The interactive scene parses the :class:`InteractiveSceneCfg` class to create the scene.

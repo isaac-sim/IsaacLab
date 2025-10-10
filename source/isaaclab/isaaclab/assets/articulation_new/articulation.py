@@ -29,11 +29,10 @@ from isaaclab.utils.helpers import warn_overhead_cost
 
 from ..asset_base import AssetBase
 from .articulation_data import ArticulationDataWarp
-from .kernels import (
+from isaaclab.assets.core.kernels import (
     generate_mask_from_ids,
     populate_empty_array,
     project_link_velocity_to_com_frame_masked,
-    split_state,
     transform_CoM_pose_to_link_frame,
     update_joint_array,
     update_joint_array_int,
@@ -56,20 +55,6 @@ from .kernels import (
 
 if TYPE_CHECKING:
     from .articulation_cfg import ArticulationWarpCfg
-
-# Composition vs Inheritance
-
-#class NewCLass(AssetBase):
-#    def __init__(self, cfg: ArticulationCfg, original: ArticulationWarp):
-#        super().__init__(cfg)
-#        self._original = original
-#
-#    def write_data_to_sim(self):
-#        wrap the shit out of it
-#        return the wrapped shit.
-#        self._original.write_data_to_sim()
-
-# Not making a rigid body class just for it. (bundle multi and single body assets)
 
 class ArticulationWarp(AssetBase):
     """An articulation asset class.

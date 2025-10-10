@@ -11,7 +11,7 @@ from isaaclab.sim._impl.newton_manager import NewtonManager
 from isaaclab.utils.buffers import TimestampedWarpBuffer
 from isaaclab.utils.helpers import deprecated, warn_overhead_cost
 
-from .kernels import (
+from isaaclab.assets.core.kernels import (
     combine_frame_transforms_partial,
     combine_frame_transforms_partial_batch,
     combine_pose_and_velocity_to_state,
@@ -22,8 +22,6 @@ from .kernels import (
     generate_pose_from_position_with_unit_quaternion,
     get_angular_velocity,
     get_linear_velocity,
-    get_position,
-    get_quat,
     make_joint_pos_limits_from_lower_and_upper_limits,
     project_com_velocity_to_link_frame_batch,
     project_vec_from_quat_single,
@@ -161,7 +159,7 @@ class ArticulationDataWarp:
     This quantity is configured through the :attr:`isaaclab.assets.ArticulationCfg.init_state` parameter.
     """
 
-    # TODO: GIVE THEM A NAME THAT'S MORE EXPLICIT. I.E. _root_link_pose_w -> sim_bind_root_link_pose_w
+    # TODO: Make them protected with an _ prefix. + A blurb in the doc: DON'T FUCK WITH THESE.
     ##
     # Root state properties. (Directly binded to the simulation)
     ##
@@ -530,7 +528,14 @@ class ArticulationDataWarp:
 
         return self._root_com_pose_w.data
 
+    # TODO: Pre-allocate the state array. 
     @property
+    @warn_overhead_cost(
+        "root_link_pose_w and root_com_vel_w",
+        "This function combines the root link pose and root center of mass velocity into a single state. However, Newton"
+        " outputs pose and velocities separately. Consider using only one of them instead. If both are required, use both"
+        " root_link_pose_w and root_com_vel_w instead.",
+    )
     def root_state_w(self) -> wp.array:
         """Root state ``[wp.transformf, wp.spatial_vectorf]`` in simulation world frame.
 
@@ -553,6 +558,12 @@ class ArticulationDataWarp:
         return state
 
     @property
+    @warn_overhead_cost(
+        "root_link_pose_w and root_link_vel_w",
+        "This function combines the root link pose and root link velocity into a single state. However, Newton"
+        " outputs pose and velocities separately. Consider using only one of them instead. If both are required, use both"
+        " root_link_pose_w and root_link_vel_w instead.",
+    )
     def root_link_state_w(self) -> wp.array:
         """Root link state ``[wp.transformf, wp.spatial_vectorf]`` in simulation world frame.
 
@@ -575,6 +586,12 @@ class ArticulationDataWarp:
         return state
 
     @property
+    @warn_overhead_cost(
+        "root_com_pose_w and root_com_vel_w",
+        "This function combines the root center of mass pose and root center of mass velocity into a single state. However, Newton"
+        " outputs pose and velocities separately. Consider using only one of them instead. If both are required, use both"
+        " root_com_pose_w and root_com_vel_w instead.",
+    )
     def root_com_state_w(self) -> wp.array:
         """Root center of mass state ``[wp.transformf, wp.spatial_vectorf]`` in simulation world frame.
 
@@ -928,16 +945,7 @@ class ArticulationDataWarp:
 
         This quantity is the position of the actor frame of the root rigid body relative to the world.
         """
-        out = wp.zeros((self._root_newton_view.count), dtype=wp.vec3f, device=self.device)
-        wp.launch(
-            get_position,
-            dim=self._root_newton_view.count,
-            inputs=[
-                self.sim_bind_root_link_pose_w,
-                out,
-            ],
-        )
-        return out
+        return self.sim_bind_root_link_pose_w[:, :3]
 
     @property
     @warn_overhead_cost(
@@ -951,16 +959,7 @@ class ArticulationDataWarp:
         Format is ``(w, x, y, z)``.
         This quantity is the orientation of the actor frame of the root rigid body.
         """
-        out = wp.zeros((self._root_newton_view.count), dtype=wp.quatf, device=self.device)
-        wp.launch(
-            get_quat,
-            dim=self._root_newton_view.count,
-            inputs=[
-                self.sim_bind_root_link_pose_w,
-                out,
-            ],
-        )
-        return out
+        return self.sim_bind_root_link_pose_w[:, 3:]
 
     @property
     @warn_overhead_cost(
@@ -1017,16 +1016,7 @@ class ArticulationDataWarp:
 
         This quantity is the position of the actor frame of the root rigid body relative to the world.
         """
-        out = wp.zeros((self._root_newton_view.count), dtype=wp.vec3f, device=self.device)
-        wp.launch(
-            get_position,
-            dim=self._root_newton_view.count,
-            inputs=[
-                self.root_com_pose_w,
-                out,
-            ],
-        )
-        return out
+        return self.root_com_pose_w[:, :3]
 
     @property
     @warn_overhead_cost(
@@ -1040,16 +1030,7 @@ class ArticulationDataWarp:
         Format is ``(w, x, y, z)``.
         This quantity is the orientation of the root rigid body's center of mass frame.
         """
-        out = wp.zeros((self._root_newton_view.count), dtype=wp.quatf, device=self.device)
-        wp.launch(
-            get_quat,
-            dim=self._root_newton_view.count,
-            inputs=[
-                self.root_com_pose_w,
-                out,
-            ],
-        )
-        return out
+        return self.root_com_pose_w[:, 3:]
 
     @property
     @warn_overhead_cost(
@@ -1106,18 +1087,7 @@ class ArticulationDataWarp:
 
         This quantity is the position of the articulation bodies' actor frame relative to the world.
         """
-        out = wp.zeros(
-            (self._root_newton_view.count, self._root_newton_view.link_count), dtype=wp.vec3f, device=self.device
-        )
-        wp.launch(
-            get_position,
-            dim=(self._root_newton_view.count, self._root_newton_view.link_count),
-            inputs=[
-                self.sim_bind_body_link_pose_w,
-                out,
-            ],
-        )
-        return out
+        return self.body_link_pose_w[:, :, :3]
 
     @property
     @warn_overhead_cost(
@@ -1131,18 +1101,7 @@ class ArticulationDataWarp:
         Format is ``(w, x, y, z)``.
         This quantity is the orientation of the articulation bodies' actor frame relative to the world.
         """
-        out = wp.zeros(
-            (self._root_newton_view.count, self._root_newton_view.link_count), dtype=wp.quatf, device=self.device
-        )
-        wp.launch(
-            get_quat,
-            dim=(self._root_newton_view.count, self._root_newton_view.link_count),
-            inputs=[
-                self.sim_bind_body_link_pose_w,
-                out,
-            ],
-        )
-        return out
+        return self.body_link_pose_w[:, :, 3:]
 
     @property
     @warn_overhead_cost(
@@ -1155,18 +1114,7 @@ class ArticulationDataWarp:
 
         This quantity is the linear velocity of the articulation bodies' center of mass frame relative to the world.
         """
-        out = wp.zeros(
-            (self._root_newton_view.count, self._root_newton_view.link_count), dtype=wp.vec3f, device=self.device
-        )
-        wp.launch(
-            get_linear_velocity,
-            dim=(self._root_newton_view.count, self._root_newton_view.link_count),
-            inputs=[
-                self.body_link_vel_w,
-                out,
-            ],
-        )
-        return out
+        return self.body_link_vel_w[:, :, 3:]
 
     @property
     @warn_overhead_cost(
@@ -1203,18 +1151,7 @@ class ArticulationDataWarp:
 
         This quantity is the position of the articulation bodies' actor frame.
         """
-        out = wp.zeros(
-            (self._root_newton_view.count, self._root_newton_view.link_count), dtype=wp.vec3f, device=self.device
-        )
-        wp.launch(
-            get_position,
-            dim=(self._root_newton_view.count, self._root_newton_view.link_count),
-            inputs=[
-                self.body_com_pose_w,
-                out,
-            ],
-        )
-        return out
+        return self.body_com_pose_w[:, :, 3:]
 
     @property
     @warn_overhead_cost(
@@ -1228,18 +1165,7 @@ class ArticulationDataWarp:
         Format is ``(w, x, y, z)``.
         This quantity is the orientation of the articulation bodies' actor frame.
         """
-        out = wp.zeros(
-            (self._root_newton_view.count, self._root_newton_view.link_count), dtype=wp.quatf, device=self.device
-        )
-        wp.launch(
-            get_quat,
-            dim=(self._root_newton_view.count, self._root_newton_view.link_count),
-            inputs=[
-                self.body_com_pose_w,
-                out,
-            ],
-        )
-        return out
+        return self.body_com_vel_w[:, :, 3:]
 
     @property
     @warn_overhead_cost(
@@ -1349,18 +1275,7 @@ class ArticulationDataWarp:
 
         This quantity is the orientation of the principles axes of inertia relative to its body's link frame.
         """
-        out = wp.zeros(
-            (self._root_newton_view.count, self._root_newton_view.link_count), dtype=wp.quatf, device=self.device
-        )
-        wp.launch(
-            get_quat,
-            dim=(self._root_newton_view.count, self._root_newton_view.link_count),
-            inputs=[
-                self.body_com_pose_b,
-                out,
-            ],
-        )
-        return out
+        return self.body_com_pose_w[:, :, 3:]
 
     @property
     @warn_overhead_cost(

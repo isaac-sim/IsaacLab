@@ -79,6 +79,7 @@ def velocity_projector(
         wp.quat_rotate(wp.transform_get_rotation(link_pose), -com_position),
     )
     return wp.spatial_vectorf(u[0], u[1], u[2], w[0], w[1], w[2])
+    #return wp.spatial_vector(u, w) --> Do it like that.
 
 
 @wp.func
@@ -373,12 +374,11 @@ def project_link_velocity_to_com_frame_batch_masked(
 
 
 """
-Kernels to update velocity arrays
+Kernels to update spatial vector arrays
 """
 
-
 @wp.kernel
-def update_velocity_array(
+def update_spatial_vector_array_masked(
     new_velocity: wp.array(dtype=wp.spatial_vectorf),
     velocity: wp.array(dtype=wp.spatial_vectorf),
     mask: wp.array(dtype=wp.bool),
@@ -401,7 +401,7 @@ def update_velocity_array(
 
 
 @wp.kernel
-def update_velocity_array_batch(
+def update_spatial_vector_array_batch_masked(
     new_velocity: wp.array2d(dtype=wp.spatial_vectorf),
     velocity: wp.array2d(dtype=wp.spatial_vectorf),
     env_mask: wp.array(dtype=wp.bool),
@@ -429,13 +429,12 @@ def update_velocity_array_batch(
 Kernels to derive body acceleration from velocity.
 """
 
-
 @wp.kernel
 def derive_body_acceleration_from_velocity(
-    velocity: wp.array2d(dtype=wp.spatial_vectorf),
-    previous_velocity: wp.array2d(dtype=wp.spatial_vectorf),
+    velocity: wp.array(dtype=wp.spatial_vectorf),
+    previous_velocity: wp.array(dtype=wp.spatial_vectorf),
     dt: float,
-    acceleration: wp.array2d(dtype=wp.spatial_vectorf),
+    acceleration: wp.array(dtype=wp.spatial_vectorf),
 ):
     """
     Derive the body acceleration from the velocity.
@@ -445,6 +444,26 @@ def derive_body_acceleration_from_velocity(
         previous_velocity: The previous velocity. Shape is (num_instances, 6).
         dt: The time step.
         acceleration: The acceleration. Shape is (num_instances, 6). (modified)
+    """
+    env_idx = wp.tid()
+    acceleration[env_idx] = (velocity[env_idx] - previous_velocity[env_idx]) / dt
+
+
+@wp.kernel
+def derive_body_acceleration_from_velocity_batched(
+    velocity: wp.array2d(dtype=wp.spatial_vectorf),
+    previous_velocity: wp.array2d(dtype=wp.spatial_vectorf),
+    dt: float,
+    acceleration: wp.array2d(dtype=wp.spatial_vectorf),
+):
+    """
+    Derive the body acceleration from the velocity.
+
+    Args:
+        velocity: The velocity. Shape is (num_instances, num_bodies, 6).
+        previous_velocity: The previous velocity. Shape is (num_instances, num_bodies, 6).
+        dt: The time step.
+        acceleration: The acceleration. Shape is (num_instances, num_bodies, 6). (modified)
     """
     env_idx, body_idx = wp.tid()
     acceleration[env_idx, body_idx] = (velocity[env_idx, body_idx] - previous_velocity[env_idx, body_idx]) / dt
