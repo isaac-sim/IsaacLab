@@ -416,6 +416,28 @@ Requires Isaac Sim 5.1 or later.
 
 Run the teleoperation example with Manus + Vive tracking:
 
+.. dropdown:: Installation instructions
+   :open:
+
+   Vive tracker integration is provided through the libsurvive library. Install the required udev rules by copying
+   `81-vive.rules <https://github.com/collabora/libsurvive/blob/32cf62c52744fdc32003ef8169e8b81f6f31526b/useful_files/81-vive.rules>`_
+   to ``/etc/udev/rules.d/`` and restarting the udev service.
+
+   .. code-block:: bash
+
+      sudo udevadm control --reload-rules && sudo udevadm trigger
+
+   The Manus integration is provided through the Isaac Sim teleoperation input plugin framework.
+   Install the plugin by following the build and installation steps in `isaac-teleop-device-plugins <https://github.com/isaac-sim/isaac-teleop-device-plugins>`_.
+
+In the same terminal from which you will launch Isaac Lab, set:
+
+.. code-block:: bash
+
+      export ISAACSIM_HANDTRACKER_LIB=<path to isaac-teleop-device-plugins>/build-manus-default/lib/libIsaacSimManusHandTracking.so
+
+Once the plugin is installed, run the teleoperation example:
+
 .. code-block:: bash
 
    ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
@@ -424,20 +446,37 @@ Run the teleoperation example with Manus + Vive tracking:
        --xr \
        --enable_pinocchio
 
-Begin the session with your palms facing up.
-This is necessary for calibrating Vive tracker poses using Apple Vision Pro wrist poses from a few initial frames,
-as the Vive trackers attached to the back of the hands occlude the optical hand tracking.
+The recommended workflow, is to start Isaac Lab, click **Start AR**, and then put on the Manus gloves, vive trackers, and
+headset. Once you are ready to begin the session, use voice commands to launch the Isaac XR teleop sample client and
+connect to Isaac Lab.
+
+Isaac Lab automatically calibrates the Vive trackers using wrist pose data from the Apple Vision Pro during the initial
+frames of the session. If calibration fails, for example, if the red dots do not accurately follow the teleoperator's
+hands, restart Isaac Lab and begin with your hands in a palm-up position to improve calibration reliability.
 
 For optimal performance, position the lighthouse above the hands, tilted slightly downward.
-One lighthouse is sufficient if both hands are visible.
 Ensure the lighthouse remains stable; a stand is recommended to prevent wobbling.
+
+Ensure that while the task is being teleoperated, the hands remain stable and visible to the lighthouse at all times.
+See: `Installing the Base Stations <https://www.vive.com/us/support/vive/category_howto/installing-the-base-stations.html>`_
+and `Tips for Setting Up the Base Stations <https://www.vive.com/us/support/vive/category_howto/tips-for-setting-up-the-base-stations.html>`_
+
+.. note::
+
+   On first launch of the Manus Vive device, the Vive lighthouses may take a few seconds to calibrate. Keep the Vive trackers
+   stable and visible to the lighthouse during this time. If the light houses are moved or if tracking fails or is unstable,
+   calibration can be forced by deleting the calibration file at: ``$XDG_RUNTIME_DIR/libsurvive/config.json``. If XDG_RUNTIME_DIR
+   is not set, the default directory is ``~/.config/libsurvive``.
+
+   For more information consult the libsurvive documentation: `libsurvive <https://github.com/collabora/libsurvive>`_.
 
 .. note::
 
    To avoid resource contention and crashes, ensure Manus and Vive devices are connected to different USB controllers/buses.
    Use ``lsusb -t`` to identify different buses and connect devices accordingly.
 
-   Vive trackers are automatically calculated to map to the left and right wrist joints.
+   Vive trackers are automatically calculated to map to the left and right wrist joints obtained from a stable
+   OpenXR hand tracking wrist pose.
    This auto-mapping calculation supports up to 2 Vive trackers;
    if more than 2 Vive trackers are detected, it uses the first two trackers detected for calibration, which may not be correct.
 
