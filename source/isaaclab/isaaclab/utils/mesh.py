@@ -113,6 +113,7 @@ def _create_sphere_trimesh(prim: Usd.Prim, subdivisions: int = 2) -> trimesh.Tri
     mesh = trimesh.creation.icosphere(radius=radius, subdivisions=subdivisions)
     return mesh
 
+
 def _create_cylinder_trimesh(prim: Usd.Prim) -> trimesh.Trimesh:
     """Creates a trimesh for a cylinder primitive."""
     radius = prim.GetAttribute("radius").Get()
@@ -128,6 +129,7 @@ def _create_cylinder_trimesh(prim: Usd.Prim) -> trimesh.Trimesh:
         R = trimesh.transformations.rotation_matrix(np.radians(90), [1, 0, 0])
         mesh.apply_transform(R)
     return mesh
+
 
 def _create_capsule_trimesh(prim: Usd.Prim) -> trimesh.Trimesh:
     """Creates a trimesh for a capsule primitive."""
@@ -145,12 +147,13 @@ def _create_capsule_trimesh(prim: Usd.Prim) -> trimesh.Trimesh:
         mesh.apply_transform(R)
     return mesh
 
+
 def _create_cone_trimesh(prim: Usd.Prim) -> trimesh.Trimesh:
     """Creates a trimesh for a cone primitive."""
     radius = prim.GetAttribute("radius").Get()
     height = prim.GetAttribute("height").Get()
     mesh = trimesh.creation.cone(radius=radius, height=height)
-    # shift all vertices down by height/2 for usd / trimesh cone primitive definiton discrepancy
+    # shift all vertices down by height/2 for usd / trimesh cone primitive definition discrepancy
     mesh.apply_translation((0.0, 0.0, -height / 2.0))
     return mesh
 

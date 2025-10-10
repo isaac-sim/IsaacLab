@@ -20,8 +20,6 @@ from typing import TYPE_CHECKING
 import carb
 import omni.log
 import warp as wp
-from isaacsim.core.prims import XFormPrim
-from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
 from isaaclab.utils.math import matrix_from_quat, quat_mul
