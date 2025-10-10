@@ -66,7 +66,7 @@ class TerrainImporterCfg:
 
     Note:
       This parameter is used only when the ``terrain_type`` is "plane" or "usd" or if
-      ``use_terrain_origins`` is False
+      :attr:`use_terrain_origins` is False.
     """
 
     use_terrain_origins: bool = True
