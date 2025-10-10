@@ -63,16 +63,13 @@ Prior to using CloudXR with Isaac Lab, please review the following system requir
   * Isaac Lab workstation
 
     * Ubuntu 22.04 or Ubuntu 24.04
+    * Hardware requirements to sustain 45 FPS with a 120Hz physics simulation:
+       * CPU: 16-Cores AMD Ryzen Threadripper Pro 5955WX or higher
+       * Memory: 64GB RAM
+       * GPU: 1x RTX PRO 6000 GPUs (or equivalent e.g. 1x RTX 5090) or higher
+    * For details on driver requirements, please see the `Technical Requirements <https://docs.omniverse.nvidia.com/materials-and-rendering/latest/common/technical-requirements.html>`_ guide
     * `Docker`_ 26.0.0+, `Docker Compose`_ 2.25.0+, and the `NVIDIA Container Toolkit`_. Refer to
       the Isaac Lab :ref:`deployment-docker` for how to install.
-    * For details on driver requirements, please see the `Technical Requirements <https://docs.omniverse.nvidia.com/materials-and-rendering/latest/common/technical-requirements.html>`_ guide
-    * CPU
-       * Intel: 16-core Intel Core i9, X-series or higher
-       * AMD: Ryzen 9 5900XT, Ryzen Threadripper PRO 5955WX or higher
-    * Memory: 64GB RAM
-    * GPU
-       * Minimum: 1x RTX PRO 6000 GPUs (or equivalent e.g. 1x RTX 5090)
-       * Recommended: 2x RTX PRO 6000 GPUs (or equivalent e.g. 2x RTX 5090)
 
   * Apple Vision Pro
 
@@ -282,11 +279,11 @@ On your Mac:
    +-------------------+---------------------+
    | Isaac Lab Version | Client App Version  |
    +-------------------+---------------------+
-   | 2.3.x             | v2.3.0              |
+   | 2.3               | v2.3.0              |
    +-------------------+---------------------+
-   | 2.2.x             | v2.2.0              |
+   | 2.2               | v2.2.0              |
    +-------------------+---------------------+
-   | 2.1.x             | v1.0.0              |
+   | 2.1               | v1.0.0              |
    +-------------------+---------------------+
 
    .. code-block:: bash
@@ -988,6 +985,11 @@ Known Issues
   This error message can be safely ignored. It is caused by a race condition in the exit handler for
   AR Mode.
 
+* ``XR_ERROR_INSTANCE_LOST in xrPollEvent: Call to "xrt_session_poll_events" failed``
+
+  This error may occur if the CloudXR runtime exits before Isaac Lab. Restart the CloudXR
+  runtime to resume teleoperation.
+
 * ``[omni.usd] TF_PYTHON_EXCEPTION`` when starting/stopping AR Mode
 
   This error message can be safely ignored. It is caused by a race condition in the enter/exit
@@ -997,6 +999,13 @@ Known Issues
 
   This error message can be caused by shader assets authored with older versions of USD, and can
   typically be ignored.
+
+* The XR device connects successfully, but no video is displayed, even though the Isaac Lab viewport responds to tracking.
+
+  This error occurs when the GPU index differs between the host and the container, causing CUDA
+  to load on the wrong GPU. To fix this, set ``NV_GPU_INDEX`` in the runtime container to ``0``, ``1``,
+  or ``2`` to ensure the GPU selected by CUDA matches the host.
+
 
 Kubernetes Deployment
 ---------------------
