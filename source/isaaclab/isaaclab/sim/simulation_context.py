@@ -260,6 +260,19 @@ class SimulationContext(_SimulationContext):
                 " simulation step size if you run into physics issues."
             )
 
+        # set simulation device
+        # note: Although Isaac Sim sets the physics device in the init function,
+        #   it does a render call which gets the wrong device.
+        SimulationManager.set_physics_sim_device(self.cfg.device)
+
+        # obtain the parsed device
+        # This device should be the same as "self.cfg.device". However, for cases, where users specify the device
+        # as "cuda" and not "cuda:X", then it fetches the current device from SimulationManager.
+        # Note: Since we fix the device from the configuration and don't expect users to change it at runtime,
+        #   we can obtain the device once from the SimulationManager.get_physics_sim_device() function.
+        #   This reduces the overhead of calling the function.
+        self._physics_device = SimulationManager.get_physics_sim_device()
+
         # create a simulation context to control the simulator
         if float(".".join(self._isaacsim_version[2])) < 5:
             # stage arg is not supported before isaac sim 5.0
@@ -283,14 +296,6 @@ class SimulationContext(_SimulationContext):
                 device=self.cfg.device,
                 stage=self._initial_stage,
             )
-
-        # obtain the parsed device
-        # This device should be the same as "self.cfg.device". However, for cases, where users specify the device
-        # as "cuda" and not "cuda:X", then it fetches the current device from SimulationManager.
-        # Note: Since we fix the device from the configuration and don't expect users to change it at runtime,
-        #   we can obtain the device once from the SimulationManager.get_physics_sim_device() function.
-        #   This reduces the overhead of calling the function.
-        self._physics_device = SimulationManager.get_physics_sim_device()
 
     """
     Properties - Override.
