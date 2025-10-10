@@ -61,7 +61,7 @@ For tasks that benefit from the use of an extended reality (XR) device with hand
 
 .. note::
 
-   See :ref:`cloudxr-teleoperation` to learn more about using CloudXR with Isaac Lab.
+   See :ref:`cloudxr-teleoperation` to learn how to use CloudXR and experience teleoperation with Isaac Lab.
 
 
 The script prints the teleoperation events configured. For keyboard,
