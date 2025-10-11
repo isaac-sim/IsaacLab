@@ -29,13 +29,41 @@ pip install route using virtual environments.
 
 To begin, we first define our virtual environment.
 
+.. tab-set::
 
-.. code-block:: bash
+   .. tab-item:: conda
 
-    # create a virtual environment named env_isaaclab with python3.11
-    conda create -n env_isaaclab python=3.11
-    # activate the virtual environment
-    conda activate env_isaaclab
+      .. code-block:: bash
+
+         # create a virtual environment named env_isaaclab with python3.11
+         conda create -n env_isaaclab python=3.11
+         # activate the virtual environment
+         conda activate env_isaaclab
+
+   .. tab-item:: uv
+
+      .. tab-set::
+         :sync-group: os
+
+         .. tab-item:: :icon:`fa-brands fa-linux` Linux
+            :sync: linux
+
+            .. code-block:: bash
+
+               # create a virtual environment named env_isaaclab with python3.11
+               uv venv --python 3.11 env_isaaclab
+               # activate the virtual environment
+               source env_isaaclab/bin/activate
+
+         .. tab-item:: :icon:`fa-brands fa-windows` Windows
+            :sync: windows
+
+            .. code-block:: batch
+
+               # create a virtual environment named env_isaaclab with python3.11
+               uv venv --python 3.11 env_isaaclab
+               # activate the virtual environment
+               env_isaaclab\Scripts\activate
 
 
 Next, install a CUDA-enabled PyTorch 2.7.0 build.
@@ -125,7 +153,7 @@ List Available Environments
 
 Above, ``Isaac-Ant-v0`` is the task name and ``skrl`` is the RL framework being used.  The ``Isaac-Ant-v0`` environment
 has been registered with the `Gymnasium API <https://gymnasium.farama.org/>`_, and you can see how the entry point is defined
-by calling the ``list_envs.py`` script, which can be found in ``isaaclab/scripts/environments/lsit_envs.py``. You should see entries like the following
+by calling the ``list_envs.py`` script, which can be found in ``isaaclab/scripts/environments/list_envs.py``. You should see entries like the following
 
 .. code-block:: bash
 

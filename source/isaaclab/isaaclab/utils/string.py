@@ -272,7 +272,10 @@ def resolve_matching_names(
 
 
 def resolve_matching_names_values(
-    data: dict[str, Any], list_of_strings: Sequence[str], preserve_order: bool = False
+    data: dict[str, Any],
+    list_of_strings: Sequence[str],
+    preserve_order: bool = False,
+    strict: bool = True,
 ) -> tuple[list[int], list[str], list[Any]]:
     """Match a list of regular expressions in a dictionary against a list of strings and return
     the matched indices, names, and values.
@@ -293,6 +296,7 @@ def resolve_matching_names_values(
         data: A dictionary of regular expressions and values to match the strings in the list.
         list_of_strings: A list of strings to match.
         preserve_order: Whether to preserve the order of the query keys in the returned values. Defaults to False.
+        strict: Whether to require that all keys in the dictionary get matched. Defaults to True.
 
     Returns:
         A tuple of lists containing the matched indices, names, and values.
@@ -300,7 +304,7 @@ def resolve_matching_names_values(
     Raises:
         TypeError: When the input argument :attr:`data` is not a dictionary.
         ValueError: When multiple matches are found for a string in the dictionary.
-        ValueError: When not all regular expressions in the data keys are matched.
+        ValueError: When not all regular expressions in the data keys are matched (if strict is True).
     """
     # check valid input
     if not isinstance(data, dict):
@@ -354,7 +358,7 @@ def resolve_matching_names_values(
         names_list = names_list_reorder
         values_list = values_list_reorder
     # check that all regular expressions are matched
-    if not all(keys_match_found):
+    if strict and not all(keys_match_found):
         # make this print nicely aligned for debugging
         msg = "\n"
         for key, value in zip(data.keys(), keys_match_found):

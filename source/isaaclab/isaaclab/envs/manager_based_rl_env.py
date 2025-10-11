@@ -188,6 +188,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             self.scene.write_data_to_sim()
             # simulate
             self.sim.step(render=False)
+            self.recorder_manager.record_post_physics_decimation_step()
             # render between steps only if the GUI or an RTX sensor needs it
             # note: we assume the render interval to be the shortest accepted rendering interval.
             #    If a camera needs rendering at a faster frequency, this will lead to unexpected behavior.
@@ -219,9 +220,6 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             self.recorder_manager.record_pre_reset(reset_env_ids)
 
             self._reset_idx(reset_env_ids)
-            # update articulation kinematics
-            self.scene.write_data_to_sim()
-            self.sim.forward()
 
             # if sensors are added to the scene, make sure we render to reflect changes in reset
             if self.sim.has_rtx_sensors() and self.cfg.rerender_on_reset:
@@ -334,12 +332,12 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
                 self.single_observation_space[group_name] = gym.spaces.Box(low=-np.inf, high=np.inf, shape=group_dim)
             else:
                 group_term_cfgs = self.observation_manager._group_obs_term_cfgs[group_name]
+                term_dict = {}
                 for term_name, term_dim, term_cfg in zip(group_term_names, group_dim, group_term_cfgs):
                     low = -np.inf if term_cfg.clip is None else term_cfg.clip[0]
                     high = np.inf if term_cfg.clip is None else term_cfg.clip[1]
-                    self.single_observation_space[group_name] = gym.spaces.Dict(
-                        {term_name: gym.spaces.Box(low=low, high=high, shape=term_dim)}
-                    )
+                    term_dict[term_name] = gym.spaces.Box(low=low, high=high, shape=term_dim)
+                self.single_observation_space[group_name] = gym.spaces.Dict(term_dict)
         # action space (unbounded since we don't impose any limits)
         action_dim = sum(self.action_manager.action_term_dim)
         self.single_action_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(action_dim,))
