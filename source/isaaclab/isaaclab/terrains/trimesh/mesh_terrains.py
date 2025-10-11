@@ -867,7 +867,7 @@ def floating_obstacles_terrain(
     """
 
     # max_num_obstacles = cfg.max_num_obstacles
-    origin = np.asarray((0.5, 0.5, 0.5))
+    origin = np.asarray((0.0, 0.0, 0.0))
     meshes_list = list()
     
     for wall in cfg.wall_cfgs:
@@ -887,7 +887,7 @@ def floating_obstacles_terrain(
         wall_mesh.visual.vertex_colors = np.tile(color, (len(wall_mesh.vertices), 1))
         meshes_list.append(wall_mesh)
     
-    num_obstacles = int(difficulty * cfg.max_num_obstacles)
+    num_obstacles = int(difficulty * (cfg.max_num_obstacles - cfg.min_num_obstacles) + cfg.min_num_obstacles)
     
     for _ in range(num_obstacles):
         obs = np.random.choice(cfg.obstacle_cfgs)

@@ -18,9 +18,11 @@ FLOATING_OBSTACLES_CFG = TerrainGeneratorCfg(
     vertical_scale=0.005,
     slope_threshold=0.75,
     use_cache=False,
+    curriculum=True,
     sub_terrains={
         "floating_obstacles": terrain_gen.MeshFloatingObstaclesTerrainCfg(
-            max_num_obstacles=100,
+            min_num_obstacles=10,
+            max_num_obstacles=40,
             env_size=(12.0, 8.0, 6.0),
         ),
     },

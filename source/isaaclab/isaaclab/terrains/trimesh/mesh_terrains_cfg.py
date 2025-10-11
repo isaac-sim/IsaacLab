@@ -294,6 +294,7 @@ class MeshRepeatedCylindersTerrainCfg(MeshRepeatedObjectsTerrainCfg):
 class MeshFloatingObstaclesTerrainCfg(SubTerrainBaseCfg):
     """Configuration for a terrain with floating obstacles."""
 
+    min_num_obstacles: int = 10
     max_num_obstacles: int = 40
     object_func = mesh_utils_terrains.make_box
     function = mesh_terrains.floating_obstacles_terrain
@@ -306,28 +307,28 @@ class MeshFloatingObstaclesTerrainCfg(SubTerrainBaseCfg):
 
     panel_obs_cfg = BoxCfg()
     panel_obs_cfg.size = (0.1, 1.2, 3.0)
-    panel_obs_cfg.center_ratio_min = (0.3, 0.05, 0.05)
-    panel_obs_cfg.center_ratio_max = (0.8, 0.95, 0.95)
+    panel_obs_cfg.center_ratio_min = (0.25, 0.1, 0.1)
+    panel_obs_cfg.center_ratio_max = (0.75, 0.9, 0.9)
 
     small_wall_obs_cfg  = BoxCfg()
     small_wall_obs_cfg.size = (0.1, 0.5, 0.5)
-    small_wall_obs_cfg.center_ratio_min = (0.3, 0.05, 0.05)
-    small_wall_obs_cfg.center_ratio_max = (0.8, 0.9, 0.9)
+    small_wall_obs_cfg.center_ratio_min = (0.25, 0.1, 0.1)
+    small_wall_obs_cfg.center_ratio_max = (0.75, 0.9, 0.9)
 
     big_wall_obs_cfg = BoxCfg()
     big_wall_obs_cfg.size = (0.1, 1.0, 1.0)
-    big_wall_obs_cfg.center_ratio_min = (0.3, 0.05, 0.05)
-    big_wall_obs_cfg.center_ratio_max = (0.8, 0.9, 0.9)
+    big_wall_obs_cfg.center_ratio_min = (0.25, 0.1, 0.1)
+    big_wall_obs_cfg.center_ratio_max = (0.75, 0.9, 0.9)
 
     small_cube_obs_cfg = BoxCfg()
     small_cube_obs_cfg.size = (0.4, 0.4, 0.4)
-    small_cube_obs_cfg.center_ratio_min = (0.3, 0.05, 0.05)
-    small_cube_obs_cfg.center_ratio_max = (0.8, 0.9, 0.9)
+    small_cube_obs_cfg.center_ratio_min = (0.25, 0.1, 0.1)
+    small_cube_obs_cfg.center_ratio_max = (0.75, 0.9, 0.9)
 
     rod_obs_cfg = BoxCfg()
     rod_obs_cfg.size = (0.1, 0.1, 2.0)
-    rod_obs_cfg.center_ratio_min = (0.3, 0.05, 0.05)
-    rod_obs_cfg.center_ratio_max = (0.8, 0.9, 0.9)
+    rod_obs_cfg.center_ratio_min = (0.25, 0.1, 0.1)
+    rod_obs_cfg.center_ratio_max = (0.75, 0.9, 0.9)
 
     left_wall_cfg = BoxCfg()
     left_wall_cfg.size = (12.0, 0.2, 6.0)
