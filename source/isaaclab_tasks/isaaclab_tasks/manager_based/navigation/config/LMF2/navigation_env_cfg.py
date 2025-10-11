@@ -104,7 +104,7 @@ class CommandsCfg:
         resampling_time_range=(10.0, 10.0),
         debug_vis=True,
         ranges=mdp.UniformPoseCommandCfg.Ranges(
-            pos_x=(10.5, 11.5),
+            pos_x=(10.0, 11.0),
             pos_y=(1.0, 7.0),
             pos_z=(1.0, 5.0),
             roll=(-0.0, 0.0),
@@ -140,7 +140,7 @@ class ObservationsCfg:
         )
         base_roll_pitch = ObsTerm(func=mdp.base_roll_pitch, noise=Unoise(n_min=-0.1, n_max=0.1))
         base_lin_vel = ObsTerm(func=mdp.base_lin_vel, noise=Unoise(n_min=-0.1, n_max=0.1))
-        base_ang_vel = ObsTerm(func=mdp.base_ang_vel, noise=Unoise(n_min=-0.2, n_max=0.2))
+        base_ang_vel = ObsTerm(func=mdp.base_ang_vel, noise=Unoise(n_min=-0.1, n_max=0.1))
         last_action = ObsTerm(func=mdp.last_action, noise=Unoise(n_min=-0.0, n_max=0.0))
         depth_latent = ObsTerm(
             func=mdp.image_latents,
@@ -166,18 +166,18 @@ class EventCfg:
         mode="reset",
         params={
             "pose_range": {
-                "x": (0.5, 1.5),
+                "x": (1.0, 1.5),
                 "y": (1.0, 7.0),
                 "z": (1.0, 5.0),
-                "yaw": (-math.pi / 2.0, math.pi / 2.0),
-            },  # yaw translated from xyzw (0, 0, 0.5236, 1) from aerial gym
+                "yaw": (-math.pi / 6.0, math.pi / 6.0),
+            },
             "velocity_range": {
-                "x": (-0.0, 0.0),
-                "y": (-0.0, 0.0),
-                "z": (-0.0, 0.0),
-                "roll": (-0.0, 0.0),
-                "pitch": (-0.0, 0.0),
-                "yaw": (-0.0, 0.0),
+                "x": (-0.2, 0.2),
+                "y": (-0.2, 0.2),
+                "z": (-0.2, 0.2),
+                "roll": (-0.2, 0.2),
+                "pitch": (-0.2, 0.2),
+                "yaw": (-0.2, 0.2),
             },
         },
     )
