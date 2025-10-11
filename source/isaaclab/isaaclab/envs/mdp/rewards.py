@@ -161,7 +161,7 @@ def distance_to_goal_exp(
     target_position_w = command[:, :3].clone()
     current_position = asset.data.root_pos_w - env.scene.env_origins
     # weight based on the current curriculum level
-    weight = 1.0 + env.scene.terrain.terrain_levels.float() / env.scene.terrain.max_terrain_level.float()
+    weight = 1.0 + env.scene.terrain.terrain_levels.float() / float(env.scene.terrain.max_terrain_level)
 
     # compute the error
     position_error_square = torch.sum(torch.square(target_position_w - current_position), dim=1)
@@ -374,5 +374,5 @@ def velocity_to_goal_reward(
     direction_to_goal = direction_to_goal / (torch.norm(direction_to_goal, dim=1, keepdim=True) + 1e-8)
     # compute the reward as the dot product between the velocity and the direction to the goal
     velocity_towards_goal = torch.sum(asset.data.root_lin_vel_w * direction_to_goal, dim=1)
-    weight = 1.0 + env.scene.terrain.terrain_levels.float() / env.scene.terrain.max_terrain_level.float()
+    weight = 1.0 + env.scene.terrain.terrain_levels.float() / float(env.scene.terrain.max_terrain_level)
     return weight * velocity_towards_goal
