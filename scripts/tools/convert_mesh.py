@@ -119,17 +119,19 @@ def main():
 
     # Create Mesh converter config
     collision_cfg = None
-    if args_cli.collision_approximation == 'convexDecomposition':
+    if args_cli.collision_approximation == "convexDecomposition":
         collision_cfg = schemas_cfg.ConvexDecompositionPropertiesCfg()
-    elif args_cli.collision_approximation == 'convexHull':
+    elif args_cli.collision_approximation == "convexHull":
         collision_cfg = schemas_cfg.ConvexHullPropertiesCfg()
-    elif args_cli.collision_approximation == 'boundingCube':
+    elif args_cli.collision_approximation == "boundingCube":
         collision_cfg = schemas_cfg.BoundingCubePropertiesCfg()
     elif args_cli.collision_approximation == "boundingSphere":
         collision_cfg = schemas_cfg.BoundingSpherePropertiesCfg()
     elif args_cli.collision_approximation == "meshSimplification":
         collision_cfg = schemas_cfg.TriangleMeshSimplificationPropertiesCfg()
-        
+    else:
+        raise ValueError(f"Invalid collision approximation type {args_cli.collision_approximation}.")
+
     mesh_converter_cfg = MeshConverterCfg(
         mass_props=mass_props,
         rigid_props=rigid_props,
@@ -139,7 +141,7 @@ def main():
         usd_dir=os.path.dirname(dest_path),
         usd_file_name=os.path.basename(dest_path),
         make_instanceable=args_cli.make_instanceable,
-        mesh_collision_props=collision_cfg
+        mesh_collision_props=collision_cfg,
     )
 
     # Print info
