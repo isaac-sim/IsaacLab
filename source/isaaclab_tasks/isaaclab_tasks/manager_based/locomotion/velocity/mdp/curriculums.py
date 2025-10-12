@@ -80,7 +80,7 @@ def terrain_levels_vel(
     position_error = torch.norm(target_position_w[env_ids] - current_position[env_ids], dim=1)
 
     # robots that are within 1m range should progress to harder terrains
-    move_up = position_error < 1.0
+    move_up = position_error < 1.5
     move_down = env.termination_manager.terminated[env_ids]
     # update terrain levels
     terrain.update_env_origins(env_ids, move_up, move_down)
