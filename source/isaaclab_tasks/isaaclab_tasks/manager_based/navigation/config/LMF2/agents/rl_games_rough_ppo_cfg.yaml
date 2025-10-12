@@ -70,7 +70,7 @@ params:
     critic_coef: 2
     normalize_input: True
     bounds_loss_coef: 0.0001
-    max_epochs: 500
+    max_epochs: 1500
     normalize_value: True
     use_diagnostics: True
     value_bootstrap: True
