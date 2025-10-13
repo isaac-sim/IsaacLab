@@ -9,11 +9,11 @@ from isaaclab.actuators_warp import ActuatorBaseWarpCfg
 from isaaclab.utils import configclass
 
 from ..asset_base_cfg import AssetBaseCfg
-from .articulation import ArticulationWarp
+from .articulation import Articulation
 
 
 @configclass
-class ArticulationWarpCfg(AssetBaseCfg):
+class ArticulationCfg(AssetBaseCfg):
     """Configuration parameters for an articulation."""
 
     @configclass
@@ -36,7 +36,7 @@ class ArticulationWarpCfg(AssetBaseCfg):
     # Initialize configurations.
     ##
 
-    class_type: type = ArticulationWarp
+    class_type: type = Articulation
 
     articulation_root_prim_path: str | None = None
     """Path to the articulation root prim in the USD file.

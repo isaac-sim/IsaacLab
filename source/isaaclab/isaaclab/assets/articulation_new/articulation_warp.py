@@ -38,7 +38,7 @@ from isaaclab.assets.core.kernels import (
 )
 
 if TYPE_CHECKING:
-    from .articulation_cfg import ArticulationWarpCfg
+    from .articulation_cfg import ArticulationCfg
 
 class ArticulationWarp(AssetBase):
     """An articulation asset class.
@@ -88,7 +88,7 @@ class ArticulationWarp(AssetBase):
 
     """
 
-    cfg: ArticulationWarpCfg
+    cfg: ArticulationCfg
     """Configuration instance for the articulations."""
 
     actuators: dict[str, ActuatorBaseWarp]
@@ -99,7 +99,7 @@ class ArticulationWarp(AssetBase):
     attribute. They are used to compute the joint commands during the :meth:`write_data_to_sim` function.
     """
 
-    def __init__(self, cfg: ArticulationWarpCfg):
+    def __init__(self, cfg: ArticulationCfg):
         """Initialize the articulation.
 
         Args:

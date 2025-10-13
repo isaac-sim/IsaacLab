@@ -213,7 +213,7 @@ class ArticulationTorch(AssetBase):
 
     def find_bodies(
         self, name_keys: str | Sequence[str], preserve_order: bool = False
-    ) -> tuple[wp.array, list[str], list[int]]:
+    ) -> tuple[torch.Tensor, list[str], list[int]]:
         """Find bodies in the articulation based on the name keys.
 
         Please check the :meth:`isaaclab.utils.string_utils.resolve_matching_names` function for more
@@ -226,11 +226,12 @@ class ArticulationTorch(AssetBase):
         Returns:
             A tuple of lists containing the body mask, names, and indices.
         """
-        return self._body.find_bodies(name_keys, preserve_order)
+        mask, names, indices = self._body.find_bodies(name_keys, preserve_order)
+        return wp.to_torch(mask), names, indices
 
     def find_joints(
         self, name_keys: str | Sequence[str], joint_subset: list[str] | None = None, preserve_order: bool = False
-    ) -> tuple[wp.array, list[str], list[int]]:
+    ) -> tuple[torch.Tensor, list[str], list[int]]:
         """Find joints in the articulation based on the name keys.
 
         Please see the :func:`isaaclab.utils.string.resolve_matching_names` function for more information
@@ -245,7 +246,8 @@ class ArticulationTorch(AssetBase):
         Returns:
             A tuple of lists containing the joint mask, names, and indices.
         """
-        return self._joint.find_joints(name_keys, joint_subset, preserve_order)
+        mask, names, indices = self._joint.find_joints(name_keys, joint_subset, preserve_order)
+        return wp.to_torch(mask), names, indices
 
     def find_fixed_tendons(
         self, name_keys: str | Sequence[str], tendon_subsets: list[str] | None = None, preserve_order: bool = False
@@ -289,43 +291,97 @@ class ArticulationTorch(AssetBase):
     Operations - State Writers.
     """
 
-    def write_root_state_to_sim(self, root_state: wp.array, env_mask: wp.array | None = None):
+    def write_root_state_to_sim(
+        self,
+        root_state: torch.Tensor,
+        env_mask: torch.Tensor | None = None,
+        env_ids: torch.Tensor | Sequence[int] | None = None,
+    ) -> None:
         """Set the root state over selected environment indices into the simulation.
 
         The root state comprises of the cartesian position, quaternion orientation in (x, y, z, w), and angular
         and linear velocity. All the quantities are in the simulation frame.
 
+        NOTE: If both env_mask and env_ids are provided, then env_mask will be used.
+
         Args:
             root_state: Root state in simulation frame. Shape is (num_instances, 13).
             env_mask: Environment mask. Shape is (num_instances,).
+            env_ids: Environment indices. If None, then all indices are used.
         """
+        if env_mask is None:
+            if env_ids is not None:
+                env_mask = torch.zeros(self.num_instances, dtype=torch.bool, device=self.device)
+                env_mask[env_ids] = True
+                omni.log.warn("To optimize performances avoid passing ids and use mask instead. Ids may be removed in the future.")
+        else:
+            if env_ids is not None:
+                omni.log.warn("env_ids is not None, but env_mask is provided. Ignoring env_ids.")
+
         self._root.write_root_state_to_sim(root_state, env_mask)
 
-    def write_root_com_state_to_sim(self, root_state: wp.array, env_mask: wp.array | None = None):
+    def write_root_com_state_to_sim(
+        self,
+        root_state: torch.Tensor,
+        env_mask: torch.Tensor | None = None,
+        env_ids: torch.Tensor | Sequence[int] | None = None,
+    ) -> None:
         """Set the root center of mass state over selected environment indices into the simulation.
 
         The root state comprises of the cartesian position, quaternion orientation in (x, y, z, w), and angular
         and linear velocity. All the quantities are in the simulation frame.
 
+        NOTE: If both env_mask and env_ids are provided, then env_mask will be used.
+
         Args:
             root_state: Root state in simulation frame. Shape is (num_instances, 13).
             env_mask: Environment mask. Shape is (num_instances,).
+            env_ids: Environment indices. If None, then all indices are used.
         """
+        if env_mask is None:
+            if env_ids is not None:
+                env_mask = torch.zeros(self.num_instances, dtype=torch.bool, device=self.device)
+                env_mask[env_ids] = True
+                omni.log.warn("To optimize performances avoid passing ids and use mask instead. Ids may be removed in the future.")
+        else:
+            if env_ids is not None:
+                omni.log.warn("env_ids is not None, but env_mask is provided. Ignoring env_ids.")
         self._root.write_root_com_state_to_sim(root_state, env_mask)
 
-    def write_root_link_state_to_sim(self, root_state: wp.array, env_mask: wp.array | None = None):
+    def write_root_link_state_to_sim(
+        self,
+        root_state: torch.Tensor,
+        env_mask: torch.Tensor | None = None,
+        env_ids: torch.Tensor | Sequence[int] | None = None,
+    ) -> None:
         """Set the root link state over selected environment indices into the simulation.
 
         The root state comprises of the cartesian position, quaternion orientation in (x, y, z, w), and angular
         and linear velocity. All the quantities are in the simulation frame.
 
+        NOTE: If both env_mask and env_ids are provided, then env_mask will be used.
+
         Args:
             root_state: Root state in simulation frame. Shape is (num_instances, 13).
             env_mask: Environment mask. Shape is (num_instances,).
+            env_ids: Environment indices. If None, then all indices are used.
         """
+        if env_mask is None:
+            if env_ids is not None:
+                env_mask = torch.zeros(self.num_instances, dtype=torch.bool, device=self.device)
+                env_mask[env_ids] = True
+                omni.log.warn("To optimize performances avoid passing ids and use mask instead. Ids may be removed in the future.")
+        else:
+            if env_ids is not None:
+                omni.log.warn("env_ids is not None, but env_mask is provided. Ignoring env_ids.")
         self._root.write_root_link_state_to_sim(root_state, env_mask)
 
-    def write_root_pose_to_sim(self, root_pose: wp.array, env_mask: wp.array | None = None):
+    def write_root_pose_to_sim(
+        self,
+        root_pose: torch.Tensor,
+        env_mask: torch.Tensor | None = None,
+        env_ids: torch.Tensor | Sequence[int] | None = None,
+    ) -> None:
         """Set the root pose over selected environment indices into the simulation.
 
         The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
@@ -333,115 +389,265 @@ class ArticulationTorch(AssetBase):
         Args:
             root_pose: Root poses in simulation frame. Shape is (num_instances, 7).
             env_mask: Environment mask. Shape is (num_instances,).
+            env_ids: Environment indices. If None, then all indices are used.
         """
+        if env_mask is None:
+            if env_ids is not None:
+                env_mask = torch.zeros(self.num_instances, dtype=torch.bool, device=self.device)
+                env_mask[env_ids] = True
+                omni.log.warn("To optimize performances avoid passing ids and use mask instead. Ids may be removed in the future.")
+        else:
+            if env_ids is not None:
+                omni.log.warn("env_ids is not None, but env_mask is provided. Ignoring env_ids.")
         self._root.write_root_link_pose_to_sim(root_pose, env_mask=env_mask)
 
-    def write_root_link_pose_to_sim(self, pose: wp.array, env_mask: wp.array | None = None):
+    def write_root_link_pose_to_sim(
+        self,
+        pose: torch.Tensor,
+        env_mask: torch.Tensor | None = None,
+        env_ids: torch.Tensor | Sequence[int] | None = None,
+    ) -> None:
         """Set the root link pose over selected environment indices into the simulation.
 
-
         The root pose ``wp.transformf`` comprises of the cartesian position and quaternion orientation in (x, y, z, w).
+
+        NOTE: If both env_mask and env_ids are provided, then env_mask will be used.
 
         Args:
             root_pose: Root poses in simulation frame. Shape is (num_instances, 7).
             env_mask: Environment mask. Shape is (num_instances,).
+            env_ids: Environment indices. If None, then all indices are used.
         """
+        if env_mask is None:
+            if env_ids is not None:
+                env_mask = torch.zeros(self.num_instances, dtype=torch.bool, device=self.device)
+                env_mask[env_ids] = True
+                omni.log.warn("To optimize performances avoid passing ids and use mask instead. Ids may be removed in the future.")
+        else:
+            if env_ids is not None:
+                omni.log.warn("env_ids is not None, but env_mask is provided. Ignoring env_ids.")
         self._root.write_root_link_pose_to_sim(pose, env_mask)
 
-    def write_root_com_pose_to_sim(self, root_pose: wp.array, env_mask: wp.array | None = None) -> None:
+    def write_root_com_pose_to_sim(
+        self,
+        root_pose: torch.Tensor,
+        env_mask: torch.Tensor | None = None,
+        env_ids: torch.Tensor | Sequence[int] | None = None,
+    ) -> None:
         """Set the root center of mass pose over selected environment indices into the simulation.
 
         The root pose comprises of the cartesian position and quaternion orientation in (w, x, y, z).
         The orientation is the orientation of the principle axes of inertia.
 
+        NOTE: If both env_mask and env_ids are provided, then env_mask will be used.
+
         Args:
             root_pose: Root center of mass poses in simulation frame. Shape is (num_instances, 7).
             env_mask: Environment mask. Shape is (num_instances,).
+            env_ids: Environment indices. If None, then all indices are used.
         """
+        if env_mask is None:
+            if env_ids is not None:
+                env_mask = torch.zeros(self.num_instances, dtype=torch.bool, device=self.device)
+                env_mask[env_ids] = True
+                omni.log.warn("To optimize performances avoid passing ids and use mask instead. Ids may be removed in the future.")
+        else:
+            if env_ids is not None:
+                omni.log.warn("env_ids is not None, but env_mask is provided. Ignoring env_ids.")
         self._root.write_root_com_pose_to_sim(root_pose, env_mask)
 
-    def write_root_velocity_to_sim(self, root_velocity: wp.array, env_mask: wp.array | None = None) -> None:
+    def write_root_velocity_to_sim(
+        self,
+        root_velocity: torch.Tensor,
+        env_mask: torch.Tensor | None = None,
+        env_ids: torch.Tensor | Sequence[int] | None = None,
+    ) -> None:
         """Set the root center of mass velocity over selected environment indices into the simulation.
 
         The velocity comprises angular velocity (x, y, z) and linear velocity (x, y, z) in that order.
         NOTE: This sets the velocity of the root's center of mass rather than the roots frame.
+        NOTE: If both env_mask and env_ids are provided, then env_mask will be used.
 
         Args:
             root_velocity: Root center of mass velocities in simulation world frame. Shape is (num_instances, 6).
             env_mask: Environment mask. Shape is (num_instances,).
+            env_ids: Environment indices. If None, then all indices are used.
         """
+        if env_mask is None:
+            if env_ids is not None:
+                env_mask = torch.zeros(self.num_instances, dtype=torch.bool, device=self.device)
+                env_mask[env_ids] = True
+                omni.log.warn("To optimize performances avoid passing ids and use mask instead. Ids may be removed in the future.")
+        else:
+            if env_ids is not None:
+                omni.log.warn("env_ids is not None, but env_mask is provided. Ignoring env_ids.")
         self._root.write_root_com_velocity_to_sim(root_velocity=root_velocity, env_mask=env_mask)
 
-    def write_root_com_velocity_to_sim(self, root_velocity: wp.array, env_mask: wp.array | None = None) -> None:
+    def write_root_com_velocity_to_sim(
+        self,
+        root_velocity: torch.Tensor,
+        env_mask: torch.Tensor | None = None,
+        env_ids: torch.Tensor | Sequence[int] | None = None,
+    ) -> None:
         """Set the root center of mass velocity over selected environment indices into the simulation.
 
         The velocity comprises angular velocity (x, y, z) and linear velocity (x, y, z) in that order.
         NOTE: This sets the velocity of the root's center of mass rather than the roots frame.
+        NOTE: If both env_mask and env_ids are provided, then env_mask will be used.
 
         Args:
             root_velocity: Root center of mass velocities in simulation world frame. Shape is (num_instances, 6).
             env_mask: Environment mask. Shape is (num_instances,).
+            env_ids: Environment indices. If None, then all indices are used.
         """
+        if env_mask is None:
+            if env_ids is not None:
+                env_mask = torch.zeros(self.num_instances, dtype=torch.bool, device=self.device)
+                env_mask[env_ids] = True
+                omni.log.warn("To optimize performances avoid passing ids and use mask instead. Ids may be removed in the future.")
+        else:
+            if env_ids is not None:
+                omni.log.warn("env_ids is not None, but env_mask is provided. Ignoring env_ids.")
         self._root.write_root_com_velocity_to_sim(root_velocity, env_mask)
 
-    def write_root_link_velocity_to_sim(self, root_velocity: wp.array, env_mask: wp.array | None = None) -> None:
+    def write_root_link_velocity_to_sim(
+        self,
+        root_velocity: torch.Tensor,
+        env_mask: torch.Tensor | None = None,
+        env_ids: torch.Tensor | Sequence[int] | None = None
+    ) -> None:
         """Set the root link velocity over selected environment indices into the simulation.
 
         The velocity comprises angular velocity (x, y, z) and linear velocity (x, y, z) in that order.
         NOTE: This sets the velocity of the root's frame rather than the roots center of mass.
+        NOTE: If both env_mask and env_ids are provided, then env_mask will be used.
 
         Args:
             root_velocity: Root frame velocities in simulation world frame. Shape is (num_instances, 6).
             env_mask: Environment mask. Shape is (num_instances,).
+            env_ids: Environment indices. If None, then all indices are used.
         """
+        if env_mask is None:
+            if env_ids is not None:
+                env_mask = torch.zeros(self.num_instances, dtype=torch.bool, device=self.device)
+                env_mask[env_ids] = True
+                omni.log.warn("To optimize performances avoid passing ids and use mask instead. Ids may be removed in the future.")
+        else:
+            if env_ids is not None:
+                omni.log.warn("env_ids is not None, but env_mask is provided. Ignoring env_ids.")
         self._root.write_root_link_velocity_to_sim(root_velocity, env_mask)
 
     def write_joint_state_to_sim(
         self,
-        position: wp.array,
-        velocity: wp.array,
-        joint_mask: wp.array | None = None,
-        env_mask: wp.array | None = None,
-    ):
+        position: torch.Tensor,
+        velocity: torch.Tensor,
+        joint_mask: torch.Tensor | None = None,
+        joint_ids: torch.Tensor | Sequence[int] | None = None,
+        env_mask: torch.Tensor | None = None,
+        env_ids: torch.Tensor | Sequence[int] | None = None,
+    ) -> None:
         """Write joint positions and velocities to the simulation.
+
+        Note: If both joint_mask and joint_ids are provided, then joint_mask will be used. If both env_mask and env_ids
+        are provided, then env_mask will be used.
 
         Args:
             position: Joint positions. Shape is (num_instances, num_joints).
             velocity: Joint velocities. Shape is (num_instances, num_joints).
             joint_mask: The joint mask. Shape is (num_joints).
+            joint_ids: The joint indices to set the targets for. Defaults to None (all joints).
             env_mask: The environment mask. Shape is (num_instances,).
+            env_ids: The environment indices to set the targets for. Defaults to None (all environments).
         """
-        # set into simulation
+        if env_mask is None:
+            if env_ids is not None:
+                env_mask = torch.zeros(self.num_instances, dtype=torch.bool, device=self.device)
+                env_mask[env_ids] = True
+                omni.log.warn("To optimize performances avoid passing ids and use mask instead. Ids may be removed in the future.")
+        else:
+            if env_ids is not None:
+                omni.log.warn("env_ids is not None, but env_mask is provided. Ignoring env_ids.")
+        if joint_mask is None:
+            if joint_ids is not None:
+                joint_mask = torch.zeros(self.num_joints, dtype=torch.bool, device=self.device)
+                joint_mask[joint_ids] = True
+                omni.log.warn("To optimize performances avoid passing ids and use mask instead. Ids may be removed in the future.")
+        else:
+            if joint_ids is not None:
+                omni.log.warn("joint_ids is not None, but joint_mask is provided. Ignoring joint_ids.")
         self._joint.write_joint_state_to_sim(position, velocity, joint_mask, env_mask)
 
     def write_joint_position_to_sim(
         self,
-        position: wp.array,
-        joint_mask: wp.array | None = None,
-        env_mask: wp.array | None = None,
-    ):
+        position: torch.Tensor,
+        joint_mask: torch.Tensor | None = None,
+        joint_ids: torch.Tensor | Sequence[int] | None = None,
+        env_mask: torch.Tensor | None = None,
+        env_ids: torch.Tensor | Sequence[int] | None = None,
+    ) -> None:
         """Write joint positions to the simulation.
+
+        Note: If both joint_mask and joint_ids are provided, then joint_mask will be used. If both env_mask and env_ids
+        are provided, then env_mask will be used.
 
         Args:
             position: Joint positions. Shape is (num_instances, num_joints).
             joint_mask: The joint mask. Shape is (num_joints).
+            joint_ids: The joint indices to set the targets for. Defaults to None (all joints).
             env_mask: The environment mask. Shape is (num_instances,).
+            env_ids: The environment indices to set the targets for. Defaults to None (all environments).
         """
+        if env_mask is None:
+            if env_ids is not None:
+                env_mask = torch.zeros(self.num_instances, dtype=torch.bool, device=self.device)
+                env_mask[env_ids] = True
+                omni.log.warn("To optimize performances avoid passing ids and use mask instead. Ids may be removed in the future.")
+        else:
+            if env_ids is not None:
+                omni.log.warn("env_ids is not None, but env_mask is provided. Ignoring env_ids.")
+        if joint_mask is None:
+            if joint_ids is not None:
+                joint_mask = torch.zeros(self.num_joints, dtype=torch.bool, device=self.device)
+                joint_mask[joint_ids] = True
+                omni.log.warn("To optimize performances avoid passing ids and use mask instead. Ids may be removed in the future.")
+        else:
+            if joint_ids is not None:
+                omni.log.warn("joint_ids is not None, but joint_mask is provided. Ignoring joint_ids.")
         self._joint.write_joint_position_to_sim(position, joint_mask, env_mask)
 
     def write_joint_velocity_to_sim(
         self,
-        velocity: wp.array,
-        joint_mask: wp.array | None = None,
-        env_mask: wp.array | None = None,
-    ):
+        velocity: torch.Tensor,
+        joint_mask: torch.Tensor | None = None,
+        joint_ids: torch.Tensor | Sequence[int] | None = None,
+        env_mask: torch.Tensor | None = None,
+        env_ids: torch.Tensor | Sequence[int] | None = None,
+    ) -> None:
         """Write joint velocities to the simulation.
 
         Args:
             velocity: Joint velocities. Shape is (num_instances, num_joints).
             joint_mask: The joint mask. Shape is (num_joints).
+            joint_ids: The joint indices to set the targets for. Defaults to None (all joints).
             env_mask: The environment mask. Shape is (num_instances,).
+            env_ids: The environment indices to set the targets for. Defaults to None (all environments).
         """
+        if env_mask is None:
+            if env_ids is not None:
+                env_mask = torch.zeros(self.num_instances, dtype=torch.bool, device=self.device)
+                env_mask[env_ids] = True
+                omni.log.warn("To optimize performances avoid passing ids and use mask instead. Ids may be removed in the future.")
+        else:
+            if env_ids is not None:
+                omni.log.warn("env_ids is not None, but env_mask is provided. Ignoring env_ids.")
+        if joint_mask is None:
+            if joint_ids is not None:
+                joint_mask = torch.zeros(self.num_joints, dtype=torch.bool, device=self.device)
+                joint_mask[joint_ids] = True
+                omni.log.warn("To optimize performances avoid passing ids and use mask instead. Ids may be removed in the future.")
+        else:
+            if joint_ids is not None:
+                omni.log.warn("joint_ids is not None, but joint_mask is provided. Ignoring joint_ids.")
         self._joint.write_joint_velocity_to_sim(velocity, joint_mask, env_mask)
 
     """
@@ -450,27 +656,49 @@ class ArticulationTorch(AssetBase):
 
     def write_joint_control_mode_to_sim(
         self,
-        control_mode: wp.array | int,
-        joint_mask: wp.array | None = None,
-        env_mask: wp.array | None = None,
+        control_mode: torch.Tensor | int,
+        joint_mask: torch.Tensor | None = None,
+        joint_ids: torch.Tensor | Sequence[int] | None = None,
+        env_mask: torch.Tensor | None = None,
+        env_ids: torch.Tensor | Sequence[int] | None = None,
     ):
         """Write joint control mode into the simulation.
 
         Args:
             control_mode: Joint control mode. Shape is (num_instances, num_joints).
             joint_mask: The joint mask. Shape is (num_joints).
+            joint_ids: The joint indices to set the targets for. Defaults to None (all joints).
             env_mask: The environment mask. Shape is (num_instances,).
+            env_ids: The environment indices to set the targets for. Defaults to None (all environments).
 
         Raises:
             ValueError: If the control mode is invalid.
         """
+        if env_mask is None:
+            if env_ids is not None:
+                env_mask = torch.zeros(self.num_instances, dtype=torch.bool, device=self.device)
+                env_mask[env_ids] = True
+                omni.log.warn("To optimize performances avoid passing ids and use mask instead. Ids may be removed in the future.")
+        else:
+            if env_ids is not None:
+                omni.log.warn("env_ids is not None, but env_mask is provided. Ignoring env_ids.")
+        if joint_mask is None:
+            if joint_ids is not None:
+                joint_mask = torch.zeros(self.num_joints, dtype=torch.bool, device=self.device)
+                joint_mask[joint_ids] = True
+                omni.log.warn("To optimize performances avoid passing ids and use mask instead. Ids may be removed in the future.")
+        else:
+            if joint_ids is not None:
+                omni.log.warn("joint_ids is not None, but joint_mask is provided. Ignoring joint_ids.")
         self._joint.write_joint_control_mode_to_sim(control_mode, joint_mask, env_mask)
 
     def write_joint_stiffness_to_sim(
         self,
-        stiffness: wp.array | float,
-        joint_mask: wp.array | None = None,
-        env_mask: wp.array | None = None,
+        stiffness: torch.Tensor | float,
+        joint_mask: torch.Tensor | None = None,
+        joint_ids: torch.Tensor | Sequence[int] | None = None,
+        env_mask: torch.Tensor | None = None,
+        env_ids: torch.Tensor | Sequence[int] | None = None,
     ) -> None:
         """Write joint stiffness into the simulation.
 
@@ -479,29 +707,67 @@ class ArticulationTorch(AssetBase):
             joint_mask: The joint mask. Shape is (num_joints).
             env_mask: The environment mask. Shape is (num_instances,).
         """
+        if env_mask is None:
+            if env_ids is not None:
+                env_mask = torch.zeros(self.num_instances, dtype=torch.bool, device=self.device)
+                env_mask[env_ids] = True
+                omni.log.warn("To optimize performances avoid passing ids and use mask instead. Ids may be removed in the future.")
+        else:
+            if env_ids is not None:
+                omni.log.warn("env_ids is not None, but env_mask is provided. Ignoring env_ids.")
+        if joint_mask is None:
+            if joint_ids is not None:
+                joint_mask = torch.zeros(self.num_joints, dtype=torch.bool, device=self.device)
+                joint_mask[joint_ids] = True
+                omni.log.warn("To optimize performances avoid passing ids and use mask instead. Ids may be removed in the future.")
+        else:
+            if joint_ids is not None:
+                omni.log.warn("joint_ids is not None, but joint_mask is provided. Ignoring joint_ids.")
         self._joint.write_joint_stiffness_to_sim(stiffness, joint_mask, env_mask)
 
     def write_joint_damping_to_sim(
         self,
-        damping: wp.array | float,
-        joint_mask: wp.array | None = None,
-        env_mask: wp.array | None = None,
+        damping: torch.Tensor | float,
+        joint_mask: torch.Tensor | None = None,
+        joint_ids: torch.Tensor | Sequence[int] | None = None,
+        env_mask: torch.Tensor | None = None,
+        env_ids: torch.Tensor | Sequence[int] | None = None,
     ) -> None:
         """Write joint damping into the simulation.
 
         Args:
             damping: Joint damping. Shape is (num_instances, num_joints).
             joint_mask: The joint mask. Shape is (num_joints).
+            joint_ids: The joint indices to set the targets for. Defaults to None (all joints).
             env_mask: The environment mask. Shape is (num_instances,).
+            env_ids: The environment indices to set the targets for. Defaults to None (all environments).
         """
+        if env_mask is None:
+            if env_ids is not None:
+                env_mask = torch.zeros(self.num_instances, dtype=torch.bool, device=self.device)
+                env_mask[env_ids] = True
+                omni.log.warn("To optimize performances avoid passing ids and use mask instead. Ids may be removed in the future.")
+        else:
+            if env_ids is not None:
+                omni.log.warn("env_ids is not None, but env_mask is provided. Ignoring env_ids.")
+        if joint_mask is None:
+            if joint_ids is not None:
+                joint_mask = torch.zeros(self.num_joints, dtype=torch.bool, device=self.device)
+                joint_mask[joint_ids] = True
+                omni.log.warn("To optimize performances avoid passing ids and use mask instead. Ids may be removed in the future.")
+        else:
+            if joint_ids is not None:
+                omni.log.warn("joint_ids is not None, but joint_mask is provided. Ignoring joint_ids.")
         self._joint.write_joint_damping_to_sim(damping, joint_mask, env_mask)
 
     def write_joint_position_limit_to_sim(
         self,
-        upper_limits: wp.array | float,
-        lower_limits: wp.array | float,
-        joint_mask: wp.array | None = None,
-        env_mask: wp.array | None = None,
+        upper_limits: torch.Tensor | float,
+        lower_limits: torch.Tensor | float,
+        joint_mask: torch.Tensor | None = None,
+        joint_ids: torch.Tensor | Sequence[int] | None = None,
+        env_mask: torch.Tensor | None = None,
+        env_ids: torch.Tensor | Sequence[int] | None = None,
     ) -> None:
         """Write joint position limits into the simulation.
 
@@ -509,15 +775,35 @@ class ArticulationTorch(AssetBase):
             upper_limits: Joint upper limits. Shape is (num_instances, num_joints).
             lower_limits: Joint lower limits. Shape is (num_instances, num_joints).
             joint_mask: The joint mask. Shape is (num_joints).
+            joint_ids: The joint indices to set the targets for. Defaults to None (all joints).
             env_mask: The environment mask. Shape is (num_instances,).
+            env_ids: The environment indices to set the targets for. Defaults to None (all environments).
         """
+        if env_mask is None:
+            if env_ids is not None:
+                env_mask = torch.zeros(self.num_instances, dtype=torch.bool, device=self.device)
+                env_mask[env_ids] = True
+                omni.log.warn("To optimize performances avoid passing ids and use mask instead. Ids may be removed in the future.")
+        else:
+            if env_ids is not None:
+                omni.log.warn("env_ids is not None, but env_mask is provided. Ignoring env_ids.")
+        if joint_mask is None:
+            if joint_ids is not None:
+                joint_mask = torch.zeros(self.num_joints, dtype=torch.bool, device=self.device)
+                joint_mask[joint_ids] = True
+                omni.log.warn("To optimize performances avoid passing ids and use mask instead. Ids may be removed in the future.")
+        else:
+            if joint_ids is not None:
+                omni.log.warn("joint_ids is not None, but joint_mask is provided. Ignoring joint_ids.")
         self._joint.write_joint_position_limit_to_sim(upper_limits, lower_limits, joint_mask, env_mask)
 
     def write_joint_velocity_limit_to_sim(
         self,
-        limits: wp.array | float,
-        joint_mask: wp.array | None = None,
-        env_mask: wp.array | None = None,
+        limits: torch.Tensor | float,
+        joint_mask: torch.Tensor | None = None,
+        joint_ids: torch.Tensor | Sequence[int] | None = None,
+        env_mask: torch.Tensor | None = None,
+        env_ids: torch.Tensor | Sequence[int] | None = None,
     ) -> None:
         """Write joint max velocity to the simulation.
 
@@ -530,15 +816,35 @@ class ArticulationTorch(AssetBase):
         Args:
             limits: Joint max velocity. Shape is (num_instances, num_joints).
             joint_mask: The joint mask. Shape is (num_joints).
+            joint_ids: The joint indices to set the targets for. Defaults to None (all joints).
             env_mask: The environment mask. Shape is (num_instances,).
+            env_ids: The environment indices to set the targets for. Defaults to None (all environments).
         """
+        if env_mask is None:
+            if env_ids is not None:
+                env_mask = torch.zeros(self.num_instances, dtype=torch.bool, device=self.device)
+                env_mask[env_ids] = True
+                omni.log.warn("To optimize performances avoid passing ids and use mask instead. Ids may be removed in the future.")
+        else:
+            if env_ids is not None:
+                omni.log.warn("env_ids is not None, but env_mask is provided. Ignoring env_ids.")
+        if joint_mask is None:
+            if joint_ids is not None:
+                joint_mask = torch.zeros(self.num_joints, dtype=torch.bool, device=self.device)
+                joint_mask[joint_ids] = True
+                omni.log.warn("To optimize performances avoid passing ids and use mask instead. Ids may be removed in the future.")
+        else:
+            if joint_ids is not None:
+                omni.log.warn("joint_ids is not None, but joint_mask is provided. Ignoring joint_ids.")
         self._joint.write_joint_velocity_limit_to_sim(limits, joint_mask, env_mask)
 
     def write_joint_effort_limit_to_sim(
         self,
-        limits: wp.array | float,
-        joint_mask: wp.array | None = None,
-        env_mask: wp.array | None = None,
+        limits: torch.Tensor | float,
+        joint_mask: torch.Tensor | None = None,
+        joint_ids: torch.Tensor | Sequence[int] | None = None,
+        env_mask: torch.Tensor | None = None,
+        env_ids: torch.Tensor | Sequence[int] | None = None,
     ) -> None:
         """Write joint effort limits into the simulation.
 
@@ -548,15 +854,35 @@ class ArticulationTorch(AssetBase):
         Args:
             limits: Joint torque limits. Shape is (num_instances, num_joints).
             joint_mask: The joint mask. Shape is (num_joints).
+            joint_ids: The joint indices to set the targets for. Defaults to None (all joints).
             env_mask: The environment mask. Shape is (num_instances,).
+            env_ids: The environment indices to set the targets for. Defaults to None (all environments).
         """
+        if env_mask is None:
+            if env_ids is not None:
+                env_mask = torch.zeros(self.num_instances, dtype=torch.bool, device=self.device)
+                env_mask[env_ids] = True
+                omni.log.warn("To optimize performances avoid passing ids and use mask instead. Ids may be removed in the future.")
+        else:
+            if env_ids is not None:
+                omni.log.warn("env_ids is not None, but env_mask is provided. Ignoring env_ids.")
+        if joint_mask is None:
+            if joint_ids is not None:
+                joint_mask = torch.zeros(self.num_joints, dtype=torch.bool, device=self.device)
+                joint_mask[joint_ids] = True
+                omni.log.warn("To optimize performances avoid passing ids and use mask instead. Ids may be removed in the future.")
+        else:
+            if joint_ids is not None:
+                omni.log.warn("joint_ids is not None, but joint_mask is provided. Ignoring joint_ids.")
         self._joint.write_joint_effort_limit_to_sim(limits, joint_mask, env_mask)
 
     def write_joint_armature_to_sim(
         self,
-        armature: wp.array | float,
-        joint_mask: wp.array | None = None,
-        env_mask: wp.array | None = None,
+        armature: torch.Tensor | float,
+        joint_mask: torch.Tensor | None = None,
+        joint_ids: torch.Tensor | Sequence[int] | None = None,
+        env_mask: torch.Tensor | None = None,
+        env_ids: torch.Tensor | Sequence[int] | None = None,
     ) -> None:
         """Write joint armature into the simulation.
 
@@ -566,15 +892,35 @@ class ArticulationTorch(AssetBase):
         Args:
             armature: Joint armature. Shape is (num_instances, num_joints).
             joint_mask: The joint mask. Shape is (num_joints).
+            joint_ids: The joint indices to set the targets for. Defaults to None (all joints).
             env_mask: The environment mask. Shape is (num_instances,).
+            env_ids: The environment indices to set the targets for. Defaults to None (all environments).
         """
+        if env_mask is None:
+            if env_ids is not None:
+                env_mask = torch.zeros(self.num_instances, dtype=torch.bool, device=self.device)
+                env_mask[env_ids] = True
+                omni.log.warn("To optimize performances avoid passing ids and use mask instead. Ids may be removed in the future.")
+        else:
+            if env_ids is not None:
+                omni.log.warn("env_ids is not None, but env_mask is provided. Ignoring env_ids.")
+        if joint_mask is None:
+            if joint_ids is not None:
+                joint_mask = torch.zeros(self.num_joints, dtype=torch.bool, device=self.device)
+                joint_mask[joint_ids] = True
+                omni.log.warn("To optimize performances avoid passing ids and use mask instead. Ids may be removed in the future.")
+        else:
+            if joint_ids is not None:
+                omni.log.warn("joint_ids is not None, but joint_mask is provided. Ignoring joint_ids.")
         self._joint.write_joint_armature_to_sim(armature, joint_mask, env_mask)
 
     def write_joint_friction_coefficient_to_sim(
         self,
-        joint_friction_coeff: wp.array | float,
-        joint_mask: wp.array | None = None,
-        env_mask: wp.array | None = None,
+        joint_friction_coeff: torch.Tensor | float,
+        joint_mask: torch.Tensor | None = None,
+        joint_ids: torch.Tensor | Sequence[int] | None = None,
+        env_mask: torch.Tensor | None = None,
+        env_ids: torch.Tensor | Sequence[int] | None = None,
     ) -> None:
         r"""Write joint friction coefficients into the simulation.
 
@@ -590,8 +936,26 @@ class ArticulationTorch(AssetBase):
         Args:
             joint_friction_coeff: Joint friction coefficients. Shape is (num_instances, num_joints).
             joint_mask: The joint mask. Shape is (num_joints).
+            joint_ids: The joint indices to set the targets for. Defaults to None (all joints).
             env_mask: The environment mask. Shape is (num_instances,).
+            env_ids: The environment indices to set the targets for. Defaults to None (all environments).
         """
+        if env_mask is None:
+            if env_ids is not None:
+                env_mask = torch.zeros(self.num_instances, dtype=torch.bool, device=self.device)
+                env_mask[env_ids] = True
+                omni.log.warn("To optimize performances avoid passing ids and use mask instead. Ids may be removed in the future.")
+        else:
+            if env_ids is not None:
+                omni.log.warn("env_ids is not None, but env_mask is provided. Ignoring env_ids.")
+        if joint_mask is None:
+            if joint_ids is not None:
+                joint_mask = torch.zeros(self.num_joints, dtype=torch.bool, device=self.device)
+                joint_mask[joint_ids] = True
+                omni.log.warn("To optimize performances avoid passing ids and use mask instead. Ids may be removed in the future.")
+        else:
+            if joint_ids is not None:
+                omni.log.warn("joint_ids is not None, but joint_mask is provided. Ignoring joint_ids.")
         self._joint.write_joint_friction_coefficient_to_sim(joint_friction_coeff, joint_mask, env_mask)
 
     """
@@ -600,10 +964,12 @@ class ArticulationTorch(AssetBase):
 
     def set_external_force_and_torque(
         self,
-        forces: wp.array,
-        torques: wp.array,
-        body_mask: wp.array | None = None,
-        env_mask: wp.array | None = None,
+        forces: torch.Tensor,
+        torques: torch.Tensor,
+        body_mask: torch.Tensor | None = None,
+        body_ids: torch.Tensor | Sequence[int] | None = None,
+        env_mask: torch.Tensor | None = None,
+        env_ids: torch.Tensor | Sequence[int] | None = None,
     ) -> None:
         """Set external force and torque to apply on the asset's bodies in their local frame.
 
@@ -631,13 +997,31 @@ class ArticulationTorch(AssetBase):
             body_mask: The body mask. Shape is (num_bodies).
             env_mask: The environment mask. Shape is (num_instances,).
         """
+        if env_mask is None:
+            if env_ids is not None:
+                env_mask = torch.zeros(self.num_instances, dtype=torch.bool, device=self.device)
+                env_mask[env_ids] = True
+                omni.log.warn("To optimize performances avoid passing ids and use mask instead. Ids may be removed in the future.")
+        else:
+            if env_ids is not None:
+                omni.log.warn("env_ids is not None, but env_mask is provided. Ignoring env_ids.")
+        if body_mask is None:
+            if body_ids is not None:
+                body_mask = torch.zeros(self.num_bodies, dtype=torch.bool, device=self.device)
+                body_mask[body_ids] = True
+                omni.log.warn("To optimize performances avoid passing ids and use mask instead. Ids may be removed in the future.")
+        else:
+            if body_ids is not None:
+                omni.log.warn("body_ids is not None, but body_mask is provided. Ignoring body_ids.")
         self._body.set_external_force_and_torque(forces, torques, body_mask, env_mask)
 
     def set_joint_position_target(
         self,
-        target: wp.array,
-        joint_mask: wp.array | None = None,
-        env_mask: wp.array | None = None,
+        target: torch.Tensor,
+        joint_mask: torch.Tensor | None = None,
+        joint_ids: torch.Tensor | Sequence[int] | None = None,
+        env_mask: torch.Tensor | None = None,
+        env_ids: torch.Tensor | Sequence[int] | None = None,
     ) -> None:
         """Set joint position targets into internal buffers.
 
@@ -649,13 +1033,31 @@ class ArticulationTorch(AssetBase):
             joint_mask: The joint mask. Shape is (num_joints).
             env_mask: The environment mask. Shape is (num_instances,).
         """
+        if env_mask is None:
+            if env_ids is not None:
+                env_mask = torch.zeros(self.num_instances, dtype=torch.bool, device=self.device)
+                env_mask[env_ids] = True
+                omni.log.warn("To optimize performances avoid passing ids and use mask instead. Ids may be removed in the future.")
+        else:
+            if env_ids is not None:
+                omni.log.warn("env_ids is not None, but env_mask is provided. Ignoring env_ids.")
+        if joint_mask is None:
+            if joint_ids is not None:
+                joint_mask = torch.zeros(self.num_joints, dtype=torch.bool, device=self.device)
+                joint_mask[joint_ids] = True
+                omni.log.warn("To optimize performances avoid passing ids and use mask instead. Ids may be removed in the future.")
+        else:
+            if joint_ids is not None:
+                omni.log.warn("joint_ids is not None, but joint_mask is provided. Ignoring joint_ids.")
         self._joint.set_joint_position_target(target, joint_mask, env_mask)
 
     def set_joint_velocity_target(
         self,
-        target: wp.array,
-        joint_mask: wp.array | None = None,
-        env_mask: wp.array | None = None,
+        target: torch.Tensor,
+        joint_mask: torch.Tensor | None = None,
+        joint_ids: torch.Tensor | Sequence[int] | None = None,
+        env_mask: torch.Tensor | None = None,
+        env_ids: torch.Tensor | Sequence[int] | None = None,
     ) -> None:
         """Set joint velocity targets into internal buffers.
 
@@ -667,13 +1069,31 @@ class ArticulationTorch(AssetBase):
             joint_mask: The joint mask. Shape is (num_joints).
             env_mask: The environment mask. Shape is (num_instances,).
         """
+        if env_mask is None:
+            if env_ids is not None:
+                env_mask = torch.zeros(self.num_instances, dtype=torch.bool, device=self.device)
+                env_mask[env_ids] = True
+                omni.log.warn("To optimize performances avoid passing ids and use mask instead. Ids may be removed in the future.")
+        else:
+            if env_ids is not None:
+                omni.log.warn("env_ids is not None, but env_mask is provided. Ignoring env_ids.")
+        if joint_mask is None:
+            if joint_ids is not None:
+                joint_mask = torch.zeros(self.num_joints, dtype=torch.bool, device=self.device)
+                joint_mask[joint_ids] = True
+                omni.log.warn("To optimize performances avoid passing ids and use mask instead. Ids may be removed in the future.")
+        else:
+            if joint_ids is not None:
+                omni.log.warn("joint_ids is not None, but joint_mask is provided. Ignoring joint_ids.")
         self._joint.set_joint_velocity_target(target, joint_mask, env_mask)
 
     def set_joint_effort_target(
         self,
-        target: wp.array,
-        joint_mask: wp.array | None = None,
-        env_mask: wp.array | None = None,
+        target: torch.Tensor,
+        joint_mask: torch.Tensor | None = None,
+        joint_ids: torch.Tensor | Sequence[int] | None = None,
+        env_mask: torch.Tensor | None = None,
+        env_ids: torch.Tensor | Sequence[int] | None = None,
     ) -> None:
         """Set joint efforts into internal buffers.
 
@@ -685,6 +1105,22 @@ class ArticulationTorch(AssetBase):
             joint_mask: The joint mask. Shape is (num_joints).
             env_mask: The environment mask. Shape is (num_instances,).
         """
+        if env_mask is None:
+            if env_ids is not None:
+                env_mask = torch.zeros(self.num_instances, dtype=torch.bool, device=self.device)
+                env_mask[env_ids] = True
+                omni.log.warn("To optimize performances avoid passing ids and use mask instead. Ids may be removed in the future.")
+        else:
+            if env_ids is not None:
+                omni.log.warn("env_ids is not None, but env_mask is provided. Ignoring env_ids.")
+        if joint_mask is None:
+            if joint_ids is not None:
+                joint_mask = torch.zeros(self.num_joints, dtype=torch.bool, device=self.device)
+                joint_mask[joint_ids] = True
+                omni.log.warn("To optimize performances avoid passing ids and use mask instead. Ids may be removed in the future.")
+        else:
+            if joint_ids is not None:
+                omni.log.warn("joint_ids is not None, but joint_mask is provided. Ignoring joint_ids.")
         self._joint.set_joint_effort_target(target, joint_mask, env_mask)
 
     """
@@ -693,9 +1129,11 @@ class ArticulationTorch(AssetBase):
 
     def set_fixed_tendon_stiffness(
         self,
-        stiffness: wp.array,
-        fixed_tendon_mask: wp.array | None = None,
-        env_mask: wp.array | None = None,
+        stiffness: torch.Tensor,
+        fixed_tendon_mask: torch.Tensor | None = None,
+        fixed_tendon_ids: torch.Tensor | Sequence[int] | None = None,
+        env_mask: torch.Tensor | None = None,
+        env_ids: torch.Tensor | Sequence[int] | None = None,
     ) -> None:
         """Set fixed tendon stiffness into internal buffers.
 
