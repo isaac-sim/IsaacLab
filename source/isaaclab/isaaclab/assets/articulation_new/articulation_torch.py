@@ -18,45 +18,29 @@ import warp as wp
 from isaacsim.core.simulation_manager import SimulationManager
 from newton import JointType, Model
 from newton.selection import ArticulationView as NewtonArticulationView
-from newton.solvers import SolverMuJoCo, SolverNotifyFlags
 from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.string as string_utils
 from isaaclab.actuators_warp import ActuatorBaseWarp, ActuatorBaseWarpCfg, ImplicitActuatorWarp
 from isaaclab.sim._impl.newton_manager import NewtonManager
-from isaaclab.utils.helpers import warn_overhead_cost
 
 from ..asset_base import AssetBase
-from .articulation_data import ArticulationDataWarp
+from .articulation_data_torch import ArticulationDataTorch
+from isaaclab.assets.core.joint_properties.joint import Joint
+from isaaclab.assets.core.body_properties.body import Body
+from isaaclab.assets.core.root_properties.root import Root
 from isaaclab.assets.core.kernels import (
     generate_mask_from_ids,
     populate_empty_array,
-    project_link_velocity_to_com_frame_masked,
-    transform_CoM_pose_to_link_frame,
-    update_joint_array,
-    update_joint_array_int,
-    update_joint_array_with_value,
-    update_joint_array_with_value_array,
-    update_joint_array_with_value_int,
-    update_joint_limits,
-    update_joint_limits_value_vec2f,
-    update_joint_pos_with_limits,
-    update_joint_pos_with_limits_value_vec2f,
-    update_soft_joint_pos_limits,
-    update_spatial_vector_array_with_value,
-    update_transforms_array,
-    update_transforms_array_with_value,
-    update_velocity_array,
-    update_wrench_array_with_force,
-    update_wrench_array_with_torque,
-    update_wrench_array_with_value,
+    update_batched_array_with_array_masked,
+    update_array_with_value,
 )
 
 if TYPE_CHECKING:
-    from .articulation_cfg import ArticulationWarpCfg
+    from .articulation_cfg import ArticulationCfg
 
-class ArticulationWarp(AssetBase):
+class ArticulationTorch(AssetBase):
     """An articulation asset class.
 
     An articulation is a collection of rigid bodies connected by joints. The joints can be either
@@ -104,7 +88,7 @@ class ArticulationWarp(AssetBase):
 
     """
 
-    cfg: ArticulationWarpCfg
+    cfg: ArticulationCfg
     """Configuration instance for the articulations."""
 
     actuators: dict[str, ActuatorBaseWarp]
@@ -115,7 +99,7 @@ class ArticulationWarp(AssetBase):
     attribute. They are used to compute the joint commands during the :meth:`write_data_to_sim` function.
     """
 
-    def __init__(self, cfg: ArticulationWarpCfg):
+    def __init__(self, cfg: ArticulationCfg):
         """Initialize the articulation.
 
         Args:
@@ -128,7 +112,7 @@ class ArticulationWarp(AssetBase):
     """
 
     @property
-    def data(self) -> ArticulationDataWarp:
+    def data(self) -> ArticulationDataTorch:
         return self._data
 
     @property
@@ -143,7 +127,7 @@ class ArticulationWarp(AssetBase):
     @property
     def num_joints(self) -> int:
         """Number of joints in articulation."""
-        return self._root_newton_view.joint_dof_count
+        return self._joint.num_joints
 
     @property
     def num_fixed_tendons(self) -> int:
@@ -158,12 +142,12 @@ class ArticulationWarp(AssetBase):
     @property
     def num_bodies(self) -> int:
         """Number of bodies in articulation."""
-        return self._root_newton_view.link_count
+        return self._body.num_bodies
 
     @property
     def joint_names(self) -> list[str]:
         """Ordered names of joints in articulation."""
-        return self._root_newton_view.joint_dof_names
+        return self._joint.joint_names
 
     @property
     def fixed_tendon_names(self) -> list[str]:
@@ -180,7 +164,7 @@ class ArticulationWarp(AssetBase):
     @property
     def body_names(self) -> list[str]:
         """Ordered names of bodies in articulation."""
-        return self._root_newton_view.body_names
+        return self._body.body_names
 
     @property
     def root_newton_view(self) -> NewtonArticulationView:
@@ -202,23 +186,9 @@ class ArticulationWarp(AssetBase):
 
     def reset(self, mask: wp.array):
         # use ellipses object to skip initial indices.
-        if mask is None:
-            mask = self._ALL_ENV_MASK
-
-        # reset actuators
-        for actuator in self.actuators.values():
-            actuator.reset(mask)
-        # reset external wrench
-        wp.launch(
-            update_wrench_array_with_value,
-            dim=(self.num_instances,),
-            inputs=[
-                wp.spatial_vectorf(0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
-                self._external_wrench,
-                mask,
-                self._ALL_BODY_MASK,
-            ],
-        )
+        self._root.reset(mask)
+        self._joint.reset(mask)
+        self._body.reset(mask)
 
     def write_data_to_sim(self):
         """Write external wrenches and joint commands to the simulation.
@@ -256,18 +226,7 @@ class ArticulationWarp(AssetBase):
         Returns:
             A tuple of lists containing the body mask, names, and indices.
         """
-        indices, names = string_utils.resolve_matching_names(name_keys, self.body_names, preserve_order)
-        self._BODY_MASK.fill_(False)
-        mask = wp.clone(self._BODY_MASK)
-        wp.launch(
-            generate_mask_from_ids,
-            dim=(len(indices),),
-            inputs=[
-                mask,
-                wp.array(indices, dtype=wp.int32, device=self.device),
-            ],
-        )
-        return mask, names, indices
+        return self._body.find_bodies(name_keys, preserve_order)
 
     def find_joints(
         self, name_keys: str | Sequence[str], joint_subset: list[str] | None = None, preserve_order: bool = False
@@ -286,21 +245,7 @@ class ArticulationWarp(AssetBase):
         Returns:
             A tuple of lists containing the joint mask, names, and indices.
         """
-        if joint_subset is None:
-            joint_subset = self.joint_names
-        # find joints
-        indices, names = string_utils.resolve_matching_names(name_keys, joint_subset, preserve_order)
-        self._JOINT_MASK.fill_(False)
-        mask = wp.clone(self._JOINT_MASK)
-        wp.launch(
-            generate_mask_from_ids,
-            dim=(len(indices),),
-            inputs=[
-                mask,
-                wp.array(indices, dtype=wp.int32, device=self.device),
-            ],
-        )
-        return mask, names, indices
+        return self._joint.find_joints(name_keys, joint_subset, preserve_order)
 
     def find_fixed_tendons(
         self, name_keys: str | Sequence[str], tendon_subsets: list[str] | None = None, preserve_order: bool = False
@@ -320,22 +265,7 @@ class ArticulationWarp(AssetBase):
         Returns:
             A tuple of lists containing the tendon mask, names, and indices.
         """
-        if tendon_subsets is None:
-            # tendons follow the joint names they are attached to
-            tendon_subsets = self.fixed_tendon_names
-        # find tendons
-        indices, names = string_utils.resolve_matching_names(name_keys, tendon_subsets, preserve_order)
-        self._FIXED_TENDON_MASK.fill_(False)
-        mask = wp.clone(self._FIXED_TENDON_MASK)
-        wp.launch(
-            generate_mask_from_ids,
-            dim=(len(indices),),
-            inputs=[
-                mask,
-                wp.array(indices, dtype=wp.int32, device=self.device),
-            ],
-        )
-        return mask, names, indices
+        raise NotImplementedError("Fixed tendons are not supported in Newton.")
 
     def find_spatial_tendons(
         self, name_keys: str | Sequence[str], tendon_subsets: list[str] | None = None, preserve_order: bool = False
@@ -354,31 +284,11 @@ class ArticulationWarp(AssetBase):
         Returns:
             A tuple of lists containing the tendon mask, names, and indices.
         """
-        if tendon_subsets is None:
-            tendon_subsets = self.spatial_tendon_names
-        # find tendons
-        indices, names = string_utils.resolve_matching_names(name_keys, tendon_subsets, preserve_order)
-        self._SPATIAL_TENDON_MASK.fill_(False)
-        mask = wp.clone(self._SPATIAL_TENDON_MASK)
-        wp.launch(
-            generate_mask_from_ids,
-            dim=(len(indices),),
-            inputs=[
-                mask,
-                wp.array(indices, dtype=wp.int32, device=self.device),
-            ],
-        )
-        return mask, names, indices
-
+        raise NotImplementedError("Spatial tendons are not supported in Newton.")
     """
     Operations - State Writers.
     """
 
-    @warn_overhead_cost(
-        "write_root_state_to_sim",
-        "This function splits the root state into pose and velocity. Consider using write_root_link_pose_to_sim and"
-        " write_root_com_velocity_to_sim instead. In general there is no good reasons to be using states with Newton.",
-    )
     def write_root_state_to_sim(self, root_state: wp.array, env_mask: wp.array | None = None):
         """Set the root state over selected environment indices into the simulation.
 
@@ -389,32 +299,8 @@ class ArticulationWarp(AssetBase):
             root_state: Root state in simulation frame. Shape is (num_instances, 13).
             env_mask: Environment mask. Shape is (num_instances,).
         """
+        self._root.write_root_state_to_sim(root_state, env_mask)
 
-        if env_mask is None:
-            env_mask = self._ALL_ENV_MASK
-
-        # set into simulation
-        target_root_pose = wp.zeros((self.num_instances), dtype=wp.transformf, device=self.device)
-        target_root_velocity = wp.zeros((self.num_instances), dtype=wp.spatial_vectorf, device=self.device)
-
-        wp.launch(
-            split_state,
-            dim=(self.num_instances,),
-            inputs=[
-                root_state,
-                target_root_pose,
-                target_root_velocity,
-                env_mask,
-            ],
-        )
-        self.write_root_link_pose_to_sim(target_root_pose, env_mask=env_mask)
-        self.write_root_com_velocity_to_sim(target_root_velocity, env_mask=env_mask)
-
-    @warn_overhead_cost(
-        "write_root_state_to_sim",
-        "This function splits the root state into pose and velocity. Consider using write_root_link_pose_to_sim and"
-        " write_root_com_velocity_to_sim instead. In general there is no good reasons to be using states with Newton.",
-    )
     def write_root_com_state_to_sim(self, root_state: wp.array, env_mask: wp.array | None = None):
         """Set the root center of mass state over selected environment indices into the simulation.
 
@@ -425,31 +311,8 @@ class ArticulationWarp(AssetBase):
             root_state: Root state in simulation frame. Shape is (num_instances, 13).
             env_mask: Environment mask. Shape is (num_instances,).
         """
+        self._root.write_root_com_state_to_sim(root_state, env_mask)
 
-        if env_mask is None:
-            env_mask = self._ALL_ENV_MASK
-
-        target_root_pose = wp.zeros((self.num_instances), dtype=wp.transformf, device=self.device)
-        target_root_velocity = wp.zeros((self.num_instances), dtype=wp.spatial_vectorf, device=self.device)
-
-        wp.launch(
-            split_state,
-            dim=(self.num_instances,),
-            inputs=[
-                root_state,
-                target_root_pose,
-                target_root_velocity,
-                env_mask,
-            ],
-        )
-        self.write_root_com_pose_to_sim(target_root_pose, env_mask=env_mask)
-        self.write_root_com_velocity_to_sim(target_root_velocity, env_mask=env_mask)
-
-    @warn_overhead_cost(
-        "write_root_state_to_sim",
-        "This function splits the root state into pose and velocity. Consider using write_root_link_pose_to_sim and"
-        " write_root_com_velocity_to_sim instead. In general there is no good reasons to be using states with Newton.",
-    )
     def write_root_link_state_to_sim(self, root_state: wp.array, env_mask: wp.array | None = None):
         """Set the root link state over selected environment indices into the simulation.
 
@@ -460,25 +323,7 @@ class ArticulationWarp(AssetBase):
             root_state: Root state in simulation frame. Shape is (num_instances, 13).
             env_mask: Environment mask. Shape is (num_instances,).
         """
-
-        if env_mask is None:
-            env_mask = self._ALL_ENV_MASK
-
-        target_root_pose = wp.zeros((self.num_instances), dtype=wp.transformf, device=self.device)
-        target_root_velocity = wp.zeros((self.num_instances), dtype=wp.spatial_vectorf, device=self.device)
-
-        wp.launch(
-            split_state,
-            dim=(self.num_instances,),
-            inputs=[
-                root_state,
-                target_root_pose,
-                target_root_velocity,
-                env_mask,
-            ],
-        )
-        self.write_root_link_pose_to_sim(target_root_pose, env_mask=env_mask)
-        self.write_root_link_velocity_to_sim(target_root_velocity, env_mask=env_mask)
+        self._root.write_root_link_state_to_sim(root_state, env_mask)
 
     def write_root_pose_to_sim(self, root_pose: wp.array, env_mask: wp.array | None = None):
         """Set the root pose over selected environment indices into the simulation.
@@ -489,7 +334,7 @@ class ArticulationWarp(AssetBase):
             root_pose: Root poses in simulation frame. Shape is (num_instances, 7).
             env_mask: Environment mask. Shape is (num_instances,).
         """
-        self.write_root_link_pose_to_sim(root_pose, env_mask=env_mask)
+        self._root.write_root_link_pose_to_sim(root_pose, env_mask=env_mask)
 
     def write_root_link_pose_to_sim(self, pose: wp.array, env_mask: wp.array | None = None):
         """Set the root link pose over selected environment indices into the simulation.
@@ -501,22 +346,7 @@ class ArticulationWarp(AssetBase):
             root_pose: Root poses in simulation frame. Shape is (num_instances, 7).
             env_mask: Environment mask. Shape is (num_instances,).
         """
-        if env_mask is None:
-            env_mask = self._ALL_ENV_MASK
-
-        # set into internal buffers
-        wp.launch(
-            update_transforms_array,
-            dim=self._root_newton_view.count,
-            inputs=[
-                pose,
-                self._data.sim_bind_root_link_pose_w,
-                env_mask,
-            ],
-        )
-        # Need to invalidate the buffer to trigger the update with the new state.
-        self._data._root_com_pose_w.timestamp = -1.0
-        self._data._body_com_pose_w.timestamp = -1.0
+        self._root.write_root_link_pose_to_sim(pose, env_mask)
 
     def write_root_com_pose_to_sim(self, root_pose: wp.array, env_mask: wp.array | None = None) -> None:
         """Set the root center of mass pose over selected environment indices into the simulation.
@@ -528,32 +358,7 @@ class ArticulationWarp(AssetBase):
             root_pose: Root center of mass poses in simulation frame. Shape is (num_instances, 7).
             env_mask: Environment mask. Shape is (num_instances,).
         """
-        # resolve all indices
-        if env_mask is None:
-            env_mask = self._ALL_ENV_MASK
-
-        # set into internal buffers
-        wp.launch(
-            update_transforms_array,
-            dim=self._root_newton_view.count,
-            inputs=[
-                root_pose,
-                self._data._root_com_pose_w.data,
-                env_mask,
-            ],
-        )
-        # set link frame poses
-        wp.launch(
-            transform_CoM_pose_to_link_frame,
-            dim=self._root_newton_view.count,
-            inputs=[
-                self._data.root_com_pose_w,
-                self._data.body_com_pos_b,
-                self._data.sim_bind_root_link_pose_w,
-                env_mask,
-            ],
-        )
-        self._data._body_com_pose_w.timestamp = -1.0
+        self._root.write_root_com_pose_to_sim(root_pose, env_mask)
 
     def write_root_velocity_to_sim(self, root_velocity: wp.array, env_mask: wp.array | None = None) -> None:
         """Set the root center of mass velocity over selected environment indices into the simulation.
@@ -565,7 +370,7 @@ class ArticulationWarp(AssetBase):
             root_velocity: Root center of mass velocities in simulation world frame. Shape is (num_instances, 6).
             env_mask: Environment mask. Shape is (num_instances,).
         """
-        self.write_root_com_velocity_to_sim(root_velocity=root_velocity, env_mask=env_mask)
+        self._root.write_root_com_velocity_to_sim(root_velocity=root_velocity, env_mask=env_mask)
 
     def write_root_com_velocity_to_sim(self, root_velocity: wp.array, env_mask: wp.array | None = None) -> None:
         """Set the root center of mass velocity over selected environment indices into the simulation.
@@ -577,21 +382,7 @@ class ArticulationWarp(AssetBase):
             root_velocity: Root center of mass velocities in simulation world frame. Shape is (num_instances, 6).
             env_mask: Environment mask. Shape is (num_instances,).
         """
-        # resolve all indices
-        if env_mask is None:
-            env_mask = self._ALL_ENV_MASK
-
-        # set into internal buffers
-        wp.launch(
-            update_velocity_array,
-            dim=self._root_newton_view.count,
-            inputs=[
-                root_velocity,
-                self._data.sim_bind_root_com_vel_w,
-                env_mask,
-            ],
-        )
-        self._data._root_link_vel_w.timestamp = -1.0
+        self._root.write_root_com_velocity_to_sim(root_velocity, env_mask)
 
     def write_root_link_velocity_to_sim(self, root_velocity: wp.array, env_mask: wp.array | None = None) -> None:
         """Set the root link velocity over selected environment indices into the simulation.
@@ -603,21 +394,7 @@ class ArticulationWarp(AssetBase):
             root_velocity: Root frame velocities in simulation world frame. Shape is (num_instances, 6).
             env_mask: Environment mask. Shape is (num_instances,).
         """
-        # resolve all indices
-        if env_mask is None:
-            env_mask = self._ALL_ENV_MASK
-        # set into internal buffers
-        wp.launch(
-            project_link_velocity_to_com_frame_masked,
-            dim=self._root_newton_view.count,
-            inputs=[
-                root_velocity,
-                self._data.body_link_pose_w,
-                self._data.body_com_pos_b,
-                self._data.sim_bind_root_com_vel_w,
-                env_mask,
-            ],
-        )
+        self._root.write_root_link_velocity_to_sim(root_velocity, env_mask)
 
     def write_joint_state_to_sim(
         self,
@@ -635,8 +412,7 @@ class ArticulationWarp(AssetBase):
             env_mask: The environment mask. Shape is (num_instances,).
         """
         # set into simulation
-        self.write_joint_position_to_sim(position, joint_mask=joint_mask, env_mask=env_mask)
-        self.write_joint_velocity_to_sim(velocity, joint_mask=joint_mask, env_mask=env_mask)
+        self._joint.write_joint_state_to_sim(position, velocity, joint_mask, env_mask)
 
     def write_joint_position_to_sim(
         self,
@@ -651,24 +427,7 @@ class ArticulationWarp(AssetBase):
             joint_mask: The joint mask. Shape is (num_joints).
             env_mask: The environment mask. Shape is (num_instances,).
         """
-        # resolve indices
-        if env_mask is None:
-            env_mask = self._ALL_ENV_MASK
-        if joint_mask is None:
-            joint_mask = self._ALL_JOINT_MASK
-        # set into internal buffers
-        wp.launch(
-            update_joint_array,
-            dim=(self.num_instances, self.num_joints),
-            inputs=[
-                position,
-                self._data.sim_bind_joint_pos,
-                env_mask,
-                joint_mask,
-            ],
-        )
-        # invalidate buffers to trigger the update with the new root pose.
-        self._data._body_com_pose_w.timestamp = -1.0
+        self._joint.write_joint_position_to_sim(position, joint_mask, env_mask)
 
     def write_joint_velocity_to_sim(
         self,
@@ -683,45 +442,7 @@ class ArticulationWarp(AssetBase):
             joint_mask: The joint mask. Shape is (num_joints).
             env_mask: The environment mask. Shape is (num_instances,).
         """
-        if env_mask is None:
-            env_mask = self._ALL_ENV_MASK
-        if joint_mask is None:
-            joint_mask = self._ALL_JOINT_MASK
-        # update joint velocity
-        wp.launch(
-            update_joint_array,
-            dim=(self.num_instances, self.num_joints),
-            inputs=[
-                velocity,
-                self._data.sim_bind_joint_vel,
-                env_mask,
-                joint_mask,
-            ],
-        )
-        # update previous joint velocity
-        wp.launch(
-            update_joint_array,
-            dim=(self.num_instances, self.num_joints),
-            inputs=[
-                velocity,
-                self._data._previous_joint_vel,
-                env_mask,
-                joint_mask,
-            ],
-        )
-        # Set joint acceleration to 0.0
-        wp.launch(
-            update_joint_array_with_value,
-            dim=(self.num_instances, self.num_joints),
-            inputs=[
-                0.0,
-                self._data._joint_acc.data,
-                env_mask,
-                joint_mask,
-            ],
-        )
-        # Need to invalidate the buffer to trigger the update with the new root pose.
-        self._data._body_link_vel_w.timestamp = -1.0
+        self._joint.write_joint_velocity_to_sim(velocity, joint_mask, env_mask)
 
     """
     Operations - Simulation Parameters Writers.
@@ -743,36 +464,7 @@ class ArticulationWarp(AssetBase):
         Raises:
             ValueError: If the control mode is invalid.
         """
-        # resolve indices
-        if env_mask is None:
-            env_mask = self._ALL_ENV_MASK
-        if joint_mask is None:
-            joint_mask = self._ALL_JOINT_MASK
-        # set to simulation
-        if isinstance(control_mode, int):
-            wp.launch(
-                update_joint_array_with_value_int,
-                dim=(self.num_instances, self.num_joints),
-                inputs=[
-                    control_mode,
-                    self._data.sim_bind_joint_control_mode_sim,
-                    env_mask,
-                    joint_mask,
-                ],
-            )
-        else:
-            wp.launch(
-                update_joint_array_int,
-                dim=(self.num_instances, self.num_joints),
-                inputs=[
-                    control_mode,
-                    self._data.sim_bind_joint_control_mode_sim,
-                    env_mask,
-                    joint_mask,
-                ],
-            )
-        # tell the physics engine to use the new control mode
-        NewtonManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
+        self._joint.write_joint_control_mode_to_sim(control_mode, joint_mask, env_mask)
 
     def write_joint_stiffness_to_sim(
         self,
@@ -787,37 +479,7 @@ class ArticulationWarp(AssetBase):
             joint_mask: The joint mask. Shape is (num_joints).
             env_mask: The environment mask. Shape is (num_instances,).
         """
-        # note: This function isn't setting the values for actuator models. (#128)
-        # resolve indices
-        if env_mask is None:
-            env_mask = self._ALL_ENV_MASK
-        if joint_mask is None:
-            joint_mask = self._ALL_JOINT_MASK
-        # set into internal buffers
-        if isinstance(stiffness, float):
-            wp.launch(
-                update_joint_array_with_value,
-                dim=(self.num_instances, self.num_joints),
-                inputs=[
-                    stiffness,
-                    self._data.sim_bind_joint_stiffness_sim,
-                    env_mask,
-                    joint_mask,
-                ],
-            )
-        else:
-            wp.launch(
-                update_joint_array,
-                dim=(self.num_instances, self.num_joints),
-                inputs=[
-                    stiffness,
-                    self._data.sim_bind_joint_stiffness_sim,
-                    env_mask,
-                    joint_mask,
-                ],
-            )
-        # tell the physics engine to use the new stiffness
-        NewtonManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
+        self._joint.write_joint_stiffness_to_sim(stiffness, joint_mask, env_mask)
 
     def write_joint_damping_to_sim(
         self,
@@ -832,37 +494,7 @@ class ArticulationWarp(AssetBase):
             joint_mask: The joint mask. Shape is (num_joints).
             env_mask: The environment mask. Shape is (num_instances,).
         """
-        # note: This function isn't setting the values for actuator models. (#128)
-        # resolve indices
-        if env_mask is None:
-            env_mask = self._ALL_ENV_MASK
-        if joint_mask is None:
-            joint_mask = self._ALL_JOINT_MASK
-        # set into internal buffers
-        if isinstance(damping, float):
-            wp.launch(
-                update_joint_array_with_value,
-                dim=(self.num_instances, self.num_joints),
-                inputs=[
-                    damping,
-                    self._data.sim_bind_joint_damping_sim,
-                    env_mask,
-                    joint_mask,
-                ],
-            )
-        else:
-            wp.launch(
-                update_joint_array,
-                dim=(self.num_instances, self.num_joints),
-                inputs=[
-                    damping,
-                    self._data.sim_bind_joint_damping_sim,
-                    env_mask,
-                    joint_mask,
-                ],
-            )
-        # tell the physics engine to use the new damping
-        NewtonManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
+        self._joint.write_joint_damping_to_sim(damping, joint_mask, env_mask)
 
     def write_joint_position_limit_to_sim(
         self,
@@ -879,70 +511,7 @@ class ArticulationWarp(AssetBase):
             joint_mask: The joint mask. Shape is (num_joints).
             env_mask: The environment mask. Shape is (num_instances,).
         """
-        # note: This function isn't setting the values for actuator models. (#128)
-        # resolve indices
-        if env_mask is None:
-            env_mask = self._ALL_ENV_MASK
-        if joint_mask is None:
-            joint_mask = self._ALL_JOINT_MASK
-        if isinstance(upper_limits, float) and isinstance(lower_limits, float):
-            # update default joint pos to stay within the new limits
-            wp.launch(
-                update_joint_pos_with_limits_value_vec2f,
-                dim=(self.num_instances, self.num_joints),
-                inputs=[
-                    wp.vec2f(upper_limits, lower_limits),
-                    self._data.default_joint_pos,
-                    env_mask,
-                    joint_mask,
-                ],
-            )
-            # set into simulation
-            wp.launch(
-                update_joint_limits_value_vec2f,
-                dim=(self.num_instances, self.num_joints),
-                inputs=[
-                    wp.vec2f(upper_limits, lower_limits),
-                    self.cfg.soft_joint_pos_limit_factor,
-                    self._data.sim_bind_joint_pos_limits_lower,
-                    self._data.sim_bind_joint_pos_limits_upper,
-                    self._data.soft_joint_pos_limits,
-                    env_mask,
-                    joint_mask,
-                ],
-            )
-        elif isinstance(upper_limits, wp.array) and isinstance(lower_limits, wp.array):
-            # update default joint pos to stay within the new limits
-            wp.launch(
-                update_joint_pos_with_limits,
-                dim=(self.num_instances, self.num_joints),
-                inputs=[
-                    lower_limits,
-                    upper_limits,
-                    self._data.default_joint_pos,
-                    env_mask,
-                    joint_mask,
-                ],
-            )
-            # set into simulation
-            wp.launch(
-                update_joint_limits,
-                dim=(self.num_instances, self.num_joints),
-                inputs=[
-                    lower_limits,
-                    upper_limits,
-                    self.cfg.soft_joint_pos_limit_factor,
-                    self._data.sim_bind_joint_pos_limits_lower,
-                    self._data.sim_bind_joint_pos_limits_upper,
-                    self._data.soft_joint_pos_limits,
-                    env_mask,
-                    joint_mask,
-                ],
-            )
-        else:
-            raise NotImplementedError("Only float or wp.array of float is supported for upper and lower limits.")
-        # tell the physics engine to use the new limits
-        NewtonManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
+        self._joint.write_joint_position_limit_to_sim(upper_limits, lower_limits, joint_mask, env_mask)
 
     def write_joint_velocity_limit_to_sim(
         self,
@@ -963,40 +532,7 @@ class ArticulationWarp(AssetBase):
             joint_mask: The joint mask. Shape is (num_joints).
             env_mask: The environment mask. Shape is (num_instances,).
         """
-        # Warn if using Mujoco solver
-        if isinstance(NewtonManager._solver, SolverMuJoCo):
-            omni.log.warn("write_joint_velocity_limit_to_sim is ignored when using the Mujoco solver.")
-
-        # resolve indices
-        if env_mask is None:
-            env_mask = self._ALL_ENV_MASK
-        if joint_mask is None:
-            joint_mask = self._ALL_JOINT_MASK
-        # set into internal buffers
-        if isinstance(limits, float):
-            wp.launch(
-                update_joint_array_with_value,
-                dim=(self.num_instances, self.num_joints),
-                inputs=[
-                    limits,
-                    self._data.sim_bind_joint_vel_limits_sim,
-                    env_mask,
-                    joint_mask,
-                ],
-            )
-        else:
-            wp.launch(
-                update_joint_array,
-                dim=(self.num_instances, self.num_joints),
-                inputs=[
-                    limits,
-                    self._data.sim_bind_joint_vel_limits_sim,
-                    env_mask,
-                    joint_mask,
-                ],
-            )
-        # tell the physics engine to use the new limits
-        NewtonManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
+        self._joint.write_joint_velocity_limit_to_sim(limits, joint_mask, env_mask)
 
     def write_joint_effort_limit_to_sim(
         self,
@@ -1014,37 +550,7 @@ class ArticulationWarp(AssetBase):
             joint_mask: The joint mask. Shape is (num_joints).
             env_mask: The environment mask. Shape is (num_instances,).
         """
-        # note: This function isn't setting the values for actuator models. (#128)
-        # resolve indices
-        if env_mask is None:
-            env_mask = self._ALL_ENV_MASK
-        if joint_mask is None:
-            joint_mask = self._ALL_JOINT_MASK
-        # set into internal buffers
-        if isinstance(limits, float):
-            wp.launch(
-                update_joint_array_with_value,
-                dim=(self.num_instances, self.num_joints),
-                inputs=[
-                    limits,
-                    self._data.sim_bind_joint_effort_limits_sim,
-                    env_mask,
-                    joint_mask,
-                ],
-            )
-        else:
-            wp.launch(
-                update_joint_array,
-                dim=(self.num_instances, self.num_joints),
-                inputs=[
-                    limits,
-                    self._data.sim_bind_joint_effort_limits_sim,
-                    env_mask,
-                    joint_mask,
-                ],
-            )
-        # tell the physics engine to use the new limits
-        NewtonManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
+        self._joint.write_joint_effort_limit_to_sim(limits, joint_mask, env_mask)
 
     def write_joint_armature_to_sim(
         self,
@@ -1062,36 +568,7 @@ class ArticulationWarp(AssetBase):
             joint_mask: The joint mask. Shape is (num_joints).
             env_mask: The environment mask. Shape is (num_instances,).
         """
-        # resolve indices
-        if env_mask is None:
-            env_mask = self._ALL_ENV_MASK
-        if joint_mask is None:
-            joint_mask = self._ALL_JOINT_MASK
-        # set into internal buffers
-        if isinstance(armature, float):
-            wp.launch(
-                update_joint_array_with_value,
-                dim=(self.num_instances, self.num_joints),
-                inputs=[
-                    armature,
-                    self._data.sim_bind_joint_armature,
-                    env_mask,
-                    joint_mask,
-                ],
-            )
-        else:
-            wp.launch(
-                update_joint_array,
-                dim=(self.num_instances, self.num_joints),
-                inputs=[
-                    armature,
-                    self._data.sim_bind_joint_armature,
-                    env_mask,
-                    joint_mask,
-                ],
-            )
-        # tell the physics engine to use the new armature
-        NewtonManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
+        self._joint.write_joint_armature_to_sim(armature, joint_mask, env_mask)
 
     def write_joint_friction_coefficient_to_sim(
         self,
@@ -1115,36 +592,7 @@ class ArticulationWarp(AssetBase):
             joint_mask: The joint mask. Shape is (num_joints).
             env_mask: The environment mask. Shape is (num_instances,).
         """
-        # resolve indices
-        if env_mask is None:
-            env_mask = self._ALL_ENV_MASK
-        if joint_mask is None:
-            joint_mask = self._ALL_JOINT_MASK
-        # set into internal buffers
-        if isinstance(joint_friction_coeff, float):
-            wp.launch(
-                update_joint_array_with_value,
-                dim=(self.num_instances, self.num_joints),
-                inputs=[
-                    joint_friction_coeff,
-                    self._data.sim_bind_joint_friction_coeff,
-                    env_mask,
-                    joint_mask,
-                ],
-            )
-        else:
-            wp.launch(
-                update_joint_array,
-                dim=(self.num_instances, self.num_joints),
-                inputs=[
-                    joint_friction_coeff,
-                    self._data.sim_bind_joint_friction_coeff,
-                    env_mask,
-                    joint_mask,
-                ],
-            )
-        # tell the physics engine to use the new friction
-        NewtonManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
+        self._joint.write_joint_friction_coefficient_to_sim(joint_friction_coeff, joint_mask, env_mask)
 
     """
     Operations - Setters.
@@ -1183,36 +631,7 @@ class ArticulationWarp(AssetBase):
             body_mask: The body mask. Shape is (num_bodies).
             env_mask: The environment mask. Shape is (num_instances,).
         """
-        # resolve indices
-        if env_mask is None:
-            env_mask = self._ALL_ENV_MASK
-        if body_mask is None:
-            body_mask = self._ALL_BODY_MASK
-        # Check if there are any external forces or torques
-        if (forces is not None) or (torques is not None):
-            self.has_external_wrench = True
-            if forces is not None:
-                wp.launch(
-                    update_wrench_array_with_force,
-                    dim=(self.num_instances, self.num_bodies),
-                    inputs=[
-                        forces,
-                        self._external_wrench,
-                        env_mask,
-                        body_mask,
-                    ],
-                )
-            if torques is not None:
-                wp.launch(
-                    update_wrench_array_with_torque,
-                    dim=(self.num_instances, self.num_bodies),
-                    inputs=[
-                        torques,
-                        self._external_wrench,
-                        env_mask,
-                        body_mask,
-                    ],
-                )
+        self._body.set_external_force_and_torque(forces, torques, body_mask, env_mask)
 
     def set_joint_position_target(
         self,
@@ -1230,22 +649,7 @@ class ArticulationWarp(AssetBase):
             joint_mask: The joint mask. Shape is (num_joints).
             env_mask: The environment mask. Shape is (num_instances,).
         """
-        # resolve indices
-        if env_mask is None:
-            env_mask = self._ALL_ENV_MASK
-        if joint_mask is None:
-            joint_mask = self._ALL_JOINT_MASK
-        # set targets
-        wp.launch(
-            update_joint_array,
-            dim=(self.num_instances, self.num_joints),
-            inputs=[
-                target,
-                self._data.joint_target,
-                env_mask,
-                joint_mask,
-            ],
-        )
+        self._joint.set_joint_position_target(target, joint_mask, env_mask)
 
     def set_joint_velocity_target(
         self,
@@ -1263,22 +667,7 @@ class ArticulationWarp(AssetBase):
             joint_mask: The joint mask. Shape is (num_joints).
             env_mask: The environment mask. Shape is (num_instances,).
         """
-        # resolve indice
-        if env_mask is None:
-            env_mask = self._ALL_ENV_MASK
-        if joint_mask is None:
-            joint_mask = self._ALL_JOINT_MASK
-        # set targets
-        wp.launch(
-            update_joint_array,
-            dim=(self.num_instances, self.num_joints),
-            inputs=[
-                target,
-                self._data.joint_target,
-                env_mask,
-                joint_mask,
-            ],
-        )
+        self._joint.set_joint_velocity_target(target, joint_mask, env_mask)
 
     def set_joint_effort_target(
         self,
@@ -1296,22 +685,7 @@ class ArticulationWarp(AssetBase):
             joint_mask: The joint mask. Shape is (num_joints).
             env_mask: The environment mask. Shape is (num_instances,).
         """
-        # resolve indices
-        if env_mask is None:
-            env_mask = self._ALL_ENV_MASK
-        if joint_mask is None:
-            joint_mask = self._ALL_JOINT_MASK
-        # set targets
-        wp.launch(
-            update_joint_array,
-            dim=(self.num_instances, self.num_joints),
-            inputs=[
-                target,
-                self._data.joint_effort_target,
-                env_mask,
-                joint_mask,
-            ],
-        )
+        self._joint.set_joint_effort_target(target, joint_mask, env_mask)
 
     """
     Operations - Tendons.
@@ -1576,9 +950,11 @@ class ArticulationWarp(AssetBase):
         # container for data access
         self._data = ArticulationDataWarp(self._root_newton_view, self.device)
 
-        # create simulation bindings and buffers
-        self._create_simulation_bindings()
-        self._create_buffers()
+        # create backend setters for the data containers
+        self._joint = Joint(self._root_newton_view, self._data.joint_data, self.cfg.soft_joint_pos_limit_factor, self.device)
+        self._body = Body(self._root_newton_view, self._data.body_data, self.device)
+        self._root = Root(self._root_newton_view, self._data.root_data, self.device)
+
         # process configuration
         self._process_cfg()
         self._process_actuators_cfg()
@@ -1589,6 +965,7 @@ class ArticulationWarp(AssetBase):
         self.update(0.0)
         # log joint information
         self._log_articulation_info()
+
         # Offsets the spawned pose by the default root pose prior to initializing the solver. This ensures that the
         # solver is initialized at the correct pose, avoiding potential miscalculations in the maximum number of
         # constraints or contact required to run the simulation.
@@ -1600,134 +977,9 @@ class ArticulationWarp(AssetBase):
         self._root_newton_view.set_root_transforms(NewtonManager.get_state_0(), generated_pose)
         self._root_newton_view.set_root_transforms(NewtonManager.get_model(), generated_pose)
 
-    def _create_simulation_bindings(self):
-        """Create simulation bindings for the articulation.
-
-        Direct simulation bindings are pointers to the simulation data, their data is not copied, and should
-        only be updated using warp kernels. Any modifications made to the bindings will be reflected in the simulation.
-        Hence we encourage users to carefully think about the data they modify and in which order it should be updated.
-
-        .. caution:: This is possible if and only if the properties that we access are strided from newton and not
-        indexed. Newton willing this is the case all the time, but we should pay attention to this if things look off.
-        """
-
-        # TODO Check if these are pointers or copies. Strided array vs indexed array.
-        # TODO add a fallback if the array is not strided.
-        # TODO Send warning to users if arrays are no strided. WRT potential performance implications.
-
-        # TODO Check if zero copy, or not, this will be per frequency (body, joint, join_dof, etc.)
-        # TODO make a function that will return the cached value, use a function pointer.
-
-        #TODO Try without this, and use the setters and getters and directly.
-
-        #  -- external forces and torques
-        self._external_wrench = self._root_newton_view.get_attribute("body_f", NewtonManager.get_state_0())
-        # -- root properties
-        self._data.sim_bind_root_link_pose_w = self._root_newton_view.get_root_transforms(NewtonManager.get_state_0())
-        self._data.sim_bind_root_com_vel_w = self._root_newton_view.get_root_velocities(NewtonManager.get_state_0())
-        # -- body properties
-        self._data.sim_bind_body_link_pose_w = self._root_newton_view.get_link_transforms(NewtonManager.get_state_0())
-        self._data.sim_bind_body_com_vel_w = self._root_newton_view.get_link_velocities(NewtonManager.get_state_0())
-        self._data.sim_bind_body_com_pos_b = self._root_newton_view.get_attribute("body_com", NewtonManager.get_model())
-        # -- joint properties
-        self._data.sim_bind_joint_pos_limits_lower = self._root_newton_view.get_attribute(
-            "joint_limit_lower", NewtonManager.get_model()
-        )
-        self._data.sim_bind_joint_pos_limits_upper = self._root_newton_view.get_attribute(
-            "joint_limit_upper", NewtonManager.get_model()
-        )
-        self._data.sim_bind_joint_stiffness_sim = self._root_newton_view.get_attribute(
-            "joint_target_ke", NewtonManager.get_model()
-        )
-        self._data.sim_bind_joint_damping_sim = self._root_newton_view.get_attribute(
-            "joint_target_kd", NewtonManager.get_model()
-        )
-        self._data.sim_bind_joint_armature = self._root_newton_view.get_attribute(
-            "joint_armature", NewtonManager.get_model()
-        )
-        self._data.sim_bind_joint_friction_coeff = self._root_newton_view.get_attribute(
-            "joint_friction", NewtonManager.get_model()
-        )
-        self._data.sim_bind_joint_vel_limits_sim = self._root_newton_view.get_attribute(
-            "joint_velocity_limit", NewtonManager.get_model()
-        )
-        self._data.sim_bind_joint_effort_limits_sim = self._root_newton_view.get_attribute(
-            "joint_effort_limit", NewtonManager.get_model()
-        )
-        self._data.sim_bind_joint_control_mode_sim = self._root_newton_view.get_attribute(
-            "joint_dof_mode", NewtonManager.get_model()
-        )
-        # -- joint states
-        self._data.sim_bind_joint_pos = self._root_newton_view.get_dof_positions(NewtonManager.get_state_0())
-        self._data.sim_bind_joint_vel = self._root_newton_view.get_dof_velocities(NewtonManager.get_state_0())
-        # -- joint commands (sent to the simulation)
-        self._data.sim_bind_joint_effort = self._root_newton_view.get_attribute("joint_f", NewtonManager.get_control())
-        self._data.sim_bind_joint_target = self._root_newton_view.get_attribute(
-            "joint_target", NewtonManager.get_control()
-        )
-
-    def _create_buffers(self):
-        # constants
-        self._ALL_ENV_MASK = wp.ones((self.num_instances,), dtype=wp.bool, device=self.device)
-        self._ALL_BODY_MASK = wp.ones((self.num_bodies,), dtype=wp.bool, device=self.device)
-        self._ALL_JOINT_MASK = wp.ones((self.num_joints,), dtype=wp.bool, device=self.device)
-        self._ALL_FIXED_TENDON_MASK = wp.ones((self.num_fixed_tendons,), dtype=wp.bool, device=self.device)
-        self._ALL_SPATIAL_TENDON_MASK = wp.ones((self.num_spatial_tendons,), dtype=wp.bool, device=self.device)
-        # masks
-        self._ENV_MASK = wp.zeros((self.num_instances,), dtype=wp.bool, device=self.device)
-        self._BODY_MASK = wp.zeros((self.num_bodies,), dtype=wp.bool, device=self.device)
-        self._JOINT_MASK = wp.zeros((self.num_joints,), dtype=wp.bool, device=self.device)
-        self._FIXED_TENDON_MASK = wp.zeros((self.num_fixed_tendons,), dtype=wp.bool, device=self.device)
-        self._SPATIAL_TENDON_MASK = wp.zeros((self.num_spatial_tendons,), dtype=wp.bool, device=self.device)
-        # asset named data
-        self._data.joint_names = self.joint_names
-        self._data.body_names = self.body_names
-        # -- joint commands (sent to the actuator from the user)
-        self._data.joint_target = wp.zeros((self.num_instances, self.num_joints), dtype=wp.float32, device=self.device)
-        self._data.joint_effort_target = wp.zeros(
-            (self.num_instances, self.num_joints), dtype=wp.float32, device=self.device
-        )
-        # -- computed joint efforts from the actuator models
-        self._data.computed_effort = wp.zeros(
-            (self.num_instances, self.num_joints), dtype=wp.float32, device=self.device
-        )
-        self._data.applied_effort = wp.zeros(
-            (self.num_instances, self.num_joints), dtype=wp.float32, device=self.device
-        )
-        self._data.joint_stiffness = wp.clone(self._data.sim_bind_joint_stiffness_sim)
-        self._data.joint_damping = wp.clone(self._data.sim_bind_joint_damping_sim)
-        self._data.joint_control_mode = wp.clone(self._data.sim_bind_joint_control_mode_sim)
-        # -- other data that are filled based on explicit actuator models
-        self._data.joint_dynamic_friction = wp.zeros(
-            (self.num_instances, self.num_joints), dtype=wp.float32, device=self.device
-        )
-        self._data.joint_viscous_friction = wp.zeros(
-            (self.num_instances, self.num_joints), dtype=wp.float32, device=self.device
-        )
-        self._data.soft_joint_vel_limits = wp.zeros(
-            (self.num_instances, self.num_joints), dtype=wp.float32, device=self.device
-        )
-        self._data.gear_ratio = wp.ones((self.num_instances, self.num_joints), dtype=wp.float32, device=self.device)
-        # -- update the soft joint position limits
-        self._data.soft_joint_pos_limits = wp.zeros(
-            (self.num_instances, self.num_joints), dtype=wp.vec2f, device=self.device
-        )
-        wp.launch(
-            update_soft_joint_pos_limits,
-            dim=(self.num_instances, self.num_joints),
-            inputs=[
-                self._data.sim_bind_joint_pos_limits_lower,
-                self._data.sim_bind_joint_pos_limits_upper,
-                self._data.soft_joint_pos_limits,
-                self.cfg.soft_joint_pos_limit_factor,
-            ],
-        )
 
     def _process_cfg(self):
         """Post processing of configuration parameters."""
-        # -- root state
-        self._data.default_root_pose = wp.zeros((self.num_instances), dtype=wp.transformf, device=self.device)
-        self._data.default_root_vel = wp.zeros((self.num_instances), dtype=wp.spatial_vectorf, device=self.device)
         # default pose with quaternion given as (w, x, y, z) --> (x, y, z, w)
         default_root_pose = tuple(self.cfg.init_state.pos) + (
             self.cfg.init_state.rot[1],
@@ -1737,31 +989,24 @@ class ArticulationWarp(AssetBase):
         )
         # update the default root pose
         wp.launch(
-            update_transforms_array_with_value,
+            update_array_with_value,
             dim=(self.num_instances,),
             inputs=[
                 wp.transformf(*default_root_pose),
                 self._data.default_root_pose,
-                self._ALL_ENV_MASK,
+                self._root._ALL_ENV_MASK,
             ],
         )
         # default velocity
         default_root_velocity = tuple(self.cfg.init_state.lin_vel) + tuple(self.cfg.init_state.ang_vel)
         wp.launch(
-            update_spatial_vector_array_with_value,
+            update_array_with_value,
             dim=(self.num_instances,),
             inputs=[
                 wp.spatial_vectorf(*default_root_velocity),
                 self._data.default_root_vel,
-                self._ALL_ENV_MASK,
+                self._root._ALL_ENV_MASK,
             ],
-        )
-        # -- joint state
-        self._data.default_joint_pos = wp.zeros(
-            (self.num_instances, self.num_joints), dtype=wp.float32, device=self.device
-        )
-        self._data.default_joint_vel = wp.zeros(
-            (self.num_instances, self.num_joints), dtype=wp.float32, device=self.device
         )
         # -- joint pos
         # joint pos
@@ -1769,12 +1014,12 @@ class ArticulationWarp(AssetBase):
             self.cfg.init_state.joint_pos, self.joint_names
         )
         # Compute the mask once and use it for all joint operations
-        self._JOINT_MASK.fill_(False)
+        self._joint._JOINT_MASK.fill_(False)
         wp.launch(
             generate_mask_from_ids,
             dim=(self.num_joints,),
             inputs=[
-                self._JOINT_MASK,
+                self._joint._JOINT_MASK,
                 wp.array(indices_list, dtype=wp.int32, device=self.device),
             ],
         )
@@ -1789,13 +1034,13 @@ class ArticulationWarp(AssetBase):
             ],
         )
         wp.launch(
-            update_joint_array_with_value_array,
+            update_batched_array_with_array_masked,
             dim=(self.num_instances, self.num_joints),
             inputs=[
                 tmp_joint_data,
                 self._data.default_joint_pos,
-                self._ALL_ENV_MASK,
-                self._JOINT_MASK,
+                self._joint._ALL_ENV_MASK,
+                self._joint._JOINT_MASK,
             ],
         )
         # joint vel
@@ -1812,13 +1057,13 @@ class ArticulationWarp(AssetBase):
             ],
         )
         wp.launch(
-            update_joint_array_with_value_array,
+            update_batched_array_with_array_masked,
             dim=(self.num_instances, self.num_joints),
             inputs=[
                 tmp_joint_data,
                 self._data.default_joint_vel,
-                self._ALL_ENV_MASK,
-                self._JOINT_MASK,
+                self._joint._ALL_ENV_MASK,
+                self._joint._JOINT_MASK,
             ],
         )
 
@@ -1861,8 +1106,8 @@ class ArticulationWarp(AssetBase):
                 cfg=actuator_cfg,
                 joint_names=joint_names,
                 joint_mask=joint_mask,
-                env_mask=self._ALL_ENV_MASK,
-                articulation_data=self._data,
+                env_mask=self._joint._ALL_ENV_MASK,
+                articulation_data=self._data.joint_data,
                 device=self.device,
             )
             # log information on actuator groups

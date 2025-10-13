@@ -18,14 +18,12 @@ import warp as wp
 from isaacsim.core.simulation_manager import SimulationManager
 from newton import JointType, Model
 from newton.selection import ArticulationView as NewtonArticulationView
-from newton.solvers import SolverMuJoCo, SolverNotifyFlags
 from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.string as string_utils
 from isaaclab.actuators_warp import ActuatorBaseWarp, ActuatorBaseWarpCfg, ImplicitActuatorWarp
 from isaaclab.sim._impl.newton_manager import NewtonManager
-from isaaclab.utils.helpers import warn_overhead_cost
 
 from ..asset_base import AssetBase
 from .articulation_data_warp import ArticulationDataWarp
@@ -35,26 +33,8 @@ from isaaclab.assets.core.root_properties.root import Root
 from isaaclab.assets.core.kernels import (
     generate_mask_from_ids,
     populate_empty_array,
-    project_link_velocity_to_com_frame_masked,
-    transform_CoM_pose_to_link_frame,
-    update_joint_array,
-    update_joint_array_int,
-    update_joint_array_with_value,
-    update_joint_array_with_value_array,
-    update_joint_array_with_value_int,
-    update_joint_limits,
-    update_joint_limits_value_vec2f,
-    update_joint_pos_with_limits,
-    update_joint_pos_with_limits_value_vec2f,
-    update_soft_joint_pos_limits,
-    update_spatial_vector_array_with_value,
-    update_transforms_array,
-    update_transforms_array_with_value,
-    update_velocity_array,
+    update_batched_array_with_array_masked,
     update_array_with_value,
-    update_wrench_array_with_force,
-    update_wrench_array_with_torque,
-    update_wrench_array_with_value,
 )
 
 if TYPE_CHECKING:
@@ -1054,7 +1034,7 @@ class ArticulationWarp(AssetBase):
             ],
         )
         wp.launch(
-            update_joint_array_with_value_array,
+            update_batched_array_with_array_masked,
             dim=(self.num_instances, self.num_joints),
             inputs=[
                 tmp_joint_data,
@@ -1077,7 +1057,7 @@ class ArticulationWarp(AssetBase):
             ],
         )
         wp.launch(
-            update_joint_array_with_value_array,
+            update_batched_array_with_array_masked,
             dim=(self.num_instances, self.num_joints),
             inputs=[
                 tmp_joint_data,

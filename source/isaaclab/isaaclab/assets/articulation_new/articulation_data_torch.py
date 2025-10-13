@@ -15,7 +15,7 @@ from isaaclab.assets.core.kernels import vec13f, combine_pose_and_velocity_to_st
 from isaaclab.utils.helpers import deprecated
 
 
-class ArticulationDataWarp:
+class ArticulationDataTorch:
     def __init__(self, root_newton_view, device: str):
         # Set the parameters
         self.device = device
