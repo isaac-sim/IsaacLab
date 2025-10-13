@@ -57,7 +57,7 @@ parser.add_argument(
     "--collision-approximation",
     type=str,
     default="convexDecomposition",
-    choices=["convexDecomposition", "convexHull", "boundingCube", "boundingSphere", "meshSimplification", "none"],
+    choices=["convexDecomposition", "convexHull", "boundingCube", "boundingSphere", "meshSimplification", "triangle", "sdf", "none"],
     help=(
         'The method used for approximating collision mesh. Set to "none" '
         "to not add a collision mesh to the converted mesh."
@@ -116,6 +116,16 @@ def main():
 
     # Collision properties
     collision_props = schemas_cfg.CollisionPropertiesCfg(collision_enabled=args_cli.collision_approximation != "none")
+    mesh_collision_map = {
+        "boundingCube" : schemas_cfg.BoundingCubePropertiesCfg,
+        "boundingSphere" : schemas_cfg.BoundingSpherePropertiesCfg,
+        "convexDecomposition" : schemas_cfg.ConvexDecompositionPropertiesCfg,
+        "convexHull" : schemas_cfg.ConvexHullPropertiesCfg,
+        "triangle" : schemas_cfg.TriangleMeshPropertiesCfg,
+        "meshSimplification" : schemas_cfg.TriangleMeshSimplificationPropertiesCfg,
+        "sdf" : schemas_cfg.SDFMeshPropertiesCfg,
+        "none" : None,
+    }
 
     # Create Mesh converter config
     mesh_converter_cfg = MeshConverterCfg(
@@ -127,7 +137,7 @@ def main():
         usd_dir=os.path.dirname(dest_path),
         usd_file_name=os.path.basename(dest_path),
         make_instanceable=args_cli.make_instanceable,
-        collision_approximation=args_cli.collision_approximation,
+        mesh_collision_props=mesh_collision_map.get(args_cli.collision_approximation)()
     )
 
     # Print info
