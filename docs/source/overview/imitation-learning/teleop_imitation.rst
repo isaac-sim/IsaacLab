@@ -61,7 +61,7 @@ For tasks that benefit from the use of an extended reality (XR) device with hand
 
 .. note::
 
-   See :ref:`cloudxr-teleoperation` to learn more about using CloudXR with Isaac Lab.
+   See :ref:`cloudxr-teleoperation` to learn how to use CloudXR and experience teleoperation with Isaac Lab.
 
 
 The script prints the teleoperation events configured. For keyboard,
@@ -786,6 +786,10 @@ Record the normalization parameters for later use in the visualization step.
 
 .. note::
    By default the trained models and logs will be saved to ``IsaacLab/logs/robomimic``.
+
+You can also post-train a `GR00T <https://github.com/NVIDIA/Isaac-GR00T>`__ foundation model to deploy a Vision-Language-Action policy for the task.
+
+Please refer to the `IsaacLabEvalTasks <https://github.com/isaac-sim/IsaacLabEvalTasks/>`__ repository for more details.
 
 .. _visualize-results-demo-2:
 

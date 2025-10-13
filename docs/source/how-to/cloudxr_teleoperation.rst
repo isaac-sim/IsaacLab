@@ -63,16 +63,13 @@ Prior to using CloudXR with Isaac Lab, please review the following system requir
   * Isaac Lab workstation
 
     * Ubuntu 22.04 or Ubuntu 24.04
+    * Hardware requirements to sustain 45 FPS with a 120Hz physics simulation:
+       * CPU: 16-Cores AMD Ryzen Threadripper Pro 5955WX or higher
+       * Memory: 64GB RAM
+       * GPU: 1x RTX PRO 6000 GPUs (or equivalent e.g. 1x RTX 5090) or higher
+    * For details on driver requirements, please see the `Technical Requirements <https://docs.omniverse.nvidia.com/materials-and-rendering/latest/common/technical-requirements.html>`_ guide
     * `Docker`_ 26.0.0+, `Docker Compose`_ 2.25.0+, and the `NVIDIA Container Toolkit`_. Refer to
       the Isaac Lab :ref:`deployment-docker` for how to install.
-    * For details on driver requirements, please see the `Technical Requirements <https://docs.omniverse.nvidia.com/materials-and-rendering/latest/common/technical-requirements.html>`_ guide
-    * CPU
-       * Intel: 16-core Intel Core i9, X-series or higher
-       * AMD: Ryzen 9 5900XT, Ryzen Threadripper PRO 5955WX or higher
-    * Memory: 64GB RAM
-    * GPU
-       * Minimum: 1x RTX PRO 6000 GPUs (or equivalent e.g. 1x RTX 5090)
-       * Recommended: 2x RTX PRO 6000 GPUs (or equivalent e.g. 2x RTX 5090)
 
   * Apple Vision Pro
 
@@ -202,7 +199,7 @@ There are two options to run the CloudXR Runtime Docker container:
              -p 48005:48005/udp \
              -p 48008:48008/udp \
              -p 48012:48012/udp \
-             nvcr.io/nvidia/cloudxr-runtime:5.1.0
+             nvcr.io/nvidia/cloudxr-runtime:5.0.1
 
       .. note::
          If you choose a particular GPU instead of ``all``, you need to make sure Isaac Lab also runs
@@ -282,11 +279,11 @@ On your Mac:
    +-------------------+---------------------+
    | Isaac Lab Version | Client App Version  |
    +-------------------+---------------------+
-   | 2.3.x             | v2.3.0              |
+   | 2.3               | v2.3.0              |
    +-------------------+---------------------+
-   | 2.2.x             | v2.2.0              |
+   | 2.2               | v2.2.0              |
    +-------------------+---------------------+
-   | 2.1.x             | v1.0.0              |
+   | 2.1               | v1.0.0              |
    +-------------------+---------------------+
 
    .. code-block:: bash
@@ -415,9 +412,31 @@ Manus + Vive Hand Tracking
 
 Manus gloves and HTC Vive trackers can provide hand tracking when optical hand tracking from a headset is occluded.
 This setup expects Manus gloves with a Manus SDK license and Vive trackers attached to the gloves.
-Requires Isaac Sim >=5.1.
+Requires Isaac Sim 5.1 or later.
 
 Run the teleoperation example with Manus + Vive tracking:
+
+.. dropdown:: Installation instructions
+   :open:
+
+   Vive tracker integration is provided through the libsurvive library. Install the required udev rules by copying
+   `81-vive.rules <https://github.com/collabora/libsurvive/blob/32cf62c52744fdc32003ef8169e8b81f6f31526b/useful_files/81-vive.rules>`_
+   to ``/etc/udev/rules.d/`` and restarting the udev service.
+
+   .. code-block:: bash
+
+      sudo udevadm control --reload-rules && sudo udevadm trigger
+
+   The Manus integration is provided through the Isaac Sim teleoperation input plugin framework.
+   Install the plugin by following the build and installation steps in `isaac-teleop-device-plugins <https://github.com/isaac-sim/isaac-teleop-device-plugins>`_.
+
+In the same terminal from which you will launch Isaac Lab, set:
+
+.. code-block:: bash
+
+      export ISAACSIM_HANDTRACKER_LIB=<path to isaac-teleop-device-plugins>/build-manus-default/lib/libIsaacSimManusHandTracking.so
+
+Once the plugin is installed, run the teleoperation example:
 
 .. code-block:: bash
 
@@ -427,16 +446,37 @@ Run the teleoperation example with Manus + Vive tracking:
        --xr \
        --enable_pinocchio
 
-Begin the session with your palms facing up.
-This is necessary for calibrating Vive tracker poses using Apple Vision Pro wrist poses from a few initial frames,
-as the Vive trackers attached to the back of the hands occlude the optical hand tracking.
+The recommended workflow, is to start Isaac Lab, click **Start AR**, and then put on the Manus gloves, vive trackers, and
+headset. Once you are ready to begin the session, use voice commands to launch the Isaac XR teleop sample client and
+connect to Isaac Lab.
+
+Isaac Lab automatically calibrates the Vive trackers using wrist pose data from the Apple Vision Pro during the initial
+frames of the session. If calibration fails, for example, if the red dots do not accurately follow the teleoperator's
+hands, restart Isaac Lab and begin with your hands in a palm-up position to improve calibration reliability.
+
+For optimal performance, position the lighthouse above the hands, tilted slightly downward.
+Ensure the lighthouse remains stable; a stand is recommended to prevent wobbling.
+
+Ensure that while the task is being teleoperated, the hands remain stable and visible to the lighthouse at all times.
+See: `Installing the Base Stations <https://www.vive.com/us/support/vive/category_howto/installing-the-base-stations.html>`_
+and `Tips for Setting Up the Base Stations <https://www.vive.com/us/support/vive/category_howto/tips-for-setting-up-the-base-stations.html>`_
+
+.. note::
+
+   On first launch of the Manus Vive device, the Vive lighthouses may take a few seconds to calibrate. Keep the Vive trackers
+   stable and visible to the lighthouse during this time. If the light houses are moved or if tracking fails or is unstable,
+   calibration can be forced by deleting the calibration file at: ``$XDG_RUNTIME_DIR/libsurvive/config.json``. If XDG_RUNTIME_DIR
+   is not set, the default directory is ``~/.config/libsurvive``.
+
+   For more information consult the libsurvive documentation: `libsurvive <https://github.com/collabora/libsurvive>`_.
 
 .. note::
 
    To avoid resource contention and crashes, ensure Manus and Vive devices are connected to different USB controllers/buses.
    Use ``lsusb -t`` to identify different buses and connect devices accordingly.
 
-   Vive trackers are automatically calculated to map to the left and right wrist joints.
+   Vive trackers are automatically calculated to map to the left and right wrist joints obtained from a stable
+   OpenXR hand tracking wrist pose.
    This auto-mapping calculation supports up to 2 Vive trackers;
    if more than 2 Vive trackers are detected, it uses the first two trackers detected for calibration, which may not be correct.
 
@@ -984,6 +1024,11 @@ Known Issues
   This error message can be safely ignored. It is caused by a race condition in the exit handler for
   AR Mode.
 
+* ``XR_ERROR_INSTANCE_LOST in xrPollEvent: Call to "xrt_session_poll_events" failed``
+
+  This error may occur if the CloudXR runtime exits before Isaac Lab. Restart the CloudXR
+  runtime to resume teleoperation.
+
 * ``[omni.usd] TF_PYTHON_EXCEPTION`` when starting/stopping AR Mode
 
   This error message can be safely ignored. It is caused by a race condition in the enter/exit
@@ -993,6 +1038,13 @@ Known Issues
 
   This error message can be caused by shader assets authored with older versions of USD, and can
   typically be ignored.
+
+* The XR device connects successfully, but no video is displayed, even though the Isaac Lab viewport responds to tracking.
+
+  This error occurs when the GPU index differs between the host and the container, causing CUDA
+  to load on the wrong GPU. To fix this, set ``NV_GPU_INDEX`` in the runtime container to ``0``, ``1``,
+  or ``2`` to ensure the GPU selected by CUDA matches the host.
+
 
 Kubernetes Deployment
 ---------------------

@@ -111,7 +111,7 @@ class ActionsCfg:
         ],
         policy_output_scale=0.25,
         obs_group_name="lower_body_policy",  # need to be the same name as the on in ObservationCfg
-        policy_path="omniverse://isaac-dev.ov.nvidia.com/Projects/agile/policy_checkpoints/agile_locomotion.pt",
+        policy_path=f"{ISAACLAB_NUCLEUS_DIR}/Policies/Agile/agile_locomotion.pt",
     )
 
 

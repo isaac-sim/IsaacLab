@@ -296,7 +296,7 @@ setup_conda_env() {
             echo "[INFO] Detected Isaac Sim 4.5 → forcing python=3.10"
             sed -i 's/^  - python=3\.11/  - python=3.10/' "${ISAACLAB_PATH}/environment.yml"
         else
-            echo "[INFO] Isaac Sim 5.0, installing python=3.11"
+            echo "[INFO] Isaac Sim >= 5.0 detected, installing python=3.11"
         fi
 
         conda env create -y --file ${ISAACLAB_PATH}/environment.yml -n ${env_name}

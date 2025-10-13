@@ -20,39 +20,39 @@ from pxr import Gf
 
 # Mapping from Manus joint index (0-24) to joint name. Palm (25) is calculated from middle metacarpal and proximal.
 HAND_JOINT_MAP = {
-    # Palm
-    25: "palm",
     # Wrist
     0: "wrist",
     # Thumb
-    21: "thumb_metacarpal",
-    22: "thumb_proximal",
-    23: "thumb_distal",
-    24: "thumb_tip",
+    1: "thumb_metacarpal",
+    2: "thumb_proximal",
+    3: "thumb_distal",
+    4: "thumb_tip",
     # Index
-    1: "index_metacarpal",
-    2: "index_proximal",
-    3: "index_intermediate",
-    4: "index_distal",
-    5: "index_tip",
+    5: "index_metacarpal",
+    6: "index_proximal",
+    7: "index_intermediate",
+    8: "index_distal",
+    9: "index_tip",
     # Middle
-    6: "middle_metacarpal",
-    7: "middle_proximal",
-    8: "middle_intermediate",
-    9: "middle_distal",
-    10: "middle_tip",
+    10: "middle_metacarpal",
+    11: "middle_proximal",
+    12: "middle_intermediate",
+    13: "middle_distal",
+    14: "middle_tip",
     # Ring
-    11: "ring_metacarpal",
-    12: "ring_proximal",
-    13: "ring_intermediate",
-    14: "ring_distal",
-    15: "ring_tip",
+    15: "ring_metacarpal",
+    16: "ring_proximal",
+    17: "ring_intermediate",
+    18: "ring_distal",
+    19: "ring_tip",
     # Little
-    16: "little_metacarpal",
-    17: "little_proximal",
-    18: "little_intermediate",
-    19: "little_distal",
-    20: "little_tip",
+    20: "little_metacarpal",
+    21: "little_proximal",
+    22: "little_intermediate",
+    23: "little_distal",
+    24: "little_tip",
+    # Palm
+    25: "palm",
 }
 
 
