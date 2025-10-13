@@ -29,3 +29,4 @@ from .shadow_hand import *
 from .spot import *
 from .unitree import *
 from .universal_robots import *
+from .Booster_T1 import *
