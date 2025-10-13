@@ -3,6 +3,7 @@ Changelog
 
 0.46.7 (2025-10-09)
 ~~~~~~~~~~~~~~~~~~~
+
 Fixed
 ^^^^^
 * Fixed :meth:`~isaaclab.devices.keyboard.se3_keyboard.Se3Keyboard.__del__` to use the correct method name
