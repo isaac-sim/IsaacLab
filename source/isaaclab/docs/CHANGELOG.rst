@@ -7,7 +7,7 @@ Changelog
 Added
 ^^^^^
 
-* Added support for modifying the `/rtx/domeLight/upperLowerStrategy` Sim rendering setting.
+* Added support for modifying the :attr:`/rtx/domeLight/upperLowerStrategy` Sim rendering setting.
 
 
 0.46.6 (2025-10-02)
