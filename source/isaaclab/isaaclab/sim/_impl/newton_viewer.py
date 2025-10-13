@@ -16,8 +16,9 @@ The training pause can be toggled from the UI via a button and optionally via th
 from __future__ import annotations
 
 import newton as nt
-from newton.viewer import ViewerGL
 import warp as wp
+from newton.viewer import ViewerGL
+
 
 class NewtonViewerGL(ViewerGL):
     def __init__(self, *args, train_mode: bool = True, **kwargs):

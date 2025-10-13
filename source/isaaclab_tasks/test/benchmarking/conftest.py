@@ -75,6 +75,7 @@ def num_gpus(request):
 def save_kpi_payload(request):
     return request.config.getoption("--save_kpi_payload")
 
+
 @pytest.fixture
 def disable_duration_check(request):
     return request.config.getoption("--disable_duration_check")
