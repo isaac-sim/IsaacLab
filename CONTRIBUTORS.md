@@ -115,6 +115,7 @@ Guidelines for modifications:
 * Philipp Reist
 * Pulkit Goyal
 * Qian Wan
+* Qingyang Jiang
 * Qinxi Yu
 * Rafael Wiltz
 * Renaud Poncelet
