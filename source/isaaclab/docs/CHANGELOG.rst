@@ -1,6 +1,14 @@
 Changelog
 ---------
 
+0.46.7 (2025-10-13)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+* Added ARM64 architecture for pink ik and dex-retargetting setup installations.
+
+
 0.46.6 (2025-10-02)
 ~~~~~~~~~~~~~~~~~~~
 
