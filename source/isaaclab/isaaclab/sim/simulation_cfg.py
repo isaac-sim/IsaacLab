@@ -272,6 +272,22 @@ class RenderCfg:
     This is set by the variable: ``/rtx/ambientOcclusion/enabled``.
     """
 
+    dome_light_upper_lower_strategy: int | None = None
+    """Selects how to sample the Dome Light. Default is 0.
+
+    Valid values are:
+
+    * 0: **Image-Based Lighting (IBL)** - Most accurate even for high-frequency Dome Light textures.
+      Can introduce sampling artifacts in real-time mode.
+    * 3: **Limited Image-Based Lighting** - Only sampled for reflection and refraction. Fastest, but least
+      accurate. Good for cases where the Dome Light contributes less than other light sources.
+    * 4: **Approximated Image-Based Lighting** - Fast and artifacts-free sampling in real-time mode but only
+      works well with a low-frequency texture (e.g., a sky with no sun disc where the sun is instead a separate
+      Distant Light). Requires enabling Direct Lighting denoiser.
+
+    This is set by the variable: ``/rtx/domeLight/upperLowerStrategy``.
+    """
+
     carb_settings: dict[str, Any] | None = None
     """A general dictionary for users to supply all carb rendering settings with native names.
 
