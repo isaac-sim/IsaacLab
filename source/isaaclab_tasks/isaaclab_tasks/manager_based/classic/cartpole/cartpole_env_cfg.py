@@ -15,6 +15,9 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.sim import SimulationCfg
+from isaaclab.sim._impl.newton_manager_cfg import NewtonCfg
+from isaaclab.sim._impl.solvers_cfg import MJWarpSolverCfg
 from isaaclab.utils import configclass
 
 import isaaclab_tasks.manager_based.classic.cartpole.mdp as mdp
@@ -167,6 +170,23 @@ class CartpoleEnvCfg(ManagerBasedRLEnvCfg):
     # MDP settings
     rewards: RewardsCfg = RewardsCfg()
     terminations: TerminationsCfg = TerminationsCfg()
+    # Simulation settings
+    sim: SimulationCfg = SimulationCfg(
+        newton_cfg=NewtonCfg(
+            solver_cfg=MJWarpSolverCfg(
+                njmax=5,
+                ncon_per_env=3,
+                ls_iterations=10,
+                cone="pyramidal",
+                impratio=1,
+                ls_parallel=True,
+                integrator="implicit",
+            ),
+            num_substeps=1,
+            debug_mode=False,
+            use_cuda_graph=True,
+        )
+    )
 
     # Post initialization
     def __post_init__(self) -> None:

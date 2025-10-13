@@ -350,9 +350,10 @@ class DirectRLEnv(gym.Env):
         for _ in range(self.cfg.decimation):
             self._sim_step_counter += 1
             # set actions into buffers
-            self._apply_action()
-            # set actions into simulator
-            self.scene.write_data_to_sim()
+            with Timer(name="apply_action", msg="Action processing step took:", enable=True, format="us"):
+                self._apply_action()
+                # set actions into simulator
+                self.scene.write_data_to_sim()
             # simulate
             with Timer(name="simulate", msg="Newton simulation step took:", enable=True, format="us"):
                 self.sim.step(render=False)
@@ -364,39 +365,40 @@ class DirectRLEnv(gym.Env):
             # update buffers at sim dt
             self.scene.update(dt=self.physics_dt)
 
-        # post-step:
-        # -- update env counters (used for curriculum generation)
-        self.episode_length_buf += 1  # step in current episode (per env)
-        self.common_step_counter += 1  # total step (common for all envs)
+        with Timer(name="post_processing", msg="Post-Processing step took:", enable=True, format="us"):
+            # post-step:
+            # -- update env counters (used for curriculum generation)
+            self.episode_length_buf += 1  # step in current episode (per env)
+            self.common_step_counter += 1  # total step (common for all envs)
 
-        self.reset_terminated[:], self.reset_time_outs[:] = self._get_dones()
-        self.reset_buf = self.reset_terminated | self.reset_time_outs
-        self.reward_buf = self._get_rewards()
+            self.reset_terminated[:], self.reset_time_outs[:] = self._get_dones()
+            self.reset_buf = self.reset_terminated | self.reset_time_outs
+            self.reward_buf = self._get_rewards()
 
-        # -- reset envs that terminated/timed-out and log the episode information
-        reset_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1)
-        if len(reset_env_ids) > 0:
-            self._reset_idx(reset_env_ids)
-            # update articulation kinematics
-            self.scene.write_data_to_sim()
-            # if sensors are added to the scene, make sure we render to reflect changes in reset
-            if self.sim.has_rtx_sensors() and self.cfg.rerender_on_reset:
-                self.sim.render()
+            # -- reset envs that terminated/timed-out and log the episode information
+            reset_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1)
+            if len(reset_env_ids) > 0:
+                self._reset_idx(reset_env_ids)
+                # update articulation kinematics
+                self.scene.write_data_to_sim()
+                # if sensors are added to the scene, make sure we render to reflect changes in reset
+                if self.sim.has_rtx_sensors() and self.cfg.rerender_on_reset:
+                    self.sim.render()
 
-        # post-step: step interval event
-        if self.cfg.events:
-            if "interval" in self.event_manager.available_modes:
-                self.event_manager.apply(mode="interval", dt=self.step_dt)
+            # post-step: step interval event
+            if self.cfg.events:
+                if "interval" in self.event_manager.available_modes:
+                    self.event_manager.apply(mode="interval", dt=self.step_dt)
 
-        # update observations
-        self.obs_buf = self._get_observations()
+            # update observations
+            self.obs_buf = self._get_observations()
 
-        # add observation noise
-        # note: we apply no noise to the state space (since it is used for critic networks)
-        if self.cfg.observation_noise_model:
-            self.obs_buf["policy"] = self._observation_noise_model(self.obs_buf["policy"])
+            # add observation noise
+            # note: we apply no noise to the state space (since it is used for critic networks)
+            if self.cfg.observation_noise_model:
+                self.obs_buf["policy"] = self._observation_noise_model(self.obs_buf["policy"])
 
-        # return observations, rewards, resets and extras
+            # return observations, rewards, resets and extras
         return self.obs_buf, self.reward_buf, self.reset_terminated, self.reset_time_outs, self.extras
 
     @staticmethod

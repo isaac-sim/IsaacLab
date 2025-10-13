@@ -13,7 +13,7 @@ from isaacsim.core.utils.stage import get_current_stage
 from newton import Axis, Contacts, Control, Model, ModelBuilder, State, eval_fk
 from newton.sensors import ContactSensor as NewtonContactSensor
 from newton.sensors import populate_contacts
-from newton.solvers import SolverBase, SolverFeatherstone, SolverMuJoCo, SolverXPBD
+from newton.solvers import SolverBase, SolverFeatherstone, SolverMuJoCo, SolverNotifyFlags, SolverXPBD
 
 from isaaclab.sim._impl.newton_manager_cfg import NewtonCfg
 from isaaclab.sim._impl.newton_viewer import NewtonViewerGL
@@ -80,6 +80,7 @@ class NewtonManager:
     _visualizer_update_frequency: int = 1  # Configurable frequency for all rendering updates
     _visualizer_train_mode: bool = True  # Whether visualizer is in training mode
     _visualizer_disabled: bool = False  # Whether visualizer has been disabled by user
+    _model_changes: set[int] = set()
 
     @classmethod
     def clear(cls):
@@ -106,6 +107,7 @@ class NewtonManager:
         NewtonManager._visualizer_update_counter = 0
         NewtonManager._visualizer_disabled = False
         NewtonManager._visualizer_update_frequency = NewtonManager._cfg.newton_viewer_update_frequency
+        NewtonManager._model_changes = set()
 
     @classmethod
     def set_builder(cls, builder):
@@ -118,6 +120,10 @@ class NewtonManager:
     @classmethod
     def add_on_start_callback(cls, callback) -> None:
         NewtonManager._on_start_callbacks.append(callback)
+
+    @classmethod
+    def add_model_change(cls, change: SolverNotifyFlags) -> None:
+        NewtonManager._model_changes.add(change)
 
     @classmethod
     def start_simulation(cls) -> None:
@@ -133,7 +139,7 @@ class NewtonManager:
         for callback in NewtonManager._on_init_callbacks:
             callback()
         print(f"[INFO] Finalizing model on device: {NewtonManager._device}")
-        NewtonManager._builder.gravity = np.array(NewtonManager._gravity_vector)
+        NewtonManager._builder.gravity = np.array(NewtonManager._gravity_vector)[-1]
         NewtonManager._builder.up_axis = Axis.from_string(NewtonManager._up_axis)
         with Timer(name="newton_finalize_builder", msg="Finalize builder took:", enable=True, format="ms"):
             NewtonManager._model = NewtonManager._builder.finalize(device=NewtonManager._device)
@@ -271,6 +277,11 @@ class NewtonManager:
 
         This function steps the simulation by the specified time step in the simulation configuration.
         """
+        if NewtonManager._model_changes:
+            for change in NewtonManager._model_changes:
+                NewtonManager._solver.notify_model_changed(change)
+            NewtonManager._model_changes = set()
+
         if NewtonManager._cfg.use_cuda_graph:
             wp.capture_launch(NewtonManager._graph)
         else:
@@ -278,7 +289,7 @@ class NewtonManager:
 
         if NewtonManager._cfg.debug_mode:
             convergence_data = NewtonManager.get_solver_convergence_steps()
-            # print(f"solver niter: {convergence_data}")
+            print(f"solver niter: {convergence_data}")
             if convergence_data["max"] == NewtonManager._solver.mjw_model.opt.iterations:
                 print("solver didn't converge!", convergence_data["max"])
 
@@ -413,6 +424,14 @@ class NewtonManager:
     @classmethod
     def get_control(cls):
         return NewtonManager._control
+
+    @classmethod
+    def get_dt(cls):
+        return NewtonManager._dt
+
+    @classmethod
+    def get_solver_dt(cls):
+        return NewtonManager._solver_dt
 
     @classmethod
     def forward_kinematics(cls, mask: wp.array | None = None) -> None:

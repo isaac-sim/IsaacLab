@@ -50,7 +50,7 @@ class ArticulationData:
         self._sim_timestamp = 0.0
 
         # obtain global simulation view
-        gravity = NewtonManager.get_model().gravity
+        gravity = wp.to_torch(NewtonManager.get_model().gravity)[0]
         # Convert to direction vector
         gravity_dir = torch.tensor((gravity[0], gravity[1], gravity[2]), device=self.device)
         gravity_dir = math_utils.normalize(gravity_dir.unsqueeze(0)).squeeze(0)
