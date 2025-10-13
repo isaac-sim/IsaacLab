@@ -15,30 +15,8 @@ from isaaclab.utils.helpers import deprecated
 
 
 class ArticulationDataWarp:
-    """Data container for an articulation.
-
-    This class contains the data for an articulation in the simulation. The data includes the state of
-    the root rigid body, the state of all the bodies in the articulation, and the joint state. The data is
-    stored in the simulation world frame unless otherwise specified.
-
-    An articulation is comprised of multiple rigid bodies or links. For a rigid body, there are two frames
-    of reference that are used:
-
-    - Actor frame: The frame of reference of the rigid body prim. This typically corresponds to the Xform prim
-      with the rigid body schema.
-    - Center of mass frame: The frame of reference of the center of mass of the rigid body.
-
-    Depending on the settings, the two frames may not coincide with each other. In the robotics sense, the actor frame
-    can be interpreted as the link frame.
-    """
 
     def __init__(self, root_newton_view, device: str):
-        """Initializes the articulation data.
-
-        Args:
-            root_newton_view: The root articulation view.
-            device: The device used for processing.
-        """
         # Set the parameters
         self.device = device
         # Set the root articulation view
@@ -50,6 +28,18 @@ class ArticulationDataWarp:
         self._root_data = RootData(root_newton_view, device)
         self._body_data = BodyData(root_newton_view, device)
         self._joint_data = JointData(root_newton_view, device)
+
+    @property
+    def joint_data(self) -> JointData:
+        return self._joint_data
+    
+    @property
+    def body_data(self) -> BodyData:
+        return self._body_data
+    
+    @property
+    def root_data(self) -> RootData:
+        return self._root_data
 
     def update(self, dt: float):
         self._root_data.update(dt)

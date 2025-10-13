@@ -29,14 +29,26 @@ from isaaclab.assets.core.kernels import (
     update_joint_limits_value_vec2f,
     update_joint_pos_with_limits,
     update_joint_pos_with_limits_value_vec2f,
+    update_soft_joint_pos_limits,
 )
 
 
 class Joint:
-    def __init__(self, root_newton_view, joint_data: JointData, device: str):
-        self._root_newton_view = weakref.proxy(root_newton_view)
+    """Core implementation of the joint setters in warp.
+
+    This class is a zero copy, mask only, implementation of the joint setters in warp.
+    It relies on the buffers in the joint data class, and updates them based on the users inputs.
+    Note that since most of the buffers in the joint data class are direct simulation bindings, there 
+    is no need to explicitly call the selection API in most cases.
+    """
+
+    def __init__(self, root_newton_view: NewtonArticulationView, joint_data: JointData, soft_joint_pos_limit_factor: float, device: str):
+        self._root_newton_view: NewtonArticulationView = weakref.proxy(root_newton_view)
         self._data = joint_data
+        self._soft_joint_pos_limit_factor = soft_joint_pos_limit_factor
         self._device = device
+
+        self._create_buffers()
 
     @property
     def data(self) -> JointData:
@@ -65,7 +77,7 @@ class Joint:
         """
         return self._root_newton_view
 
-    def update(self, dt: float):
+    def update(self, dt: float) -> None:
         self._data.update(dt)
 
     """
@@ -100,10 +112,17 @@ class Joint:
             dim=(len(indices),),
             inputs=[
                 mask,
-                wp.array(indices, dtype=wp.int32, device=self.device),
+                wp.array(indices, dtype=wp.int32, device=self._device),
             ],
         )
         return mask, names, indices
+
+    """
+    Operations.
+    """
+
+    def reset(self, mask: wp.array):
+        pass
 
     """
     Operations - State Writers.
@@ -152,13 +171,14 @@ class Joint:
             dim=(self.num_instances, self.num_joints),
             inputs=[
                 position,
-                self._data.sim_bind_joint_pos,
+                self._data.joint_pos,
                 env_mask,
                 joint_mask,
             ],
         )
-        # invalidate buffers to trigger the update with the new root pose.
-        self._data._body_com_pose_w.timestamp = -1.0
+        # We do not invalidate the buffers related to the body poses since they will only be updated by the simulation
+        # At the next step. If this is needed then we need to call forward_kinematics first, and then invalidate the 
+        # buffers related to the body poses. This is not cheap, and we should only do it if strictly necessary.
 
     def write_joint_velocity_to_sim(
         self,
@@ -183,7 +203,7 @@ class Joint:
             dim=(self.num_instances, self.num_joints),
             inputs=[
                 velocity,
-                self._data.sim_bind_joint_vel,
+                self._data.joint_vel,
                 env_mask,
                 joint_mask,
             ],
@@ -210,8 +230,10 @@ class Joint:
                 joint_mask,
             ],
         )
-        # Need to invalidate the buffer to trigger the update with the new root pose.
-        self._data._body_link_vel_w.timestamp = -1.0
+        # We do not invalidate the buffers related to the body velocities since they will only be updated by the
+        # simulation At the next step. If this is needed then we need to call forward_kinematics first, and then
+        # invalidate the buffers related to the body velocities. This is not cheap, and we should only do it if
+        # strictly necessary.
 
     """
     Operations - Simulation Parameters Writers.
@@ -245,7 +267,7 @@ class Joint:
                 dim=(self.num_instances, self.num_joints),
                 inputs=[
                     control_mode,
-                    self._data.sim_bind_joint_control_mode_sim,
+                    self._data.joint_control_mode_sim,
                     env_mask,
                     joint_mask,
                 ],
@@ -256,7 +278,7 @@ class Joint:
                 dim=(self.num_instances, self.num_joints),
                 inputs=[
                     control_mode,
-                    self._data.sim_bind_joint_control_mode_sim,
+                    self._data.joint_control_mode_sim,
                     env_mask,
                     joint_mask,
                 ],
@@ -290,7 +312,7 @@ class Joint:
                 dim=(self.num_instances, self.num_joints),
                 inputs=[
                     stiffness,
-                    self._data.sim_bind_joint_stiffness_sim,
+                    self._data.joint_stiffness_sim,
                     env_mask,
                     joint_mask,
                 ],
@@ -301,7 +323,7 @@ class Joint:
                 dim=(self.num_instances, self.num_joints),
                 inputs=[
                     stiffness,
-                    self._data.sim_bind_joint_stiffness_sim,
+                    self._data.joint_stiffness_sim,
                     env_mask,
                     joint_mask,
                 ],
@@ -335,7 +357,7 @@ class Joint:
                 dim=(self.num_instances, self.num_joints),
                 inputs=[
                     damping,
-                    self._data.sim_bind_joint_damping_sim,
+                    self._data.joint_damping_sim,
                     env_mask,
                     joint_mask,
                 ],
@@ -346,7 +368,7 @@ class Joint:
                 dim=(self.num_instances, self.num_joints),
                 inputs=[
                     damping,
-                    self._data.sim_bind_joint_damping_sim,
+                    self._data.joint_damping_sim,
                     env_mask,
                     joint_mask,
                 ],
@@ -394,8 +416,8 @@ class Joint:
                 inputs=[
                     wp.vec2f(upper_limits, lower_limits),
                     self.cfg.soft_joint_pos_limit_factor,
-                    self._data.sim_bind_joint_pos_limits_lower,
-                    self._data.sim_bind_joint_pos_limits_upper,
+                    self._data.joint_pos_limits_lower,
+                    self._data.joint_pos_limits_upper,
                     self._data.soft_joint_pos_limits,
                     env_mask,
                     joint_mask,
@@ -422,8 +444,8 @@ class Joint:
                     lower_limits,
                     upper_limits,
                     self.cfg.soft_joint_pos_limit_factor,
-                    self._data.sim_bind_joint_pos_limits_lower,
-                    self._data.sim_bind_joint_pos_limits_upper,
+                    self._data.joint_pos_limits_lower,
+                    self._data.joint_pos_limits_upper,
                     self._data.soft_joint_pos_limits,
                     env_mask,
                     joint_mask,
@@ -469,7 +491,7 @@ class Joint:
                 dim=(self.num_instances, self.num_joints),
                 inputs=[
                     limits,
-                    self._data.sim_bind_joint_vel_limits_sim,
+                    self._data.joint_vel_limits,
                     env_mask,
                     joint_mask,
                 ],
@@ -480,7 +502,7 @@ class Joint:
                 dim=(self.num_instances, self.num_joints),
                 inputs=[
                     limits,
-                    self._data.sim_bind_joint_vel_limits_sim,
+                    self._data.joint_vel_limits,
                     env_mask,
                     joint_mask,
                 ],
@@ -517,7 +539,7 @@ class Joint:
                 dim=(self.num_instances, self.num_joints),
                 inputs=[
                     limits,
-                    self._data.sim_bind_joint_effort_limits_sim,
+                    self._data.joint_effort_limits,
                     env_mask,
                     joint_mask,
                 ],
@@ -528,7 +550,7 @@ class Joint:
                 dim=(self.num_instances, self.num_joints),
                 inputs=[
                     limits,
-                    self._data.sim_bind_joint_effort_limits_sim,
+                    self._data.joint_effort_limits,
                     env_mask,
                     joint_mask,
                 ],
@@ -564,7 +586,7 @@ class Joint:
                 dim=(self.num_instances, self.num_joints),
                 inputs=[
                     armature,
-                    self._data.sim_bind_joint_armature,
+                    self._data.joint_armature,
                     env_mask,
                     joint_mask,
                 ],
@@ -575,7 +597,7 @@ class Joint:
                 dim=(self.num_instances, self.num_joints),
                 inputs=[
                     armature,
-                    self._data.sim_bind_joint_armature,
+                    self._data.joint_armature,
                     env_mask,
                     joint_mask,
                 ],
@@ -617,7 +639,7 @@ class Joint:
                 dim=(self.num_instances, self.num_joints),
                 inputs=[
                     joint_friction_coeff,
-                    self._data.sim_bind_joint_friction_coeff,
+                    self._data.joint_friction_coeff,
                     env_mask,
                     joint_mask,
                 ],
@@ -628,7 +650,7 @@ class Joint:
                 dim=(self.num_instances, self.num_joints),
                 inputs=[
                     joint_friction_coeff,
-                    self._data.sim_bind_joint_friction_coeff,
+                    self._data.joint_friction_coeff,
                     env_mask,
                     joint_mask,
                 ],
@@ -741,8 +763,19 @@ class Joint:
 
     def _create_buffers(self):
         # constants
-        self._ALL_ENV_MASK = wp.ones((self.num_instances,), dtype=wp.bool, device=self.device)
-        self._ALL_JOINT_MASK = wp.ones((self.num_joints,), dtype=wp.bool, device=self.device)
+        self._ALL_ENV_MASK = wp.ones((self.num_instances,), dtype=wp.bool, device=self._device)
+        self._ALL_JOINT_MASK = wp.ones((self.num_joints,), dtype=wp.bool, device=self._device)
         # masks
-        self._ENV_MASK = wp.zeros((self.num_instances,), dtype=wp.bool, device=self.device)
-        self._JOINT_MASK = wp.zeros((self.num_joints,), dtype=wp.bool, device=self.device)
+        self._ENV_MASK = wp.zeros((self.num_instances,), dtype=wp.bool, device=self._device)
+        self._JOINT_MASK = wp.zeros((self.num_joints,), dtype=wp.bool, device=self._device)
+
+        wp.launch(
+            update_soft_joint_pos_limits,
+            dim=(self.num_instances, self.num_joints),
+            inputs=[
+                self.data.joint_pos_limits_lower,
+                self.data.joint_pos_limits_upper,
+                self.data.soft_joint_pos_limits,
+                self.cfg.soft_joint_pos_limit_factor,
+            ],
+        )

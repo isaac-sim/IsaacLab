@@ -7,6 +7,7 @@ import weakref
 
 import warp as wp
 
+from newton.selection import ArticulationView as NewtonArticulationView
 from isaaclab.sim._impl.newton_manager import NewtonManager
 from isaaclab.utils.buffers import TimestampedWarpBuffer
 from isaaclab.utils.helpers import deprecated, warn_overhead_cost
@@ -18,25 +19,8 @@ from isaaclab.assets.core.kernels import (
 
 
 class JointData:
-    """Data container for an articulation.
-
-    This class contains the data for an articulation in the simulation. The data includes the state of
-    the root rigid body, the state of all the bodies in the articulation, and the joint state. The data is
-    stored in the simulation world frame unless otherwise specified.
-
-    An articulation is comprised of multiple rigid bodies or links. For a rigid body, there are two frames
-    of reference that are used:
-
-    - Actor frame: The frame of reference of the rigid body prim. This typically corresponds to the Xform prim
-      with the rigid body schema.
-    - Center of mass frame: The frame of reference of the center of mass of the rigid body.
-
-    Depending on the settings, the two frames may not coincide with each other. In the robotics sense, the actor frame
-    can be interpreted as the link frame.
-    """
-
-    def __init__(self, root_newton_view, device: str):
-        """Initializes the articulation data.
+    def __init__(self, root_newton_view: NewtonArticulationView, device: str) -> None:
+        """Initializes the container for joint data.
 
         Args:
             root_newton_view: The root articulation view.
@@ -47,7 +31,7 @@ class JointData:
         # Set the root articulation view
         # note: this is stored as a weak reference to avoid circular references between the asset class
         #  and the data container. This is important to avoid memory leaks.
-        self._root_newton_view = weakref.proxy(root_newton_view)
+        self._root_newton_view: NewtonArticulationView = weakref.proxy(root_newton_view)
 
         # Set initial time stamp
         self._sim_timestamp = 0.0
@@ -113,6 +97,13 @@ class JointData:
 
     def _create_buffers(self):
         """Create buffers for the joint data."""
+        # -- default joint positions and velocities
+        self._default_joint_pos = wp.zeros(
+            (self._root_newton_view.count, self._root_newton_view.joint_dof_count), dtype=wp.float32, device=self.device
+        )
+        self._default_joint_vel = wp.zeros(
+            (self._root_newton_view.count, self._root_newton_view.joint_dof_count), dtype=wp.float32, device=self.device
+        )
         # -- joint commands (sent to the actuator from the user)
         self._joint_target = wp.zeros(
             (self._root_newton_view.count, self._root_newton_view.joint_dof_count), dtype=wp.float32, device=self.device

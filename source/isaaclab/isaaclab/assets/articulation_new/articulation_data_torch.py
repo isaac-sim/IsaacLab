@@ -29,6 +29,18 @@ class ArticulationDataWarp:
         self._body_data = BodyData(root_newton_view, device)
         self._joint_data = JointData(root_newton_view, device)
 
+    @property
+    def joint_data(self) -> JointData:
+        return self._joint_data
+    
+    @property
+    def body_data(self) -> BodyData:
+        return self._body_data
+    
+    @property
+    def root_data(self) -> RootData:
+        return self._root_data
+
     def update(self, dt: float):
         self._root_data.update(dt)
         self._body_data.update(dt)

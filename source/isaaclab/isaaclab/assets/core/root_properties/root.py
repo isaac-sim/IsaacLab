@@ -24,8 +24,8 @@ from isaaclab.assets.core.kernels import (
 
 
 class Root:
-    def __init__(self, root_newton_view, root_data: RootData, device: str):
-        self._root_newton_view = weakref.proxy(root_newton_view)
+    def __init__(self, root_newton_view: NewtonArticulationView, root_data: RootData, device: str):
+        self._root_newton_view: NewtonArticulationView = weakref.proxy(root_newton_view)
         self._root_data = root_data
         self._device = device
 
