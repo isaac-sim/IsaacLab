@@ -203,6 +203,9 @@ class RewardsCfg:
                                   "asset_cfg": SceneEntityCfg("robot"), 
                                   "command_name": "target_pose",
                                   })
+    action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=-0.05)
+    action_magnitude_l2 = RewTerm(func=mdp.action_l2, weight=-0.05)
+
     termination_penalty = RewTerm(
         func=mdp.is_terminated,
         weight=-100.0,
