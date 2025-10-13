@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import newton as nt
 from newton.viewer import ViewerGL
-
+import warp as wp
 
 class NewtonViewerGL(ViewerGL):
     def __init__(self, *args, train_mode: bool = True, **kwargs):
@@ -150,7 +150,7 @@ class NewtonViewerGL(ViewerGL):
                     imgui.text(f"Environments: {self.model.num_envs}")
                     axis_names = ["X", "Y", "Z"]
                     imgui.text(f"Up Axis: {axis_names[self.model.up_axis]}")
-                    gravity = self.model.gravity
+                    gravity = wp.to_torch(self.model.gravity)[0]
                     gravity_text = f"Gravity: ({gravity[0]:.2f}, {gravity[1]:.2f}, {gravity[2]:.2f})"
                     imgui.text(gravity_text)
 
