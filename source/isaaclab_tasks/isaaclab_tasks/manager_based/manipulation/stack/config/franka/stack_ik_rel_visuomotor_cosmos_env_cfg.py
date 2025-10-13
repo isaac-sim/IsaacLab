@@ -105,11 +105,7 @@ class FrankaCubeStackVisuomotorCosmosEnvCfg(stack_ik_rel_visuomotor_env_cfg.Fran
         # post init of parent
         super().__post_init__()
 
-        import carb
-        from isaacsim.core.utils.carb import set_carb_setting
-
-        carb_setting = carb.settings.get_settings()
-        set_carb_setting(carb_setting, "/rtx/domeLight/upperLowerStrategy", 4)
+        self.sim.render.dome_light_upper_lower_strategy = 4
 
         SEMANTIC_MAPPING = {
             "class:cube_1": (120, 230, 255, 255),
