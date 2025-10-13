@@ -69,7 +69,7 @@ class MySceneCfg(InteractiveSceneCfg):
         offset=RayCasterCameraCfg.OffsetCfg(pos=(0.15, 0.0, 0.04), rot=(1.0, 0.0, 0.0, 0.0), convention="world"),
         update_period=0.1,
         pattern_cfg=PinholeCameraPatternCfg(
-            width=480, height=270
+            width=480, height=270, focal_length= 0.193, horizontal_aperture=0.36, vertical_aperture=0.21 # d455 camera params
         ),
         data_types=["distance_to_image_plane"],
         max_distance=10.0,
