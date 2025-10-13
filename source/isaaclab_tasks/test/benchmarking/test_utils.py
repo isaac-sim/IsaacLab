@@ -51,7 +51,7 @@ def get_env_config(env_configs, mode, workflow, task):
     return None
 
 
-def evaluate_job(workflow, task, env_config, duration):
+def evaluate_job(workflow, task, env_config, duration, disable_duration_check=False):
     """Evaluate the job."""
     log_data = _retrieve_logs(workflow, task)
 
@@ -64,6 +64,8 @@ def evaluate_job(workflow, task, env_config, duration):
         return kpi_payload
 
     thresholds = {**env_config.get("lower_thresholds", {}), **env_config.get("upper_thresholds", {})}
+    if disable_duration_check:
+        thresholds.pop("duration", None)
 
     # evaluate all thresholds from the config
     for threshold_name, threshold_val in thresholds.items():

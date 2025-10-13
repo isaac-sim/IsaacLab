@@ -44,6 +44,11 @@ def pytest_addoption(parser):
         default="",
         help="Optional tag to add to the KPI payload for filtering on the Grafana dashboard.",
     )
+    parser.addoption(
+        "--disable_duration_check",
+        action="store_true",
+        help="Disable the duration check for the test.",
+    )
 
 
 @pytest.fixture
@@ -69,6 +74,11 @@ def num_gpus(request):
 @pytest.fixture
 def save_kpi_payload(request):
     return request.config.getoption("--save_kpi_payload")
+
+
+@pytest.fixture
+def disable_duration_check(request):
+    return request.config.getoption("--disable_duration_check")
 
 
 @pytest.fixture

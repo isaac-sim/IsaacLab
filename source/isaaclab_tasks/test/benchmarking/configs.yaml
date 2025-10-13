@@ -42,7 +42,7 @@ fast:
   rsl_rl:Isaac-Humanoid-Direct-v0:
     max_iterations: 500
     lower_thresholds:
-      reward: 600
+      reward: 6000
       episode_length: 500
     upper_thresholds:
       duration: 500
@@ -56,14 +56,14 @@ fast:
   rsl_rl:Isaac-Velocity-Flat-G1-v0:
     max_iterations: 500
     lower_thresholds:
-      reward: 15
+      reward: 20
       episode_length: 700
     upper_thresholds:
       duration: 3000
   rsl_rl:Isaac-Velocity-Flat-H1-v0:
     max_iterations: 500
     lower_thresholds:
-      reward: 15
+      reward: 25
       episode_length: 700
     upper_thresholds:
       duration: 3000
