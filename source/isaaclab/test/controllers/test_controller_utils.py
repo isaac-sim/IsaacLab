@@ -21,7 +21,7 @@ import torch
 import pytest
 
 from isaaclab.controllers.utils import change_revolute_to_fixed, change_revolute_to_fixed_regex
-from isaaclab.utils.assets import retrieve_file_path
+from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 from isaaclab.utils.io.torchscript import load_torchscript_model
 
 
@@ -503,7 +503,7 @@ def test_regex_special_characters(test_urdf_file, mock_urdf_content):
 @pytest.fixture
 def policy_model_path():
     """Path to the test TorchScript model."""
-    _policy_path = "omniverse://isaac-dev.ov.nvidia.com/Projects/agile/policy_checkpoints/agile_locomotion.pt"
+    _policy_path = f"{ISAACLAB_NUCLEUS_DIR}/Policies/Agile/agile_locomotion.pt"
     return retrieve_file_path(_policy_path)
 
 
