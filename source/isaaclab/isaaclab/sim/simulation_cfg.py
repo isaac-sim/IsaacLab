@@ -274,6 +274,9 @@ class RenderCfg:
 
     dome_light_upper_lower_strategy: Literal[0, 3, 4] | None = None
     """Selects how to sample the Dome Light. Default is 0.
+    For more information, refer to the documentation `here`_.
+
+    .. _here: https://docs.omniverse.nvidia.com/materials-and-rendering/latest/rtx-renderer_common.html#dome-light
 
     Valid values are:
 
