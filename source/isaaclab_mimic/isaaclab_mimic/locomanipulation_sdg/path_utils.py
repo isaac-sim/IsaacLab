@@ -8,7 +8,7 @@ import torch
 
 from isaacsim.replicator.mobility_gen.impl.path_planner import compress_path, generate_paths
 
-from .disjoint_nav_scene_utils import HasPose2d
+from .scene_utils import HasPose2d
 from .occupancy_map_utils import OccupancyMap
 
 
