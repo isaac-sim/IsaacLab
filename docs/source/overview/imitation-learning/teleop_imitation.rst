@@ -690,7 +690,7 @@ in the GR00T N1.5 repository.  An example closed-loop policy rollout is shown in
    :figclass: align-center
 
    Simulation rollout of GR00T N1.5 policy finetuned for locomanipulation.
-   
+
 The policy shown above uses the camera image, hand poses, hand joint positions, object pose, and base goal pose as inputs.
 The output of the model is the target base velocity, hand poses, and hand joint positions for the next several timesteps.
 
