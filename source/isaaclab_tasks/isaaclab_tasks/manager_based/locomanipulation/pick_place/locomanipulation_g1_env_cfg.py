@@ -86,7 +86,7 @@ class LocomanipulationG1SceneCfg(InteractiveSceneCfg):
     )
 
     robot_pov_cam = CameraCfg(
-        prim_path="/World/envs/env_.*/Robot/torso_link/d435_link/tiled_camera",
+        prim_path="/World/envs/env_.*/Robot/torso_link/d435_link/camera",
         update_period=0.0,
         height=160,
         width=256,
