@@ -46,7 +46,7 @@ if the geometry is not part of a dynamic rigid body.
 Additional Performance Guides
 -----------------------------
 
-There are many ways to "tune" the performance of the simulation, but the way you choose largely defends on what you are trying to simulate. In general, the first place
+There are many ways to "tune" the performance of the simulation, but the way you choose largely depends on what you are trying to simulate. In general, the first place
 you will want to look for performance gains is with the `physics engine <https://docs.omniverse.nvidia.com/kit/docs/omni_physics/107.3/dev_guide/guides.html>`_. Next to rendering 
 and running deep learning models, the physics engine is the most computationally costly. Tuning the physics sim to limit the scope to only the task of interest is a great place to 
 start hunting for performance gains.
