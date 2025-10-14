@@ -119,6 +119,7 @@ if args_cli.agent is None:
     agent_cfg_entry_point = "skrl_cfg_entry_point" if algorithm in ["ppo"] else f"skrl_{algorithm}_cfg_entry_point"
 else:
     agent_cfg_entry_point = args_cli.agent
+    algorithm = agent_cfg_entry_point.split("_cfg")[0].split("skrl_")[-1].lower()
 
 
 @hydra_task_config(args_cli.task, agent_cfg_entry_point)
