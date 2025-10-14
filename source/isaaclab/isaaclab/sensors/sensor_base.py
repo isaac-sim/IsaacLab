@@ -216,6 +216,11 @@ class SensorBase(ABC):
         # Timestamp from last update
         self._timestamp_last_update = torch.zeros_like(self._timestamp)
 
+        # Initialize debug visualization handle
+        if self._debug_vis_handle is None:
+            # set initial state of debug visualization
+            self.set_debug_vis(self.cfg.debug_vis)
+
     @abstractmethod
     def _update_buffers_impl(self, env_ids: Sequence[int]):
         """Fills the sensor data for provided environment ids.

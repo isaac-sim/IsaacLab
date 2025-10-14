@@ -11,6 +11,9 @@
     DifferentialIKControllerCfg
     OperationalSpaceController
     OperationalSpaceControllerCfg
+    pink_ik.PinkIKController
+    pink_ik.PinkIKControllerCfg
+    pink_ik.NullSpacePostureTask
 
 Differential Inverse Kinematics
 -------------------------------
@@ -39,3 +42,25 @@ Operational Space controllers
     :inherited-members:
     :show-inheritance:
     :exclude-members: __init__, class_type
+
+
+Pink IK Controller
+------------------
+
+.. automodule:: isaaclab.controllers.pink_ik
+
+.. autoclass:: PinkIKController
+    :members:
+    :inherited-members:
+    :show-inheritance:
+
+.. autoclass:: PinkIKControllerCfg
+    :members:
+    :inherited-members:
+    :show-inheritance:
+    :exclude-members: __init__, class_type
+
+Available Pink IK Tasks
+^^^^^^^^^^^^^^^^^^^^^^^
+
+.. autoclass:: NullSpacePostureTask

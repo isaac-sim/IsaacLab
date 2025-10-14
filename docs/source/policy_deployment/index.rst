@@ -9,6 +9,7 @@ Below, you’ll find detailed examples of various policies for training and depl
     :maxdepth: 1
 
     00_hover/hover_policy
+    01_io_descriptors/io_descriptors_101
 
 
 Resources with Available/Open-Source Code
@@ -49,3 +50,4 @@ Explore these external resources featuring practical implementations with availa
     Supports ROS1/ROS2 and integrates with Isaac Lab via
     `robot_lab` -
     `Project repository on GitHub <https://github.com/fan-ziqi/rl_sar>`_
+

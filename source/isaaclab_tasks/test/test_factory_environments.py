@@ -21,6 +21,7 @@ import isaaclab_tasks  # noqa: F401
 
 @pytest.mark.parametrize("num_envs, device", [(32, "cuda"), (1, "cuda")])
 @pytest.mark.parametrize("task_name", setup_environment(factory_envs=True, multi_agent=False))
+@pytest.mark.isaacsim_ci
 def test_factory_environments(task_name, num_envs, device):
     """Run all factory environments and check environments return valid signals."""
     print(f">>> Running test for environment: {task_name}")

@@ -272,7 +272,9 @@ class DeformableObject(AssetBase):
 
         # find deformable root prims
         root_prims = sim_utils.get_all_matching_child_prims(
-            template_prim_path, predicate=lambda prim: prim.HasAPI(PhysxSchema.PhysxDeformableBodyAPI)
+            template_prim_path,
+            predicate=lambda prim: prim.HasAPI(PhysxSchema.PhysxDeformableBodyAPI),
+            traverse_instance_prims=False,
         )
         if len(root_prims) == 0:
             raise RuntimeError(
@@ -357,6 +359,11 @@ class DeformableObject(AssetBase):
         self._create_buffers()
         # update the deformable body data
         self.update(0.0)
+
+        # Initialize debug visualization handle
+        if self._debug_vis_handle is None:
+            # set initial state of debug visualization
+            self.set_debug_vis(self.cfg.debug_vis)
 
     def _create_buffers(self):
         """Create buffers for storing data."""

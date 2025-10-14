@@ -52,8 +52,7 @@ If everything executes correctly, it should create the following files:
 For more information on VSCode support for Omniverse, please refer to the
 following links:
 
-* `Isaac Sim VSCode support <https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/manual_standalone_python.html#isaac-sim-python-vscode>`__
-* `Debugging with VSCode <https://docs.isaacsim.omniverse.nvidia.com/latest/development_tools/vscode.html#visual-studio-code-vs-code>`__
+* `Isaac Sim VSCode support <https://docs.isaacsim.omniverse.nvidia.com/latest/development_tools/vscode.html#visual-studio-code-vs-code>`__
 
 
 Configuring the python interpreter
@@ -69,7 +68,7 @@ python executable provided by Omniverse. This is specified in the
       "python.defaultInterpreterPath": "${workspaceFolder}/_isaac_sim/python.sh",
    }
 
-If you want to use a different python interpreter (for instance, from your conda environment),
+If you want to use a different python interpreter (for instance, from your conda or uv environment),
 you need to change the python interpreter used by selecting and activating the python interpreter
 of your choice in the bottom left corner of VSCode, or opening the command palette (``Ctrl+Shift+P``)
 and selecting ``Python: Select Interpreter``.

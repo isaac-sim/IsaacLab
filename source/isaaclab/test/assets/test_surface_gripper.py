@@ -114,7 +114,7 @@ def generate_surface_gripper(
     for i in range(num_surface_grippers):
         prim_utils.create_prim(f"/World/Env_{i}", "Xform", translation=translations[i][:3])
     articulation = Articulation(articulation_cfg.replace(prim_path="/World/Env_.*/Robot"))
-    surface_gripper_cfg = surface_gripper_cfg.replace(prim_expr="/World/Env_.*/Robot/Gripper/SurfaceGripper")
+    surface_gripper_cfg = surface_gripper_cfg.replace(prim_path="/World/Env_.*/Robot/Gripper/SurfaceGripper")
     surface_gripper = SurfaceGripper(surface_gripper_cfg)
 
     return surface_gripper, articulation, translations
@@ -159,6 +159,7 @@ def sim(request):
 @pytest.mark.parametrize("num_articulations", [1])
 @pytest.mark.parametrize("device", ["cpu"])
 @pytest.mark.parametrize("add_ground_plane", [True])
+@pytest.mark.isaacsim_ci
 def test_initialization(sim, num_articulations, device, add_ground_plane) -> None:
     """Test initialization for articulation with a surface gripper.
 
@@ -204,6 +205,7 @@ def test_initialization(sim, num_articulations, device, add_ground_plane) -> Non
 
 @pytest.mark.parametrize("device", ["cuda:0"])
 @pytest.mark.parametrize("add_ground_plane", [True])
+@pytest.mark.isaacsim_ci
 def test_raise_error_if_not_cpu(sim, device, add_ground_plane) -> None:
     """Test that the SurfaceGripper raises an error if the device is not CPU."""
     isaac_sim_version = get_version()
