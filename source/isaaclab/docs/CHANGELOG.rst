@@ -1,12 +1,23 @@
 Changelog
 ---------
 
-0.46.7 (2025-10-13)
+0.46.8 (2025-10-13)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
 ^^^^^
+
 * Added ARM64 architecture for pink ik and dex-retargetting setup installations.
+
+
+0.46.7 (2025-10-09)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :meth:`~isaaclab.devices.keyboard.se3_keyboard.Se3Keyboard.__del__` to use the correct method name
+  for unsubscribing from keyboard events "unsubscribe_to_keyboard_events" instead of "unsubscribe_from_keyboard_events".
 
 
 0.46.6 (2025-10-02)
@@ -14,6 +25,7 @@ Added
 
 Fixed
 ^^^^^
+
 * Fixed scaling factor for retargeting of GR1T2 hand.
 
 
@@ -22,6 +34,7 @@ Fixed
 
 Fixed
 ^^^^^
+
 * Fixed finger joint indices with manus extension.
 
 
