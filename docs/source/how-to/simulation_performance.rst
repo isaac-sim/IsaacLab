@@ -47,8 +47,8 @@ Additional Performance Guides
 -----------------------------
 
 There are many ways to "tune" the performance of the simulation, but the way you choose largely depends on what you are trying to simulate. In general, the first place
-you will want to look for performance gains is with the `physics engine <https://docs.omniverse.nvidia.com/kit/docs/omni_physics/107.3/dev_guide/guides.html>`_. Next to rendering 
-and running deep learning models, the physics engine is the most computationally costly. Tuning the physics sim to limit the scope to only the task of interest is a great place to 
+you will want to look for performance gains is with the `physics engine <https://docs.omniverse.nvidia.com/kit/docs/omni_physics/107.3/dev_guide/guides.html>`_. Next to rendering
+and running deep learning models, the physics engine is the most computationally costly. Tuning the physics sim to limit the scope to only the task of interest is a great place to
 start hunting for performance gains.
 
 We have recently release a new `gripper tuning guide <https://docs.omniverse.nvidia.com/kit/docs/omni_physics/107.3/dev_guide/guides/gripper_tuning_example.html>`_ , specific to contact and grasp tuning. Please check it first if you intend to use robot grippers. For additional details, you should also checkout these guides!
