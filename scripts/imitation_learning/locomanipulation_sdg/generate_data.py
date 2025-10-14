@@ -119,20 +119,16 @@ from isaaclab.utils import configclass
 from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
 
 import isaaclab_mimic.locomanipulation_sdg.envs  # noqa: F401
-from isaaclab_mimic.locomanipulation_sdg.envs.locomanipulation_sdg_env import LocomanipulationSDGEnv
 from isaaclab_mimic.locomanipulation_sdg.data_classes import LocomanipulationSDGOutputData
-from isaaclab_mimic.locomanipulation_sdg.path_utils import ParameterizedPath, plan_path
-from isaaclab_mimic.locomanipulation_sdg.scene_utils import RelativePose, place_randomly
-from isaaclab_mimic.locomanipulation_sdg.transform_utils import (
-    transform_inv,
-    transform_mul,
-    transform_relative_pose,
-)
+from isaaclab_mimic.locomanipulation_sdg.envs.locomanipulation_sdg_env import LocomanipulationSDGEnv
 from isaaclab_mimic.locomanipulation_sdg.occupancy_map_utils import (
     OccupancyMap,
     merge_occupancy_maps,
     occupancy_map_add_to_stage,
 )
+from isaaclab_mimic.locomanipulation_sdg.path_utils import ParameterizedPath, plan_path
+from isaaclab_mimic.locomanipulation_sdg.scene_utils import RelativePose, place_randomly
+from isaaclab_mimic.locomanipulation_sdg.transform_utils import transform_inv, transform_mul, transform_relative_pose
 
 from isaaclab_tasks.utils import parse_env_cfg
 
@@ -249,7 +245,10 @@ def load_and_transform_recording_data(
 
 
 def setup_navigation_scene(
-    env: LocomanipulationSDGEnv, input_episode_data: EpisodeData, approach_distance: float, randomize_placement: bool = True
+    env: LocomanipulationSDGEnv,
+    input_episode_data: EpisodeData,
+    approach_distance: float,
+    randomize_placement: bool = True,
 ) -> tuple[OccupancyMap, ParameterizedPath, RelativePose, RelativePose]:
     """Set up the navigation scene with occupancy map and path planning.
 
