@@ -24,7 +24,7 @@ def main():
     """Main function to process dataset and generate visualizations."""
     # add argparse arguments
     parser = argparse.ArgumentParser(
-        description="Visualize navigation dataset from disjoint navigation demonstrations."
+        description="Visualize navigation dataset from locomanipulation sdg demonstrations."
     )
     parser.add_argument(
         "--input_file", type=str, help="Path to the HDF5 dataset file containing recorded demonstrations."
@@ -72,7 +72,7 @@ def main():
     for i, demo in enumerate(demos):
         print(f"Processing demo {i + 1}/{len(demos)}: {demo}")
 
-        replay_data = dataset["data"][demo]["disjoint_nav_output_data"]
+        replay_data = dataset["data"][demo]["locomanipulation_sdg_output_data"]
         path = replay_data["base_path"]
         base_pose = replay_data["base_pose"]
         object_pose = replay_data["object_pose"]

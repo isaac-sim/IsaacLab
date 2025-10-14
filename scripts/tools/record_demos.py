@@ -33,7 +33,16 @@ from isaaclab.app import AppLauncher
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Record demonstrations for Isaac Lab environments.")
 parser.add_argument("--task", type=str, required=True, help="Name of the task.")
-parser.add_argument("--teleop_device", type=str, default="keyboard", help="Device for interacting with environment.")
+parser.add_argument(
+    "--teleop_device",
+    type=str,
+    default="keyboard",
+    help=(
+        "Teleop device. Set here (legacy) or via the environment config. If using the environment config, pass the"
+        " device key/name defined under 'teleop_devices' (it can be a custom name, not necessarily 'handtracking')."
+        " Built-ins: keyboard, spacemouse, gamepad. Not all tasks support all built-ins."
+    ),
+)
 parser.add_argument(
     "--dataset_file", type=str, default="./datasets/dataset.hdf5", help="File path to export recorded demos."
 )
