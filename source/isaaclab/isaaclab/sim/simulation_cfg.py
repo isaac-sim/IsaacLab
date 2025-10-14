@@ -272,7 +272,7 @@ class RenderCfg:
     This is set by the variable: ``/rtx/ambientOcclusion/enabled``.
     """
 
-    dome_light_upper_lower_strategy: int | None = None
+    dome_light_upper_lower_strategy: Literal[0, 3, 4] | None = None
     """Selects how to sample the Dome Light. Default is 0.
 
     Valid values are:
