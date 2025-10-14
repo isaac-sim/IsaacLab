@@ -8,8 +8,8 @@ import torch
 
 from isaacsim.replicator.mobility_gen.impl.path_planner import compress_path, generate_paths
 
-from .scene_utils import HasPose2d
 from .occupancy_map_utils import OccupancyMap
+from .scene_utils import HasPose2d
 
 
 def nearest_point_on_segment(a: torch.Tensor, b: torch.Tensor, c: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
