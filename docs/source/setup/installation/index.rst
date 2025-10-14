@@ -71,7 +71,7 @@ may work but have not been validated against all Omniverse tests.
 DGX Spark: details and limitations
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The DGX spark is a stand-alone machine learning device with unique requirements and specifications due to it's specialized nature. As a consequence, some
+The DGX spark is a standalone machine learning device with aarch64 architecture. As a consequence, some
 features of Isaac Lab are not currently supported on the DGX spark (and some may never be). The most noteworthy is that the architecture *requires* CUDA ≥ 13, and thus the cu13 build of PyTorch or newer. 
 Other notable limitations with respect to Isaac Lab include...
 
