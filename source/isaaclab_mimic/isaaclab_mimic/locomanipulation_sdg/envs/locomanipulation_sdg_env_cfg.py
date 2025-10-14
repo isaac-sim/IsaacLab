@@ -11,37 +11,37 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.managers.recorder_manager import RecorderTerm, RecorderTermCfg
 from isaaclab.utils import configclass
 
-from .disjoint_nav_env import DisjointNavOutputDataRecorder
+from .locomanipulation_sdg_env import LocomanipulationSDGOutputDataRecorder
 
 
 @configclass
-class DisjointNavOutputDataRecorderCfg(RecorderTermCfg):
+class LocomanipulationSDGOutputDataRecorderCfg(RecorderTermCfg):
     """Configuration for the step policy observation recorder term."""
 
-    class_type: type[RecorderTerm] = DisjointNavOutputDataRecorder
+    class_type: type[RecorderTerm] = LocomanipulationSDGOutputDataRecorder
 
 
 @configclass
-class DisjointNavRecorderManagerCfg(ActionStateRecorderManagerCfg):
-    record_pre_step_disjoint_nav_output_data = DisjointNavOutputDataRecorderCfg()
+class LocomanipulationSDGRecorderManagerCfg(ActionStateRecorderManagerCfg):
+    record_pre_step_locomanipulation_sdg_output_data = LocomanipulationSDGOutputDataRecorderCfg()
 
 
 @configclass
-class DisjointNavTerminationsCfg:
+class LocomanipulationSDGTerminationsCfg:
     """Termination terms for the MDP."""
 
     time_out = DoneTerm(func=base_mdp.time_out, time_out=True)
 
 
 @configclass
-class DisjointNavEventCfg:
+class LocomanipulationSDGEventCfg:
     """Configuration for events."""
 
     reset_all = EventTerm(func=base_mdp.reset_scene_to_default, mode="reset")
 
 
 @configclass
-class DisjointNavEnvCfg(ManagerBasedRLEnvCfg):
-    recorders: DisjointNavRecorderManagerCfg = DisjointNavRecorderManagerCfg()
-    terminations: DisjointNavTerminationsCfg = DisjointNavTerminationsCfg()
-    events: DisjointNavEventCfg = DisjointNavEventCfg()
+class LocomanipulationSDGEnvCfg(ManagerBasedRLEnvCfg):
+    recorders: LocomanipulationSDGRecorderManagerCfg = LocomanipulationSDGRecorderManagerCfg()
+    terminations: LocomanipulationSDGTerminationsCfg = LocomanipulationSDGTerminationsCfg()
+    events: LocomanipulationSDGEventCfg = LocomanipulationSDGEventCfg()
