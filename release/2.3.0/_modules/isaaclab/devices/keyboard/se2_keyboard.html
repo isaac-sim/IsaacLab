@@ -673,7 +673,7 @@
 
     <span class="k">def</span><span class="w"> </span><span class="fm">__del__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Release the keyboard interface.&quot;&quot;&quot;</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_input</span><span class="o">.</span><span class="n">unsubscribe_from_keyboard_events</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_keyboard</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_keyboard_sub</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_input</span><span class="o">.</span><span class="n">unsubscribe_to_keyboard_events</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_keyboard</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_keyboard_sub</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_keyboard_sub</span> <span class="o">=</span> <span class="kc">None</span>
 
     <span class="k">def</span><span class="w"> </span><span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
