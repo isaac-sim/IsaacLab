@@ -567,7 +567,7 @@ Follow the same data collection, annotation, and generation process as demonstra
 
       ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/annotate_demos.py \
       --device cpu \
-      --task Isaac-PickPlace-Locomanipulation-G1-Abs-Mimic-v0 \
+      --task Isaac-Locomanipulation-G1-Abs-Mimic-v0 \
       --input_file ./datasets/dataset_g1_locomanip.hdf5 \
       --output_file ./datasets/dataset_annotated_g1_locomanip.hdf5 --enable_pinocchio
 
