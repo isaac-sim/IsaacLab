@@ -135,6 +135,48 @@ Here are some general commands to get started with it:
 
           python scripts\<specific-rl-library>\train.py --task=<Task-Name>
 
+* Run a task with dummy agents.
+
+  These include dummy agents that output zero or random agents. They are useful to ensure that the environments are configured correctly.
+
+  * Zero-action agent
+
+    .. tab-set::
+      :sync-group: os
+
+      .. tab-item:: :icon:`fa-brands fa-linux` Linux
+          :sync: linux
+
+          .. code-block:: bash
+
+            python scripts/zero_agent.py --task=<Task-Name>
+
+      .. tab-item:: :icon:`fa-brands fa-windows` Windows
+          :sync: windows
+
+          .. code-block:: batch
+
+            python scripts\zero_agent.py --task=<Task-Name>
+
+  * Random-action agent
+
+    .. tab-set::
+      :sync-group: os
+
+      .. tab-item:: :icon:`fa-brands fa-linux` Linux
+          :sync: linux
+
+          .. code-block:: bash
+
+            python scripts/random_agent.py --task=<Task-Name>
+
+      .. tab-item:: :icon:`fa-brands fa-windows` Windows
+          :sync: windows
+
+          .. code-block:: batch
+
+            python scripts\random_agent.py --task=<Task-Name>
+
 For more details, please follow the instructions in the generated project's ``README.md`` file.
 
 Internal task usage (once generated)
@@ -189,8 +231,6 @@ Here are some general commands to get started with it:
 
 * Run a task with dummy agents.
 
-  These include dummy agents that output zero or random agents. They are useful to ensure that the environments are configured correctly.
-
   * Zero-action agent
 
     .. tab-set::
@@ -201,14 +241,14 @@ Here are some general commands to get started with it:
 
           .. code-block:: bash
 
-            python scripts/zero_agent.py --task=<Task-Name>
+            python scripts/environments/zero_agent.py --task=<Task-Name>
 
       .. tab-item:: :icon:`fa-brands fa-windows` Windows
           :sync: windows
 
           .. code-block:: batch
 
-            python scripts\zero_agent.py --task=<Task-Name>
+            python scripts\environments\zero_agent.py --task=<Task-Name>
 
   * Random-action agent
 
@@ -220,11 +260,11 @@ Here are some general commands to get started with it:
 
           .. code-block:: bash
 
-            python scripts/random_agent.py --task=<Task-Name>
+            python scripts/environments/random_agent.py --task=<Task-Name>
 
       .. tab-item:: :icon:`fa-brands fa-windows` Windows
           :sync: windows
 
           .. code-block:: batch
 
-            python scripts\random_agent.py --task=<Task-Name>
+            python scripts\environments\random_agent.py --task=<Task-Name>
