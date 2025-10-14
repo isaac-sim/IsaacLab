@@ -3,9 +3,9 @@
 Local Installation
 ==================
 
-.. image:: https://img.shields.io/badge/IsaacSim-5.0.0-silver.svg
+.. image:: https://img.shields.io/badge/IsaacSim-5.1.0-silver.svg
    :target: https://developer.nvidia.com/isaac-sim
-   :alt: IsaacSim 5.0.0
+   :alt: IsaacSim 5.1.0
 
 .. image:: https://img.shields.io/badge/python-3.11-blue.svg
    :target: https://www.python.org/downloads/release/python-31013/
@@ -27,7 +27,7 @@ recommended installation methods for both Isaac Sim and Isaac Lab.
 .. caution::
 
    We have dropped support for Isaac Sim versions 4.2.0 and below. We recommend using the latest
-   Isaac Sim 5.0.0 release to benefit from the latest features and improvements.
+   Isaac Sim 5.1.0 release to benefit from the latest features and improvements.
 
    For more information, please refer to the
    `Isaac Sim release notes <https://docs.isaacsim.omniverse.nvidia.com/latest/overview/release_notes.html#>`__.
