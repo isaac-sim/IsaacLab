@@ -158,10 +158,10 @@
             <label for="version-select" style="font-weight: bold; display: block;">Version</label>
           </div>
           <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
-            <option value="../../../../release/2.3.0/index.html" >release/2.3.0</option>
             <option value="simulation_context.html" selected>main</option>
             <option value="../../../../release/2.1.0/index.html" >release/2.1.0</option>
             <option value="../../../../release/2.2.0/index.html" >release/2.2.0</option>
+            <option value="../../../../release/2.3.0/index.html" >release/2.3.0</option>
             <option value="../../../../v2.2.1/index.html" >v2.2.1</option>
             <option value="../../../../v2.2.0/index.html" >v2.2.0</option>
             <option value="../../../../v2.1.1/index.html" >v2.1.1</option>
@@ -204,7 +204,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.1.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.0.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -617,6 +617,7 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">omni.physx</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">omni.usd</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaacsim.core.api.simulation_context</span><span class="w"> </span><span class="kn">import</span> <span class="n">SimulationContext</span> <span class="k">as</span> <span class="n">_SimulationContext</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaacsim.core.simulation_manager</span><span class="w"> </span><span class="kn">import</span> <span class="n">SimulationManager</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaacsim.core.utils.carb</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_carb_setting</span><span class="p">,</span> <span class="n">set_carb_setting</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaacsim.core.utils.viewports</span><span class="w"> </span><span class="kn">import</span> <span class="n">set_camera_view</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaacsim.core.version</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_version</span>
@@ -850,6 +851,19 @@
                 <span class="s2">&quot; simulation step size if you run into physics issues.&quot;</span>
             <span class="p">)</span>
 
+        <span class="c1"># set simulation device</span>
+        <span class="c1"># note: Although Isaac Sim sets the physics device in the init function,</span>
+        <span class="c1">#   it does a render call which gets the wrong device.</span>
+        <span class="n">SimulationManager</span><span class="o">.</span><span class="n">set_physics_sim_device</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+
+        <span class="c1"># obtain the parsed device</span>
+        <span class="c1"># This device should be the same as &quot;self.cfg.device&quot;. However, for cases, where users specify the device</span>
+        <span class="c1"># as &quot;cuda&quot; and not &quot;cuda:X&quot;, then it fetches the current device from SimulationManager.</span>
+        <span class="c1"># Note: Since we fix the device from the configuration and don&#39;t expect users to change it at runtime,</span>
+        <span class="c1">#   we can obtain the device once from the SimulationManager.get_physics_sim_device() function.</span>
+        <span class="c1">#   This reduces the overhead of calling the function.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_physics_device</span> <span class="o">=</span> <span class="n">SimulationManager</span><span class="o">.</span><span class="n">get_physics_sim_device</span><span class="p">()</span>
+
         <span class="c1"># create a simulation context to control the simulator</span>
         <span class="k">if</span> <span class="nb">float</span><span class="p">(</span><span class="s2">&quot;.&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_isaacsim_version</span><span class="p">[</span><span class="mi">2</span><span class="p">]))</span> <span class="o">&lt;</span> <span class="mi">5</span><span class="p">:</span>
             <span class="c1"># stage arg is not supported before isaac sim 5.0</span>
@@ -874,126 +888,19 @@
                 <span class="n">stage</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_initial_stage</span><span class="p">,</span>
             <span class="p">)</span></div>
 
-    <span class="k">def</span><span class="w"> </span><span class="nf">_apply_physics_settings</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Sets various carb physics settings.&quot;&quot;&quot;</span>
-        <span class="c1"># enable hydra scene-graph instancing</span>
-        <span class="c1"># note: this allows rendering of instanceable assets on the GUI</span>
-        <span class="n">set_carb_setting</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">carb_settings</span><span class="p">,</span> <span class="s2">&quot;/persistent/omnihydra/useSceneGraphInstancing&quot;</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
-        <span class="c1"># change dispatcher to use the default dispatcher in PhysX SDK instead of carb tasking</span>
-        <span class="c1"># note: dispatcher handles how threads are launched for multi-threaded physics</span>
-        <span class="n">set_carb_setting</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">carb_settings</span><span class="p">,</span> <span class="s2">&quot;/physics/physxDispatcher&quot;</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
-        <span class="c1"># disable contact processing in omni.physx</span>
-        <span class="c1"># note: we disable it by default to avoid the overhead of contact processing when it isn&#39;t needed.</span>
-        <span class="c1">#   The physics flag gets enabled when a contact sensor is created.</span>
-        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="p">,</span> <span class="s2">&quot;disable_contact_processing&quot;</span><span class="p">):</span>
-            <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
-                <span class="s2">&quot;The `disable_contact_processing` attribute is deprecated and always set to True&quot;</span>
-                <span class="s2">&quot; to avoid unnecessary overhead. Contact processing is automatically enabled when&quot;</span>
-                <span class="s2">&quot; a contact sensor is created, so manual configuration is no longer required.&quot;</span>
-            <span class="p">)</span>
-        <span class="c1"># FIXME: From investigation, it seems this flag only affects CPU physics. For GPU physics, contacts</span>
-        <span class="c1">#  are always processed. The issue is reported to the PhysX team by @mmittal.</span>
-        <span class="n">set_carb_setting</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">carb_settings</span><span class="p">,</span> <span class="s2">&quot;/physics/disableContactProcessing&quot;</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
-        <span class="c1"># disable custom geometry for cylinder and cone collision shapes to allow contact reporting for them</span>
-        <span class="c1"># reason: cylinders and cones aren&#39;t natively supported by PhysX so we need to use custom geometry flags</span>
-        <span class="c1"># reference: https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/docs/Geometry.html?highlight=capsule#geometry</span>
-        <span class="n">set_carb_setting</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">carb_settings</span><span class="p">,</span> <span class="s2">&quot;/physics/collisionConeCustomGeometry&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
-        <span class="n">set_carb_setting</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">carb_settings</span><span class="p">,</span> <span class="s2">&quot;/physics/collisionCylinderCustomGeometry&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
-        <span class="c1"># hide the Simulation Settings window</span>
-        <span class="n">set_carb_setting</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">carb_settings</span><span class="p">,</span> <span class="s2">&quot;/physics/autoPopupSimulationOutputWindow&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Properties - Override.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="k">def</span><span class="w"> </span><span class="nf">_apply_render_settings_from_cfg</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Sets rtx settings specified in the RenderCfg.&quot;&quot;&quot;</span>
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">device</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Device used by the simulation.</span>
 
-        <span class="c1"># define mapping of user-friendly RenderCfg names to native carb names</span>
-        <span class="n">rendering_setting_name_mapping</span> <span class="o">=</span> <span class="p">{</span>
-            <span class="s2">&quot;enable_translucency&quot;</span><span class="p">:</span> <span class="s2">&quot;/rtx/translucency/enabled&quot;</span><span class="p">,</span>
-            <span class="s2">&quot;enable_reflections&quot;</span><span class="p">:</span> <span class="s2">&quot;/rtx/reflections/enabled&quot;</span><span class="p">,</span>
-            <span class="s2">&quot;enable_global_illumination&quot;</span><span class="p">:</span> <span class="s2">&quot;/rtx/indirectDiffuse/enabled&quot;</span><span class="p">,</span>
-            <span class="s2">&quot;enable_dlssg&quot;</span><span class="p">:</span> <span class="s2">&quot;/rtx-transient/dlssg/enabled&quot;</span><span class="p">,</span>
-            <span class="s2">&quot;enable_dl_denoiser&quot;</span><span class="p">:</span> <span class="s2">&quot;/rtx-transient/dldenoiser/enabled&quot;</span><span class="p">,</span>
-            <span class="s2">&quot;dlss_mode&quot;</span><span class="p">:</span> <span class="s2">&quot;/rtx/post/dlss/execMode&quot;</span><span class="p">,</span>
-            <span class="s2">&quot;enable_direct_lighting&quot;</span><span class="p">:</span> <span class="s2">&quot;/rtx/directLighting/enabled&quot;</span><span class="p">,</span>
-            <span class="s2">&quot;samples_per_pixel&quot;</span><span class="p">:</span> <span class="s2">&quot;/rtx/directLighting/sampledLighting/samplesPerPixel&quot;</span><span class="p">,</span>
-            <span class="s2">&quot;enable_shadows&quot;</span><span class="p">:</span> <span class="s2">&quot;/rtx/shadows/enabled&quot;</span><span class="p">,</span>
-            <span class="s2">&quot;enable_ambient_occlusion&quot;</span><span class="p">:</span> <span class="s2">&quot;/rtx/ambientOcclusion/enabled&quot;</span><span class="p">,</span>
-        <span class="p">}</span>
-
-        <span class="n">not_carb_settings</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;rendering_mode&quot;</span><span class="p">,</span> <span class="s2">&quot;carb_settings&quot;</span><span class="p">,</span> <span class="s2">&quot;antialiasing_mode&quot;</span><span class="p">]</span>
-
-        <span class="c1"># grab the rendering mode using the following priority:</span>
-        <span class="c1"># 1. command line argument --rendering_mode, if provided</span>
-        <span class="c1"># 2. rendering_mode from Render Config, if set</span>
-        <span class="c1"># 3. lastly, default to &quot;balanced&quot; mode, if neither is specified</span>
-        <span class="n">rendering_mode</span> <span class="o">=</span> <span class="n">get_carb_setting</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">carb_settings</span><span class="p">,</span> <span class="s2">&quot;/isaaclab/rendering/rendering_mode&quot;</span><span class="p">)</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="n">rendering_mode</span><span class="p">:</span>
-            <span class="n">rendering_mode</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">render</span><span class="o">.</span><span class="n">rendering_mode</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="n">rendering_mode</span><span class="p">:</span>
-            <span class="n">rendering_mode</span> <span class="o">=</span> <span class="s2">&quot;balanced&quot;</span>
-
-        <span class="c1"># set preset settings (same behavior as the CLI arg --rendering_mode)</span>
-        <span class="k">if</span> <span class="n">rendering_mode</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="c1"># check if preset is supported</span>
-            <span class="n">supported_rendering_modes</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;performance&quot;</span><span class="p">,</span> <span class="s2">&quot;balanced&quot;</span><span class="p">,</span> <span class="s2">&quot;quality&quot;</span><span class="p">]</span>
-            <span class="k">if</span> <span class="n">rendering_mode</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">supported_rendering_modes</span><span class="p">:</span>
-                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
-                    <span class="sa">f</span><span class="s2">&quot;RenderCfg rendering mode &#39;</span><span class="si">{</span><span class="n">rendering_mode</span><span class="si">}</span><span class="s2">&#39; not in supported modes </span><span class="si">{</span><span class="n">supported_rendering_modes</span><span class="si">}</span><span class="s2">.&quot;</span>
-                <span class="p">)</span>
-
-            <span class="c1"># grab isaac lab apps path</span>
-            <span class="n">isaaclab_app_exp_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)),</span> <span class="o">*</span><span class="p">[</span><span class="s2">&quot;..&quot;</span><span class="p">]</span> <span class="o">*</span> <span class="mi">4</span><span class="p">,</span> <span class="s2">&quot;apps&quot;</span><span class="p">)</span>
-            <span class="c1"># for Isaac Sim 4.5 compatibility, we use the 4.5 rendering mode app files in a different folder</span>
-            <span class="k">if</span> <span class="nb">float</span><span class="p">(</span><span class="s2">&quot;.&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_isaacsim_version</span><span class="p">[</span><span class="mi">2</span><span class="p">]))</span> <span class="o">&lt;</span> <span class="mi">5</span><span class="p">:</span>
-                <span class="n">isaaclab_app_exp_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">isaaclab_app_exp_path</span><span class="p">,</span> <span class="s2">&quot;isaacsim_4_5&quot;</span><span class="p">)</span>
-
-            <span class="c1"># grab preset settings</span>
-            <span class="n">preset_filename</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">isaaclab_app_exp_path</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;rendering_modes/</span><span class="si">{</span><span class="n">rendering_mode</span><span class="si">}</span><span class="s2">.kit&quot;</span><span class="p">)</span>
-            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">preset_filename</span><span class="p">)</span> <span class="k">as</span> <span class="n">file</span><span class="p">:</span>
-                <span class="n">preset_dict</span> <span class="o">=</span> <span class="n">toml</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">file</span><span class="p">)</span>
-            <span class="n">preset_dict</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">flatdict</span><span class="o">.</span><span class="n">FlatDict</span><span class="p">(</span><span class="n">preset_dict</span><span class="p">,</span> <span class="n">delimiter</span><span class="o">=</span><span class="s2">&quot;.&quot;</span><span class="p">))</span>
-
-            <span class="c1"># set presets</span>
-            <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">preset_dict</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-                <span class="n">key</span> <span class="o">=</span> <span class="s2">&quot;/&quot;</span> <span class="o">+</span> <span class="n">key</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;.&quot;</span><span class="p">,</span> <span class="s2">&quot;/&quot;</span><span class="p">)</span>  <span class="c1"># convert to carb setting format</span>
-                <span class="n">set_carb_setting</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">carb_settings</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
-
-        <span class="c1"># set user-friendly named settings</span>
-        <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="nb">vars</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">render</span><span class="p">)</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-            <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">not_carb_settings</span><span class="p">:</span>
-                <span class="c1"># skip unset settings and non-carb settings</span>
-                <span class="k">continue</span>
-            <span class="k">if</span> <span class="n">key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">rendering_setting_name_mapping</span><span class="p">:</span>
-                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
-                    <span class="sa">f</span><span class="s2">&quot;&#39;</span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s2">&#39; in RenderCfg not found. Note: internal &#39;rendering_setting_name_mapping&#39; dictionary might&quot;</span>
-                    <span class="s2">&quot; need to be updated.&quot;</span>
-                <span class="p">)</span>
-            <span class="n">key</span> <span class="o">=</span> <span class="n">rendering_setting_name_mapping</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
-            <span class="n">set_carb_setting</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">carb_settings</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
-
-        <span class="c1"># set general carb settings</span>
-        <span class="n">carb_settings</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">render</span><span class="o">.</span><span class="n">carb_settings</span>
-        <span class="k">if</span> <span class="n">carb_settings</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">carb_settings</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-                <span class="k">if</span> <span class="s2">&quot;_&quot;</span> <span class="ow">in</span> <span class="n">key</span><span class="p">:</span>
-                    <span class="n">key</span> <span class="o">=</span> <span class="s2">&quot;/&quot;</span> <span class="o">+</span> <span class="n">key</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;_&quot;</span><span class="p">,</span> <span class="s2">&quot;/&quot;</span><span class="p">)</span>  <span class="c1"># convert from python variable style string</span>
-                <span class="k">elif</span> <span class="s2">&quot;.&quot;</span> <span class="ow">in</span> <span class="n">key</span><span class="p">:</span>
-                    <span class="n">key</span> <span class="o">=</span> <span class="s2">&quot;/&quot;</span> <span class="o">+</span> <span class="n">key</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;.&quot;</span><span class="p">,</span> <span class="s2">&quot;/&quot;</span><span class="p">)</span>  <span class="c1"># convert from .kit file style string</span>
-                <span class="k">if</span> <span class="n">get_carb_setting</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">carb_settings</span><span class="p">,</span> <span class="n">key</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;&#39;</span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s2">&#39; in RenderCfg.general_parameters does not map to a carb setting.&quot;</span><span class="p">)</span>
-                <span class="n">set_carb_setting</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">carb_settings</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
-
-        <span class="c1"># set denoiser mode</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">render</span><span class="o">.</span><span class="n">antialiasing_mode</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="k">try</span><span class="p">:</span>
-                <span class="kn">import</span><span class="w"> </span><span class="nn">omni.replicator.core</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">rep</span>
-
-                <span class="n">rep</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">set_render_rtx_realtime</span><span class="p">(</span><span class="n">antialiasing</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">render</span><span class="o">.</span><span class="n">antialiasing_mode</span><span class="p">)</span>
-            <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
-                <span class="k">pass</span>
-
-        <span class="c1"># WAR: Ensure /rtx/renderMode RaytracedLighting is correctly cased.</span>
-        <span class="k">if</span> <span class="n">get_carb_setting</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">carb_settings</span><span class="p">,</span> <span class="s2">&quot;/rtx/rendermode&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="o">==</span> <span class="s2">&quot;raytracedlighting&quot;</span><span class="p">:</span>
-            <span class="n">set_carb_setting</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">carb_settings</span><span class="p">,</span> <span class="s2">&quot;/rtx/rendermode&quot;</span><span class="p">,</span> <span class="s2">&quot;RaytracedLighting&quot;</span><span class="p">)</span>
+<span class="sd">        Note:</span>
+<span class="sd">            In Omniverse, it is possible to configure multiple GPUs for rendering, while physics engine</span>
+<span class="sd">            operates on a single GPU. This function returns the device that is used for physics simulation.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_physics_device</span>
 
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Operations - New.</span>
@@ -1332,6 +1239,127 @@
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Helper Functions</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_apply_physics_settings</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Sets various carb physics settings.&quot;&quot;&quot;</span>
+        <span class="c1"># enable hydra scene-graph instancing</span>
+        <span class="c1"># note: this allows rendering of instanceable assets on the GUI</span>
+        <span class="n">set_carb_setting</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">carb_settings</span><span class="p">,</span> <span class="s2">&quot;/persistent/omnihydra/useSceneGraphInstancing&quot;</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
+        <span class="c1"># change dispatcher to use the default dispatcher in PhysX SDK instead of carb tasking</span>
+        <span class="c1"># note: dispatcher handles how threads are launched for multi-threaded physics</span>
+        <span class="n">set_carb_setting</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">carb_settings</span><span class="p">,</span> <span class="s2">&quot;/physics/physxDispatcher&quot;</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
+        <span class="c1"># disable contact processing in omni.physx</span>
+        <span class="c1"># note: we disable it by default to avoid the overhead of contact processing when it isn&#39;t needed.</span>
+        <span class="c1">#   The physics flag gets enabled when a contact sensor is created.</span>
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="p">,</span> <span class="s2">&quot;disable_contact_processing&quot;</span><span class="p">):</span>
+            <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+                <span class="s2">&quot;The `disable_contact_processing` attribute is deprecated and always set to True&quot;</span>
+                <span class="s2">&quot; to avoid unnecessary overhead. Contact processing is automatically enabled when&quot;</span>
+                <span class="s2">&quot; a contact sensor is created, so manual configuration is no longer required.&quot;</span>
+            <span class="p">)</span>
+        <span class="c1"># FIXME: From investigation, it seems this flag only affects CPU physics. For GPU physics, contacts</span>
+        <span class="c1">#  are always processed. The issue is reported to the PhysX team by @mmittal.</span>
+        <span class="n">set_carb_setting</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">carb_settings</span><span class="p">,</span> <span class="s2">&quot;/physics/disableContactProcessing&quot;</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
+        <span class="c1"># disable custom geometry for cylinder and cone collision shapes to allow contact reporting for them</span>
+        <span class="c1"># reason: cylinders and cones aren&#39;t natively supported by PhysX so we need to use custom geometry flags</span>
+        <span class="c1"># reference: https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/docs/Geometry.html?highlight=capsule#geometry</span>
+        <span class="n">set_carb_setting</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">carb_settings</span><span class="p">,</span> <span class="s2">&quot;/physics/collisionConeCustomGeometry&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+        <span class="n">set_carb_setting</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">carb_settings</span><span class="p">,</span> <span class="s2">&quot;/physics/collisionCylinderCustomGeometry&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+        <span class="c1"># hide the Simulation Settings window</span>
+        <span class="n">set_carb_setting</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">carb_settings</span><span class="p">,</span> <span class="s2">&quot;/physics/autoPopupSimulationOutputWindow&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_apply_render_settings_from_cfg</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Sets rtx settings specified in the RenderCfg.&quot;&quot;&quot;</span>
+
+        <span class="c1"># define mapping of user-friendly RenderCfg names to native carb names</span>
+        <span class="n">rendering_setting_name_mapping</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;enable_translucency&quot;</span><span class="p">:</span> <span class="s2">&quot;/rtx/translucency/enabled&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;enable_reflections&quot;</span><span class="p">:</span> <span class="s2">&quot;/rtx/reflections/enabled&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;enable_global_illumination&quot;</span><span class="p">:</span> <span class="s2">&quot;/rtx/indirectDiffuse/enabled&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;enable_dlssg&quot;</span><span class="p">:</span> <span class="s2">&quot;/rtx-transient/dlssg/enabled&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;enable_dl_denoiser&quot;</span><span class="p">:</span> <span class="s2">&quot;/rtx-transient/dldenoiser/enabled&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;dlss_mode&quot;</span><span class="p">:</span> <span class="s2">&quot;/rtx/post/dlss/execMode&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;enable_direct_lighting&quot;</span><span class="p">:</span> <span class="s2">&quot;/rtx/directLighting/enabled&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;samples_per_pixel&quot;</span><span class="p">:</span> <span class="s2">&quot;/rtx/directLighting/sampledLighting/samplesPerPixel&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;enable_shadows&quot;</span><span class="p">:</span> <span class="s2">&quot;/rtx/shadows/enabled&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;enable_ambient_occlusion&quot;</span><span class="p">:</span> <span class="s2">&quot;/rtx/ambientOcclusion/enabled&quot;</span><span class="p">,</span>
+        <span class="p">}</span>
+
+        <span class="n">not_carb_settings</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;rendering_mode&quot;</span><span class="p">,</span> <span class="s2">&quot;carb_settings&quot;</span><span class="p">,</span> <span class="s2">&quot;antialiasing_mode&quot;</span><span class="p">]</span>
+
+        <span class="c1"># grab the rendering mode using the following priority:</span>
+        <span class="c1"># 1. command line argument --rendering_mode, if provided</span>
+        <span class="c1"># 2. rendering_mode from Render Config, if set</span>
+        <span class="c1"># 3. lastly, default to &quot;balanced&quot; mode, if neither is specified</span>
+        <span class="n">rendering_mode</span> <span class="o">=</span> <span class="n">get_carb_setting</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">carb_settings</span><span class="p">,</span> <span class="s2">&quot;/isaaclab/rendering/rendering_mode&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">rendering_mode</span><span class="p">:</span>
+            <span class="n">rendering_mode</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">render</span><span class="o">.</span><span class="n">rendering_mode</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">rendering_mode</span><span class="p">:</span>
+            <span class="n">rendering_mode</span> <span class="o">=</span> <span class="s2">&quot;balanced&quot;</span>
+
+        <span class="c1"># set preset settings (same behavior as the CLI arg --rendering_mode)</span>
+        <span class="k">if</span> <span class="n">rendering_mode</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># check if preset is supported</span>
+            <span class="n">supported_rendering_modes</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;performance&quot;</span><span class="p">,</span> <span class="s2">&quot;balanced&quot;</span><span class="p">,</span> <span class="s2">&quot;quality&quot;</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">rendering_mode</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">supported_rendering_modes</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;RenderCfg rendering mode &#39;</span><span class="si">{</span><span class="n">rendering_mode</span><span class="si">}</span><span class="s2">&#39; not in supported modes </span><span class="si">{</span><span class="n">supported_rendering_modes</span><span class="si">}</span><span class="s2">.&quot;</span>
+                <span class="p">)</span>
+
+            <span class="c1"># grab isaac lab apps path</span>
+            <span class="n">isaaclab_app_exp_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)),</span> <span class="o">*</span><span class="p">[</span><span class="s2">&quot;..&quot;</span><span class="p">]</span> <span class="o">*</span> <span class="mi">4</span><span class="p">,</span> <span class="s2">&quot;apps&quot;</span><span class="p">)</span>
+            <span class="c1"># for Isaac Sim 4.5 compatibility, we use the 4.5 rendering mode app files in a different folder</span>
+            <span class="k">if</span> <span class="nb">float</span><span class="p">(</span><span class="s2">&quot;.&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_isaacsim_version</span><span class="p">[</span><span class="mi">2</span><span class="p">]))</span> <span class="o">&lt;</span> <span class="mi">5</span><span class="p">:</span>
+                <span class="n">isaaclab_app_exp_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">isaaclab_app_exp_path</span><span class="p">,</span> <span class="s2">&quot;isaacsim_4_5&quot;</span><span class="p">)</span>
+
+            <span class="c1"># grab preset settings</span>
+            <span class="n">preset_filename</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">isaaclab_app_exp_path</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;rendering_modes/</span><span class="si">{</span><span class="n">rendering_mode</span><span class="si">}</span><span class="s2">.kit&quot;</span><span class="p">)</span>
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">preset_filename</span><span class="p">)</span> <span class="k">as</span> <span class="n">file</span><span class="p">:</span>
+                <span class="n">preset_dict</span> <span class="o">=</span> <span class="n">toml</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">file</span><span class="p">)</span>
+            <span class="n">preset_dict</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">flatdict</span><span class="o">.</span><span class="n">FlatDict</span><span class="p">(</span><span class="n">preset_dict</span><span class="p">,</span> <span class="n">delimiter</span><span class="o">=</span><span class="s2">&quot;.&quot;</span><span class="p">))</span>
+
+            <span class="c1"># set presets</span>
+            <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">preset_dict</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="n">key</span> <span class="o">=</span> <span class="s2">&quot;/&quot;</span> <span class="o">+</span> <span class="n">key</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;.&quot;</span><span class="p">,</span> <span class="s2">&quot;/&quot;</span><span class="p">)</span>  <span class="c1"># convert to carb setting format</span>
+                <span class="n">set_carb_setting</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">carb_settings</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+
+        <span class="c1"># set user-friendly named settings</span>
+        <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="nb">vars</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">render</span><span class="p">)</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">not_carb_settings</span><span class="p">:</span>
+                <span class="c1"># skip unset settings and non-carb settings</span>
+                <span class="k">continue</span>
+            <span class="k">if</span> <span class="n">key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">rendering_setting_name_mapping</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;&#39;</span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s2">&#39; in RenderCfg not found. Note: internal &#39;rendering_setting_name_mapping&#39; dictionary might&quot;</span>
+                    <span class="s2">&quot; need to be updated.&quot;</span>
+                <span class="p">)</span>
+            <span class="n">key</span> <span class="o">=</span> <span class="n">rendering_setting_name_mapping</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
+            <span class="n">set_carb_setting</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">carb_settings</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+
+        <span class="c1"># set general carb settings</span>
+        <span class="n">carb_settings</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">render</span><span class="o">.</span><span class="n">carb_settings</span>
+        <span class="k">if</span> <span class="n">carb_settings</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">carb_settings</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="k">if</span> <span class="s2">&quot;_&quot;</span> <span class="ow">in</span> <span class="n">key</span><span class="p">:</span>
+                    <span class="n">key</span> <span class="o">=</span> <span class="s2">&quot;/&quot;</span> <span class="o">+</span> <span class="n">key</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;_&quot;</span><span class="p">,</span> <span class="s2">&quot;/&quot;</span><span class="p">)</span>  <span class="c1"># convert from python variable style string</span>
+                <span class="k">elif</span> <span class="s2">&quot;.&quot;</span> <span class="ow">in</span> <span class="n">key</span><span class="p">:</span>
+                    <span class="n">key</span> <span class="o">=</span> <span class="s2">&quot;/&quot;</span> <span class="o">+</span> <span class="n">key</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;.&quot;</span><span class="p">,</span> <span class="s2">&quot;/&quot;</span><span class="p">)</span>  <span class="c1"># convert from .kit file style string</span>
+                <span class="k">if</span> <span class="n">get_carb_setting</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">carb_settings</span><span class="p">,</span> <span class="n">key</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;&#39;</span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s2">&#39; in RenderCfg.general_parameters does not map to a carb setting.&quot;</span><span class="p">)</span>
+                <span class="n">set_carb_setting</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">carb_settings</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+
+        <span class="c1"># set denoiser mode</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">render</span><span class="o">.</span><span class="n">antialiasing_mode</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="kn">import</span><span class="w"> </span><span class="nn">omni.replicator.core</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">rep</span>
+
+                <span class="n">rep</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">set_render_rtx_realtime</span><span class="p">(</span><span class="n">antialiasing</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">render</span><span class="o">.</span><span class="n">antialiasing_mode</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+                <span class="k">pass</span>
+
+        <span class="c1"># WAR: Ensure /rtx/renderMode RaytracedLighting is correctly cased.</span>
+        <span class="k">if</span> <span class="n">get_carb_setting</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">carb_settings</span><span class="p">,</span> <span class="s2">&quot;/rtx/rendermode&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="o">==</span> <span class="s2">&quot;raytracedlighting&quot;</span><span class="p">:</span>
+            <span class="n">set_carb_setting</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">carb_settings</span><span class="p">,</span> <span class="s2">&quot;/rtx/rendermode&quot;</span><span class="p">,</span> <span class="s2">&quot;RaytracedLighting&quot;</span><span class="p">)</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_set_additional_physx_params</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Sets additional PhysX parameters that are not directly supported by the parent class.&quot;&quot;&quot;</span>
