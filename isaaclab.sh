@@ -406,9 +406,9 @@ setup_conda_env() {
 
 # setup uv environment for Isaac Lab
 setup_uv_env() {
-    # get environment name from input
     local env_name="$1"
-    local python_path="$2"
+    shift 1
+    local extra_uv_args=("$@")
 
     # check uv is installed
     if ! command -v uv &>/dev/null; then
@@ -429,7 +429,18 @@ setup_uv_env() {
     local env_path="${ISAACLAB_PATH}/${env_name}"
     if [ ! -d "${env_path}" ]; then
         echo -e "[INFO] Creating uv environment named '${env_name}'..."
-        uv venv --clear ${python_path:+--python "$python_path"} "${env_path}"
+        # make the command
+        declare -a uv_cmd=("uv" "venv")
+        uv_cmd+=("$env_path")
+        uv_cmd+=("${extra_uv_args[@]}")
+        # print the command
+        printf '[INFO] Executing:'
+        for arg in "${uv_cmd[@]}"; do
+            printf ' %q' "$arg"
+        done
+        echo
+        # run the command
+        "${uv_cmd[@]}"
     else
         echo "[INFO] uv environment '${env_name}' already exists."
     fi
@@ -496,18 +507,7 @@ print_help () {
     echo -e "\t-d, --docs           Build the documentation from source using sphinx."
     echo -e "\t-n, --new            Create a new external project or internal task from template."
     echo -e "\t-c, --conda [NAME]   Create the conda environment for Isaac Lab. Default name is 'env_isaaclab'."
-    echo -e "\t-u, --uv [NAME] [--python PYTHON_PATH]"
-    echo -e "\t                          Create the uv environment for Isaac Lab. Default name is 'env_isaaclab'."
-    echo -e "\t                          Optionally specify a Python interpreter path to use for the environment."
-    echo -e "\nExamples:"
-    echo -e "\t 1. uv environment creation:"
-    echo -e "\t\t1.a create env_isaaclab with system python3"
-    echo -e "\t\t$(basename "$0") --uv"
-    echo -e "\t\t1.b create myenv with system python3"
-    echo -e "\t\t$(basename "$0") --uv myenv               "
-    echo -e "\t\t1.c create myenv with specified Python 3.11"
-    echo -e "\t\t$(basename "$0") --uv myenv --python ${HOME}/isaacsim50/kit/python/bin/python3"
-    echo -e "\t"
+    echo -e "\t-u, --uv [NAME]      Create the uv environment for Isaac Lab. Default name is 'env_isaaclab'. Use delimiter -- to pass additional arg to uv."
     echo -e "\n" >&2
 }
 
@@ -601,20 +601,32 @@ while [[ $# -gt 0 ]]; do
             shift # past argument
             ;;
         -u|--uv)
-            uv_env_name="env_isaaclab"
-            python_path=""
-            # consume env name
-            if [[ -n "$2" && "$2" != "--python" ]]; then
-                uv_env_name="$2"
-                shift
-            fi
-            # consume python path
-            if [[ "$2" == "--python" && -n "$3" ]]; then
-                python_path="$3"
-                shift 2
-            fi
-            setup_uv_env "${uv_env_name}" "${python_path}"
             shift
+            uv_env_name="env_isaaclab"
+            extra_args=()
+
+            # look for delimiter --
+            while [[ $# -gt 0 ]]; do
+                case "$1" in
+                    --) shift; extra_args=("$@"); break ;;  # everything after -- goes to uv
+                    -*)
+                        echo "[Error] Unknown option for --uv: $1"
+                        exit 1
+                        ;;
+                    *)
+                        uv_env_name="$1"
+                        shift
+                        ;;
+                esac
+            done
+
+            echo "[INFO] Using env name: ${uv_env_name}"
+            if [[ ${#extra_args[@]} -gt 0 ]]; then
+                echo "[INFO] Forwarding extra uv args: ${extra_args[*]}"
+            fi
+
+            setup_uv_env "${uv_env_name}" "${extra_args[@]}"
+            break
             ;;
         -f|--format)
             # reset the python path to avoid conflicts with pre-commit
