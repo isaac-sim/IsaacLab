@@ -9,8 +9,8 @@ import torch
 
 import isaaclab.utils.math as math_utils
 
-from .transform_utils import transform_mul
 from .occupancy_map_utils import OccupancyMap, intersect_occupancy_maps
+from .transform_utils import transform_mul
 
 
 class HasOccupancyMap:
