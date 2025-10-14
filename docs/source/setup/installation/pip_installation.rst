@@ -59,7 +59,7 @@ Installing dependencies
 
          .. code-block:: bash
 
-            pip install "torch==2.9.0" "torchvision==0.24.0" --index-url https://download.pytorch.org/whl/test/cu130
+            pip install torch==2.9.0 torchvision==0.24.0 --index-url https://download.pytorch.org/whl/test/cu130
 
 -  Install Isaac Sim pip packages:
 

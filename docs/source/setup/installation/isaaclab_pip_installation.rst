@@ -42,7 +42,7 @@ Installing dependencies
 
          .. code-block:: bash
 
-            pip install "torch==2.9.0" "torchvision==0.24.0" --index-url https://download.pytorch.org/whl/test/cu130
+            pip install torch==2.9.0 torchvision==0.24.0 --index-url https://download.pytorch.org/whl/test/cu130
 
 -  If you want to use ``rl_games`` for training and inferencing, install the
    its Python 3.11 enabled fork:
