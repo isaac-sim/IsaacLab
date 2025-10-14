@@ -1,6 +1,23 @@
 Changelog
 ---------
 
+0.46.7 (2025-10-09)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+* Fixed :meth:`~isaaclab.devices.keyboard.se3_keyboard.Se3Keyboard.__del__` to use the correct method name
+    for unsubscribing from keyboard events "unsubscribe_to_keyboard_events" instead of "unsubscribe_from_keyboard_events".
+
+
+0.46.6 (2025-10-02)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+* Fixed scaling factor for retargeting of GR1T2 hand.
+
+
 0.46.5 (2025-09-30)
 ~~~~~~~~~~~~~~~~~~~
 
