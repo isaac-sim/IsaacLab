@@ -25,11 +25,24 @@ Installing dependencies
    In case you used UV to create your virtual environment, please replace ``pip`` with ``uv pip``
    in the following commands.
 
--  Install a CUDA-enabled PyTorch 2.7.0 build for CUDA 12.8:
+-  Install a CUDA-enabled PyTorch build that matches your system architecture:
 
-   .. code-block:: none
+   .. tab-set::
+      :sync-group: pip-platform
 
-      pip install torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
+      .. tab-item:: :icon:`fa-brands fa-linux` Linux (x86_64)
+         :sync: linux-x86_64
+
+         .. code-block:: bash
+
+            pip install torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
+
+      .. tab-item:: :icon:`fa-brands fa-linux` Linux (aarch64)
+         :sync: linux-aarch64
+
+         .. code-block:: bash
+
+            pip install "torch==2.9.0" "torchvision==0.24.0" --index-url https://download.pytorch.org/whl/test/cu130
 
 -  If you want to use ``rl_games`` for training and inferencing, install the
    its Python 3.11 enabled fork:

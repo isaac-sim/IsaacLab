@@ -112,13 +112,13 @@ ensure_cuda_torch() {
     fi
 
     if is_arm; then
-        # ARM wants cu130 nightly
-        if [[ "$v" != *"+cu130" ]]; then
-            echo "[INFO] Installing PyTorch (nightly cu130, ARM)..."
+        # ARM path: install pinned cu130 builds
+        if [[ "$v" != "2.9.0+cu130" ]]; then
+            echo "[INFO] Installing PyTorch 2.9.0 + torchvision 0.24.0 (cu130, ARM)..."
             "$py" -m pip uninstall -y torch torchvision torchaudio >/dev/null 2>&1 || true
-            "$py" -m pip install -U --pre --index-url https://download.pytorch.org/whl/nightly/cu130 torch torchvision
+            "$py" -m pip install -U --index-url https://download.pytorch.org/whl/test/cu130 torch==2.9.0 torchvision==0.24.0
         else
-            echo "[INFO] PyTorch already has +cu130."
+            echo "[INFO] PyTorch 2.9.0+cu130 already installed."
         fi
     else
         # x86_64 path: keep pinned stable versions on cu128
