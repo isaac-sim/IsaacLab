@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.4.1 (2025-09-09)
+0.4.1 (2025-10-14)
 ~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -11,6 +11,15 @@ Fixed
 * 1. added resume logic to allow wandb to continue on the same run_id
 * 2. corrected broadcasting order in distributed setup
 * 3. made score query general by using dotted keys to access dictionary of arbitrary depth
+
+
+0.4.1 (2025-09-09)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Updated opset version from 11 to 18 in RSL-RL OnnxPolicyExporter to avoid onnex downcast issue seen in aarch64.
 
 
 0.4.0 (2025-09-09)
