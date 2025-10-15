@@ -39,7 +39,6 @@ the corresponding actuator torques.
 """
 
 from .articulation import Articulation, ArticulationCfg, ArticulationData
-from .articulation import ArticulationWithThrusters, ArticulationWithThrustersCfg, ArticulationDataWithThrusters
 from .articulation import Multirotor, MultirotorCfg, MultirotorData
 from .asset_base import AssetBase
 from .asset_base_cfg import AssetBaseCfg
