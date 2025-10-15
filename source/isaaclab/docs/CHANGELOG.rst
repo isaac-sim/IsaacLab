@@ -8,7 +8,7 @@ Changelog
 Changed
 ^^^^^^^
 
-* Add `preserve_order` flag to :class:`~isaaclab.envs.mdp.actions.actions_cfg.JointPositionToLimitsActionCfg`
+* Add :attr:`preserve_order` flag to :class:`~isaaclab.envs.mdp.actions.actions_cfg.JointPositionToLimitsActionCfg`
 
 
 0.46.2 (2025-09-13)
