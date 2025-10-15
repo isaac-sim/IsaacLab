@@ -14,7 +14,7 @@ if sys.platform != "win32":
 from isaaclab.app import AppLauncher
 
 # launch omniverse app
-simulation_app = AppLauncher(headless=True).app
+simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 
 """Rest everything follows."""
 
