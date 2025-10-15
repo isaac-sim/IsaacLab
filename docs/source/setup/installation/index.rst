@@ -72,7 +72,7 @@ DGX Spark: details and limitations
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The DGX spark is a standalone machine learning device with aarch64 architecture. As a consequence, some
-features of Isaac Lab are not currently supported on the DGX spark. The most noteworthy is that the architecture *requires* CUDA ≥ 13, and thus the cu13 build of PyTorch or newer. 
+features of Isaac Lab are not currently supported on the DGX spark. The most noteworthy is that the architecture *requires* CUDA ≥ 13, and thus the cu13 build of PyTorch or newer.
 Other notable limitations with respect to Isaac Lab include...
 
 #. `SkillGen <https://isaac-sim.github.io/IsaacLab/main/source/overview/imitation-learning/skillgen.html>`_ is not explicitly supported out of the box. This
