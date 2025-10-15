@@ -11,7 +11,6 @@ from isaaclab.managers.action_manager import ActionTerm, ActionTermCfg
 from isaaclab.utils import configclass
 
 from . import binary_joint_actions, joint_actions, joint_actions_to_limits, non_holonomic_actions, task_space_actions
-from . import thrust_actions
 
 ##
 # Joint actions.
@@ -312,47 +311,3 @@ class OperationalSpaceControllerActionCfg(ActionTermCfg):
     Note: Functional only when ``nullspace_control`` is set to ``"position"`` within the
         ``OperationalSpaceControllerCfg``.
     """
-    
-@configclass
-class ThrustActionCfg(JointActionCfg):
-    """Configuration for the joint thrust action term.
-
-    See :class:`ThrustAction` for more details.
-    """
-
-    class_type: type[ActionTerm] = thrust_actions.ThrustAction
-
-    use_default_offset: bool = True
-    """Whether to use default thrust (e.g. hover thrust) configured in the articulation asset as offset.
-    Defaults to True.
-
-    If True, this flag results in overwriting the values of :attr:`offset` to the default thrust values
-    from the articulation asset.
-    """
-    
-@configclass
-class NavigationActionCfg(JointActionCfg):
-    """Configuration for the joint navigation action term.
-
-    See :class:`NavigationAction` for more details.
-    """
-
-    class_type: type[ActionTerm] = thrust_actions.NavigationAction
-
-    use_default_offset: bool = False
-    """Whether to use default thrust (e.g. hover thrust) configured in the articulation asset as offset.
-    Defaults to False.
-
-    If True, this flag results in overwriting the values of :attr:`offset` to the default thrust values
-    from the articulation asset.
-    """
-    
-    command_type: str = "vel"
-    """Type of command to apply: "vel" for velocity commands, "pos" for position commands. 
-    "acc" for acceleration commands. Defaults to "vel".
-    """
-    
-    controller_cfg: LeeVelControllerCfg = MISSING
-    """The configuration for the Lee velocity controller."""
-    
-    

@@ -98,12 +98,12 @@ class MySceneCfg(InteractiveSceneCfg):
 class CommandsCfg:
     """Command specifications for the MDP."""
 
-    target_pose = mdp.UniformPoseCommandCfg(
+    target_pose = mdp.DroneUniformPoseCommandCfg(
         asset_name="robot",
         body_name="base_link",
         resampling_time_range=(10.0, 10.0),
         debug_vis=True,
-        ranges=mdp.UniformPoseCommandCfg.Ranges(
+        ranges=mdp.DroneUniformPoseCommandCfg.Ranges(
             pos_x=(10.0, 11.0),
             pos_y=(1.0, 7.0),
             pos_z=(1.0, 5.0),

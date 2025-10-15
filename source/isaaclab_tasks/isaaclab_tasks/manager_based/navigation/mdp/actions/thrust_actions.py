@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 import torch
-from .joint_actions import JointAction
+from isaaclab.envs.mdp.actions.joint_actions import JointAction
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
@@ -50,6 +50,9 @@ class NavigationAction(JointAction):
         
         self._lvc = LeeVelController(cfg=self.cfg.controller_cfg, asset=self._asset, num_envs=self.num_envs, device=self.device)
         
+    @property
+    def action_dim(self) -> int:
+        return 3
         
     def apply_actions(self):
         """Apply the processed actions as velocity commands."""
