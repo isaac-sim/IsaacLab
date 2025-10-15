@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.11.3 (2025-10-15)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed how the Sim rendering settings are modified by the Cosmos-Mimic env cfg.
+
+
 0.11.2 (2025-10-10)
 ~~~~~~~~~~~~~~~~~~~~
 
