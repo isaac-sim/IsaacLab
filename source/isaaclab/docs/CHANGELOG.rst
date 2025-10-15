@@ -5062,8 +5062,7 @@ Added
 ~~~~~~~~~~~~~~~~~~
 
 * Added the :class:`isaaclab.app.AppLauncher` class to allow controlled instantiation of
-  the `SimulationApp <https://docs.omniverse.nvidia.com/py/isaacsim/source/isaacsim.simulation_app/docs/index.html>`_
-  and extension loading for remote deployment and ROS bridges.
+  the SimulationApp and extension loading for remote deployment and ROS bridges.
 
 Changed
 ^^^^^^^
