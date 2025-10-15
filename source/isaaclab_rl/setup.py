@@ -34,6 +34,8 @@ INSTALL_REQUIRES = [
     # make sure this is consistent with isaac sim version
     "pillow==11.3.0",
     "packaging<24",
+    # linux aarch 64 requires manual onnxscript installation
+    "onnxscript>=0.5",
 ]
 
 PYTORCH_INDEX_URL = ["https://download.pytorch.org/whl/cu128"]

@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.4.3 (2025-10-15)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Added onnxscript package to isaaclab_rl setup.py to fix onnxscript package missing issue in aarch64 platform.
+
+
 0.4.2 (2025-10-14)
 ~~~~~~~~~~~~~~~~~~
 
