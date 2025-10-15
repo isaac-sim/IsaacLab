@@ -425,5 +425,10 @@
     "package": "pipdeptree",
     "license": "UNKNOWN",
     "comment": "MIT"
+  },
+  {
+    "package": "msgpack",
+    "license": "UNKNOWN",
+    "comment": "Apache 2.0"
   }
 ]
