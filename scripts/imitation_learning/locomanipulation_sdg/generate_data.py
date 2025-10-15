@@ -14,8 +14,8 @@ import os
 from isaaclab.app import AppLauncher
 
 # Launch Isaac Lab
-parser = argparse.ArgumentParser(description="Disjoint navigation")
-parser.add_argument("--task", type=str, help="The Isaac Lab disjoint navigation task to load for data generation.")
+parser = argparse.ArgumentParser(description="Locomanipulation SDG")
+parser.add_argument("--task", type=str, help="The Isaac Lab locomanipulation SDG task to load for data generation.")
 parser.add_argument("--dataset", type=str, help="The static manipulation dataset recorded via teleoperation.")
 parser.add_argument("--output_file", type=str, help="The file name for the generated output dataset.")
 parser.add_argument(
@@ -118,27 +118,23 @@ import omni.kit
 from isaaclab.utils import configclass
 from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
 
-import isaaclab_mimic.disjoint_nav_envs  # noqa: F401
-from isaaclab_mimic.disjoint_nav_envs.disjoint_nav_env import DisjointNavEnv
-from isaaclab_mimic.navigation_path_planner.disjoint_nav.disjoint_nav_data import DisjointNavOutputData
-from isaaclab_mimic.navigation_path_planner.disjoint_nav.disjoint_nav_path_utils import ParameterizedPath, plan_path
-from isaaclab_mimic.navigation_path_planner.disjoint_nav.disjoint_nav_scene_utils import RelativePose, place_randomly
-from isaaclab_mimic.navigation_path_planner.disjoint_nav.disjoint_nav_transform_utils import (
-    transform_inv,
-    transform_mul,
-    transform_relative_pose,
-)
-from isaaclab_mimic.navigation_path_planner.disjoint_nav.occupancy_map_utils import (
+import isaaclab_mimic.locomanipulation_sdg.envs  # noqa: F401
+from isaaclab_mimic.locomanipulation_sdg.data_classes import LocomanipulationSDGOutputData
+from isaaclab_mimic.locomanipulation_sdg.envs.locomanipulation_sdg_env import LocomanipulationSDGEnv
+from isaaclab_mimic.locomanipulation_sdg.occupancy_map_utils import (
     OccupancyMap,
     merge_occupancy_maps,
     occupancy_map_add_to_stage,
 )
+from isaaclab_mimic.locomanipulation_sdg.path_utils import ParameterizedPath, plan_path
+from isaaclab_mimic.locomanipulation_sdg.scene_utils import RelativePose, place_randomly
+from isaaclab_mimic.locomanipulation_sdg.transform_utils import transform_inv, transform_mul, transform_relative_pose
 
 from isaaclab_tasks.utils import parse_env_cfg
 
 
-class DisjointNavDataGenerationState(enum.IntEnum):
-    """States for the disjoint navigation data generation state machine."""
+class LocomanipulationSDGDataGenerationState(enum.IntEnum):
+    """States for the locomanipulation SDG data generation state machine."""
 
     GRASP_OBJECT = 0
     """Robot grasps object at start position"""
@@ -160,7 +156,7 @@ class DisjointNavDataGenerationState(enum.IntEnum):
 
 
 @configclass
-class DisjointNavControlConfig:
+class LocomanipulationSDGControlConfig:
     """Configuration for navigation control parameters."""
 
     angular_gain: float = 2.0
@@ -186,7 +182,7 @@ class DisjointNavControlConfig:
 
 
 def compute_navigation_velocity(
-    current_pose: torch.Tensor, target_xy: torch.Tensor, config: DisjointNavControlConfig
+    current_pose: torch.Tensor, target_xy: torch.Tensor, config: LocomanipulationSDGControlConfig
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """Compute linear and angular velocities for navigation control.
 
@@ -220,7 +216,7 @@ def compute_navigation_velocity(
 
 
 def load_and_transform_recording_data(
-    env: DisjointNavEnv,
+    env: LocomanipulationSDGEnv,
     input_episode_data: EpisodeData,
     recording_step: int,
     reference_pose: torch.Tensor,
@@ -229,7 +225,7 @@ def load_and_transform_recording_data(
     """Load recording data and transform hand targets to current reference frame.
 
     Args:
-        env: The disjoint navigation environment
+        env: The locomanipulation SDG environment
         input_episode_data: Input episode data from static manipulation
         recording_step: Current step in the recording
         reference_pose: Original reference pose for the hand targets
@@ -249,12 +245,15 @@ def load_and_transform_recording_data(
 
 
 def setup_navigation_scene(
-    env: DisjointNavEnv, input_episode_data: EpisodeData, approach_distance: float, randomize_placement: bool = True
+    env: LocomanipulationSDGEnv,
+    input_episode_data: EpisodeData,
+    approach_distance: float,
+    randomize_placement: bool = True,
 ) -> tuple[OccupancyMap, ParameterizedPath, RelativePose, RelativePose]:
     """Set up the navigation scene with occupancy map and path planning.
 
     Args:
-        env: The disjoint navigation environment
+        env: The locomanipulation SDG environment
         input_episode_data: Input episode data
         approach_distance: Buffer distance from final goal
         randomize_placement: Whether to randomize fixture placement
@@ -295,12 +294,12 @@ def setup_navigation_scene(
 
 
 def handle_grasp_state(
-    env: DisjointNavEnv,
+    env: LocomanipulationSDGEnv,
     input_episode_data: EpisodeData,
     recording_step: int,
     lift_step: int,
-    output_data: DisjointNavOutputData,
-) -> tuple[int, DisjointNavDataGenerationState]:
+    output_data: LocomanipulationSDGOutputData,
+) -> tuple[int, LocomanipulationSDGDataGenerationState]:
     """Handle the GRASP_OBJECT state logic.
 
     Args:
@@ -316,7 +315,7 @@ def handle_grasp_state(
     recording_item = env.load_input_data(input_episode_data, recording_step)
 
     # Set control targets - robot stays stationary during grasping
-    output_data.data_generation_state = int(DisjointNavDataGenerationState.GRASP_OBJECT)
+    output_data.data_generation_state = int(LocomanipulationSDGDataGenerationState.GRASP_OBJECT)
     output_data.recording_step = recording_step
     output_data.base_velocity_target = torch.tensor([0.0, 0.0, 0.0])
 
@@ -333,21 +332,21 @@ def handle_grasp_state(
     # Update state
     next_recording_step = recording_step + 1
     next_state = (
-        DisjointNavDataGenerationState.LIFT_OBJECT
+        LocomanipulationSDGDataGenerationState.LIFT_OBJECT
         if next_recording_step > lift_step
-        else DisjointNavDataGenerationState.GRASP_OBJECT
+        else LocomanipulationSDGDataGenerationState.GRASP_OBJECT
     )
 
     return next_recording_step, next_state
 
 
 def handle_lift_state(
-    env: DisjointNavEnv,
+    env: LocomanipulationSDGEnv,
     input_episode_data: EpisodeData,
     recording_step: int,
     navigate_step: int,
-    output_data: DisjointNavOutputData,
-) -> tuple[int, DisjointNavDataGenerationState]:
+    output_data: LocomanipulationSDGOutputData,
+) -> tuple[int, LocomanipulationSDGDataGenerationState]:
     """Handle the LIFT_OBJECT state logic.
 
     Args:
@@ -363,7 +362,7 @@ def handle_lift_state(
     recording_item = env.load_input_data(input_episode_data, recording_step)
 
     # Set control targets - robot stays stationary during lifting
-    output_data.data_generation_state = int(DisjointNavDataGenerationState.LIFT_OBJECT)
+    output_data.data_generation_state = int(LocomanipulationSDGDataGenerationState.LIFT_OBJECT)
     output_data.recording_step = recording_step
     output_data.base_velocity_target = torch.tensor([0.0, 0.0, 0.0])
 
@@ -380,23 +379,23 @@ def handle_lift_state(
     # Update state
     next_recording_step = recording_step + 1
     next_state = (
-        DisjointNavDataGenerationState.NAVIGATE
+        LocomanipulationSDGDataGenerationState.NAVIGATE
         if next_recording_step > navigate_step
-        else DisjointNavDataGenerationState.LIFT_OBJECT
+        else LocomanipulationSDGDataGenerationState.LIFT_OBJECT
     )
 
     return next_recording_step, next_state
 
 
 def handle_navigate_state(
-    env: DisjointNavEnv,
+    env: LocomanipulationSDGEnv,
     input_episode_data: EpisodeData,
     recording_step: int,
     base_path_helper: ParameterizedPath,
     base_goal_approach: RelativePose,
-    config: DisjointNavControlConfig,
-    output_data: DisjointNavOutputData,
-) -> DisjointNavDataGenerationState:
+    config: LocomanipulationSDGControlConfig,
+    output_data: LocomanipulationSDGOutputData,
+) -> LocomanipulationSDGDataGenerationState:
     """Handle the NAVIGATE state logic.
 
     Args:
@@ -422,7 +421,7 @@ def handle_navigate_state(
     linear_velocity, angular_velocity = compute_navigation_velocity(current_pose, target_xy, config)
 
     # Set control targets
-    output_data.data_generation_state = int(DisjointNavDataGenerationState.NAVIGATE)
+    output_data.data_generation_state = int(LocomanipulationSDGDataGenerationState.NAVIGATE)
     output_data.recording_step = recording_step
     output_data.base_velocity_target = torch.tensor([linear_velocity, 0.0, angular_velocity])
 
@@ -441,20 +440,20 @@ def handle_navigate_state(
     distance_to_goal = torch.sqrt(torch.sum((current_pose[:2] - goal_xy) ** 2))
 
     return (
-        DisjointNavDataGenerationState.APPROACH
+        LocomanipulationSDGDataGenerationState.APPROACH
         if distance_to_goal < config.distance_threshold
-        else DisjointNavDataGenerationState.NAVIGATE
+        else LocomanipulationSDGDataGenerationState.NAVIGATE
     )
 
 
 def handle_approach_state(
-    env: DisjointNavEnv,
+    env: LocomanipulationSDGEnv,
     input_episode_data: EpisodeData,
     recording_step: int,
     base_goal: RelativePose,
-    config: DisjointNavControlConfig,
-    output_data: DisjointNavOutputData,
-) -> DisjointNavDataGenerationState:
+    config: LocomanipulationSDGControlConfig,
+    output_data: LocomanipulationSDGOutputData,
+) -> LocomanipulationSDGDataGenerationState:
     """Handle the APPROACH state logic.
 
     Args:
@@ -476,7 +475,7 @@ def handle_approach_state(
     linear_velocity, angular_velocity = compute_navigation_velocity(current_pose, goal_xy, config)
 
     # Set control targets
-    output_data.data_generation_state = int(DisjointNavDataGenerationState.APPROACH)
+    output_data.data_generation_state = int(LocomanipulationSDGDataGenerationState.APPROACH)
     output_data.recording_step = recording_step
     output_data.base_velocity_target = torch.tensor([linear_velocity, 0.0, angular_velocity])
 
@@ -494,20 +493,20 @@ def handle_approach_state(
     distance_to_goal = torch.sqrt(torch.sum((current_pose[:2] - goal_xy) ** 2))
 
     return (
-        DisjointNavDataGenerationState.DROP_OFF_OBJECT
+        LocomanipulationSDGDataGenerationState.DROP_OFF_OBJECT
         if distance_to_goal < config.distance_threshold
-        else DisjointNavDataGenerationState.APPROACH
+        else LocomanipulationSDGDataGenerationState.APPROACH
     )
 
 
 def handle_drop_off_state(
-    env: DisjointNavEnv,
+    env: LocomanipulationSDGEnv,
     input_episode_data: EpisodeData,
     recording_step: int,
     base_goal: RelativePose,
-    config: DisjointNavControlConfig,
-    output_data: DisjointNavOutputData,
-) -> tuple[int, DisjointNavDataGenerationState | None]:
+    config: LocomanipulationSDGControlConfig,
+    output_data: LocomanipulationSDGOutputData,
+) -> tuple[int, LocomanipulationSDGDataGenerationState | None]:
     """Handle the DROP_OFF_OBJECT state logic.
 
     Args:
@@ -537,7 +536,7 @@ def handle_drop_off_state(
     linear_velocity = 0.0  # Stay in place while orienting
 
     # Set control targets
-    output_data.data_generation_state = int(DisjointNavDataGenerationState.DROP_OFF_OBJECT)
+    output_data.data_generation_state = int(LocomanipulationSDGDataGenerationState.DROP_OFF_OBJECT)
     output_data.recording_step = recording_step
     output_data.base_velocity_target = torch.tensor([linear_velocity, 0.0, angular_velocity])
 
@@ -558,12 +557,12 @@ def handle_drop_off_state(
     # Continue playback if orientation is within threshold
     next_recording_step = recording_step + 1 if abs(delta_yaw) < config.angle_threshold else recording_step
 
-    return next_recording_step, DisjointNavDataGenerationState.DROP_OFF_OBJECT
+    return next_recording_step, LocomanipulationSDGDataGenerationState.DROP_OFF_OBJECT
 
 
 def populate_output_data(
-    env: DisjointNavEnv,
-    output_data: DisjointNavOutputData,
+    env: LocomanipulationSDGEnv,
+    output_data: LocomanipulationSDGOutputData,
     base_goal: RelativePose,
     base_goal_approach: RelativePose,
     base_path: torch.Tensor,
@@ -596,7 +595,7 @@ def populate_output_data(
 
 
 def replay(
-    env: DisjointNavEnv,
+    env: LocomanipulationSDGEnv,
     input_episode_data: EpisodeData,
     lift_step: int,
     navigate_step: int,
@@ -610,9 +609,9 @@ def replay(
     approach_distance: float = 1.0,
     randomize_placement: bool = True,
 ) -> None:
-    """Replay a disjoint navigation episode with state machine control.
+    """Replay a locomanipulation SDG episode with state machine control.
 
-    This function implements a state machine for disjoint navigation, where the robot:
+    This function implements a state machine for locomanipulation SDG, where the robot:
     1. Grasps an object at the start position
     2. Lifts the object while stationary
     3. Navigates with the object to an approach position
@@ -620,7 +619,7 @@ def replay(
     5. Places the object at the end position
 
     Args:
-        env: The disjoint navigation environment
+        env: The locomanipulation SDG environment
         input_episode_data: Static manipulation episode data to replay
         lift_step: Recording step where lifting phase begins
         navigate_step: Recording step where navigation phase begins
@@ -639,7 +638,7 @@ def replay(
     env.reset_to(state=input_episode_data.get_initial_state(), env_ids=torch.tensor([0]), is_relative=True)
 
     # Create navigation control configuration
-    config = DisjointNavControlConfig(
+    config = LocomanipulationSDGControlConfig(
         angular_gain=angular_gain,
         linear_gain=linear_gain,
         linear_max=linear_max,
@@ -665,8 +664,8 @@ def replay(
         )
 
     # Initialize state machine
-    output_data = DisjointNavOutputData()
-    current_state = DisjointNavDataGenerationState.GRASP_OBJECT
+    output_data = LocomanipulationSDGOutputData()
+    current_state = LocomanipulationSDGDataGenerationState.GRASP_OBJECT
     recording_step = 0
 
     # Main simulation loop with state machine
@@ -675,27 +674,27 @@ def replay(
         print(f"Current state: {current_state.name}, Recording step: {recording_step}")
 
         # Execute state-specific logic using helper functions
-        if current_state == DisjointNavDataGenerationState.GRASP_OBJECT:
+        if current_state == LocomanipulationSDGDataGenerationState.GRASP_OBJECT:
             recording_step, current_state = handle_grasp_state(
                 env, input_episode_data, recording_step, lift_step, output_data
             )
 
-        elif current_state == DisjointNavDataGenerationState.LIFT_OBJECT:
+        elif current_state == LocomanipulationSDGDataGenerationState.LIFT_OBJECT:
             recording_step, current_state = handle_lift_state(
                 env, input_episode_data, recording_step, navigate_step, output_data
             )
 
-        elif current_state == DisjointNavDataGenerationState.NAVIGATE:
+        elif current_state == LocomanipulationSDGDataGenerationState.NAVIGATE:
             current_state = handle_navigate_state(
                 env, input_episode_data, recording_step, base_path_helper, base_goal_approach, config, output_data
             )
 
-        elif current_state == DisjointNavDataGenerationState.APPROACH:
+        elif current_state == LocomanipulationSDGDataGenerationState.APPROACH:
             current_state = handle_approach_state(
                 env, input_episode_data, recording_step, base_goal, config, output_data
             )
 
-        elif current_state == DisjointNavDataGenerationState.DROP_OFF_OBJECT:
+        elif current_state == LocomanipulationSDGDataGenerationState.DROP_OFF_OBJECT:
             recording_step, next_state = handle_drop_off_state(
                 env, input_episode_data, recording_step, base_goal, config, output_data
             )
@@ -707,7 +706,7 @@ def replay(
         populate_output_data(env, output_data, base_goal, base_goal_approach, base_path_helper.points)
 
         # Attach output data to environment for recording
-        env._disjoint_nav_output_data = output_data
+        env._locomanipulation_sdg_output_data = output_data
 
         # Build and execute action
         action = env.build_action_vector(
