@@ -788,8 +788,9 @@ class SimulationContext(_SimulationContext):
         physx_scene_api.CreateEnableEnhancedDeterminismAttr(self.cfg.physx.enable_enhanced_determinism)
         # -- Set solve_articulation_contact_last by add attribute to the PhysxScene prim, and add attribute there.
         physx_prim = physx_scene_api.GetPrim()
-        if self.cfg.physx.solve_articulation_contact_last:
-            physx_prim.CreateAttribute("physxScene:solveArticulationContactLast", Sdf.ValueTypeNames.Bool).Set(True)
+        physx_prim.CreateAttribute("physxScene:solveArticulationContactLast", Sdf.ValueTypeNames.Bool).Set(
+            self.cfg.physx.solve_articulation_contact_last
+        )
 
         # -- Gravity
         # note: Isaac sim only takes the "up-axis" as the gravity direction. But physics allows any direction so we
