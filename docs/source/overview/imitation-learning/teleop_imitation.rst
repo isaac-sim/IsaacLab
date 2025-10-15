@@ -140,7 +140,7 @@ Pre-recorded demonstrations
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 We provide a pre-recorded ``dataset.hdf5`` containing 10 human demonstrations for ``Isaac-Stack-Cube-Franka-IK-Rel-v0``
-here: `[Franka Dataset] <https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.0/Isaac/IsaacLab/Mimic/franka_stack_datasets/dataset.hdf5>`__.
+here: `[Franka Dataset] <https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.1/Isaac/IsaacLab/Mimic/franka_stack_datasets/dataset.hdf5>`__.
 This dataset may be downloaded and used in the remaining tutorial steps if you do not wish to collect your own demonstrations.
 
 .. note::
@@ -451,7 +451,7 @@ Generate the dataset
 ^^^^^^^^^^^^^^^^^^^^
 
 If you skipped the prior collection and annotation step, download the pre-recorded annotated dataset ``dataset_annotated_gr1.hdf5`` from
-here: `[Annotated GR1 Dataset] <https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.0/Isaac/IsaacLab/Mimic/pick_place_datasets/dataset_annotated_gr1.hdf5>`_.
+here: `[Annotated GR1 Dataset] <https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.1/Isaac/IsaacLab/Mimic/pick_place_datasets/dataset_annotated_gr1.hdf5>`_.
 Place the file under ``IsaacLab/datasets`` and run the following command to generate a new dataset with 1000 demonstrations.
 
 .. code:: bash
@@ -552,6 +552,10 @@ Follow the same data collection, annotation, and generation process as demonstra
       --dataset_file ./datasets/dataset_g1_locomanip.hdf5 \
       --num_demos 5 --enable_pinocchio
 
+   .. note::
+
+      Depending on how the Apple Vision Pro app was initialized, the hands of the operator might be very far up or far down compared to the hands of the G1 robot. If this is the case, you can click **Stop AR** in the AR tab in Isaac Lab, and move the AR Anchor prim. Adjust it down to bring the hands of the operator lower, and up to bring them higher. Click **Start AR** to resume teleoperation session. Make sure to match the hands of the robot before clicking **Play** in the Apple Vision Pro, otherwise there will be an undesired large force generated initially.
+
    You can replay the collected demonstrations by running:
 
    .. code:: bash
@@ -567,13 +571,13 @@ Follow the same data collection, annotation, and generation process as demonstra
 
       ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/annotate_demos.py \
       --device cpu \
-      --task Isaac-PickPlace-Locomanipulation-G1-Abs-Mimic-v0 \
+      --task Isaac-Locomanipulation-G1-Abs-Mimic-v0 \
       --input_file ./datasets/dataset_g1_locomanip.hdf5 \
       --output_file ./datasets/dataset_annotated_g1_locomanip.hdf5 --enable_pinocchio
 
 
 If you skipped the prior collection and annotation step, download the pre-recorded annotated dataset ``dataset_annotated_g1_locomanip.hdf5`` from
-here: `[Annotated G1 Dataset] <https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.0/Isaac/IsaacLab/Mimic/pick_place_datasets/dataset_annotated_g1_locomanip.hdf5>`_.
+here: `[Annotated G1 Dataset] <https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.1/Isaac/IsaacLab/Mimic/pick_place_datasets/dataset_annotated_g1_locomanip.hdf5>`_.
 Place the file under ``IsaacLab/datasets`` and run the following command to generate a new dataset with 1000 demonstrations.
 
 .. code:: bash
@@ -636,32 +640,33 @@ To create a comprehensive locomanipulation dataset that combines both manipulati
 
    G1 humanoid robot performing locomanipulation with navigation capabilities.
 
-The navigation dataset generation process takes the previously generated manipulation dataset and creates scenarios where the robot must navigate from one location to another while performing manipulation tasks. This creates a more complex dataset that includes both locomotion and manipulation behaviors.
+The locomanipulation dataset generation process takes the previously generated manipulation dataset and creates scenarios where the robot must navigate from one location to another while performing manipulation tasks. This creates a more complex dataset that includes both locomotion and manipulation behaviors.
 
-To generate the navigation dataset, use the following command:
+To generate the locomanipulation dataset, use the following command:
 
 .. code:: bash
 
    ./isaaclab.sh -p \
-       scripts/imitation_learning/disjoint_navigation/generate_navigation.py \
+       scripts/imitation_learning/locomanipulation_sdg/generate_data.py \
        --device cpu \
        --kit_args="--enable isaacsim.replicator.mobility_gen" \
-       --task="Isaac-G1-Disjoint-Navigation" \
+       --task="Isaac-G1-SteeringWheel-Locomanipulation" \
        --dataset ./datasets/generated_dataset_g1_locomanip.hdf5 \
        --num_runs 1 \
        --lift_step 70 \
        --navigate_step 120 \
        --enable_pinocchio \
-       --output_file ./datasets/generated_dataset_g1_navigation.hdf5
+       --output_file ./datasets/generated_dataset_g1_locomanipulation_sdg.hdf5 \
+       --enable_cameras
 
 .. note::
 
    The input dataset (``--dataset``) should be the manipulation dataset generated in the previous step. You can specify any output filename using the ``--output_file_name`` parameter.
 
-The key parameters for navigation dataset generation are:
+The key parameters for locomanipulation dataset generation are:
 
-* ``--lift_step 70``: Number of steps for the lifting phase of the manipulation task
-* ``--navigate_step 120``: Number of steps for the navigation phase between locations
+* ``--lift_step 70``: Number of steps for the lifting phase of the manipulation task.  This should mark the point immediately after the robot has grasped the object.
+* ``--navigate_step 120``: Number of steps for the navigation phase between locations.  This should make the point where the robot has lifted the object and is ready to walk.
 * ``--output_file``: Name of the output dataset file
 
 This process creates a dataset where the robot performs the manipulation task at different locations, requiring it to navigate between points while maintaining the learned manipulation behaviors. The resulting dataset can be used to train policies that combine both locomotion and manipulation capabilities.
@@ -672,7 +677,22 @@ This process creates a dataset where the robot performs the manipulation task at
 
    .. code:: bash
 
-      ./isaaclab.sh -p scripts/imitation_learning/disjoint_navigation/plot_navigation_trajectory.py --input_file datasets/generated_dataset_g1_navigation.hdf5 --output_dir /PATH/TO/DESIRED_OUTPUT_DIR
+      ./isaaclab.sh -p scripts/imitation_learning/locomanipulation_sdg/plot_navigation_trajectory.py --input_file datasets/generated_dataset_g1_locomanipulation_sdg.hdf5 --output_dir /PATH/TO/DESIRED_OUTPUT_DIR
+
+The data generated from this locomanipulation pipeline can also be used to finetune an imitation learning policy using GR00T N1.5.  To do this,
+you may convert the generated dataset to LeRobot format as expected by GR00T N1.5, and then run the finetuning script provided
+in the GR00T N1.5 repository.  An example closed-loop policy rollout is shown in the video below:
+
+.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/locomanipulation_sdg_disjoint_nav_groot_policy_4x.gif
+   :width: 100%
+   :align: center
+   :alt: Simulation rollout of GR00T N1.5 policy finetuned for locomanipulation
+   :figclass: align-center
+
+   Simulation rollout of GR00T N1.5 policy finetuned for locomanipulation.
+
+The policy shown above uses the camera image, hand poses, hand joint positions, object pose, and base goal pose as inputs.
+The output of the model is the target base velocity, hand poses, and hand joint positions for the next several timesteps.
 
 
 Demo 3: Visuomotor Policy for a Humanoid Robot

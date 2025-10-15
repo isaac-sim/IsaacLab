@@ -8,32 +8,29 @@ import torch
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg
+from isaaclab.envs.common import ViewerCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 from isaaclab.utils.datasets import EpisodeData
 
-from isaaclab_mimic.navigation_path_planner.disjoint_nav.disjoint_nav_data import DisjointNavInputData
-from isaaclab_mimic.navigation_path_planner.disjoint_nav.disjoint_nav_scene_utils import (
-    HasPose,
-    SceneBody,
-    SceneFixture,
-)
+from isaaclab_mimic.locomanipulation_sdg.data_classes import LocomanipulationSDGInputData
+from isaaclab_mimic.locomanipulation_sdg.scene_utils import HasPose, SceneBody, SceneFixture
 
 from isaaclab_tasks.manager_based.locomanipulation.pick_place.locomanipulation_g1_env_cfg import (
     LocomanipulationG1EnvCfg,
     LocomanipulationG1SceneCfg,
 )
 
-from .disjoint_nav_env import DisjointNavEnv
-from .disjoint_nav_env_cfg import DisjointNavEnvCfg, DisjointNavRecorderManagerCfg
+from .locomanipulation_sdg_env import LocomanipulationSDGEnv
+from .locomanipulation_sdg_env_cfg import LocomanipulationSDGEnvCfg, LocomanipulationSDGRecorderManagerCfg
 
 NUM_FORKLIFTS = 6
 NUM_BOXES = 12
 
 
 @configclass
-class G1DisjointNavSceneCfg(LocomanipulationG1SceneCfg):
+class G1LocomanipulationSDGSceneCfg(LocomanipulationG1SceneCfg):
 
     packing_table_2 = AssetBaseCfg(
         prim_path="/World/envs/env_.*/PackingTable2",
@@ -52,7 +49,7 @@ class G1DisjointNavSceneCfg(LocomanipulationG1SceneCfg):
 # Add forklifts
 for i in range(NUM_FORKLIFTS):
     setattr(
-        G1DisjointNavSceneCfg,
+        G1LocomanipulationSDGSceneCfg,
         f"forklift_{i}",
         AssetBaseCfg(
             prim_path=f"/World/envs/env_.*/Forklift{i}",
@@ -67,7 +64,7 @@ for i in range(NUM_FORKLIFTS):
 # Add boxes
 for i in range(NUM_BOXES):
     setattr(
-        G1DisjointNavSceneCfg,
+        G1LocomanipulationSDGSceneCfg,
         f"box_{i}",
         AssetBaseCfg(
             prim_path=f"/World/envs/env_.*/Box{i}",
@@ -81,12 +78,18 @@ for i in range(NUM_BOXES):
 
 
 @configclass
-class G1DisjointNavEnvCfg(LocomanipulationG1EnvCfg, DisjointNavEnvCfg):
+class G1LocomanipulationSDGEnvCfg(LocomanipulationG1EnvCfg, LocomanipulationSDGEnvCfg):
     """Configuration for the G1 29DoF environment."""
 
+    viewer: ViewerCfg = ViewerCfg(
+        eye=(0.0, 3.0, 1.25), lookat=(0.0, 0.0, 0.5), origin_type="asset_body", asset_name="robot", body_name="pelvis"
+    )
+
     # Scene settings
-    scene: G1DisjointNavSceneCfg = G1DisjointNavSceneCfg(num_envs=1, env_spacing=2.5, replicate_physics=True)
-    recorders: DisjointNavRecorderManagerCfg = DisjointNavRecorderManagerCfg()
+    scene: G1LocomanipulationSDGSceneCfg = G1LocomanipulationSDGSceneCfg(
+        num_envs=1, env_spacing=2.5, replicate_physics=True
+    )
+    recorders: LocomanipulationSDGRecorderManagerCfg = LocomanipulationSDGRecorderManagerCfg()
 
     def __post_init__(self):
         """Post initialization."""
@@ -104,9 +107,9 @@ class G1DisjointNavEnvCfg(LocomanipulationG1EnvCfg, DisjointNavEnvCfg):
         self.actions.upper_body_ik.controller.urdf_path = retrieve_file_path(urdf_omniverse_path)
 
 
-class G1DisjointNavEnv(DisjointNavEnv):
+class G1LocomanipulationSDGEnv(LocomanipulationSDGEnv):
 
-    def __init__(self, cfg: G1DisjointNavEnvCfg, **kwargs):
+    def __init__(self, cfg: G1LocomanipulationSDGEnvCfg, **kwargs):
         super().__init__(cfg)
         self.sim.set_camera_view([10.5, 10.5, 10.5], [0.0, 0.0, 0.5])
         self._upper_body_dim = self.action_manager.get_term("upper_body_ik").action_dim
@@ -115,7 +118,7 @@ class G1DisjointNavEnv(DisjointNavEnv):
         self._frame_pose_dim = 7
         self._number_of_finger_joints = 7
 
-    def load_input_data(self, episode_data: EpisodeData, step: int) -> DisjointNavInputData | None:
+    def load_input_data(self, episode_data: EpisodeData, step: int) -> LocomanipulationSDGInputData | None:
         dataset_action = episode_data.get_action(step)
         dataset_state = episode_data.get_state(step)
 
@@ -127,7 +130,7 @@ class G1DisjointNavEnv(DisjointNavEnv):
 
         object_pose = dataset_state["rigid_object"]["object"]["root_pose"]
 
-        data = DisjointNavInputData(
+        data = LocomanipulationSDGInputData(
             left_hand_pose_target=dataset_action[0:7],
             right_hand_pose_target=dataset_action[7:14],
             left_hand_joint_positions_target=dataset_action[14:21],

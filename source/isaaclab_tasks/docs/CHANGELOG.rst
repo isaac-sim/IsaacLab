@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.11.2 (2025-10-10)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added OpenXRteleoperation devices to the Galbot stack environments.
+
+
 0.11.1 (2025-09-24)
 ~~~~~~~~~~~~~~~~~~~~
 

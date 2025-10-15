@@ -9,17 +9,14 @@ from isaaclab.envs.manager_based_rl_env import ManagerBasedRLEnv
 from isaaclab.managers.recorder_manager import RecorderTerm
 from isaaclab.utils.datasets import EpisodeData
 
-from isaaclab_mimic.navigation_path_planner.disjoint_nav.disjoint_nav_data import (
-    DisjointNavInputData,
-    DisjointNavOutputData,
-)
-from isaaclab_mimic.navigation_path_planner.disjoint_nav.disjoint_nav_scene_utils import HasPose, SceneFixture
+from isaaclab_mimic.locomanipulation_sdg.data_classes import LocomanipulationSDGInputData, LocomanipulationSDGOutputData
+from isaaclab_mimic.locomanipulation_sdg.scene_utils import HasPose, SceneFixture
 
 
-class DisjointNavOutputDataRecorder(RecorderTerm):
+class LocomanipulationSDGOutputDataRecorder(RecorderTerm):
 
     def record_pre_step(self):
-        output_data: DisjointNavOutputData = self._env._disjoint_nav_output_data
+        output_data: LocomanipulationSDGOutputData = self._env._locomanipulation_sdg_output_data
 
         output_data_dict = {
             "left_hand_pose_target": output_data.left_hand_pose_target[None, :],
@@ -39,19 +36,19 @@ class DisjointNavOutputDataRecorder(RecorderTerm):
             "obstacle_fixture_poses": output_data.obstacle_fixture_poses,
         }
 
-        return "disjoint_nav_output_data", output_data_dict
+        return "locomanipulation_sdg_output_data", output_data_dict
 
 
-class DisjointNavEnv(ManagerBasedRLEnv):
+class LocomanipulationSDGEnv(ManagerBasedRLEnv):
     """An abstract base class that wraps the underlying environment, exposing methods needed for integration with
     locomanipulation replay.
 
-    This class defines the core methods needed to integrate an environment with the disjoint navigation pipeline for
+    This class defines the core methods needed to integrate an environment with the locomanipulation SDG pipeline for
     locomanipulation replay.  By implementing these methods for a new environment, the environment can be used with
-    the disjoint navigation replay function.
+    the locomanipulation SDG replay function.
     """
 
-    def load_input_data(self, episode_data: EpisodeData, step: int) -> DisjointNavInputData:
+    def load_input_data(self, episode_data: EpisodeData, step: int) -> LocomanipulationSDGInputData:
         raise NotImplementedError
 
     def build_action_vector(
