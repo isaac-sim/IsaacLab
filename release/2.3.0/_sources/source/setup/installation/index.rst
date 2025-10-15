@@ -68,6 +68,25 @@ may work but have not been validated against all Omniverse tests.
   driver from the `Unix Driver Archive <https://www.nvidia.com/en-us/drivers/unix/>`_
   using the ``.run`` installer.
 
+DGX Spark: details and limitations
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The DGX spark is a standalone machine learning device with aarch64 architecture. As a consequence, some
+features of Isaac Lab are not currently supported on the DGX spark. The most noteworthy is that the architecture *requires* CUDA ≥ 13, and thus the cu13 build of PyTorch or newer.
+Other notable limitations with respect to Isaac Lab include...
+
+#. `SkillGen <https://isaac-sim.github.io/IsaacLab/main/source/overview/imitation-learning/skillgen.html>`_ is not explicitly supported out of the box. This
+   is because cuRobo builds native CUDA/C++ extensions that requires specific tooling and library versions which may not have been explicitly documented
+   and validated for use with DGX spark. Use at your own risk!
+
+#. Extended reality teleoperation tools such as `OpenXR <https://isaac-sim.github.io/IsaacLab/release/2.3.0/source/api/lab/isaaclab.devices.html#openxr>`_ is not supported. This is due
+   to encoding performance limitations that have not yet been fully investigated.
+
+#. SKRL training with `JAX <https://docs.jax.dev/en/latest/notebooks/thinking_in_jax.html>`_ has not been explicitly validated or tested in Isaac Lab on the DGX spark, and so this functionality may be limited or
+   different than expected out of the box.
+
+#. Livestream and Hub Workstation Cache are not supported on the DGX spark.
+
 Troubleshooting
 ~~~~~~~~~~~~~~~
 

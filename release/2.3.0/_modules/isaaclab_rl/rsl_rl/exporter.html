@@ -158,10 +158,10 @@
             <label for="version-select" style="font-weight: bold; display: block;">Version</label>
           </div>
           <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
-            <option value="exporter.html" selected>release/2.3.0</option>
             <option value="../../../../../main/index.html" >main</option>
             <option value="../../../../2.1.0/index.html" >release/2.1.0</option>
             <option value="../../../../2.2.0/index.html" >release/2.2.0</option>
+            <option value="exporter.html" selected>release/2.3.0</option>
             <option value="../../../../../v2.2.1/index.html" >v2.2.1</option>
             <option value="../../../../../v2.2.0/index.html" >v2.2.0</option>
             <option value="../../../../../v2.1.1/index.html" >v2.1.1</option>
@@ -204,7 +204,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.1.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.0.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -312,7 +312,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/curriculums.html">Curriculum Utilities</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/master_omniverse.html">Mastering Omniverse for Robotics</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/cloudxr_teleoperation.html">Setting up CloudXR Teleoperation</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/simulation_performance.html">Simulation Performance</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/simulation_performance.html">Simulation Performance  and Tuning</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/how-to/optimize_stage_creation.html">Optimize Stage Creation</a></li>
 </ul>
 </details></li>
@@ -759,6 +759,7 @@
     <span class="k">def</span><span class="w"> </span><span class="nf">export</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">,</span> <span class="n">filename</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="s2">&quot;cpu&quot;</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">eval</span><span class="p">()</span>
+        <span class="n">opset_version</span> <span class="o">=</span> <span class="mi">18</span>  <span class="c1"># was 11, but it caused problems with linux-aarch, and 18 worked well across all systems.</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_recurrent</span><span class="p">:</span>
             <span class="n">obs</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">rnn</span><span class="o">.</span><span class="n">input_size</span><span class="p">)</span>
             <span class="n">h_in</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rnn</span><span class="o">.</span><span class="n">num_layers</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">rnn</span><span class="o">.</span><span class="n">hidden_size</span><span class="p">)</span>
@@ -770,7 +771,7 @@
                     <span class="p">(</span><span class="n">obs</span><span class="p">,</span> <span class="n">h_in</span><span class="p">,</span> <span class="n">c_in</span><span class="p">),</span>
                     <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">filename</span><span class="p">),</span>
                     <span class="n">export_params</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-                    <span class="n">opset_version</span><span class="o">=</span><span class="mi">11</span><span class="p">,</span>
+                    <span class="n">opset_version</span><span class="o">=</span><span class="n">opset_version</span><span class="p">,</span>
                     <span class="n">verbose</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">verbose</span><span class="p">,</span>
                     <span class="n">input_names</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;obs&quot;</span><span class="p">,</span> <span class="s2">&quot;h_in&quot;</span><span class="p">,</span> <span class="s2">&quot;c_in&quot;</span><span class="p">],</span>
                     <span class="n">output_names</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;actions&quot;</span><span class="p">,</span> <span class="s2">&quot;h_out&quot;</span><span class="p">,</span> <span class="s2">&quot;c_out&quot;</span><span class="p">],</span>
@@ -782,7 +783,7 @@
                     <span class="p">(</span><span class="n">obs</span><span class="p">,</span> <span class="n">h_in</span><span class="p">),</span>
                     <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">filename</span><span class="p">),</span>
                     <span class="n">export_params</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-                    <span class="n">opset_version</span><span class="o">=</span><span class="mi">11</span><span class="p">,</span>
+                    <span class="n">opset_version</span><span class="o">=</span><span class="n">opset_version</span><span class="p">,</span>
                     <span class="n">verbose</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">verbose</span><span class="p">,</span>
                     <span class="n">input_names</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;obs&quot;</span><span class="p">,</span> <span class="s2">&quot;h_in&quot;</span><span class="p">],</span>
                     <span class="n">output_names</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;actions&quot;</span><span class="p">,</span> <span class="s2">&quot;h_out&quot;</span><span class="p">],</span>
@@ -797,7 +798,7 @@
                 <span class="n">obs</span><span class="p">,</span>
                 <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">filename</span><span class="p">),</span>
                 <span class="n">export_params</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-                <span class="n">opset_version</span><span class="o">=</span><span class="mi">11</span><span class="p">,</span>
+                <span class="n">opset_version</span><span class="o">=</span><span class="n">opset_version</span><span class="p">,</span>
                 <span class="n">verbose</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">verbose</span><span class="p">,</span>
                 <span class="n">input_names</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;obs&quot;</span><span class="p">],</span>
                 <span class="n">output_names</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;actions&quot;</span><span class="p">],</span>

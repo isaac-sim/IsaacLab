@@ -9,7 +9,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
 
-    <title>Simulation Performance &#8212; Isaac Lab Documentation</title>
+    <title>Simulation Performance and Tuning &#8212; Isaac Lab Documentation</title>
   
   
   
@@ -159,10 +159,10 @@
             <label for="version-select" style="font-weight: bold; display: block;">Version</label>
           </div>
           <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
-            <option value="simulation_performance.html" selected>release/2.3.0</option>
             <option value="../../../../main/source/how-to/simulation_performance.html" >main</option>
             <option value="../../../2.1.0/index.html" >release/2.1.0</option>
             <option value="../../../2.2.0/source/how-to/simulation_performance.html" >release/2.2.0</option>
+            <option value="simulation_performance.html" selected>release/2.3.0</option>
             <option value="../../../../v2.2.1/source/how-to/simulation_performance.html" >v2.2.1</option>
             <option value="../../../../v2.2.0/source/how-to/simulation_performance.html" >v2.2.0</option>
             <option value="../../../../v2.1.1/source/how-to/simulation_performance.html" >v2.1.1</option>
@@ -205,7 +205,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.1.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.0.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -313,7 +313,7 @@
 <li class="toctree-l2"><a class="reference internal" href="curriculums.html">Curriculum Utilities</a></li>
 <li class="toctree-l2"><a class="reference internal" href="master_omniverse.html">Mastering Omniverse for Robotics</a></li>
 <li class="toctree-l2"><a class="reference internal" href="cloudxr_teleoperation.html">Setting up CloudXR Teleoperation</a></li>
-<li class="toctree-l2 current active"><a class="current reference internal" href="#">Simulation Performance</a></li>
+<li class="toctree-l2 current active"><a class="current reference internal" href="#">Simulation Performance  and Tuning</a></li>
 <li class="toctree-l2"><a class="reference internal" href="optimize_stage_creation.html">Optimize Stage Creation</a></li>
 </ul>
 </details></li>
@@ -642,7 +642,7 @@
               
 
 <div id="jb-print-docs-body" class="onlyprint">
-    <h1>Simulation Performance</h1>
+    <h1>Simulation Performance  and Tuning</h1>
     <!-- Table of contents -->
     <div id="print-main-content">
         <div id="jb-print-toc">
@@ -665,8 +665,8 @@
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <section id="simulation-performance">
-<h1>Simulation Performance<a class="headerlink" href="#simulation-performance" title="Permalink to this heading">#</a></h1>
+  <section id="simulation-performance-and-tuning">
+<h1>Simulation Performance  and Tuning<a class="headerlink" href="#simulation-performance-and-tuning" title="Permalink to this heading">#</a></h1>
 <p>The performance of the simulation can be affected by various factors, including the number of objects in the scene,
 the complexity of the physics simulation, and the hardware being used. Here are some tips to improve performance:</p>
 <ol class="arabic simple">
@@ -704,6 +704,11 @@ if the geometry is not part of a dynamic rigid body.</p>
 </section>
 <section id="additional-performance-guides">
 <h2>Additional Performance Guides<a class="headerlink" href="#additional-performance-guides" title="Permalink to this heading">#</a></h2>
+<p>There are many ways to “tune” the performance of the simulation, but the way you choose largely depends on what you are trying to simulate. In general, the first place
+you will want to look for performance gains is with the <a class="reference external" href="https://docs.omniverse.nvidia.com/kit/docs/omni_physics/107.3/dev_guide/guides.html">physics engine</a>. Next to rendering
+and running deep learning models, the physics engine is the most computationally costly. Tuning the physics sim to limit the scope to only the task of interest is a great place to
+start hunting for performance gains.</p>
+<p>We have recently released a new <a class="reference external" href="https://docs.omniverse.nvidia.com/kit/docs/omni_physics/107.3/dev_guide/guides/gripper_tuning_example.html">gripper tuning guide</a> , specific to contact and grasp tuning. Please check it first if you intend to use robot grippers. For additional details, you should also checkout these guides!</p>
 <ul class="simple">
 <li><p><a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/reference_material/sim_performance_optimization_handbook.html">Isaac Sim Performance Optimization Handbook</a></p></li>
 <li><p><a class="reference external" href="https://docs.omniverse.nvidia.com/kit/docs/omni_physics/latest/dev_guide/guides/physics-performance.html">Omni Physics Simulation Performance Guide</a></p></li>
