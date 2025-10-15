@@ -365,7 +365,7 @@ class MeshFloatingObstaclesTerrainCfg(SubTerrainBaseCfg):
         right_wall_cfg,
         back_wall_cfg,
         front_wall_cfg,
-        top_wall_cfg,
+        # top_wall_cfg,
         bottom_wall_cfg,
     ]
 

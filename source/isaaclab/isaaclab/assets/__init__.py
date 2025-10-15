@@ -38,7 +38,9 @@ specified joint targets are not directly applied to the simulator but are instea
 the corresponding actuator torques.
 """
 
-from .articulation import Articulation, ArticulationCfg, ArticulationData, ArticulationWithThrusters, ArticulationWithThrustersCfg, ArticulationDataWithThrusters
+from .articulation import Articulation, ArticulationCfg, ArticulationData
+from .articulation import ArticulationWithThrusters, ArticulationWithThrustersCfg, ArticulationDataWithThrusters
+from .articulation import Multirotor, MultirotorCfg, MultirotorData
 from .asset_base import AssetBase
 from .asset_base_cfg import AssetBaseCfg
 from .deformable_object import DeformableObject, DeformableObjectCfg, DeformableObjectData

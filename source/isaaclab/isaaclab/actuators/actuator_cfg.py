@@ -315,9 +315,9 @@ class ThrusterCfg():
     tau_dec_range: tuple[float, float] = (0.005, 0.005)
     """Range of time constants when commanded output is **decreasing** (fall dynamics) [s]."""
 
-    thrust_to_torque_ratio: float = 0.07
+    torque_to_thrust_ratio: float = 0.07
     """Yaw-moment coefficient converting thrust to motor torque about +Z [N·m per N].
-    Used as ``tau_z = thrust_to_torque_ratio * thrust_z * direction``.
+    Used as ``tau_z = torque_to_thrust_ratio * thrust_z * direction``.
     """
 
     use_discrete_approximation: bool = True
@@ -331,9 +331,9 @@ class ThrusterCfg():
     integration_scheme: Literal["rk4", "euler"] = "rk4"
     """Numerical integrator for the first-order model. Choose ``"euler"`` or ``"rk4"``."""
 
-    thruster_names_expr: list[str] = ["base_link_to_back_left_prop", 
-                                   "base_link_to_back_right_prop", 
-                                   "base_link_to_front_left_prop", 
-                                   "base_link_to_front_right_prop"]
+    thruster_names_expr: list[str] = ["back_left_prop", 
+                                   "back_right_prop", 
+                                   "front_left_prop", 
+                                   "front_right_prop"]
     
     """Articulation's joint names that are part of the group."""

@@ -150,7 +150,7 @@ class Thruster():
             thrust_args = (des_thrust, self.curr_thrust, mixing, self.thrust_const, self.max_rate, self.cfg.dt)
         else:
             thrust_args = (des_thrust, self.curr_thrust, mixing, self.max_rate, self.cfg.dt)
-
+        
         self.curr_thrust[:] = self._step_thrust(*thrust_args)
 
         self.computed_thrust = self.curr_thrust

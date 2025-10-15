@@ -7,7 +7,7 @@ import math
 from dataclasses import MISSING
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import AssetBaseCfg, ArticulationWithThrustersCfg
+from isaaclab.assets import AssetBaseCfg, ArticulationWithThrustersCfg, MultirotorCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import CurriculumTermCfg as CurrTerm
 from isaaclab.managers import EventTermCfg as EventTerm
@@ -61,7 +61,7 @@ class MySceneCfg(InteractiveSceneCfg):
     )
     
     # robots
-    robot: ArticulationWithThrustersCfg = MISSING
+    robot: MultirotorCfg = MISSING
     # sensors
     depth_camera = RayCasterCameraCfg(
         prim_path="{ENV_REGEX_NS}/Robot/base_link",
@@ -118,11 +118,15 @@ class CommandsCfg:
 class ActionsCfg:
     """Action specifications for the MDP."""
 
-    velocity_commands = mdp.NavigationActionCfg(asset_name="robot", 
-                                     joint_names=[".*"], 
-                                     scale=1.0, 
-                                     use_default_offset=False,
-                                     controller_cfg=LeeVelControllerCfg())
+    velocity_commands = mdp.NavigationActionCfg(
+        asset_name="robot",
+        scale=1.0, 
+        offset=0.0,
+        preserve_order=False,
+        use_default_offset=False,
+        command_type="vel",
+        controller_cfg=LeeVelControllerCfg()
+    )
 
 @configclass
 class ObservationsCfg:

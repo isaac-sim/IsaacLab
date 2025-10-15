@@ -126,3 +126,4 @@ class ArticulationWithThrustersCfg(ArticulationCfg):
     
     rotor_directions: list[int] | None = None
     """List of rotor directions, 1 for clockwise, -1 for counter-clockwise."""
+    

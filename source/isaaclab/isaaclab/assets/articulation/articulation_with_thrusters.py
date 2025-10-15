@@ -250,7 +250,6 @@ class ArticulationWithThrusters(Articulation):
         # TODO make sure force is applied to center of gravity (important for arbitrary robots)
         # TODO @mihirk check and ask what is the correct way to include all indices of the robots.
         
-        root_body_id = 0
         all_indices = torch.arange(self._internal_force_target_sim.shape[0], device=self.device)
 
         self.root_physx_view.apply_forces_and_torques_at_position(force_data=self._internal_force_target_sim.view(-1,3),

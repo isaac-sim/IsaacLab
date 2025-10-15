@@ -17,6 +17,7 @@ import torch
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ThrusterCfg
 from isaaclab.assets.articulation import ArticulationWithThrustersCfg
+from isaaclab.assets.articulation import MultirotorCfg
 # from isaaclab.sensors import RayCasterCfg
 
 from isaaclab import ISAACLAB_EXT_DIR
@@ -31,7 +32,7 @@ LMF2_THRUSTER = ThrusterCfg()
 # Configuration - Articulation.
 ##
 
-LMF2_CFG = ArticulationWithThrustersCfg(
+LMF2_CFG = MultirotorCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAACLAB_EXT_DIR}/../isaaclab_tasks/isaaclab_tasks/manager_based/navigation/config/LMF2/LMF2_model/lmf2/lmf2.usd",
         activate_contact_sensors=True,
@@ -48,20 +49,19 @@ LMF2_CFG = ArticulationWithThrustersCfg(
             enabled_self_collisions=True, solver_position_iteration_count=4, solver_velocity_iteration_count=0
         ),
     ),
-    init_state=ArticulationWithThrustersCfg.InitialStateCfg(
+    init_state=MultirotorCfg.InitialStateCfg(
         pos=(0.0, 0.0, 0.0),
         lin_vel=(0.0, 0.0, 0.0),
         ang_vel=(0.0, 0.0, 0.0),
         rot=(1.0, 0.0, 0.0,0.0),
         rps={
-            "base_link_to_back_left_prop": 200.0,  
-            "base_link_to_back_right_prop": 200.0, 
-            "base_link_to_front_left_prop": 200.0, 
-            "base_link_to_front_right_prop": 200.0,  
+            "back_left_prop": 200.0,  
+            "back_right_prop": 200.0, 
+            "front_left_prop": 200.0, 
+            "front_right_prop": 200.0,  
         },
     ),
     actuators={"thrusters": LMF2_THRUSTER},
-    # soft_joint_pos_limit_factor=0.95,
     rotor_directions=[1, -1, 1, -1],
     allocation_matrix=[
             [0.0, 0.0, 0.0, 0.0],
@@ -70,9 +70,6 @@ LMF2_CFG = ArticulationWithThrustersCfg(
             [-0.13, -0.13, 0.13, 0.13],
             [-0.13, 0.13, 0.13, -0.13],
             [-0.07, 0.07, -0.07, 0.07],
-        ]
+        ],
+    force_application_mode="combined"
 )
-
-##
-# Configuration - Sensors.
-##
