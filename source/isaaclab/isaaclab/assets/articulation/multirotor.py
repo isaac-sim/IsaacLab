@@ -203,6 +203,9 @@ class Multirotor(Articulation):
         # Process thruster configuration (this replaces the parent's actuator processing)
         self._process_thruster_cfg()
         
+        # Update thruster buffers with actual sizes after actuators are created
+        self._update_thruster_buffers()
+        
         # Process configuration
         self._process_cfg()
         
@@ -251,6 +254,8 @@ class Multirotor(Articulation):
         self._data.thrust_target = torch.zeros(num_instances, num_thrusters, device=self.device)
         self._data.computed_thrust = torch.zeros(num_instances, num_thrusters, device=self.device)
         self._data.applied_thrust = torch.zeros(num_instances, num_thrusters, device=self.device)
+        
+        self._thrust_target_sim = torch.zeros(num_instances, num_thrusters, device=self.device)
         
         # Set actual thruster names
         self._data.thruster_names = self.thruster_names
@@ -375,7 +380,7 @@ class Multirotor(Articulation):
             
             # update targets (these are set into the simulation)
             if control_action.thrusts is not None:
-                self._data.thrust_target[:, actuator.thruster_indices] = control_action.thrusts
+                self._thrust_target_sim[:, actuator.thruster_indices] = control_action.thrusts
             
             # update state of the actuator model
             self._data.computed_thrust[:, actuator.thruster_indices] = actuator.computed_thrust
@@ -383,6 +388,7 @@ class Multirotor(Articulation):
 
     def _apply_thruster_forces_and_torques(self):
         """Apply thruster forces based on the configured mode."""
+        
         if self.cfg.force_application_mode == "individual":
             self._apply_individual_thruster_forces_and_torques()
         elif self.cfg.force_application_mode == "combined":
@@ -411,7 +417,10 @@ class Multirotor(Articulation):
             body_indices = mapping['body_indices']  # [1, 2, 3, 4]
             
             # get thruster forces from actuator
-            thruster_forces = actuator.applied_thrust  # Shape: (num_envs, 4)
+            thruster_forces = self._thrust_target_sim[:, actuator.thruster_indices] #actuator.applied_thrust  # Shape: (num_envs, 4)
+            
+            print("self.actuators: ", self.actuator)
+            print("thruster_forces: ", thruster_forces[0,:])
             
             # apply forces at each thruster location
             for i, thruster_name in enumerate(actuator.thruster_names):
@@ -452,6 +461,11 @@ class Multirotor(Articulation):
                 all_forces[indices] = world_force
                 all_torques[indices] = world_torque
                 all_positions[indices] = body_pos
+
+        print("all_forces[:5,:]: ", all_forces[:5,:])
+        print("all_torques[:5,:]: ", all_torques[:5,:])
+        print("body_poses[0, 0, 3:7]: ", body_poses[0, 0, 3:7])
+        exit()
         
         # Apply all forces at once using ALL_INDICES
         self.root_physx_view.apply_forces_and_torques_at_position(
@@ -462,13 +476,78 @@ class Multirotor(Articulation):
             is_global=True  # position is in world frame
         )
     
+    # def _apply_individual_thruster_forces_and_torques(self):
+    #     """Apply individual thruster forces at their respective body locations."""
+    #     # get current body poses 
+    #     body_poses = self.data.body_link_pose_w
+        
+    #     # Create full force/torque tensors for ALL bodies across ALL environments
+    #     # Shape: (num_envs * num_bodies, 3) = (48 * 5, 3) = (240, 3)
+    #     all_forces = torch.zeros(self.num_instances * self.num_bodies, 3, device=self.device)
+    #     all_torques = torch.zeros(self.num_instances * self.num_bodies, 3, device=self.device)
+        
+    #     # apply forces for each thruster actuator group
+    #     for actuator_name, actuator in self.actuators.items():
+    #         if not isinstance(actuator, Thruster):
+    #             continue
+                
+    #         # Get the mapping for this actuator
+    #         mapping = self._thruster_body_mapping[actuator_name]
+    #         body_indices = mapping['body_indices']  # [1, 2, 3, 4]
+            
+    #         # Use the applied thrust from the data container (updated in _apply_actuator_model)
+    #         thruster_forces = self._data.applied_thrust[:, actuator.thruster_indices]  # Shape: (num_envs, 4)
+            
+    #         # apply forces at each thruster location
+    #         for i, thruster_name in enumerate(actuator.thruster_names):
+    #             body_idx = body_indices[i]  # Use the stored body index from mapping
+                        
+    #             # get body orientation
+    #             body_quat = body_poses[:, body_idx, 3:7]  # (num_envs, 4)
+                
+    #             # get thruster force magnitude
+    #             force_magnitude = thruster_forces[:, i]  # (num_envs,)
+    #             torque_magnitude = force_magnitude * actuator.cfg.torque_to_thrust_ratio  # (num_envs,)
+                
+    #             # FIX: Use LOCAL frame force direction (not world frame)
+    #             # The force direction in the thruster's local frame
+    #             local_force_dir = torch.tensor(
+    #                 self.cfg.thruster_force_direction, device=self.device
+    #             ).expand(self.num_instances, -1)  # Shape: (num_envs, 3)
+                
+    #             # calculate local force (in thruster body's local frame)
+    #             local_force = local_force_dir * force_magnitude.unsqueeze(-1)  # (num_envs, 3)
+                
+    #             # Get rotor direction for this thruster
+    #             rotor_direction = 1.0  # default counter-clockwise
+    #             if self.cfg.rotor_directions is not None and i < len(self.cfg.rotor_directions):
+    #                 rotor_direction = float(self.cfg.rotor_directions[i])
+                
+    #             # calculate local torque (in thruster body's local frame)
+    #             local_torque = local_force_dir * torque_magnitude.unsqueeze(-1) * rotor_direction  # (num_envs, 3)
+                
+    #             # Calculate the flattened indices for this body across all environments
+    #             # Format: [env0_body_idx, env1_body_idx, env2_body_idx, ...]
+    #             indices = torch.arange(self.num_instances, device=self.device) * self.num_bodies + body_idx
+                
+    #             # Set forces only for this specific body across all environments
+    #             all_forces[indices] = local_force
+    #             all_torques[indices] = local_torque
+        
+    #     # FIX: Apply all forces at once in LOCAL frame (like combined mode)
+    #     self.root_physx_view.apply_forces_and_torques_at_position(
+    #         force_data=all_forces,  # Shape: (240, 3)
+    #         torque_data=all_torques,  # Shape: (240, 3)
+    #         position_data=None,  # Apply at center of mass of each body
+    #         indices=self._ALL_INDICES,  # Use ALL_INDICES like IsaacLab examples
+    #         is_global=False  # FIX: Use local frame like combined mode
+    #     )
+    
     def _apply_combined_wrench(self):
         """Apply combined wrench to the base link (like articulation_with_thrusters.py)."""
         # Combine individual thrusts into a wrench vector
         self._combine_thrusts()
         
-        # Apply the combined wrench to the base link (body index 0)
-        # Use ALL_INDICES like the articulation_with_thrusters.py example
         self.root_physx_view.apply_forces_and_torques_at_position(
             force_data=self._internal_force_target_sim.view(-1, 3),  # Shape: (num_envs * num_bodies, 3)
             torque_data=self._internal_torque_target_sim.view(-1, 3),  # Shape: (num_envs * num_bodies, 3)
