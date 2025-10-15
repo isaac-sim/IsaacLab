@@ -8,7 +8,7 @@ from dataclasses import dataclass
 
 
 @dataclass
-class DisjointNavInputData:
+class LocomanipulationSDGInputData:
     """Data container for in-place manipulation recording state.  Used during locomanipulation replay."""
 
     left_hand_pose_target: torch.Tensor
@@ -34,7 +34,7 @@ class DisjointNavInputData:
 
 
 @dataclass
-class DisjointNavOutputData:
+class LocomanipulationSDGOutputData:
     """A container for data that is recorded during locomanipulation replay.  This is the final output of the pipeline"""
 
     left_hand_pose_target: torch.Tensor | None = None
@@ -65,7 +65,7 @@ class DisjointNavOutputData:
     """The pose of the robot base."""
 
     data_generation_state: int | None = None
-    """The state of the the disjoint navigation replay script's state machine."""
+    """The state of the the locomanipulation SDG replay script's state machine."""
 
     base_goal_pose: torch.Tensor | None = None
     """The goal pose of the robot base (ie: the final destination before dropping off the object)"""

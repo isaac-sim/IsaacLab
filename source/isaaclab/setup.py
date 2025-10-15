@@ -46,13 +46,13 @@ INSTALL_REQUIRES = [
     "flaky",
 ]
 
-# Append Linux x86_64–only deps via PEP 508 markers
-X64 = "platform_machine in 'x86_64,AMD64'"
+# Append Linux x86_64 and ARM64 deps via PEP 508 markers
+SUPPORTED_ARCHS = "platform_machine in 'x86_64,AMD64,aarch64,arm64'"
 INSTALL_REQUIRES += [
     # required by isaaclab.isaaclab.controllers.pink_ik
-    f"pin-pink==3.1.0 ; platform_system == 'Linux' and ({X64})",
+    f"pin-pink==3.1.0 ; platform_system == 'Linux' and ({SUPPORTED_ARCHS})",
     # required by isaaclab.devices.openxr.retargeters.humanoid.fourier.gr1_t2_dex_retargeting_utils
-    f"dex-retargeting==0.4.6 ; platform_system == 'Linux' and ({X64})",
+    f"dex-retargeting==0.4.6 ; platform_system == 'Linux' and ({SUPPORTED_ARCHS})",
 ]
 
 PYTORCH_INDEX_URL = ["https://download.pytorch.org/whl/cu128"]
