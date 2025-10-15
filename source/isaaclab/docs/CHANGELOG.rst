@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.46.11 (2025-10-15)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added support for modifying the :attr:`/rtx/domeLight/upperLowerStrategy` Sim rendering setting.
+
+
 0.46.10 (2025-10-13)
 ~~~~~~~~~~~~~~~~~~~~
 
