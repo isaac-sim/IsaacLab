@@ -10,8 +10,8 @@ RL-Games
 
 .. note::
 
-  When using RL-Games with the Ray workflow for distributed training or hyperparameter tuning, 
-  please be aware that due to security risks associated with Ray, this workflow is not intended 
+  When using RL-Games with the Ray workflow for distributed training or hyperparameter tuning,
+  please be aware that due to security risks associated with Ray, this workflow is not intended
   for use outside of a strictly controlled network environment.
 
 -  Training an agent with

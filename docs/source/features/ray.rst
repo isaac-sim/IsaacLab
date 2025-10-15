@@ -18,9 +18,9 @@ the general workflow is the same.
 
 .. warning::
 
-  **Security Notice**: Due to security risks associated with Ray, 
-  this workflow is not intended for use outside of a strictly controlled 
-  network environment. Ray clusters should only be deployed in trusted, 
+  **Security Notice**: Due to security risks associated with Ray,
+  this workflow is not intended for use outside of a strictly controlled
+  network environment. Ray clusters should only be deployed in trusted,
   isolated networks with appropriate access controls and security measures in place.
 
 
