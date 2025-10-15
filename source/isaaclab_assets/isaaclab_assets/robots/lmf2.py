@@ -10,15 +10,9 @@ The following configuration parameters are available:
 * :obj:`LMF2_CFG`: The LMF2 robot with (TODO add motor propeller combination)
 """
 
-from isaaclab_assets.sensors.velodyne import VELODYNE_VLP_16_RAYCASTER_CFG
-
-import torch
-
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ThrusterCfg
-from isaaclab.assets.articulation import ArticulationWithThrustersCfg
 from isaaclab.assets.articulation import MultirotorCfg
-# from isaaclab.sensors import RayCasterCfg
 
 from isaaclab import ISAACLAB_EXT_DIR
 
