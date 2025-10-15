@@ -97,11 +97,11 @@ URDF Importer: Unresolved references for fixed joints
 -----------------------------------------------------
 
 Starting with Isaac Sim 5.1, links connected through ``fixed_joint`` elements are no longer merged when
-their URDF link entries specify mass and inertia. This is expected behaviour—those links are treated as full
-bodies rather than zero-mass reference frames. However, the USD importer currently raises
-``ReportError`` warnings showing unresolved references for such links when they lack visuals or colliders.
-This is a known bug in the importer; it creates references to visuals that do not exist. The warnings can
-be safely ignored until the importer is updated.
+their URDF link entries specify mass and inertia even if ``merge-joint`` set to True. 
+This is expected behaviour—those links are treated as full bodies rather than zero-mass reference frames.
+However, the USD importer currently raises ``ReportError`` warnings showing unresolved references for such links
+when they lack visuals or colliders. This is a known bug in the importer; it creates references to visuals
+that do not exist. The warnings can be safely ignored until the importer is updated.
 
 
 GLIBCXX errors in Conda
