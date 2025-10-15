@@ -161,10 +161,10 @@
             <label for="version-select" style="font-weight: bold; display: block;">Version</label>
           </div>
           <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
-            <option value="changelog.html" selected>release/2.3.0</option>
             <option value="../../../../main/source/refs/changelog.html" >main</option>
             <option value="../../../2.1.0/source/refs/changelog.html" >release/2.1.0</option>
             <option value="../../../2.2.0/source/refs/changelog.html" >release/2.2.0</option>
+            <option value="changelog.html" selected>release/2.3.0</option>
             <option value="../../../../v2.2.1/source/refs/changelog.html" >v2.2.1</option>
             <option value="../../../../v2.2.0/source/refs/changelog.html" >v2.2.0</option>
             <option value="../../../../v2.1.1/source/refs/changelog.html" >v2.1.1</option>
@@ -207,7 +207,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.1.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.0.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -6607,8 +6607,8 @@ determinism from PhysX. Please note this comes at the expense of performance.</p
 <section id="id657">
 <h4>Fixed<a class="headerlink" href="#id657" title="Permalink to this heading">#</a></h4>
 <ul class="simple">
-<li><p>Pinned <a class="reference external" href="https://docs.pytorch.org/docs/stable/torch.html#module-torch" title="(in PyTorch v2.8)"><code class="xref py py-mod docutils literal notranslate"><span class="pre">torch</span></code></a> version to 2.0.1 in the setup.py to keep parity version of <a class="reference external" href="https://docs.pytorch.org/docs/stable/torch.html#module-torch" title="(in PyTorch v2.8)"><code class="xref py py-mod docutils literal notranslate"><span class="pre">torch</span></code></a> supplied by
-Isaac 2023.1.1, and prevent version incompatibility between <a class="reference external" href="https://docs.pytorch.org/docs/stable/torch.html#module-torch" title="(in PyTorch v2.8)"><code class="xref py py-mod docutils literal notranslate"><span class="pre">torch</span></code></a> ==2.2 and
+<li><p>Pinned <a class="reference external" href="https://docs.pytorch.org/docs/stable/torch.html#module-torch" title="(in PyTorch v2.9)"><code class="xref py py-mod docutils literal notranslate"><span class="pre">torch</span></code></a> version to 2.0.1 in the setup.py to keep parity version of <a class="reference external" href="https://docs.pytorch.org/docs/stable/torch.html#module-torch" title="(in PyTorch v2.9)"><code class="xref py py-mod docutils literal notranslate"><span class="pre">torch</span></code></a> supplied by
+Isaac 2023.1.1, and prevent version incompatibility between <a class="reference external" href="https://docs.pytorch.org/docs/stable/torch.html#module-torch" title="(in PyTorch v2.9)"><code class="xref py py-mod docutils literal notranslate"><span class="pre">torch</span></code></a> ==2.2 and
 <code class="xref py py-mod docutils literal notranslate"><span class="pre">typing-extensions</span></code> ==3.7.4.3</p></li>
 </ul>
 </section>
@@ -6767,7 +6767,7 @@ the XForm prim instead of the Mesh prim.</p></li>
 <h4>Fixed<a class="headerlink" href="#id685" title="Permalink to this heading">#</a></h4>
 <ul class="simple">
 <li><p>Fixed test <code class="docutils literal notranslate"><span class="pre">check_base_env_anymal_locomotion.py</span></code>, which
-previously called <a class="reference external" href="https://docs.pytorch.org/docs/stable/generated/torch.jit.load.html#torch.jit.load" title="(in PyTorch v2.8)"><code class="xref py py-func docutils literal notranslate"><span class="pre">torch.jit.load()</span></code></a> with the path to a policy (which would work
+previously called <a class="reference external" href="https://docs.pytorch.org/docs/stable/generated/torch.jit.load.html#torch.jit.load" title="(in PyTorch v2.9)"><code class="xref py py-func docutils literal notranslate"><span class="pre">torch.jit.load()</span></code></a> with the path to a policy (which would work
 for a local file), rather than calling
 <a class="reference internal" href="../api/lab/isaaclab.utils.html#isaaclab.utils.assets.read_file" title="isaaclab.utils.assets.read_file"><code class="xref py py-func docutils literal notranslate"><span class="pre">isaaclab.utils.assets.read_file()</span></code></a> on the path to get the file itself.</p></li>
 </ul>
@@ -9120,8 +9120,8 @@ key <code class="docutils literal notranslate"><span class="pre">&quot;episode&q
 <section id="id1110">
 <h4>Fixed<a class="headerlink" href="#id1110" title="Permalink to this heading">#</a></h4>
 <ul class="simple">
-<li><p>Pinned <a class="reference external" href="https://docs.pytorch.org/docs/stable/torch.html#module-torch" title="(in PyTorch v2.8)"><code class="xref py py-mod docutils literal notranslate"><span class="pre">torch</span></code></a> version to 2.0.1 in the setup.py to keep parity version of <a class="reference external" href="https://docs.pytorch.org/docs/stable/torch.html#module-torch" title="(in PyTorch v2.8)"><code class="xref py py-mod docutils literal notranslate"><span class="pre">torch</span></code></a> supplied by
-Isaac 2023.1.1, and prevent version incompatibility between <a class="reference external" href="https://docs.pytorch.org/docs/stable/torch.html#module-torch" title="(in PyTorch v2.8)"><code class="xref py py-mod docutils literal notranslate"><span class="pre">torch</span></code></a> ==2.2 and
+<li><p>Pinned <a class="reference external" href="https://docs.pytorch.org/docs/stable/torch.html#module-torch" title="(in PyTorch v2.9)"><code class="xref py py-mod docutils literal notranslate"><span class="pre">torch</span></code></a> version to 2.0.1 in the setup.py to keep parity version of <a class="reference external" href="https://docs.pytorch.org/docs/stable/torch.html#module-torch" title="(in PyTorch v2.9)"><code class="xref py py-mod docutils literal notranslate"><span class="pre">torch</span></code></a> supplied by
+Isaac 2023.1.1, and prevent version incompatibility between <a class="reference external" href="https://docs.pytorch.org/docs/stable/torch.html#module-torch" title="(in PyTorch v2.9)"><code class="xref py py-mod docutils literal notranslate"><span class="pre">torch</span></code></a> ==2.2 and
 <code class="xref py py-mod docutils literal notranslate"><span class="pre">typing-extensions</span></code> ==3.7.4.3</p></li>
 </ul>
 </section>

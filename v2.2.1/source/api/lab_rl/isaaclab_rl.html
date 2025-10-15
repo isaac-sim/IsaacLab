@@ -159,10 +159,10 @@
             <label for="version-select" style="font-weight: bold; display: block;">Version</label>
           </div>
           <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
-            <option value="../../../../release/2.3.0/source/api/lab_rl/isaaclab_rl.html" >release/2.3.0</option>
             <option value="../../../../main/source/api/lab_rl/isaaclab_rl.html" >main</option>
             <option value="../../../../release/2.1.0/source/api/lab_rl/isaaclab_rl.html" >release/2.1.0</option>
             <option value="../../../../release/2.2.0/source/api/lab_rl/isaaclab_rl.html" >release/2.2.0</option>
+            <option value="../../../../release/2.3.0/source/api/lab_rl/isaaclab_rl.html" >release/2.3.0</option>
             <option value="isaaclab_rl.html" selected>v2.2.1</option>
             <option value="../../../../v2.2.0/source/api/lab_rl/isaaclab_rl.html" >v2.2.0</option>
             <option value="../../../../v2.1.1/source/api/lab_rl/isaaclab_rl.html" >v2.1.1</option>
@@ -205,7 +205,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.1.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.0.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -1559,8 +1559,8 @@ symmetry metrics. This is useful for performing ablations.</p>
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>env</strong> (<em>VecEnv</em>) – The environment object. This is used to access the environment’s properties.</p></li>
-<li><p><strong>obs</strong> (<a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.8)"><em>torch.Tensor</em></a><em> | </em><em>None</em>) – The observation tensor. If None, the observation is not used.</p></li>
-<li><p><strong>action</strong> (<a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.8)"><em>torch.Tensor</em></a><em> | </em><em>None</em>) – The action tensor. If None, the action is not used.</p></li>
+<li><p><strong>obs</strong> (<a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.9)"><em>torch.Tensor</em></a><em> | </em><em>None</em>) – The observation tensor. If None, the observation is not used.</p></li>
+<li><p><strong>action</strong> (<a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.9)"><em>torch.Tensor</em></a><em> | </em><em>None</em>) – The action tensor. If None, the action is not used.</p></li>
 <li><p><strong>obs_type</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><em>str</em></a>) – The name of the observation type. Defaults to “policy”.
 This is useful when handling augmentation for different observation groups.</p></li>
 </ul>
@@ -2531,13 +2531,13 @@ wrapper.</p>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlVecEnvWrapper.get_observations">
-<span class="sig-name descname"><span class="pre">get_observations</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.8)"><span class="pre">torch.Tensor</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../../../_modules/isaaclab_rl/rsl_rl/vecenv_wrapper.html#RslRlVecEnvWrapper.get_observations"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlVecEnvWrapper.get_observations" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">get_observations</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.9)"><span class="pre">torch.Tensor</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../../../_modules/isaaclab_rl/rsl_rl/vecenv_wrapper.html#RslRlVecEnvWrapper.get_observations"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlVecEnvWrapper.get_observations" title="Permalink to this definition">#</a></dt>
 <dd><p>Returns the current observations of the environment.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="isaaclab_rl.rsl_rl.RslRlVecEnvWrapper.episode_length_buf">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">episode_length_buf</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.8)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlVecEnvWrapper.episode_length_buf" title="Permalink to this definition">#</a></dt>
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">episode_length_buf</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.9)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#isaaclab_rl.rsl_rl.RslRlVecEnvWrapper.episode_length_buf" title="Permalink to this definition">#</a></dt>
 <dd><p>The episode length buffer.</p>
 </dd></dl>
 
