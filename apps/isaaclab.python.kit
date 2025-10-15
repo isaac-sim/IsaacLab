@@ -39,6 +39,7 @@ keywords = ["experience", "app", "usd"]
 # Isaac Sim Extra
 "isaacsim.asset.importer.mjcf" = {}
 "isaacsim.asset.importer.urdf" = {}
+"omni.kit.loop-isaac" = {}
 "omni.physx.bundle" = {}
 "omni.physx.tensors" = {}
 "omni.replicator.core" = {}
@@ -132,6 +133,12 @@ metricsAssembler.changeListenerEnabled = false
 
 # set the default ros bridge to disable on startup
 isaac.startup.ros_bridge_extension = ""
+
+# rendering performance improvements for the viewer
+app.usdrt.hierarchy.partialGpuUpdate = 1
+app.player.useFixedTimeStepping = false
+app.runLoops.main.rateLimitEnabled = false
+app.runLoops.main.manualModeEnabled = true
 
 # Disable for base application
 [settings."filter:platform"."windows-x86_64"]
