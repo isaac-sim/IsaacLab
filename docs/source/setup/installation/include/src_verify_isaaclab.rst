@@ -93,7 +93,7 @@ We recommend adding ``--headless`` for faster training.
 
          isaaclab.bat -p scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Velocity-Rough-Anymal-C-v0 --headless
 
-Isaac Lab provides the tools you'll need to create your own **Tasks** and **Workflows** for whatever your project needs may be. 
+Isaac Lab provides the tools you'll need to create your own **Tasks** and **Workflows** for whatever your project needs may be.
 Take a look at our :ref:`how-to` guides like :ref:`Adding your own learning Library <how-to-add-library>` or :ref:`Wrapping Environments <how-to-env-wrappers>` for details.
 
 .. figure:: /source/_static/setup/isaac_ants_example.jpg
