@@ -1,8 +1,8 @@
 Changelog
 ---------
 
-0.46.9 (2025-10-13)
-~~~~~~~~~~~~~~~~~~~
+0.46.10 (2025-10-13)
+~~~~~~~~~~~~~~~~~~~~
 
 Added
 ^^^^^
@@ -10,7 +10,7 @@ Added
 * Added ARM64 architecture for pink ik and dex-retargetting setup installations.
 
 
-0.46.8 (2025-10-09)
+0.46.9 (2025-10-09)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -20,7 +20,7 @@ Fixed
   for unsubscribing from keyboard events "unsubscribe_to_keyboard_events" instead of "unsubscribe_from_keyboard_events".
 
 
-0.46.7 (2025-10-02)
+0.46.8 (2025-10-02)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -29,7 +29,7 @@ Fixed
 * Fixed scaling factor for retargeting of GR1T2 hand.
 
 
-0.46.6 (2025-09-30)
+0.46.7 (2025-09-30)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -38,7 +38,7 @@ Fixed
 * Fixed finger joint indices with manus extension.
 
 
-0.46.5 (2025-09-30)
+0.46.6 (2025-09-30)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -55,6 +55,15 @@ Changed
 * Made parsing of instanced prims in :meth:`~isaaclab.sim.utils.get_all_matching_child_prims` and
   :meth:`~isaaclab.sim.utils.get_first_matching_child_prim` as the default behavior.
 * Added parsing of instanced prims in :meth:`~isaaclab.sim.utils.make_uninstanceable` to make all prims uninstanceable.
+
+
+0.46.5 (2025-10-14)
+~~~~~~~~~~~~~~~~~~~
+
+* Exposed parameter :attr:`~isaaclab.sim.spawners.PhysxCfg.solve_articulation_contact_last`
+  to configure USD attribute ``physxscene:solveArticulationContactLast``. This parameter may
+  help improve solver stability with grippers, which previously required reducing simulation time-steps.
+  :class:`~isaaclab.sim.spawners.PhysxCfg`
 
 
 0.46.4 (2025-10-06)
