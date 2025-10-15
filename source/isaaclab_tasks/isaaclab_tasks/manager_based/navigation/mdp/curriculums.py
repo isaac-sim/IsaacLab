@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Common functions that can be used to create curriculum for the learning environment.
+"""Common functions that can be used to create curriculum for the drone navigation environment.
 
 The functions can be passed to the :class:`isaaclab.managers.CurriculumTermCfg` object to enable
 the curriculum introduced by the function.
@@ -24,12 +24,9 @@ if TYPE_CHECKING:
 
 
 def terrain_levels_vel(
-    env: ManagerBasedRLEnv, env_ids: Sequence[int], asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
+    env: ManagerBasedRLEnv, env_ids: Sequence[int], asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"), command_name: str = "target_pose"
 ) -> torch.Tensor:
-    """Curriculum based on the distance the robot walked when commanded to move at a desired velocity.
-
-    This term is used to increase the difficulty of the terrain when the robot walks far enough and decrease the
-    difficulty when the robot walks less than half of the distance required by the commanded velocity.
+    """Curriculum based on the distance the drone is from the target position at the end of the episode.
 
     .. note::
         It is only possible to use this term with the terrain type ``generator``. For further information
@@ -41,14 +38,16 @@ def terrain_levels_vel(
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
     terrain: TerrainImporter = env.scene.terrain
-    command = env.command_manager.get_command("base_velocity")
-    # compute the distance the robot walked
-    distance = torch.norm(asset.data.root_pos_w[env_ids, :2] - env.scene.env_origins[env_ids, :2], dim=1)
-    # robots that walked far enough progress to harder terrains
-    move_up = distance > terrain.cfg.terrain_generator.size[0] / 2
-    # robots that walked less than half of their required distance go to simpler terrains
-    move_down = distance < torch.norm(command[env_ids, :2], dim=1) * env.max_episode_length_s * 0.5
-    move_down *= ~move_up
+    command = env.command_manager.get_command(command_name)
+
+    target_position_w = command[:, :3].clone()
+
+    current_position = asset.data.root_pos_w - env.scene.env_origins
+    position_error = torch.norm(target_position_w[env_ids] - current_position[env_ids], dim=1)
+
+    # robots that are within 1m range should progress to harder terrains
+    move_up = position_error < 1.5
+    move_down = env.termination_manager.terminated[env_ids]
     # update terrain levels
     terrain.update_env_origins(env_ids, move_up, move_down)
     # return the mean terrain level
