@@ -34,7 +34,6 @@ PER_TEST_TIMEOUTS = {
     "test_operational_space.py": 500,
     "test_non_headless_launch.py": 1000,  # This test launches the app in non-headless mode and starts simulation
     "test_rl_games_wrapper.py": 500,
-    "test_manager_based_rl_env_obs_spaces.py": 500,
 }
 """A dictionary of tests and their timeouts in seconds.
 
