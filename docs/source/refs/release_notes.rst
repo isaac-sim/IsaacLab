@@ -1348,7 +1348,7 @@ Welcome to the first official release of Isaac Lab!
 
 Building upon the foundation of the `Orbit <https://isaac-orbit.github.io/>`_ framework, we have integrated
 the RL environment designing workflow from `OmniIsaacGymEnvs <https://github.com/NVIDIA-Omniverse/OmniIsaacGymEnvs>`_.
-This allows users to choose a suitable `task-design approach <https://isaac-sim.github.io/IsaacLab/source/features/task_workflows.html>`_
+This allows users to choose a suitable :ref:`task-design approach <ref_arch>`
 for their applications.
 
 While we maintain backward compatibility with Isaac Sim 2023.1.1, we highly recommend using Isaac Lab with
