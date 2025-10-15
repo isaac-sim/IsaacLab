@@ -168,6 +168,7 @@ class _OnnxPolicyExporter(torch.nn.Module):
     def export(self, path, filename):
         self.to("cpu")
         self.eval()
+        opset_version = 18  # was 11, but it caused problems with linux-aarch, and 18 worked well across all systems.
         if self.is_recurrent:
             obs = torch.zeros(1, self.rnn.input_size)
             h_in = torch.zeros(self.rnn.num_layers, 1, self.rnn.hidden_size)
@@ -179,7 +180,7 @@ class _OnnxPolicyExporter(torch.nn.Module):
                     (obs, h_in, c_in),
                     os.path.join(path, filename),
                     export_params=True,
-                    opset_version=11,
+                    opset_version=opset_version,
                     verbose=self.verbose,
                     input_names=["obs", "h_in", "c_in"],
                     output_names=["actions", "h_out", "c_out"],
@@ -191,7 +192,7 @@ class _OnnxPolicyExporter(torch.nn.Module):
                     (obs, h_in),
                     os.path.join(path, filename),
                     export_params=True,
-                    opset_version=11,
+                    opset_version=opset_version,
                     verbose=self.verbose,
                     input_names=["obs", "h_in"],
                     output_names=["actions", "h_out"],
@@ -206,7 +207,7 @@ class _OnnxPolicyExporter(torch.nn.Module):
                 obs,
                 os.path.join(path, filename),
                 export_params=True,
-                opset_version=11,
+                opset_version=opset_version,
                 verbose=self.verbose,
                 input_names=["obs"],
                 output_names=["actions"],

@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.4.2 (2025-10-14)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Updated opset version from 11 to 18 in RSL-RL OnnxPolicyExporter to avoid onnex downcast issue seen in aarch64.
+
+
 0.4.1 (2025-09-09)
 ~~~~~~~~~~~~~~~~~~
 
