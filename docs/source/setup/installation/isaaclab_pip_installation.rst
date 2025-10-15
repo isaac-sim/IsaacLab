@@ -55,7 +55,7 @@ Installing dependencies
 
    .. code-block:: none
 
-      pip install isaaclab[isaacsim,all]==2.2.0 --extra-index-url https://pypi.nvidia.com
+      pip install isaaclab[isaacsim,all]==2.3.0 --extra-index-url https://pypi.nvidia.com
 
 
 .. include:: include/pip_verify_isaacsim.rst
