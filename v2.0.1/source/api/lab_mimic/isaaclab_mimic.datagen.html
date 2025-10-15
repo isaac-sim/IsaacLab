@@ -901,14 +901,14 @@ reducing the overhead and complexity of repeatedly querying the environment when
 <dd><dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>eef_pose</strong> (<a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.8)"><em>torch.Tensor</em></a><em> or </em><em>None</em>) – robot end effector poses of shape […, 4, 4]</p></li>
+<li><p><strong>eef_pose</strong> (<a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.9)"><em>torch.Tensor</em></a><em> or </em><em>None</em>) – robot end effector poses of shape […, 4, 4]</p></li>
 <li><p><strong>object_poses</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><em>dict</em></a><em> or </em><em>None</em>) – dictionary mapping object name to object poses
 of shape […, 4, 4]</p></li>
 <li><p><strong>subtask_term_signals</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><em>dict</em></a><em> or </em><em>None</em>) – dictionary mapping subtask name to a binary
 indicator (0 or 1) on whether subtask has been completed. Each value in the
 dictionary could be an int, float, or torch.Tensor of shape […, 1].</p></li>
-<li><p><strong>target_eef_pose</strong> (<a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.8)"><em>torch.Tensor</em></a><em> or </em><em>None</em>) – target end effector poses of shape […, 4, 4]</p></li>
-<li><p><strong>gripper_action</strong> (<a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.8)"><em>torch.Tensor</em></a><em> or </em><em>None</em>) – gripper actions of shape […, D] where D
+<li><p><strong>target_eef_pose</strong> (<a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.9)"><em>torch.Tensor</em></a><em> or </em><em>None</em>) – target end effector poses of shape […, 4, 4]</p></li>
+<li><p><strong>gripper_action</strong> (<a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.9)"><em>torch.Tensor</em></a><em> or </em><em>None</em>) – gripper actions of shape […, D] where D
 is the dimension of the gripper actuation action for the robot arm</p></li>
 </ul>
 </dd>
@@ -972,7 +972,7 @@ consuming the data, so it can be shared across multiple mimic data generators.</
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>env_cfg</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><em>dict</em></a>) – environment configuration</p></li>
-<li><p><strong>device</strong> (<a class="reference external" href="https://docs.pytorch.org/docs/stable/tensor_attributes.html#torch.device" title="(in PyTorch v2.8)"><em>torch.device</em></a>) – device to store the data</p></li>
+<li><p><strong>device</strong> (<a class="reference external" href="https://docs.pytorch.org/docs/stable/tensor_attributes.html#torch.device" title="(in PyTorch v2.9)"><em>torch.device</em></a>) – device to store the data</p></li>
 <li><p><strong>asyncio_lock</strong> (<a class="reference external" href="https://docs.python.org/3/library/asyncio-sync.html#asyncio.Lock" title="(in Python v3.14)"><em>asyncio.Lock</em></a><em> or </em><em>None</em>) – asyncio lock to use for thread safety</p></li>
 </ul>
 </dd>
@@ -1058,8 +1058,8 @@ current subtask.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>eef_pose</strong> (<a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.8)"><em>torch.Tensor</em></a>) – current 4x4 eef pose</p></li>
-<li><p><strong>object_pose</strong> (<a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.8)"><em>torch.Tensor</em></a>) – current 4x4 object pose, for the object in this subtask</p></li>
+<li><p><strong>eef_pose</strong> (<a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.9)"><em>torch.Tensor</em></a>) – current 4x4 eef pose</p></li>
+<li><p><strong>object_pose</strong> (<a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.9)"><em>torch.Tensor</em></a>) – current 4x4 object pose, for the object in this subtask</p></li>
 <li><p><strong>src_subtask_datagen_infos</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.14)"><em>list</em></a>) – DatagenInfo instance for the relevant subtask segment
 in the source demonstrations</p></li>
 </ul>
@@ -1109,8 +1109,8 @@ current subtask.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>eef_pose</strong> (<a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.8)"><em>torch.Tensor</em></a>) – current 4x4 eef pose</p></li>
-<li><p><strong>object_pose</strong> (<a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.8)"><em>torch.Tensor</em></a>) – current 4x4 object pose, for the object in this subtask</p></li>
+<li><p><strong>eef_pose</strong> (<a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.9)"><em>torch.Tensor</em></a>) – current 4x4 eef pose</p></li>
+<li><p><strong>object_pose</strong> (<a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.9)"><em>torch.Tensor</em></a>) – current 4x4 object pose, for the object in this subtask</p></li>
 <li><p><strong>src_subtask_datagen_infos</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.14)"><em>list</em></a>) – DatagenInfo instance for the relevant subtask segment
 in the source demonstrations</p></li>
 <li><p><strong>pos_weight</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a>) – weight on position for minimizing pose distance</p></li>
@@ -1164,8 +1164,8 @@ current subtask.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>eef_pose</strong> (<a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.8)"><em>torch.Tensor</em></a>) – current 4x4 eef pose</p></li>
-<li><p><strong>object_pose</strong> (<a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.8)"><em>torch.Tensor</em></a>) – current 4x4 object pose, for the object in this subtask</p></li>
+<li><p><strong>eef_pose</strong> (<a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.9)"><em>torch.Tensor</em></a>) – current 4x4 eef pose</p></li>
+<li><p><strong>object_pose</strong> (<a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.9)"><em>torch.Tensor</em></a>) – current 4x4 object pose, for the object in this subtask</p></li>
 <li><p><strong>src_subtask_datagen_infos</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.14)"><em>list</em></a>) – DatagenInfo instance for the relevant subtask segment
 in the source demonstrations</p></li>
 <li><p><strong>pos_weight</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a>) – weight on position for minimizing pose distance</p></li>
@@ -1216,8 +1216,8 @@ in the source demonstrations</p></li>
 <dd><dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>pose</strong> (<a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.8)"><em>torch.Tensor</em></a>) – 4x4 pose target for robot controller</p></li>
-<li><p><strong>gripper_action</strong> (<a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.8)"><em>torch.Tensor</em></a>) – gripper action for robot controller</p></li>
+<li><p><strong>pose</strong> (<a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.9)"><em>torch.Tensor</em></a>) – 4x4 pose target for robot controller</p></li>
+<li><p><strong>gripper_action</strong> (<a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.9)"><em>torch.Tensor</em></a>) – gripper action for robot controller</p></li>
 <li><p><strong>noise</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em> or </em><em>None</em>) – action noise amplitude to apply during execution at this timestep
 (for arm actions, not gripper actions)</p></li>
 </ul>
@@ -1281,10 +1281,10 @@ gripper actions, and action noise.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>poses</strong> (<a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.8)"><em>torch.Tensor</em></a>) – sequence of pose matrices of shape (T, 4, 4)</p></li>
-<li><p><strong>gripper_actions</strong> (<a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.8)"><em>torch.Tensor</em></a>) – sequence of gripper actions
+<li><p><strong>poses</strong> (<a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.9)"><em>torch.Tensor</em></a>) – sequence of pose matrices of shape (T, 4, 4)</p></li>
+<li><p><strong>gripper_actions</strong> (<a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.9)"><em>torch.Tensor</em></a>) – sequence of gripper actions
 that should be applied at each timestep of shape (T, D).</p></li>
-<li><p><strong>action_noise</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em> or </em><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.8)"><em>torch.Tensor</em></a>) – sequence of action noise
+<li><p><strong>action_noise</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em> or </em><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.9)"><em>torch.Tensor</em></a>) – sequence of action noise
 magnitudes that should be applied at each timestep. If a
 single float is provided, the noise magnitude will be
 constant over the trajectory.</p></li>
@@ -1390,8 +1390,8 @@ constant set of target poses (set &#64;skip_interpolation to True).</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>pose</strong> (<a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.8)"><em>torch.Tensor</em></a>) – 4x4 target pose</p></li>
-<li><p><strong>gripper_action</strong> (<a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.8)"><em>torch.Tensor</em></a>) – value for gripper action</p></li>
+<li><p><strong>pose</strong> (<a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.9)"><em>torch.Tensor</em></a>) – 4x4 target pose</p></li>
+<li><p><strong>gripper_action</strong> (<a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.9)"><em>torch.Tensor</em></a>) – value for gripper action</p></li>
 <li><p><strong>num_steps</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a>) – number of action steps when trying to reach this waypoint. Will
 add intermediate linearly interpolated points between the last pose on this trajectory
 and the target pose, so that the total number of steps is &#64;num_steps.</p></li>
