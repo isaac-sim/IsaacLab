@@ -102,6 +102,7 @@ Guidelines for modifications:
 * Miguel Alonso Jr
 * Mingyu Lee
 * Muhong Guo
+* Narendra Dahile
 * Neel Anand Jawale
 * Nicola Loi
 * Norbert Cygiert
