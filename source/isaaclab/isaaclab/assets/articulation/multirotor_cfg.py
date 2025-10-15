@@ -45,7 +45,3 @@ class MultirotorCfg(ArticulationCfg):
     
     rotor_directions: list[int] | None = None
     """List of rotor directions, -1 for clockwise, 1 for counter-clockwise."""
-    
-    force_application_mode: Literal["individual", "combined"] = "individual"
-    """Force application mode: 'individual' applies forces at each thruster location, 
-    'combined' applies combined wrench to base link. Defaults to 'individual'."""

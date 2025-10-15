@@ -132,7 +132,7 @@ class Multirotor(Articulation):
         """
         self._apply_actuator_model()
         # apply thruster forces at individual locations
-        self._apply_thruster_forces_and_torques()
+        self._apply_combined_wrench()
 
     def _initialize_impl(self):
         """Initialize the multirotor implementation."""
@@ -337,87 +337,6 @@ class Multirotor(Articulation):
             # update state of the actuator model
             self._data.computed_thrust[:, actuator.thruster_indices] = actuator.computed_thrust
             self._data.applied_thrust[:, actuator.thruster_indices] = actuator.applied_thrust
-
-    def _apply_thruster_forces_and_torques(self):
-        """Apply thruster forces based on the configured mode."""
-        
-        if self.cfg.force_application_mode == "individual":
-            self._apply_individual_thruster_forces_and_torques()
-        elif self.cfg.force_application_mode == "combined":
-            self._apply_combined_wrench()
-        else:
-            raise ValueError(f"Unknown force application mode: {self.cfg.force_application_mode}")
-    
-    def _apply_individual_thruster_forces_and_torques(self):
-        """Apply individual thruster forces at their respective body locations in LOCAL frame."""
-        
-        # Create full force/torque tensors: (num_envs * num_bodies, 3)
-        all_forces = torch.zeros(self.num_instances * self.num_bodies, 3, device=self.device)
-        all_torques = torch.zeros(self.num_instances * self.num_bodies, 3, device=self.device)
-        
-        # Collect all thruster body indices and forces
-        all_thruster_body_ids = []
-        all_thruster_forces = []
-        all_thruster_torques = []
-        
-        for actuator_name, actuator in self.actuators.items():
-            if not isinstance(actuator, Thruster):
-                continue
-                
-            mapping = self._thruster_body_mapping[actuator_name]
-            body_indices = mapping['body_indices'] 
-            
-            thruster_forces = self._thrust_target_sim[:, actuator.thruster_indices]  # (num_envs, 4)
-            
-            for i, thruster_name in enumerate(actuator.thruster_names):
-                body_idx = body_indices[i]
-                all_thruster_body_ids.append(body_idx)
-                
-                force_magnitude = thruster_forces[:, i]
-                torque_magnitude = force_magnitude * actuator.cfg.torque_to_thrust_ratio
-                
-                # Force in LOCAL frame
-                local_force_dir = torch.tensor(
-                    self.cfg.thruster_force_direction, device=self.device
-                ).expand(self.num_instances, -1)
-                
-                local_force = local_force_dir * force_magnitude.unsqueeze(-1)
-                
-                # Torque in LOCAL frame
-                rotor_direction = 1.0
-                if self.cfg.rotor_directions is not None and i < len(self.cfg.rotor_directions):
-                    rotor_direction = float(self.cfg.rotor_directions[i])
-                
-                local_torque = local_force_dir * torque_magnitude.unsqueeze(-1) * rotor_direction
-                
-                all_thruster_forces.append(local_force)
-                all_thruster_torques.append(local_torque)
-        
-        # Stack: (num_envs, num_thrusters, 3)
-        thruster_forces_stacked = torch.stack(all_thruster_forces, dim=1)
-        thruster_torques_stacked = torch.stack(all_thruster_torques, dim=1)
-        
-        # Compute flattened indices for all thrusters at once (like base class does)
-        body_ids_tensor = torch.tensor(all_thruster_body_ids, dtype=torch.long, device=self.device)
-        env_ids_tensor = torch.arange(self.num_instances, dtype=torch.long, device=self.device)
-        
-        # Create indices: (env_id * num_bodies) + body_id for all combinations
-        indices = body_ids_tensor.unsqueeze(0).repeat(self.num_instances, 1) + \
-                  env_ids_tensor.unsqueeze(1) * self.num_bodies
-        indices = indices.view(-1)  # Flatten to 1D
-        
-        # Set forces using the computed indices
-        all_forces[indices] = thruster_forces_stacked.view(-1, 3)
-        all_torques[indices] = thruster_torques_stacked.view(-1, 3)
-        
-        # Apply forces
-        self.root_physx_view.apply_forces_and_torques_at_position(
-            force_data=all_forces,
-            torque_data=all_torques,
-            position_data=None,
-            indices=self._ALL_INDICES,
-            is_global=False
-        )
     
     def _apply_combined_wrench(self):
         """Apply combined wrench to the base link (like articulation_with_thrusters.py)."""

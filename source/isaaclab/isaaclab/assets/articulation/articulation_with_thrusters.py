@@ -3,9 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Flag for pyright to ignore type errors in this file.
-# pyright: reportPrivateUsage=false
-
 from __future__ import annotations
 
 import os
