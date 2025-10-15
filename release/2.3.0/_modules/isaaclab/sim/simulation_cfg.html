@@ -158,10 +158,10 @@
             <label for="version-select" style="font-weight: bold; display: block;">Version</label>
           </div>
           <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
+            <option value="simulation_cfg.html" selected>release/2.3.0</option>
             <option value="../../../../../main/index.html" >main</option>
             <option value="../../../../2.1.0/index.html" >release/2.1.0</option>
             <option value="../../../../2.2.0/index.html" >release/2.2.0</option>
-            <option value="simulation_cfg.html" selected>release/2.3.0</option>
             <option value="../../../../../v2.2.1/index.html" >v2.2.1</option>
             <option value="../../../../../v2.2.0/index.html" >v2.2.0</option>
             <option value="../../../../../v2.1.1/index.html" >v2.1.1</option>
@@ -204,7 +204,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.0.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.1.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -881,6 +881,25 @@
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Enables ambient occlusion at the cost of some performance. Default is False.</span>
 
 <span class="sd">    This is set by the variable: ``/rtx/ambientOcclusion/enabled``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">dome_light_upper_lower_strategy</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Selects how to sample the Dome Light. Default is 0.</span>
+<span class="sd">    For more information, refer to the `documentation`_.</span>
+
+<span class="sd">    .. _documentation: https://docs.omniverse.nvidia.com/materials-and-rendering/latest/rtx-renderer_common.html#dome-light</span>
+
+<span class="sd">    Valid values are:</span>
+
+<span class="sd">    * 0: **Image-Based Lighting (IBL)** - Most accurate even for high-frequency Dome Light textures.</span>
+<span class="sd">      Can introduce sampling artifacts in real-time mode.</span>
+<span class="sd">    * 3: **Limited Image-Based Lighting** - Only sampled for reflection and refraction. Fastest, but least</span>
+<span class="sd">      accurate. Good for cases where the Dome Light contributes less than other light sources.</span>
+<span class="sd">    * 4: **Approximated Image-Based Lighting** - Fast and artifacts-free sampling in real-time mode but only</span>
+<span class="sd">      works well with a low-frequency texture (e.g., a sky with no sun disc where the sun is instead a separate</span>
+<span class="sd">      Distant Light). Requires enabling Direct Lighting denoiser.</span>
+
+<span class="sd">    This is set by the variable: ``/rtx/domeLight/upperLowerStrategy``.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">carb_settings</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>

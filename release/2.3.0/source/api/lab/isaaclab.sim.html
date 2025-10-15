@@ -161,10 +161,10 @@
             <label for="version-select" style="font-weight: bold; display: block;">Version</label>
           </div>
           <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
+            <option value="isaaclab.sim.html" selected>release/2.3.0</option>
             <option value="../../../../../main/source/api/lab/isaaclab.sim.html" >main</option>
             <option value="../../../../2.1.0/source/api/lab/isaaclab.sim.html" >release/2.1.0</option>
             <option value="../../../../2.2.0/source/api/lab/isaaclab.sim.html" >release/2.2.0</option>
-            <option value="isaaclab.sim.html" selected>release/2.3.0</option>
             <option value="../../../../../v2.2.1/source/api/lab/isaaclab.sim.html" >v2.2.1</option>
             <option value="../../../../../v2.2.0/source/api/lab/isaaclab.sim.html" >v2.2.0</option>
             <option value="../../../../../v2.1.1/source/api/lab/isaaclab.sim.html" >v2.1.1</option>
@@ -207,7 +207,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.0.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.1.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -735,6 +735,7 @@
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.RenderCfg.samples_per_pixel"><code class="docutils literal notranslate"><span class="pre">RenderCfg.samples_per_pixel</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.RenderCfg.enable_shadows"><code class="docutils literal notranslate"><span class="pre">RenderCfg.enable_shadows</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.RenderCfg.enable_ambient_occlusion"><code class="docutils literal notranslate"><span class="pre">RenderCfg.enable_ambient_occlusion</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.RenderCfg.dome_light_upper_lower_strategy"><code class="docutils literal notranslate"><span class="pre">RenderCfg.dome_light_upper_lower_strategy</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.RenderCfg.carb_settings"><code class="docutils literal notranslate"><span class="pre">RenderCfg.carb_settings</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.RenderCfg.rendering_mode"><code class="docutils literal notranslate"><span class="pre">RenderCfg.rendering_mode</span></code></a></li>
 </ul>
@@ -1711,10 +1712,13 @@ beginning. This parameter modifies the default ordering to enable this change.</
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.RenderCfg.enable_ambient_occlusion" title="isaaclab.sim.RenderCfg.enable_ambient_occlusion"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enable_ambient_occlusion</span></code></a></p></td>
 <td><p>Enables ambient occlusion at the cost of some performance.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.RenderCfg.carb_settings" title="isaaclab.sim.RenderCfg.carb_settings"><code class="xref py py-obj docutils literal notranslate"><span class="pre">carb_settings</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.RenderCfg.dome_light_upper_lower_strategy" title="isaaclab.sim.RenderCfg.dome_light_upper_lower_strategy"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dome_light_upper_lower_strategy</span></code></a></p></td>
+<td><p>Selects how to sample the Dome Light.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.RenderCfg.carb_settings" title="isaaclab.sim.RenderCfg.carb_settings"><code class="xref py py-obj docutils literal notranslate"><span class="pre">carb_settings</span></code></a></p></td>
 <td><p>A general dictionary for users to supply all carb rendering settings with native names.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.RenderCfg.rendering_mode" title="isaaclab.sim.RenderCfg.rendering_mode"><code class="xref py py-obj docutils literal notranslate"><span class="pre">rendering_mode</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.RenderCfg.rendering_mode" title="isaaclab.sim.RenderCfg.rendering_mode"><code class="xref py py-obj docutils literal notranslate"><span class="pre">rendering_mode</span></code></a></p></td>
 <td><p>The rendering mode.</p></td>
 </tr>
 </tbody>
@@ -1819,6 +1823,24 @@ thread-related activities, which can hurt performance.</p>
 <span class="sig-name descname"><span class="pre">enable_ambient_occlusion</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab.sim.RenderCfg.enable_ambient_occlusion" title="Permalink to this definition">#</a></dt>
 <dd><p>Enables ambient occlusion at the cost of some performance. Default is False.</p>
 <p>This is set by the variable: <code class="docutils literal notranslate"><span class="pre">/rtx/ambientOcclusion/enabled</span></code>.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab.sim.RenderCfg.dome_light_upper_lower_strategy">
+<span class="sig-name descname"><span class="pre">dome_light_upper_lower_strategy</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.14)"><span class="pre">Literal</span></a><span class="p"><span class="pre">[</span></span><span class="m"><span class="pre">0</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="m"><span class="pre">3</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="m"><span class="pre">4</span></span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab.sim.RenderCfg.dome_light_upper_lower_strategy" title="Permalink to this definition">#</a></dt>
+<dd><p>Selects how to sample the Dome Light. Default is 0.
+For more information, refer to the <a class="reference external" href="https://docs.omniverse.nvidia.com/materials-and-rendering/latest/rtx-renderer_common.html#dome-light">documentation</a>.</p>
+<p>Valid values are:</p>
+<ul class="simple">
+<li><p>0: <strong>Image-Based Lighting (IBL)</strong> - Most accurate even for high-frequency Dome Light textures.
+Can introduce sampling artifacts in real-time mode.</p></li>
+<li><p>3: <strong>Limited Image-Based Lighting</strong> - Only sampled for reflection and refraction. Fastest, but least
+accurate. Good for cases where the Dome Light contributes less than other light sources.</p></li>
+<li><p>4: <strong>Approximated Image-Based Lighting</strong> - Fast and artifacts-free sampling in real-time mode but only
+works well with a low-frequency texture (e.g., a sky with no sun disc where the sun is instead a separate
+Distant Light). Requires enabling Direct Lighting denoiser.</p></li>
+</ul>
+<p>This is set by the variable: <code class="docutils literal notranslate"><span class="pre">/rtx/domeLight/upperLowerStrategy</span></code>.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -2523,6 +2545,7 @@ backwards compatibility to Isaac Sim &lt; 5.0.</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.RenderCfg.samples_per_pixel"><code class="docutils literal notranslate"><span class="pre">RenderCfg.samples_per_pixel</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.RenderCfg.enable_shadows"><code class="docutils literal notranslate"><span class="pre">RenderCfg.enable_shadows</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.RenderCfg.enable_ambient_occlusion"><code class="docutils literal notranslate"><span class="pre">RenderCfg.enable_ambient_occlusion</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.RenderCfg.dome_light_upper_lower_strategy"><code class="docutils literal notranslate"><span class="pre">RenderCfg.dome_light_upper_lower_strategy</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.RenderCfg.carb_settings"><code class="docutils literal notranslate"><span class="pre">RenderCfg.carb_settings</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.RenderCfg.rendering_mode"><code class="docutils literal notranslate"><span class="pre">RenderCfg.rendering_mode</span></code></a></li>
 </ul>

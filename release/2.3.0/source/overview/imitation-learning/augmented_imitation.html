@@ -159,10 +159,10 @@
             <label for="version-select" style="font-weight: bold; display: block;">Version</label>
           </div>
           <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
+            <option value="augmented_imitation.html" selected>release/2.3.0</option>
             <option value="../../../../../main/source/overview/imitation-learning/augmented_imitation.html" >main</option>
             <option value="../../../../2.1.0/index.html" >release/2.1.0</option>
             <option value="../../../../2.2.0/index.html" >release/2.2.0</option>
-            <option value="augmented_imitation.html" selected>release/2.3.0</option>
             <option value="../../../../../v2.2.1/source/overview/imitation-learning/augmented_imitation.html" >v2.2.1</option>
             <option value="../../../../../v2.2.0/index.html" >v2.2.0</option>
             <option value="../../../../../v2.1.1/index.html" >v2.1.1</option>
@@ -205,7 +205,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.0.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.1.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -775,6 +775,10 @@ On a more powerful desktop machine, use a larger number of environments for a si
 <a class="reference internal image-reference" href="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/cosmos_output.gif"><img alt="Cosmos Transfer1 augmentation output" src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/cosmos_output.gif" style="width: 100%;" /></a>
 </figure>
 <p>We recommend using the <a class="reference external" href="https://github.com/nvidia-cosmos/cosmos-transfer1/tree/e4055e39ee9c53165e85275bdab84ed20909714a">Cosmos Transfer1</a> model for visual augmentation as we found it to produce the best results in the form of a highly diverse dataset with a wide range of visual variations. You can refer to the <a class="reference external" href="https://github.com/nvidia-cosmos/cosmos-transfer1/blob/e4055e39ee9c53165e85275bdab84ed20909714a/INSTALL.md#environment-setup">installation instructions</a>, the <a class="reference external" href="https://github.com/nvidia-cosmos/cosmos-transfer1/blob/e4055e39ee9c53165e85275bdab84ed20909714a/examples/inference_cosmos_transfer1_7b.md#download-checkpoints">checkpoint download instructions</a> and <a class="reference external" href="https://github.com/nvidia-cosmos/cosmos-transfer1/blob/e4055e39ee9c53165e85275bdab84ed20909714a/examples/inference_cosmos_transfer1_7b.md#example-2-multimodal-control">this example</a> for reference on how to use Transfer1 for this usecase. We further recommend the following settings to be used with the Transfer1 model for this task:</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This workflow has been tested with commit <code class="docutils literal notranslate"><span class="pre">e4055e39ee9c53165e85275bdab84ed20909714a</span></code> of the Cosmos Transfer1 repository, and it is the recommended version to use. After cloning the Cosmos Transfer1 repository, checkout to this specific commit by running <code class="docutils literal notranslate"><span class="pre">git</span> <span class="pre">checkout</span> <span class="pre">e4055e39ee9c53165e85275bdab84ed20909714a</span></code>.</p>
+</div>
 <p class="rubric">Hyperparameters</p>
 <div class="pst-scrollable-table-container"><table class="table">
 <colgroup>
