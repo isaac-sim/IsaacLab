@@ -64,7 +64,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Oct 14, 2025"/>
+    <meta name="docbuild:last-update" content="Oct 15, 2025"/>
   </head>
   
   
@@ -159,10 +159,10 @@
             <label for="version-select" style="font-weight: bold; display: block;">Version</label>
           </div>
           <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
+            <option value="teleop_imitation.html" selected>release/2.3.0</option>
             <option value="../../../../../main/source/overview/imitation-learning/teleop_imitation.html" >main</option>
             <option value="../../../../2.1.0/index.html" >release/2.1.0</option>
             <option value="../../../../2.2.0/index.html" >release/2.2.0</option>
-            <option value="teleop_imitation.html" selected>release/2.3.0</option>
             <option value="../../../../../v2.2.1/source/overview/imitation-learning/teleop_imitation.html" >v2.2.1</option>
             <option value="../../../../../v2.2.0/index.html" >v2.2.0</option>
             <option value="../../../../../v2.1.1/index.html" >v2.1.1</option>
@@ -205,7 +205,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.0.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.1.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -821,7 +821,7 @@ mkdir<span class="w"> </span>-p<span class="w"> </span>datasets
 <section id="pre-recorded-demonstrations">
 <h3>Pre-recorded demonstrations<a class="headerlink" href="#pre-recorded-demonstrations" title="Permalink to this heading">#</a></h3>
 <p>We provide a pre-recorded <code class="docutils literal notranslate"><span class="pre">dataset.hdf5</span></code> containing 10 human demonstrations for <code class="docutils literal notranslate"><span class="pre">Isaac-Stack-Cube-Franka-IK-Rel-v0</span></code>
-here: <a class="reference external" href="https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.0/Isaac/IsaacLab/Mimic/franka_stack_datasets/dataset.hdf5">[Franka Dataset]</a>.
+here: <a class="reference external" href="https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.1/Isaac/IsaacLab/Mimic/franka_stack_datasets/dataset.hdf5">[Franka Dataset]</a>.
 This dataset may be downloaded and used in the remaining tutorial steps if you do not wish to collect your own demonstrations.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
@@ -1084,7 +1084,7 @@ move towards the target object. An example of a correct annotation is shown belo
 <section id="generate-the-dataset">
 <h3>Generate the dataset<a class="headerlink" href="#generate-the-dataset" title="Permalink to this heading">#</a></h3>
 <p>If you skipped the prior collection and annotation step, download the pre-recorded annotated dataset <code class="docutils literal notranslate"><span class="pre">dataset_annotated_gr1.hdf5</span></code> from
-here: <a class="reference external" href="https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.0/Isaac/IsaacLab/Mimic/pick_place_datasets/dataset_annotated_gr1.hdf5">[Annotated GR1 Dataset]</a>.
+here: <a class="reference external" href="https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.1/Isaac/IsaacLab/Mimic/pick_place_datasets/dataset_annotated_gr1.hdf5">[Annotated GR1 Dataset]</a>.
 Place the file under <code class="docutils literal notranslate"><span class="pre">IsaacLab/datasets</span></code> and run the following command to generate a new dataset with 1000 demonstrations.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/imitation_learning/isaaclab_mimic/generate_dataset.py<span class="w"> </span><span class="se">\</span>
 --device<span class="w"> </span>cpu<span class="w"> </span>--headless<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">20</span><span class="w"> </span>--generation_num_trials<span class="w"> </span><span class="m">1000</span><span class="w"> </span>--enable_pinocchio<span class="w"> </span><span class="se">\</span>
@@ -1165,6 +1165,10 @@ This demonstration shows how to train a G1 robot to perform pick and place tasks
 --num_demos<span class="w"> </span><span class="m">5</span><span class="w"> </span>--enable_pinocchio
 </pre></div>
 </div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Depending on how the Apple Vision Pro app was initialized, the hands of the operator might be very far up or far down compared to the hands of the G1 robot. If this is the case, you can click <strong>Stop AR</strong> in the AR tab in Isaac Lab, and move the AR Anchor prim. Adjust it down to bring the hands of the operator lower, and up to bring them higher. Click <strong>Start AR</strong> to resume teleoperation session. Make sure to match the hands of the robot before clicking <strong>Play</strong> in the Apple Vision Pro, otherwise there will be an undesired large force generated initially.</p>
+</div>
 <p>You can replay the collected demonstrations by running:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/tools/replay_demos.py<span class="w"> </span><span class="se">\</span>
 --device<span class="w"> </span>cpu<span class="w"> </span><span class="se">\</span>
@@ -1175,14 +1179,14 @@ This demonstration shows how to train a G1 robot to perform pick and place tasks
 <p>To annotate the demonstrations:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/imitation_learning/isaaclab_mimic/annotate_demos.py<span class="w"> </span><span class="se">\</span>
 --device<span class="w"> </span>cpu<span class="w"> </span><span class="se">\</span>
---task<span class="w"> </span>Isaac-PickPlace-Locomanipulation-G1-Abs-Mimic-v0<span class="w"> </span><span class="se">\</span>
+--task<span class="w"> </span>Isaac-Locomanipulation-G1-Abs-Mimic-v0<span class="w"> </span><span class="se">\</span>
 --input_file<span class="w"> </span>./datasets/dataset_g1_locomanip.hdf5<span class="w"> </span><span class="se">\</span>
 --output_file<span class="w"> </span>./datasets/dataset_annotated_g1_locomanip.hdf5<span class="w"> </span>--enable_pinocchio
 </pre></div>
 </div>
 </div>
 <p>If you skipped the prior collection and annotation step, download the pre-recorded annotated dataset <code class="docutils literal notranslate"><span class="pre">dataset_annotated_g1_locomanip.hdf5</span></code> from
-here: <a class="reference external" href="https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.0/Isaac/IsaacLab/Mimic/pick_place_datasets/dataset_annotated_g1_locomanip.hdf5">[Annotated G1 Dataset]</a>.
+here: <a class="reference external" href="https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.1/Isaac/IsaacLab/Mimic/pick_place_datasets/dataset_annotated_g1_locomanip.hdf5">[Annotated G1 Dataset]</a>.
 Place the file under <code class="docutils literal notranslate"><span class="pre">IsaacLab/datasets</span></code> and run the following command to generate a new dataset with 1000 demonstrations.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/imitation_learning/isaaclab_mimic/generate_dataset.py<span class="w"> </span><span class="se">\</span>
 --device<span class="w"> </span>cpu<span class="w"> </span>--headless<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">20</span><span class="w"> </span>--generation_num_trials<span class="w"> </span><span class="m">1000</span><span class="w"> </span>--enable_pinocchio<span class="w"> </span><span class="se">\</span>
@@ -1234,39 +1238,51 @@ Place the file under <code class="docutils literal notranslate"><span class="pre
 <p><span class="caption-text">G1 humanoid robot performing locomanipulation with navigation capabilities.</span><a class="headerlink" href="#id6" title="Permalink to this image">#</a></p>
 </figcaption>
 </figure>
-<p>The navigation dataset generation process takes the previously generated manipulation dataset and creates scenarios where the robot must navigate from one location to another while performing manipulation tasks. This creates a more complex dataset that includes both locomotion and manipulation behaviors.</p>
-<p>To generate the navigation dataset, use the following command:</p>
+<p>The locomanipulation dataset generation process takes the previously generated manipulation dataset and creates scenarios where the robot must navigate from one location to another while performing manipulation tasks. This creates a more complex dataset that includes both locomotion and manipulation behaviors.</p>
+<p>To generate the locomanipulation dataset, use the following command:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>scripts/imitation_learning/disjoint_navigation/generate_navigation.py<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>scripts/imitation_learning/locomanipulation_sdg/generate_data.py<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--device<span class="w"> </span>cpu<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--kit_args<span class="o">=</span><span class="s2">&quot;--enable isaacsim.replicator.mobility_gen&quot;</span><span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--task<span class="o">=</span><span class="s2">&quot;Isaac-G1-Disjoint-Navigation&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--task<span class="o">=</span><span class="s2">&quot;Isaac-G1-SteeringWheel-Locomanipulation&quot;</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--dataset<span class="w"> </span>./datasets/generated_dataset_g1_locomanip.hdf5<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--num_runs<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--lift_step<span class="w"> </span><span class="m">70</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--navigate_step<span class="w"> </span><span class="m">120</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--enable_pinocchio<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--output_file<span class="w"> </span>./datasets/generated_dataset_g1_navigation.hdf5
+<span class="w">    </span>--output_file<span class="w"> </span>./datasets/generated_dataset_g1_locomanipulation_sdg.hdf5<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--enable_cameras
 </pre></div>
 </div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>The input dataset (<code class="docutils literal notranslate"><span class="pre">--dataset</span></code>) should be the manipulation dataset generated in the previous step. You can specify any output filename using the <code class="docutils literal notranslate"><span class="pre">--output_file_name</span></code> parameter.</p>
 </div>
-<p>The key parameters for navigation dataset generation are:</p>
+<p>The key parameters for locomanipulation dataset generation are:</p>
 <ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">--lift_step</span> <span class="pre">70</span></code>: Number of steps for the lifting phase of the manipulation task</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">--navigate_step</span> <span class="pre">120</span></code>: Number of steps for the navigation phase between locations</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--lift_step</span> <span class="pre">70</span></code>: Number of steps for the lifting phase of the manipulation task.  This should mark the point immediately after the robot has grasped the object.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--navigate_step</span> <span class="pre">120</span></code>: Number of steps for the navigation phase between locations.  This should make the point where the robot has lifted the object and is ready to walk.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">--output_file</span></code>: Name of the output dataset file</p></li>
 </ul>
 <p>This process creates a dataset where the robot performs the manipulation task at different locations, requiring it to navigate between points while maintaining the learned manipulation behaviors. The resulting dataset can be used to train policies that combine both locomotion and manipulation capabilities.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>You can visualize the robot trajectory results with the following script command:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/imitation_learning/disjoint_navigation/plot_navigation_trajectory.py<span class="w"> </span>--input_file<span class="w"> </span>datasets/generated_dataset_g1_navigation.hdf5<span class="w"> </span>--output_dir<span class="w"> </span>/PATH/TO/DESIRED_OUTPUT_DIR
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/imitation_learning/locomanipulation_sdg/plot_navigation_trajectory.py<span class="w"> </span>--input_file<span class="w"> </span>datasets/generated_dataset_g1_locomanipulation_sdg.hdf5<span class="w"> </span>--output_dir<span class="w"> </span>/PATH/TO/DESIRED_OUTPUT_DIR
 </pre></div>
 </div>
 </div>
+<p>The data generated from this locomanipulation pipeline can also be used to finetune an imitation learning policy using GR00T N1.5.  To do this,
+you may convert the generated dataset to LeRobot format as expected by GR00T N1.5, and then run the finetuning script provided
+in the GR00T N1.5 repository.  An example closed-loop policy rollout is shown in the video below:</p>
+<figure class="align-center" id="id7">
+<a class="reference internal image-reference" href="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/locomanipulation_sdg_disjoint_nav_groot_policy_4x.gif"><img alt="Simulation rollout of GR00T N1.5 policy finetuned for locomanipulation" src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/locomanipulation_sdg_disjoint_nav_groot_policy_4x.gif" style="width: 100%;" /></a>
+<figcaption>
+<p><span class="caption-text">Simulation rollout of GR00T N1.5 policy finetuned for locomanipulation.</span><a class="headerlink" href="#id7" title="Permalink to this image">#</a></p>
+</figcaption>
+</figure>
+<p>The policy shown above uses the camera image, hand poses, hand joint positions, object pose, and base goal pose as inputs.
+The output of the model is the target base velocity, hand poses, and hand joint positions for the next several timesteps.</p>
 </section>
 </section>
 <section id="demo-3-visuomotor-policy-for-a-humanoid-robot">
@@ -1371,10 +1387,10 @@ Record the normalization parameters for later use in the visualization step.</p>
 <p class="admonition-title">Note</p>
 <p>Change the <code class="docutils literal notranslate"><span class="pre">NORM_FACTOR</span></code> in the above command with the values generated in the training step.</p>
 </div>
-<figure class="align-center" id="id7">
+<figure class="align-center" id="id8">
 <a class="reference internal image-reference" href="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/gr-1_nut_pouring_policy.gif"><img alt="GR-1 humanoid robot performing a pouring task" src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/gr-1_nut_pouring_policy.gif" style="width: 100%;" /></a>
 <figcaption>
-<p><span class="caption-text">The trained visuomotor policy performing the pouring task in Isaac Lab.</span><a class="headerlink" href="#id7" title="Permalink to this image">#</a></p>
+<p><span class="caption-text">The trained visuomotor policy performing the pouring task in Isaac Lab.</span><a class="headerlink" href="#id8" title="Permalink to this image">#</a></p>
 </figcaption>
 </figure>
 </section>
@@ -1620,7 +1636,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Oct 14, 2025.
+  Last updated on Oct 15, 2025.
   <br/>
 </p>
   </div>
