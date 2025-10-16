@@ -3,37 +3,36 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import numpy as np
 import os
+import re
+import subprocess
 import sys
 import torch
 import trimesh
-import subprocess
-import re
+
 import warp as wp
 
 print("Python Executable:", sys.executable)
 print("Python Path:", sys.path)
-
-from scipy.stats import norm
 
 base_dir = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "."))
 sys.path.append(base_dir)
 
 from isaaclab.utils.assets import retrieve_file_path
 
-
 """
 Util Functions
 """
+
+
 def get_cuda_version():
     try:
         # Execute nvcc --version command
-        result = subprocess.run(['nvcc', '--version'], capture_output=True, text=True, check=True)
+        result = subprocess.run(["nvcc", "--version"], capture_output=True, text=True, check=True)
         output = result.stdout
 
         # Use regex to find the CUDA version (e.g., V11.2.67)
-        match = re.search(r'V(\d+\.\d+(\.\d+)?)', output)
+        match = re.search(r"V(\d+\.\d+(\.\d+)?)", output)
         if match:
             return match.group(1)
         else:
