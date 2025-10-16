@@ -57,6 +57,28 @@ Installing dependencies
 
             pip install torch==2.9.0 torchvision==0.24.0 --index-url https://download.pytorch.org/whl/cu130
 
+         .. note::
+
+            After installing Isaac Lab on aarch64, you may encounter warnings such as:
+
+            .. code-block:: none
+
+               ERROR: ld.so: object '...torch.libs/libgomp-XXXX.so.1.0.0' cannot be preloaded: ignored.
+
+            This occurs when both the system and PyTorch ``libgomp`` (GNU OpenMP) libraries are preloaded.
+            Isaac Sim expects the **system** OpenMP runtime, while PyTorch sometimes bundles its own.
+
+            To fix this, unset any existing ``LD_PRELOAD`` and set it to use the system library only:
+
+            .. code-block:: bash
+
+               unset LD_PRELOAD
+               export LD_PRELOAD="$LD_PRELOAD:/lib/aarch64-linux-gnu/libgomp.so.1"
+
+            This ensures the correct ``libgomp`` library is preloaded for both Isaac Sim and Isaac Lab,
+            removing the preload warnings during runtime.
+
+.. include:: include/pip_verify_isaacsim.rst
 -  If you want to use ``rl_games`` for training and inferencing, install the
    its Python 3.11 enabled fork:
 

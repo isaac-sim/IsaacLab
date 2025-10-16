@@ -104,7 +104,7 @@ is_arm() {
 ensure_cuda_torch() {
     local py="$1"
 
-    # base indexes per arch
+    # base base index for torch
     local base_index="https://download.pytorch.org/whl"
 
     # choose pins per arch
