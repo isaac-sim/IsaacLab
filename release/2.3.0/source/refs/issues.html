@@ -656,6 +656,7 @@
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#blank-initial-frames-from-the-camera">Blank initial frames from the camera</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#using-instanceable-assets-for-markers">Using instanceable assets for markers</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#exiting-the-process">Exiting the process</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#urdf-importer-unresolved-references-for-fixed-joints">URDF Importer: Unresolved references for fixed joints</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#glibcxx-errors-in-conda">GLIBCXX errors in Conda</a></li>
 </ul>
             </nav>
@@ -743,6 +744,15 @@ should not affect the functionality of Isaac Lab. It is safe to ignore the error
 message and continue with terminating the process. On Windows systems, please use
 <code class="docutils literal notranslate"><span class="pre">Ctrl+Break</span></code> or <code class="docutils literal notranslate"><span class="pre">Ctrl+fn+B</span></code> to terminate the process.</p>
 </section>
+<section id="urdf-importer-unresolved-references-for-fixed-joints">
+<h2>URDF Importer: Unresolved references for fixed joints<a class="headerlink" href="#urdf-importer-unresolved-references-for-fixed-joints" title="Permalink to this heading">#</a></h2>
+<p>Starting with Isaac Sim 5.1, links connected through <code class="docutils literal notranslate"><span class="pre">fixed_joint</span></code> elements are no longer merged when
+their URDF link entries specify mass and inertia even if <code class="docutils literal notranslate"><span class="pre">merge-joint</span></code> set to True.
+This is expected behaviour—those links are treated as full bodies rather than zero-mass reference frames.
+However, the USD importer currently raises <code class="docutils literal notranslate"><span class="pre">ReportError</span></code> warnings showing unresolved references for such links
+when they lack visuals or colliders. This is a known bug in the importer; it creates references to visuals
+that do not exist. The warnings can be safely ignored until the importer is updated.</p>
+</section>
 <section id="glibcxx-errors-in-conda">
 <h2>GLIBCXX errors in Conda<a class="headerlink" href="#glibcxx-errors-in-conda" title="Permalink to this heading">#</a></h2>
 <p>In Isaac Sim 5.0, we have observed some workflows exiting with an <code class="docutils literal notranslate"><span class="pre">OSError</span></code> indicating
@@ -803,6 +813,7 @@ the <code class="docutils literal notranslate"><span class="pre">AppLauncher</sp
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#blank-initial-frames-from-the-camera">Blank initial frames from the camera</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#using-instanceable-assets-for-markers">Using instanceable assets for markers</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#exiting-the-process">Exiting the process</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#urdf-importer-unresolved-references-for-fixed-joints">URDF Importer: Unresolved references for fixed joints</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#glibcxx-errors-in-conda">GLIBCXX errors in Conda</a></li>
 </ul>
   </nav></div>
