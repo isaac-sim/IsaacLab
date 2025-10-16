@@ -328,7 +328,7 @@ def test_external_force_on_single_body(num_cubes, device):
                 external_wrench_b[..., 3:],
                 positions=positions,
                 body_ids=body_ids,
-                is_global=is_global,                
+                is_global=is_global,
             )
             # perform simulation
             for _ in range(5):
@@ -399,7 +399,7 @@ def test_external_force_on_single_body_at_position(num_cubes, device):
             is_global = False
             if i % 2 == 0:
                 is_global = True
-                body_com_pos_w =  cube_object.data.body_com_pos_w[:, body_ids, :3]
+                body_com_pos_w = cube_object.data.body_com_pos_w[:, body_ids, :3]
                 external_wrench_positions_b[..., 0] = 0.0
                 external_wrench_positions_b[..., 1] = 1.0
                 external_wrench_positions_b[..., 2] = 0.0
@@ -424,8 +424,18 @@ def test_external_force_on_single_body_at_position(num_cubes, device):
                 positions=external_wrench_positions_b,
                 is_global=is_global,
             )
-            torch.testing.assert_close(cube_object._permanent_wrench_composer.composed_force_as_torch[:, 0, :], desired_force[:, 0, :], rtol=1e-6, atol=1e-7)
-            torch.testing.assert_close(cube_object._permanent_wrench_composer.composed_torque_as_torch[:, 0, :], desired_torque[:, 0, :], rtol=1e-6, atol=1e-7)
+            torch.testing.assert_close(
+                cube_object._permanent_wrench_composer.composed_force_as_torch[:, 0, :],
+                desired_force[:, 0, :],
+                rtol=1e-6,
+                atol=1e-7,
+            )
+            torch.testing.assert_close(
+                cube_object._permanent_wrench_composer.composed_torque_as_torch[:, 0, :],
+                desired_torque[:, 0, :],
+                rtol=1e-6,
+                atol=1e-7,
+            )
             # perform simulation
             for _ in range(5):
                 # apply action to the object

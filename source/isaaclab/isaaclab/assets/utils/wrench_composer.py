@@ -5,10 +5,10 @@
 
 from __future__ import annotations
 
+import torch
 from typing import TYPE_CHECKING
 
 import warp as wp
-import torch
 
 from ..asset_base import AssetBase
 from .kernels import add_forces_and_torques_at_position, set_forces_and_torques_at_position
@@ -52,7 +52,7 @@ class WrenchComposer:
         # Pinning the composed force and torque to the torch tensor to avoid copying the data to the torch tensor every time.
         self._composed_force_b_torch = wp.to_torch(self._composed_force_b)
         self._composed_torque_b_torch = wp.to_torch(self._composed_torque_b)
-    
+
     @property
     def active(self) -> bool:
         """Whether the wrench composer is active."""

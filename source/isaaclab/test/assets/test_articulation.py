@@ -8,7 +8,6 @@
 
 """Launch Isaac Sim Simulator first."""
 
-from re import I
 from isaaclab.app import AppLauncher
 
 HEADLESS = True
@@ -841,15 +840,15 @@ def test_external_force_buffer(sim, num_articulations, device):
 
         # Check if the instantaneous wrench is correctly added to the permanent wrench
         articulation.add_instantaneous_external_wrench(
-            forces = external_wrench_b[..., :3],
-            torques = external_wrench_b[..., 3:],
+            forces=external_wrench_b[..., :3],
+            torques=external_wrench_b[..., 3:],
             body_ids=body_ids,
         )
 
         final_force, final_torque = articulation._get_final_wrenches()
         for i in range(num_articulations):
             assert final_force[i, 0, 0].item() == force * 2
-            assert final_torque[i, 0, 0].item() == force* 2
+            assert final_torque[i, 0, 0].item() == force * 2
 
         # apply action to the articulation
         articulation.set_joint_position_target(articulation.data.default_joint_pos.clone())
@@ -928,7 +927,7 @@ def test_external_force_on_single_body_at_position(sim, num_articulations, devic
     """Test application of external force on the base of the articulation at a given position.
 
     This test verifies that:
-    1. External forces can be applied to specific bodies at a given position 
+    1. External forces can be applied to specific bodies at a given position
     2. External forces can be applied to specific bodies in the global frame
     3. External forces are calculated and composed correctly
     4. The forces affect the articulation's motion correctly
@@ -976,7 +975,7 @@ def test_external_force_on_single_body_at_position(sim, num_articulations, devic
         is_global = False
 
         if i % 2 == 0:
-            body_com_pos_w =  articulation.data.body_com_pos_w[:, body_ids, :3]
+            body_com_pos_w = articulation.data.body_com_pos_w[:, body_ids, :3]
             is_global = True
             external_wrench_positions_b[..., 0] = 0.0
             external_wrench_positions_b[..., 1] = 1.0
@@ -1001,8 +1000,18 @@ def test_external_force_on_single_body_at_position(sim, num_articulations, devic
             positions=external_wrench_positions_b,
             is_global=is_global,
         )
-        torch.testing.assert_close(articulation._permanent_wrench_composer.composed_force_as_torch[:, 0, :], desired_force[:, 0, :], rtol=1e-6, atol=1e-7)
-        torch.testing.assert_close(articulation._permanent_wrench_composer.composed_torque_as_torch[:, 0, :], desired_torque[:, 0, :], rtol=1e-6, atol=1e-7)
+        torch.testing.assert_close(
+            articulation._permanent_wrench_composer.composed_force_as_torch[:, 0, :],
+            desired_force[:, 0, :],
+            rtol=1e-6,
+            atol=1e-7,
+        )
+        torch.testing.assert_close(
+            articulation._permanent_wrench_composer.composed_torque_as_torch[:, 0, :],
+            desired_torque[:, 0, :],
+            rtol=1e-6,
+            atol=1e-7,
+        )
         # perform simulation
         for _ in range(100):
             # apply action to the articulation
@@ -1128,7 +1137,7 @@ def test_external_force_on_multiple_bodies_at_position(sim, num_articulations, d
 
         is_global = False
         if i % 2 == 0:
-            body_com_pos_w =  articulation.data.body_com_pos_w[:, body_ids, :3]
+            body_com_pos_w = articulation.data.body_com_pos_w[:, body_ids, :3]
             is_global = True
             external_wrench_positions_b[..., 0] = 0.0
             external_wrench_positions_b[..., 1] = 1.0
@@ -1154,8 +1163,18 @@ def test_external_force_on_multiple_bodies_at_position(sim, num_articulations, d
             positions=external_wrench_positions_b,
             is_global=is_global,
         )
-        torch.testing.assert_close(articulation._permanent_wrench_composer.composed_force_as_torch[:, body_ids, :], desired_force, rtol=1e-6, atol=1e-7)
-        torch.testing.assert_close(articulation._permanent_wrench_composer.composed_torque_as_torch[:, body_ids, :], desired_torque, rtol=1e-6, atol=1e-7)
+        torch.testing.assert_close(
+            articulation._permanent_wrench_composer.composed_force_as_torch[:, body_ids, :],
+            desired_force,
+            rtol=1e-6,
+            atol=1e-7,
+        )
+        torch.testing.assert_close(
+            articulation._permanent_wrench_composer.composed_torque_as_torch[:, body_ids, :],
+            desired_torque,
+            rtol=1e-6,
+            atol=1e-7,
+        )
         # perform simulation
         for _ in range(100):
             # apply action to the articulation
@@ -1567,20 +1586,23 @@ def test_reset(sim, num_articulations, device):
         num_bodies = articulation.num_bodies
         articulation.set_external_force_and_torque(
             forces=torch.ones((num_articulations, num_bodies, 3), device=device),
-            torques=torch.ones((num_articulations, num_bodies, 3), device=device)
+            torques=torch.ones((num_articulations, num_bodies, 3), device=device),
         )
         articulation.add_instantaneous_external_wrench(
             forces=torch.ones((num_articulations, num_bodies, 3), device=device),
-            torques=torch.ones((num_articulations, num_bodies, 3), device=device)
+            torques=torch.ones((num_articulations, num_bodies, 3), device=device),
         )
         articulation.reset(env_ids=torch.tensor([0], device=device))
         assert articulation._instantaneous_wrench_composer.active
         assert articulation._permanent_wrench_composer.active
-        assert torch.count_nonzero(articulation._instantaneous_wrench_composer.composed_force_as_torch) == num_bodies * 3
-        assert torch.count_nonzero(articulation._instantaneous_wrench_composer.composed_torque_as_torch) == num_bodies * 3
+        assert (
+            torch.count_nonzero(articulation._instantaneous_wrench_composer.composed_force_as_torch) == num_bodies * 3
+        )
+        assert (
+            torch.count_nonzero(articulation._instantaneous_wrench_composer.composed_torque_as_torch) == num_bodies * 3
+        )
         assert torch.count_nonzero(articulation._permanent_wrench_composer.composed_force_as_torch) == num_bodies * 3
         assert torch.count_nonzero(articulation._permanent_wrench_composer.composed_torque_as_torch) == num_bodies * 3
-
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])

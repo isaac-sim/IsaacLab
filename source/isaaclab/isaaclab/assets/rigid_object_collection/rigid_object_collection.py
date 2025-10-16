@@ -471,6 +471,7 @@ class RigidObjectCollection(AssetBase):
     """
     Operations - Setters.
     """
+
     def set_permanent_external_wrench(
         self,
         forces: torch.Tensor | None = None,
@@ -525,7 +526,9 @@ class RigidObjectCollection(AssetBase):
         if object_ids is None:
             object_ids = self._ALL_OBJ_INDICES_WP
         elif isinstance(object_ids, slice):
-            object_ids = wp.from_torch(torch.arange(self.num_objects, dtype=torch.int32, device=self.device)[object_ids], dtype=wp.int32)
+            object_ids = wp.from_torch(
+                torch.arange(self.num_objects, dtype=torch.int32, device=self.device)[object_ids], dtype=wp.int32
+            )
         elif not isinstance(object_ids, torch.Tensor):
             object_ids = wp.array(object_ids, dtype=wp.int32, device=self.device)
         else:
@@ -589,7 +592,9 @@ class RigidObjectCollection(AssetBase):
         if object_ids is None:
             object_ids = self._ALL_OBJ_INDICES_WP
         elif isinstance(object_ids, slice):
-            object_ids = wp.from_torch(torch.arange(self.num_objects, dtype=torch.int32, device=self.device)[object_ids], dtype=wp.int32)
+            object_ids = wp.from_torch(
+                torch.arange(self.num_objects, dtype=torch.int32, device=self.device)[object_ids], dtype=wp.int32
+            )
         elif not isinstance(object_ids, torch.Tensor):
             object_ids = wp.array(object_ids, dtype=wp.int32, device=self.device)
         else:
@@ -669,7 +674,9 @@ class RigidObjectCollection(AssetBase):
         if object_ids is None:
             object_ids = self._ALL_OBJ_INDICES_WP
         elif isinstance(object_ids, slice):
-            object_ids = wp.from_torch(torch.arange(self.num_objects, dtype=torch.int32, device=self.device)[object_ids], dtype=wp.int32)
+            object_ids = wp.from_torch(
+                torch.arange(self.num_objects, dtype=torch.int32, device=self.device)[object_ids], dtype=wp.int32
+            )
         elif not isinstance(object_ids, torch.Tensor):
             object_ids = wp.array(object_ids, dtype=wp.int32, device=self.device)
         else:
@@ -944,4 +951,11 @@ class RigidObjectCollection(AssetBase):
             "The function 'set_external_force_and_torque' will be deprecated in a future release. Please"
             " use 'set_permanent_external_wrench' instead."
         )
-        self.set_permanent_external_wrench(forces=forces, torques=torques, positions=positions, object_ids=object_ids, env_ids=env_ids, is_global=is_global)
+        self.set_permanent_external_wrench(
+            forces=forces,
+            torques=torques,
+            positions=positions,
+            object_ids=object_ids,
+            env_ids=env_ids,
+            is_global=is_global,
+        )

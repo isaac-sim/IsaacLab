@@ -129,7 +129,6 @@ class RigidObject(AssetBase):
             )
             self._instantaneous_wrench_composer.reset()
 
-
     def update(self, dt: float):
         self._data.update(dt)
 
@@ -740,4 +739,6 @@ class RigidObject(AssetBase):
             "The function 'set_external_force_and_torque' will be deprecated in a future release. Please"
             " use 'set_permanent_external_wrench' instead."
         )
-        self.set_permanent_external_wrench(forces=forces, torques=torques, positions=positions, body_ids=body_ids, env_ids=env_ids, is_global=is_global)
+        self.set_permanent_external_wrench(
+            forces=forces, torques=torques, positions=positions, body_ids=body_ids, env_ids=env_ids, is_global=is_global
+        )

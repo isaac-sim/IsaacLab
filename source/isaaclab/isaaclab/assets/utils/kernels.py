@@ -37,7 +37,9 @@ def add_forces_and_torques_at_position(
         if (positions.shape[0] > 0) and (com_positions.shape[0] > 0):
             composed_torques_b[env_ids[tid_env], body_ids[tid_body]] += (
                 wp.skew(
-                    cast_to_com_frame(positions[tid_env, tid_body], com_positions[env_ids[tid_env], body_ids[tid_body]], is_global)
+                    cast_to_com_frame(
+                        positions[tid_env, tid_body], com_positions[env_ids[tid_env], body_ids[tid_body]], is_global
+                    )
                 )
                 @ forces[tid_env, tid_body]
             )
@@ -68,13 +70,15 @@ def set_forces_and_torques_at_position(
         if (positions.shape[0] > 0) and (com_positions.shape[0] > 0):
             composed_torques_b[env_ids[tid_env], body_ids[tid_body]] = (
                 wp.skew(
-                    cast_to_com_frame(positions[tid_env, tid_body], com_positions[env_ids[tid_env], body_ids[tid_body]], is_global)
+                    cast_to_com_frame(
+                        positions[tid_env, tid_body], com_positions[env_ids[tid_env], body_ids[tid_body]], is_global
+                    )
                 )
                 @ forces[tid_env, tid_body]
             )
             if torques.shape[0] > 0:
                 composed_torques_b[env_ids[tid_env], body_ids[tid_body]] += torques[tid_env, tid_body]
-        elif (com_positions.shape[0] > 0): 
+        elif com_positions.shape[0] > 0:
             composed_torques_b[env_ids[tid_env], body_ids[tid_body]] = (
                 wp.skew(-com_positions[env_ids[tid_env], body_ids[tid_body]]) @ forces[tid_env, tid_body]
             )
