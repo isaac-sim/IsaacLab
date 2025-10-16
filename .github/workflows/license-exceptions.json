@@ -432,8 +432,8 @@
     "comment": "Apache 2.0"
   },
   {
-    "package": "msgpack",
-    "license": "onnx-ir",
+    "package": "onnx-ir",
+    "license": "UNKNOWN",
     "comment": "Apache 2.0"
   }
 ]
