@@ -5,37 +5,32 @@
 
 from isaaclab.utils import configclass
 
-from ..floating_obstacles_env_cfg import LMF2FloatingObstacleEnvCfg
+from isaaclab_tasks.manager_based.state_based_control.config.LMF2.state_based_control_env_cfg import StateBasedControlEmptyEnvCfg
 
+##
+# Pre-defined configs
+##
+
+from isaaclab_assets.robots.lmf2 import LMF2_CFG
 
 @configclass
-class LMF2FlatEnvCfg(LMF2FloatingObstacleEnvCfg):
+class LMF2EmptyEnvCfg(StateBasedControlEmptyEnvCfg):
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
+        # switch robot to lmf2
+        self.scene.robot = LMF2_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
 
-        # override rewards
-        self.rewards.flat_orientation_l2.weight = -5.0
-        self.rewards.dof_torques_l2.weight = -2.5e-5
-        self.rewards.feet_air_time.weight = 0.5
-        # change terrain to flat
-        self.scene.terrain.terrain_type = "plane"
-        self.scene.terrain.terrain_generator = None
-        # no height scan
-        self.scene.height_scanner = None
-        self.observations.policy.height_scan = None
-        # no terrain curriculum
-        self.curriculum.terrain_levels = None
-
-
-class LMF2FlatEnvCfg_PLAY(LMF2FlatEnvCfg):
-    def __post_init__(self) -> None:
+@configclass
+class LMF2EmptyEnvCfg_PLAY(LMF2EmptyEnvCfg):
+    def __post_init__(self):
         # post init of parent
         super().__post_init__()
 
         # make a smaller scene for play
         self.scene.num_envs = 50
         self.scene.env_spacing = 2.5
+
         # disable randomization for play
         self.observations.policy.enable_corruption = False
         # remove random pushing event

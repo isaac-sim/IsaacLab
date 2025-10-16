@@ -37,7 +37,7 @@ params:
         # before_mlp: False
         # layer_norm: True
   config:
-    name: lmf2_navigation
+    name: lmf2_motor_control
     env_name: rlgpu
     device: 'cuda:0'
     device_name: 'cuda:0'
