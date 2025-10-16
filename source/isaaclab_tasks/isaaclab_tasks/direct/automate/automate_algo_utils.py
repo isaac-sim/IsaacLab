@@ -9,6 +9,7 @@ import sys
 import torch
 import trimesh
 import subprocess
+import re
 import warp as wp
 
 print("Python Executable:", sys.executable)
