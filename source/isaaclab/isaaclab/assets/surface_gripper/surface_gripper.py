@@ -9,6 +9,7 @@ import torch
 import warnings
 from typing import TYPE_CHECKING
 
+import omni.log
 from isaacsim.core.utils.extensions import enable_extension
 from isaacsim.core.version import get_version
 
@@ -18,7 +19,7 @@ from isaaclab.assets import AssetBase
 if TYPE_CHECKING:
     from isaacsim.robot.surface_gripper import GripperView
 
-from .surface_gripper_cfg import SurfaceGripperCfg
+    from .surface_gripper_cfg import SurfaceGripperCfg
 
 
 class SurfaceGripper(AssetBase):
@@ -246,7 +247,7 @@ class SurfaceGripper(AssetBase):
 
         Raises:
             ValueError: If the simulation backend is not CPU.
-            RuntimeError: If the Simulation Context is not initialized.
+            RuntimeError: If the Simulation Context is not initialized or if gripper prims are not found.
 
         Note:
             The SurfaceGripper is only supported on CPU for now. Please set the simulation backend to run on CPU.
@@ -262,8 +263,37 @@ class SurfaceGripper(AssetBase):
                 "SurfaceGripper is only supported on CPU for now. Please set the simulation backend to run on CPU. Use"
                 " `--device cpu` to run the simulation on CPU."
             )
+
+        # obtain the first prim in the regex expression (all others are assumed to be a copy of this)
+        template_prim = sim_utils.find_first_matching_prim(self._cfg.prim_path)
+        if template_prim is None:
+            raise RuntimeError(f"Failed to find prim for expression: '{self._cfg.prim_path}'.")
+        template_prim_path = template_prim.GetPath().pathString
+
+        # find surface gripper prims
+        gripper_prims = sim_utils.get_all_matching_child_prims(
+            template_prim_path,
+            predicate=lambda prim: prim.GetTypeName() == "IsaacSurfaceGripper",
+            traverse_instance_prims=False,
+        )
+        if len(gripper_prims) == 0:
+            raise RuntimeError(
+                f"Failed to find a surface gripper when resolving '{self._cfg.prim_path}'."
+                " Please ensure that the prim has type 'IsaacSurfaceGripper'."
+            )
+        if len(gripper_prims) > 1:
+            raise RuntimeError(
+                f"Failed to find a single surface gripper when resolving '{self._cfg.prim_path}'."
+                f" Found multiple '{gripper_prims}' under '{template_prim_path}'."
+                " Please ensure that there is only one surface gripper in the prim path tree."
+            )
+
+        # resolve gripper prim back into regex expression
+        gripper_prim_path = gripper_prims[0].GetPath().pathString
+        gripper_prim_path_expr = self._cfg.prim_path + gripper_prim_path[len(template_prim_path) :]
+
         # Count number of environments
-        self._prim_expr = self._cfg.prim_expr
+        self._prim_expr = gripper_prim_path_expr
         env_prim_path_expr = self._prim_expr.rsplit("/", 1)[0]
         self._parent_prims = sim_utils.find_matching_prims(env_prim_path_expr)
         self._num_envs = len(self._parent_prims)
@@ -286,6 +316,10 @@ class SurfaceGripper(AssetBase):
             shear_force_limit=self._shear_force_limit.clone(),
             retry_interval=self._retry_interval.clone(),
         )
+
+        # log information about the surface gripper
+        omni.log.info(f"Surface gripper initialized at: {self._cfg.prim_path} with root '{gripper_prim_path_expr}'.")
+        omni.log.info(f"Number of instances: {self._num_envs}")
 
         # Reset grippers
         self.reset()

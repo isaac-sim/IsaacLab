@@ -7,13 +7,11 @@
 
 from __future__ import annotations
 
-import asyncio
 import contextlib
 import functools
 import inspect
 import re
-import time
-from collections.abc import Callable
+from collections.abc import Callable, Generator
 from typing import TYPE_CHECKING, Any
 
 import carb
@@ -396,7 +394,7 @@ def bind_physics_material(
         The function is decorated with :meth:`apply_nested` to allow applying the function to a prim path
         and all its descendants.
 
-    .. _Physics material: https://docs.omniverse.nvidia.com/extensions/latest/ext_physics/simulation-control/physics-settings.html#physics-materials
+    .. _Physics material: https://isaac-sim.github.io/IsaacLab/main/source/api/lab/isaaclab.sim.html#isaaclab.sim.SimulationCfg.physics_material
 
     Args:
         prim_path: The prim path where to apply the material.
@@ -570,7 +568,7 @@ def make_uninstanceable(prim_path: str | Sdf.Path, stage: Usd.Stage | None = Non
             # make the prim uninstanceable
             child_prim.SetInstanceable(False)
         # add children to list
-        all_prims += child_prim.GetChildren()
+        all_prims += child_prim.GetFilteredChildren(Usd.TraverseInstanceProxies())
 
 
 """
@@ -579,14 +577,32 @@ USD Stage traversal.
 
 
 def get_first_matching_child_prim(
-    prim_path: str | Sdf.Path, predicate: Callable[[Usd.Prim], bool], stage: Usd.Stage | None = None
+    prim_path: str | Sdf.Path,
+    predicate: Callable[[Usd.Prim], bool],
+    stage: Usd.Stage | None = None,
+    traverse_instance_prims: bool = True,
 ) -> Usd.Prim | None:
-    """Recursively get the first USD Prim at the path string that passes the predicate function
+    """Recursively get the first USD Prim at the path string that passes the predicate function.
+
+    This function performs a depth-first traversal of the prim hierarchy starting from
+    :attr:`prim_path`, returning the first prim that satisfies the provided :attr:`predicate`.
+    It optionally supports traversal through instance prims, which are normally skipped in standard USD
+    traversals.
+
+    USD instance prims are lightweight copies of prototype scene structures and are not included
+    in default traversals unless explicitly handled. This function allows traversing into instances
+    when :attr:`traverse_instance_prims` is set to :attr:`True`.
+
+    .. versionchanged:: 2.3.0
+
+        Added :attr:`traverse_instance_prims` to control whether to traverse instance prims.
+        By default, instance prims are now traversed.
 
     Args:
         prim_path: The path of the prim in the stage.
         predicate: The function to test the prims against. It takes a prim as input and returns a boolean.
         stage: The stage where the prim exists. Defaults to None, in which case the current stage is used.
+        traverse_instance_prims: Whether to traverse instance prims. Defaults to True.
 
     Returns:
         The first prim on the path that passes the predicate. If no prim passes the predicate, it returns None.
@@ -617,7 +633,10 @@ def get_first_matching_child_prim(
         if predicate(child_prim):
             return child_prim
         # add children to list
-        all_prims += child_prim.GetChildren()
+        if traverse_instance_prims:
+            all_prims += child_prim.GetFilteredChildren(Usd.TraverseInstanceProxies())
+        else:
+            all_prims += child_prim.GetChildren()
     return None
 
 
@@ -626,8 +645,22 @@ def get_all_matching_child_prims(
     predicate: Callable[[Usd.Prim], bool] = lambda _: True,
     depth: int | None = None,
     stage: Usd.Stage | None = None,
+    traverse_instance_prims: bool = True,
 ) -> list[Usd.Prim]:
     """Performs a search starting from the root and returns all the prims matching the predicate.
+
+    This function performs a depth-first traversal of the prim hierarchy starting from
+    :attr:`prim_path`, returning all prims that satisfy the provided :attr:`predicate`. It optionally
+    supports traversal through instance prims, which are normally skipped in standard USD traversals.
+
+    USD instance prims are lightweight copies of prototype scene structures and are not included
+    in default traversals unless explicitly handled. This function allows traversing into instances
+    when :attr:`traverse_instance_prims` is set to :attr:`True`.
+
+    .. versionchanged:: 2.3.0
+
+        Added :attr:`traverse_instance_prims` to control whether to traverse instance prims.
+        By default, instance prims are now traversed.
 
     Args:
         prim_path: The root prim path to start the search from.
@@ -636,6 +669,7 @@ def get_all_matching_child_prims(
         depth: The maximum depth for traversal, should be bigger than zero if specified.
             Defaults to None (i.e: traversal happens till the end of the tree).
         stage: The stage where the prim exists. Defaults to None, in which case the current stage is used.
+        traverse_instance_prims: Whether to traverse instance prims. Defaults to True.
 
     Returns:
         A list containing all the prims matching the predicate.
@@ -673,7 +707,13 @@ def get_all_matching_child_prims(
             output_prims.append(child_prim)
         # add children to list
         if depth is None or current_depth < depth:
-            all_prims_queue += [(child, current_depth + 1) for child in child_prim.GetChildren()]
+            # resolve prims under the current prim
+            if traverse_instance_prims:
+                children = child_prim.GetFilteredChildren(Usd.TraverseInstanceProxies())
+            else:
+                children = child_prim.GetChildren()
+            # add children to list
+            all_prims_queue += [(child, current_depth + 1) for child in children]
 
     return output_prims
 
@@ -830,97 +870,6 @@ def find_global_fixed_joint_prim(
 
 
 """
-Stage management.
-"""
-
-
-def attach_stage_to_usd_context(attaching_early: bool = False):
-    """Attaches stage in memory to usd context.
-
-    This function should be called during or after scene is created and before stage is simulated or rendered.
-
-    Note:
-        If the stage is not in memory or rendering is not enabled, this function will return without attaching.
-
-    Args:
-        attaching_early: Whether to attach the stage to the usd context before stage is created. Defaults to False.
-    """
-
-    from isaacsim.core.simulation_manager import SimulationManager
-
-    from isaaclab.sim.simulation_context import SimulationContext
-
-    # if Isaac Sim version is less than 5.0, stage in memory is not supported
-    isaac_sim_version = float(".".join(get_version()[2]))
-    if isaac_sim_version < 5:
-        return
-
-    # if stage is not in memory, we can return early
-    if not is_current_stage_in_memory():
-        return
-
-    # attach stage to physx
-    stage_id = get_current_stage_id()
-    physx_sim_interface = omni.physx.get_physx_simulation_interface()
-    physx_sim_interface.attach_stage(stage_id)
-
-    # this carb flag is equivalent to if rendering is enabled
-    carb_setting = carb.settings.get_settings()
-    is_rendering_enabled = get_carb_setting(carb_setting, "/physics/fabricUpdateTransformations")
-
-    # if rendering is not enabled, we don't need to attach it
-    if not is_rendering_enabled:
-        return
-
-    # early attach warning msg
-    if attaching_early:
-        omni.log.warn(
-            "Attaching stage in memory to USD context early to support an operation which doesn't support stage in"
-            " memory."
-        )
-
-    # skip this callback to avoid wiping the stage after attachment
-    SimulationContext.instance().skip_next_stage_open_callback()
-
-    # disable stage open callback to avoid clearing callbacks
-    SimulationManager.enable_stage_open_callback(False)
-
-    # enable physics fabric
-    SimulationContext.instance()._physics_context.enable_fabric(True)
-
-    # attach stage to usd context
-    omni.usd.get_context().attach_stage_with_callback(stage_id)
-
-    # attach stage to physx
-    physx_sim_interface = omni.physx.get_physx_simulation_interface()
-    physx_sim_interface.attach_stage(stage_id)
-
-    # re-enable stage open callback
-    SimulationManager.enable_stage_open_callback(True)
-
-
-def is_current_stage_in_memory() -> bool:
-    """This function checks if the current stage is in memory.
-
-    Compares the stage id of the current stage with the stage id of the context stage.
-
-    Returns:
-        If the current stage is in memory.
-    """
-
-    # grab current stage id
-    stage_id = get_current_stage_id()
-
-    # grab context stage id
-    context_stage = omni.usd.get_context().get_stage()
-    with use_stage(context_stage):
-        context_stage_id = get_current_stage_id()
-
-    # check if stage ids are the same
-    return stage_id != context_stage_id
-
-
-"""
 USD Variants.
 """
 
@@ -1001,84 +950,107 @@ def select_usd_variants(prim_path: str, variants: object | dict[str, str], stage
 
 
 """
-Nucleus Connection
+Stage management.
 """
 
 
-async def _is_usd_path_available(usd_path: str, timeout: float) -> bool:
-    """
-    Asynchronously checks whether the given USD path is available on the server.
+def attach_stage_to_usd_context(attaching_early: bool = False):
+    """Attaches the current USD stage in memory to the USD context.
+
+    This function should be called during or after scene is created and before stage is simulated or rendered.
+
+    Note:
+        If the stage is not in memory or rendering is not enabled, this function will return without attaching.
 
     Args:
-        usd_path: The remote or local USD file path to check.
-        timeout: Timeout in seconds for the async stat call.
+        attaching_early: Whether to attach the stage to the usd context before stage is created. Defaults to False.
+    """
+
+    from isaacsim.core.simulation_manager import SimulationManager
+
+    from isaaclab.sim.simulation_context import SimulationContext
+
+    # if Isaac Sim version is less than 5.0, stage in memory is not supported
+    isaac_sim_version = float(".".join(get_version()[2]))
+    if isaac_sim_version < 5:
+        return
+
+    # if stage is not in memory, we can return early
+    if not is_current_stage_in_memory():
+        return
+
+    # attach stage to physx
+    stage_id = get_current_stage_id()
+    physx_sim_interface = omni.physx.get_physx_simulation_interface()
+    physx_sim_interface.attach_stage(stage_id)
+
+    # this carb flag is equivalent to if rendering is enabled
+    carb_setting = carb.settings.get_settings()
+    is_rendering_enabled = get_carb_setting(carb_setting, "/physics/fabricUpdateTransformations")
+
+    # if rendering is not enabled, we don't need to attach it
+    if not is_rendering_enabled:
+        return
+
+    # early attach warning msg
+    if attaching_early:
+        omni.log.warn(
+            "Attaching stage in memory to USD context early to support an operation which doesn't support stage in"
+            " memory."
+        )
+
+    # skip this callback to avoid wiping the stage after attachment
+    SimulationContext.instance().skip_next_stage_open_callback()
+
+    # disable stage open callback to avoid clearing callbacks
+    SimulationManager.enable_stage_open_callback(False)
+
+    # enable physics fabric
+    SimulationContext.instance()._physics_context.enable_fabric(True)
+
+    # attach stage to usd context
+    omni.usd.get_context().attach_stage_with_callback(stage_id)
+
+    # attach stage to physx
+    physx_sim_interface = omni.physx.get_physx_simulation_interface()
+    physx_sim_interface.attach_stage(stage_id)
+
+    # re-enable stage open callback
+    SimulationManager.enable_stage_open_callback(True)
+
+
+def is_current_stage_in_memory() -> bool:
+    """Checks if the current stage is in memory.
+
+    This function compares the stage id of the current USD stage with the stage id of the USD context stage.
 
     Returns:
-        True if the server responds with OK, False otherwise.
+        Whether the current stage is in memory.
     """
-    try:
-        result, _ = await asyncio.wait_for(omni.client.stat_async(usd_path), timeout=timeout)
-        return result == omni.client.Result.OK
-    except asyncio.TimeoutError:
-        omni.log.warn(f"Timed out after {timeout}s while checking for USD: {usd_path}")
-        return False
-    except Exception as ex:
-        omni.log.warn(f"Exception during USD file check: {type(ex).__name__}: {ex}")
-        return False
 
+    # grab current stage id
+    stage_id = get_current_stage_id()
 
-def check_usd_path_with_timeout(usd_path: str, timeout: float = 300, log_interval: float = 30) -> bool:
-    """
-    Synchronously runs an asynchronous USD path availability check,
-    logging progress periodically until it completes.
+    # grab context stage id
+    context_stage = omni.usd.get_context().get_stage()
+    with use_stage(context_stage):
+        context_stage_id = get_current_stage_id()
 
-    This is useful for checking server responsiveness before attempting to load a remote asset.
-    It will block execution until the check completes or times out.
-
-    Args:
-        usd_path: The remote USD file path to check.
-        timeout: Maximum time (in seconds) to wait for the server check.
-        log_interval: Interval (in seconds) at which progress is logged.
-
-    Returns:
-        True if the file is available (HTTP 200 / OK), False otherwise.
-    """
-    start_time = time.time()
-    loop = asyncio.get_event_loop()
-
-    coroutine = _is_usd_path_available(usd_path, timeout)
-    task = asyncio.ensure_future(coroutine)
-
-    next_log_time = start_time + log_interval
-
-    first_log = True
-    while not task.done():
-        now = time.time()
-        if now >= next_log_time:
-            elapsed = int(now - start_time)
-            if first_log:
-                omni.log.warn(f"Checking server availability for USD path: {usd_path} (timeout: {timeout}s)")
-                first_log = False
-            omni.log.warn(f"Waiting for server response... ({elapsed}s elapsed)")
-            next_log_time += log_interval
-        loop.run_until_complete(asyncio.sleep(0.1))  # Yield to allow async work
-
-    return task.result()
-
-
-"""
-Isaac Sim stage utils wrappers to enable backwards compatibility to Isaac Sim 4.5
-"""
+    # check if stage ids are the same
+    return stage_id != context_stage_id
 
 
 @contextlib.contextmanager
-def use_stage(stage: Usd.Stage) -> None:
+def use_stage(stage: Usd.Stage) -> Generator[None, None, None]:
     """Context manager that sets a thread-local stage, if supported.
 
     In Isaac Sim < 5.0, this is a no-op to maintain compatibility.
 
     Args:
-        stage (Usd.Stage): The stage to set temporarily.
+        stage: The stage to set temporarily.
+
+    Yields:
+        None
     """
     isaac_sim_version = float(".".join(get_version()[2]))
     if isaac_sim_version < 5:
@@ -1090,10 +1062,10 @@ def use_stage(stage: Usd.Stage) -> None:
 
 
 def create_new_stage_in_memory() -> Usd.Stage:
-    """Create a new stage in memory, if supported.
+    """Creates a new stage in memory, if supported.
 
     Returns:
-        The new stage.
+        The new stage in memory.
     """
     isaac_sim_version = float(".".join(get_version()[2]))
     if isaac_sim_version < 5:
@@ -1107,12 +1079,13 @@ def create_new_stage_in_memory() -> Usd.Stage:
 
 
 def get_current_stage_id() -> int:
-    """Get the current open stage id.
+    """Gets the current open stage id.
 
-    Reimplementation of stage_utils.get_current_stage_id() for Isaac Sim < 5.0.
+    This function is a reimplementation of :meth:`isaacsim.core.utils.stage.get_current_stage_id` for
+    backwards compatibility to Isaac Sim < 5.0.
 
     Returns:
-        int: The stage id.
+        The current open stage id.
     """
     stage = get_current_stage()
     stage_cache = UsdUtils.StageCache.Get()

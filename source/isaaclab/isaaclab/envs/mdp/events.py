@@ -55,9 +55,9 @@ def randomize_rigid_body_scale(
     If the dictionary does not contain a key, the range is set to one for that axis.
 
     Relative child path can be used to randomize the scale of a specific child prim of the asset.
-    For example, if the asset at prim path expression "/World/envs/env_.*/Object" has a child
-    with the path "/World/envs/env_.*/Object/mesh", then the relative child path should be "mesh" or
-    "/mesh".
+    For example, if the asset at prim path expression ``/World/envs/env_.*/Object`` has a child
+    with the path ``/World/envs/env_.*/Object/mesh``, then the relative child path should be ``mesh`` or
+    ``/mesh``.
 
     .. attention::
         Since this function modifies USD properties that are parsed by the physics engine once the simulation
@@ -596,14 +596,16 @@ class randomize_actuator_gains(ManagerTermBase):
                 actuator_indices = slice(None)
                 if isinstance(actuator.joint_indices, slice):
                     global_indices = slice(None)
+                elif isinstance(actuator.joint_indices, torch.Tensor):
+                    global_indices = actuator.joint_indices.to(self.asset.device)
                 else:
-                    global_indices = torch.tensor(actuator.joint_indices, device=self.asset.device)
+                    raise TypeError("Actuator joint indices must be a slice or a torch.Tensor.")
             elif isinstance(actuator.joint_indices, slice):
                 # we take the joints defined in the asset config
                 global_indices = actuator_indices = torch.tensor(self.asset_cfg.joint_ids, device=self.asset.device)
             else:
                 # we take the intersection of the actuator joints and the asset config joints
-                actuator_joint_indices = torch.tensor(actuator.joint_indices, device=self.asset.device)
+                actuator_joint_indices = actuator.joint_indices
                 asset_joint_ids = torch.tensor(self.asset_cfg.joint_ids, device=self.asset.device)
                 # the indices of the joints in the actuator that have to be randomized
                 actuator_indices = torch.nonzero(torch.isin(actuator_joint_indices, asset_joint_ids)).view(-1)
@@ -712,8 +714,56 @@ class randomize_joint_parameters(ManagerTermBase):
                 operation=operation,
                 distribution=distribution,
             )
+
+            # ensure the friction coefficient is non-negative
+            friction_coeff = torch.clamp(friction_coeff, min=0.0)
+
+            # Always set static friction (indexed once)
+            static_friction_coeff = friction_coeff[env_ids[:, None], joint_ids]
+
+            # if isaacsim version is lower than 5.0.0 we can set only the static friction coefficient
+            major_version = int(env.sim.get_version()[0])
+            if major_version >= 5:
+                # Randomize raw tensors
+                dynamic_friction_coeff = _randomize_prop_by_op(
+                    self.asset.data.default_joint_dynamic_friction_coeff.clone(),
+                    friction_distribution_params,
+                    env_ids,
+                    joint_ids,
+                    operation=operation,
+                    distribution=distribution,
+                )
+                viscous_friction_coeff = _randomize_prop_by_op(
+                    self.asset.data.default_joint_viscous_friction_coeff.clone(),
+                    friction_distribution_params,
+                    env_ids,
+                    joint_ids,
+                    operation=operation,
+                    distribution=distribution,
+                )
+
+                # Clamp to non-negative
+                dynamic_friction_coeff = torch.clamp(dynamic_friction_coeff, min=0.0)
+                viscous_friction_coeff = torch.clamp(viscous_friction_coeff, min=0.0)
+
+                # Ensure dynamic ≤ static (same shape before indexing)
+                dynamic_friction_coeff = torch.minimum(dynamic_friction_coeff, friction_coeff)
+
+                # Index once at the end
+                dynamic_friction_coeff = dynamic_friction_coeff[env_ids[:, None], joint_ids]
+                viscous_friction_coeff = viscous_friction_coeff[env_ids[:, None], joint_ids]
+            else:
+                # For versions < 5.0.0, we do not set these values
+                dynamic_friction_coeff = None
+                viscous_friction_coeff = None
+
+            # Single write call for all versions
             self.asset.write_joint_friction_coefficient_to_sim(
-                friction_coeff[env_ids[:, None], joint_ids], joint_ids=joint_ids, env_ids=env_ids
+                joint_friction_coeff=static_friction_coeff,
+                joint_dynamic_friction_coeff=dynamic_friction_coeff,
+                joint_viscous_friction_coeff=viscous_friction_coeff,
+                joint_ids=joint_ids,
+                env_ids=env_ids,
             )
 
         # joint armature
