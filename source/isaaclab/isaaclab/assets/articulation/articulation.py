@@ -2298,18 +2298,6 @@ class Articulation(AssetBase):
                 # example of disabling external wrench
                 asset.set_external_force_and_torque(forces=torch.zeros(0, 3), torques=torch.zeros(0, 3))
 
-        .. caution::
-            If the function is called consecutively with and with different values for ``is_global``, then the
-            all the external wrenches will be applied in the frame specified by the last call.
-
-            .. code-block:: python
-
-                # example of setting external wrench in the global frame
-                asset.set_external_force_and_torque(forces=torch.ones(1, 1, 3), env_ids=[0], is_global=True)
-                # example of setting external wrench in the link frame
-                asset.set_external_force_and_torque(forces=torch.ones(1, 1, 3), env_ids=[1], is_global=False)
-                # Both environments will have the external wrenches applied in the link frame
-
         .. note::
             This function does not apply the external wrench to the simulation. It only fills the buffers with
             the desired values. To apply the external wrench, call the :meth:`write_data_to_sim` function

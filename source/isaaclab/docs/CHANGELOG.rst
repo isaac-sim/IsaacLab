@@ -1,6 +1,32 @@
 Changelog
 ---------
 
+0.53.2 (2026-01-14)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab.assets.utils.wrench_composer.WrenchComposer` to compose forces and torques at the body's center of mass frame.
+* Added :meth:`~isaaclab.assets.Articulation.add_permanent_external_wrench` to add permanent external wrenches to the articulation.
+* Added :meth:`~isaaclab.assets.Articulation.set_permanent_external_wrench` to set permanent external wrenches to the articulation.
+* Added :meth:`~isaaclab.assets.Articulation.add_instantaneous_external_wrench` to add instantaneous external wrenches to the articulation.
+* Added :meth:`~isaaclab.assets.RigidObject.add_permanent_external_wrench` to add permanent external wrenches to the rigid object.
+* Added :meth:`~isaaclab.assets.RigidObject.set_permanent_external_wrench` to set permanent external wrenches to the rigid object.
+* Added :meth:`~isaaclab.assets.RigidObject.add_instantaneous_external_wrench` to add instantaneous external wrenches to the rigid object.
+* Added :meth:`~isaaclab.assets.RigidObjectCollection.add_permanent_external_wrench` to add permanent external wrenches to the rigid object collection.
+* Added :meth:`~isaaclab.assets.RigidObjectCollection.set_permanent_external_wrench` to set permanent external wrenches to the rigid object collection.
+* Added :meth:`~isaaclab.assets.RigidObjectCollection.add_instantaneous_external_wrench` to add instantaneous external wrenches to the rigid object collection.
+* Added unit tests for the wrench composer.
+* Added kernels for the wrench composer in the :mod:`isaaclab.utils.warp.kernels` module.
+
+Changed
+^^^^^^^
+* Deprecated :meth:`~isaaclab.assets.Articulation.set_external_force_and_torque`  in favor of :meth:`~isaaclab.assets.Articulation.set_permanent_external_wrench`.
+* Deprecated :meth:`~isaaclab.assets.RigidObject.set_external_force_and_torque`  in favor of :meth:`~isaaclab.assets.RigidObject.set_permanent_external_wrench`.
+* Deprecated :meth:`~isaaclab.assets.RigidObjectCollection.set_external_force_and_torque`  in favor of :meth:`~isaaclab.assets.RigidObjectCollection.set_permanent_external_wrench`.
+* Modified the tests of the articulation, rigid object, and rigid object collection to use the new permanent and instantaneous external wrench functions and test them.
+
 0.53.1 (2026-01-08)
 ~~~~~~~~~~~~~~~~~~~
 
