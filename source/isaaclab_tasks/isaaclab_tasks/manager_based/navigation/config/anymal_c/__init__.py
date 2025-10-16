@@ -12,7 +12,7 @@ from . import agents
 ##
 
 gym.register(
-    id="Isaac-Navigation-FloatingObstacles-Anymal-C-v0",
+    id="Isaac-Navigation-Flat-Anymal-C-v0",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
@@ -23,7 +23,7 @@ gym.register(
 )
 
 gym.register(
-    id="Isaac-Navigation-FloatingObstacles-Anymal-C-Play-v0",
+    id="Isaac-Navigation-Flat-Anymal-C-Play-v0",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
