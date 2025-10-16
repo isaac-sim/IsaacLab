@@ -314,6 +314,23 @@ class TerrainImporter:
         self.terrain_levels[env_ids] += 1 * move_up - 1 * move_down
         # robots that solve the last level are sent to a random one
         # the minimum level is zero
+        self.terrain_levels[env_ids] = torch.where(
+            self.terrain_levels[env_ids] >= self.max_terrain_level,
+            torch.randint_like(self.terrain_levels[env_ids], self.max_terrain_level),
+            torch.clip(self.terrain_levels[env_ids], 0),
+        )
+        # update the env origins
+        self.env_origins[env_ids] = self.terrain_origins[self.terrain_levels[env_ids], self.terrain_types[env_ids]]
+
+    def update_drone_env_origins(self, env_ids: torch.Tensor, move_up: torch.Tensor, move_down: torch.Tensor):
+        """Update the environment origins based on the terrain levels."""
+        # check if grid-like spawning
+        if self.terrain_origins is None:
+            return
+        # update terrain level for the envs
+        self.terrain_levels[env_ids] += 1 * move_up - 1 * move_down
+        # robots that solve the last level are sent to a random one
+        # the minimum level is zero
         self.terrain_levels[env_ids] = torch.clip(self.terrain_levels[env_ids], min=0, max=self.max_terrain_level - 1)
         # update the env origins
         self.env_origins[env_ids] = self.terrain_origins[self.terrain_levels[env_ids], self.terrain_types[env_ids]]
