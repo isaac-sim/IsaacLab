@@ -307,28 +307,28 @@ class MeshFloatingObstaclesTerrainCfg(SubTerrainBaseCfg):
 
     panel_obs_cfg = BoxCfg()
     panel_obs_cfg.size = (0.1, 1.2, 3.0)
-    panel_obs_cfg.center_ratio_min = (0.25, 0.1, 0.1)
-    panel_obs_cfg.center_ratio_max = (0.75, 0.9, 0.9)
+    panel_obs_cfg.center_ratio_min = (0.25, 0.15, 0.15)
+    panel_obs_cfg.center_ratio_max = (0.75, 0.85, 0.85)
 
     small_wall_obs_cfg  = BoxCfg()
     small_wall_obs_cfg.size = (0.1, 0.5, 0.5)
-    small_wall_obs_cfg.center_ratio_min = (0.25, 0.1, 0.1)
-    small_wall_obs_cfg.center_ratio_max = (0.75, 0.9, 0.9)
+    small_wall_obs_cfg.center_ratio_min = (0.25, 0.15, 0.15)
+    small_wall_obs_cfg.center_ratio_max = (0.75, 0.85, 0.85)
 
     big_wall_obs_cfg = BoxCfg()
     big_wall_obs_cfg.size = (0.1, 1.0, 1.0)
-    big_wall_obs_cfg.center_ratio_min = (0.25, 0.1, 0.1)
-    big_wall_obs_cfg.center_ratio_max = (0.75, 0.9, 0.9)
+    big_wall_obs_cfg.center_ratio_min = (0.25, 0.15, 0.15)
+    big_wall_obs_cfg.center_ratio_max = (0.75, 0.85, 0.85)
 
     small_cube_obs_cfg = BoxCfg()
     small_cube_obs_cfg.size = (0.4, 0.4, 0.4)
-    small_cube_obs_cfg.center_ratio_min = (0.25, 0.1, 0.1)
-    small_cube_obs_cfg.center_ratio_max = (0.75, 0.9, 0.9)
+    small_cube_obs_cfg.center_ratio_min = (0.25, 0.15, 0.15)
+    small_cube_obs_cfg.center_ratio_max = (0.75, 0.85, 0.85)
 
     rod_obs_cfg = BoxCfg()
     rod_obs_cfg.size = (0.1, 0.1, 2.0)
-    rod_obs_cfg.center_ratio_min = (0.25, 0.1, 0.1)
-    rod_obs_cfg.center_ratio_max = (0.75, 0.9, 0.9)
+    rod_obs_cfg.center_ratio_min = (0.25, 0.15, 0.15)
+    rod_obs_cfg.center_ratio_max = (0.75, 0.85, 0.85)
 
     left_wall_cfg = BoxCfg()
     left_wall_cfg.size = (12.0, 0.2, 6.0)
