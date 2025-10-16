@@ -18,7 +18,7 @@ import isaaclab.utils.math as math_utils
 
 if TYPE_CHECKING:
     from isaaclab.assets import ArticulationWithThrusters
-
+    from isaaclab.assets import Multirotor
     from .lee_velocity_control_cfg import LeeVelControllerCfg
 
 
@@ -32,7 +32,7 @@ class LeeVelController:
 
     cfg: LeeVelControllerCfg
 
-    def __init__(self, cfg: LeeVelControllerCfg, asset: ArticulationWithThrusters, num_envs: int, device: str):
+    def __init__(self, cfg: LeeVelControllerCfg, asset: Multirotor, num_envs: int, device: str):
         """Initialize controller buffers and pre-compute aggregate inertias.
 
         Args:
@@ -40,7 +40,7 @@ class LeeVelController:
             env: Owning environment (must provide ``scene['robot']``, ``num_envs``, and ``device``).
         """
         self.cfg = cfg
-        self.robot: ArticulationWithThrusters = asset
+        self.robot: Multirotor = asset
 
         # Aggregate mass and inertia about the robot COM for all bodies
         root_quat_exp = self.robot.data.root_link_quat_w.unsqueeze(1).expand(num_envs, self.robot.num_bodies, 4)

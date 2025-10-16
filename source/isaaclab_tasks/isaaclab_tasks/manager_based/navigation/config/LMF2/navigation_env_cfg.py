@@ -7,7 +7,7 @@ import math
 from dataclasses import MISSING
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import AssetBaseCfg, ArticulationWithThrustersCfg
+from isaaclab.assets import AssetBaseCfg, MultirotorCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import CurriculumTermCfg as CurrTerm
 from isaaclab.managers import EventTermCfg as EventTerm
@@ -17,13 +17,13 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sensors import CameraCfg, ContactSensorCfg
+from isaaclab.sensors import ContactSensorCfg
 # from isaaclab.sim import PinholeCameraCfg
 from isaaclab.sensors.ray_caster.ray_caster_camera_cfg import RayCasterCameraCfg
 from isaaclab.sensors.ray_caster.patterns import PinholeCameraPatternCfg
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
 
 import isaaclab_tasks.manager_based.navigation.mdp as mdp
@@ -61,7 +61,7 @@ class MySceneCfg(InteractiveSceneCfg):
     )
     
     # robots
-    robot: ArticulationWithThrustersCfg = MISSING
+    robot: MultirotorCfg = MISSING
     # sensors
     depth_camera = RayCasterCameraCfg(
         prim_path="{ENV_REGEX_NS}/Robot/base_link",
@@ -118,11 +118,15 @@ class CommandsCfg:
 class ActionsCfg:
     """Action specifications for the MDP."""
 
-    velocity_commands = mdp.NavigationActionCfg(asset_name="robot", 
-                                     joint_names=[".*"], 
-                                     scale=1.0, 
-                                     use_default_offset=False,
-                                     controller_cfg=LeeVelControllerCfg())
+    velocity_commands = mdp.NavigationActionCfg(
+        asset_name="robot",
+        scale=1.0, 
+        offset=0.0,
+        preserve_order=False,
+        use_default_offset=False,
+        command_type="vel",
+        controller_cfg=LeeVelControllerCfg()
+    )
 
 @configclass
 class ObservationsCfg:
