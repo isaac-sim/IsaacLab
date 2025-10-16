@@ -159,10 +159,10 @@
             <label for="version-select" style="font-weight: bold; display: block;">Version</label>
           </div>
           <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
+            <option value="ray.html" selected>release/2.3.0</option>
             <option value="../../../../main/source/features/ray.html" >main</option>
             <option value="../../../2.1.0/source/features/ray.html" >release/2.1.0</option>
             <option value="../../../2.2.0/source/features/ray.html" >release/2.2.0</option>
-            <option value="ray.html" selected>release/2.3.0</option>
             <option value="../../../../v2.2.1/source/features/ray.html" >v2.2.1</option>
             <option value="../../../../v2.2.0/source/features/ray.html" >v2.2.0</option>
             <option value="../../../../v2.1.1/source/features/ray.html" >v2.1.1</option>
@@ -205,7 +205,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.0.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.1.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -688,6 +688,13 @@ the general workflow is the same.</p>
 <div class="admonition attention">
 <p class="admonition-title">Attention</p>
 <p>This functionality is experimental, and has been tested only on Linux.</p>
+</div>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p><strong>Security Notice</strong>: Due to security risks associated with Ray,
+this workflow is not intended for use outside of a strictly controlled
+network environment. Ray clusters should only be deployed in trusted,
+isolated networks with appropriate access controls and security measures in place.</p>
 </div>
 <section id="overview">
 <h2>Overview<a class="headerlink" href="#overview" title="Permalink to this heading">#</a></h2>

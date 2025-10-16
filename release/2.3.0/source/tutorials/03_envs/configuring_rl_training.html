@@ -159,10 +159,10 @@
             <label for="version-select" style="font-weight: bold; display: block;">Version</label>
           </div>
           <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
+            <option value="configuring_rl_training.html" selected>release/2.3.0</option>
             <option value="../../../../../main/source/tutorials/03_envs/configuring_rl_training.html" >main</option>
             <option value="../../../../2.1.0/index.html" >release/2.1.0</option>
             <option value="../../../../2.2.0/index.html" >release/2.2.0</option>
-            <option value="configuring_rl_training.html" selected>release/2.3.0</option>
             <option value="../../../../../v2.2.1/source/tutorials/03_envs/configuring_rl_training.html" >v2.2.1</option>
             <option value="../../../../../v2.2.0/index.html" >v2.2.0</option>
             <option value="../../../../../v2.1.1/index.html" >v2.1.1</option>
@@ -205,7 +205,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.0.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.1.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -848,7 +848,7 @@ instance for the Stable-Baselines3 library:</p>
 <span class="linenos"> 91</span>    <span class="n">multi_agent_to_single_agent</span><span class="p">,</span>
 <span class="linenos"> 92</span><span class="p">)</span>
 <span class="linenos"> 93</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.dict</span><span class="w"> </span><span class="kn">import</span> <span class="n">print_dict</span>
-<span class="linenos"> 94</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.io</span><span class="w"> </span><span class="kn">import</span> <span class="n">dump_pickle</span><span class="p">,</span> <span class="n">dump_yaml</span>
+<span class="linenos"> 94</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.io</span><span class="w"> </span><span class="kn">import</span> <span class="n">dump_yaml</span>
 <span class="linenos"> 95</span>
 <span class="linenos"> 96</span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_rl.sb3</span><span class="w"> </span><span class="kn">import</span> <span class="n">Sb3VecEnvWrapper</span><span class="p">,</span> <span class="n">process_sb3_cfg</span>
 <span class="linenos"> 97</span>
@@ -887,106 +887,104 @@ instance for the Stable-Baselines3 library:</p>
 <span class="linenos">130</span>    <span class="c1"># dump the configuration into log-directory</span>
 <span class="linenos">131</span>    <span class="n">dump_yaml</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">log_dir</span><span class="p">,</span> <span class="s2">&quot;params&quot;</span><span class="p">,</span> <span class="s2">&quot;env.yaml&quot;</span><span class="p">),</span> <span class="n">env_cfg</span><span class="p">)</span>
 <span class="linenos">132</span>    <span class="n">dump_yaml</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">log_dir</span><span class="p">,</span> <span class="s2">&quot;params&quot;</span><span class="p">,</span> <span class="s2">&quot;agent.yaml&quot;</span><span class="p">),</span> <span class="n">agent_cfg</span><span class="p">)</span>
-<span class="linenos">133</span>    <span class="n">dump_pickle</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">log_dir</span><span class="p">,</span> <span class="s2">&quot;params&quot;</span><span class="p">,</span> <span class="s2">&quot;env.pkl&quot;</span><span class="p">),</span> <span class="n">env_cfg</span><span class="p">)</span>
-<span class="linenos">134</span>    <span class="n">dump_pickle</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">log_dir</span><span class="p">,</span> <span class="s2">&quot;params&quot;</span><span class="p">,</span> <span class="s2">&quot;agent.pkl&quot;</span><span class="p">),</span> <span class="n">agent_cfg</span><span class="p">)</span>
-<span class="linenos">135</span>
-<span class="linenos">136</span>    <span class="c1"># save command used to run the script</span>
-<span class="linenos">137</span>    <span class="n">command</span> <span class="o">=</span> <span class="s2">&quot; &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">orig_argv</span><span class="p">)</span>
-<span class="linenos">138</span>    <span class="p">(</span><span class="n">Path</span><span class="p">(</span><span class="n">log_dir</span><span class="p">)</span> <span class="o">/</span> <span class="s2">&quot;command.txt&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span><span class="n">command</span><span class="p">)</span>
-<span class="linenos">139</span>
-<span class="linenos">140</span>    <span class="c1"># post-process agent configuration</span>
-<span class="linenos">141</span>    <span class="n">agent_cfg</span> <span class="o">=</span> <span class="n">process_sb3_cfg</span><span class="p">(</span><span class="n">agent_cfg</span><span class="p">,</span> <span class="n">env_cfg</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">num_envs</span><span class="p">)</span>
-<span class="linenos">142</span>    <span class="c1"># read configurations about the agent-training</span>
-<span class="linenos">143</span>    <span class="n">policy_arch</span> <span class="o">=</span> <span class="n">agent_cfg</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">&quot;policy&quot;</span><span class="p">)</span>
-<span class="linenos">144</span>    <span class="n">n_timesteps</span> <span class="o">=</span> <span class="n">agent_cfg</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">&quot;n_timesteps&quot;</span><span class="p">)</span>
-<span class="linenos">145</span>
-<span class="linenos">146</span>    <span class="c1"># set the IO descriptors output directory if requested</span>
-<span class="linenos">147</span>    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">env_cfg</span><span class="p">,</span> <span class="n">ManagerBasedRLEnvCfg</span><span class="p">):</span>
-<span class="linenos">148</span>        <span class="n">env_cfg</span><span class="o">.</span><span class="n">export_io_descriptors</span> <span class="o">=</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">export_io_descriptors</span>
-<span class="linenos">149</span>        <span class="n">env_cfg</span><span class="o">.</span><span class="n">io_descriptors_output_dir</span> <span class="o">=</span> <span class="n">log_dir</span>
-<span class="linenos">150</span>    <span class="k">else</span><span class="p">:</span>
-<span class="linenos">151</span>        <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
-<span class="linenos">152</span>            <span class="s2">&quot;IO descriptors are only supported for manager based RL environments. No IO descriptors will be exported.&quot;</span>
-<span class="linenos">153</span>        <span class="p">)</span>
-<span class="linenos">154</span>
-<span class="linenos">155</span>    <span class="c1"># set the log directory for the environment (works for all environment types)</span>
-<span class="linenos">156</span>    <span class="n">env_cfg</span><span class="o">.</span><span class="n">log_dir</span> <span class="o">=</span> <span class="n">log_dir</span>
-<span class="linenos">157</span>
-<span class="linenos">158</span>    <span class="c1"># create isaac environment</span>
-<span class="linenos">159</span>    <span class="n">env</span> <span class="o">=</span> <span class="n">gym</span><span class="o">.</span><span class="n">make</span><span class="p">(</span><span class="n">args_cli</span><span class="o">.</span><span class="n">task</span><span class="p">,</span> <span class="n">cfg</span><span class="o">=</span><span class="n">env_cfg</span><span class="p">,</span> <span class="n">render_mode</span><span class="o">=</span><span class="s2">&quot;rgb_array&quot;</span> <span class="k">if</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">video</span> <span class="k">else</span> <span class="kc">None</span><span class="p">)</span>
-<span class="linenos">160</span>
-<span class="linenos">161</span>    <span class="c1"># convert to single-agent instance if required by the RL algorithm</span>
-<span class="linenos">162</span>    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">unwrapped</span><span class="p">,</span> <span class="n">DirectMARLEnv</span><span class="p">):</span>
-<span class="linenos">163</span>        <span class="n">env</span> <span class="o">=</span> <span class="n">multi_agent_to_single_agent</span><span class="p">(</span><span class="n">env</span><span class="p">)</span>
-<span class="linenos">164</span>
-<span class="linenos">165</span>    <span class="c1"># wrap for video recording</span>
-<span class="linenos">166</span>    <span class="k">if</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">video</span><span class="p">:</span>
-<span class="linenos">167</span>        <span class="n">video_kwargs</span> <span class="o">=</span> <span class="p">{</span>
-<span class="linenos">168</span>            <span class="s2">&quot;video_folder&quot;</span><span class="p">:</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">log_dir</span><span class="p">,</span> <span class="s2">&quot;videos&quot;</span><span class="p">,</span> <span class="s2">&quot;train&quot;</span><span class="p">),</span>
-<span class="linenos">169</span>            <span class="s2">&quot;step_trigger&quot;</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">step</span><span class="p">:</span> <span class="n">step</span> <span class="o">%</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">video_interval</span> <span class="o">==</span> <span class="mi">0</span><span class="p">,</span>
-<span class="linenos">170</span>            <span class="s2">&quot;video_length&quot;</span><span class="p">:</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">video_length</span><span class="p">,</span>
-<span class="linenos">171</span>            <span class="s2">&quot;disable_logger&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
-<span class="linenos">172</span>        <span class="p">}</span>
-<span class="linenos">173</span>        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO] Recording videos during training.&quot;</span><span class="p">)</span>
-<span class="linenos">174</span>        <span class="n">print_dict</span><span class="p">(</span><span class="n">video_kwargs</span><span class="p">,</span> <span class="n">nesting</span><span class="o">=</span><span class="mi">4</span><span class="p">)</span>
-<span class="linenos">175</span>        <span class="n">env</span> <span class="o">=</span> <span class="n">gym</span><span class="o">.</span><span class="n">wrappers</span><span class="o">.</span><span class="n">RecordVideo</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="o">**</span><span class="n">video_kwargs</span><span class="p">)</span>
-<span class="linenos">176</span>
-<span class="linenos">177</span>    <span class="c1"># wrap around environment for stable baselines</span>
-<span class="linenos">178</span>    <span class="n">env</span> <span class="o">=</span> <span class="n">Sb3VecEnvWrapper</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">fast_variant</span><span class="o">=</span><span class="ow">not</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">keep_all_info</span><span class="p">)</span>
-<span class="linenos">179</span>
-<span class="linenos">180</span>    <span class="n">norm_keys</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;normalize_input&quot;</span><span class="p">,</span> <span class="s2">&quot;normalize_value&quot;</span><span class="p">,</span> <span class="s2">&quot;clip_obs&quot;</span><span class="p">}</span>
-<span class="linenos">181</span>    <span class="n">norm_args</span> <span class="o">=</span> <span class="p">{}</span>
-<span class="linenos">182</span>    <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">norm_keys</span><span class="p">:</span>
-<span class="linenos">183</span>        <span class="k">if</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">agent_cfg</span><span class="p">:</span>
-<span class="linenos">184</span>            <span class="n">norm_args</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">agent_cfg</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
-<span class="linenos">185</span>
-<span class="linenos">186</span>    <span class="k">if</span> <span class="n">norm_args</span> <span class="ow">and</span> <span class="n">norm_args</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;normalize_input&quot;</span><span class="p">):</span>
-<span class="linenos">187</span>        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Normalizing input, </span><span class="si">{</span><span class="n">norm_args</span><span class="si">=}</span><span class="s2">&quot;</span><span class="p">)</span>
-<span class="linenos">188</span>        <span class="n">env</span> <span class="o">=</span> <span class="n">VecNormalize</span><span class="p">(</span>
-<span class="linenos">189</span>            <span class="n">env</span><span class="p">,</span>
-<span class="linenos">190</span>            <span class="n">training</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-<span class="linenos">191</span>            <span class="n">norm_obs</span><span class="o">=</span><span class="n">norm_args</span><span class="p">[</span><span class="s2">&quot;normalize_input&quot;</span><span class="p">],</span>
-<span class="linenos">192</span>            <span class="n">norm_reward</span><span class="o">=</span><span class="n">norm_args</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;normalize_value&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">),</span>
-<span class="linenos">193</span>            <span class="n">clip_obs</span><span class="o">=</span><span class="n">norm_args</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;clip_obs&quot;</span><span class="p">,</span> <span class="mf">100.0</span><span class="p">),</span>
-<span class="linenos">194</span>            <span class="n">gamma</span><span class="o">=</span><span class="n">agent_cfg</span><span class="p">[</span><span class="s2">&quot;gamma&quot;</span><span class="p">],</span>
-<span class="linenos">195</span>            <span class="n">clip_reward</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">inf</span><span class="p">,</span>
-<span class="linenos">196</span>        <span class="p">)</span>
-<span class="linenos">197</span>
-<span class="linenos">198</span>    <span class="c1"># create agent from stable baselines</span>
-<span class="linenos">199</span>    <span class="n">agent</span> <span class="o">=</span> <span class="n">PPO</span><span class="p">(</span><span class="n">policy_arch</span><span class="p">,</span> <span class="n">env</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">tensorboard_log</span><span class="o">=</span><span class="n">log_dir</span><span class="p">,</span> <span class="o">**</span><span class="n">agent_cfg</span><span class="p">)</span>
-<span class="linenos">200</span>    <span class="k">if</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">checkpoint</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-<span class="linenos">201</span>        <span class="n">agent</span> <span class="o">=</span> <span class="n">agent</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">args_cli</span><span class="o">.</span><span class="n">checkpoint</span><span class="p">,</span> <span class="n">env</span><span class="p">,</span> <span class="n">print_system_info</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-<span class="linenos">202</span>
-<span class="linenos">203</span>    <span class="c1"># callbacks for agent</span>
-<span class="linenos">204</span>    <span class="n">checkpoint_callback</span> <span class="o">=</span> <span class="n">CheckpointCallback</span><span class="p">(</span><span class="n">save_freq</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span> <span class="n">save_path</span><span class="o">=</span><span class="n">log_dir</span><span class="p">,</span> <span class="n">name_prefix</span><span class="o">=</span><span class="s2">&quot;model&quot;</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
-<span class="linenos">205</span>    <span class="n">callbacks</span> <span class="o">=</span> <span class="p">[</span><span class="n">checkpoint_callback</span><span class="p">,</span> <span class="n">LogEveryNTimesteps</span><span class="p">(</span><span class="n">n_steps</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">log_interval</span><span class="p">)]</span>
-<span class="linenos">206</span>
-<span class="linenos">207</span>    <span class="c1"># train the agent</span>
-<span class="linenos">208</span>    <span class="k">with</span> <span class="n">contextlib</span><span class="o">.</span><span class="n">suppress</span><span class="p">(</span><span class="ne">KeyboardInterrupt</span><span class="p">):</span>
-<span class="linenos">209</span>        <span class="n">agent</span><span class="o">.</span><span class="n">learn</span><span class="p">(</span>
-<span class="linenos">210</span>            <span class="n">total_timesteps</span><span class="o">=</span><span class="n">n_timesteps</span><span class="p">,</span>
-<span class="linenos">211</span>            <span class="n">callback</span><span class="o">=</span><span class="n">callbacks</span><span class="p">,</span>
-<span class="linenos">212</span>            <span class="n">progress_bar</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-<span class="linenos">213</span>            <span class="n">log_interval</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-<span class="linenos">214</span>        <span class="p">)</span>
-<span class="linenos">215</span>    <span class="c1"># save the final model</span>
-<span class="linenos">216</span>    <span class="n">agent</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">log_dir</span><span class="p">,</span> <span class="s2">&quot;model&quot;</span><span class="p">))</span>
-<span class="linenos">217</span>    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Saving to:&quot;</span><span class="p">)</span>
-<span class="linenos">218</span>    <span class="nb">print</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">log_dir</span><span class="p">,</span> <span class="s2">&quot;model.zip&quot;</span><span class="p">))</span>
-<span class="linenos">219</span>
-<span class="linenos">220</span>    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">VecNormalize</span><span class="p">):</span>
-<span class="linenos">221</span>        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Saving normalization&quot;</span><span class="p">)</span>
-<span class="linenos">222</span>        <span class="n">env</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">log_dir</span><span class="p">,</span> <span class="s2">&quot;model_vecnormalize.pkl&quot;</span><span class="p">))</span>
-<span class="linenos">223</span>
-<span class="linenos">224</span>    <span class="c1"># close the simulator</span>
-<span class="linenos">225</span>    <span class="n">env</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
-<span class="linenos">226</span>
-<span class="linenos">227</span>
-<span class="linenos">228</span><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
-<span class="linenos">229</span>    <span class="c1"># run the main function</span>
-<span class="linenos">230</span>    <span class="n">main</span><span class="p">()</span>
-<span class="linenos">231</span>    <span class="c1"># close sim app</span>
-<span class="linenos">232</span>    <span class="n">simulation_app</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+<span class="linenos">133</span>
+<span class="linenos">134</span>    <span class="c1"># save command used to run the script</span>
+<span class="linenos">135</span>    <span class="n">command</span> <span class="o">=</span> <span class="s2">&quot; &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">orig_argv</span><span class="p">)</span>
+<span class="linenos">136</span>    <span class="p">(</span><span class="n">Path</span><span class="p">(</span><span class="n">log_dir</span><span class="p">)</span> <span class="o">/</span> <span class="s2">&quot;command.txt&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span><span class="n">command</span><span class="p">)</span>
+<span class="linenos">137</span>
+<span class="linenos">138</span>    <span class="c1"># post-process agent configuration</span>
+<span class="linenos">139</span>    <span class="n">agent_cfg</span> <span class="o">=</span> <span class="n">process_sb3_cfg</span><span class="p">(</span><span class="n">agent_cfg</span><span class="p">,</span> <span class="n">env_cfg</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">num_envs</span><span class="p">)</span>
+<span class="linenos">140</span>    <span class="c1"># read configurations about the agent-training</span>
+<span class="linenos">141</span>    <span class="n">policy_arch</span> <span class="o">=</span> <span class="n">agent_cfg</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">&quot;policy&quot;</span><span class="p">)</span>
+<span class="linenos">142</span>    <span class="n">n_timesteps</span> <span class="o">=</span> <span class="n">agent_cfg</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">&quot;n_timesteps&quot;</span><span class="p">)</span>
+<span class="linenos">143</span>
+<span class="linenos">144</span>    <span class="c1"># set the IO descriptors output directory if requested</span>
+<span class="linenos">145</span>    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">env_cfg</span><span class="p">,</span> <span class="n">ManagerBasedRLEnvCfg</span><span class="p">):</span>
+<span class="linenos">146</span>        <span class="n">env_cfg</span><span class="o">.</span><span class="n">export_io_descriptors</span> <span class="o">=</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">export_io_descriptors</span>
+<span class="linenos">147</span>        <span class="n">env_cfg</span><span class="o">.</span><span class="n">io_descriptors_output_dir</span> <span class="o">=</span> <span class="n">log_dir</span>
+<span class="linenos">148</span>    <span class="k">else</span><span class="p">:</span>
+<span class="linenos">149</span>        <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+<span class="linenos">150</span>            <span class="s2">&quot;IO descriptors are only supported for manager based RL environments. No IO descriptors will be exported.&quot;</span>
+<span class="linenos">151</span>        <span class="p">)</span>
+<span class="linenos">152</span>
+<span class="linenos">153</span>    <span class="c1"># set the log directory for the environment (works for all environment types)</span>
+<span class="linenos">154</span>    <span class="n">env_cfg</span><span class="o">.</span><span class="n">log_dir</span> <span class="o">=</span> <span class="n">log_dir</span>
+<span class="linenos">155</span>
+<span class="linenos">156</span>    <span class="c1"># create isaac environment</span>
+<span class="linenos">157</span>    <span class="n">env</span> <span class="o">=</span> <span class="n">gym</span><span class="o">.</span><span class="n">make</span><span class="p">(</span><span class="n">args_cli</span><span class="o">.</span><span class="n">task</span><span class="p">,</span> <span class="n">cfg</span><span class="o">=</span><span class="n">env_cfg</span><span class="p">,</span> <span class="n">render_mode</span><span class="o">=</span><span class="s2">&quot;rgb_array&quot;</span> <span class="k">if</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">video</span> <span class="k">else</span> <span class="kc">None</span><span class="p">)</span>
+<span class="linenos">158</span>
+<span class="linenos">159</span>    <span class="c1"># convert to single-agent instance if required by the RL algorithm</span>
+<span class="linenos">160</span>    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">unwrapped</span><span class="p">,</span> <span class="n">DirectMARLEnv</span><span class="p">):</span>
+<span class="linenos">161</span>        <span class="n">env</span> <span class="o">=</span> <span class="n">multi_agent_to_single_agent</span><span class="p">(</span><span class="n">env</span><span class="p">)</span>
+<span class="linenos">162</span>
+<span class="linenos">163</span>    <span class="c1"># wrap for video recording</span>
+<span class="linenos">164</span>    <span class="k">if</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">video</span><span class="p">:</span>
+<span class="linenos">165</span>        <span class="n">video_kwargs</span> <span class="o">=</span> <span class="p">{</span>
+<span class="linenos">166</span>            <span class="s2">&quot;video_folder&quot;</span><span class="p">:</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">log_dir</span><span class="p">,</span> <span class="s2">&quot;videos&quot;</span><span class="p">,</span> <span class="s2">&quot;train&quot;</span><span class="p">),</span>
+<span class="linenos">167</span>            <span class="s2">&quot;step_trigger&quot;</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">step</span><span class="p">:</span> <span class="n">step</span> <span class="o">%</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">video_interval</span> <span class="o">==</span> <span class="mi">0</span><span class="p">,</span>
+<span class="linenos">168</span>            <span class="s2">&quot;video_length&quot;</span><span class="p">:</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">video_length</span><span class="p">,</span>
+<span class="linenos">169</span>            <span class="s2">&quot;disable_logger&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+<span class="linenos">170</span>        <span class="p">}</span>
+<span class="linenos">171</span>        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO] Recording videos during training.&quot;</span><span class="p">)</span>
+<span class="linenos">172</span>        <span class="n">print_dict</span><span class="p">(</span><span class="n">video_kwargs</span><span class="p">,</span> <span class="n">nesting</span><span class="o">=</span><span class="mi">4</span><span class="p">)</span>
+<span class="linenos">173</span>        <span class="n">env</span> <span class="o">=</span> <span class="n">gym</span><span class="o">.</span><span class="n">wrappers</span><span class="o">.</span><span class="n">RecordVideo</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="o">**</span><span class="n">video_kwargs</span><span class="p">)</span>
+<span class="linenos">174</span>
+<span class="linenos">175</span>    <span class="c1"># wrap around environment for stable baselines</span>
+<span class="linenos">176</span>    <span class="n">env</span> <span class="o">=</span> <span class="n">Sb3VecEnvWrapper</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">fast_variant</span><span class="o">=</span><span class="ow">not</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">keep_all_info</span><span class="p">)</span>
+<span class="linenos">177</span>
+<span class="linenos">178</span>    <span class="n">norm_keys</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;normalize_input&quot;</span><span class="p">,</span> <span class="s2">&quot;normalize_value&quot;</span><span class="p">,</span> <span class="s2">&quot;clip_obs&quot;</span><span class="p">}</span>
+<span class="linenos">179</span>    <span class="n">norm_args</span> <span class="o">=</span> <span class="p">{}</span>
+<span class="linenos">180</span>    <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">norm_keys</span><span class="p">:</span>
+<span class="linenos">181</span>        <span class="k">if</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">agent_cfg</span><span class="p">:</span>
+<span class="linenos">182</span>            <span class="n">norm_args</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">agent_cfg</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+<span class="linenos">183</span>
+<span class="linenos">184</span>    <span class="k">if</span> <span class="n">norm_args</span> <span class="ow">and</span> <span class="n">norm_args</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;normalize_input&quot;</span><span class="p">):</span>
+<span class="linenos">185</span>        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Normalizing input, </span><span class="si">{</span><span class="n">norm_args</span><span class="si">=}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="linenos">186</span>        <span class="n">env</span> <span class="o">=</span> <span class="n">VecNormalize</span><span class="p">(</span>
+<span class="linenos">187</span>            <span class="n">env</span><span class="p">,</span>
+<span class="linenos">188</span>            <span class="n">training</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+<span class="linenos">189</span>            <span class="n">norm_obs</span><span class="o">=</span><span class="n">norm_args</span><span class="p">[</span><span class="s2">&quot;normalize_input&quot;</span><span class="p">],</span>
+<span class="linenos">190</span>            <span class="n">norm_reward</span><span class="o">=</span><span class="n">norm_args</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;normalize_value&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">),</span>
+<span class="linenos">191</span>            <span class="n">clip_obs</span><span class="o">=</span><span class="n">norm_args</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;clip_obs&quot;</span><span class="p">,</span> <span class="mf">100.0</span><span class="p">),</span>
+<span class="linenos">192</span>            <span class="n">gamma</span><span class="o">=</span><span class="n">agent_cfg</span><span class="p">[</span><span class="s2">&quot;gamma&quot;</span><span class="p">],</span>
+<span class="linenos">193</span>            <span class="n">clip_reward</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">inf</span><span class="p">,</span>
+<span class="linenos">194</span>        <span class="p">)</span>
+<span class="linenos">195</span>
+<span class="linenos">196</span>    <span class="c1"># create agent from stable baselines</span>
+<span class="linenos">197</span>    <span class="n">agent</span> <span class="o">=</span> <span class="n">PPO</span><span class="p">(</span><span class="n">policy_arch</span><span class="p">,</span> <span class="n">env</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">tensorboard_log</span><span class="o">=</span><span class="n">log_dir</span><span class="p">,</span> <span class="o">**</span><span class="n">agent_cfg</span><span class="p">)</span>
+<span class="linenos">198</span>    <span class="k">if</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">checkpoint</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+<span class="linenos">199</span>        <span class="n">agent</span> <span class="o">=</span> <span class="n">agent</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">args_cli</span><span class="o">.</span><span class="n">checkpoint</span><span class="p">,</span> <span class="n">env</span><span class="p">,</span> <span class="n">print_system_info</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="linenos">200</span>
+<span class="linenos">201</span>    <span class="c1"># callbacks for agent</span>
+<span class="linenos">202</span>    <span class="n">checkpoint_callback</span> <span class="o">=</span> <span class="n">CheckpointCallback</span><span class="p">(</span><span class="n">save_freq</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span> <span class="n">save_path</span><span class="o">=</span><span class="n">log_dir</span><span class="p">,</span> <span class="n">name_prefix</span><span class="o">=</span><span class="s2">&quot;model&quot;</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+<span class="linenos">203</span>    <span class="n">callbacks</span> <span class="o">=</span> <span class="p">[</span><span class="n">checkpoint_callback</span><span class="p">,</span> <span class="n">LogEveryNTimesteps</span><span class="p">(</span><span class="n">n_steps</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">log_interval</span><span class="p">)]</span>
+<span class="linenos">204</span>
+<span class="linenos">205</span>    <span class="c1"># train the agent</span>
+<span class="linenos">206</span>    <span class="k">with</span> <span class="n">contextlib</span><span class="o">.</span><span class="n">suppress</span><span class="p">(</span><span class="ne">KeyboardInterrupt</span><span class="p">):</span>
+<span class="linenos">207</span>        <span class="n">agent</span><span class="o">.</span><span class="n">learn</span><span class="p">(</span>
+<span class="linenos">208</span>            <span class="n">total_timesteps</span><span class="o">=</span><span class="n">n_timesteps</span><span class="p">,</span>
+<span class="linenos">209</span>            <span class="n">callback</span><span class="o">=</span><span class="n">callbacks</span><span class="p">,</span>
+<span class="linenos">210</span>            <span class="n">progress_bar</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+<span class="linenos">211</span>            <span class="n">log_interval</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+<span class="linenos">212</span>        <span class="p">)</span>
+<span class="linenos">213</span>    <span class="c1"># save the final model</span>
+<span class="linenos">214</span>    <span class="n">agent</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">log_dir</span><span class="p">,</span> <span class="s2">&quot;model&quot;</span><span class="p">))</span>
+<span class="linenos">215</span>    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Saving to:&quot;</span><span class="p">)</span>
+<span class="linenos">216</span>    <span class="nb">print</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">log_dir</span><span class="p">,</span> <span class="s2">&quot;model.zip&quot;</span><span class="p">))</span>
+<span class="linenos">217</span>
+<span class="linenos">218</span>    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">VecNormalize</span><span class="p">):</span>
+<span class="linenos">219</span>        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Saving normalization&quot;</span><span class="p">)</span>
+<span class="linenos">220</span>        <span class="n">env</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">log_dir</span><span class="p">,</span> <span class="s2">&quot;model_vecnormalize.pkl&quot;</span><span class="p">))</span>
+<span class="linenos">221</span>
+<span class="linenos">222</span>    <span class="c1"># close the simulator</span>
+<span class="linenos">223</span>    <span class="n">env</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+<span class="linenos">224</span>
+<span class="linenos">225</span>
+<span class="linenos">226</span><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
+<span class="linenos">227</span>    <span class="c1"># run the main function</span>
+<span class="linenos">228</span>    <span class="n">main</span><span class="p">()</span>
+<span class="linenos">229</span>    <span class="c1"># close sim app</span>
+<span class="linenos">230</span>    <span class="n">simulation_app</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
 </pre></div>
 </div>
 </div>
