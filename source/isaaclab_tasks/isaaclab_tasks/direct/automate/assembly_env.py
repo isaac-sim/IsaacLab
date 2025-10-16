@@ -60,7 +60,8 @@ class AssemblyEnv(DirectRLEnv):
         )
 
         # Create criterion for dynamic time warping (later used for imitation reward)
-        if torch.cuda.is_available() and torch.version.cuda<'13.0':
+        cuda_version = automate_algo.get_cuda_version()
+        if cuda_version < '13.0':
             self.soft_dtw_criterion = SoftDTW(use_cuda=True, device=self.device, gamma=self.cfg_task.soft_dtw_gamma)
         else:
             self.soft_dtw_criterion = SoftDTW(use_cuda=False, device=self.device, gamma=self.cfg_task.soft_dtw_gamma)
