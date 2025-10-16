@@ -16,6 +16,13 @@ the general workflow is the same.
 
   This functionality is experimental, and has been tested only on Linux.
 
+.. warning::
+
+  **Security Notice**: Due to security risks associated with Ray,
+  this workflow is not intended for use outside of a strictly controlled
+  network environment. Ray clusters should only be deployed in trusted,
+  isolated networks with appropriate access controls and security measures in place.
+
 
 
 Overview
