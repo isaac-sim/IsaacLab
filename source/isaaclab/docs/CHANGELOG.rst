@@ -1,6 +1,13 @@
 Changelog
 ---------
 
+0.46.6 (2025-10-15)
+~~~~~~~~~~~~~~~~~~~
+
+* Added test suite that checks kinematic rigidbody behavior in fabric mode.
+  This test suite covers the scenarios where kinematic rigidbodies scaled, and rendered correctly.
+
+
 0.46.5 (2025-10-14)
 ~~~~~~~~~~~~~~~~~~~
 
