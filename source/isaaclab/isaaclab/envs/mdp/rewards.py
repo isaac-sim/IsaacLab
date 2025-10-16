@@ -127,24 +127,6 @@ def body_lin_acc_l2(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEnt
     asset: Articulation = env.scene[asset_cfg.name]
     return torch.sum(torch.norm(asset.data.body_lin_acc_w[:, asset_cfg.body_ids, :], dim=-1), dim=1)
 
-def distance_to_goal_l2(env: ManagerBasedRLEnv,
-                        goal_position: torch.Tensor = 0.0,
-                        asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
-    """Penalize the distance to a goal position using L2 squared kernel.
-
-    Args:
-        env (ManagerBasedRLEnv): The environment instance.
-        goal_position (torch.Tensor): The target goal position of shape (3,) or (N, 3) where N is the number of environments.
-        asset_cfg (SceneEntityCfg, optional): Configuration for the asset. Defaults to SceneEntityCfg("robot").
-
-    Returns:
-        torch.Tensor: The computed L2 squared distance to the goal for each environment.
-    """
-    # extract the used quantities (to enable type-hinting)
-    asset: RigidObject = env.scene[asset_cfg.name]
-    target_position_w = goal_position + env.scene.env_origins
-    target_position_w[:, 2] += 1.5
-    return  torch.sum(torch.square(asset.data.root_pos_w - target_position_w), dim=1)
 
 """
 Joint penalties.

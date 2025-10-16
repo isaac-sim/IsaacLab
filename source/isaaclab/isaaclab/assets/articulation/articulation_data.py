@@ -326,7 +326,6 @@ class ArticulationData:
     These torques are set into the simulation, after clipping the :attr:`computed_torque` based on the
     actuator model.
     """
-    
 
     ##
     # Joint properties.

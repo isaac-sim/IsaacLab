@@ -11,7 +11,7 @@ the observation introduced by the function.
 
 from __future__ import annotations
 
-import torch, torch.jit
+import torch
 from typing import TYPE_CHECKING
 
 import isaaclab.utils.math as math_utils
@@ -20,7 +20,6 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers.manager_base import ManagerTermBase
 from isaaclab.managers.manager_term_cfg import ObservationTermCfg
 from isaaclab.sensors import Camera, Imu, RayCaster, RayCasterCamera, TiledCamera
-import matplotlib.pyplot as plt
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv, ManagerBasedRLEnv
@@ -420,6 +419,7 @@ def image(
             images = (images + 1.0) * 0.5
 
     return images.clone()
+
 
 class image_features(ManagerTermBase):
     """Extracted image features from a pre-trained frozen encoder.

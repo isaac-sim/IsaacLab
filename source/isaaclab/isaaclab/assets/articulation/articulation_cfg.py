@@ -5,8 +5,6 @@
 
 from dataclasses import MISSING
 
-import torch
-
 from isaaclab.actuators import ActuatorBaseCfg
 from isaaclab.utils import configclass
 

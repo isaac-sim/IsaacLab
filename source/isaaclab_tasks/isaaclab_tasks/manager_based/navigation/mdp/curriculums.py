@@ -49,6 +49,6 @@ def terrain_levels_vel(
     move_up = position_error < 1.5
     move_down = env.termination_manager.terminated[env_ids]
     # update terrain levels
-    terrain.update_env_origins(env_ids, move_up, move_down)
+    terrain.update_drone_env_origins(env_ids, move_up, move_down)
     # return the mean terrain level
     return torch.mean(terrain.terrain_levels.float())
