@@ -21,7 +21,7 @@ Reference: https://github.com/unitreerobotics/unitree_ros
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ActuatorNetMLPCfg, DCMotorCfg, ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
-from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 
 ##
 # Configuration - Actuators.
@@ -54,7 +54,7 @@ This model is taken from: https://github.com/Improbable-AI/walk-these-ways
 
 UNITREE_A1_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/Unitree/A1/a1.usd",
+        usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/Unitree/A1/a1.usd",
         activate_contact_sensors=True,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=False,
@@ -101,7 +101,7 @@ Note: Specifications taken from: https://www.trossenrobotics.com/a1-quadruped#sp
 
 UNITREE_GO1_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/Unitree/Go1/go1.usd",
+        usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/Unitree/Go1/go1.usd",
         activate_contact_sensors=True,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=False,
@@ -137,7 +137,7 @@ UNITREE_GO1_CFG = ArticulationCfg(
 
 UNITREE_GO2_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/Unitree/Go2/go2.usd",
+        usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/Unitree/Go2/go2.usd",
         activate_contact_sensors=True,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=False,
@@ -181,7 +181,7 @@ UNITREE_GO2_CFG = ArticulationCfg(
 
 H1_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/Unitree/H1/h1.usd",
+        usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/Unitree/H1/h1.usd",
         activate_contact_sensors=True,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=False,
@@ -260,7 +260,7 @@ H1_CFG = ArticulationCfg(
 
 
 H1_MINIMAL_CFG = H1_CFG.copy()
-H1_MINIMAL_CFG.spawn.usd_path = f"{ISAACLAB_NUCLEUS_DIR}/Robots/Unitree/H1/h1_minimal.usd"
+H1_MINIMAL_CFG.spawn.usd_path = f"{ISAAC_NUCLEUS_DIR}/Robots/Unitree/H1/h1_minimal.usd"
 """Configuration for the Unitree H1 Humanoid robot with fewer collision meshes.
 
 This configuration removes most collision meshes to speed up simulation.
@@ -269,7 +269,7 @@ This configuration removes most collision meshes to speed up simulation.
 
 G1_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/Unitree/G1/g1.usd",
+        usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/Unitree/G1_23dof/g1.usd",
         activate_contact_sensors=True,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=False,
@@ -376,7 +376,7 @@ G1_CFG = ArticulationCfg(
 
 
 G1_MINIMAL_CFG = G1_CFG.copy()
-G1_MINIMAL_CFG.spawn.usd_path = f"{ISAACLAB_NUCLEUS_DIR}/Robots/Unitree/G1/g1_minimal.usd"
+G1_MINIMAL_CFG.spawn.usd_path = f"{ISAAC_NUCLEUS_DIR}/Robots/Unitree/G1_23dof/g1_minimal.usd"
 """Configuration for the Unitree G1 Humanoid robot with fewer collision meshes.
 
 This configuration removes most collision meshes to speed up simulation.

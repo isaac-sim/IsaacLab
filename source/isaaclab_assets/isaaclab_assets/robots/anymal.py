@@ -25,7 +25,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.actuators import ActuatorNetLSTMCfg, DCMotorCfg
 from isaaclab.assets.articulation import ArticulationCfg
 from isaaclab.sensors import RayCasterCfg
-from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 
 ##
 # Configuration - Actuators.
@@ -55,10 +55,9 @@ ANYDRIVE_3_LSTM_ACTUATOR_CFG = ActuatorNetLSTMCfg(
 ##
 # Configuration - Articulation.
 ##
-
 ANYMAL_B_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/ANYbotics/ANYmal-B/anymal_b.usd",
+        usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/ANYbotics/anymal_b/anymal_b.usd",
         activate_contact_sensors=True,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=False,
@@ -92,8 +91,7 @@ ANYMAL_B_CFG = ArticulationCfg(
 
 ANYMAL_C_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/ANYbotics/ANYmal-C/anymal_c.usd",
-        # usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/ANYbotics/anymal_instanceable.usd",
+        usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/ANYbotics/anymal_c/anymal_c.usd",
         activate_contact_sensors=True,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=False,
@@ -127,8 +125,7 @@ ANYMAL_C_CFG = ArticulationCfg(
 
 ANYMAL_D_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/ANYbotics/ANYmal-D/anymal_d.usd",
-        # usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/ANYbotics/ANYmal-D/anymal_d_minimal.usd",
+        usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/ANYbotics/anymal_d/anymal_d.usd",
         activate_contact_sensors=True,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=False,

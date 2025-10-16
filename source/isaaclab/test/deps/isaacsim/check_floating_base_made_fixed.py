@@ -57,10 +57,6 @@ if nucleus_utils.get_assets_root_path() is None:
 ISAAC_NUCLEUS_DIR = f"{nucleus_utils.get_assets_root_path()}/Isaac"
 """Path to the `Isaac` directory on the NVIDIA Nucleus Server."""
 
-ISAACLAB_NUCLEUS_DIR = f"{ISAAC_NUCLEUS_DIR}/IsaacLab"
-"""Path to the `Isaac/IsaacLab` directory on the NVIDIA Nucleus Server."""
-
-
 """
 Main
 """
@@ -86,7 +82,7 @@ def main():
     prim_utils.create_prim("/World/Light/WhiteSphere", "SphereLight", translation=(-4.5, 3.5, 10.0))
     # -- Robot
     # resolve asset
-    usd_path = f"{ISAACLAB_NUCLEUS_DIR}/Robots/ANYbotics/ANYmal-C/anymal_c.usd"
+    usd_path = f"{ISAAC_NUCLEUS_DIR}/Robots/ANYbotics/anymal_c/anymal_c.usd"
     root_prim_path = "/World/Robot/base"
     # add asset
     print("Loading robot from: ", usd_path)

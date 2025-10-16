@@ -15,7 +15,7 @@ Reference: https://github.com/UMich-BipedLab/Cassie_Model/blob/master/urdf/cassi
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
-from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 ##
 # Configuration
@@ -23,7 +23,7 @@ from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 CASSIE_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/Agility/Cassie/cassie.usd",
+        usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/Agility/Cassie/cassie.usd",
         activate_contact_sensors=True,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=False,
