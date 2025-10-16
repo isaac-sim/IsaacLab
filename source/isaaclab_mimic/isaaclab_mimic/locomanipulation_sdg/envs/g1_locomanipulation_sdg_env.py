@@ -23,8 +23,8 @@ from isaaclab_mimic.locomanipulation_sdg.scene_utils import HasPose, SceneBody, 
 from isaaclab_tasks.manager_based.locomanipulation.pick_place.locomanipulation_g1_env_cfg import (
     LocomanipulationG1EnvCfg,
     LocomanipulationG1SceneCfg,
+    ObservationsCfg,
     manip_mdp,
-    ObservationsCfg
 )
 
 from .locomanipulation_sdg_env import LocomanipulationSDGEnv
