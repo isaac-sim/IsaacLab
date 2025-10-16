@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.47.0 (2025-10-14)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Removed pickle utilities for saving and loading configurations as pickle contains security vulnerabilities in its APIs.
+  Configurations can continue to be saved and loaded through yaml.
+
+
 0.46.11 (2025-10-15)
 ~~~~~~~~~~~~~~~~~~~~
 
@@ -68,6 +78,9 @@ Changed
 
 0.46.5 (2025-10-14)
 ~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
 
 * Exposed parameter :attr:`~isaaclab.sim.spawners.PhysxCfg.solve_articulation_contact_last`
   to configure USD attribute ``physxscene:solveArticulationContactLast``. This parameter may
