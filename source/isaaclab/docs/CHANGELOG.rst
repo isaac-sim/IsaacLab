@@ -14,8 +14,8 @@ Changed
 0.46.5 (2025-10-14)
 ~~~~~~~~~~~~~~~~~~~
 
-Changed
-^^^^^^^
+Added
+^^^^^
 
 * Exposed parameter :attr:`~isaaclab.sim.spawners.PhysxCfg.solve_articulation_contact_last`
   to configure USD attribute ``physxscene:solveArticulationContactLast``. This parameter may
