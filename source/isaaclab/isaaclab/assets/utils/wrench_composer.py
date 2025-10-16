@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 import warp as wp
 
 from ..asset_base import AssetBase
-from .kernels import add_forces_and_torques_at_position, set_forces_and_torques_at_position
+from isaaclab.utils.warp.kernels import add_forces_and_torques_at_position, set_forces_and_torques_at_position
 
 if TYPE_CHECKING:
     import numpy as np
