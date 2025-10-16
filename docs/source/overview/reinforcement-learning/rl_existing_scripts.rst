@@ -8,7 +8,7 @@ from the environments into the respective libraries function argument and return
 RL-Games
 --------
 
-.. note::
+.. attention::
 
   When using RL-Games with the Ray workflow for distributed training or hyperparameter tuning,
   please be aware that due to security risks associated with Ray, this workflow is not intended
