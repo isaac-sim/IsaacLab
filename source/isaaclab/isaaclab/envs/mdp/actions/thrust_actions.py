@@ -188,7 +188,7 @@ class NavigationAction(ThrustAction):
 
     @property
     def action_dim(self) -> int:
-        return 3
+        return self.cfg.action_dim[self.cfg.command_type]
 
     @property
     def IO_descriptor(self) -> GenericActionIODescriptor:
