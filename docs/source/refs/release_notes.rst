@@ -126,6 +126,9 @@ Isaac Sim 5.0 Updates
 * :attr:`~isaaclab.sim.spawners.PhysicsMaterialCfg.improve_patch_friction` is now removed. The simulation will always behave as if this attribute is set to true.
 * Native Livestreaming support has been removed. ``LIVESTREAM=1`` can now be used for WebRTC streaming over public networks and
   ``LIVESTREAM=2`` for private and local networks with WebRTC streaming.
+* Isaac Sim 5.0 introduced new actuator models for PhysX, including drive model and friction model improvements.
+  These improvements also introduced a small performance regression. We have observed up to ~20% slowdown in some
+  state-based environments.
 * Some assets in Isaac Sim have been reworked and restructured. Notably, the following asset paths were updated:
 
   * ``Robots/Ant/ant_instanceable.usd`` --> ``Robots/IsaacSim/Ant/ant_instanceable.usd``
