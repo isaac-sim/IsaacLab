@@ -37,6 +37,13 @@ Installing dependencies
 
             pip install torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
 
+      .. tab-item:: :icon:`fa-brands fa-windows` Windows (x86_64)
+         :sync: windows-x86_64
+
+         .. code-block:: bash
+
+            pip install torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
+
       .. tab-item:: :icon:`fa-brands fa-linux` Linux (aarch64)
          :sync: linux-aarch64
 
