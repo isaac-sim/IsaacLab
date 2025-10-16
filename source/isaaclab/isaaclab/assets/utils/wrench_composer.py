@@ -41,6 +41,8 @@ class WrenchComposer:
             self._get_com_fn = lambda a=self._asset: a.data.body_com_pos_w[..., :3]
         elif self._asset.__class__.__name__ == "RigidObjectCollection":
             self._get_com_fn = lambda a=self._asset: a.data.object_com_pos_w[..., :3]
+        elif self._asset is None:
+            self._get_com_fn = lambda: wp.zeros((self.num_envs, self.num_bodies), dtype=wp.vec3f, device=self.device)
         else:
             raise ValueError(f"Unsupported asset type: {self._asset.__class__.__name__}")
 
