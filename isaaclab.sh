@@ -105,8 +105,7 @@ ensure_cuda_torch() {
     local py="$1"
 
     # base indexes per arch
-    local base_index_arm="https://download.pytorch.org/whl/test"
-    local base_index_x86="https://download.pytorch.org/whl"
+    local base_index="https://download.pytorch.org/whl"
 
     # choose pins per arch
     local torch_ver tv_ver cuda_ver
@@ -120,13 +119,7 @@ ensure_cuda_torch() {
         cuda_ver="128"
     fi
 
-    local index
-    if is_arm; then
-        index="${base_index_arm}/cu${cuda_ver}"
-    else
-        index="${base_index_x86}/cu${cuda_ver}"
-    fi
-
+    local index="${base_index}/cu${cuda_ver}"
     local want_torch="${torch_ver}+cu${cuda_ver}"
 
     # check current torch version (may be empty)
