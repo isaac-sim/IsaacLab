@@ -233,15 +233,6 @@ class CurriculumCfg:
                                   "asset_cfg": SceneEntityCfg("robot"), 
                                   "command_name": "target_pose"},
                                   )
-    # # TODO @grzemal modify reward term based on training progress
-    # modify_reward_weight = CurrTerm(
-    #     func=mdp.modify_term_cfg,
-    #     params={
-    #         "address": "rewards.goal_dist_exp1.weight",
-    #         "modify_fn": replace_value,
-    #         "modify_params": {"value": mdp.joint_pos, "num_steps": 1},
-    #     },
-    # )
 
 ##
 # Environment configuration
