@@ -1060,10 +1060,16 @@ Requires Isaac Sim 5.1 or later.</p>
 <details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3" open="open">
 <summary class="sd-summary-title sd-card-header">
 <span class="sd-summary-text">Installation instructions</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
-<p class="sd-card-text">Vive tracker integration is provided through the libsurvive library. Install the required udev rules by copying
-<a class="reference external" href="https://github.com/collabora/libsurvive/blob/32cf62c52744fdc32003ef8169e8b81f6f31526b/useful_files/81-vive.rules">81-vive.rules</a>
-to <code class="docutils literal notranslate"><span class="pre">/etc/udev/rules.d/</span></code> and restarting the udev service.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>udevadm<span class="w"> </span>control<span class="w"> </span>--reload-rules<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>sudo<span class="w"> </span>udevadm<span class="w"> </span>trigger
+<p class="sd-card-text">Vive tracker integration is provided through the libsurvive library.</p>
+<p class="sd-card-text">To install, clone the repository, build the python package, and install the required udev rules.
+In your Isaac Lab virtual environment, run the following commands:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/collabora/libsurvive.git
+<span class="nb">cd</span><span class="w"> </span>libsurvive
+pip<span class="w"> </span>install<span class="w"> </span>scikit-build
+python<span class="w"> </span>setup.py<span class="w"> </span>install
+
+sudo<span class="w"> </span>cp<span class="w"> </span>./useful_files/81-vive.rules<span class="w"> </span>/etc/udev/rules.d/
+sudo<span class="w"> </span>udevadm<span class="w"> </span>control<span class="w"> </span>--reload-rules<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>sudo<span class="w"> </span>udevadm<span class="w"> </span>trigger
 </pre></div>
 </div>
 <p class="sd-card-text">The Manus integration is provided through the Isaac Sim teleoperation input plugin framework.

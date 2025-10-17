@@ -419,13 +419,21 @@ Run the teleoperation example with Manus + Vive tracking:
 .. dropdown:: Installation instructions
    :open:
 
-   Vive tracker integration is provided through the libsurvive library. Install the required udev rules by copying
-   `81-vive.rules <https://github.com/collabora/libsurvive/blob/32cf62c52744fdc32003ef8169e8b81f6f31526b/useful_files/81-vive.rules>`_
-   to ``/etc/udev/rules.d/`` and restarting the udev service.
+   Vive tracker integration is provided through the libsurvive library.
+
+   To install, clone the repository, build the python package, and install the required udev rules.
+   In your Isaac Lab virtual environment, run the following commands:
 
    .. code-block:: bash
 
+      git clone https://github.com/collabora/libsurvive.git
+      cd libsurvive
+      pip install scikit-build
+      python setup.py install
+
+      sudo cp ./useful_files/81-vive.rules /etc/udev/rules.d/
       sudo udevadm control --reload-rules && sudo udevadm trigger
+
 
    The Manus integration is provided through the Isaac Sim teleoperation input plugin framework.
    Install the plugin by following the build and installation steps in `isaac-teleop-device-plugins <https://github.com/isaac-sim/isaac-teleop-device-plugins>`_.
