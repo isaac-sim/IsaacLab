@@ -188,19 +188,19 @@ class EventCfg:
 @configclass
 class RewardsCfg:
     """Reward terms for the MDP."""
-    goal_dist_exp1 = RewTerm(func=mdp.distance_to_goal_exp, weight=2.0,
+    goal_dist_exp1 = RewTerm(func=mdp.distance_to_goal_exp_curriculum, weight=2.0,
                              params={
                                  "asset_cfg": SceneEntityCfg("robot"), 
                                  "std": 7.0,
                                  "command_name": "target_pose",
                                      })
-    goal_dist_exp2 = RewTerm(func=mdp.distance_to_goal_exp, weight=4.0,
+    goal_dist_exp2 = RewTerm(func=mdp.distance_to_goal_exp_curriculum, weight=4.0,
                              params={
                                  "asset_cfg": SceneEntityCfg("robot"), 
                                  "std": 0.5,
                                  "command_name": "target_pose",
                                  })
-    velocity_reward = RewTerm(func=mdp.velocity_to_goal_reward, weight=0.5,
+    velocity_reward = RewTerm(func=mdp.velocity_to_goal_reward_curriculum, weight=0.5,
                               params={
                                   "asset_cfg": SceneEntityCfg("robot"), 
                                   "command_name": "target_pose",
