@@ -107,7 +107,7 @@ runs:
               cd /workspace/isaaclab
               mkdir -p tests
               echo 'Starting pytest with path: $test_path'
-              /isaac-sim/python.sh -m pytest --ignore=tools/conftest.py source/isaaclab_tasks/test/test_environments.py $pytest_options -v --junitxml=tests/$result_file || echo 'Pytest completed with exit code: $?'
+              /isaac-sim/python.sh -m pytest --ignore=tools/conftest.py source/isaaclab_tasks/test/test_environments.py $pytest_options -v -s --junitxml=tests/$result_file || echo 'Pytest completed with exit code: $?'
             "; then
             echo "✅ Docker container completed successfully"
           else
