@@ -133,6 +133,7 @@ def make_box(
     dims = (length, width, height)
     return trimesh.creation.box(dims, transform=transform)
 
+
 def make_cylinder(
     radius: float, height: float, center: tuple[float, float, float], max_yx_angle: float = 0, degrees: bool = True
 ) -> trimesh.Trimesh:
