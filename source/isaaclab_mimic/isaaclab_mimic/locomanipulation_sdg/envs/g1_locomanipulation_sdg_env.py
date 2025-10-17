@@ -9,6 +9,9 @@ import torch
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg
 from isaaclab.envs.common import ViewerCfg
+from isaaclab.managers import ObservationTermCfg as ObsTerm
+from isaaclab.managers import SceneEntityCfg
+from isaaclab.sensors import CameraCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR, retrieve_file_path
@@ -20,6 +23,8 @@ from isaaclab_mimic.locomanipulation_sdg.scene_utils import HasPose, SceneBody, 
 from isaaclab_tasks.manager_based.locomanipulation.pick_place.locomanipulation_g1_env_cfg import (
     LocomanipulationG1EnvCfg,
     LocomanipulationG1SceneCfg,
+    ObservationsCfg,
+    manip_mdp,
 )
 
 from .locomanipulation_sdg_env import LocomanipulationSDGEnv
@@ -43,6 +48,16 @@ class G1LocomanipulationSDGSceneCfg(LocomanipulationG1SceneCfg):
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/PackingTable/packing_table.usd",
             rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
         ),
+    )
+
+    robot_pov_cam = CameraCfg(
+        prim_path="/World/envs/env_.*/Robot/torso_link/d435_link/camera",
+        update_period=0.0,
+        height=160,
+        width=256,
+        data_types=["rgb"],
+        spawn=sim_utils.PinholeCameraCfg(focal_length=8.0, clipping_range=(0.1, 20.0)),
+        offset=CameraCfg.OffsetCfg(pos=(0.0, 0.0, 0.0), rot=(0.9848078, 0.0, -0.1736482, 0.0), convention="world"),
     )
 
 
@@ -78,6 +93,23 @@ for i in range(NUM_BOXES):
 
 
 @configclass
+class G1LocomanipulationSDGObservationsCfg(ObservationsCfg):
+    """Observation specifications for the MDP.
+    This class is required by the environment configuration but not used in this implementation
+    """
+
+    @configclass
+    class PolicyCfg(ObservationsCfg.PolicyCfg):
+
+        robot_pov_cam = ObsTerm(
+            func=manip_mdp.image,
+            params={"sensor_cfg": SceneEntityCfg("robot_pov_cam"), "data_type": "rgb", "normalize": False},
+        )
+
+    policy: PolicyCfg = PolicyCfg()
+
+
+@configclass
 class G1LocomanipulationSDGEnvCfg(LocomanipulationG1EnvCfg, LocomanipulationSDGEnvCfg):
     """Configuration for the G1 29DoF environment."""
 
@@ -90,6 +122,7 @@ class G1LocomanipulationSDGEnvCfg(LocomanipulationG1EnvCfg, LocomanipulationSDGE
         num_envs=1, env_spacing=2.5, replicate_physics=True
     )
     recorders: LocomanipulationSDGRecorderManagerCfg = LocomanipulationSDGRecorderManagerCfg()
+    observations: G1LocomanipulationSDGObservationsCfg = G1LocomanipulationSDGObservationsCfg()
 
     def __post_init__(self):
         """Post initialization."""
