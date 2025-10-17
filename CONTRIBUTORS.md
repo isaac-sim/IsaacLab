@@ -115,6 +115,7 @@ Guidelines for modifications:
 * Philipp Reist
 * Pulkit Goyal
 * Qian Wan
+* Qingyang Jiang
 * Qinxi Yu
 * Rafael Wiltz
 * Renaud Poncelet
@@ -143,6 +144,7 @@ Guidelines for modifications:
 * Yohan Choi
 * Yujian Zhang
 * Yun Liu
+* Zehao Wang
 * Ziqi Fan
 * Zoe McCarthy
 * David Leon
