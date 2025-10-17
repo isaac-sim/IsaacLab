@@ -33,7 +33,7 @@
     <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css" />
     <link rel="stylesheet" href="../../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/twemoji.css" />
-    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.11.13/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
+    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.11.14/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/custom.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.4cbf315f70debaebd550c87a6162cf0f.min.css" />
@@ -49,7 +49,7 @@
     <script src="../../../_static/sphinx_highlight.js"></script>
     <script src="https://unpkg.com/twemoji@latest/dist/twemoji.min.js"></script>
     <script src="../../../_static/twemoji.js"></script>
-    <script src="/opt/hostedtoolcache/Python/3.11.13/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
+    <script src="/opt/hostedtoolcache/Python/3.11.14/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
     <script src="../../../_static/clipboard.min.js"></script>
     <script src="../../../_static/copybutton.js"></script>
     <script src="../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
@@ -158,10 +158,10 @@
             <label for="version-select" style="font-weight: bold; display: block;">Version</label>
           </div>
           <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
-            <option value="../../../../release/2.3.0/index.html" >release/2.3.0</option>
             <option value="utils.html" selected>main</option>
             <option value="../../../../release/2.1.0/index.html" >release/2.1.0</option>
             <option value="../../../../release/2.2.0/index.html" >release/2.2.0</option>
+            <option value="../../../../release/2.3.0/index.html" >release/2.3.0</option>
             <option value="../../../../v2.2.1/index.html" >v2.2.1</option>
             <option value="../../../../v2.2.0/index.html" >v2.2.0</option>
             <option value="../../../../v2.1.1/index.html" >v2.1.1</option>
@@ -204,7 +204,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.1.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.0.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -1160,6 +1160,92 @@
             <span class="n">child_prim</span><span class="o">.</span><span class="n">SetInstanceable</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span>
         <span class="c1"># add children to list</span>
         <span class="n">all_prims</span> <span class="o">+=</span> <span class="n">child_prim</span><span class="o">.</span><span class="n">GetFilteredChildren</span><span class="p">(</span><span class="n">Usd</span><span class="o">.</span><span class="n">TraverseInstanceProxies</span><span class="p">())</span></div>
+
+
+<div class="viewcode-block" id="resolve_prim_pose"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.sim.html#isaaclab.sim.utils.resolve_prim_pose">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">resolve_prim_pose</span><span class="p">(</span>
+    <span class="n">prim</span><span class="p">:</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Prim</span><span class="p">,</span> <span class="n">ref_prim</span><span class="p">:</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Prim</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Resolve the pose of a prim with respect to another prim.</span>
+
+<span class="sd">    Note:</span>
+<span class="sd">        This function ignores scale and skew by orthonormalizing the transformation</span>
+<span class="sd">        matrix at the final step. However, if any ancestor prim in the hierarchy</span>
+<span class="sd">        has non-uniform scale, that scale will still affect the resulting position</span>
+<span class="sd">        and orientation of the prim (because it&#39;s baked into the transform before</span>
+<span class="sd">        scale removal).</span>
+
+<span class="sd">        In other words: scale **is not removed hierarchically**. If you need</span>
+<span class="sd">        completely scale-free poses, you must walk the transform chain and strip</span>
+<span class="sd">        scale at each level. Please open an issue if you need this functionality.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        prim: The USD prim to resolve the pose for.</span>
+<span class="sd">        ref_prim: The USD prim to compute the pose with respect to.</span>
+<span class="sd">            Defaults to None, in which case the world frame is used.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        A tuple containing the position (as a 3D vector) and the quaternion orientation</span>
+<span class="sd">        in the (w, x, y, z) format.</span>
+
+<span class="sd">    Raises:</span>
+<span class="sd">        ValueError: If the prim or ref prim is not valid.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># check if prim is valid</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">prim</span><span class="o">.</span><span class="n">IsValid</span><span class="p">():</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Prim at path &#39;</span><span class="si">{</span><span class="n">prim</span><span class="o">.</span><span class="n">GetPath</span><span class="p">()</span><span class="o">.</span><span class="n">pathString</span><span class="si">}</span><span class="s2">&#39; is not valid.&quot;</span><span class="p">)</span>
+    <span class="c1"># get prim xform</span>
+    <span class="n">xform</span> <span class="o">=</span> <span class="n">UsdGeom</span><span class="o">.</span><span class="n">Xformable</span><span class="p">(</span><span class="n">prim</span><span class="p">)</span>
+    <span class="n">prim_tf</span> <span class="o">=</span> <span class="n">xform</span><span class="o">.</span><span class="n">ComputeLocalToWorldTransform</span><span class="p">(</span><span class="n">Usd</span><span class="o">.</span><span class="n">TimeCode</span><span class="o">.</span><span class="n">Default</span><span class="p">())</span>
+    <span class="c1"># sanitize quaternion</span>
+    <span class="c1"># this is needed, otherwise the quaternion might be non-normalized</span>
+    <span class="n">prim_tf</span> <span class="o">=</span> <span class="n">prim_tf</span><span class="o">.</span><span class="n">GetOrthonormalized</span><span class="p">()</span>
+
+    <span class="k">if</span> <span class="n">ref_prim</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="c1"># check if ref prim is valid</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">ref_prim</span><span class="o">.</span><span class="n">IsValid</span><span class="p">():</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Ref prim at path &#39;</span><span class="si">{</span><span class="n">ref_prim</span><span class="o">.</span><span class="n">GetPath</span><span class="p">()</span><span class="o">.</span><span class="n">pathString</span><span class="si">}</span><span class="s2">&#39; is not valid.&quot;</span><span class="p">)</span>
+        <span class="c1"># get ref prim xform</span>
+        <span class="n">ref_xform</span> <span class="o">=</span> <span class="n">UsdGeom</span><span class="o">.</span><span class="n">Xformable</span><span class="p">(</span><span class="n">ref_prim</span><span class="p">)</span>
+        <span class="n">ref_tf</span> <span class="o">=</span> <span class="n">ref_xform</span><span class="o">.</span><span class="n">ComputeLocalToWorldTransform</span><span class="p">(</span><span class="n">Usd</span><span class="o">.</span><span class="n">TimeCode</span><span class="o">.</span><span class="n">Default</span><span class="p">())</span>
+        <span class="c1"># make sure ref tf is orthonormal</span>
+        <span class="n">ref_tf</span> <span class="o">=</span> <span class="n">ref_tf</span><span class="o">.</span><span class="n">GetOrthonormalized</span><span class="p">()</span>
+        <span class="c1"># compute relative transform to get prim in ref frame</span>
+        <span class="n">prim_tf</span> <span class="o">=</span> <span class="n">prim_tf</span> <span class="o">*</span> <span class="n">ref_tf</span><span class="o">.</span><span class="n">GetInverse</span><span class="p">()</span>
+
+    <span class="c1"># extract position and orientation</span>
+    <span class="n">prim_pos</span> <span class="o">=</span> <span class="p">[</span><span class="o">*</span><span class="n">prim_tf</span><span class="o">.</span><span class="n">ExtractTranslation</span><span class="p">()]</span>
+    <span class="n">prim_quat</span> <span class="o">=</span> <span class="p">[</span><span class="n">prim_tf</span><span class="o">.</span><span class="n">ExtractRotationQuat</span><span class="p">()</span><span class="o">.</span><span class="n">real</span><span class="p">,</span> <span class="o">*</span><span class="n">prim_tf</span><span class="o">.</span><span class="n">ExtractRotationQuat</span><span class="p">()</span><span class="o">.</span><span class="n">imaginary</span><span class="p">]</span>
+    <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">prim_pos</span><span class="p">),</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">prim_quat</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="resolve_prim_scale"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.sim.html#isaaclab.sim.utils.resolve_prim_scale">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">resolve_prim_scale</span><span class="p">(</span><span class="n">prim</span><span class="p">:</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Prim</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Resolve the scale of a prim in the world frame.</span>
+
+<span class="sd">    At an attribute level, a USD prim&#39;s scale is a scaling transformation applied to the prim with</span>
+<span class="sd">    respect to its parent prim. This function resolves the scale of the prim in the world frame,</span>
+<span class="sd">    by computing the local to world transform of the prim. This is equivalent to traversing up</span>
+<span class="sd">    the prim hierarchy and accounting for the rotations and scales of the prims.</span>
+
+<span class="sd">    For instance, if a prim has a scale of (1, 2, 3) and it is a child of a prim with a scale of (4, 5, 6),</span>
+<span class="sd">    then the scale of the prim in the world frame is (4, 10, 18).</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        prim: The USD prim to resolve the scale for.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        The scale of the prim in the x, y, and z directions in the world frame.</span>
+
+<span class="sd">    Raises:</span>
+<span class="sd">        ValueError: If the prim is not valid.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># check if prim is valid</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">prim</span><span class="o">.</span><span class="n">IsValid</span><span class="p">():</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Prim at path &#39;</span><span class="si">{</span><span class="n">prim</span><span class="o">.</span><span class="n">GetPath</span><span class="p">()</span><span class="o">.</span><span class="n">pathString</span><span class="si">}</span><span class="s2">&#39; is not valid.&quot;</span><span class="p">)</span>
+    <span class="c1"># compute local to world transform</span>
+    <span class="n">xform</span> <span class="o">=</span> <span class="n">UsdGeom</span><span class="o">.</span><span class="n">Xformable</span><span class="p">(</span><span class="n">prim</span><span class="p">)</span>
+    <span class="n">world_transform</span> <span class="o">=</span> <span class="n">xform</span><span class="o">.</span><span class="n">ComputeLocalToWorldTransform</span><span class="p">(</span><span class="n">Usd</span><span class="o">.</span><span class="n">TimeCode</span><span class="o">.</span><span class="n">Default</span><span class="p">())</span>
+    <span class="c1"># extract scale</span>
+    <span class="k">return</span> <span class="nb">tuple</span><span class="p">([</span><span class="o">*</span><span class="p">(</span><span class="n">v</span><span class="o">.</span><span class="n">GetLength</span><span class="p">()</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">world_transform</span><span class="o">.</span><span class="n">ExtractRotationMatrix</span><span class="p">())])</span></div>
 
 
 <span class="sd">&quot;&quot;&quot;</span>

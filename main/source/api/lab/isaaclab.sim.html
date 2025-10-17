@@ -34,7 +34,7 @@
     <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css" />
     <link rel="stylesheet" href="../../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/twemoji.css" />
-    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.11.13/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
+    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.11.14/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/custom.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.4cbf315f70debaebd550c87a6162cf0f.min.css" />
@@ -50,7 +50,7 @@
     <script src="../../../_static/sphinx_highlight.js"></script>
     <script src="https://unpkg.com/twemoji@latest/dist/twemoji.min.js"></script>
     <script src="../../../_static/twemoji.js"></script>
-    <script src="/opt/hostedtoolcache/Python/3.11.13/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
+    <script src="/opt/hostedtoolcache/Python/3.11.14/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
     <script src="../../../_static/clipboard.min.js"></script>
     <script src="../../../_static/copybutton.js"></script>
     <script src="../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
@@ -161,10 +161,10 @@
             <label for="version-select" style="font-weight: bold; display: block;">Version</label>
           </div>
           <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
-            <option value="../../../../release/2.3.0/source/api/lab/isaaclab.sim.html" >release/2.3.0</option>
             <option value="isaaclab.sim.html" selected>main</option>
             <option value="../../../../release/2.1.0/source/api/lab/isaaclab.sim.html" >release/2.1.0</option>
             <option value="../../../../release/2.2.0/source/api/lab/isaaclab.sim.html" >release/2.2.0</option>
+            <option value="../../../../release/2.3.0/source/api/lab/isaaclab.sim.html" >release/2.3.0</option>
             <option value="../../../../v2.2.1/source/api/lab/isaaclab.sim.html" >v2.2.1</option>
             <option value="../../../../v2.2.0/source/api/lab/isaaclab.sim.html" >v2.2.0</option>
             <option value="../../../../v2.1.1/source/api/lab/isaaclab.sim.html" >v2.1.1</option>
@@ -207,7 +207,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.1.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.0.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -754,6 +754,8 @@
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.utils.bind_physics_material"><code class="docutils literal notranslate"><span class="pre">bind_physics_material()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.utils.export_prim_to_file"><code class="docutils literal notranslate"><span class="pre">export_prim_to_file()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.utils.make_uninstanceable"><code class="docutils literal notranslate"><span class="pre">make_uninstanceable()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.utils.resolve_prim_pose"><code class="docutils literal notranslate"><span class="pre">resolve_prim_pose()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.utils.resolve_prim_scale"><code class="docutils literal notranslate"><span class="pre">resolve_prim_scale()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.utils.get_first_matching_child_prim"><code class="docutils literal notranslate"><span class="pre">get_first_matching_child_prim()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.utils.get_all_matching_child_prims"><code class="docutils literal notranslate"><span class="pre">get_all_matching_child_prims()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.utils.find_first_matching_prim"><code class="docutils literal notranslate"><span class="pre">find_first_matching_prim()</span></code></a></li>
@@ -1912,6 +1914,12 @@ Defaults to False. This is useful for debugging tests in the GUI.</p></li>
 <tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.utils.make_uninstanceable" title="isaaclab.sim.utils.make_uninstanceable"><code class="xref py py-obj docutils literal notranslate"><span class="pre">make_uninstanceable</span></code></a>(prim_path[, stage])</p></td>
 <td><p>Check if a prim and its descendants are instanced and make them uninstanceable.</p></td>
 </tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.utils.resolve_prim_pose" title="isaaclab.sim.utils.resolve_prim_pose"><code class="xref py py-obj docutils literal notranslate"><span class="pre">resolve_prim_pose</span></code></a>(prim[, ref_prim])</p></td>
+<td><p>Resolve the pose of a prim with respect to another prim.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.utils.resolve_prim_scale" title="isaaclab.sim.utils.resolve_prim_scale"><code class="xref py py-obj docutils literal notranslate"><span class="pre">resolve_prim_scale</span></code></a>(prim)</p></td>
+<td><p>Resolve the scale of a prim in the world frame.</p></td>
+</tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.utils.get_first_matching_child_prim" title="isaaclab.sim.utils.get_first_matching_child_prim"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_first_matching_child_prim</span></code></a>(prim_path, ...)</p></td>
 <td><p>Recursively get the first USD Prim at the path string that passes the predicate function.</p></td>
 </tr>
@@ -2141,6 +2149,62 @@ want to apply a different material on an instanced prim, we need to make the pri
 </dd>
 <dt class="field-even">Raises<span class="colon">:</span></dt>
 <dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.14)"><strong>ValueError</strong></a> – If the prim path is not global (i.e: does not start with ‘/’).</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="isaaclab.sim.utils.resolve_prim_pose">
+<span class="sig-prename descclassname"><span class="pre">isaaclab.sim.utils.</span></span><span class="sig-name descname"><span class="pre">resolve_prim_pose</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">prim</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Usd.Prim</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ref_prim</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Usd.Prim</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../../../_modules/isaaclab/sim/utils.html#resolve_prim_pose"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.sim.utils.resolve_prim_pose" title="Permalink to this definition">#</a></dt>
+<dd><p>Resolve the pose of a prim with respect to another prim.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This function ignores scale and skew by orthonormalizing the transformation
+matrix at the final step. However, if any ancestor prim in the hierarchy
+has non-uniform scale, that scale will still affect the resulting position
+and orientation of the prim (because it’s baked into the transform before
+scale removal).</p>
+<p>In other words: scale <strong>is not removed hierarchically</strong>. If you need
+completely scale-free poses, you must walk the transform chain and strip
+scale at each level. Please open an issue if you need this functionality.</p>
+</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>prim</strong> – The USD prim to resolve the pose for.</p></li>
+<li><p><strong>ref_prim</strong> – The USD prim to compute the pose with respect to.
+Defaults to None, in which case the world frame is used.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A tuple containing the position (as a 3D vector) and the quaternion orientation
+in the (w, x, y, z) format.</p>
+</dd>
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.14)"><strong>ValueError</strong></a> – If the prim or ref prim is not valid.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="isaaclab.sim.utils.resolve_prim_scale">
+<span class="sig-prename descclassname"><span class="pre">isaaclab.sim.utils.</span></span><span class="sig-name descname"><span class="pre">resolve_prim_scale</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">prim</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">pxr.Usd.Prim</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../../../_modules/isaaclab/sim/utils.html#resolve_prim_scale"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.sim.utils.resolve_prim_scale" title="Permalink to this definition">#</a></dt>
+<dd><p>Resolve the scale of a prim in the world frame.</p>
+<p>At an attribute level, a USD prim’s scale is a scaling transformation applied to the prim with
+respect to its parent prim. This function resolves the scale of the prim in the world frame,
+by computing the local to world transform of the prim. This is equivalent to traversing up
+the prim hierarchy and accounting for the rotations and scales of the prims.</p>
+<p>For instance, if a prim has a scale of (1, 2, 3) and it is a child of a prim with a scale of (4, 5, 6),
+then the scale of the prim in the world frame is (4, 10, 18).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>prim</strong> – The USD prim to resolve the scale for.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The scale of the prim in the x, y, and z directions in the world frame.</p>
+</dd>
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.14)"><strong>ValueError</strong></a> – If the prim is not valid.</p>
 </dd>
 </dl>
 </dd></dl>
@@ -2565,6 +2629,8 @@ backwards compatibility to Isaac Sim &lt; 5.0.</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.utils.bind_physics_material"><code class="docutils literal notranslate"><span class="pre">bind_physics_material()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.utils.export_prim_to_file"><code class="docutils literal notranslate"><span class="pre">export_prim_to_file()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.utils.make_uninstanceable"><code class="docutils literal notranslate"><span class="pre">make_uninstanceable()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.utils.resolve_prim_pose"><code class="docutils literal notranslate"><span class="pre">resolve_prim_pose()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.utils.resolve_prim_scale"><code class="docutils literal notranslate"><span class="pre">resolve_prim_scale()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.utils.get_first_matching_child_prim"><code class="docutils literal notranslate"><span class="pre">get_first_matching_child_prim()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.utils.get_all_matching_child_prims"><code class="docutils literal notranslate"><span class="pre">get_all_matching_child_prims()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.utils.find_first_matching_prim"><code class="docutils literal notranslate"><span class="pre">find_first_matching_prim()</span></code></a></li>
