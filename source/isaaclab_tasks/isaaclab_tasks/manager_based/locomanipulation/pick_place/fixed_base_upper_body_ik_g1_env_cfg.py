@@ -177,7 +177,7 @@ class FixedBaseUpperBodyIKG1EnvCfg(ManagerBasedRLEnvCfg):
 
     # Position of the XR anchor in the world frame
     xr: XrCfg = XrCfg(
-        anchor_pos=(0.0, 0.0, 0.2),
+        anchor_pos=(0.0, 0.0, 0.1),
         anchor_rot=(1.0, 0.0, 0.0, 0.0),
     )
 
