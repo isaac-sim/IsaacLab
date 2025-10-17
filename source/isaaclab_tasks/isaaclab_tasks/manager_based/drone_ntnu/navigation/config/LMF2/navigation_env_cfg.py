@@ -143,7 +143,7 @@ class ObservationsCfg:
         base_roll_pitch = ObsTerm(func=mdp.base_roll_pitch, noise=Unoise(n_min=-0.1, n_max=0.1))
         base_lin_vel = ObsTerm(func=mdp.base_lin_vel, noise=Unoise(n_min=-0.1, n_max=0.1))
         base_ang_vel = ObsTerm(func=mdp.base_ang_vel, noise=Unoise(n_min=-0.1, n_max=0.1))
-        last_action = ObsTerm(func=mdp.last_action, noise=Unoise(n_min=-0.0, n_max=0.0))
+        last_action = ObsTerm(func=mdp.last_action_navigation, noise=Unoise(n_min=-0.0, n_max=0.0))
         depth_latent = ObsTerm(
             func=mdp.image_latents,
             params={"sensor_cfg": SceneEntityCfg("depth_camera"), "data_type": "distance_to_image_plane"},

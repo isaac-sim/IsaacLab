@@ -104,7 +104,7 @@ Actions.
 
 
 @generic_io_descriptor(dtype=torch.float32, observation_type="Action", on_inspect=[record_shape])
-def last_action(env: ManagerBasedEnv, action_name: str | None = None) -> torch.Tensor:
+def last_action_navigation(env: ManagerBasedEnv, action_name: str | None = None) -> torch.Tensor:
     """The last input action to the environment.
 
     The name of the action term for which the action is required. If None, the
