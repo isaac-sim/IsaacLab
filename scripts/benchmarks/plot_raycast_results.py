@@ -7,6 +7,15 @@ import matplotlib.pyplot as plt
 
 import pandas as pd
 
+# update colors to black
+plt.rcParams.update({
+    "text.color": "black",
+    "axes.labelcolor": "black",
+    "axes.edgecolor": "black",
+    "xtick.color": "black",
+    "ytick.color": "black",
+})
+
 
 def compare_single_vs_multi():
     df = pd.read_csv("outputs/benchmarks/ray_caster_benchmark_single_vs_multi.csv")

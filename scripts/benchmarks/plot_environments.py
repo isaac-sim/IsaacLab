@@ -18,6 +18,15 @@ plt.rc('legend', fontsize=LEGEND_SIZE)    # legend fontsize
 plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
 plt.rc("lines", linewidth=2)
 
+# update colors to black
+plt.rcParams.update({
+    "text.color": "black",
+    "axes.labelcolor": "black",
+    "axes.edgecolor": "black",
+    "xtick.color": "black",
+    "ytick.color": "black",
+})
+
 MACHINE_NBR_GPUS = "RTX PRO 6000"
 
 NBR_GPUS_COLORS = {  # RTX PRO 6000

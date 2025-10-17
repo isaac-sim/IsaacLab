@@ -22,6 +22,15 @@ plt.rc('legend', fontsize=LEGEND_SIZE)    # legend fontsize
 plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
 plt.rc("lines", linewidth=2)
 
+# update colors to black
+plt.rcParams.update({
+    "text.color": "black",
+    "axes.labelcolor": "black",
+    "axes.edgecolor": "black",
+    "xtick.color": "black",
+    "ytick.color": "black",
+})
+
 RESOLUTION_COLORS = {
     (64, 64): "#d08770",
     (120, 160): "#ebcb8b",
@@ -30,6 +39,7 @@ RESOLUTION_COLORS = {
 }
 
 ADD_MEM_TEST = False
+USD_DIFFERENT_Y_AXIS = False
 
 
 def load_and_combine_csv_files(file_paths):
@@ -125,7 +135,7 @@ print(f"Averaged data has {len(df_avg)} unique configurations")
 data_types = df_avg["data_types"].unique()
 modes = df_avg["mode"].unique()[::-1]
 
-fig, axes = plt.subplots(len(data_types), len(modes), figsize=(6 * len(modes), 12), sharey=False, sharex=False)
+fig, axes = plt.subplots(len(data_types), len(modes), figsize=(6 * len(modes), 12), sharey=not USD_DIFFERENT_Y_AXIS, sharex=False)
 
 if len(modes) == 1:
     axes = axes[None, :]
@@ -141,7 +151,7 @@ for idx, dtype in enumerate(data_types):
         sub_mode = sub_dtype[sub_dtype["mode"] == mode]
 
         # --- share y-axis manually if not "usd_camera" ---
-        if mode != "usd_camera":
+        if mode != "usd_camera" and USD_DIFFERENT_Y_AXIS:
             # Use the first non-usd_camera column as reference
             if "shared_ref" not in shared_y_axes:
                 shared_y_axes["shared_ref"] = ax
@@ -183,7 +193,10 @@ for idx, dtype in enumerate(data_types):
         ax.set_yscale("log")
         _format_axes(ax)
 
-axes[0, 0].legend(loc="lower right")
+if USD_DIFFERENT_Y_AXIS:
+    axes[0, 0].legend(loc="lower right")
+else:
+    axes[0, 0].legend(loc="upper right")
 
 plt.tight_layout()
 plt.savefig(args.output, dpi=600)
