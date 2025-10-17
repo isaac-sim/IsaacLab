@@ -25,6 +25,12 @@ Installing dependencies
    In case you used UV to create your virtual environment, please replace ``pip`` with ``uv pip``
    in the following commands.
 
+-  Install the Isaac Lab packages along with Isaac Sim:
+
+   .. code-block:: none
+
+      pip install isaaclab[isaacsim,all]==2.2.0 --extra-index-url https://pypi.nvidia.com
+
 -  Install a CUDA-enabled PyTorch build that matches your system architecture:
 
    .. tab-set::
@@ -49,20 +55,36 @@ Installing dependencies
 
          .. code-block:: bash
 
-            pip install torch==2.9.0 torchvision==0.24.0 --index-url https://download.pytorch.org/whl/test/cu130
+            pip install torch==2.9.0 torchvision==0.24.0 --index-url https://download.pytorch.org/whl/cu130
 
--  If you want to use ``rl_games`` for training and inferencing, install the
+         .. note::
+
+            After installing Isaac Lab on aarch64, you may encounter warnings such as:
+
+            .. code-block:: none
+
+               ERROR: ld.so: object '...torch.libs/libgomp-XXXX.so.1.0.0' cannot be preloaded: ignored.
+
+            This occurs when both the system and PyTorch ``libgomp`` (GNU OpenMP) libraries are preloaded.
+            Isaac Sim expects the **system** OpenMP runtime, while PyTorch sometimes bundles its own.
+
+            To fix this, unset any existing ``LD_PRELOAD`` and set it to use the system library only:
+
+            .. code-block:: bash
+
+               unset LD_PRELOAD
+               export LD_PRELOAD="$LD_PRELOAD:/lib/aarch64-linux-gnu/libgomp.so.1"
+
+            This ensures the correct ``libgomp`` library is preloaded for both Isaac Sim and Isaac Lab,
+            removing the preload warnings during runtime.
+
+.. include:: include/pip_verify_isaacsim.rst
+-  If you want to use ``rl_games`` for training and inferencing, install
    its Python 3.11 enabled fork:
 
    .. code-block:: none
 
       pip install git+https://github.com/isaac-sim/rl_games.git@python3.11
-
--  Install the Isaac Lab packages along with Isaac Sim:
-
-   .. code-block:: none
-
-      pip install isaaclab[isaacsim,all]==2.2.0 --extra-index-url https://pypi.nvidia.com
 
 
 .. include:: include/pip_verify_isaacsim.rst

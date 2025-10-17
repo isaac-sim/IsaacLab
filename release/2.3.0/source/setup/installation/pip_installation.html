@@ -34,7 +34,7 @@
     <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css" />
     <link rel="stylesheet" href="../../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/twemoji.css" />
-    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.11.13/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
+    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.11.14/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/custom.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.4cbf315f70debaebd550c87a6162cf0f.min.css" />
@@ -50,7 +50,7 @@
     <script src="../../../_static/sphinx_highlight.js"></script>
     <script src="https://unpkg.com/twemoji@latest/dist/twemoji.min.js"></script>
     <script src="../../../_static/twemoji.js"></script>
-    <script src="/opt/hostedtoolcache/Python/3.11.13/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
+    <script src="/opt/hostedtoolcache/Python/3.11.14/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
     <script src="../../../_static/clipboard.min.js"></script>
     <script src="../../../_static/copybutton.js"></script>
     <script src="../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
@@ -64,7 +64,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Oct 16, 2025"/>
+    <meta name="docbuild:last-update" content="Oct 17, 2025"/>
   </head>
   
   
@@ -833,6 +833,11 @@ from inside the virtual environment:</p>
 in the following commands.</p>
 </div>
 <ul>
+<li><p>Install Isaac Sim pip packages:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>pip install &quot;isaacsim[all,extscache]==5.1.0&quot; --extra-index-url https://pypi.nvidia.com
+</pre></div>
+</div>
+</li>
 <li><p>Install a CUDA-enabled PyTorch build that matches your system architecture:</p>
 <div class="sd-tab-set docutils">
 <input checked="checked" id="sd-tab-item-9" name="sd-tab-set-4" type="radio">
@@ -852,15 +857,26 @@ in the following commands.</p>
 <input id="sd-tab-item-11" name="sd-tab-set-4" type="radio">
 <label class="sd-tab-label" data-sync-group="pip-platform" data-sync-id="linux-aarch64" for="sd-tab-item-11">
 <i class="fa-brands fa-linux"></i> Linux (aarch64)</label><div class="sd-tab-content docutils">
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span><span class="nv">torch</span><span class="o">==</span><span class="m">2</span>.9.0<span class="w"> </span><span class="nv">torchvision</span><span class="o">==</span><span class="m">0</span>.24.0<span class="w"> </span>--index-url<span class="w"> </span>https://download.pytorch.org/whl/test/cu130
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span><span class="nv">torch</span><span class="o">==</span><span class="m">2</span>.9.0<span class="w"> </span><span class="nv">torchvision</span><span class="o">==</span><span class="m">0</span>.24.0<span class="w"> </span>--index-url<span class="w"> </span>https://download.pytorch.org/whl/cu130
 </pre></div>
 </div>
-</div>
-</div>
-</li>
-<li><p>Install Isaac Sim pip packages:</p>
-<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>pip install &quot;isaacsim[all,extscache]==5.1.0&quot; --extra-index-url https://pypi.nvidia.com
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>After installing Isaac Lab on aarch64, you may encounter warnings such as:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>ERROR: ld.so: object &#39;...torch.libs/libgomp-XXXX.so.1.0.0&#39; cannot be preloaded: ignored.
 </pre></div>
+</div>
+<p>This occurs when both the system and PyTorch <code class="docutils literal notranslate"><span class="pre">libgomp</span></code> (GNU OpenMP) libraries are preloaded.
+Isaac Sim expects the <strong>system</strong> OpenMP runtime, while PyTorch sometimes bundles its own.</p>
+<p>To fix this, unset any existing <code class="docutils literal notranslate"><span class="pre">LD_PRELOAD</span></code> and set it to use the system library only:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">unset</span><span class="w"> </span>LD_PRELOAD
+<span class="nb">export</span><span class="w"> </span><span class="nv">LD_PRELOAD</span><span class="o">=</span><span class="s2">&quot;</span><span class="nv">$LD_PRELOAD</span><span class="s2">:/lib/aarch64-linux-gnu/libgomp.so.1&quot;</span>
+</pre></div>
+</div>
+<p>This ensures the correct <code class="docutils literal notranslate"><span class="pre">libgomp</span></code> library is preloaded for both Isaac Sim and Isaac Lab,
+removing the preload warnings during runtime.</p>
+</div>
+</div>
 </div>
 </li>
 </ul>
@@ -1220,7 +1236,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Oct 16, 2025.
+  Last updated on Oct 17, 2025.
   <br/>
 </p>
   </div>

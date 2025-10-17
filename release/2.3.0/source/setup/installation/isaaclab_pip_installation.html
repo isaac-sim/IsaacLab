@@ -34,7 +34,7 @@
     <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css" />
     <link rel="stylesheet" href="../../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/twemoji.css" />
-    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.11.13/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
+    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.11.14/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/custom.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.4cbf315f70debaebd550c87a6162cf0f.min.css" />
@@ -50,7 +50,7 @@
     <script src="../../../_static/sphinx_highlight.js"></script>
     <script src="https://unpkg.com/twemoji@latest/dist/twemoji.min.js"></script>
     <script src="../../../_static/twemoji.js"></script>
-    <script src="/opt/hostedtoolcache/Python/3.11.13/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
+    <script src="/opt/hostedtoolcache/Python/3.11.14/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
     <script src="../../../_static/clipboard.min.js"></script>
     <script src="../../../_static/copybutton.js"></script>
     <script src="../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
@@ -64,7 +64,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Oct 16, 2025"/>
+    <meta name="docbuild:last-update" content="Oct 17, 2025"/>
   </head>
   
   
@@ -655,6 +655,7 @@
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#preparing-a-python-environment">Preparing a Python Environment</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#installing-dependencies">Installing dependencies</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#verifying-the-isaac-sim-installation">Verifying the Isaac Sim installation</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id1">Verifying the Isaac Sim installation</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#running-isaac-lab-scripts">Running Isaac Lab Scripts</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#generating-vs-code-settings">Generating VS Code Settings</a></li>
 </ul>
@@ -812,6 +813,11 @@ from inside the virtual environment:</p>
 in the following commands.</p>
 </div>
 <ul>
+<li><p>Install the Isaac Lab packages along with Isaac Sim:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>pip install isaaclab[isaacsim,all]==2.2.0 --extra-index-url https://pypi.nvidia.com
+</pre></div>
+</div>
+</li>
 <li><p>Install a CUDA-enabled PyTorch build that matches your system architecture:</p>
 <div class="sd-tab-set docutils">
 <input checked="checked" id="sd-tab-item-9" name="sd-tab-set-4" type="radio">
@@ -831,27 +837,81 @@ in the following commands.</p>
 <input id="sd-tab-item-11" name="sd-tab-set-4" type="radio">
 <label class="sd-tab-label" data-sync-group="pip-platform" data-sync-id="linux-aarch64" for="sd-tab-item-11">
 <i class="fa-brands fa-linux"></i> Linux (aarch64)</label><div class="sd-tab-content docutils">
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span><span class="nv">torch</span><span class="o">==</span><span class="m">2</span>.9.0<span class="w"> </span><span class="nv">torchvision</span><span class="o">==</span><span class="m">0</span>.24.0<span class="w"> </span>--index-url<span class="w"> </span>https://download.pytorch.org/whl/test/cu130
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span><span class="nv">torch</span><span class="o">==</span><span class="m">2</span>.9.0<span class="w"> </span><span class="nv">torchvision</span><span class="o">==</span><span class="m">0</span>.24.0<span class="w"> </span>--index-url<span class="w"> </span>https://download.pytorch.org/whl/cu130
 </pre></div>
 </div>
-</div>
-</div>
-</li>
-<li><p>If you want to use <code class="docutils literal notranslate"><span class="pre">rl_games</span></code> for training and inferencing, install the
-its Python 3.11 enabled fork:</p>
-<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>pip install git+https://github.com/isaac-sim/rl_games.git@python3.11
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>After installing Isaac Lab on aarch64, you may encounter warnings such as:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>ERROR: ld.so: object &#39;...torch.libs/libgomp-XXXX.so.1.0.0&#39; cannot be preloaded: ignored.
 </pre></div>
 </div>
-</li>
-<li><p>Install the Isaac Lab packages along with Isaac Sim:</p>
-<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>pip install isaaclab[isaacsim,all]==2.2.0 --extra-index-url https://pypi.nvidia.com
+<p>This occurs when both the system and PyTorch <code class="docutils literal notranslate"><span class="pre">libgomp</span></code> (GNU OpenMP) libraries are preloaded.
+Isaac Sim expects the <strong>system</strong> OpenMP runtime, while PyTorch sometimes bundles its own.</p>
+<p>To fix this, unset any existing <code class="docutils literal notranslate"><span class="pre">LD_PRELOAD</span></code> and set it to use the system library only:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">unset</span><span class="w"> </span>LD_PRELOAD
+<span class="nb">export</span><span class="w"> </span><span class="nv">LD_PRELOAD</span><span class="o">=</span><span class="s2">&quot;</span><span class="nv">$LD_PRELOAD</span><span class="s2">:/lib/aarch64-linux-gnu/libgomp.so.1&quot;</span>
 </pre></div>
+</div>
+<p>This ensures the correct <code class="docutils literal notranslate"><span class="pre">libgomp</span></code> library is preloaded for both Isaac Sim and Isaac Lab,
+removing the preload warnings during runtime.</p>
+</div>
+</div>
 </div>
 </li>
 </ul>
 </section>
 <section id="verifying-the-isaac-sim-installation">
 <h2>Verifying the Isaac Sim installation<a class="headerlink" href="#verifying-the-isaac-sim-installation" title="Permalink to this heading">#</a></h2>
+<ul>
+<li><p>Make sure that your virtual environment is activated (if applicable)</p></li>
+<li><p>Check that the simulator runs as expected:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># note: you can pass the argument &quot;--help&quot; to see all arguments possible.</span>
+isaacsim
+</pre></div>
+</div>
+</li>
+<li><p>It’s also possible to run with a specific experience file, run:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># experience files can be absolute path, or relative path searched in isaacsim/apps or omni/apps</span>
+isaacsim<span class="w"> </span>isaacsim.exp.full.kit
+</pre></div>
+</div>
+</li>
+</ul>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>When running Isaac Sim for the first time, all dependent extensions will be pulled from the registry.
+This process can take upwards of 10 minutes and is required on the first run of each experience file.
+Once the extensions are pulled, consecutive runs using the same experience file will use the cached extensions.</p>
+</div>
+<div class="admonition attention">
+<p class="admonition-title">Attention</p>
+<p>The first run will prompt users to accept the Nvidia Omniverse License Agreement.
+To accept the EULA, reply <code class="docutils literal notranslate"><span class="pre">Yes</span></code> when prompted with the below message:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>By<span class="w"> </span>installing<span class="w"> </span>or<span class="w"> </span>using<span class="w"> </span>Isaac<span class="w"> </span>Sim,<span class="w"> </span>I<span class="w"> </span>agree<span class="w"> </span>to<span class="w"> </span>the<span class="w"> </span>terms<span class="w"> </span>of<span class="w"> </span>NVIDIA<span class="w"> </span>OMNIVERSE<span class="w"> </span>LICENSE<span class="w"> </span>AGREEMENT<span class="w"> </span><span class="o">(</span>EULA<span class="o">)</span>
+<span class="k">in</span><span class="w"> </span>https://docs.isaacsim.omniverse.nvidia.com/latest/common/NVIDIA_Omniverse_License_Agreement.html
+
+Do<span class="w"> </span>you<span class="w"> </span>accept<span class="w"> </span>the<span class="w"> </span>EULA?<span class="w"> </span><span class="o">(</span>Yes/No<span class="o">)</span>:<span class="w"> </span>Yes
+</pre></div>
+</div>
+</div>
+<p>If the simulator does not run or crashes while following the above
+instructions, it means that something is incorrectly configured. To
+debug and troubleshoot, please check Isaac Sim
+<a class="reference external" href="https://docs.omniverse.nvidia.com/dev-guide/latest/linux-troubleshooting.html">documentation</a>
+and the
+<a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/common/feedback.html">Isaac Sim Forums</a>.</p>
+<ul>
+<li><p>If you want to use <code class="docutils literal notranslate"><span class="pre">rl_games</span></code> for training and inferencing, install
+its Python 3.11 enabled fork:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>pip install git+https://github.com/isaac-sim/rl_games.git@python3.11
+</pre></div>
+</div>
+</li>
+</ul>
+</section>
+<section id="id1">
+<h2>Verifying the Isaac Sim installation<a class="headerlink" href="#id1" title="Permalink to this heading">#</a></h2>
 <ul>
 <li><p>Make sure that your virtual environment is activated (if applicable)</p></li>
 <li><p>Check that the simulator runs as expected:</p>
@@ -965,6 +1025,7 @@ If the file already exists, it will be overwritten (a confirmation prompt will b
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#preparing-a-python-environment">Preparing a Python Environment</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#installing-dependencies">Installing dependencies</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#verifying-the-isaac-sim-installation">Verifying the Isaac Sim installation</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id1">Verifying the Isaac Sim installation</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#running-isaac-lab-scripts">Running Isaac Lab Scripts</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#generating-vs-code-settings">Generating VS Code Settings</a></li>
 </ul>
@@ -1000,7 +1061,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Oct 16, 2025.
+  Last updated on Oct 17, 2025.
   <br/>
 </p>
   </div>
