@@ -130,6 +130,10 @@ def _run_environments(
     if "Visuomotor" in task_name and num_envs == 32:
         return
 
+    # skip automate environments as they require cuda installation
+    if task_name in ["Isaac-AutoMate-Assembly-Direct-v0", "Isaac-AutoMate-Disassembly-Direct-v0"]:
+        return
+
     # Check if this is the teddy bear environment and if it's being called from the right test file
     if task_name == "Isaac-Lift-Teddy-Bear-Franka-IK-Abs-v0":
         # Get the calling frame to check which test file is calling this function
