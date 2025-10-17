@@ -507,6 +507,15 @@ Visualize the results of the trained policy by running the following command, us
 
    The trained policy performing the pick and place task in Isaac Lab.
 
+.. note::
+
+   **Expected Success Rates and Timings for Pick and Place GR1T2 Task**
+
+   * Success rate for data generation depends on the quality of human demonstrations (how well the user performs them) and dataset annotation quality. Both data generation and downstream policy success are sensitive to these factors and can show high variance. See :ref:`Common Pitfalls when Generating Data <common-pitfalls-generating-data>` for tips to improve your dataset.
+   * Data generation success for this task is typically 65-80% over 1000 demonstrations, taking 18-40 minutes depending on GPU hardware and success rate (19 minutes on an RTX ADA 6000 @ 80% success rate).
+   * Behavior Cloning (BC) policy success is typically 75-86% (evaluated on 50 rollouts) when trained on 1000 generated demonstrations for 2000 epochs (default), depending on demonstration quality. Training takes approximately 29 minutes on an RTX ADA 6000.
+   * Recommendation: Train for 2000 epochs with 1000 generated demonstrations, and evaluate multiple checkpoints saved between the 1500th and 2000th epochs to select the best-performing policy.
+
 
 Demo 2: Data Generation and Policy Training for Humanoid Robot Locomanipulation with Unitree G1
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -632,7 +641,7 @@ Visualize the trained policy performance:
    **Expected Success Rates and Timings for Locomanipulation Pick and Place Task**
 
    * Success rate for data generation depends on the quality of human demonstrations (how well the user performs them) and dataset annotation quality. Both data generation and downstream policy success are sensitive to these factors and can show high variance. See :ref:`Common Pitfalls when Generating Data <common-pitfalls-generating-data>` for tips to improve your dataset.
-   * Data generation success for this task is typically 75-82% over 1000 demonstrations, taking 18-40 minutes depending on GPU hardware and success rate (18 minutes on an RTX ADA 6000).
+   * Data generation success for this task is typically 65-82% over 1000 demonstrations, taking 18-40 minutes depending on GPU hardware and success rate (18 minutes on an RTX ADA 6000 @ 82% success rate).
    * Behavior Cloning (BC) policy success is typically 75-85% (evaluated on 50 rollouts) when trained on 1000 generated demonstrations for 2000 epochs (default), depending on demonstration quality. Training takes approximately 40 minutes on an RTX ADA 6000.
    * Recommendation: Train for 2000 epochs with 1000 generated demonstrations, and evaluate multiple checkpoints saved between the 1500th and 2000th epochs to select the best-performing policy.
 
