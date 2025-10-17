@@ -160,6 +160,26 @@ class PhysxCfg:
     gpu_max_particle_contacts: int = 2**20
     """Size of particle contacts stream buffer allocated in pinned host memory. Default is 2 ** 20."""
 
+    solve_articulation_contact_last: bool = False
+    """Changes the ordering inside the articulation solver. Default is False.
+
+    PhysX employs a strict ordering for handling constraints in an articulation. The outcome of
+    each constraint resolution modifies the joint and associated link speeds. However, the default
+    ordering may not be ideal for gripping scenarios because the solver favours the constraint
+    types that are resolved last. This is particularly true of stiff constraint systems that are hard
+    to resolve without resorting to vanishingly small simulation timesteps.
+
+    With dynamic contact resolution being such an important part of gripping, it may make
+    more sense to solve dynamic contact towards the end of the solver rather than at the
+    beginning. This parameter modifies the default ordering to enable this change.
+
+    For more information, please check `here <https://docs.omniverse.nvidia.com/kit/docs/omni_physics/107.3/dev_guide/guides/articulation_stability_guide.html#articulation-solver-order>`__.
+
+    .. versionadded:: v2.3
+        This parameter is only available with Isaac Sim 5.1.
+
+    """
+
 
 @configclass
 class RenderCfg:

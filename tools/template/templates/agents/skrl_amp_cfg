@@ -15,7 +15,7 @@ models:
     fixed_log_std: True
     network:
       - name: net
-        input: STATES
+        input: OBSERVATIONS
         layers: [1024, 512]
         activations: relu
     output: ACTIONS
@@ -24,7 +24,7 @@ models:
     clip_actions: False
     network:
       - name: net
-        input: STATES
+        input: OBSERVATIONS
         layers: [1024, 512]
         activations: relu
     output: ONE
@@ -33,7 +33,7 @@ models:
     clip_actions: False
     network:
       - name: net
-        input: STATES
+        input: OBSERVATIONS
         layers: [1024, 512]
         activations: relu
     output: ONE
