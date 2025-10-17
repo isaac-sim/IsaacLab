@@ -56,9 +56,6 @@ def distance_to_goal_exp_curriculum(
     position_error_square = torch.sum(torch.square(target_position_w - current_position), dim=1)
     # weight based on the current curriculum level
     weight = 1.0 + env.scene.terrain.terrain_levels.float() / float(env.scene.terrain.max_terrain_level)
-
-    # compute the error
-    position_error_square = torch.sum(torch.square(target_position_w - current_position), dim=1)
     return weight * torch.exp(-position_error_square / std**2)
 
 def velocity_to_goal_reward(
