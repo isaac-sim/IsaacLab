@@ -34,7 +34,7 @@ def get_cuda_version():
         # Use regex to find the CUDA version (e.g., V11.2.67)
         match = re.search(r"V(\d+\.\d+(\.\d+)?)", output)
         if match:
-            return match.group(1)
+            return float(match.group(1))
         else:
             print("CUDA version not found in output.")
             return None
