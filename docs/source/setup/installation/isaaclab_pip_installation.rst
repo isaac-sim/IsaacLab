@@ -79,7 +79,7 @@ Installing dependencies
             removing the preload warnings during runtime.
 
 .. include:: include/pip_verify_isaacsim.rst
--  If you want to use ``rl_games`` for training and inferencing, install the
+-  If you want to use ``rl_games`` for training and inferencing, install
    its Python 3.11 enabled fork:
 
    .. code-block:: none
