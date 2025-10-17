@@ -3,4 +3,4 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Configurations for navigation environments."""
+"""Configurations for state-based control environments."""
