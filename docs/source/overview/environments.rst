@@ -243,8 +243,7 @@ We provide environments for both disassembly and assembly.
 
 .. attention::
 
-  CUDA is required for running the AutoMate environments.
-  Follow the below steps to install CUDA 12.8:
+  CUDA is required for running the AutoMate environments with 570 drivers. If running with Nvidia driver 570, we follow the below steps to install CUDA 12.8 and compute rewards in AutoMate environments with CUDA. With 580 drivers and CUDA 13, we are currently unable to enable CUDA for computing the rewards and will fallback to CPU, resulting in slower performance.
 
   .. code-block:: bash
 
