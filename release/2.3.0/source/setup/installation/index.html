@@ -159,10 +159,10 @@
             <label for="version-select" style="font-weight: bold; display: block;">Version</label>
           </div>
           <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
+            <option value="index.html" selected>release/2.3.0</option>
             <option value="../../../../../main/source/setup/installation/index.html" >main</option>
             <option value="../../../../2.1.0/source/setup/installation/index.html" >release/2.1.0</option>
             <option value="../../../../2.2.0/source/setup/installation/index.html" >release/2.2.0</option>
-            <option value="index.html" selected>release/2.3.0</option>
             <option value="../../../../../v2.2.1/source/setup/installation/index.html" >v2.2.1</option>
             <option value="../../../../../v2.2.0/source/setup/installation/index.html" >v2.2.0</option>
             <option value="../../../../../v2.1.1/source/setup/installation/index.html" >v2.1.1</option>
@@ -205,7 +205,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.0.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.1.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -729,9 +729,8 @@ using the <code class="docutils literal notranslate"><span class="pre">.run</spa
 features of Isaac Lab are not currently supported on the DGX spark. The most noteworthy is that the architecture <em>requires</em> CUDA ≥ 13, and thus the cu13 build of PyTorch or newer.
 Other notable limitations with respect to Isaac Lab include…</p>
 <ol class="arabic simple">
-<li><p><a class="reference external" href="https://isaac-sim.github.io/IsaacLab/main/source/overview/imitation-learning/skillgen.html">SkillGen</a> is not explicitly supported out of the box. This
-is because cuRobo builds native CUDA/C++ extensions that requires specific tooling and library versions which may not have been explicitly documented
-and validated for use with DGX spark. Use at your own risk!</p></li>
+<li><p><a class="reference external" href="https://isaac-sim.github.io/IsaacLab/main/source/overview/imitation-learning/skillgen.html">SkillGen</a> is not supported out of the box. This
+is because cuRobo builds native CUDA/C++ extensions that requires specific tooling and library versions which are not validated for use with DGX spark.</p></li>
 <li><p>Extended reality teleoperation tools such as <a class="reference external" href="https://isaac-sim.github.io/IsaacLab/release/2.3.0/source/api/lab/isaaclab.devices.html#openxr">OpenXR</a> is not supported. This is due
 to encoding performance limitations that have not yet been fully investigated.</p></li>
 <li><p>SKRL training with <a class="reference external" href="https://docs.jax.dev/en/latest/notebooks/thinking_in_jax.html">JAX</a> has not been explicitly validated or tested in Isaac Lab on the DGX spark, and so this functionality may be limited or

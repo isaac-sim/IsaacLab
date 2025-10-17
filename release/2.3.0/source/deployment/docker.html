@@ -159,10 +159,10 @@
             <label for="version-select" style="font-weight: bold; display: block;">Version</label>
           </div>
           <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
+            <option value="docker.html" selected>release/2.3.0</option>
             <option value="../../../../main/source/deployment/docker.html" >main</option>
             <option value="../../../2.1.0/source/deployment/docker.html" >release/2.1.0</option>
             <option value="../../../2.2.0/source/deployment/docker.html" >release/2.2.0</option>
-            <option value="docker.html" selected>release/2.3.0</option>
             <option value="../../../../v2.2.1/source/deployment/docker.html" >v2.2.1</option>
             <option value="../../../../v2.2.0/source/deployment/docker.html" >v2.2.0</option>
             <option value="../../../../v2.1.1/source/deployment/docker.html" >v2.1.1</option>
@@ -205,7 +205,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.0.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.1.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -979,7 +979,7 @@ For example, we provide the docker image for release 2.0.0 and 2.1.0, but not 2.
 In the future, we will provide docker images for every minor release of Isaac Lab.</p>
 </div>
 <p>To pull the minimal Isaac Lab container, run:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>docker<span class="w"> </span>pull<span class="w"> </span>nvcr.io/nvidia/isaac-lab:2.2.0
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>docker<span class="w"> </span>pull<span class="w"> </span>nvcr.io/nvidia/isaac-lab:2.3.0
 </pre></div>
 </div>
 <p>To run the Isaac Lab container with an interactive bash session, run:</p>
@@ -993,7 +993,7 @@ In the future, we will provide docker images for every minor release of Isaac La
 <span class="w">   </span>-v<span class="w"> </span>~/docker/isaac-sim/logs:/root/.nvidia-omniverse/logs:rw<span class="w"> </span><span class="se">\</span>
 <span class="w">   </span>-v<span class="w"> </span>~/docker/isaac-sim/data:/root/.local/share/ov/data:rw<span class="w"> </span><span class="se">\</span>
 <span class="w">   </span>-v<span class="w"> </span>~/docker/isaac-sim/documents:/root/Documents:rw<span class="w"> </span><span class="se">\</span>
-<span class="w">   </span>nvcr.io/nvidia/isaac-lab:2.2.0
+<span class="w">   </span>nvcr.io/nvidia/isaac-lab:2.3.0
 </pre></div>
 </div>
 <p>To enable rendering through X11 forwarding, run:</p>
@@ -1010,7 +1010,7 @@ docker<span class="w"> </span>run<span class="w"> </span>--name<span class="w"> 
 <span class="w">   </span>-v<span class="w"> </span>~/docker/isaac-sim/logs:/root/.nvidia-omniverse/logs:rw<span class="w"> </span><span class="se">\</span>
 <span class="w">   </span>-v<span class="w"> </span>~/docker/isaac-sim/data:/root/.local/share/ov/data:rw<span class="w"> </span><span class="se">\</span>
 <span class="w">   </span>-v<span class="w"> </span>~/docker/isaac-sim/documents:/root/Documents:rw<span class="w"> </span><span class="se">\</span>
-<span class="w">   </span>nvcr.io/nvidia/isaac-lab:2.2.0
+<span class="w">   </span>nvcr.io/nvidia/isaac-lab:2.3.0
 </pre></div>
 </div>
 <p>To run an example within the container, run:</p>
