@@ -28,7 +28,7 @@ LMF2_THRUSTER = ThrusterCfg()
 
 LMF2_CFG = MultirotorCfg(
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{ISAACLAB_EXT_DIR}/../isaaclab_tasks/isaaclab_tasks/manager_based/navigation/config/LMF2/LMF2_model/lmf2/lmf2.usd",
+        usd_path=f"{ISAACLAB_EXT_DIR}/../isaaclab_tasks/isaaclab_tasks/manager_based/drone_ntnu/LMF2_model/lmf2/lmf2.usd",
         activate_contact_sensors=True,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=False,
