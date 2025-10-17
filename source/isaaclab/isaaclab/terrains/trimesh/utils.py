@@ -133,7 +133,7 @@ def make_box(
     dims = (length, width, height)
     return trimesh.creation.box(dims, transform=transform)
 
-def make_box_yxz(
+def make_box_floating_obstacle(
     length: float,
     width: float,
     height: float,
