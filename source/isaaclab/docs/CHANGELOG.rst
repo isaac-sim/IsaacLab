@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.47.1 (2025-10-17)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :meth:`~isaaclab.sim.utils.resolve_prim_pose` to resolve the pose of a prim with respect to another prim.
+* Added :meth:`~isaaclab.sim.utils.resolve_prim_scale` to resolve the scale of a prim in the world frame.
+
+
 0.47.0 (2025-10-14)
 ~~~~~~~~~~~~~~~~~~~
 
