@@ -6,19 +6,19 @@
 # Reference: https://github.com/DLR-RM/rl-baselines3-zoo/blob/master/hyperparams/ppo.yml#L161
 seed: 42
 
-n_timesteps: !!float 1e7
+n_timesteps: !!float 1e8
 policy: 'MlpPolicy'
-batch_size: 128
-n_steps: 512
+batch_size: 32768
+n_steps: 16
 gamma: 0.99
 gae_lambda: 0.9
-n_epochs: 20
+n_epochs: 4
 ent_coef: 0.0
 sde_sample_freq: 4
 max_grad_norm: 0.5
 vf_coef: 0.5
 learning_rate: !!float 3e-5
-use_sde: True
+use_sde: False
 clip_range: 0.4
 device: "cuda:0"
 policy_kwargs:

@@ -280,8 +280,7 @@ Once satisfied with small-scale results, generate a full training dataset:
    --input_file ./datasets/annotated_dataset_skillgen.hdf5 \
    --output_file ./datasets/generated_dataset_skillgen_cube_stack.hdf5 \
    --task Isaac-Stack-Cube-Franka-IK-Rel-Skillgen-v0 \
-   --use_skillgen \
-   --headless
+   --use_skillgen
 
 .. note::
 
@@ -357,8 +356,8 @@ Train a state-based policy for the basic cube stacking task:
    --algo bc \
    --dataset ./datasets/generated_dataset_skillgen_cube_stack.hdf5
 
-Adaptive Bin Stacking Policy
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Adaptive Bin Cube Stacking Policy
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Train a policy for the more complex adaptive bin stacking:
 
@@ -374,7 +373,7 @@ Train a policy for the more complex adaptive bin stacking:
    The training script will save the model checkpoints in the model directory under ``IssacLab/logs/robomimic``.
 
 Evaluating Trained Policies
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Test your trained policies:
 
@@ -389,12 +388,21 @@ Test your trained policies:
 
 .. code:: bash
 
-   # Adaptive bin stacking evaluation
+   # Adaptive bin cube stacking evaluation
    ./isaaclab.sh -p scripts/imitation_learning/robomimic/play.py \
    --device cpu \
    --task Isaac-Stack-Cube-Bin-Franka-IK-Rel-Mimic-v0 \
    --num_rollouts 50 \
    --checkpoint /path/to/model_checkpoint.pth
+
+.. note::
+
+   **Expected Success Rates and Recommendations for Cube Stacking and Bin Cube Stacking Tasks**
+
+   * SkillGen data generation and downstream policy success are sensitive to the task and the quality of dataset annotation, and can show high variance.
+   * For cube stacking and bin cube stacking, data generation success is typically 40% to 70% when the dataset is properly annotated per the instructions.
+   * Behavior Cloning (BC) policy success from 1000 generated demonstrations trained for 2000 epochs (default) is typically 40% to 85% for these tasks, depending on data quality.
+   * Recommendation: Train for the default 2000 epochs with about 1000 generated demonstrations, and evaluate multiple checkpoints saved after the 1000th epoch to select the best-performing policy.
 
 .. _cuRobo-interface-features:
 
@@ -416,9 +424,9 @@ cuRobo Planner (GPU, collision-aware)
 * Location: ``isaaclab_mimic/motion_planners/curobo``
 * Multi-phase planning:
 
-  * Approach → Contact → Retreat phases per subtask
+  * Retreat → Contact → Approach phases per subtask
   * Configurable collision filtering in contact phases
-  * For SkillGen, approach and retreat phases are collision-free. The transit phase is collision-checked.
+  * For SkillGen, retreat and approach phases are collision-free. The transit phase is collision-checked.
 
 * World synchronization:
 
