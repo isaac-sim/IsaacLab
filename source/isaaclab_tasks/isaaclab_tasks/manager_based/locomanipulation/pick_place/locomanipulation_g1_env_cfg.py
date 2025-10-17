@@ -21,7 +21,6 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sensors import CameraCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR, retrieve_file_path
@@ -85,16 +84,6 @@ class LocomanipulationG1SceneCfg(InteractiveSceneCfg):
         spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), intensity=3000.0),
     )
 
-    robot_pov_cam = CameraCfg(
-        prim_path="/World/envs/env_.*/Robot/torso_link/d435_link/camera",
-        update_period=0.0,
-        height=160,
-        width=256,
-        data_types=["rgb"],
-        spawn=sim_utils.PinholeCameraCfg(focal_length=8.0, clipping_range=(0.1, 20.0)),
-        offset=CameraCfg.OffsetCfg(pos=(0.0, 0.0, 0.0), rot=(0.9848078, 0.0, -0.1736482, 0.0), convention="world"),
-    )
-
 
 @configclass
 class ActionsCfg:
@@ -146,11 +135,6 @@ class ObservationsCfg:
         object = ObsTerm(
             func=manip_mdp.object_obs,
             params={"left_eef_link_name": "left_wrist_yaw_link", "right_eef_link_name": "right_wrist_yaw_link"},
-        )
-
-        robot_pov_cam = ObsTerm(
-            func=manip_mdp.image,
-            params={"sensor_cfg": SceneEntityCfg("robot_pov_cam"), "data_type": "rgb", "normalize": False},
         )
 
         def __post_init__(self):
