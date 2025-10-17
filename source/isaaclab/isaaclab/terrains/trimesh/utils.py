@@ -133,42 +133,6 @@ def make_box(
     dims = (length, width, height)
     return trimesh.creation.box(dims, transform=transform)
 
-def make_box_yxz(
-    length: float,
-    width: float,
-    height: float,
-    center: tuple[float, float, float],
-    max_yxz_angle: float = 0,
-    degrees: bool = True,
-) -> trimesh.Trimesh:
-    """Generate a box mesh with a random orientation.
-
-    Args:
-        length: The length (along x) of the box (in m).
-        width: The width (along y) of the box (in m).
-        height: The height of the cylinder (in m).
-        center: The center of the cylinder (in m).
-        max_yxz_angle: The maximum angle along the y and x axis. Defaults to 0.
-        degrees: Whether the angle is in degrees. Defaults to True.
-
-    Returns:
-        A trimesh.Trimesh object for the box.
-    """
-    # create a pose for the box
-    transform = np.eye(4)
-    transform[0:3, -1] = np.asarray(center)
-    # -- create a random rotation
-    euler_zyx = tf.Rotation.random().as_euler("zyx")  # returns rotation of shape (3,)
-    # -- cap the rotation along the x,y and z axis
-    if degrees:
-        max_yxz_angle = max_yxz_angle / 180.0
-    euler_zyx *= max_yxz_angle
-    # -- apply the rotation
-    transform[0:3, 0:3] = tf.Rotation.from_euler("zyx", euler_zyx).as_matrix()
-    # create the box
-    dims = (length, width, height)
-    return trimesh.creation.box(dims, transform=transform)
-
 def make_cylinder(
     radius: float, height: float, center: tuple[float, float, float], max_yx_angle: float = 0, degrees: bool = True
 ) -> trimesh.Trimesh:

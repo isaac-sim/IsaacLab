@@ -28,6 +28,24 @@ from isaaclab.envs.utils.io_descriptors import (
 
 
 """
+State.
+"""
+
+
+def base_roll_pitch(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
+    """Roll and pitch of the base in the simulation world frame."""
+    # extract the used quantities (to enable type-hinting)
+    asset: Articulation = env.scene[asset_cfg.name]
+    # extract euler angles (in world frame)
+    roll, pitch, _ = math_utils.euler_xyz_from_quat(asset.data.root_quat_w)
+    # normalize angle to [-pi, pi]
+    roll = torch.atan2(torch.sin(roll), torch.cos(roll))
+    pitch = torch.atan2(torch.sin(pitch), torch.cos(pitch))
+
+    return torch.cat((roll.unsqueeze(-1), pitch.unsqueeze(-1)), dim=-1)
+
+
+"""
 Commands.
 """
 
@@ -42,15 +60,3 @@ def generated_commands(env: ManagerBasedRLEnv, command_name: str | None = None, 
     current_position_b_dir = current_position_b / (torch.norm(current_position_b, dim=-1, keepdim=True) + 1e-8)
     current_position_b_mag = torch.norm(current_position_b, dim=-1, keepdim=True)
     return torch.cat((current_position_b_dir, current_position_b_mag), dim=-1)
-
-def base_roll_pitch(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
-    """Roll and pitch of the base in the simulation world frame."""
-    # extract the used quantities (to enable type-hinting)
-    asset: Articulation = env.scene[asset_cfg.name]
-    # extract euler angles (in world frame)
-    roll, pitch, _ = math_utils.euler_xyz_from_quat(asset.data.root_quat_w)
-    # normalize angle to [-pi, pi]
-    roll = torch.atan2(torch.sin(roll), torch.cos(roll))
-    pitch = torch.atan2(torch.sin(pitch), torch.cos(pitch))
-
-    return torch.cat((roll.unsqueeze(-1), pitch.unsqueeze(-1)), dim=-1)
