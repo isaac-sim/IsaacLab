@@ -283,7 +283,7 @@ class MeshRepeatedBoxesTerrainCfg(MeshRepeatedObjectsTerrainCfg):
         degrees: bool = True
         """Whether the angle is in degrees. Defaults to True."""
 
-    object_type = mesh_utils_terrains.make_box
+    object_type = mesh_utils_terrains.make_box_yxz
 
     object_params_start: ObjectCfg = MISSING
     """The box curriculum parameters at the start of the curriculum."""
@@ -322,7 +322,7 @@ class MeshFloatingObstaclesTerrainCfg(SubTerrainBaseCfg):
 
     min_num_obstacles: int = 10
     max_num_obstacles: int = 40
-    object_func = mesh_utils_terrains.make_box
+    object_func = mesh_utils_terrains.make_box_yxz
     function = mesh_terrains.floating_obstacles_terrain
     env_size: tuple[float, float, float] = MISSING
     @configclass
