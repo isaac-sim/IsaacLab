@@ -283,7 +283,7 @@ class MeshRepeatedBoxesTerrainCfg(MeshRepeatedObjectsTerrainCfg):
         degrees: bool = True
         """Whether the angle is in degrees. Defaults to True."""
 
-    object_type = mesh_utils_terrains.make_box_yxz
+    object_type = mesh_utils_terrains.make_box
 
     object_params_start: ObjectCfg = MISSING
     """The box curriculum parameters at the start of the curriculum."""
