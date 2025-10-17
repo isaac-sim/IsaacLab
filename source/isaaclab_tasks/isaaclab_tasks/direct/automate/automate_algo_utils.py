@@ -36,13 +36,17 @@ def get_cuda_version():
         if match:
             return match.group(1)
         else:
-            return "CUDA version not found in output."
+            print("CUDA version not found in output.")
+            return None
     except FileNotFoundError:
-        return "nvcc command not found. Is CUDA installed and in your PATH?"
+        print("nvcc command not found. Is CUDA installed and in your PATH?")
+        return None
     except subprocess.CalledProcessError as e:
-        return f"Error executing nvcc: {e.stderr}"
+        print(f"Error executing nvcc: {e.stderr}")
+        return None
     except Exception as e:
-        return f"An unexpected error occurred: {e}"
+        print(f"An unexpected error occurred: {e}")
+        return None
 
 
 def get_gripper_open_width(obj_filepath):
