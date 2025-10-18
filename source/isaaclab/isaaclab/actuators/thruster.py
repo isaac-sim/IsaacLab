@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import torch
 from typing import TYPE_CHECKING
+from collections.abc import Sequence
 
 from isaaclab.utils.math import rand_range
 from isaaclab.utils.types import ArticulationThrustActions
