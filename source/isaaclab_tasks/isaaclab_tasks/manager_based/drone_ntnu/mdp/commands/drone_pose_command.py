@@ -41,10 +41,10 @@ class DroneUniformPoseCommand(CommandTerm):
 
     """
 
-    cfg: UniformPoseCommandCfg
+    cfg: DroneUniformPoseCommandCfg
     """Configuration for the command generator."""
 
-    def __init__(self, cfg: UniformPoseCommandCfg, env: ManagerBasedEnv):
+    def __init__(self, cfg: DroneUniformPoseCommandCfg, env: ManagerBasedEnv):
         """Initialize the command generator class.
 
         Args:
@@ -98,8 +98,8 @@ class DroneUniformPoseCommand(CommandTerm):
             self.pose_command_b[:, 3:],
         )
         # compute the error
+        # Hardcoding for visualization purposes @grzemal
         pos_error, rot_error = compute_pose_error(
-            ## Hardcoding for visualization purposes @grzemal
             self.pose_command_b[:, :3] + self._env.scene.env_origins,
             self.pose_command_w[:, 3:],
             self.robot.data.body_pos_w[:, self.body_idx],
@@ -150,7 +150,7 @@ class DroneUniformPoseCommand(CommandTerm):
             return
         # update the markers
         # -- goal pose
-        ## Hardcoding for visualization purposes @grzemal
+        # Hardcoding for visualization purposes @grzemal
         check = self.pose_command_b[:, :3] + self._env.scene.env_origins
         self.goal_pose_visualizer.visualize(check, self.pose_command_b[:, 3:])
         # -- current body pose

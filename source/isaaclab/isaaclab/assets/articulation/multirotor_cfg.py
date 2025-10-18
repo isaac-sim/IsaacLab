@@ -4,7 +4,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from dataclasses import MISSING
-from typing import Literal
 
 from isaaclab.actuators import ThrusterCfg
 from isaaclab.utils import configclass
