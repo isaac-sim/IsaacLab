@@ -434,6 +434,7 @@ class PickPlaceGR1T2EnvCfg(ManagerBasedRLEnvCfg):
                             num_open_xr_hand_joints=2 * self.NUM_OPENXR_HAND_JOINTS,
                             sim_device=self.sim.device,
                             hand_joint_names=self.actions.pink_ik_cfg.hand_joint_names,
+                            calibrate_scaling_factor=True,
                         ),
                     ],
                     sim_device=self.sim.device,

@@ -195,6 +195,7 @@ class NutPourGR1T2PinkIKEnvCfg(NutPourGR1T2BaseEnvCfg):
                             num_open_xr_hand_joints=2 * self.NUM_OPENXR_HAND_JOINTS,
                             sim_device=self.sim.device,
                             hand_joint_names=self.actions.gr1_action.hand_joint_names,
+                            calibrate_scaling_factor=True,
                         ),
                     ],
                     sim_device=self.sim.device,
