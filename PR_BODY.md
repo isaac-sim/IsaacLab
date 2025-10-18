@@ -9,8 +9,6 @@ Motivation and context
 - Adds a manager-based LMF2 drone task and configuration files to enable repro and training workflows for the LMF2 platform.
 - Consolidates drone-specific code and prepares the repo for future control/sensor improvements.
 
-Fixes: (no issue)
-
 Type of change
 - New feature (non-breaking addition of new functionality)
 - Documentation update (added docs/comments where applicable)
@@ -42,19 +40,3 @@ Checklist (status)
 - [ ] I have added tests that prove my fix is effective or that my feature works (no new unit tests were added for thruster/multirotor in this branch; I recommend adding small unit tests around the thruster/compute API)
 - [ ] I have updated the changelog and the corresponding version in the extension's `config/extension.toml` file (if this feature affects an extension)
 - [ ] I have added my name to the `CONTRIBUTORS.md` or my name already exists there
-
-Notes about the checks & tests I ran
-- Formatting / pre-commit:
-  - I ran: ./isaaclab.sh --format
-  - Pre-commit initially reported several flake8 and YAML issues; I fixed those (imports, duplicated YAML key, a couple of comment styles) and re-ran format until pre-commit passed.
-  - Current status: pre-commit hooks passed in the workspace.
-- Tests:
-  - I attempted to run the repo tests via: ./isaaclab.sh --test -q
-  - Initially pytest was not available in the kit Python; I installed pytest into the kit Python used by the script.
-  - Test run produced many test failures. The main reason is environment/packaging: tests expect the repo packages to be installed into the kit python environment (so `import isaaclab` works), and many tests need a working Isaac Sim environment or additional dependencies. Installing local packages into the kit python and configuring the Isaac Sim runtime would be required for a full, green test run.
-
-Next steps
-- If you want, I can push this branch and create the PR on GitHub and add the labels `asset` and `isaac-lab`.
-- I can also install the local packages into the kit python and re-run the full test suite (takes longer) and update the PR with the test report.
-
-
