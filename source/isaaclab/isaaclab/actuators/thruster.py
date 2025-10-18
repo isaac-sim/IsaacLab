@@ -13,14 +13,15 @@ from __future__ import annotations
 
 import torch
 from typing import TYPE_CHECKING
-from isaaclab.utils.math  import rand_range
+
+from isaaclab.utils.math import rand_range
 from isaaclab.utils.types import ArticulationThrustActions
 
 if TYPE_CHECKING:
     from .actuator_cfg import ThrusterCfg
 
 
-class Thruster():
+class Thruster:
     """Low-level motor/thruster dynamics with separate rise/fall time constants.
 
     Supports two models:
@@ -40,16 +41,18 @@ class Thruster():
     This is the thrust obtained after clipping the :attr:`computed_thrust` based on the
     actuator characteristics.
     """
-    
+
     cfg: ThrusterCfg
 
-    def __init__(self, 
-                 cfg: ThrusterCfg, 
-                 thruster_names: list[str],
-                 thruster_ids: slice | torch.Tensor,
-                 num_envs: int, 
-                 device: str,
-                 init_thruster_rps: torch.Tensor):
+    def __init__(
+        self,
+        cfg: ThrusterCfg,
+        thruster_names: list[str],
+        thruster_ids: slice | torch.Tensor,
+        num_envs: int,
+        device: str,
+        init_thruster_rps: torch.Tensor,
+    ):
         """Construct buffers and sample per-motor parameters.
 
         Args:
@@ -71,7 +74,7 @@ class Thruster():
         self.tau_dec_r = torch.tensor(cfg.tau_dec_range).view(1, 2, 1).expand(target_size).to(self._device)
 
         self.max_rate = torch.tensor(cfg.max_thrust_rate).expand(self._num_envs, cfg.num_motors).to(self._device)
-        
+
         self.max_thrust = self.cfg.thrust_range[1]
         self.min_thrust = self.cfg.thrust_range[0]
 
@@ -82,9 +85,13 @@ class Thruster():
         if cfg.use_rps:
             self.thrust_const_r = torch.tensor(cfg.thrust_const_range).view(1, 2, 1).expand(target_size).to(device)
             self.thrust_const = rand_range(self.thrust_const_r[:, 0], self.thrust_const_r[:, 1])
-        
-        self.curr_thrust = torch.ones(self._num_envs, cfg.num_motors, device=self._device, dtype=torch.float32)*self.thrust_const*self._init_thruster_rps**2 
-        
+
+        self.curr_thrust = (
+            torch.ones(self._num_envs, cfg.num_motors, device=self._device, dtype=torch.float32)
+            * self.thrust_const
+            * self._init_thruster_rps**2
+        )
+
         # Mixing factor (discrete vs continuous form)
         if self.cfg.use_discrete_approximation:
             self.mixing_factor_function = discrete_mixing_factor
@@ -105,7 +112,7 @@ class Thruster():
                 self._step_thrust = compute_thrust_with_force_time_constant
             elif self.cfg.integration_scheme == "rk4":
                 self._step_thrust = compute_thrust_with_force_time_constant_rk4
-                
+
     @property
     def num_thrusters(self) -> int:
         """Number of actuators in the group."""
@@ -137,7 +144,7 @@ class Thruster():
 
         Returns:
             (num_envs, num_motors) updated thrust state [N].
-        
+
         """
         des_thrust = control_action.thrusts
         des_thrust = torch.clamp(des_thrust, self.thrust_r[:, 0], self.thrust_r[:, 1])
@@ -150,7 +157,7 @@ class Thruster():
             thrust_args = (des_thrust, self.curr_thrust, mixing, self.thrust_const, self.max_rate, self.cfg.dt)
         else:
             thrust_args = (des_thrust, self.curr_thrust, mixing, self.max_rate, self.cfg.dt)
-        
+
         self.curr_thrust[:] = self._step_thrust(*thrust_args)
 
         self.computed_thrust = self.curr_thrust
@@ -161,7 +168,7 @@ class Thruster():
         # print("control actions: ", control_action.thrusts)
 
         return control_action
-    
+
     def reset_idx(self, env_ids=None) -> None:
         """Re-sample parameters and reinitialize state.
 

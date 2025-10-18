@@ -150,7 +150,7 @@ class DroneUniformPoseCommand(CommandTerm):
             return
         # update the markers
         # -- goal pose
-        ## Hardcoding for visualization purposes @grzemal 
+        ## Hardcoding for visualization purposes @grzemal
         check = self.pose_command_b[:, :3] + self._env.scene.env_origins
         self.goal_pose_visualizer.visualize(check, self.pose_command_b[:, 3:])
         # -- current body pose

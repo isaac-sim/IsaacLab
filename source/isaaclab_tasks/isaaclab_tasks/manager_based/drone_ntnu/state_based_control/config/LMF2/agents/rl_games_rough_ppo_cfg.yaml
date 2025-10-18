@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 params:
   seed: 42
 
@@ -43,7 +48,7 @@ params:
     device_name: 'cuda:0'
     env_config:
       num_envs: 8192
-      
+
     name: lmf2_state_based_control
     reward_shaper:
       # min_val: -1

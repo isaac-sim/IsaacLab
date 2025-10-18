@@ -1967,6 +1967,7 @@ def generate_random_transformation_matrix(pos_boundary: float = 1, rot_boundary:
 
     return T
 
+
 @torch.jit.script
 def rand_range(lower, upper):
     # type: (torch.Tensor, torch.Tensor) -> torch.Tensor

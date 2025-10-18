@@ -39,7 +39,7 @@ class ThrustAction(ActionTerm):
     def __init__(self, cfg: actions_cfg.ThrustActionCfg, env: ManagerBasedEnv) -> None:
         # initialize the action term
         super().__init__(cfg, env)
-        
+
         thruster_names_expr = self._asset.actuators["thrusters"].cfg.thruster_names_expr
 
         # resolve the thrusters over which the action term is applied
@@ -71,25 +71,29 @@ class ThrustAction(ActionTerm):
             self._scale[:, index_list] = torch.tensor(value_list, device=self.device)
         else:
             raise ValueError(f"Unsupported scale type: {type(cfg.scale)}. Supported types are float and dict.")
-        
+
         # parse offset
         if isinstance(cfg.offset, (float, int)):
             self._offset = float(cfg.offset)
         elif isinstance(cfg.offset, dict):
             self._offset = torch.zeros_like(self._raw_actions)
             # resolve the dictionary config
-            index_list, _, value_list = string_utils.resolve_matching_names_values(self.cfg.offset, self._thruster_names)
+            index_list, _, value_list = string_utils.resolve_matching_names_values(
+                self.cfg.offset, self._thruster_names
+            )
             self._offset[:, index_list] = torch.tensor(value_list, device=self.device)
         else:
             raise ValueError(f"Unsupported offset type: {type(cfg.offset)}. Supported types are float and dict.")
-        
-        # parse clip 
+
+        # parse clip
         if cfg.clip is not None:
             if isinstance(cfg.clip, dict):
                 self._clip = torch.tensor([[-float("inf"), float("inf")]], device=self.device).repeat(
                     self.num_envs, self.action_dim, 1
                 )
-                index_list, _, value_list = string_utils.resolve_matching_names_values(self.cfg.clip, self._thruster_names)
+                index_list, _, value_list = string_utils.resolve_matching_names_values(
+                    self.cfg.clip, self._thruster_names
+                )
                 self._clip[:, index_list] = torch.tensor(value_list, device=self.device)
             else:
                 raise ValueError(f"Unsupported clip type: {type(cfg.clip)}. Supported types are dict.")
@@ -98,7 +102,7 @@ class ThrustAction(ActionTerm):
         if cfg.use_default_offset:
             # Use default thruster RPS as offset
             self._offset = self._asset.data.default_thruster_rps[:, self._thruster_ids].clone()
-        
+
     @property
     def action_dim(self) -> int:
         return self._num_thrusters
@@ -147,7 +151,7 @@ class ThrustAction(ActionTerm):
 
     def apply_actions(self):
         """Apply the processed actions as thrust commands."""
-        # Set thrust targets using thruster IDs 
+        # Set thrust targets using thruster IDs
         self._asset.set_thrust_target(self.processed_actions, thruster_ids=self._thruster_ids)
 
     def reset(self, env_ids: Sequence[int] | None = None) -> None:

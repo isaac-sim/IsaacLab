@@ -11,7 +11,8 @@ the observation introduced by the function.
 
 from __future__ import annotations
 
-import torch, torch.jit
+import torch
+import torch.jit
 from typing import TYPE_CHECKING
 
 import isaaclab.utils.math as math_utils
@@ -21,11 +22,7 @@ from isaaclab.managers import SceneEntityCfg
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv, ManagerBasedRLEnv
 
-from isaaclab.envs.utils.io_descriptors import (
-    generic_io_descriptor,
-    record_shape,
-)
-
+from isaaclab.envs.utils.io_descriptors import generic_io_descriptor, record_shape
 
 """
 State.
@@ -51,9 +48,11 @@ Commands.
 
 
 @generic_io_descriptor(dtype=torch.float32, observation_type="Command", on_inspect=[record_shape])
-def generated_commands(env: ManagerBasedRLEnv, command_name: str | None = None, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
+def generated_commands(
+    env: ManagerBasedRLEnv, command_name: str | None = None, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
+) -> torch.Tensor:
     """The generated command from command term in the command manager with the given name."""
-    asset: RigidObject = env.scene[asset_cfg.name]    
+    asset: RigidObject = env.scene[asset_cfg.name]
     current_position_w = asset.data.root_pos_w - env.scene.env_origins
     command = env.command_manager.get_command(command_name)
     current_position_b = math_utils.quat_apply_inverse(asset.data.root_link_quat_w, command[:, :3] - current_position_w)

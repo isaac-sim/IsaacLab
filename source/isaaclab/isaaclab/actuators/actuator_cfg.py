@@ -285,12 +285,13 @@ class RemotizedPDActuatorCfg(DelayedPDActuatorCfg):
     and the output torque (N*m). The table is used to interpolate the output torque based on the joint angle.
     """
 
+
 @configclass
-class ThrusterCfg():
+class ThrusterCfg:
 
     class_type: type[Thruster] = Thruster
     """Concrete Python class that consumes this config."""
-    
+
     # stiffness = 0.1 # only necessary to make this conform with Isaac
     # damping = 0.1 # only necessary to make this conform with Isaac
 
@@ -331,9 +332,6 @@ class ThrusterCfg():
     integration_scheme: Literal["rk4", "euler"] = "rk4"
     """Numerical integrator for the first-order model. Choose ``"euler"`` or ``"rk4"``."""
 
-    thruster_names_expr: list[str] = ["back_left_prop", 
-                                   "back_right_prop", 
-                                   "front_left_prop", 
-                                   "front_right_prop"]
-    
+    thruster_names_expr: list[str] = ["back_left_prop", "back_right_prop", "front_left_prop", "front_right_prop"]
+
     """Articulation's joint names that are part of the group."""

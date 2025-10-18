@@ -377,7 +377,6 @@ class SurfaceGripperBinaryActionCfg(ActionTermCfg):
     class_type: type[ActionTerm] = surface_gripper_actions.SurfaceGripperBinaryAction
 
 
-
 ##
 # Drone actions.
 ##
@@ -394,13 +393,13 @@ class ThrustActionCfg(ActionTermCfg):
 
     asset_name: str = MISSING
     """Name or regex expression of the asset that the action will be mapped to."""
-    
+
     scale: float | dict[str, float] = 1.0
     """Scale factor for the action (float or dict of regex expressions). Defaults to 1.0."""
-    
+
     offset: float | dict[str, float] = 0.0
     """Offset factor for the action (float or dict of regex expressions). Defaults to 0.0."""
-    
+
     preserve_order: bool = False
     """Whether to preserve the order of the asset names in the action output. Defaults to False."""
 

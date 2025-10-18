@@ -11,10 +11,9 @@ The following configuration parameters are available:
 """
 
 import isaaclab.sim as sim_utils
+from isaaclab import ISAACLAB_EXT_DIR
 from isaaclab.actuators import ThrusterCfg
 from isaaclab.assets.articulation import MultirotorCfg
-
-from isaaclab import ISAACLAB_EXT_DIR
 
 ##
 # Configuration - Actuators.
@@ -28,7 +27,9 @@ LMF2_THRUSTER = ThrusterCfg()
 
 LMF2_CFG = MultirotorCfg(
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{ISAACLAB_EXT_DIR}/../isaaclab_tasks/isaaclab_tasks/manager_based/drone_ntnu/LMF2_model/lmf2/lmf2.usd",
+        usd_path=(
+            f"{ISAACLAB_EXT_DIR}/../isaaclab_tasks/isaaclab_tasks/manager_based/drone_ntnu/LMF2_model/lmf2/lmf2.usd"
+        ),
         activate_contact_sensors=True,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=False,
@@ -47,22 +48,22 @@ LMF2_CFG = MultirotorCfg(
         pos=(0.0, 0.0, 0.0),
         lin_vel=(0.0, 0.0, 0.0),
         ang_vel=(0.0, 0.0, 0.0),
-        rot=(1.0, 0.0, 0.0,0.0),
+        rot=(1.0, 0.0, 0.0, 0.0),
         rps={
-            "back_left_prop": 200.0,  
-            "back_right_prop": 200.0, 
-            "front_left_prop": 200.0, 
-            "front_right_prop": 200.0,  
+            "back_left_prop": 200.0,
+            "back_right_prop": 200.0,
+            "front_left_prop": 200.0,
+            "front_right_prop": 200.0,
         },
     ),
     actuators={"thrusters": LMF2_THRUSTER},
     rotor_directions=[1, -1, 1, -1],
     allocation_matrix=[
-            [0.0, 0.0, 0.0, 0.0],
-            [0.0, 0.0, 0.0, 0.0],
-            [1.0, 1.0, 1.0, 1.0],
-            [-0.13, -0.13, 0.13, 0.13],
-            [-0.13, 0.13, 0.13, -0.13],
-            [-0.07, 0.07, -0.07, 0.07],
-        ]
+        [0.0, 0.0, 0.0, 0.0],
+        [0.0, 0.0, 0.0, 0.0],
+        [1.0, 1.0, 1.0, 1.0],
+        [-0.13, -0.13, 0.13, 0.13],
+        [-0.13, 0.13, 0.13, -0.13],
+        [-0.07, 0.07, -0.07, 0.07],
+    ],
 )

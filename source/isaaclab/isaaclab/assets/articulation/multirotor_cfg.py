@@ -4,17 +4,18 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from dataclasses import MISSING
+from typing import Literal
 
 from isaaclab.actuators import ThrusterCfg
 from isaaclab.utils import configclass
 
 from .articulation_cfg import ArticulationCfg
 from .multirotor import Multirotor
-from typing import Literal
+
 
 @configclass
 class MultirotorCfg(ArticulationCfg):
-    """Configuration parameters for a multirotor articulation. 
+    """Configuration parameters for a multirotor articulation.
     This extends the base articulation configuration to support multirotor-specific
     settings.
     """
@@ -42,6 +43,6 @@ class MultirotorCfg(ArticulationCfg):
 
     allocation_matrix: list[list[float]] | None = None
     """allocation matrix for control allocation"""
-    
+
     rotor_directions: list[int] | None = None
     """List of rotor directions, -1 for clockwise, 1 for counter-clockwise."""
