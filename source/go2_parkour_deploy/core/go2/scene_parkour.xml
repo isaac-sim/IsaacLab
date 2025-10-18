@@ -1,0 +1,26 @@
+<mujoco model="go2 scene">
+  <include file="go2.xml"/>
+
+  <statistic center="0 0 0.1" extent="0.8"/>
+
+  <visual>
+    <headlight diffuse="0.6 0.6 0.6" ambient="0.3 0.3 0.3" specular="0 0 0"/>
+    <rgba haze="0.15 0.25 0.35 1"/>
+    <global azimuth="-130" elevation="-20"/>
+  </visual>
+
+  <asset>
+  <hfield name="parkour_hf"
+          nrow="200" ncol="50"
+          size="8.0 2.0 0.3 0.001"
+          file="../terrain.png"/>
+  </asset>
+
+  <worldbody>
+    <geom name="parkour_terrain" type="hfield" hfield="parkour_hf"
+          contype="1" conaffinity="1" condim="3"
+          friction="1.0 0.01 0.001"
+          solref="0.03 1" solimp="0.95 0.99 0.001"
+          margin="0.005" rgba="0.7 0.7 0.7 1"/>
+  </worldbody>
+</mujoco>
