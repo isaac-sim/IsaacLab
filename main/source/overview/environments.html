@@ -64,7 +64,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.2.1" />
-    <meta name="docbuild:last-update" content="Oct 17, 2025"/>
+    <meta name="docbuild:last-update" content="Oct 18, 2025"/>
   </head>
   
   
@@ -159,10 +159,10 @@
             <label for="version-select" style="font-weight: bold; display: block;">Version</label>
           </div>
           <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
-            <option value="../../../release/2.3.0/source/overview/environments.html" >release/2.3.0</option>
             <option value="environments.html" selected>main</option>
             <option value="../../../release/2.1.0/source/overview/environments.html" >release/2.1.0</option>
             <option value="../../../release/2.2.0/source/overview/environments.html" >release/2.2.0</option>
+            <option value="../../../release/2.3.0/source/overview/environments.html" >release/2.3.0</option>
             <option value="../../../v2.2.1/source/overview/environments.html" >v2.2.1</option>
             <option value="../../../v2.2.0/source/overview/environments.html" >v2.2.0</option>
             <option value="../../../v2.1.1/source/overview/environments.html" >v2.1.1</option>
@@ -205,7 +205,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.1.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.0.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -926,17 +926,16 @@ For example:</p>
 <p>We provide environments for both disassembly and assembly.</p>
 <div class="admonition attention">
 <p class="admonition-title">Attention</p>
-<p>CUDA is required for running the AutoMate environments.
-Follow the below steps to install CUDA 12.8:</p>
+<p>CUDA is recommended for running the AutoMate environments with 570 drivers. If running with Nvidia driver 570 on Linux with architecture x86_64, we follow the below steps to install CUDA 12.8. This allows for computing rewards in AutoMate environments with CUDA. If you have a different operation system or architecture, please refer to the <a class="reference external" href="https://developer.nvidia.com/cuda-12-8-0-download-archive">CUDA installation page</a> for additional instruction.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>wget<span class="w"> </span>https://developer.download.nvidia.com/compute/cuda/12.8.0/local_installers/cuda_12.8.0_570.86.10_linux.run
-sudo<span class="w"> </span>sh<span class="w"> </span>cuda_12.8.0_570.86.10_linux.run
+sudo<span class="w"> </span>sh<span class="w"> </span>cuda_12.8.0_570.86.10_linux.run<span class="w"> </span>--toolkit
 </pre></div>
 </div>
 <p>When using conda, cuda toolkit can be installed with:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>install<span class="w"> </span>cudatoolkit
 </pre></div>
 </div>
-<p>For addition instructions and Windows installation, please refer to the <a class="reference external" href="https://developer.nvidia.com/cuda-12-8-0-download-archive">CUDA installation page</a>.</p>
+<p>With 580 drivers and CUDA 13, we are currently unable to enable CUDA for computing the rewards. The code automatically fallbacks to CPU, resulting in slightly slower performance.</p>
 </div>
 <ul class="simple">
 <li><p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/automate/disassembly_env_cfg.py">Isaac-AutoMate-Disassembly-Direct-v0</a>: The plug starts inserted in the socket. A low-level controller lifts the plug out and moves it to a random position. This process is purely scripted and does not involve any learned policy. Therefore, it does not require policy training or evaluation. The resulting trajectories serve as demonstrations for the reverse process, i.e., learning to assemble. To run disassembly for a specific task: <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">source/isaaclab_tasks/isaaclab_tasks/direct/automate/run_disassembly_w_id.py</span> <span class="pre">--assembly_id=ASSEMBLY_ID</span> <span class="pre">--disassembly_dir=DISASSEMBLY_DIR</span></code>. All generated trajectories are saved to a local directory <code class="docutils literal notranslate"><span class="pre">DISASSEMBLY_DIR</span></code>.</p></li>
@@ -2045,7 +2044,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Oct 17, 2025.
+  Last updated on Oct 18, 2025.
   <br/>
 </p>
   </div>
