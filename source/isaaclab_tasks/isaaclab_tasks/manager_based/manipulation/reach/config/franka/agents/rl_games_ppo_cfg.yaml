@@ -81,3 +81,15 @@ params:
     clip_value: True
     clip_actions: False
     bounds_loss_coef: 0.0001
+
+variants:
+  params.network.mlp:
+    large_network:
+      units: [256, 128, 64]
+      activation: elu
+      d2rl: False
+
+      initializer:
+        name: default
+      regularizer:
+        name: None

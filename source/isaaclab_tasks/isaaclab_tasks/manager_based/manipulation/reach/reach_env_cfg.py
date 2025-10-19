@@ -117,6 +117,28 @@ class ObservationsCfg:
 
 
 @configclass
+class NoiselessObservationsCfg:
+    """Noise less observation specifications for the MDP."""
+
+    @configclass
+    class PolicyCfg(ObsGroup):
+        """Observations for policy group."""
+
+        # observation terms (order preserved)
+        joint_pos = ObsTerm(func=mdp.joint_pos_rel)
+        joint_vel = ObsTerm(func=mdp.joint_vel_rel)
+        pose_command = ObsTerm(func=mdp.generated_commands, params={"command_name": "ee_pose"})
+        actions = ObsTerm(func=mdp.last_action)
+
+        def __post_init__(self):
+            self.enable_corruption = False
+            self.concatenate_terms = True
+
+    # observation groups
+    policy: PolicyCfg = PolicyCfg()
+
+
+@configclass
 class EventCfg:
     """Configuration for events."""
 
@@ -227,3 +249,5 @@ class ReachEnvCfg(ManagerBasedRLEnvCfg):
                 ),
             },
         )
+        # variants defined at base env will be shared across all derived robot-specific envs
+        self.variants = {"observations": {"noise_less": NoiselessObservationsCfg()}}
