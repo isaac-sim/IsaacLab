@@ -145,6 +145,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     # dump the configuration into log-directory
     dump_yaml(os.path.join(log_root_path, log_dir, "params", "env.yaml"), env_cfg)
     dump_yaml(os.path.join(log_root_path, log_dir, "params", "agent.yaml"), agent_cfg)
+    print(f"Exact experiment name requested from command line: {os.path.join(log_root_path, log_dir)}")
 
     # read configurations about the agent-training
     rl_device = agent_cfg["params"]["config"]["device"]
