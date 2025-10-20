@@ -5,10 +5,10 @@
 
 from __future__ import annotations
 
+import torch
 from typing import TYPE_CHECKING
 
 import warp as wp
-import torch
 
 from isaaclab.utils.warp.kernels import add_forces_and_torques_at_position, set_forces_and_torques_at_position
 
