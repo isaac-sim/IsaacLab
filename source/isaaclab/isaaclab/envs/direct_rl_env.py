@@ -36,8 +36,10 @@ from .direct_rl_env_cfg import DirectRLEnvCfg
 from .ui import ViewportCameraController
 from .utils.spaces import sample_space, spec_to_gym_space
 
+from isaaclab.utils.timer import Instrumented
 
-class DirectRLEnv(gym.Env):
+
+class DirectRLEnv(gym.Env, Instrumented):
     """The superclass for the direct workflow to design environments.
 
     This class implements the core functionality for reinforcement learning (RL)

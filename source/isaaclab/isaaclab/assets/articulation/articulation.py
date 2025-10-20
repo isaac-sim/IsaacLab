@@ -24,6 +24,7 @@ import isaaclab.utils.math as math_utils
 import isaaclab.utils.string as string_utils
 from isaaclab.actuators import ActuatorBase, ActuatorBaseCfg, ImplicitActuator
 from isaaclab.utils.types import ArticulationActions
+from isaaclab.utils.timer import Instrumented
 
 from ..asset_base import AssetBase
 from .articulation_data import ArticulationData
@@ -32,7 +33,7 @@ if TYPE_CHECKING:
     from .articulation_cfg import ArticulationCfg
 
 
-class Articulation(AssetBase):
+class Articulation(AssetBase, Instrumented):
     """An articulation asset class.
 
     An articulation is a collection of rigid bodies connected by joints. The joints can be either

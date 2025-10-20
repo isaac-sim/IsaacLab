@@ -19,7 +19,7 @@ from isaaclab.scene import InteractiveScene
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils import attach_stage_to_usd_context, use_stage
 from isaaclab.ui.widgets import ManagerLiveVisualizer
-from isaaclab.utils.timer import Timer
+from isaaclab.utils.timer import Timer, Instrumented
 
 from .common import VecEnvObs
 from .manager_based_env_cfg import ManagerBasedEnvCfg
@@ -68,7 +68,7 @@ class ManagerBasedEnv:
     querying the :attr:`physics_dt` and the :attr:`step_dt` properties respectively.
     """
 
-    def __init__(self, cfg: ManagerBasedEnvCfg):
+    def __init__(self, cfg: ManagerBasedEnvCfg, Instrumented):
         """Initialize the environment.
 
         Args:

@@ -33,27 +33,43 @@ _class_group_registry: dict[str, weakref.WeakSet[type]] = {}
 Metaclass.
 """
 
-
-class TimerToggleMeta(type):
+class Instrumented:
     """
-    A metaclass that allows to instrument a class with a timer.
-    """
-
-    def __init__(cls, name, bases, ns):
-        super().__init__(name, bases, ns)
-        reg = getattr(cls, "_timer_toggle_registry", None)
-        if not reg:
-            return
-        for group in reg.keys():
-            _class_group_registry.setdefault(group, weakref.WeakSet()).add(cls)
-
-
-class Instrumented(metaclass=TimerToggleMeta):
-    """
-    A metaclass that allows to instrument a class with a timer.
+    A base class that instruments all methods of its subclasses with a timer.
+    The group name for the timer is the name of the subclass.
     """
 
-    pass
+    def __init_subclass__(cls, **kwargs):
+        """Automatically instrument all methods of the subclass."""
+        super().__init_subclass__(**kwargs)
+        group = cls.__name__
+        _class_group_registry.setdefault(group, weakref.WeakSet()).add(cls)
+        cls._class_timer_mappings = {}
+        cls._timer_toggle_registry = {}
+        # Iterate over a copy of the dictionary of attributes
+        for name, attr in list(cls.__dict__.items()):
+            if name.startswith("__"):
+                continue
+
+            func_to_wrap = None
+            wrapper = None
+
+            # TODO Check if the function is a warp kernel function and skip it if so.
+            if isinstance(attr, (staticmethod, classmethod)):
+                pass
+            elif inspect.isfunction(attr):
+                func_to_wrap = attr
+
+            if func_to_wrap:
+                _wrap_with_timer(func_to_wrap, group, {})
+                uname = Timer.register_name(name)
+                deco = _wrap_with_timer(func_to_wrap, group, {"name": uname, "enable": True, "format": "us", "msg": name + " took:"})
+                cls._timer_toggle_registry.setdefault(group, {})[func_to_wrap.__name__] = (func_to_wrap, deco)
+                cls._class_timer_mappings[name] = uname
+
+                setattr(cls, name, deco)
+        toggle_timer_group(group, False)
+        toggle_timer_group_display_output(group, False)
 
 
 """
@@ -111,7 +127,7 @@ def _looks_like_method(fn: Callable) -> bool:
     return len(parts) >= 2 and parts[-2] != "<locals>"
 
 
-def timer(group: str = "default", **timer_kwargs):
+def NoOverheadTimer(group: str = "default", **timer_kwargs):
     """Decorator to time a function or a method.
 
     It has different behavior for class methods and free functions:

@@ -147,15 +147,14 @@ class Timer(ContextDecorator):
             group: The group to use for the timer. Defaults to None.
         """
         self._msg = msg
-        self._name = name
         self._start_time = None
         self._stop_time = None
         self._elapsed_time = None
         self._enable = enable
         self._format = format
         self._group = group
+        self._name = name
 
-        # Check if the format is valid
         # Check if the format is valid
         if format not in ["s", "ms", "us", "ns"]:
             raise ValueError(f"Invalid format, {format} is not in [s, ms, us, ns]")
@@ -168,6 +167,32 @@ class Timer(ContextDecorator):
         self._m2 = 0.0
         self._std = 0.0
         self._n = 0
+
+    @classmethod
+    def register_name(cls, name: str | None = None):
+        """Register the name of the timer.
+
+        Args:
+            name: The name to register.
+        """
+        # If no name is provided, use a default name
+        if name is None:
+            name = "unnamed_timer_instance"
+
+        # Check if the name is already registered, if it is, append a number to the name until it is unique
+        if name in Timer.timing_info:
+            i = 1
+            while f"{name}_{i}" in Timer.timing_info:
+                i += 1
+            name = f"{name}_{i}"
+        Timer.timing_info[name] = {
+            "last": 0.0,
+            "m2": 0.0,
+            "mean": 0.0,
+            "std": 0.0,
+            "n": 0,
+        }
+        return name
 
     def __str__(self) -> str:
         """A string representation of the class object.
@@ -210,7 +235,6 @@ class Timer(ContextDecorator):
 
         if self._start_time is not None:
             raise TimerError("Timer is running. Use .stop() to stop it")
-
         self._start_time = time.perf_counter()
 
     def stop(self):
@@ -301,7 +325,7 @@ class Timer(ContextDecorator):
                     f"Std: {(self._std * self._unit_multiplier):0.6f} {self._format}, "
                     f"N: {self._n}",
                 )
-
+    
     """
     Static Methods
     """

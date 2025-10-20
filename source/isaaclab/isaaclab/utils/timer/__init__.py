@@ -4,4 +4,4 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from ._core import Timer, TimerError
-from ._timer import Instrumented, timer, timer_dynamic, toggle_timer_group, toggle_timer_group_display_output
+from ._timer import Instrumented, NoOverheadTimer, timer_dynamic, toggle_timer_group, toggle_timer_group_display_output
