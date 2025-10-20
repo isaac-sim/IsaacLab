@@ -8,6 +8,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import warp as wp
+import torch
 
 from isaaclab.utils.warp.kernels import add_forces_and_torques_at_position, set_forces_and_torques_at_position
 
@@ -15,7 +16,6 @@ from ..asset_base import AssetBase
 
 if TYPE_CHECKING:
     import numpy as np
-    import torch
 
 
 class WrenchComposer:
