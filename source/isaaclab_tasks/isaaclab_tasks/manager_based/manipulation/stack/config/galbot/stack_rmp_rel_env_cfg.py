@@ -126,11 +126,14 @@ class RmpFlowGalbotRightArmCubeStackEnvCfg(stack_joint_pos_env_cfg.GalbotRightAr
             use_relative_mode=self.use_relative_mode,
         )
         # Set the simulation parameters
-        self.sim.dt = 1 / 60
-        self.sim.render_interval = 1
+        self.sim.dt = 1 / 120
+        self.sim.render_interval = 6
 
-        self.decimation = 3
+        self.decimation = 6
         self.episode_length_s = 30.0
+
+        # Enable CCD to avoid tunneling
+        self.sim.physx.enable_ccd = True
 
         self.teleop_devices = DevicesCfg(
             devices={
