@@ -176,13 +176,15 @@ class RewardsCfg:
     upright_posture = RewTerm(
         func=mdp.upright_posture_reward, weight=1.0, params={"asset_cfg": SceneEntityCfg("robot"), "std": 5.0}  # 0.5
     )
+    
     yaw_aligned = RewTerm(func=mdp.yaw_reward, weight=2.0, params={"asset_cfg": SceneEntityCfg("robot"), "std": 1.0})
+    
     velocity_reward = RewTerm(
-        func=mdp.velocity_to_goal_reward,
-        weight=4.5,
+        func=mdp.velocity_reward,
+        weight=2.5,
         params={
             "asset_cfg": SceneEntityCfg("robot"),
-            "command_name": "target_pose",
+            "std": 2.0,
         },
     )
     ang_vel_smooth = RewTerm(
