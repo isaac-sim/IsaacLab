@@ -463,7 +463,6 @@ class ContactSensor(SensorBase):
         """
         counts, starts = buffer_count.view(-1), buffer_start_indices.view(-1)
         n_rows, total = counts.numel(), int(counts.sum())
-        # default to NaN rows
         agg = torch.full((n_rows, 3), default, device=self._device, dtype=contact_data.dtype)
         if total > 0:
             row_ids = torch.repeat_interleave(torch.arange(n_rows, device=self._device), counts)
