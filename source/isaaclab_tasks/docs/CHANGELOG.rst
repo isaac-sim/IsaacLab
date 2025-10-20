@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.11.4 (2025-10-20)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Fixed the anchor position for the XR anchor in the world frame for the G1 robot tasks.
+
+
 0.11.3 (2025-10-15)
 ~~~~~~~~~~~~~~~~~~~~
 
