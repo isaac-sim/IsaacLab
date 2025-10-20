@@ -86,9 +86,6 @@ Installing dependencies
 
       pip install git+https://github.com/isaac-sim/rl_games.git@python3.11
 
-
-.. include:: include/pip_verify_isaacsim.rst
-
 Running Isaac Lab Scripts
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
