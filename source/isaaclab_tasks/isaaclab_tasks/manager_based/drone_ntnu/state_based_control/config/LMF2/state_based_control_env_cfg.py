@@ -104,7 +104,7 @@ class ObservationsCfg:
 
         # observation terms (order preserved)
         base_link_position = ObsTerm(
-            func=mdp.generated_commands,
+            func=mdp.generated_drone_commands,
             params={"command_name": "target_pose", "asset_cfg": SceneEntityCfg("robot")},
             noise=Unoise(n_min=-0.001, n_max=0.001),
         )
