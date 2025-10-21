@@ -203,7 +203,7 @@ class GalbotLeftArmCubeStackEnvCfg(StackEnvCfg):
                 usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/blue_block.usd",
                 scale=(1.0, 1.0, 1.0),
                 rigid_props=cube_properties,
-                collision_properties=cube_collision_properties,
+                collision_props=cube_collision_properties,
             ),
         )
         self.scene.cube_2 = RigidObjectCfg(
@@ -213,7 +213,7 @@ class GalbotLeftArmCubeStackEnvCfg(StackEnvCfg):
                 usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/red_block.usd",
                 scale=(1.0, 1.0, 1.0),
                 rigid_props=cube_properties,
-                collision_properties=cube_collision_properties,
+                collision_props=cube_collision_properties,
             ),
         )
         self.scene.cube_3 = RigidObjectCfg(
@@ -223,7 +223,7 @@ class GalbotLeftArmCubeStackEnvCfg(StackEnvCfg):
                 usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/green_block.usd",
                 scale=(1.0, 1.0, 1.0),
                 rigid_props=cube_properties,
-                collision_properties=cube_collision_properties,
+                collision_props=cube_collision_properties,
             ),
         )
 
