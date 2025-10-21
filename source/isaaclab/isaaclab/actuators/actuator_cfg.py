@@ -191,6 +191,12 @@ class IdealPDActuatorCfg(ActuatorBaseCfg):
 
     class_type: type = actuator_pd.IdealPDActuator
 
+    min_delay: int = 0
+    """Minimum number of physics time-steps with which the actuator command may be delayed. Defaults to 0."""
+
+    max_delay: int = 0
+    """Maximum number of physics time-steps with which the actuator command may be delayed. Defaults to 0."""
+
 
 @configclass
 class DCMotorCfg(IdealPDActuatorCfg):
@@ -258,15 +264,16 @@ class DelayedPDActuatorCfg(IdealPDActuatorCfg):
 
     class_type: type = actuator_pd.DelayedPDActuator
 
-    min_delay: int = 0
-    """Minimum number of physics time-steps with which the actuator command may be delayed. Defaults to 0."""
-
-    max_delay: int = 0
-    """Maximum number of physics time-steps with which the actuator command may be delayed. Defaults to 0."""
+    def __post_init__(self):
+        print(
+            DeprecationWarning(
+                "DelayPDActuatorCfg has been deprecated. All functionality has been added to IdealPDActuatorCfg"
+            )
+        )
 
 
 @configclass
-class RemotizedPDActuatorCfg(DelayedPDActuatorCfg):
+class RemotizedPDActuatorCfg(IdealPDActuatorCfg):
     """Configuration for a remotized PD actuator.
 
     Note:
