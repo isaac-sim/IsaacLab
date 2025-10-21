@@ -1,7 +1,7 @@
 Using an operational space controller
 =====================================
 
-.. currentmodule:: omni.isaac.lab
+.. currentmodule:: isaaclab
 
 Sometimes, controlling the end-effector pose of the robot using a differential IK controller is not sufficient.
 For example, we might want to enforce a very specific pose tracking error dynamics in the task space, actuate the robot
@@ -24,13 +24,13 @@ The Code
 ~~~~~~~~
 
 The tutorial corresponds to the ``run_osc.py`` script in the
-``source/standalone/tutorials/05_controllers`` directory.
+``scripts/tutorials/05_controllers`` directory.
 
 
 .. dropdown:: Code for run_osc.py
    :icon: code
 
-   .. literalinclude:: ../../../../source/standalone/tutorials/05_controllers/run_osc.py
+   .. literalinclude:: ../../../../scripts/tutorials/05_controllers/run_osc.py
       :language: python
       :linenos:
 
@@ -107,7 +107,7 @@ We set the impedance mode to ``"variable_kp"`` to dynamically change the stiffne
 damped response). Finally, ``nullspace_control`` is set to use ``"position"`` where the joint set points are provided
 to be the center of the joint position limits.
 
-.. literalinclude:: ../../../../source/standalone/tutorials/05_controllers/run_osc.py
+.. literalinclude:: ../../../../scripts/tutorials/05_controllers/run_osc.py
    :language: python
    :start-at: # Create the OSC
    :end-at: osc = OperationalSpaceController(osc_cfg, num_envs=scene.num_envs, device=sim.device)
@@ -120,7 +120,7 @@ about the robot. This includes the robot's Jacobian matrix, mass/inertia matrix,
 force (all in the root frame), and finally, the joint positions and velocities. Moreover, the user should provide
 gravity compensation vector and null-space joint position targets if required.
 
-.. literalinclude:: ../../../../source/standalone/tutorials/05_controllers/run_osc.py
+.. literalinclude:: ../../../../scripts/tutorials/05_controllers/run_osc.py
    :language: python
    :start-at: # Update robot states
    :end-before: # Update the target commands
@@ -139,7 +139,7 @@ concatanated together.
 In this tutorial, the desired wrench is already defined w.r.t. the task frame, and the desired pose is transformed
 to the task frame as the following:
 
-.. literalinclude:: ../../../../source/standalone/tutorials/05_controllers/run_osc.py
+.. literalinclude:: ../../../../scripts/tutorials/05_controllers/run_osc.py
    :language: python
    :start-at: # Convert the target commands to the task frame
    :end-at: return command, task_frame_pose_b
@@ -148,14 +148,14 @@ The OSC command is set with the command vector in the task frame, the end-effect
 task (reference) frame pose in the base frame as the following. This information is needed, as the internal
 computations are done in the base frame.
 
-.. literalinclude:: ../../../../source/standalone/tutorials/05_controllers/run_osc.py
+.. literalinclude:: ../../../../scripts/tutorials/05_controllers/run_osc.py
    :language: python
    :start-at: # set the osc command
    :end-at: osc.set_command(command=command, current_ee_pose_b=ee_pose_b, current_task_frame_pose_b=task_frame_pose_b)
 
 The joint effort/torque values are computed using the provided robot states and the desired command as the following:
 
-.. literalinclude:: ../../../../source/standalone/tutorials/05_controllers/run_osc.py
+.. literalinclude:: ../../../../scripts/tutorials/05_controllers/run_osc.py
    :language: python
    :start-at: # compute the joint commands
    :end-at: )
@@ -163,7 +163,7 @@ The joint effort/torque values are computed using the provided robot states and 
 
 The computed joint effort/torque targets can then be applied on the robot.
 
-.. literalinclude:: ../../../../source/standalone/tutorials/05_controllers/run_osc.py
+.. literalinclude:: ../../../../scripts/tutorials/05_controllers/run_osc.py
    :language: python
    :start-at: # apply actions
    :end-at: robot.write_data_to_sim()
@@ -176,7 +176,7 @@ You can now run the script and see the result:
 
 .. code-block:: bash
 
-   ./isaaclab.sh -p source/standalone/tutorials/05_controllers/run_osc.py --num_envs 128
+   ./isaaclab.sh -p scripts/tutorials/05_controllers/run_osc.py --num_envs 128
 
 The script will start a simulation with 128 robots. The robots will be controlled using the OSC.
 The current and desired end-effector poses should be displayed using frame markers in addition to the red tilted wall.

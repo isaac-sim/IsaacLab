@@ -1,3 +1,5 @@
+.. _how-to-add-library:
+
 Adding your own learning library
 ================================
 
@@ -5,7 +7,7 @@ Isaac Lab comes pre-integrated with a number of libraries (such as RSL-RL, RL-Ga
 However, you may want to integrate your own library with Isaac Lab or use a different version of the libraries than
 the one installed by Isaac Lab. This is possible as long as the library is available as Python package that supports
 the Python version used by the underlying simulator. For instance, if you are using Isaac Sim 4.0.0 onwards, you need
-to ensure that the library is available for Python 3.10.
+to ensure that the library is available for Python 3.11.
 
 Using a different version of a library
 --------------------------------------
@@ -39,7 +41,7 @@ command:
 
 .. code-block:: bash
 
-  ./isaaclab.sh -p -m pip show rsl-rl
+  ./isaaclab.sh -p -m pip show rsl-rl-lib
 
 This should now show the location of the ``rsl-rl`` library as the directory where you cloned the library.
 For instance, if you cloned the library to ``/home/user/git/rsl_rl``, the output of the above command should be:
@@ -47,7 +49,7 @@ For instance, if you cloned the library to ``/home/user/git/rsl_rl``, the output
 .. code-block:: bash
 
   Name: rsl_rl
-  Version: 2.0.2
+  Version: 2.2.0
   Summary: Fast and simple RL algorithms implemented in pytorch
   Home-page: https://github.com/leggedrobotics/rsl_rl
   Author: ETH Zurich, NVIDIA CORPORATION
@@ -63,29 +65,38 @@ Integrating a new library
 
 Adding a new library to Isaac Lab is similar to using a different version of a library. You can install the library
 in your Python environment and use it in your experiments. However, if you want to integrate the library with
-Isaac Lab, you can will first need to make a wrapper for the library, as explained in
+Isaac Lab, you will first need to make a wrapper for the library, as explained in
 :ref:`how-to-env-wrappers`.
 
 The following steps can be followed to integrate a new library with Isaac Lab:
 
-1. Add your library as an extra-dependency in the ``setup.py`` for the extension ``omni.isaac.lab_tasks``.
+1. Add your library as an extra-dependency in the ``setup.py`` for the extension ``isaaclab_rl``.
    This will ensure that the library is installed when you install Isaac Lab or it will complain if the library is not
    installed or available.
 2. Install your library in the Python environment used by Isaac Lab. You can do this by following the steps mentioned
    in the previous section.
-3. Create a wrapper for the library. You can check the module :mod:`omni.isaac.lab_tasks.utils.wrappers`
+3. Create a wrapper for the library. You can check the module :mod:`isaaclab_rl`
    for examples of wrappers for different libraries. You can create a new wrapper for your library and add it to the
    module. You can also create a new module for the wrapper if you prefer.
 4. Create workflow scripts for your library to train and evaluate agents. You can check the existing workflow scripts
-   in the ``source/standalone/workflows`` directory for examples. You can create new workflow
+   in the ``scripts/reinforcement_learning`` directory for examples. You can create new workflow
    scripts for your library and add them to the directory.
 
 Optionally, you can also add some tests and documentation for the wrapper. This will help ensure that the wrapper
 works as expected and can guide users on how to use the wrapper.
 
 * Add some tests to ensure that the wrapper works as expected and remains compatible with the library.
-  These tests can be added to the ``source/extensions/omni.isaac.lab_tasks/test/wrappers`` directory.
+  These tests can be added to the ``source/isaaclab_rl/test`` directory.
 * Add some documentation for the wrapper. You can add the API documentation to the
-  ``docs/source/api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.rst`` file.
+  :ref:`API documentation<api-isaaclab-rl>` for the ``isaaclab_rl`` module.
+
+
+Configuring an RL Agent
+-----------------------
+
+Once you have integrated a new library with Isaac Lab, you can configure the example environment to use the new library.
+You can check the :ref:`tutorial-configure-rl-training` for an example of how to configure the training process to use a
+different library.
+
 
 .. _rsl-rl: https://github.com/leggedrobotics/rsl_rl

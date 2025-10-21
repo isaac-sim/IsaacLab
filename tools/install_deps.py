@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -31,7 +31,7 @@ import argparse
 import os
 import shutil
 import toml
-from subprocess import run
+from subprocess import PIPE, STDOUT, Popen
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="A utility to install dependencies based on extension.toml files.")
@@ -52,17 +52,17 @@ def install_apt_packages(paths: list[str]):
         paths: A list of paths to the extension's root.
 
     Raises:
-        FileNotFoundError: If the extension.toml file is not found.
         SystemError: If 'apt' is not a known command. This is a system error.
     """
     for path in paths:
         if shutil.which("apt"):
             # Check if the extension.toml file exists
             if not os.path.exists(f"{path}/config/extension.toml"):
-                raise FileNotFoundError(
-                    "During the installation of 'apt' dependencies, unable to find a"
+                print(
+                    "[WARN] During the installation of 'apt' dependencies, unable to find a"
                     f" valid file at: {path}/config/extension.toml."
                 )
+                continue
             # Load the extension.toml file and check for apt_deps
             with open(f"{path}/config/extension.toml") as fd:
                 ext_toml = toml.load(fd)
@@ -94,7 +94,6 @@ def install_rosdep_packages(paths: list[str], ros_distro: str = "humble"):
         ros_distro: The ROS distribution to use for rosdep. Default is 'humble'.
 
     Raises:
-        FileNotFoundError: If the extension.toml file is not found under the path.
         FileNotFoundError: If a valid ROS workspace is not found while installing ROS dependencies.
         SystemError: If 'rosdep' is not a known command. This is raised if 'rosdep' is not installed on the system.
     """
@@ -102,10 +101,11 @@ def install_rosdep_packages(paths: list[str], ros_distro: str = "humble"):
         if shutil.which("rosdep"):
             # Check if the extension.toml file exists
             if not os.path.exists(f"{path}/config/extension.toml"):
-                raise FileNotFoundError(
-                    "During the installation of 'rosdep' dependencies, unable to find a"
+                print(
+                    "[WARN] During the installation of 'rosdep' dependencies, unable to find a"
                     f" valid file at: {path}/config/extension.toml."
                 )
+                continue
             # Load the extension.toml file and check for ros_ws
             with open(f"{path}/config/extension.toml") as fd:
                 ext_toml = toml.load(fd)
@@ -146,13 +146,19 @@ def install_rosdep_packages(paths: list[str], ros_distro: str = "humble"):
 def run_and_print(args: list[str]):
     """Runs a subprocess and prints the output to stdout.
 
-    This function wraps subprocess.run() and prints the output to stdout.
+    This function wraps Popen and prints the output to stdout in real-time.
 
     Args:
-        args: A list of arguments to pass to subprocess.run().
+        args: A list of arguments to pass to Popen.
     """
-    completed_process = run(args=args, capture_output=True, check=True)
-    print(f"{str(completed_process.stdout, encoding='utf-8')}")
+    print(f'Running "{args}"')
+    with Popen(args, stdout=PIPE, stderr=STDOUT, env=os.environ) as p:
+        while p.poll() is None:
+            text = p.stdout.read1().decode("utf-8")
+            print(text, end="", flush=True)
+        return_code = p.poll()
+        if return_code != 0:
+            raise RuntimeError(f'Subprocess with args: "{args}" failed. The returned error code was: {return_code}')
 
 
 def main():

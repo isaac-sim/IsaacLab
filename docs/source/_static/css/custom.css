@@ -82,3 +82,31 @@ a {
     padding-top: 0.0rem !important;
     padding-bottom: 0.0rem !important;
 }
+
+/* showcase task tables */
+
+.showcase-table {
+    min-width: 75%;
+}
+
+.showcase-table td {
+    border-color: gray;
+    border-style: solid;
+    border-width: 1px;
+}
+
+.showcase-table p {
+    margin: 0;
+    padding: 0;
+}
+
+.showcase-table .rot90 {
+    transform: rotate(-90deg);
+    margin: 0;
+    padding: 0;
+}
+
+.showcase-table .center {
+    text-align: center;
+    vertical-align: middle;
+}

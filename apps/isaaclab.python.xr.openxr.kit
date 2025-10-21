@@ -1,0 +1,93 @@
+##
+# Adapted from: _isaac_sim/apps/isaacsim.exp.xr.openxr.kit
+##
+
+[package]
+title = "Isaac Lab Python OpenXR"
+description = "An app for running Isaac Lab with OpenXR"
+version = "2.2.1"
+
+# That makes it browsable in UI with "experience" filter
+keywords = ["experience", "app", "usd"]
+
+[settings]
+# Note: This path was adapted to be respective to the kit-exe file location
+app.versionFile = "${exe-path}/VERSION"
+app.folder = "${exe-path}/"
+app.name = "Isaac-Sim"
+app.version = "5.0.0"
+
+### async rendering settings
+# omni.replicator.asyncRendering needs to be false for external camera rendering
+omni.replicator.asyncRendering = false
+app.asyncRendering = true
+app.asyncRenderingLowLatency = true
+
+# For XR, set this back to default "#define OMNI_MAX_DEVICE_GROUP_DEVICE_COUNT 16"
+renderer.multiGpu.maxGpuCount = 16
+renderer.gpuEnumeration.glInterop.enabled = true # Allow Kit XR OpenXR to render headless
+
+### FSD
+app.useFabricSceneDelegate = true
+# Temporary, should be enabled by default in Kit soon
+rtx.hydra.readTransformsFromFabricInRenderDelegate = true
+
+# work around for kitxr issue
+app.hydra.renderSettings.useUsdAttributes = false
+app.hydra.renderSettings.useFabricAttributes = false
+
+[dependencies]
+"isaaclab.python" = {}
+
+# Kit extensions
+"omni.kit.xr.system.openxr" = {}
+"omni.kit.xr.profile.ar" = {}
+
+[settings.isaaclab]
+# This is used to check that this experience file is loaded when using cameras
+cameras_enabled = true
+
+[settings]
+app.xr.enabled = true
+# Set profiler backend to NVTX by default
+app.profilerBackend = "nvtx"
+
+# xr settings
+xr.ui.enabled = false
+xr.depth.aov = "GBufferDepth"
+defaults.xr.profile.ar.anchorMode = "custom anchor"
+rtx.rendermode = "RaytracedLighting"
+persistent.xr.profile.ar.renderQuality = "performance"
+persistent.xr.profile.ar.render.nearPlane = 0.15
+xr.openxr.components."omni.kit.xr.openxr.ext.hand_tracking".enabled = true
+xr.openxr.components."isaacsim.xr.openxr.hand_tracking".enabled = true
+
+[settings.app.python]
+# These disable the kit app from also printing out python output, which gets confusing
+interceptSysStdOutput = false
+logSysStdOutput = false
+
+# Register extension folder from this repo in kit
+[settings.app.exts]
+folders = [
+    "${exe-path}/exts",  # kit extensions
+    "${exe-path}/extscore",  # kit core extensions
+    "${exe-path}/../exts",  # isaac extensions
+    "${exe-path}/../extsDeprecated",  # deprecated isaac extensions
+    "${exe-path}/../extscache",  # isaac cache extensions
+    "${exe-path}/../extsPhysics",  # isaac physics extensions
+    "${exe-path}/../isaacsim/exts",  # isaac extensions for pip
+    "${exe-path}/../isaacsim/extsDeprecated",  # deprecated isaac extensions
+    "${exe-path}/../isaacsim/extscache",  # isaac cache extensions for pip
+    "${exe-path}/../isaacsim/extsPhysics",  # isaac physics extensions for pip
+    "${app}", # needed to find other app files
+    "${app}/../source", # needed to find extensions in Isaac Lab
+]
+
+# Asset path
+# set the S3 directory manually to the latest published S3
+# note: this is done to ensure prior versions of Isaac Sim still use the latest assets
+[settings]
+persistent.isaac.asset_root.default = "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.0"
+persistent.isaac.asset_root.cloud = "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.0"
+persistent.isaac.asset_root.nvidia = "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.0"

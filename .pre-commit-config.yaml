@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 repos:
   - repo: https://github.com/python/black
     rev: 24.3.0
@@ -10,7 +15,7 @@ repos:
       - id: flake8
         additional_dependencies: [flake8-simplify, flake8-return]
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.5.0
+    rev: v5.0.0
     hooks:
       - id: trailing-whitespace
       - id: check-symlinks
@@ -38,14 +43,14 @@ repos:
       - id: pyupgrade
         args: ["--py310-plus"]
         # FIXME: This is a hack because Pytorch does not like: torch.Tensor | dict aliasing
-        exclude: "source/extensions/omni.isaac.lab/omni/isaac/lab/envs/common.py|source/extensions/omni.isaac.lab/omni/isaac/lab/ui/widgets/image_plot.py"
+        exclude: "source/isaaclab/isaaclab/envs/common.py|source/isaaclab/isaaclab/ui/widgets/image_plot.py|source/isaaclab_tasks/isaaclab_tasks/direct/humanoid_amp/motions/motion_loader.py"
   - repo: https://github.com/codespell-project/codespell
     rev: v2.2.6
     hooks:
       - id: codespell
         additional_dependencies:
         - tomli
-        exclude: "CONTRIBUTORS.md"
+        exclude: "CONTRIBUTORS.md|docs/source/setup/walkthrough/concepts_env_design.rst"
   # FIXME: Figure out why this is getting stuck under VPN.
   # - repo: https://github.com/RobertCraigie/pyright-python
   #   rev: v1.1.315
@@ -55,11 +60,23 @@ repos:
     rev: v1.5.1
     hooks:
       - id: insert-license
-        files: \.py$
+        files: \.(py|ya?ml)$
         args:
           # - --remove-header    # Remove existing license headers. Useful when updating license.
           - --license-filepath
           - .github/LICENSE_HEADER.txt
+          - --use-current-year
+        exclude: "source/isaaclab_mimic/|scripts/imitation_learning/isaaclab_mimic/"
+  # Apache 2.0 license for mimic files
+  - repo: https://github.com/Lucas-C/pre-commit-hooks
+    rev: v1.5.1
+    hooks:
+      - id: insert-license
+        files: ^(source/isaaclab_mimic|scripts/imitation_learning/isaaclab_mimic)/.*\.py$
+        args:
+          # - --remove-header    # Remove existing license headers. Useful when updating license.
+          - --license-filepath
+          - .github/LICENSE_HEADER_MIMIC.txt
           - --use-current-year
   - repo: https://github.com/pre-commit/pygrep-hooks
     rev: v1.10.0

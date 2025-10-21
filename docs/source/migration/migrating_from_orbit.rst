@@ -3,7 +3,7 @@
 From Orbit
 ==========
 
-.. currentmodule:: omni.isaac.lab
+.. currentmodule:: isaaclab
 
 Since `Orbit`_ was used as basis for Isaac Lab, migrating from Orbit to Isaac Lab is straightforward.
 The following sections describe the changes that need to be made to your code to migrate from Orbit to Isaac Lab.
@@ -24,23 +24,23 @@ Updates to extensions
 ~~~~~~~~~~~~~~~~~~~~~
 
 The extensions ``omni.isaac.orbit``, ``omni.isaac.orbit_tasks``, and ``omni.isaac.orbit_assets`` have been renamed
-to ``omni.isaac.lab``, ``omni.isaac.lab_tasks``, and ``omni.isaac.lab_assets``, respectively. Thus,
+to ``isaaclab``, ``isaaclab_tasks``, and ``isaaclab_assets``, respectively. Thus,
 the new folder structure looks like this:
 
-- ``source/extensions/omni.isaac.lab/omni/isaac/lab``
-- ``source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks``
-- ``source/extensions/omni.isaac.lab_assets/omni/isaac/lab_assets``
+- ``source/isaaclab/isaaclab``
+- ``source/isaaclab_tasks/isaaclab_tasks``
+- ``source/isaaclab_assets/isaaclab_assets``
 
 The high level imports have to be updated as well:
 
 +-------------------------------------+-----------------------------------+
 | Orbit                               | Isaac Lab                         |
 +=====================================+===================================+
-| ``from omni.isaac.orbit...``        | ``from omni.isaac.lab...``        |
+| ``from omni.isaac.orbit...``        | ``from isaaclab...``              |
 +-------------------------------------+-----------------------------------+
-| ``from omni.isaac.orbit_tasks...``  | ``from omni.isaac.lab_tasks...``  |
+| ``from omni.isaac.orbit_tasks...``  | ``from isaaclab_tasks...``        |
 +-------------------------------------+-----------------------------------+
-| ``from omni.isaac.orbit_assets...`` | ``from omni.isaac.lab_assets...`` |
+| ``from omni.isaac.orbit_assets...`` | ``from isaaclab_assets...``       |
 +-------------------------------------+-----------------------------------+
 
 
@@ -53,15 +53,15 @@ the manager-based workflow and the environment specific class names have been up
 +------------------------+---------------------------------------------------------+
 | Orbit                  | Isaac Lab                                               |
 +========================+=========================================================+
-| ``BaseEnv``            | :class:`omni.isaac.lab.envs.ManagerBasedEnv`            |
+| ``BaseEnv``            | :class:`isaaclab.envs.ManagerBasedEnv`                  |
 +------------------------+---------------------------------------------------------+
-| ``BaseEnvCfg``         | :class:`omni.isaac.lab.envs.ManagerBasedEnvCfg`         |
+| ``BaseEnvCfg``         | :class:`isaaclab.envs.ManagerBasedEnvCfg`               |
 +------------------------+---------------------------------------------------------+
-| ``RLTaskEnv``          | :class:`omni.isaac.lab.envs.ManagerBasedRLEnv`          |
+| ``RLTaskEnv``          | :class:`isaaclab.envs.ManagerBasedRLEnv`                |
 +------------------------+---------------------------------------------------------+
-| ``RLTaskEnvCfg``       | :class:`omni.isaac.lab.envs.ManagerBasedRLEnvCfg`       |
+| ``RLTaskEnvCfg``       | :class:`isaaclab.envs.ManagerBasedRLEnvCfg`             |
 +------------------------+---------------------------------------------------------+
-| ``RLTaskEnvWindow``    | :class:`omni.isaac.lab.envs.ui.ManagerBasedRLEnvWindow` |
+| ``RLTaskEnvWindow``    | :class:`isaaclab.envs.ui.ManagerBasedRLEnvWindow`       |
 +------------------------+---------------------------------------------------------+
 
 
@@ -70,8 +70,8 @@ Updates to the tasks folder structure
 
 To support the manager-based and direct workflows, we have added two folders in the tasks extension:
 
-- ``source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based``
-- ``source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct``
+- ``source/isaaclab_tasks/isaaclab_tasks/manager_based``
+- ``source/isaaclab_tasks/isaaclab_tasks/direct``
 
 The tasks from Orbit can now be found under the ``manager_based`` folder.
 This change must also be reflected in the imports for your tasks. For example,
@@ -84,7 +84,7 @@ should now be:
 
 .. code-block:: python
 
-  from omni.isaac.lab_tasks.manager_based.locomotion.velocity.velocity_env_cfg ...
+  from isaaclab_tasks.manager_based.locomotion.velocity.velocity_env_cfg ...
 
 
 Other Breaking changes
@@ -105,14 +105,14 @@ The default value is ``cuda:0``.
 Offscreen rendering
 -------------------
 
-The input argument ``--offscreen_render`` given to :class:`omni.isaac.lab.app.AppLauncher` and the environment variable
+The input argument ``--offscreen_render`` given to :class:`isaaclab.app.AppLauncher` and the environment variable
 ``OFFSCREEN_RENDER`` have been renamed to ``--enable_cameras`` and ``ENABLE_CAMERAS`` respectively.
 
 
 Event term distribution configuration
 -------------------------------------
 
-Some of the event functions in `events.py <https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab/omni/isaac/lab/envs/mdp/events.py>`_
+Some of the event functions in `events.py <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab/isaaclab/envs/mdp/events.py>`_
 accepted a ``distribution`` parameter and a ``range`` to sample from. In an effort to support arbitrary distributions,
 we have renamed the input argument ``AAA_range`` to ``AAA_distribution_params`` for these functions.
 Therefore, event term configurations whose functions have a ``distribution`` argument should be updated. For example,

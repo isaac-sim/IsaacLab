@@ -127,7 +127,7 @@ CPU: Intel(R) Xeon(R) Platinum 8362 CPU @ 2.80GHz
 Benchmark Scripts
 -----------------
 
-For ease of reproducibility, we provide benchmarking scripts available at ``source/standalone/benchmarks``.
+For ease of reproducibility, we provide benchmarking scripts available at ``scripts/benchmarks``.
 This folder contains individual benchmark scripts that resemble the ``train.py`` script for RL-Games
 and RSL RL. In addition, we also provide a benchmarking script that runs only the environment implementation
 without any reinforcement learning library.
@@ -137,13 +137,13 @@ Example scripts can be run similarly to training scripts:
 .. code-block:: bash
 
    # benchmark with RSL RL
-   python source/standalone/benchmarks/benchmark_rsl_rl.py --task=Isaac-Cartpole-v0 --headless
+   python scripts/benchmarks/benchmark_rsl_rl.py --task=Isaac-Cartpole-v0 --headless
 
    # benchmark with RL Games
-   python source/standalone/benchmarks/benchmark_rlgames.py --task=Isaac-Cartpole-v0 --headless
+   python scripts/benchmarks/benchmark_rlgames.py --task=Isaac-Cartpole-v0 --headless
 
    # benchmark without RL libraries
-   python source/standalone/benchmarks/benchmark_non_rl.py --task=Isaac-Cartpole-v0 --headless
+   python scripts/benchmarks/benchmark_non_rl.py --task=Isaac-Cartpole-v0 --headless
 
 Each script will generate a set of KPI files at the end of the run, which includes data on the
 startup times, runtime statistics, such as the time taken for each simulation or rendering step,

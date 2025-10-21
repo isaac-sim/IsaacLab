@@ -1,12 +1,12 @@
-Overview
-========
+Welcome to Isaac Lab!
+=====================
 
 .. figure:: source/_static/isaaclab.jpg
    :width: 100%
    :alt: H1 Humanoid example using Isaac Lab
 
 **Isaac Lab** is a unified and modular framework for robot learning that aims to simplify common workflows
-in robotics research (such as reinforcement learning, learning from demonstrations, and motion planning). It is built upon
+in robotics research (such as reinforcement learning, learning from demonstrations, and motion planning). It is built on
 `NVIDIA Isaac Sim`_ to leverage the latest simulation capabilities for photo-realistic scenes, and fast
 and efficient simulation.
 
@@ -15,18 +15,17 @@ The core objectives of the framework are:
 - **Modularity**: Easily customize and add new environments, robots, and sensors.
 - **Agility**: Adapt to the changing needs of the community.
 - **Openness**: Remain open-sourced to allow the community to contribute and extend the framework.
-- **Battery-included**: Include a number of environments, sensors, and tasks that are ready to use.
+- **Batteries-included**: Include a number of environments, sensors, and tasks that are ready to use.
 
 Key features available in Isaac Lab include fast and accurate physics simulation provided by PhysX,
 tiled rendering APIs for vectorized rendering, domain randomization for improving robustness and adaptability,
 and support for running in the cloud.
 
-Additionally, Isaac Lab provides over 26 environments, and we are actively working on adding more environments
+Additionally, Isaac Lab provides a variety of environments, and we are actively working on adding more environments
 to the list. These include classic control tasks, fixed-arm and dexterous manipulation tasks, legged locomotion tasks,
 and navigation tasks. A complete list is available in the `environments <source/overview/environments>`_ section.
 
-The framework also includes over 16 robots. If you are looking to add a new robot, please refer to the
-:ref:`how-to` section. The current list of robots includes:
+Isaac lab is developed with specific robot assets that are now **Batteries-included** as part of the platform and are ready to learn! These robots include...
 
 - **Classic** Cartpole, Humanoid, Ant
 - **Fixed-Arm and Hands**: UR10, Franka, Allegro, Shadow Hand
@@ -34,9 +33,12 @@ The framework also includes over 16 robots. If you are looking to add a new robo
 - **Humanoids**: Unitree H1, Unitree G1
 - **Quadcopter**: Crazyflie
 
+The platform is also designed so that you can add your own robots! Please refer to the
+:ref:`how-to` section for details.
+
 For more information about the framework, please refer to the `paper <https://arxiv.org/abs/2301.04195>`_
 :cite:`mittal2023orbit`. For clarifications on NVIDIA Isaac ecosystem, please check out the
-:doc:`/source/setup/faq` section.
+:ref:`isaac-lab-ecosystem` section.
 
 .. figure:: source/_static/tasks.jpg
    :width: 100%
@@ -46,12 +48,13 @@ For more information about the framework, please refer to the `paper <https://ar
 License
 =======
 
-The Isaac Lab framework is open-sourced under the BSD-3-Clause license.
-Please refer to :ref:`license` for more details.
+The Isaac Lab framework is open-sourced under the BSD-3-Clause license,
+with certain parts under Apache-2.0 license. Please refer to :ref:`license` for more details.
 
 Acknowledgement
 ===============
-Isaac Lab development initiated from the `Orbit <https://isaac-orbit.github.io/>`_ framework. We would appreciate if you would cite it in academic publications as well:
+Isaac Lab development initiated from the `Orbit <https://isaac-orbit.github.io/>`_ framework.
+We would appreciate if you would cite it in academic publications as well:
 
 .. code:: bibtex
 
@@ -71,27 +74,42 @@ Table of Contents
 =================
 
 .. toctree::
-   :maxdepth: 2
-   :caption: Getting Started
+   :maxdepth: 1
+   :caption: Isaac Lab
 
    source/setup/ecosystem
    source/setup/installation/index
+   source/deployment/index
    source/setup/installation/cloud_installation
-   source/setup/faq
+   source/refs/reference_architecture/index
+
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Getting Started
+   :titlesonly:
+
+   source/setup/quickstart
+   source/overview/own-project/index
+   source/setup/walkthrough/index
+   source/tutorials/index
+   source/how-to/index
+   source/overview/developer-guide/index
+
 
 .. toctree::
    :maxdepth: 3
    :caption: Overview
    :titlesonly:
 
-   source/overview/developer-guide/index
+
    source/overview/core-concepts/index
-   source/overview/sensors/index
    source/overview/environments
    source/overview/reinforcement-learning/index
-   source/overview/teleop_imitation
+   source/overview/imitation-learning/index
    source/overview/showroom
    source/overview/simple_agents
+
 
 .. toctree::
    :maxdepth: 2
@@ -99,18 +117,26 @@ Table of Contents
 
    source/features/hydra
    source/features/multi_gpu
-   Tiled Rendering</source/overview/sensors/camera>
+   source/features/population_based_training
+   Tiled Rendering</source/overview/core-concepts/sensors/camera>
    source/features/ray
    source/features/reproducibility
+
+
+.. toctree::
+   :maxdepth: 3
+   :caption: Experimental Features
+
+   source/experimental-features/bleeding-edge
+   source/experimental-features/newton-physics-integration/index
 
 .. toctree::
    :maxdepth: 1
    :caption: Resources
    :titlesonly:
 
-   source/tutorials/index
-   source/how-to/index
-   source/deployment/index
+   source/setup/installation/cloud_installation
+   source/policy_deployment/index
 
 .. toctree::
    :maxdepth: 1
@@ -131,11 +157,13 @@ Table of Contents
    :maxdepth: 1
    :caption: References
 
-   source/refs/reference_architecture/index
+
    source/refs/additional_resources
    source/refs/contributing
    source/refs/troubleshooting
+   source/refs/migration
    source/refs/issues
+   source/refs/release_notes
    source/refs/changelog
    source/refs/license
    source/refs/bibliography
@@ -145,7 +173,7 @@ Table of Contents
     :caption: Project Links
 
     GitHub <https://github.com/isaac-sim/IsaacLab>
-    NVIDIA Isaac Sim <https://docs.omniverse.nvidia.com/isaacsim/latest/index.html>
+    NVIDIA Isaac Sim <https://docs.isaacsim.omniverse.nvidia.com/latest/index.html>
     NVIDIA PhysX <https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/index.html>
 
 Indices and tables
@@ -155,4 +183,4 @@ Indices and tables
 * :ref:`modindex`
 * :ref:`search`
 
-.. _NVIDIA Isaac Sim: https://docs.omniverse.nvidia.com/isaacsim/latest/index.html
+.. _NVIDIA Isaac Sim: https://docs.isaacsim.omniverse.nvidia.com/latest/index.html

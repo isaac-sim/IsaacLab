@@ -1,0 +1,105 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+params:
+  seed: 0
+  algo:
+    name: a2c_continuous
+  env:
+    clip_actions: 1.0
+  model:
+    name: continuous_a2c_logstd
+  network:
+    name: actor_critic
+    separate: False
+    space:
+      continuous:
+        mu_activation: None
+        sigma_activation: None
+        mu_init:
+          name: default
+        sigma_init:
+          name: const_initializer
+          val: 0
+        fixed_sigma: True
+    mlp:
+      units: [256, 128, 64]
+      activation: elu
+      d2rl: False
+      initializer:
+        name: default
+      regularizer:
+        name: None
+
+    rnn:
+      name: lstm
+      units: 256
+      layers: 2
+      before_mlp: True
+      concat_input: True
+      layer_norm: False
+  load_checkpoint: False
+  load_path: ""
+  config:
+    name: Assembly
+    device: cuda:0
+    full_experiment_name: test
+    env_name: rlgpu
+    multi_gpu: False
+    ppo: True
+    mixed_precision: True
+    normalize_input: True
+    normalize_value: True
+    value_bootstrap: True
+    num_actors: 128
+    reward_shaper:
+      scale_value: 1.0
+    normalize_advantage: True
+    gamma: 0.99
+    tau: 0.95
+    learning_rate: 1e-4
+    lr_schedule: fixed
+    schedule_type: standard
+    kl_threshold: 0.016
+    score_to_win: 20000
+    max_epochs: 1500
+    save_best_after: 100
+    save_frequency: 300
+    print_stats: True
+    grad_norm: 1.0
+    entropy_coef: 0.0
+    truncate_grads: False
+    e_clip: 0.2
+    horizon_length: 32
+    minibatch_size: 4096  # batch size = num_envs * horizon_length; minibatch_size = batch_size / num_minibatches
+    mini_epochs: 8
+    critic_coef: 2
+    clip_value: True
+    seq_length: 4
+    bounds_loss_coef: 0.0001
+    central_value_config:
+      minibatch_size: 256
+      mini_epochs: 4
+      learning_rate: 1e-3
+      lr_schedule: linear
+      kl_threshold: 0.016
+      clip_value: True
+      normalize_input: True
+      truncate_grads: True
+      network:
+        name: actor_critic
+        central_value: True
+
+        mlp:
+          units: [256, 128, 64]
+          activation: elu
+          d2rl: False
+          initializer:
+            name: default
+          regularizer:
+            name: None
+
+  player:
+    deterministic: False

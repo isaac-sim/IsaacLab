@@ -1,0 +1,5 @@
+# CLI management
+InquirerPy
+rich
+# templating
+Jinja2

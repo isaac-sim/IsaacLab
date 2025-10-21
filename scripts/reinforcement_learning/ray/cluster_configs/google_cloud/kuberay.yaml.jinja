@@ -1,0 +1,203 @@
+# Jinja is used for templating here as full helm setup is excessive for application
+apiVersion: ray.io/v1alpha1
+kind: RayCluster
+metadata:
+  name: {{ name }}
+  namespace: {{ namespace }}
+spec:
+  rayVersion: "2.8.0"
+  enableInTreeAutoscaling: true
+  autoscalerOptions:
+    upscalingMode: Default
+    idleTimeoutSeconds: 120
+    imagePullPolicy: Always
+    securityContext: {}
+    envFrom: []
+
+  headGroupSpec:
+    rayStartParams:
+      block: "true"
+      dashboard-host: 0.0.0.0
+      dashboard-port: "8265"
+      port: "6379"
+      include-dashboard: "true"
+      ray-debugger-external: "true"
+      object-manager-port: "8076"
+      num-gpus: "0"
+      num-cpus: "0" # prevent scheduling jobs to the head node - workers only
+    headService:
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: {{ name }}-head
+      spec:
+        type: LoadBalancer
+    template:
+      metadata:
+        labels:
+          app.kubernetes.io/instance: tuner
+          app.kubernetes.io/name: kuberay
+          cloud.google.com/gke-ray-node-type: head
+      spec:
+        serviceAccountName: {{ service_account_name }}
+        affinity: {}
+        securityContext:
+          fsGroup: 100
+        containers:
+          - env:
+            image: {{ image }}
+            imagePullPolicy: Always
+            name: head
+            resources:
+              limits:
+                cpu: "{{ num_head_cpu }}"
+                memory: {{ head_ram_gb }}G
+                nvidia.com/gpu: "0"
+              requests:
+                cpu: "{{ num_head_cpu }}"
+                memory: {{ head_ram_gb }}G
+                nvidia.com/gpu: "0"
+            securityContext: {}
+            volumeMounts:
+              - mountPath: /tmp/ray
+                name: ray-logs
+            command: ["/bin/bash", "-c", "ray start --head --port=6379 --object-manager-port=8076 --dashboard-host=0.0.0.0 --dashboard-port=8265 --include-dashboard=true && tail -f /dev/null"]
+          - image: fluent/fluent-bit:1.9.6
+            name: fluentbit
+            resources:
+              limits:
+                cpu: 100m
+                memory: 128Mi
+              requests:
+                cpu: 100m
+                memory: 128Mi
+            volumeMounts:
+              - mountPath: /tmp/ray
+                name: ray-logs
+        imagePullSecrets: []
+        nodeSelector:
+          iam.gke.io/gke-metadata-server-enabled: "true"
+        volumes:
+          - configMap:
+              name: fluentbit-config
+            name: fluentbit-config
+          - name: ray-logs
+            emptyDir: {}
+
+  workerGroupSpecs:
+    {% for it in range(gpu_per_worker|length) %}
+    - groupName: "{{ worker_accelerator[it] }}x{{ gpu_per_worker[it] }}-cpu-{{ cpu_per_worker[it] }}-ram-gb-{{ ram_gb_per_worker[it] }}"
+      replicas: {{ num_workers[it] }}
+      maxReplicas: {{ num_workers[it] }}
+      minReplicas: {{ num_workers[it] }}
+      rayStartParams:
+        block: "true"
+        ray-debugger-external: "true"
+        replicas: "{{num_workers[it]}}"
+      template:
+        metadata:
+          annotations: {}
+          labels:
+            app.kubernetes.io/instance: tuner
+            app.kubernetes.io/name: kuberay
+            cloud.google.com/gke-ray-node-type: worker
+        spec:
+          serviceAccountName: {{ service_account_name }}
+          affinity: {}
+          securityContext:
+            fsGroup: 100
+          containers:
+            - env:
+              - name: NVIDIA_VISIBLE_DEVICES
+                value: "all"
+              - name: NVIDIA_DRIVER_CAPABILITIES
+                value: "compute,utility"
+
+              image: {{ image }}
+              imagePullPolicy: Always
+              name: ray-worker
+              resources:
+                limits:
+                  cpu: "{{ cpu_per_worker[it] }}"
+                  memory: {{ ram_gb_per_worker[it] }}G
+                  nvidia.com/gpu: "{{ gpu_per_worker[it] }}"
+                requests:
+                  cpu: "{{ cpu_per_worker[it] }}"
+                  memory: {{ ram_gb_per_worker[it] }}G
+                  nvidia.com/gpu: "{{ gpu_per_worker[it] }}"
+              securityContext: {}
+              volumeMounts:
+                - mountPath: /tmp/ray
+                  name: ray-logs
+              command: ["/bin/bash", "-c", "ray start --address={{name}}-head.{{ namespace }}.svc.cluster.local:6379 && tail -f /dev/null"]
+            - image: fluent/fluent-bit:1.9.6
+              name: fluentbit
+              resources:
+                limits:
+                  cpu: 100m
+                  memory: 128Mi
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+              volumeMounts:
+                - mountPath: /tmp/ray
+                  name: ray-logs
+
+          imagePullSecrets: []
+          nodeSelector:
+            cloud.google.com/gke-accelerator: {{ worker_accelerator[it] }}
+            iam.gke.io/gke-metadata-server-enabled: "true"
+          tolerations:
+            - key: "nvidia.com/gpu"
+              operator: "Exists"
+              effect: "NoSchedule"
+          volumes:
+            - configMap:
+                name: fluentbit-config
+              name: fluentbit-config
+            - name: ray-logs
+              emptyDir: {}
+    {% endfor %}
+
+---
+# ML Flow Server - for fetching logs
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{name}}-mlflow
+  namespace: {{ namespace }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mlflow
+  template:
+    metadata:
+      labels:
+        app: mlflow
+    spec:
+      containers:
+      - name: mlflow
+        image: ghcr.io/mlflow/mlflow:v2.9.2
+        ports:
+        - containerPort: 5000
+        command: ["mlflow"]
+        args:
+        - server
+        - --host=0.0.0.0
+        - --port=5000
+        - --backend-store-uri=sqlite:///mlflow.db
+---
+# ML Flow Service (for port forwarding, kubectl port-forward service/{name}-mlflow 5000:5000)
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{name}}-mlflow
+  namespace: {{ namespace }}
+spec:
+  selector:
+    app: mlflow
+  ports:
+  - port: 5000
+    targetPort: 5000
+  type: ClusterIP

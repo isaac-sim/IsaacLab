@@ -4,7 +4,7 @@
 Interacting with a deformable object
 ====================================
 
-.. currentmodule:: omni.isaac.lab
+.. currentmodule:: isaaclab
 
 While deformable objects sometimes refer to a broader class of objects, such as cloths, fluids and soft bodies,
 in PhysX, deformable objects syntactically correspond to soft bodies. Unlike rigid objects, soft bodies can deform
@@ -23,12 +23,12 @@ commands to the mesh nodes to move the soft body.
 The Code
 ~~~~~~~~
 
-The tutorial corresponds to the ``run_deformable_object.py`` script in the ``source/standalone/tutorials/01_assets`` directory.
+The tutorial corresponds to the ``run_deformable_object.py`` script in the ``scripts/tutorials/01_assets`` directory.
 
 .. dropdown:: Code for run_deformable_object.py
    :icon: code
 
-   .. literalinclude:: ../../../../source/standalone/tutorials/01_assets/run_deformable_object.py
+   .. literalinclude:: ../../../../scripts/tutorials/01_assets/run_deformable_object.py
       :language: python
       :emphasize-lines: 61-73, 75-77, 102-110, 112-115, 117-118, 123-130, 132-133, 139-140
       :linenos:
@@ -60,7 +60,7 @@ when the simulation is played.
 As seen in the rigid body tutorial, we can spawn the deformable object into the scene in a similar fashion by creating
 an instance of the :class:`assets.DeformableObject` class by passing the configuration object to its constructor.
 
-.. literalinclude:: ../../../../source/standalone/tutorials/01_assets/run_deformable_object.py
+.. literalinclude:: ../../../../scripts/tutorials/01_assets/run_deformable_object.py
    :language: python
    :start-at: # Create separate groups called "Origin1", "Origin2", "Origin3"
    :end-at: cube_object = DeformableObject(cfg=cfg)
@@ -89,7 +89,7 @@ attribute, which we left as identity in this tutorial.
 
 We apply transformations to the nodal positions to randomize the initial state of the deformable object.
 
-.. literalinclude:: ../../../../source/standalone/tutorials/01_assets/run_deformable_object.py
+.. literalinclude:: ../../../../scripts/tutorials/01_assets/run_deformable_object.py
    :language: python
    :start-at: # reset the nodal state of the object
    :end-at: nodal_state[..., :3] = cube_object.transform_nodal_pos(nodal_state[..., :3], pos_w, quat_w)
@@ -102,7 +102,7 @@ kinematic targets in the next section.
 
 Finally, we call the :meth:`assets.DeformableObject.reset` method to reset any internal buffers and caches.
 
-.. literalinclude:: ../../../../source/standalone/tutorials/01_assets/run_deformable_object.py
+.. literalinclude:: ../../../../scripts/tutorials/01_assets/run_deformable_object.py
    :language: python
    :start-at: # write nodal state to simulation
    :end-at: cube_object.reset()
@@ -122,7 +122,7 @@ we set the flag to indicate that the target is a kinematic target for that node 
 These are set into the simulation buffer by calling the :meth:`assets.DeformableObject.write_nodal_kinematic_target_to_sim`
 method.
 
-.. literalinclude:: ../../../../source/standalone/tutorials/01_assets/run_deformable_object.py
+.. literalinclude:: ../../../../scripts/tutorials/01_assets/run_deformable_object.py
    :language: python
    :start-at: # update the kinematic target for cubes at index 0 and 3
    :end-at: cube_object.write_nodal_kinematic_target_to_sim(nodal_kinematic_target)
@@ -131,7 +131,7 @@ Similar to the rigid object and articulation, we perform the :meth:`assets.Defor
 before stepping the simulation. For deformable objects, this method does not apply any external forces to the object.
 However, we keep this method for completeness and future extensions.
 
-.. literalinclude:: ../../../../source/standalone/tutorials/01_assets/run_deformable_object.py
+.. literalinclude:: ../../../../scripts/tutorials/01_assets/run_deformable_object.py
    :language: python
    :start-at: # write internal data to simulation
    :end-at: cube_object.write_data_to_sim()
@@ -146,10 +146,10 @@ At a fixed interval, we print the root position of the deformable object to the 
 earlier, there is no concept of a root state for deformable objects. However, we compute the root position as
 the average position of all the nodes in the mesh.
 
-.. literalinclude:: ../../../../source/standalone/tutorials/01_assets/run_deformable_object.py
+.. literalinclude:: ../../../../scripts/tutorials/01_assets/run_deformable_object.py
    :language: python
    :start-at: # update buffers
-   :end-at: print(f"Root position (in world): {cube_object.data.root_link_pos_w[:, :3]}")
+   :end-at: print(f"Root position (in world): {cube_object.data.root_pos_w[:, :3]}")
 
 
 The Code Execution
@@ -159,7 +159,7 @@ Now that we have gone through the code, let's run the script and see the result:
 
 .. code-block:: bash
 
-   ./isaaclab.sh -p source/standalone/tutorials/01_assets/run_deformable_object.py
+   ./isaaclab.sh -p scripts/tutorials/01_assets/run_deformable_object.py
 
 
 This should open a stage with a ground plane, lights, and several green cubes. Two of the four cubes must be dropping

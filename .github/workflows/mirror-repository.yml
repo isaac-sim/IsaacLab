@@ -1,0 +1,68 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+name: Mirror Repository
+
+on:
+  push:
+    branches:
+      - main
+
+# Concurrency control to prevent parallel runs
+concurrency:
+  group: mirror-repository-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  mirror-repository:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Only run on specific repository
+    if: github.repository == 'isaac-sim/IsaacLab'
+    environment:
+      name: mirror-production
+      url: https://github.com/${{ vars.TARGET_REPO }}
+
+    steps:
+    - name: Install Git LFS
+      run: |
+        curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | sudo bash
+        sudo apt-get install git-lfs
+        git lfs install
+
+    - name: Checkout Code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        lfs: true
+
+    - name: Configure Git
+      run: |
+        git config --global user.name "Isaac LAB CI Bot"
+        git config --global user.email "isaac-lab-ci-bot@nvidia.com"
+
+    - name: Set Target Repository URL
+      run: |
+        echo "TARGET_REPO=${{ vars.TARGET_REPO }}" >> $GITHUB_ENV
+        echo "TARGET_BRANCH=${{ vars.TARGET_BRANCH || 'main' }}" >> $GITHUB_ENV
+
+    - name: Mirror to Target Repository
+      run: |
+        # Remove existing target remote if it exists
+        git remote remove target 2>/dev/null || true
+
+        # Add target remote with authentication
+        git remote add target https://${{ secrets.GH_TOKEN }}@github.com/${TARGET_REPO}.git
+
+        # Fetch latest from target to avoid conflicts
+        git fetch target $TARGET_BRANCH 2>/dev/null || true
+
+        # Push to target repository and branch (source is always main)
+        git push --force target main:$TARGET_BRANCH
+
+        echo "✅ Successfully mirrored main to ${TARGET_REPO}:$TARGET_BRANCH"

@@ -9,13 +9,35 @@ Tricks and Troubleshooting
     assistance.
 
 
+Debugging physics simulation stability issues
+---------------------------------------------
+
+When importing new robots into Isaac Lab or setting up a new environment, simulation instability
+can often appear if the assets have not been tuned with reasonable simulation parameters.
+In reinforcement learning scenarios, this will often result in NaNs propagating into the learning pipeline
+due to invalid states in the simulation.
+
+If this happens, we recommend consulting the
+`Articulation and Robot Simulation Stability Guide <https://docs.omniverse.nvidia.com/kit/docs/omni_physics/latest/dev_guide/guides/articulation_stability_guide.html>`_
+which recommends various simulation parameters and best practices to achieve better stability in robot simulations.
+
+Additionally, `Omniverse PhysX Visual Debugger <https://docs.omniverse.nvidia.com/kit/docs/omni_physics/latest/extensions/ux/source/omni.physx.pvd/docs/dev_guide/physx_visual_debugger.html>`_
+allows for recording of data of PhysX simulations, which can often help simulation issues and aid the debugging process.
+
+To enable OmniPVD capture in Isaac Lab, add the relevant kit arguments to the command line prompt when launching an Isaac Lab process
+
+.. code:: bash
+
+    ./isaaclab.sh -p scripts/demos/bipeds.py --kit_args "--/persistent/physics/omniPvdOvdRecordingDirectory=/tmp/ --/physics/omniPvdOutputEnabled=true" --headless
+
+
 Checking the internal logs from the simulator
 ---------------------------------------------
 
 When running the simulator from a standalone script, it logs warnings and errors to the terminal. At the same time,
 it also logs internal messages to a file. These are useful for debugging and understanding the internal state of the
 simulator. Depending on your system, the log file can be found in the locations listed
-`here <https://docs.omniverse.nvidia.com/isaacsim/latest/installation/install_faq.html#common-path-locations>`_.
+`here <https://docs.isaacsim.omniverse.nvidia.com/latest/installation/install_faq.html#common-path-locations>`_.
 
 To obtain the exact location of the log file, you need to check the first few lines of the terminal output when
 you run the standalone script. The log file location is printed at the start of the terminal output. For example:
@@ -51,7 +73,7 @@ For instance, to run a standalone script with verbose logging, you can use the f
 .. code-block:: bash
 
     # Run the standalone script with info logging
-    ./isaaclab.sh -p source/standalone/tutorials/00_sim/create_empty.py --headless --info
+    ./isaaclab.sh -p scripts/tutorials/00_sim/create_empty.py --headless --info
 
 For more fine-grained control, you can modify the logging channels through the ``omni.log`` module.
 For more information, please refer to its `documentation <https://docs.omniverse.nvidia.com/kit/docs/carbonite/latest/docs/omni.log/Logging.html>`__.
@@ -114,20 +136,20 @@ exceeds the size of the buffers, the simulation will fail with an error such as 
     parameter to 3072, otherwise the simulation will miss interactions
 
 In this case, you need to increase the size of the buffers passed to the
-:class:`~omni.isaac.lab.sim.SimulationContext` class. The size of the buffers can be increased by setting
-the :attr:`~omni.isaac.lab.sim.PhysxCfg.gpu_found_lost_pairs_capacity` parameter in the
-:class:`~omni.isaac.lab.sim.PhysxCfg` class. For example, to increase the size of the buffers to
+:class:`~isaaclab.sim.SimulationContext` class. The size of the buffers can be increased by setting
+the :attr:`~isaaclab.sim.PhysxCfg.gpu_found_lost_pairs_capacity` parameter in the
+:class:`~isaaclab.sim.PhysxCfg` class. For example, to increase the size of the buffers to
 4096, you can use the following code:
 
 .. code:: python
 
-    import omni.isaac.lab.sim as sim_utils
+    import isaaclab.sim as sim_utils
 
     sim_cfg = sim_utils.SimulationConfig()
     sim_cfg.physx.gpu_found_lost_pairs_capacity = 4096
     sim = SimulationContext(sim_params=sim_cfg)
 
-Please see the documentation for :class:`~omni.isaac.lab.sim.SimulationCfg` for more details
+Please see the documentation for :class:`~isaaclab.sim.SimulationCfg` for more details
 on the parameters that can be used to configure the simulation.
 
 
@@ -216,11 +238,11 @@ simulation application. These typically look like the following:
     [INFO]: Completed setting up the environment...
 
     Traceback (most recent call last):
-    File "source/standalone/workflows/robomimic/collect_demonstrations.py", line 166, in <module>
+    File "scripts/imitation_learning/robomimic/collect_demonstrations.py", line 166, in <module>
         main()
-    File "source/standalone/workflows/robomimic/collect_demonstrations.py", line 126, in main
+    File "scripts/imitation_learning/robomimic/collect_demonstrations.py", line 126, in main
         actions = pre_process_actions(delta_pose, gripper_command)
-    File "source/standalone/workflows/robomimic/collect_demonstrations.py", line 57, in pre_process_actions
+    File "scripts/imitation_learning/robomimic/collect_demonstrations.py", line 57, in pre_process_actions
         return torch.concat([delta_pose, gripper_vel], dim=1)
     TypeError: expected Tensor as element 1 in argument 0, but got int
     Exception ignored in: <function _make_registry.<locals>._Registry.__del__ at 0x7f94ac097f80>
@@ -255,10 +277,10 @@ In the above case, the actual error is:
 .. code:: bash
 
     Traceback (most recent call last):
-    File "source/standalone/workflows/robomimic/tools/collect_demonstrations.py", line 166, in <module>
+    File "scripts/imitation_learning/robomimic/tools/collect_demonstrations.py", line 166, in <module>
         main()
-    File "source/standalone/workflows/robomimic/tools/collect_demonstrations.py", line 126, in main
+    File "scripts/imitation_learning/robomimic/tools/collect_demonstrations.py", line 126, in main
         actions = pre_process_actions(delta_pose, gripper_command)
-    File "source/standalone/workflows/robomimic/tools/collect_demonstrations.py", line 57, in pre_process_actions
+    File "scripts/imitation_learning/robomimic/tools/collect_demonstrations.py", line 57, in pre_process_actions
         return torch.concat([delta_pose, gripper_vel], dim=1)
     TypeError: expected Tensor as element 1 in argument 0, but got int

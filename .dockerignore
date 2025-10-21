@@ -4,6 +4,8 @@
 .gitignore
 # ignore docs
 docs/
+# copy in licenses folder to the container
+!docs/licenses/
 # ignore logs
 **/logs/
 **/runs/
@@ -21,3 +23,5 @@ recordings/
 **/*.egg-info/
 # ignore isaac sim symlink
 _isaac_sim?
+# Docker history
+docker/.isaac-lab-docker-history

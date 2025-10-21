@@ -1,0 +1,38 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+x-default-isaac-lab-template-environment: &default-isaac-lab-template-environment
+  - OMNI_KIT_ALLOW_ROOT=1
+
+x-default-isaac-lab-template-deploy: &default-isaac-lab-template-deploy
+  resources:
+    reservations:
+      devices:
+        - driver: nvidia
+          count: all
+          capabilities: [ gpu ]
+
+services:
+  isaac-lab-template:
+    env_file: .env.base
+    build:
+      context: ../
+      dockerfile: docker/Dockerfile
+      args:
+        - ISAACLAB_BASE_IMAGE_ARG=${ISAACLAB_BASE_IMAGE}
+        - DOCKER_ISAACLAB_EXTENSION_TEMPLATE_PATH_ARG=${DOCKER_ISAACLAB_EXTENSION_TEMPLATE_PATH}
+    image: isaac-lab-template
+    container_name: isaac-lab-template
+    volumes:
+      - type: bind
+        source: ../
+        target: ${DOCKER_ISAACLAB_EXTENSION_TEMPLATE_PATH}
+    network_mode: host
+    environment: *default-isaac-lab-template-environment
+    deploy: *default-isaac-lab-template-deploy
+    # This is the entrypoint for the container
+    entrypoint: bash
+    stdin_open: true
+    tty: true

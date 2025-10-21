@@ -1,0 +1,25 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+# Reference: https://github.com/DLR-RM/rl-baselines3-zoo/blob/master/hyperparams/ppo.yml#L32
+seed: 42
+
+n_timesteps: !!float 1e6
+policy: 'MlpPolicy'
+n_steps: 16
+batch_size: 4096
+gae_lambda: 0.95
+gamma: 0.99
+n_epochs: 20
+ent_coef: 0.01
+learning_rate: !!float 3e-4
+clip_range: !!float 0.2
+policy_kwargs:
+  activation_fn: 'nn.ELU'
+  net_arch: [32, 32]
+  squash_output: False
+vf_coef: 1.0
+max_grad_norm: 1.0
+device: "cuda:0"
