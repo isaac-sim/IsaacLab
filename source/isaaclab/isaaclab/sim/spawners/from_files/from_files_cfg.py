@@ -131,6 +131,7 @@ class UrdfFileCfg(FileCfg, converters.UrdfConverterCfg):
 
     func: Callable = from_files.spawn_from_urdf
 
+
 @configclass
 class MjcfFileCfg(FileCfg, converters.MjcfConverterCfg):
     """MJCF file to spawn asset from.

@@ -119,6 +119,7 @@ def spawn_from_urdf(
     # spawn asset from the generated usd file
     return _spawn_from_usd_file(prim_path, urdf_loader.usd_path, cfg, translation, orientation)
 
+
 @clone
 def spawn_from_mjcf(
     prim_path: str,
@@ -159,6 +160,7 @@ def spawn_from_mjcf(
     mjcf_loader = converters.MjcfConverter(cfg)
     # spawn asset from the generated usd file
     return _spawn_from_usd_file(prim_path, mjcf_loader.usd_path, cfg, translation, orientation)
+
 
 def spawn_ground_plane(
     prim_path: str,
