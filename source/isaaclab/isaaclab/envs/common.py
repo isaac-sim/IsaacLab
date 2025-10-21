@@ -65,6 +65,9 @@ class ViewerCfg:
     This quantity is only effective if :attr:`origin` is set to "asset_body".
     """
 
+    register_keyboard_control: bool = False
+    """Whether to register keyboard control to move the viewport angle. Default is False."""
+
 
 ##
 # Types.
