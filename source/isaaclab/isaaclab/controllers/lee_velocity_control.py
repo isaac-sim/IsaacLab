@@ -17,7 +17,6 @@ from typing import TYPE_CHECKING
 import isaaclab.utils.math as math_utils
 
 if TYPE_CHECKING:
-    from isaaclab.assets import ArticulationWithThrusters
     from isaaclab.assets import Multirotor
     from .lee_velocity_control_cfg import LeeVelControllerCfg
 
