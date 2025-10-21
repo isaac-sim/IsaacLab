@@ -34,7 +34,7 @@
     <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css" />
     <link rel="stylesheet" href="../../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/twemoji.css" />
-    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.11.14/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
+    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.11.13/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/custom.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.4cbf315f70debaebd550c87a6162cf0f.min.css" />
@@ -50,7 +50,7 @@
     <script src="../../../_static/sphinx_highlight.js"></script>
     <script src="https://unpkg.com/twemoji@latest/dist/twemoji.min.js"></script>
     <script src="../../../_static/twemoji.js"></script>
-    <script src="/opt/hostedtoolcache/Python/3.11.14/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
+    <script src="/opt/hostedtoolcache/Python/3.11.13/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
     <script src="../../../_static/clipboard.min.js"></script>
     <script src="../../../_static/copybutton.js"></script>
     <script src="../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
@@ -64,7 +64,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.2.1" />
-    <meta name="docbuild:last-update" content="Oct 19, 2025"/>
+    <meta name="docbuild:last-update" content="Oct 21, 2025"/>
   </head>
   
   
@@ -159,10 +159,10 @@
             <label for="version-select" style="font-weight: bold; display: block;">Version</label>
           </div>
           <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
+            <option value="../../../../release/2.3.0/source/overview/imitation-learning/skillgen.html" >release/2.3.0</option>
             <option value="skillgen.html" selected>main</option>
             <option value="../../../../release/2.1.0/index.html" >release/2.1.0</option>
             <option value="../../../../release/2.2.0/index.html" >release/2.2.0</option>
-            <option value="../../../../release/2.3.0/source/overview/imitation-learning/skillgen.html" >release/2.3.0</option>
             <option value="../../../../v2.2.1/index.html" >v2.2.1</option>
             <option value="../../../../v2.2.0/index.html" >v2.2.0</option>
             <option value="../../../../v2.1.1/index.html" >v2.1.1</option>
@@ -205,7 +205,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.0.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.1.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -925,7 +925,7 @@ mv<span class="w"> </span>/path/to/annotated_dataset_skillgen.hdf5<span class="w
 </section>
 </section>
 <section id="task-1-basic-cube-stacking">
-<h2>Task 1: Basic Cube Stacking<a class="headerlink" href="#task-1-basic-cube-stacking" title="Permalink to this heading">#</a></h2>
+<span id="task-basic-cube-stacking"></span><h2>Task 1: Basic Cube Stacking<a class="headerlink" href="#task-1-basic-cube-stacking" title="Permalink to this heading">#</a></h2>
 <p>Generate demonstrations for the standard Isaac Lab Mimic cube stacking task. In this task, the Franka robot must:</p>
 <ol class="arabic simple">
 <li><p>Pick up the red cube and place it on the blue cube</p></li>
@@ -971,14 +971,14 @@ mv<span class="w"> </span>/path/to/annotated_dataset_skillgen.hdf5<span class="w
 <ul class="simple">
 <li><p>Use <code class="docutils literal notranslate"><span class="pre">--headless</span></code> to disable visualization for faster generation. Rerun visualization can be enabled by setting <code class="docutils literal notranslate"><span class="pre">visualize_plan</span> <span class="pre">=</span> <span class="pre">True</span></code> in the cuRobo planner configuration with <code class="docutils literal notranslate"><span class="pre">--headless</span></code> enabled as well for debugging.</p></li>
 <li><p>Adjust <code class="docutils literal notranslate"><span class="pre">--num_envs</span></code> based on your GPU memory (start with 1, increase gradually). The performance gain is not very significant when num_envs is greater than 1. A value of 5 seems to be a sweet spot for most GPUs to balance performance and memory usage between cuRobo instances and simulation environments.</p></li>
-<li><p>Generation time: ~90 to 120 minutes for one environment for 1000 demonstrations on modern GPUs. Time depends on the GPU, the number of environments, and the success rate of the demonstrations (which depends on quality of the annotated dataset).</p></li>
+<li><p>Generation time: ~90 to 120 minutes for one environment with <code class="docutils literal notranslate"><span class="pre">--headless</span></code> enabled for 1000 demonstrations on a RTX 6000 Ada GPU. Time depends on the GPU, the number of environments, and the success rate of the demonstrations (which depends on quality of the annotated dataset).</p></li>
 <li><p>cuRobo planner interface and configurations are described in <a class="reference internal" href="#curobo-interface-features"><span class="std std-ref">cuRobo Interface Features</span></a>.</p></li>
 </ul>
 </div>
 </section>
 </section>
 <section id="task-2-adaptive-cube-stacking-in-a-bin">
-<h2>Task 2: Adaptive Cube Stacking in a Bin<a class="headerlink" href="#task-2-adaptive-cube-stacking-in-a-bin" title="Permalink to this heading">#</a></h2>
+<span id="task-bin-cube-stacking"></span><h2>Task 2: Adaptive Cube Stacking in a Bin<a class="headerlink" href="#task-2-adaptive-cube-stacking-in-a-bin" title="Permalink to this heading">#</a></h2>
 <p>SkillGen can also be used to generate datasets for adaptive tasks. In this example, we generate a dataset for adaptive cube stacking in a narrow bin. The bin is placed at a fixed position and orientation in the workspace and a blue cube is placed at the center of the bin. The robot must generate successful demonstrations for stacking the red and green cubes on the blue cube without colliding with the bin.</p>
 <figure class="align-center" id="id5">
 <a class="reference internal image-reference" href="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/bin_cube_stack_data_gen_skillgen.gif"><img alt="Adaptive bin cube stacking task generated with SkillGen" src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/bin_cube_stack_data_gen_skillgen.gif" style="width: 75%;" /></a>
@@ -1017,6 +1017,10 @@ mv<span class="w"> </span>/path/to/annotated_dataset_skillgen.hdf5<span class="w
 <div class="admonition warning">
 <p class="admonition-title">Warning</p>
 <p>Adaptive tasks typically have lower success rates and higher data generation time due to increased complexity. The time taken to generate the dataset is also longer due to lower success rates than vanilla cube stacking and difficult planning problems.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>If the pre-annotated dataset is used and the data generation command is run with <code class="docutils literal notranslate"><span class="pre">--headless</span></code> enabled, the generation time is typically around ~220 minutes for 1000 demonstrations for a single environment on a RTX 6000 Ada GPU.</p>
 </div>
 </section>
 </section>
@@ -1073,6 +1077,8 @@ mv<span class="w"> </span>/path/to/annotated_dataset_skillgen.hdf5<span class="w
 <li><p>SkillGen data generation and downstream policy success are sensitive to the task and the quality of dataset annotation, and can show high variance.</p></li>
 <li><p>For cube stacking and bin cube stacking, data generation success is typically 40% to 70% when the dataset is properly annotated per the instructions.</p></li>
 <li><p>Behavior Cloning (BC) policy success from 1000 generated demonstrations trained for 2000 epochs (default) is typically 40% to 85% for these tasks, depending on data quality.</p></li>
+<li><p>Training the policy with 1000 demonstrations and for 2000 epochs takes about 30 to 35 minutes on a RTX 6000 Ada GPU. Training time increases with the number of demonstrations and epochs.</p></li>
+<li><p>For dataset generation time, see <a class="reference internal" href="#task-basic-cube-stacking"><span class="std std-ref">Task 1: Basic Cube Stacking</span></a> and <a class="reference internal" href="#task-bin-cube-stacking"><span class="std std-ref">Task 2: Adaptive Cube Stacking in a Bin</span></a>.</p></li>
 <li><p>Recommendation: Train for the default 2000 epochs with about 1000 generated demonstrations, and evaluate multiple checkpoints saved after the 1000th epoch to select the best-performing policy.</p></li>
 </ul>
 </div>
@@ -1318,7 +1324,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Oct 19, 2025.
+  Last updated on Oct 21, 2025.
   <br/>
 </p>
   </div>
