@@ -165,19 +165,20 @@ def resolve_hydra_group_runtime_override(
         hydra_cfg: Native dictionary that mirrors the Hydra config tree, including the ``hydra`` section.
     """
     # Try to read choices from HydraConfig; fall back to hydra_cfg dict if unavailable.
+    vrnt = "variants"
+    get_variants = lambda c: getattr(c, vrnt, None) or (c.get(vrnt) if isinstance(c, Mapping) else None)  # noqa: E731
+    is_group_variant = lambda k, v: k.startswith(pref) and k[cut:] in var and v != "default"  # noqa: E731
     for sec, cfg in (("env", env_cfg), ("agent", agent_cfg)):
-        get_variants = lambda c: getattr(c, "variants", None) or (c.get("variants") if isinstance(c, Mapping) else None)
         var = get_variants(cfg)
         if not var:
             continue
         pref, cut = f"{sec}.", len(sec) + 1
-        is_group_variant = lambda k, v: k.startswith(pref) and k[cut:] in var and v != "default"  # noqa: E731
         choices = {k[cut:]: v for k, v in choices_runtime.items() if is_group_variant(k, v)}
         for key, choice in choices.items():
             node = var[key][choice]
             setattr_nested(cfg, key, node)
             setattr_nested(hydra_cfg[sec], key, node.to_dict() if hasattr(node, "to_dict") else node)
-        delattr_nested(cfg, "variants")
+        delattr_nested(cfg, vrnt)
         delattr_nested(hydra_cfg, f"{sec}.variants")
 
 
