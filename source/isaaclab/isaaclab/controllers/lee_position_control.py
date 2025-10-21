@@ -168,23 +168,6 @@ def calculate_desired_orientation_for_position_velocity_control(
     return quat_desired
 
 @torch.jit.script
-def euler_to_body_rate(curr_euler_rate, des_euler_rate, mat_euler_to_body_rate):
-    s_pitch = torch.sin(curr_euler_rate[:, 1])
-    c_pitch = torch.cos(curr_euler_rate[:, 1])
-
-    s_roll = torch.sin(curr_euler_rate[:, 0])
-    c_roll = torch.cos(curr_euler_rate[:, 0])
-
-    mat_euler_to_body_rate[:, 0, 0] = 1.0
-    mat_euler_to_body_rate[:, 1, 1] = c_roll
-    mat_euler_to_body_rate[:, 0, 2] = -s_pitch
-    mat_euler_to_body_rate[:, 2, 1] = -s_roll
-    mat_euler_to_body_rate[:, 1, 2] = s_roll * c_pitch
-    mat_euler_to_body_rate[:, 2, 2] = c_roll * c_pitch
-
-    return torch.bmm(mat_euler_to_body_rate, des_euler_rate.unsqueeze(2)).squeeze(2)
-
-@torch.jit.script
 def rand_range(lower, upper):
     # type: (torch.Tensor, torch.Tensor) -> torch.Tensor
     return (upper - lower) * torch.rand_like(upper) + lower
