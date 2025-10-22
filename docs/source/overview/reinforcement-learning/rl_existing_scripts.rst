@@ -206,7 +206,6 @@ SKRL
 
             .. tab-item:: :icon:`fa-brands fa-linux` Linux (aarch64)
                :sync: linux-aarch64
-               :open: false
 
                .. note::
                   For systems running on ARM (aarch64) with CUDA 13 and Torch 2.9.0, JAX must be installed with the matching CUDA 13 wheels.
