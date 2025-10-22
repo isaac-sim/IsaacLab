@@ -17,6 +17,7 @@ import omni.timeline
 
 import isaaclab.utils.string as string_utils
 from isaaclab.utils import class_to_dict, string_to_callable
+from isaaclab.utils.timer import Instrumented
 
 from .manager_term_cfg import ManagerTermBaseCfg
 from .scene_entity_cfg import SceneEntityCfg
@@ -25,7 +26,7 @@ if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
 
 
-class ManagerTermBase(ABC):
+class ManagerTermBase(ABC, Instrumented):
     """Base class for manager terms.
 
     Manager term implementations can be functions or classes. If the term is a class, it should
