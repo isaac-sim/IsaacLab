@@ -146,6 +146,8 @@ This dataset may be downloaded and used in the remaining tutorial steps if you d
 .. note::
    Use of the pre-recorded dataset is optional.
 
+.. _generating-additional-demonstrations:
+
 Generating additional demonstrations with Isaac Lab Mimic
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -155,6 +157,9 @@ Isaac Lab Mimic is a feature in Isaac Lab that allows generation of additional d
 
 In the following example, we will show how to use Isaac Lab Mimic to generate additional demonstrations that can be used to train either a state-based policy
 (using the ``Isaac-Stack-Cube-Franka-IK-Rel-Mimic-v0`` environment) or visuomotor policy (using the ``Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-Mimic-v0`` environment).
+
+.. note::
+   The following commands are run using CPU mode as a small number of envs are used which are I/O bound rather than compute bound.
 
 .. important::
 

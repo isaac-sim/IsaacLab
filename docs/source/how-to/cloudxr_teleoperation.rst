@@ -245,12 +245,25 @@ There are two options to run the CloudXR Runtime Docker container:
 
 With Isaac Lab and the CloudXR Runtime running:
 
-#. In the Isaac Sim UI: locate the Panel named **AR**.
+#. In the Isaac Sim UI: locate the Panel named **AR** and choose the following options:
+
+   * Selected Output Plugin: **OpenXR**
+
+   * OpenXR Runtime: **System OpenXR Runtime**
 
    .. figure:: ../_static/setup/cloudxr_ar_panel.jpg
       :align: center
       :figwidth: 50%
       :alt: Isaac Sim UI: AR Panel
+
+   .. note::
+      Isaac Sim lets you choose from several OpenXR runtime options:
+
+      * **System OpenXR Runtime**: Use a runtime installed outside of Isaac Lab, such as the CloudXR Runtime set up via Docker in this tutorial.
+
+      * **CloudXR Runtime (5.0)**: Use the built-in CloudXR Runtime.
+
+      * **Custom**: Allow you to specify and run any custom OpenXR Runtime of your choice.
 
 #. Click **Start AR**.
 
