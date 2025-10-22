@@ -24,6 +24,19 @@ from isaaclab.utils.assets import retrieve_file_path
 Util Functions
 """
 
+def safe_string_to_float(input_string):
+    """
+    Safely converts a string with multiple periods to a float by keeping
+    the first period and removing the others.
+    """
+    # Replace the first period with a unique placeholder
+    temp_string = input_string.replace('.', '___PLACEHOLDER___', 1)
+    # Remove all remaining periods
+    cleaned_string = temp_string.replace('.', '')
+    # Restore the first period from the placeholder
+    final_string = cleaned_string.replace('___PLACEHOLDER___', '.')
+    return float(final_string)
+
 
 def get_cuda_version():
     try:
@@ -34,7 +47,7 @@ def get_cuda_version():
         # Use regex to find the CUDA version (e.g., V11.2.67)
         match = re.search(r"V(\d+\.\d+(\.\d+)?)", output)
         if match:
-            return float(match.group(1))
+            return safe_string_to_float(match.group(1))
         else:
             print("CUDA version not found in output.")
             return None
