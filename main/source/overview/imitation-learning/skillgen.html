@@ -760,7 +760,20 @@ pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </s
 <ul class="simple">
 <li><p>The commit hash <code class="docutils literal notranslate"><span class="pre">ebb71702f3f70e767f40fd8e050674af0288abe8</span></code> is tested with Isaac Lab - using other versions may cause compatibility issues. This commit has the support for quad face mesh triangulation, required for cuRobo to parse usds as collision objects.</p></li>
 <li><p>cuRobo is installed from source and is editable installed. This means that the cuRobo source code will be cloned in the current directory under <code class="docutils literal notranslate"><span class="pre">src/nvidia-curobo</span></code>. Users can choose their working directory to install cuRobo.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">TORCH_CUDA_ARCH_LIST</span></code> in the above command should match your GPU’s CUDA compute capability (e.g., <code class="docutils literal notranslate"><span class="pre">8.0</span></code> for A100, <code class="docutils literal notranslate"><span class="pre">8.6</span></code> for many RTX 30‑series, <code class="docutils literal notranslate"><span class="pre">8.9</span></code> for RTX 4090); the <code class="docutils literal notranslate"><span class="pre">+PTX</span></code> suffix embeds PTX for forward compatibility so newer GPUs can JIT‑compile when native SASS isn’t included.</p></li>
 </ul>
+</div>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p><strong>cuRobo installation may fail if Isaac Sim environment scripts are sourced</strong></p>
+<p>Sourcing Omniverse Kit/Isaac Sim environment scripts (for example, <code class="docutils literal notranslate"><span class="pre">setup_conda_env.sh</span></code>) exports <code class="docutils literal notranslate"><span class="pre">PYTHONHOME</span></code> and <code class="docutils literal notranslate"><span class="pre">PYTHONPATH</span></code> to the Kit runtime and its pre-bundled Python packages. During cuRobo installation this can cause <code class="docutils literal notranslate"><span class="pre">conda</span></code> to import Omniverse’s bundled libraries (e.g., <code class="docutils literal notranslate"><span class="pre">requests</span></code>/<code class="docutils literal notranslate"><span class="pre">urllib3</span></code>) before initialization, resulting in a crash (often seen as a <code class="docutils literal notranslate"><span class="pre">TypeError</span></code> referencing <code class="docutils literal notranslate"><span class="pre">omni.kit.pip_archive</span></code>).</p>
+<p>Do one of the following:</p>
+<ul class="simple">
+<li><p>Install cuRobo from a clean shell that has not sourced any Omniverse/Isaac Sim scripts.</p></li>
+<li><p>Temporarily reset or ignore inherited Python environment variables (notably <code class="docutils literal notranslate"><span class="pre">PYTHONPATH</span></code> and <code class="docutils literal notranslate"><span class="pre">PYTHONHOME</span></code>) before invoking Conda, so Kit’s Python does not shadow your Conda environment.</p></li>
+<li><p>Use Conda mechanisms that do not rely on shell activation and avoid inheriting the current shell’s Python variables.</p></li>
+</ul>
+<p>After installation completes, you may source Isaac Lab/Isaac Sim scripts again for normal use.</p>
 </div>
 </section>
 <section id="step-3-install-rerun">
@@ -808,7 +821,7 @@ conda<span class="w"> </span>install<span class="w"> </span>-y<span class="w"> <
 <ul class="simple">
 <li><p>Human demonstrations of Franka arm cube stacking</p></li>
 <li><p>Manually annotated subtask boundaries for each demonstration</p></li>
-<li><p>Compatible with both basic cube stacking and adaptive bin stacking tasks</p></li>
+<li><p>Compatible with both basic cube stacking and adaptive bin cube stacking tasks</p></li>
 </ul>
 </section>
 <section id="download-and-setup">
@@ -1021,6 +1034,19 @@ mv<span class="w"> </span>/path/to/annotated_dataset_skillgen.hdf5<span class="w
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>If the pre-annotated dataset is used and the data generation command is run with <code class="docutils literal notranslate"><span class="pre">--headless</span></code> enabled, the generation time is typically around ~220 minutes for 1000 demonstrations for a single environment on a RTX 6000 Ada GPU.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><strong>VRAM usage and GPU recommendations</strong></p>
+<dl class="simple">
+<dt>Figures measured over 10 generated demonstrations on an RTX 6000 Ada.</dt><dd><ul class="simple">
+<li><p>Vanilla Cube Stacking: 1 env ~9.3–9.6 GB steady; 5 envs ~21.8–22.2 GB steady (briefly higher during initialization).</p></li>
+<li><p>Adaptive Bin Cube Stacking: 1 env ~9.3–9.6 GB steady; 5 envs ~22.0–22.3 GB steady (briefly higher during initialization).</p></li>
+<li><p>Minimum recommended GPU: ≥24 GB VRAM for <code class="docutils literal notranslate"><span class="pre">--num_envs</span></code> 1–2; ≥48 GB VRAM for <code class="docutils literal notranslate"><span class="pre">--num_envs</span></code> up to ~5.</p></li>
+<li><p>To reduce VRAM: prefer <code class="docutils literal notranslate"><span class="pre">--headless</span></code> and keep <code class="docutils literal notranslate"><span class="pre">--num_envs</span></code> modest. Numbers can vary with scene assets and number of demonstrations.</p></li>
+</ul>
+</dd>
+</dl>
 </div>
 </section>
 </section>
