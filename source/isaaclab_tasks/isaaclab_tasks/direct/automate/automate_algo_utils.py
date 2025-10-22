@@ -24,17 +24,18 @@ from isaaclab.utils.assets import retrieve_file_path
 Util Functions
 """
 
+
 def safe_string_to_float(input_string):
     """
     Safely converts a string with multiple periods to a float by keeping
     the first period and removing the others.
     """
     # Replace the first period with a unique placeholder
-    temp_string = input_string.replace('.', '___PLACEHOLDER___', 1)
+    temp_string = input_string.replace(".", "___PLACEHOLDER___", 1)
     # Remove all remaining periods
-    cleaned_string = temp_string.replace('.', '')
+    cleaned_string = temp_string.replace(".", "")
     # Restore the first period from the placeholder
-    final_string = cleaned_string.replace('___PLACEHOLDER___', '.')
+    final_string = cleaned_string.replace("___PLACEHOLDER___", ".")
     return float(final_string)
 
 
