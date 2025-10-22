@@ -15,6 +15,7 @@ from .multirotor import Multirotor
 @configclass
 class MultirotorCfg(ArticulationCfg):
     """Configuration parameters for a multirotor articulation.
+
     This extends the base articulation configuration to support multirotor-specific
     settings.
     """
