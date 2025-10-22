@@ -193,8 +193,8 @@ class ManagerBasedEnv:
         # show deprecation message for rerender_on_reset
         if self.cfg.rerender_on_reset:
             omni.log.warn(
-                "ManagerBasedEnvCfg.rerender_on_reset is deprecated. Use ManagerBasedEnvCfg.num_rerenders_on_reset"
-                " instead."
+                "[DEPRECATION WARNING] ManagerBasedEnvCfg.rerender_on_reset is deprecated. Use"
+                " ManagerBasedEnvCfg.num_rerenders_on_reset instead."
             )
 
     def __del__(self):
@@ -366,8 +366,8 @@ class ManagerBasedEnv:
                     self.sim.render()
             elif self.cfg.rerender_on_reset:
                 omni.log.warn(
-                    "ManagerBasedEnvCfg.rerender_on_reset is deprecated. Use ManagerBasedEnvCfg.num_rerenders_on_reset"
-                    " instead."
+                    "[DEPRECATION WARNING] ManagerBasedEnvCfg.rerender_on_reset is deprecated. Use"
+                    " ManagerBasedEnvCfg.num_rerenders_on_reset instead."
                 )
                 self.sim.render()
 
@@ -434,8 +434,8 @@ class ManagerBasedEnv:
                     self.sim.render()
             elif self.cfg.rerender_on_reset:
                 omni.log.warn(
-                    "ManagerBasedEnvCfg.rerender_on_reset is deprecated. Use ManagerBasedEnvCfg.num_rerenders_on_reset"
-                    " instead."
+                    "[DEPRECATION WARNING] ManagerBasedEnvCfg.rerender_on_reset is deprecated. Use"
+                    " ManagerBasedEnvCfg.num_rerenders_on_reset instead."
                 )
                 self.sim.render()
 

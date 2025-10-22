@@ -229,7 +229,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
                         self.sim.render()
                 elif self.cfg.rerender_on_reset:
                     omni.log.warn(
-                        "ManagerBasedEnvCfg.rerender_on_reset is deprecated. Use"
+                        "[DEPRECATION WARNING] ManagerBasedEnvCfg.rerender_on_reset is deprecated. Use"
                         " ManagerBasedEnvCfg.num_rerenders_on_reset instead."
                     )
                     self.sim.render()

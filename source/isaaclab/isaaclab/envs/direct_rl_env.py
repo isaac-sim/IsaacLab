@@ -222,7 +222,8 @@ class DirectRLEnv(gym.Env):
         # show deprecation message for rerender_on_reset
         if self.cfg.rerender_on_reset:
             omni.log.warn(
-                "DirectRLEnvCfg.rerender_on_reset is deprecated. Use DirectRLEnvCfg.num_rerenders_on_reset instead."
+                "[DEPRECATION WARNING] DirectRLEnvCfg.rerender_on_reset is deprecated. Use"
+                " DirectRLEnvCfg.num_rerenders_on_reset instead."
             )
 
         # print the environment information
@@ -312,7 +313,8 @@ class DirectRLEnv(gym.Env):
                     self.sim.render()
             elif self.cfg.rerender_on_reset:
                 omni.log.warn(
-                    "DirectRLEnvCfg.rerender_on_reset is deprecated. Use DirectRLEnvCfg.num_rerenders_on_reset instead."
+                    "[DEPRECATION WARNING] DirectRLEnvCfg.rerender_on_reset is deprecated. Use"
+                    " DirectRLEnvCfg.num_rerenders_on_reset instead."
                 )
                 self.sim.render()
 
@@ -396,8 +398,8 @@ class DirectRLEnv(gym.Env):
                         self.sim.render()
                 elif self.cfg.rerender_on_reset:
                     omni.log.warn(
-                        "DirectRLEnvCfg.rerender_on_reset is deprecated. Use DirectRLEnvCfg.num_rerenders_on_reset"
-                        " instead."
+                        "[DEPRECATION WARNING] DirectRLEnvCfg.rerender_on_reset is deprecated. Use"
+                        " DirectRLEnvCfg.num_rerenders_on_reset instead."
                     )
                     self.sim.render()
 
