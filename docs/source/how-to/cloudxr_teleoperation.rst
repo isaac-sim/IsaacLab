@@ -239,8 +239,8 @@ With Isaac Lab and the CloudXR Runtime running:
 
    .. note::
       Isaac Sim lets you to choose from several OpenXR runtime options:
-      * **System OpenXR Runtime**: Use a runtime installed outside of Isaac Lab, such as the
-        CloudXR Runtime set up via Docker in this tutorial.
+
+      * **System OpenXR Runtime**: Use a runtime installed outside of Isaac Lab, such as the CloudXR Runtime set up via Docker in this tutorial.
 
       * **CloudXR Runtime (5.0)**: Use the built-in CloudXR Runtime.
 
