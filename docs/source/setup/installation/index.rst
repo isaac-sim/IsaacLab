@@ -86,6 +86,8 @@ Other notable limitations with respect to Isaac Lab include...
 
 #. Livestream and Hub Workstation Cache are not supported on the DGX spark.
 
+#. :ref:`Isaac Lab Mimic <generating-additional-demonstrations>` data generation and policy inference for visuomotor envrionements are not supported on DGX Spark due to a lack of non-DLSS image denoiser on aarch64.
+
 Troubleshooting
 ~~~~~~~~~~~~~~~
 
