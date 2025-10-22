@@ -544,7 +544,7 @@ class RayCaster(SensorBase):
         
         return hit_points
 
-    def get_env_origins(self, env_origins):
+    def set_env_origins(self, env_origins):
         """Set environment origins for mesh slicing."""
         self.env_origins = env_origins.to(self._device)
 

@@ -104,6 +104,7 @@ Guidelines for modifications:
 * Muhong Guo
 * Neel Anand Jawale
 * Nicola Loi
+* Nitesh Subedi
 * Norbert Cygiert
 * Nuoyan Chen (Alvin)
 * Nuralem Abizov

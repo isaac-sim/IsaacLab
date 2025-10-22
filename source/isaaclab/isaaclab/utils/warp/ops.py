@@ -143,3 +143,43 @@ def convert_to_warp_mesh(points: np.ndarray, indices: np.ndarray, device: str) -
         points=wp.array(points.astype(np.float32), dtype=wp.vec3, device=device),
         indices=wp.array(indices.astype(np.int32).flatten(), dtype=wp.int32, device=device),
     )
+
+
+@wp.kernel
+def raycast_multi_mesh_kernel(
+    ray_starts: wp.array2d(dtype=wp.vec3),
+    ray_directions: wp.array2d(dtype=wp.vec3),
+    mesh_ids: wp.array(dtype=wp.uint64),
+    num_meshes: int,
+    max_dist: float,
+    hit_points: wp.array2d(dtype=wp.vec3),
+    hit_distances: wp.array2d(dtype=wp.float32),
+):
+    """Raycast against multiple meshes and find closest hit.
+    
+    Each thread handles one ray from one environment and tests it against all meshes.
+    """
+    env_idx, ray_idx = wp.tid()
+    
+    ray_start = ray_starts[env_idx, ray_idx]
+    ray_dir = ray_directions[env_idx, ray_idx]
+    
+    # Use a very large number instead of infinity
+    closest_dist = float(1e10)
+    closest_point = wp.vec3(1e10, 1e10, 1e10)
+    
+    for mesh_idx in range(num_meshes):
+        mesh_id = mesh_ids[mesh_idx]
+        
+        # Query ray-mesh intersection - returns mesh_query_ray_t object
+        query = wp.mesh_query_ray(mesh_id, ray_start, ray_dir, max_dist)
+        
+        # Check if ray hit the mesh
+        if query.result:
+            t = query.t  # Distance along ray to hit point
+            if t < closest_dist and t > 1e-6:  # Small epsilon to avoid self-intersection
+                closest_dist = t
+                closest_point = ray_start + ray_dir * t
+    
+    hit_points[env_idx, ray_idx] = closest_point
+    hit_distances[env_idx, ray_idx] = closest_dist

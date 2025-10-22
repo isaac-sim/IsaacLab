@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.46.4 (2025-10-22)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added support for dynamic meshes in :class:`~isaaclab.sensors.RayCaster` sensor. Dynamic meshes can now be specified via ``dynamic_mesh_prim_paths`` parameter and will have their transforms updated before each raycast operation.
+* Added PhysX RigidBodyView optimization for dynamic mesh transform queries in :class:`~isaaclab.sensors.RayCaster`, providing 5-10x performance improvement over USD queries.
+* Added ``dynamic_mesh_update_decimation`` parameter to :class:`~isaaclab.sensors.RayCasterCfg` for controlling update frequency of dynamic meshes to trade accuracy for performance.
+* Added built-in profiling support to :class:`~isaaclab.sensors.RayCaster` with ``enable_profiling`` flag, ``get_profile_stats()``, and ``print_profile_stats()`` methods for performance analysis.
+
 0.47.1 (2025-10-17)
 ~~~~~~~~~~~~~~~~~~~
 
