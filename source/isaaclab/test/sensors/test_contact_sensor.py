@@ -490,7 +490,7 @@ def test_friction_reporting(setup_simulation, grav_dir):
         expected_friction, _, _, _ = scene["contact_sensor"].contact_physx_view.get_friction_data(dt=sim_dt)
         reported_friction = scene["contact_sensor"].data.friction_forces_w[0, 0, :]
 
-        torch.testing.assert_close(expected_friction.sum(dim=0), reported_friction[0], atol=1e-6)
+        torch.testing.assert_close(expected_friction.sum(dim=0), reported_friction[0], atol=1e-6, rtol=1e-5)
 
         # check that friction force direction opposes gravity direction
         grav = torch.tensor(grav_dir, device=device)
@@ -498,7 +498,7 @@ def test_friction_reporting(setup_simulation, grav_dir):
         norm_gravity = grav / grav.norm()
         dot = torch.dot(norm_reported_friction[0], norm_gravity)
 
-        torch.testing.assert_close(torch.abs(dot), torch.tensor(1.0, device=device), atol=1e-4)
+        torch.testing.assert_close(torch.abs(dot), torch.tensor(1.0, device=device), atol=1e-4, rtol=1e-3)
 
 
 @pytest.mark.isaacsim_ci
