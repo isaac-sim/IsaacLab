@@ -79,10 +79,12 @@ class CartpoleEnv(DirectRLEnv):
     def __init__(self, cfg: CartpoleEnvCfg, render_mode: str | None = None, **kwargs):
         super().__init__(cfg, render_mode, **kwargs)
 
-        self._cart_dof_idx, _ = self.cartpole.find_joints(self.cfg.cart_dof_name)
-        self._pole_dof_idx, _ = self.cartpole.find_joints(self.cfg.pole_dof_name)
+        _, _, self._cart_dof_idx = self.cartpole.find_joints(self.cfg.cart_dof_name)
+        _, _, self._pole_dof_idx = self.cartpole.find_joints(self.cfg.pole_dof_name)
         self.action_scale = self.cfg.action_scale
 
+        # Memory views into the Newton simulation data, they should not be modified directly
+        # They are updated automatically by the simulation, no need to copy or fetch them at each step.
         self.joint_pos = self.cartpole.data.joint_pos
         self.joint_vel = self.cartpole.data.joint_vel
 
@@ -117,7 +119,7 @@ class CartpoleEnv(DirectRLEnv):
             ),
             dim=-1,
         )
-        observations = {"policy": obs}
+        observations = {"policy": obs.clone()}
         return observations
 
     def _get_rewards(self) -> torch.Tensor:
@@ -136,9 +138,6 @@ class CartpoleEnv(DirectRLEnv):
         return total_reward
 
     def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:
-        self.joint_pos = self.cartpole.data.joint_pos
-        self.joint_vel = self.cartpole.data.joint_vel
-
         time_out = self.episode_length_buf >= self.max_episode_length - 1
         out_of_bounds = torch.any(torch.abs(self.joint_pos[:, self._cart_dof_idx]) > self.cfg.max_cart_pos, dim=1)
         out_of_bounds = out_of_bounds | torch.any(torch.abs(self.joint_pos[:, self._pole_dof_idx]) > math.pi / 2, dim=1)
@@ -158,14 +157,6 @@ class CartpoleEnv(DirectRLEnv):
         )
         joint_vel = self.cartpole.data.default_joint_vel[env_ids]
 
-        default_root_state = self.cartpole.data.default_root_state[env_ids]
-        default_root_state[:, :3] += self.scene.env_origins[env_ids]
-
-        self.joint_pos[env_ids] = joint_pos
-        self.joint_vel[env_ids] = joint_vel
-
-        self.cartpole.write_root_pose_to_sim(default_root_state[:, :7], env_ids)
-        self.cartpole.write_root_velocity_to_sim(default_root_state[:, 7:], env_ids)
         self.cartpole.write_joint_state_to_sim(joint_pos, joint_vel, None, env_ids)
 
 

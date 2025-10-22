@@ -17,7 +17,7 @@ from isaacsim.core.version import get_version
 from pxr import PhysxSchema
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import ArticulationWarp, ArticulationWarpCfg, AssetBaseCfg
+from isaaclab.assets import Articulation, ArticulationCfg, AssetBaseCfg
 from isaaclab.cloner import GridCloner
 from isaaclab.sensors import ContactSensorCfg, SensorBase, SensorBaseCfg
 from isaaclab.sim import SimulationContext
@@ -345,7 +345,7 @@ class InteractiveSceneWarp:
         return self._terrain
 
     @property
-    def articulations(self) -> dict[str, ArticulationWarp]:
+    def articulations(self) -> dict[str, Articulation]:
         """A dictionary of articulations in the scene."""
         return self._articulations
 
@@ -405,7 +405,7 @@ class InteractiveSceneWarp:
     Operations.
     """
 
-    def reset(self, mask: wp.array | None = None):
+    def reset(self, ids: Sequence[int] | None = None, mask: wp.array | None = None):
         """Resets the scene entities.
 
         Args:
@@ -414,7 +414,7 @@ class InteractiveSceneWarp:
         """
         # -- assets
         for articulation in self._articulations.values():
-            articulation.reset(mask)
+            articulation.reset(ids=ids, mask=mask)
         # -- sensors
         # for sensor in self._sensors.values():
         #    sensor.reset(mask)
@@ -629,7 +629,7 @@ class InteractiveSceneWarp:
                 asset_cfg.num_envs = self.cfg.num_envs
                 asset_cfg.env_spacing = self.cfg.env_spacing
                 self._terrain = asset_cfg.class_type(asset_cfg)
-            elif isinstance(asset_cfg, ArticulationWarpCfg):
+            elif isinstance(asset_cfg, ArticulationCfg):
                 self._articulations[asset_name] = asset_cfg.class_type(asset_cfg)
             elif isinstance(asset_cfg, SensorBaseCfg):
                 if isinstance(asset_cfg, ContactSensorCfg):

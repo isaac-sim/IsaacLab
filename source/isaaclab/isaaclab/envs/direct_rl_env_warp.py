@@ -654,7 +654,7 @@ class DirectRLEnvWarp(gym.Env):
         if mask is None:
             mask = self._ALL_ENV_MASK
 
-        self.scene.reset(mask)
+        self.scene.reset(ids=None, mask=mask)
 
         # apply events such as randomization for environments that need a reset
         # if self.cfg.events:

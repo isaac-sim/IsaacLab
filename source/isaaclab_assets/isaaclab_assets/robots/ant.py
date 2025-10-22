@@ -9,8 +9,7 @@ from __future__ import annotations
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
-from isaaclab.actuators_warp import ImplicitActuatorWarpCfg
-from isaaclab.assets import ArticulationCfg, ArticulationWarpCfg
+from isaaclab.assets import ArticulationCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 ##
@@ -35,35 +34,6 @@ ANT_CFG = ArticulationCfg(
     ),
     actuators={
         "body": ImplicitActuatorCfg(
-            joint_names_expr=[".*"],
-            control_mode="none",
-            stiffness=0.0,
-            damping=0.0,
-            effort_limit_sim=30.0,
-            friction=0.0001,
-        ),
-    },
-)
-"""Configuration for the Mujoco Ant robot."""
-
-ANT_CFG_WARP = ArticulationWarpCfg(
-    prim_path="{ENV_REGEX_NS}/Robot",
-    spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/IsaacSim/Ant/ant_instanceable.usd",
-        copy_from_source=False,
-    ),
-    init_state=ArticulationWarpCfg.InitialStateCfg(
-        pos=(0.0, 0.0, 0.5),
-        joint_pos={
-            ".*_leg": 0.0,
-            "front_left_foot": 0.785398,  # 45 degrees
-            "front_right_foot": -0.785398,
-            "left_back_foot": -0.785398,
-            "right_back_foot": 0.785398,
-        },
-    ),
-    actuators={
-        "body": ImplicitActuatorWarpCfg(
             joint_names_expr=[".*"],
             control_mode="none",
             stiffness=0.0,

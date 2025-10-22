@@ -5,10 +5,10 @@
 
 from __future__ import annotations
 
-from isaaclab_assets import HUMANOID_CFG_WARP
+from isaaclab_assets import HUMANOID_CFG
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import ArticulationWarpCfg
+from isaaclab.assets import ArticulationCfg
 from isaaclab.envs import DirectRLEnvCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
@@ -67,7 +67,7 @@ class HumanoidWarpEnvCfg(DirectRLEnvCfg):
     )
 
     # robot
-    robot: ArticulationWarpCfg = HUMANOID_CFG_WARP.replace(prim_path="/World/envs/env_.*/Robot")
+    robot: ArticulationCfg = HUMANOID_CFG.replace(prim_path="/World/envs/env_.*/Robot")
     joint_gears: list = [
         67.5000,  # left_upper_arm
         67.5000,  # left_upper_arm

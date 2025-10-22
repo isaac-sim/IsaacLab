@@ -193,6 +193,7 @@ class NewtonManager:
         with Timer(name="newton_initialize_solver", msg="Initialize solver took:", enable=True, format="ms"):
             NewtonManager._num_substeps = NewtonManager._cfg.num_substeps
             NewtonManager._solver_dt = NewtonManager._dt / NewtonManager._num_substeps
+            print(NewtonManager._model.gravity)
             NewtonManager._solver = NewtonManager._get_solver(NewtonManager._model, NewtonManager._cfg.solver_cfg)
 
         # Ensure we are using a CUDA enabled device

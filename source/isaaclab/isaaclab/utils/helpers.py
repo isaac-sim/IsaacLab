@@ -9,10 +9,13 @@ import functools
 import inspect
 import torch
 from collections.abc import Callable
-
-import omni.log
+import logging
+import warnings
 import warp as wp
 
+logger = logging.getLogger(__name__)
+warnings.simplefilter("once", UserWarning)
+logging.captureWarnings(True)
 
 def deprecated(
     *replacement_function_names: str,
@@ -51,8 +54,9 @@ def deprecated(
                 deprecation_message += f" {message}"
 
             # Emit warning.
-            omni.log.warn(
+            warnings.warn(
                 deprecation_message,
+                UserWarning,
             )
             # Call the original function.
             return func(*args, **kwargs)
@@ -88,8 +92,9 @@ def warn_overhead_cost(
                 warning_message += f" {message}"
 
             # Emit warning.
-            omni.log.warn(
+            warnings.warn(
                 warning_message,
+                UserWarning,
             )
             # Call the original function.
             return func(*args, **kwargs)

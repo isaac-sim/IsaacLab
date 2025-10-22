@@ -9,10 +9,11 @@ import math
 
 import warp as wp
 
-from isaaclab_assets.robots.cartpole import CARTPOLE_CFG_WARP
+from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import ArticulationWarp, ArticulationWarpCfg
+from isaaclab.assets import Articulation, ArticulationCfg
+from isaaclab.newton import Frontend
 from isaaclab.envs import DirectRLEnvCfg, DirectRLEnvWarp
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
@@ -52,7 +53,7 @@ class CartpoleWarpEnvCfg(DirectRLEnvCfg):
     sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation, newton_cfg=newton_cfg)
 
     # robot
-    robot_cfg: ArticulationWarpCfg = CARTPOLE_CFG_WARP.replace(prim_path="/World/envs/env_.*/Robot")
+    robot_cfg: ArticulationCfg = CARTPOLE_CFG.replace(prim_path="/World/envs/env_.*/Robot")
     cart_dof_name = "slider_to_cart"
     pole_dof_name = "cart_to_pole"
 
@@ -255,7 +256,7 @@ class CartpoleWarpEnv(DirectRLEnvWarp):
         self.torch_episode_length_buf = wp.to_torch(self.episode_length_buf)
 
     def _setup_scene(self) -> None:
-        self.cartpole = ArticulationWarp(self.cfg.robot_cfg)
+        self.cartpole = Articulation(self.cfg.robot_cfg, frontend=Frontend.WARP)
         # add ground plane
         spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg())
         # clone and replicate
