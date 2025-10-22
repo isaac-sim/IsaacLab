@@ -34,15 +34,42 @@ class RayCasterCfg(SensorBaseCfg):
     class_type: type = RayCaster
 
     mesh_prim_paths: list[str] = MISSING
-    """The list of mesh primitive paths to ray cast against.
+    """The list of mesh primitive paths to ray cast against."""
 
-    Note:
-        Currently, only a single static mesh is supported. We are working on supporting multiple
-        static meshes and dynamic meshes.
+    dynamic_mesh_prim_paths: list[str] = []
+    """The list of dynamic mesh primitive paths that move during simulation.
+
+    These meshes will have their transforms updated before each raycast operation.
+    The paths should point to meshes that are part of articulated or moving rigid bodies.
+    Defaults to an empty list (all meshes are static).
+    """
+
+    dynamic_mesh_update_decimation: int = 1
+    """Update dynamic meshes every N sensor updates (decimation factor).
+
+    Setting this to values > 1 can improve performance at the cost of slightly stale mesh positions.
+    For example, if set to 2, dynamic meshes are updated every other sensor update.
+    Defaults to 1 (update every frame). Recommended values: 1-4.
     """
 
     offset: OffsetCfg = OffsetCfg()
     """The offset pose of the sensor's frame from the sensor's parent frame. Defaults to identity."""
+
+    slice_height_range: float | None = 0.1
+    """Height range (in meters) above and below the sensor to slice meshes for 2D lidar.
+
+    Only mesh triangles within [sensor_z - slice_height_range, sensor_z + slice_height_range]
+    will be kept. This reduces memory and improves performance for 2D lidar applications.
+
+    Set to None to disable slicing and use full 3D meshes (for 3D lidar/depth sensors).
+    Defaults to 0.1 meters (±10cm)."""
+
+    enable_3d_scan: bool = False
+    """Enable full 3D scanning instead of 2D planar scanning.
+
+    When True, meshes are not sliced by height and all ray patterns are used in 3D.
+    When False (default), meshes are sliced to a thin horizontal layer for 2D lidar.
+    """
 
     attach_yaw_only: bool | None = None
     """Whether the rays' starting positions and directions only track the yaw orientation.
