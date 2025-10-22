@@ -502,7 +502,7 @@ def test_friction_reporting(setup_simulation, grav_dir):
 
 
 @pytest.mark.isaacsim_ci
-def test_invalid_config(setup_simulation):
+def test_invalid_prim_paths_config(setup_simulation):
     sim_dt, _, _, _, carb_settings_iface = setup_simulation
     carb_settings_iface.set_bool("/physics/disableContactProcessing", True)
     device = "cuda:0"
@@ -513,8 +513,6 @@ def test_invalid_config(setup_simulation):
         scene_cfg = ContactSensorSceneCfg(num_envs=1, env_spacing=1.0, lazy_sensor_update=False)
         scene_cfg.terrain = FLAT_TERRAIN_CFG
         scene_cfg.shape = CUBE_CFG
-
-        # filter_prim_paths_expr = [scene_cfg.terrain.prim_path + "/terrain/GroundPlane/CollisionPlane"]
 
         scene_cfg.contact_sensor = ContactSensorCfg(
             prim_path=scene_cfg.shape.prim_path,
@@ -527,17 +525,50 @@ def test_invalid_config(setup_simulation):
             filter_prim_paths_expr=[],
         )
 
-        scene = InteractiveScene(scene_cfg)
+        try:
+            _ = InteractiveScene(scene_cfg)
 
-        sim.reset()
+            sim.reset()
 
-        scene["contact_sensor"].reset()
-        scene["shape"].write_root_pose_to_sim(
-            root_pose=torch.tensor([0, 0.0, CUBE_CFG.spawn.size[2] / 2.0, 1, 0, 0, 0])
+            assert False, "Expected ValueError due to invalid contact sensor configuration."
+        except ValueError:
+            pass
+
+
+@pytest.mark.isaacsim_ci
+def test_invalid_max_contact_points_config(setup_simulation):
+    sim_dt, _, _, _, carb_settings_iface = setup_simulation
+    carb_settings_iface.set_bool("/physics/disableContactProcessing", True)
+    device = "cuda:0"
+    sim_cfg = SimulationCfg(dt=sim_dt, device=device)
+    with build_simulation_context(sim_cfg=sim_cfg, add_lighting=False) as sim:
+        sim._app_control_on_stop_handle = None
+
+        scene_cfg = ContactSensorSceneCfg(num_envs=1, env_spacing=1.0, lazy_sensor_update=False)
+        scene_cfg.terrain = FLAT_TERRAIN_CFG
+        scene_cfg.shape = CUBE_CFG
+        filter_prim_paths_expr = [scene_cfg.terrain.prim_path + "/terrain/GroundPlane/CollisionPlane"]
+
+        scene_cfg.contact_sensor = ContactSensorCfg(
+            prim_path=scene_cfg.shape.prim_path,
+            track_pose=True,
+            debug_vis=False,
+            update_period=0.0,
+            track_air_time=True,
+            history_length=3,
+            track_friction_forces=True,
+            filter_prim_paths_expr=filter_prim_paths_expr,
+            max_contact_data_count_per_prim=0,
         )
 
-        # step sim once to compute friction forces
-        _perform_sim_step(sim, scene, sim_dt)
+        try:
+            _ = InteractiveScene(scene_cfg)
+
+            sim.reset()
+
+            assert False, "Expected ValueError due to invalid contact sensor configuration."
+        except ValueError:
+            pass
 
 
 """

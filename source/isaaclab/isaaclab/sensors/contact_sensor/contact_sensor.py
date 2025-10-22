@@ -311,6 +311,21 @@ class ContactSensor(SensorBase):
         if self.cfg.track_pose:
             self._data.pos_w = torch.zeros(self._num_envs, self._num_bodies, 3, device=self._device)
             self._data.quat_w = torch.zeros(self._num_envs, self._num_bodies, 4, device=self._device)
+
+        # check if filter paths are valid
+        if self.cfg.track_contact_points or self.cfg.track_friction_forces:
+            if len(self.cfg.filter_prim_paths_expr) == 0:
+                raise ValueError(
+                    "The 'filter_prim_paths_expr' is empty. Please specify a valid filter pattern to track"
+                    f" {'contact points' if self.cfg.track_contact_points else 'friction forces'}."
+                )
+            if self.cfg.max_contact_data_count_per_prim < 1:
+                raise ValueError(
+                    f"The 'max_contact_data_count_per_prim' is {self.cfg.max_contact_data_count_per_prim}. "
+                    "Please set it to a value greater than 0 to track"
+                    f" {'contact points' if self.cfg.track_contact_points else 'friction forces'}."
+                )
+
         # -- position of contact points
         if self.cfg.track_contact_points:
             self._data.contact_pos_w = torch.full(
