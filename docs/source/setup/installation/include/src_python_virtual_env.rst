@@ -50,8 +50,11 @@ instead of *./isaaclab.sh -p* or *isaaclab.bat -p*.
 
                # Option 1: Default environment name 'env_isaaclab'
                ./isaaclab.sh --uv  # or "./isaaclab.sh -u"
-               # Option 2: Custom name
+               # Option 2: Custom environment name
                ./isaaclab.sh --uv my_env  # or "./isaaclab.sh -u my_env"
+               # Option 3: Custom environment name with additional args to uv
+               # the following command set the path to python interpreter and use verbose output
+               ./isaaclab.sh --uv my_env -- --python ${HOME}/isaacsim50/kit/python/bin/python3 --verbose
 
             .. code:: bash
 
