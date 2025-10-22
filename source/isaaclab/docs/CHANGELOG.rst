@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.47.1 (2025-10-22)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Suppress yourdfpy warnings when trying to load meshes from hand urdfs in dex_retargeting. These mesh files are not
+  used by dex_retargeting, but the parser is incorrectly configured by dex_retargeting to load them anyway which results
+  in warning spam.
+
+
 0.47.0 (2025-10-14)
 ~~~~~~~~~~~~~~~~~~~
 

@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import logging
 import numpy as np
 import os
 import torch
@@ -13,6 +14,10 @@ import omni.log
 from dex_retargeting.retargeting_config import RetargetingConfig
 
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
+
+# yourdfpy loads visual/collision meshes with the hand URDFs; these aren't needed for
+# retargeting and clutter the logs, so we suppress them.
+logging.getLogger("dex_retargeting.yourdfpy").setLevel(logging.ERROR)
 
 # The index to map the OpenXR hand joints to the hand joints used
 # in Dex-retargeting.
