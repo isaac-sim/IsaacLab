@@ -230,12 +230,14 @@ def test_get_raw_data(empty_env, mock_xrcore):
     raw_data = device._get_raw_data()
 
     # Check that the data structure is as expected
-    assert OpenXRDevice.TrackingTarget.HAND_LEFT in raw_data
-    assert OpenXRDevice.TrackingTarget.HAND_RIGHT in raw_data
-    assert OpenXRDevice.TrackingTarget.HEAD in raw_data
+    from isaaclab.devices.device_base import DeviceBase
+
+    assert DeviceBase.TrackingTarget.HAND_LEFT in raw_data
+    assert DeviceBase.TrackingTarget.HAND_RIGHT in raw_data
+    assert DeviceBase.TrackingTarget.HEAD in raw_data
 
     # Check left hand joints
-    left_hand = raw_data[OpenXRDevice.TrackingTarget.HAND_LEFT]
+    left_hand = raw_data[DeviceBase.TrackingTarget.HAND_LEFT]
     assert "palm" in left_hand
     assert "wrist" in left_hand
 
@@ -246,7 +248,7 @@ def test_get_raw_data(empty_env, mock_xrcore):
     np.testing.assert_almost_equal(palm_pose[3:], [0.9, 0.1, 0.2, 0.3])  # Orientation
 
     # Check head pose
-    head_pose = raw_data[OpenXRDevice.TrackingTarget.HEAD]
+    head_pose = raw_data[DeviceBase.TrackingTarget.HEAD]
     assert len(head_pose) == 7
     np.testing.assert_almost_equal(head_pose[:3], [0.1, 0.2, 0.3])  # Position
     np.testing.assert_almost_equal(head_pose[3:], [0.9, 0.1, 0.2, 0.3])  # Orientation
