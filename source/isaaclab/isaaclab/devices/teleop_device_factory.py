@@ -17,6 +17,8 @@ from isaaclab.devices.keyboard import Se2Keyboard, Se2KeyboardCfg, Se3Keyboard, 
 from isaaclab.devices.openxr.retargeters import (
     G1LowerBodyStandingRetargeter,
     G1LowerBodyStandingRetargeterCfg,
+    G1TriHandControllerUpperBodyRetargeter,
+    G1TriHandControllerUpperBodyRetargeterCfg,
     G1TriHandUpperBodyRetargeter,
     G1TriHandUpperBodyRetargeterCfg,
     GR1T2Retargeter,
@@ -35,7 +37,7 @@ from isaaclab.devices.spacemouse import Se2SpaceMouse, Se2SpaceMouseCfg, Se3Spac
 
 with contextlib.suppress(ModuleNotFoundError):
     # May fail if xr is not in use
-    from isaaclab.devices.openxr import ManusVive, ManusViveCfg, OpenXRDevice, OpenXRDeviceCfg
+    from isaaclab.devices.openxr import ManusVive, ManusViveCfg, OpenXRDevice, OpenXRDeviceCfg, OpenXRDeviceMotionController, OpenXRDeviceMotionControllerCfg
 
 # Map device types to their constructor and expected config type
 DEVICE_MAP: dict[type[DeviceCfg], type[DeviceBase]] = {
@@ -46,6 +48,7 @@ DEVICE_MAP: dict[type[DeviceCfg], type[DeviceBase]] = {
     Se2GamepadCfg: Se2Gamepad,
     Se2SpaceMouseCfg: Se2SpaceMouse,
     OpenXRDeviceCfg: OpenXRDevice,
+    OpenXRDeviceMotionControllerCfg: OpenXRDeviceMotionController,
     ManusViveCfg: ManusVive,
 }
 
@@ -57,6 +60,7 @@ RETARGETER_MAP: dict[type[RetargeterCfg], type[RetargeterBase]] = {
     GripperRetargeterCfg: GripperRetargeter,
     GR1T2RetargeterCfg: GR1T2Retargeter,
     G1TriHandUpperBodyRetargeterCfg: G1TriHandUpperBodyRetargeter,
+    G1TriHandControllerUpperBodyRetargeterCfg: G1TriHandControllerUpperBodyRetargeter,
     G1LowerBodyStandingRetargeterCfg: G1LowerBodyStandingRetargeter,
     UnitreeG1RetargeterCfg: UnitreeG1Retargeter,
 }

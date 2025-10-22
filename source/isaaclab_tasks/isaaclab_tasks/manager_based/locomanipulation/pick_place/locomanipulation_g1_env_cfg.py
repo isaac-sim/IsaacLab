@@ -3,17 +3,20 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from pxr import UsdShade, Sdf, UsdGeom
 
 from isaaclab_assets.robots.unitree import G1_29DOF_CFG
 
 import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
+from isaacsim.core.utils.stage import get_current_stage
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.devices.device_base import DevicesCfg
-from isaaclab.devices.openxr import OpenXRDeviceCfg, XrCfg
+from isaaclab.devices.openxr import OpenXRDeviceCfg, XrCfg, XrAnchorRotationMode, OpenXRDeviceMotionControllerCfg
 from isaaclab.devices.openxr.retargeters.humanoid.unitree.g1_lower_body_standing import G1LowerBodyStandingRetargeterCfg
 from isaaclab.devices.openxr.retargeters.humanoid.unitree.trihand.g1_upper_body_retargeter import (
     G1TriHandUpperBodyRetargeterCfg,
+    G1TriHandControllerUpperBodyRetargeterCfg,
 )
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
@@ -207,6 +210,10 @@ class LocomanipulationG1EnvCfg(ManagerBasedRLEnvCfg):
         # Retrieve local paths for the URDF and mesh files. Will be cached for call after the first time.
         self.actions.upper_body_ik.controller.urdf_path = retrieve_file_path(urdf_omniverse_path)
 
+        self.xr.anchor_prim_path = "/World/envs/env_0/Robot/pelvis"
+        self.xr.anchor_pos = (0, 0, -1.1)
+        self.xr.anchor_rotation_mode = XrAnchorRotationMode.FOLLOW_PRIM_SMOOTHED
+
         self.teleop_devices = DevicesCfg(
             devices={
                 "handtracking": OpenXRDeviceCfg(
@@ -225,5 +232,50 @@ class LocomanipulationG1EnvCfg(ManagerBasedRLEnvCfg):
                     sim_device=self.sim.device,
                     xr_cfg=self.xr,
                 ),
+                "motion_controllers": OpenXRDeviceMotionControllerCfg(
+                    retargeters=[
+                        G1TriHandControllerUpperBodyRetargeterCfg(
+                            enable_visualization=True,
+                            sim_device=self.sim.device,
+                            hand_joint_names=self.actions.upper_body_ik.hand_joint_names,
+                        ),
+                        G1LowerBodyStandingRetargeterCfg(
+                            sim_device=self.sim.device,
+                        ),
+                    ],
+                    sim_device=self.sim.device,
+                    xr_cfg=self.xr,
+                ),
             }
         )
+
+    def on_environment_initialized(self):
+        stage = get_current_stage()
+
+        inst_root_path = "/World/envs/env_0/Robot/torso_link/visuals"
+        target_path    = "/World/envs/env_0/Robot/torso_link/visuals/head_link/mesh"
+
+        inst_root = stage.GetPrimAtPath(inst_root_path)
+        if inst_root:
+            # Uninstance this robot's visuals so children are editable
+            if inst_root.IsInstance():
+                with Sdf.ChangeBlock():
+                    inst_root.SetInstanceable(False)
+
+        # Now hide the head mesh on this instance only
+        target = stage.GetPrimAtPath(target_path)
+        if target:
+            UsdGeom.Imageable(target).MakeInvisible()
+
+        if self.xr.anchor_rotation_mode == XrAnchorRotationMode.FOLLOW_PRIM or self.xr.anchor_rotation_mode == XrAnchorRotationMode.FOLLOW_PRIM_SMOOTHED:
+
+            # Change the material of the ground plane for comfort when we are using FOLLOW_PRIM.
+            ground_prim = stage.GetPrimAtPath("/World/GroundPlane/Environment/Geometry")
+            if ground_prim is not None and ground_prim.IsValid():
+                # Change material to robot's default material, which doesn't have a grid.
+                material_path = "/World/envs/env_0/Robot/Looks/DefaultMaterial"
+                material_prim = stage.GetPrimAtPath(material_path)
+                if material_prim and material_prim.IsValid():
+                    # Apply the material to the ground prim
+                    material = UsdShade.Material(material_prim)
+                    UsdShade.MaterialBindingAPI(ground_prim).Bind(material)

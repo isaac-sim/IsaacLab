@@ -6,7 +6,7 @@
 import builtins
 import torch
 from collections.abc import Sequence
-from typing import Any
+from typing import Any, Callable, Optional
 
 import isaacsim.core.utils.torch as torch_utils
 import omni.log
@@ -84,6 +84,8 @@ class ManagerBasedEnv:
         self.cfg = cfg
         # initialize internal variables
         self._is_closed = False
+        # Optional user hook called before rendering within the physics loop
+        self._pre_render_callback: Optional[Callable[[], None]] = None
 
         # set the seed for the environment
         if self.cfg.seed is not None:
@@ -462,6 +464,8 @@ class ManagerBasedEnv:
             # note: we assume the render interval to be the shortest accepted rendering interval.
             #    If a camera needs rendering at a faster frequency, this will lead to unexpected behavior.
             if self._sim_step_counter % self.cfg.sim.render_interval == 0 and is_rendering:
+                # Invoke pre-render hook for user extensions
+                self.on_pre_render()
                 self.sim.render()
             # update buffers at sim dt
             self.scene.update(dt=self.physics_dt)
@@ -528,6 +532,23 @@ class ManagerBasedEnv:
     """
     Helper functions.
     """
+
+    def set_pre_render_callback(self, callback: Callable[[], None]) -> None:
+        """Registers a callback invoked just before rendering inside the physics loop.
+
+        The callback takes no arguments. Use this to update state that must be reflected
+        in the render without advancing physics.
+        """
+        self._pre_render_callback = callback
+
+    def on_pre_render(self) -> None:
+        """Hook called right before rendering in the physics decimation loop.
+
+        Subclasses can override this to inject behavior. By default, this calls a
+        user-provided callback if registered via :meth:`set_pre_render_callback`.
+        """
+        if self._pre_render_callback is not None:
+            self._pre_render_callback()
 
     def _reset_idx(self, env_ids: Sequence[int]):
         """Reset environments based on specified indices.

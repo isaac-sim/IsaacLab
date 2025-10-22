@@ -9,6 +9,7 @@
 
 import argparse
 from collections.abc import Callable
+from typing import cast
 
 from isaaclab.app import AppLauncher
 
@@ -45,7 +46,7 @@ if args_cli.enable_pinocchio:
     # not the one installed by Isaac Sim pinocchio is required by the Pink IK controllers and the
     # GR1T2 retargeter
     import pinocchio  # noqa: F401
-if "handtracking" in args_cli.teleop_device.lower():
+if "handtracking" in args_cli.teleop_device.lower() or "motion_controllers" in args_cli.teleop_device.lower():
     app_launcher_args["xr"] = True
 
 # launch omniverse app
@@ -64,6 +65,7 @@ from isaaclab.devices import Se3Gamepad, Se3GamepadCfg, Se3Keyboard, Se3Keyboard
 from isaaclab.devices.openxr import remove_camera_configs
 from isaaclab.devices.teleop_device_factory import create_teleop_device
 from isaaclab.managers import TerminationTermCfg as DoneTerm
+from isaaclab.envs.manager_based_env import ManagerBasedEnv
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.manager_based.manipulation.lift import mdp
@@ -228,6 +230,13 @@ def main() -> None:
     # reset environment
     env.reset()
     teleop_interface.reset()
+
+    # Attach pre-render callback if supported; safe at runtime
+    if hasattr(env, "set_pre_render_callback"):
+        env_mb = cast(ManagerBasedEnv, env)
+        env_mb.set_pre_render_callback(lambda: teleop_interface.on_pre_render())
+    else:
+        omni.log.warn("Environment does not support pre-render callback; continuing without it.")
 
     print("Teleoperation started. Press 'R' to reset the environment.")
 
