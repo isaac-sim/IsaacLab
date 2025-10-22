@@ -24,26 +24,28 @@ from isaaclab.utils.assets import retrieve_file_path
 Util Functions
 """
 
+
 def parse_cuda_version(version_string):
     """
-    Parse CUDA version string into comparable tuple of (major, minor, patch).
-    
-    Args:
-        version_string: Version string like "12.8.9" or "11.2"
-    
-    Returns:
-        Tuple of (major, minor, patch) as integers, where patch defaults to 0 iff
- not present.
-    
-    Example:
-        "12.8.9" -> (12, 8, 9)
-        "11.2" -> (11, 2, 0)
+       Parse CUDA version string into comparable tuple of (major, minor, patch).
+
+       Args:
+           version_string: Version string like "12.8.9" or "11.2"
+
+       Returns:
+           Tuple of (major, minor, patch) as integers, where patch defaults to 0 iff
+    not present.
+
+       Example:
+           "12.8.9" -> (12, 8, 9)
+           "11.2" -> (11, 2, 0)
     """
     parts = version_string.split(".")
     major = int(parts[0])
     minor = int(parts[1]) if len(parts) > 1 else 0
     patch = int(parts[2]) if len(parts) > 2 else 0
     return (major, minor, patch)
+
 
 def get_cuda_version():
     try:
