@@ -26,7 +26,7 @@ from omegaconf import OmegaConf
 from isaaclab.utils import replace_strings_with_slices
 
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.utils.hydra import register_task_to_hydra
+from isaaclab_tasks.utils.hydra import register_task_to_hydra, resolve_hydra_group_runtime_override
 
 
 def hydra_task_config_test(task_name: str, agent_cfg_entry_point: str) -> Callable:
@@ -42,11 +42,13 @@ def hydra_task_config_test(task_name: str, agent_cfg_entry_point: str) -> Callab
 
             # replace hydra.main with initialize and compose
             with initialize(config_path=None, version_base="1.3"):
-                hydra_env_cfg = compose(config_name=task_name, overrides=sys.argv[1:])
-                # convert to a native dictionary
+                hydra_env_cfg = compose(config_name=task_name, overrides=sys.argv[1:], return_hydra_config=True)
+                hydra_env_cfg["hydra"] = hydra_env_cfg["hydra"]["runtime"]["choices"]
                 hydra_env_cfg = OmegaConf.to_container(hydra_env_cfg, resolve=True)
                 # replace string with slices because OmegaConf does not support slices
                 hydra_env_cfg = replace_strings_with_slices(hydra_env_cfg)
+                # apply group overrides to mutate cfg objects before from_dict
+                resolve_hydra_group_runtime_override(env_cfg, agent_cfg, hydra_env_cfg, hydra_env_cfg["hydra"])
                 # update the configs with the Hydra command line arguments
                 env_cfg.from_dict(hydra_env_cfg["env"])
                 if isinstance(agent_cfg, dict):
@@ -98,6 +100,30 @@ def test_nested_iterable_dict():
         # env
         assert env_cfg.scene.ee_frame.target_frames[0].name == "end_effector"
         assert env_cfg.scene.ee_frame.target_frames[0].offset.pos[2] == 0.1034
+
+    main()
+    # clean up
+    sys.argv = [sys.argv[0]]
+    hydra.core.global_hydra.GlobalHydra.instance().clear()
+
+
+def test_hydra_group_override():
+    """Test the hydra configuration system for group overriding behavior"""
+
+    # set hardcoded command line arguments
+    sys.argv = [
+        sys.argv[0],
+        "env.observations=noise_less",
+        "env.actions.arm_action=relative_joint_position",
+        "agent.policy=large_network",
+    ]
+
+    @hydra_task_config_test("Isaac-Reach-Franka-v0", "rsl_rl_cfg_entry_point")
+    def main(env_cfg, agent_cfg):
+        # env
+        assert env_cfg.observations.policy.joint_pos.noise is None
+        assert not env_cfg.observations.policy.enable_corruption
+        assert agent_cfg.policy.actor_hidden_dims == [512, 256, 128, 64]
 
     main()
     # clean up
