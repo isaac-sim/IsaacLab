@@ -24,11 +24,13 @@ from isaaclab.markers import VisualizationMarkers
 from isaaclab.terrains.trimesh.utils import make_plane
 from isaaclab.utils.math import convert_quat, quat_apply, quat_apply_yaw
 from isaaclab.utils.warp import convert_to_warp_mesh, raycast_multi_mesh_kernel
+
 from ..sensor_base import SensorBase
 from .ray_caster_data import RayCasterData
 
 if TYPE_CHECKING:
     from .ray_caster_cfg import RayCasterCfg
+
 
 class RayCaster(SensorBase):
     """A ray-casting sensor optimized for 2D lidar.
@@ -67,11 +69,7 @@ class RayCaster(SensorBase):
         self._dynamic_mesh_update_counter = 0  # Counter for decimation
         # Performance profiling
         self.enable_profiling = False
-        self.profile_stats = {
-            'dynamic_mesh_update_times': [],
-            'raycast_times': [],
-            'total_update_times': []
-        }
+        self.profile_stats = {"dynamic_mesh_update_times": [], "raycast_times": [], "total_update_times": []}
 
     def __str__(self) -> str:
         """Returns: A string containing information about the instance."""
@@ -102,10 +100,10 @@ class RayCaster(SensorBase):
             num_envs_ids = self._view.count
         else:
             num_envs_ids = len(env_ids)
-        
+
         r = torch.empty(num_envs_ids, 3, device=self.device)
         self.drift[env_ids] = r.uniform_(*self.cfg.drift_range)
-        
+
         range_list = [self.cfg.ray_cast_drift_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z"]]
         ranges = torch.tensor(range_list, device=self.device)
         self.ray_cast_drift[env_ids] = math_utils.sample_uniform(
@@ -118,6 +116,7 @@ class RayCaster(SensorBase):
 
         # Ensure/Spawn prim(s)
         import isaacsim.core.utils.prims as prim_utils
+
         matching_prims = sim_utils.find_matching_prims(self.cfg.prim_path)
         if len(matching_prims) == 0:
             # Create prim(s) for patterns or direct path
@@ -126,7 +125,9 @@ class RayCaster(SensorBase):
                 prim_name = self.cfg.prim_path.split("/")[-1]
                 parent_prims = sim_utils.find_matching_prims(parent_path)
                 for parent_prim in parent_prims:
-                    parent_path_str = str(parent_prim.GetPath()) if hasattr(parent_prim, "GetPath") else str(parent_prim)
+                    parent_path_str = (
+                        str(parent_prim.GetPath()) if hasattr(parent_prim, "GetPath") else str(parent_prim)
+                    )
                     full_path = f"{parent_path_str}/{prim_name}"
                     if not prim_utils.is_prim_path_valid(full_path):
                         prim_utils.create_prim(full_path, "Xform", translation=self.cfg.offset.pos)
@@ -139,7 +140,7 @@ class RayCaster(SensorBase):
             if len(matching_prims) == 0:
                 raise RuntimeError(
                     f"Could not find or create prim with path {self.cfg.prim_path}.\n"
-                    f"Make sure the parent prim exists (e.g., /World/envs/env_*/Robot/chassis)"
+                    "Make sure the parent prim exists (e.g., /World/envs/env_*/Robot/chassis)"
                 )
 
         prim = sim_utils.find_first_matching_prim(self.cfg.prim_path)
@@ -169,7 +170,7 @@ class RayCaster(SensorBase):
             if parent_body_path:
                 # Found a parent rigid body - create view for it
                 # Replace env_N with env_* pattern
-                parent_body_pattern = re.sub(r'env_\d+', 'env_*', parent_body_path)
+                parent_body_pattern = re.sub(r"env_\d+", "env_*", parent_body_path)
                 parent_body_pattern = parent_body_pattern.replace("env_.*", "env_*")
 
                 omni.log.info(f"[RayCaster] Sensor attached to rigid body: {parent_body_pattern}")
@@ -179,7 +180,7 @@ class RayCaster(SensorBase):
                 # No physics parent found - use XFormPrim
                 omni.log.warn(
                     f"[RayCaster] Sensor at {prim.GetPath().pathString} is not attached to a physics body! "
-                    f"Using XFormPrim (position updates may not work correctly)."
+                    "Using XFormPrim (position updates may not work correctly)."
                 )
                 self._view = XFormPrim(self.cfg.prim_path, reset_xform_properties=False)
                 self._parent_body_view = None
@@ -194,20 +195,23 @@ class RayCaster(SensorBase):
         import isaacsim.core.utils.prims as prim_utils
 
         # Check if 3D scanning is enabled
-        enable_3d = getattr(self.cfg, 'enable_3d_scan', False)
-        self.slice_height_range = getattr(self.cfg, 'slice_height_range', 0.1)
+        enable_3d = getattr(self.cfg, "enable_3d_scan", False)
+        self.slice_height_range = getattr(self.cfg, "slice_height_range", 0.1)
 
         if enable_3d or self.slice_height_range is None:
             omni.log.info("[RayCaster] 3D scanning mode - loading full meshes (no height slicing)")
-            height_min = -float('inf')
-            height_max = float('inf')
+            height_min = -float("inf")
+            height_max = float("inf")
             self._enable_slicing = False
         else:
             sensor_height = self.cfg.offset.pos[2]
             height_min = sensor_height - self.slice_height_range
             height_max = sensor_height + self.slice_height_range
             self._enable_slicing = True
-            omni.log.info(f"[RayCaster] 2D scanning mode - slicing meshes at height {sensor_height}m (±{self.slice_height_range}m)")
+            omni.log.info(
+                f"[RayCaster] 2D scanning mode - slicing meshes at height {sensor_height}m"
+                f" (±{self.slice_height_range}m)"
+            )
             omni.log.info(f"[RayCaster] Height range: [{height_min}, {height_max}]")
 
         omni.log.info(f"[RayCaster] Mesh patterns to load: {self.cfg.mesh_prim_paths}")
@@ -219,29 +223,29 @@ class RayCaster(SensorBase):
 
         for mesh_prim_path in self.cfg.mesh_prim_paths:
             is_dynamic = mesh_prim_path in dynamic_patterns
-            template_path = re.sub(r'env_\.\*', 'env_0', mesh_prim_path)
-            template_path = re.sub(r'env_\d+', 'env_0', template_path)
-            
+            template_path = re.sub(r"env_\.\*", "env_0", mesh_prim_path)
+            template_path = re.sub(r"env_\d+", "env_0", template_path)
+
             matching_prims = prim_utils.find_matching_prim_paths(template_path)
-            
+
             if len(matching_prims) == 0:
                 omni.log.warn(f"No template meshes found for pattern: {template_path}")
                 continue
-            
+
             for prim_path in matching_prims:
                 mesh_prim = sim_utils.get_first_matching_child_prim(
                     prim_path, lambda prim: prim.GetTypeName() == "Plane"
                 )
-                
+
                 if mesh_prim is None:
                     mesh_prim = sim_utils.get_first_matching_child_prim(
                         prim_path, lambda prim: prim.GetTypeName() == "Mesh"
                     )
-                    
+
                     if mesh_prim is None or not mesh_prim.IsValid():
                         omni.log.warn(f"Invalid mesh prim path: {prim_path}")
                         continue
-                    
+
                     mesh_prim = UsdGeom.Mesh(mesh_prim)
 
                     points = np.asarray(mesh_prim.GetPointsAttr().Get())
@@ -249,25 +253,31 @@ class RayCaster(SensorBase):
                     # Get mesh world transform
                     xformable = UsdGeom.Xformable(mesh_prim.GetPrim())
                     from pxr import Usd
+
                     world_matrix = xformable.ComputeLocalToWorldTransform(Usd.TimeCode.Default())
 
                     # Extract rotation and translation
                     world_translation = np.array(world_matrix.ExtractTranslation(), dtype=np.float64)
-                    world_rotation_matrix = np.array(world_matrix.ExtractRotationMatrix(), dtype=np.float64).reshape(3, 3)
+                    world_rotation_matrix = np.array(world_matrix.ExtractRotationMatrix(), dtype=np.float64).reshape(
+                        3, 3
+                    )
 
                     # Transform points to world coordinates
                     points_world = points @ world_rotation_matrix.T + world_translation
 
                     # Get env_0's world origin to convert to env-local coordinates
                     # Use SimulationContext if available for consistent env origin detection
-                    if not hasattr(self, '_mesh_load_env0_origin'):
-                        from isaaclab.sim import SimulationContext
+                    if not hasattr(self, "_mesh_load_env0_origin"):
                         import isaacsim.core.utils.stage as stage_utils
 
+                        from isaaclab.sim import SimulationContext
+
                         sim = SimulationContext.instance()
-                        if hasattr(sim, 'env_positions') and sim.env_positions is not None:
+                        if hasattr(sim, "env_positions") and sim.env_positions is not None:
                             self._mesh_load_env0_origin = sim.env_positions[0].cpu().numpy().astype(np.float64)
-                            omni.log.info(f"[RayCaster] Using env_0 origin from SimulationContext: {self._mesh_load_env0_origin}")
+                            omni.log.info(
+                                f"[RayCaster] Using env_0 origin from SimulationContext: {self._mesh_load_env0_origin}"
+                            )
                         else:
                             # Fallback to USD query
                             stage = stage_utils.get_current_stage()
@@ -275,7 +285,9 @@ class RayCaster(SensorBase):
                             if env_0_prim and env_0_prim.IsValid():
                                 env_0_xf = UsdGeom.Xformable(env_0_prim)
                                 env_0_matrix = env_0_xf.ComputeLocalToWorldTransform(Usd.TimeCode.Default())
-                                self._mesh_load_env0_origin = np.array(env_0_matrix.ExtractTranslation(), dtype=np.float64)
+                                self._mesh_load_env0_origin = np.array(
+                                    env_0_matrix.ExtractTranslation(), dtype=np.float64
+                                )
                                 omni.log.info(f"[RayCaster] Using env_0 origin from USD: {self._mesh_load_env0_origin}")
                             else:
                                 self._mesh_load_env0_origin = np.zeros(3, dtype=np.float64)
@@ -287,7 +299,7 @@ class RayCaster(SensorBase):
                     points = (points_world - env_0_origin).astype(np.float32)
 
                     # Debug: Log first mesh coordinates
-                    if not hasattr(self, '_first_mesh_logged'):
+                    if not hasattr(self, "_first_mesh_logged"):
                         self._first_mesh_logged = True
                         omni.log.info(f"[RayCaster] First mesh: {mesh_prim.GetPath()}")
                         omni.log.info(f"  World bounds: {points_world.min(axis=0)} to {points_world.max(axis=0)}")
@@ -303,16 +315,14 @@ class RayCaster(SensorBase):
                         if not np.all(face_vertex_counts == 3):
                             indices = self._triangulate_mesh(indices, face_vertex_counts)
 
-                    sliced_points, sliced_indices = self._slice_mesh_at_height(
-                        points, indices, height_min, height_max
-                    )
-                    
+                    sliced_points, sliced_indices = self._slice_mesh_at_height(points, indices, height_min, height_max)
+
                     if len(sliced_indices) == 0:
                         omni.log.warn(f"No triangles in height range for {prim_path}")
                         continue
-                    
+
                     wp_mesh = convert_to_warp_mesh(sliced_points, sliced_indices, device=self.device)
-                    
+
                     reduction_pct = 100 * (1 - len(sliced_indices) / len(indices))
                     omni.log.info(
                         f"Template mesh {mesh_prim.GetPath()}: "
@@ -327,12 +337,12 @@ class RayCaster(SensorBase):
 
                 # Store mesh with dynamic flag
                 self.meshes.append((prim_path, wp_mesh, is_dynamic))
-        
+
         if len(self.meshes) == 0:
             raise RuntimeError(f"No meshes found for ray-casting! Patterns: {self.cfg.mesh_prim_paths}")
-        
+
         self._prepare_mesh_array_for_kernel()
-        
+
         omni.log.info(
             f"Initialized {len(self.meshes)} sliced Warp meshes (shared across all {self._view.count} environments)"
         )
@@ -357,24 +367,25 @@ class RayCaster(SensorBase):
                 continue
             elif count == 3:
                 # Already a triangle
-                triangulated.extend(indices[idx:idx+3])
+                triangulated.extend(indices[idx : idx + 3])
             else:
                 # Triangulate polygon using fan from first vertex
                 # For a quad [0,1,2,3], create triangles: [0,1,2], [0,2,3]
-                face_indices = indices[idx:idx+count]
+                face_indices = indices[idx : idx + count]
                 for i in range(1, count - 1):
-                    triangulated.extend([face_indices[0], face_indices[i], face_indices[i+1]])
+                    triangulated.extend([face_indices[0], face_indices[i], face_indices[i + 1]])
 
             idx += count
 
         return np.array(triangulated, dtype=np.int32)
 
-    def _slice_mesh_at_height(self, vertices: np.ndarray, faces: np.ndarray,
-                              height_min: float, height_max: float) -> tuple[np.ndarray, np.ndarray]:
+    def _slice_mesh_at_height(
+        self, vertices: np.ndarray, faces: np.ndarray, height_min: float, height_max: float
+    ) -> tuple[np.ndarray, np.ndarray]:
         """Slice mesh to keep only triangles that intersect the height range."""
         num_faces = len(faces) // 3
         faces_reshaped = faces.reshape(num_faces, 3)
-        
+
         kept_faces = []
         for i in range(num_faces):
             idx0, idx1, idx2 = faces_reshaped[i]
@@ -382,22 +393,22 @@ class RayCaster(SensorBase):
             z_coords = [v0[2], v1[2], v2[2]]
             z_min = min(z_coords)
             z_max = max(z_coords)
-            
+
             if z_max >= height_min and z_min <= height_max:
                 kept_faces.append(faces_reshaped[i])
-        
+
         if len(kept_faces) == 0:
             return np.empty((0, 3), dtype=np.float32), np.empty(0, dtype=np.int32)
-        
+
         kept_faces = np.array(kept_faces)
         unique_vertices_indices = np.unique(kept_faces.flatten())
-        
+
         old_to_new = np.full(len(vertices), -1, dtype=np.int32)
         old_to_new[unique_vertices_indices] = np.arange(len(unique_vertices_indices))
-        
+
         sliced_vertices = vertices[unique_vertices_indices]
         sliced_faces = old_to_new[kept_faces].flatten()
-        
+
         return sliced_vertices, sliced_faces
 
     def _prepare_mesh_array_for_kernel(self):
@@ -411,7 +422,7 @@ class RayCaster(SensorBase):
 
     def _initialize_dynamic_mesh_tracking(self):
         """Initialize tracking for dynamic meshes after view is created"""
-        if not hasattr(self, '_view') or self._view is None:
+        if not hasattr(self, "_view") or self._view is None:
             omni.log.warn("[RayCaster] Cannot initialize dynamic mesh tracking - view not ready")
             return
 
@@ -422,25 +433,25 @@ class RayCaster(SensorBase):
             mesh_id = wp_mesh.id
 
             # For dynamic meshes, track all environment instances
-            if 'env_0' in prim_path:
+            if "env_0" in prim_path:
                 # Generate paths for all environments
                 for env_idx in range(self._view.count):
-                    env_prim_path = prim_path.replace('env_0', f'env_{env_idx}')
+                    env_prim_path = prim_path.replace("env_0", f"env_{env_idx}")
                     self.dynamic_mesh_info.append({
-                        'mesh_id': mesh_id,
-                        'prim_path': env_prim_path,
-                        'env_id': env_idx,
-                        'mesh_index': mesh_idx,
-                        'wp_mesh': wp_mesh
+                        "mesh_id": mesh_id,
+                        "prim_path": env_prim_path,
+                        "env_id": env_idx,
+                        "mesh_index": mesh_idx,
+                        "wp_mesh": wp_mesh,
                     })
             else:
                 # Single static path (no environment pattern)
                 self.dynamic_mesh_info.append({
-                    'mesh_id': mesh_id,
-                    'prim_path': prim_path,
-                    'env_id': 0,
-                    'mesh_index': mesh_idx,
-                    'wp_mesh': wp_mesh
+                    "mesh_id": mesh_id,
+                    "prim_path": prim_path,
+                    "env_id": 0,
+                    "mesh_index": mesh_idx,
+                    "wp_mesh": wp_mesh,
                 })
 
         if len(self.dynamic_mesh_info) > 0:
@@ -458,9 +469,9 @@ class RayCaster(SensorBase):
         unique_patterns = {}
 
         for mesh_info in self.dynamic_mesh_info:
-            prim_path = mesh_info['prim_path']
+            prim_path = mesh_info["prim_path"]
             # Convert env_N to env_* for the pattern
-            pattern = re.sub(r'env_\d+', 'env_*', prim_path)
+            pattern = re.sub(r"env_\d+", "env_*", prim_path)
 
             if pattern not in unique_patterns:
                 unique_patterns[pattern] = []
@@ -470,78 +481,72 @@ class RayCaster(SensorBase):
         for pattern, mesh_infos in unique_patterns.items():
             try:
                 # Check if the prim has RigidBodyAPI
-                template_path = pattern.replace('env_*', 'env_0')
+                template_path = pattern.replace("env_*", "env_0")
                 prim = prim_utils.get_prim_at_path(template_path)
 
                 if prim and prim.HasAPI(UsdPhysics.RigidBodyAPI):
                     # Create RigidBodyView for batched queries
                     view = self._physics_sim_view.create_rigid_body_view(pattern.replace(".*", "*"))
-                    self.dynamic_mesh_views[pattern] = {
-                        'view': view,
-                        'mesh_infos': mesh_infos
-                    }
+                    self.dynamic_mesh_views[pattern] = {"view": view, "mesh_infos": mesh_infos}
                     omni.log.info(f"[RayCaster] Created PhysX view for dynamic mesh pattern: {pattern}")
                 else:
-                    omni.log.warn(f"[RayCaster] Dynamic mesh {pattern} does not have RigidBodyAPI - will use slow USD queries")
-                    self.dynamic_mesh_views[pattern] = {
-                        'view': None,
-                        'mesh_infos': mesh_infos
-                    }
+                    omni.log.warn(
+                        f"[RayCaster] Dynamic mesh {pattern} does not have RigidBodyAPI - will use slow USD queries"
+                    )
+                    self.dynamic_mesh_views[pattern] = {"view": None, "mesh_infos": mesh_infos}
             except Exception as e:
                 omni.log.warn(f"[RayCaster] Failed to create view for {pattern}: {e}")
-                self.dynamic_mesh_views[pattern] = {
-                    'view': None,
-                    'mesh_infos': mesh_infos
-                }
+                self.dynamic_mesh_views[pattern] = {"view": None, "mesh_infos": mesh_infos}
 
     def _initialize_rays_impl(self):
         """Initialize ray starts and directions"""
         self.ray_starts, self.ray_directions = self.cfg.pattern_cfg.func(self.cfg.pattern_cfg, self._device)
         self.num_rays = len(self.ray_directions)
-        
+
         offset_pos = torch.tensor(list(self.cfg.offset.pos), device=self._device)
         offset_quat = torch.tensor(list(self.cfg.offset.rot), device=self._device)
         self.ray_directions = quat_apply(offset_quat.repeat(len(self.ray_directions), 1), self.ray_directions)
         self.ray_starts += offset_pos
-        
+
         self.ray_starts = self.ray_starts.repeat(self._view.count, 1, 1)
         self.ray_directions = self.ray_directions.repeat(self._view.count, 1, 1)
-        
+
         self.drift = torch.zeros(self._view.count, 3, device=self.device)
         self.ray_cast_drift = torch.zeros(self._view.count, 3, device=self.device)
-        
+
         self._data.pos_w = torch.zeros(self._view.count, 3, device=self._device)
         self._data.quat_w = torch.zeros(self._view.count, 4, device=self._device)
         self._data.ray_hits_w = torch.zeros(self._view.count, self.num_rays, 3, device=self._device)
         self._data.ranges = torch.zeros(self._view.count, self.num_rays, device=self._device)
 
-    def _raycast_multi_mesh_batched(self, ray_starts: torch.Tensor, ray_directions: torch.Tensor,
-                                     max_dist: float) -> torch.Tensor:
+    def _raycast_multi_mesh_batched(
+        self, ray_starts: torch.Tensor, ray_directions: torch.Tensor, max_dist: float
+    ) -> torch.Tensor:
         """Raycast against multiple meshes simultaneously using custom Warp kernel."""
         batch_size = ray_starts.shape[0]
         num_rays = ray_starts.shape[1]
-        
+
         wp_ray_starts = wp.from_torch(ray_starts.contiguous(), dtype=wp.vec3)
         wp_ray_directions = wp.from_torch(ray_directions.contiguous(), dtype=wp.vec3)
-        
+
         wp_hit_points = wp.zeros((batch_size, num_rays), dtype=wp.vec3, device=self.device)
         wp_hit_distances = wp.full((batch_size, num_rays), 1e10, dtype=wp.float32, device=self.device)
-        
+
         wp.launch(
             kernel=raycast_multi_mesh_kernel,
             dim=(batch_size, num_rays),
             inputs=[wp_ray_starts, wp_ray_directions, self.wp_mesh_ids, self.num_meshes, max_dist],
             outputs=[wp_hit_points, wp_hit_distances],
-            device=self.device
+            device=self.device,
         )
-        
+
         hit_points = wp.to_torch(wp_hit_points)
         hit_distances = wp.to_torch(wp_hit_distances)
-        
+
         # Set no-hit rays to inf (rays that still have distance 1e10)
         no_hit_mask = hit_distances >= 1e10
         hit_points[no_hit_mask] = 10e10
-        
+
         return hit_points
 
     def set_env_origins(self, env_origins):
@@ -566,11 +571,11 @@ class RayCaster(SensorBase):
             if len(times) > 0:
                 times_ms = [t * 1000 for t in times]  # Convert to milliseconds
                 stats[key] = {
-                    'mean_ms': np.mean(times_ms),
-                    'std_ms': np.std(times_ms),
-                    'min_ms': np.min(times_ms),
-                    'max_ms': np.max(times_ms),
-                    'count': len(times_ms)
+                    "mean_ms": np.mean(times_ms),
+                    "std_ms": np.std(times_ms),
+                    "min_ms": np.min(times_ms),
+                    "max_ms": np.max(times_ms),
+                    "count": len(times_ms),
                 }
 
         if reset:
@@ -580,11 +585,7 @@ class RayCaster(SensorBase):
 
     def reset_profile_stats(self):
         """Reset profiling statistics."""
-        self.profile_stats = {
-            'dynamic_mesh_update_times': [],
-            'raycast_times': [],
-            'total_update_times': []
-        }
+        self.profile_stats = {"dynamic_mesh_update_times": [], "raycast_times": [], "total_update_times": []}
 
     def print_profile_stats(self, reset: bool = True):
         """Print profiling statistics in a readable format.
@@ -596,15 +597,15 @@ class RayCaster(SensorBase):
         if not stats:
             return
 
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("RayCaster Performance Statistics")
-        print("="*60)
+        print("=" * 60)
         print(f"Number of dynamic meshes: {len(self.dynamic_mesh_info)}")
         print(f"Total meshes: {len(self.meshes)}")
-        print("-"*60)
+        print("-" * 60)
 
         for key, values in stats.items():
-            name = key.replace('_', ' ').title().replace('Times', '')
+            name = key.replace("_", " ").title().replace("Times", "")
             print(f"\n{name}:")
             print(f"  Mean:  {values['mean_ms']:.4f} ms")
             print(f"  Std:   {values['std_ms']:.4f} ms")
@@ -613,18 +614,16 @@ class RayCaster(SensorBase):
             print(f"  Count: {values['count']}")
 
         # Calculate percentages
-        if 'dynamic_mesh_update_times' in stats and 'total_update_times' in stats:
-            dynamic_pct = (stats['dynamic_mesh_update_times']['mean_ms'] /
-                          stats['total_update_times']['mean_ms'] * 100)
-            raycast_pct = (stats['raycast_times']['mean_ms'] /
-                          stats['total_update_times']['mean_ms'] * 100)
-            print("\n" + "-"*60)
+        if "dynamic_mesh_update_times" in stats and "total_update_times" in stats:
+            dynamic_pct = stats["dynamic_mesh_update_times"]["mean_ms"] / stats["total_update_times"]["mean_ms"] * 100
+            raycast_pct = stats["raycast_times"]["mean_ms"] / stats["total_update_times"]["mean_ms"] * 100
+            print("\n" + "-" * 60)
             print("Time Breakdown:")
             print(f"  Dynamic Mesh Updates: {dynamic_pct:.1f}%")
             print(f"  Raycasting:          {raycast_pct:.1f}%")
             print(f"  Other:               {100-dynamic_pct-raycast_pct:.1f}%")
 
-        print("="*60 + "\n")
+        print("=" * 60 + "\n")
 
     def _update_dynamic_meshes(self, env_ids: Sequence[int]):
         """Update transforms of dynamic meshes before raycasting (OPTIMIZED with PhysX views).
@@ -643,8 +642,8 @@ class RayCaster(SensorBase):
 
         # Process each unique mesh pattern
         for pattern, view_data in self.dynamic_mesh_views.items():
-            view = view_data['view']
-            mesh_infos = view_data['mesh_infos']
+            view = view_data["view"]
+            mesh_infos = view_data["mesh_infos"]
 
             if view is not None:
                 # FAST PATH: Use PhysX RigidBodyView for batched transform queries
@@ -658,17 +657,17 @@ class RayCaster(SensorBase):
 
                 # Process each mesh that uses this view
                 for i, mesh_info in enumerate(mesh_infos):
-                    env_id = mesh_info['env_id']
+                    env_id = mesh_info["env_id"]
 
                     # Skip if not in requested env_ids
                     if env_ids_set is not None and env_id not in env_ids_set:
                         continue
 
-                    wp_mesh = mesh_info['wp_mesh']
+                    wp_mesh = mesh_info["wp_mesh"]
 
                     # Cache original points on first access
-                    if 'original_points' not in mesh_info:
-                        mesh_info['original_points'] = wp.to_torch(wp_mesh.points).cpu().numpy()
+                    if "original_points" not in mesh_info:
+                        mesh_info["original_points"] = wp.to_torch(wp_mesh.points).cpu().numpy()
 
                     # Get transform for this environment
                     pos_world = positions[i]  # [3]
@@ -679,7 +678,7 @@ class RayCaster(SensorBase):
                     pos_local = pos_world - env_origin
 
                     # Transform original points
-                    original_points_torch = torch.from_numpy(mesh_info['original_points']).to(self.device)
+                    original_points_torch = torch.from_numpy(mesh_info["original_points"]).to(self.device)
 
                     # Apply rotation: use quat_apply for vectorized rotation
                     rotated_points = quat_apply(quat.unsqueeze(0), original_points_torch.unsqueeze(0)).squeeze(0)
@@ -699,14 +698,14 @@ class RayCaster(SensorBase):
                 stage = stage_utils.get_current_stage()
 
                 for mesh_info in mesh_infos:
-                    env_id = mesh_info['env_id']
+                    env_id = mesh_info["env_id"]
 
                     # Skip if not in requested env_ids
                     if env_ids_set is not None and env_id not in env_ids_set:
                         continue
 
                     # Get the USD prim
-                    prim_path = mesh_info['prim_path']
+                    prim_path = mesh_info["prim_path"]
                     prim = stage.GetPrimAtPath(prim_path)
 
                     if not prim or not prim.IsValid():
@@ -718,27 +717,30 @@ class RayCaster(SensorBase):
 
                     # Extract translation and rotation
                     world_translation = np.array(world_matrix.ExtractTranslation(), dtype=np.float64)
-                    world_rotation_matrix = np.array(world_matrix.ExtractRotationMatrix(), dtype=np.float64).reshape(3, 3)
+                    world_rotation_matrix = np.array(world_matrix.ExtractRotationMatrix(), dtype=np.float64).reshape(
+                        3, 3
+                    )
 
                     # Convert to env-local coordinates
                     env_origin = self.env_origins[env_id].cpu().numpy().astype(np.float64)
                     local_translation = (world_translation - env_origin).astype(np.float32)
 
-                    wp_mesh = mesh_info['wp_mesh']
+                    wp_mesh = mesh_info["wp_mesh"]
 
                     # Cache original points
-                    if 'original_points' not in mesh_info:
-                        mesh_info['original_points'] = wp.to_torch(wp_mesh.points).cpu().numpy()
+                    if "original_points" not in mesh_info:
+                        mesh_info["original_points"] = wp.to_torch(wp_mesh.points).cpu().numpy()
 
-                    original_points = mesh_info['original_points']
+                    original_points = mesh_info["original_points"]
 
                     # Transform points: rotate then translate
                     transformed_points = original_points @ world_rotation_matrix.T + local_translation
 
                     # Update the Warp mesh points
-                    wp_mesh.points.assign(wp.from_torch(torch.from_numpy(transformed_points.astype(np.float32)).to(self.device)))
+                    wp_mesh.points.assign(
+                        wp.from_torch(torch.from_numpy(transformed_points.astype(np.float32)).to(self.device))
+                    )
                     wp_mesh.refit()
-
 
     def _update_buffers_impl(self, env_ids: Sequence[int]):
         """Fully vectorized raycasting across all environments"""
@@ -759,19 +761,24 @@ class RayCaster(SensorBase):
 
         if self.enable_profiling:
             dynamic_end = time.perf_counter()
-            self.profile_stats['dynamic_mesh_update_times'].append(dynamic_end - dynamic_start)
+            self.profile_stats["dynamic_mesh_update_times"].append(dynamic_end - dynamic_start)
 
         # Get sensor poses based on view type
         # If sensor has a parent rigid body, get pose from parent + offset
-        if hasattr(self, '_parent_body_view') and self._parent_body_view is not None:
+        if hasattr(self, "_parent_body_view") and self._parent_body_view is not None:
             # Get parent body pose
             parent_pos, parent_quat = self._parent_body_view.get_transforms()[env_ids].split([3, 4], dim=-1)
             parent_quat = convert_quat(parent_quat, to="wxyz")
 
             # Apply sensor offset relative to parent body
             from isaaclab.utils.math import combine_frame_transforms
-            offset_pos = torch.tensor(list(self.cfg.offset.pos), device=self._device).unsqueeze(0).expand(len(env_ids), -1)
-            offset_quat = torch.tensor(list(self.cfg.offset.rot), device=self._device).unsqueeze(0).expand(len(env_ids), -1)
+
+            offset_pos = (
+                torch.tensor(list(self.cfg.offset.pos), device=self._device).unsqueeze(0).expand(len(env_ids), -1)
+            )
+            offset_quat = (
+                torch.tensor(list(self.cfg.offset.rot), device=self._device).unsqueeze(0).expand(len(env_ids), -1)
+            )
 
             pos_w, quat_w = combine_frame_transforms(parent_pos, parent_quat, offset_pos, offset_quat)
 
@@ -790,14 +797,14 @@ class RayCaster(SensorBase):
             raise RuntimeError(f"Unsupported view type: {type(self._view)}")
 
         # Debug: Log the sensor position to verify it's being updated
-        if not hasattr(self, '_pos_debug_logged'):
+        if not hasattr(self, "_pos_debug_logged"):
             self._pos_debug_logged = True
             omni.log.info(f"[RayCaster] Sensor position (world): {pos_w[0].cpu().numpy()}")
-            if hasattr(self, '_parent_body_view') and self._parent_body_view is not None:
+            if hasattr(self, "_parent_body_view") and self._parent_body_view is not None:
                 omni.log.info(f"[RayCaster] Using parent body view for pose tracking")
             else:
                 omni.log.info(f"[RayCaster] View type: {type(self._view)}")
-        
+
         pos_w = pos_w.clone()
         quat_w = quat_w.clone()
         pos_w -= self.env_origins[env_ids]
@@ -806,7 +813,7 @@ class RayCaster(SensorBase):
 
         if self.cfg.attach_yaw_only is not None:
             self.cfg.ray_alignment = "yaw" if self.cfg.attach_yaw_only else "base"
-        
+
         if self.cfg.ray_alignment == "world":
             pos_w[:, 0:2] += self.ray_cast_drift[env_ids, 0:2]
             ray_starts_w = self.ray_starts[env_ids] + pos_w.unsqueeze(1)
@@ -825,8 +832,8 @@ class RayCaster(SensorBase):
             raise RuntimeError(f"Unsupported ray_alignment type: {self.cfg.ray_alignment}.")
 
         if len(self.meshes) == 0:
-            self._data.ray_hits_w[env_ids] = float('inf')
-            self._data.ranges[env_ids] = float('inf')
+            self._data.ray_hits_w[env_ids] = float("inf")
+            self._data.ranges[env_ids] = float("inf")
             return
 
         if self.enable_profiling:
@@ -836,7 +843,7 @@ class RayCaster(SensorBase):
 
         if self.enable_profiling:
             raycast_end = time.perf_counter()
-            self.profile_stats['raycast_times'].append(raycast_end - raycast_start)
+            self.profile_stats["raycast_times"].append(raycast_end - raycast_start)
 
         self._data.ray_hits_w[env_ids] = closest_hits
         self._data.ray_hits_w[env_ids, :, 2] += self.ray_cast_drift[env_ids, 2].unsqueeze(-1)
@@ -849,7 +856,7 @@ class RayCaster(SensorBase):
 
         if self.enable_profiling:
             total_end = time.perf_counter()
-            self.profile_stats['total_update_times'].append(total_end - total_start)
+            self.profile_stats["total_update_times"].append(total_end - total_start)
 
     def _set_debug_vis_impl(self, debug_vis: bool):
         if debug_vis:
