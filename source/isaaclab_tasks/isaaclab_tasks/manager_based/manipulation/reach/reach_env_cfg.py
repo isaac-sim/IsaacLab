@@ -10,6 +10,7 @@ from isaaclab.assets import ArticulationCfg, AssetBaseCfg
 from isaaclab.devices import DevicesCfg
 from isaaclab.devices.gamepad import Se3GamepadCfg
 from isaaclab.devices.keyboard import Se3KeyboardCfg
+from isaaclab.devices.phone import Se3PhoneCfg
 from isaaclab.devices.spacemouse import Se3SpaceMouseCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import ActionTermCfg as ActionTerm
@@ -222,6 +223,10 @@ class ReachEnvCfg(ManagerBasedRLEnvCfg):
                     sim_device=self.sim.device,
                 ),
                 "spacemouse": Se3SpaceMouseCfg(
+                    gripper_term=False,
+                    sim_device=self.sim.device,
+                ),
+                "phone": Se3PhoneCfg(
                     gripper_term=False,
                     sim_device=self.sim.device,
                 ),
