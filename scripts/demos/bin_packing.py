@@ -37,13 +37,13 @@ simulation_app = app_launcher.app
 
 import math
 import torch
-from isaaclab.utils import Timer, configclass
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg, RigidObjectCollection, RigidObjectCollectionCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sim import SimulationContext
+from isaaclab.utils import Timer, configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 ##
@@ -62,22 +62,22 @@ BIN_XY_BOUND = ((-0.2, -0.3), (0.2, 0.3))  # ((x_min, y_min), (x_max, y_max))
 # Object layout configuration
 
 GROCERIES = {
-    "OBJECT_A" : sim_utils.UsdFileCfg(
+    "OBJECT_A": sim_utils.UsdFileCfg(
         usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/YCB/Axis_Aligned_Physics/004_sugar_box.usd",
         rigid_props=sim_utils.RigidBodyPropertiesCfg(solver_position_iteration_count=4),
     ),
-    "OBJECT_B" : sim_utils.UsdFileCfg(
+    "OBJECT_B": sim_utils.UsdFileCfg(
         usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/YCB/Axis_Aligned_Physics/003_cracker_box.usd",
         rigid_props=sim_utils.RigidBodyPropertiesCfg(solver_position_iteration_count=4),
     ),
-    "OBJECT_C" : sim_utils.UsdFileCfg(
+    "OBJECT_C": sim_utils.UsdFileCfg(
         usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/YCB/Axis_Aligned_Physics/005_tomato_soup_can.usd",
         rigid_props=sim_utils.RigidBodyPropertiesCfg(solver_position_iteration_count=4),
     ),
-    "OBJECT_D" : sim_utils.UsdFileCfg(
+    "OBJECT_D": sim_utils.UsdFileCfg(
         usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/YCB/Axis_Aligned_Physics/006_mustard_bottle.usd",
         rigid_props=sim_utils.RigidBodyPropertiesCfg(solver_position_iteration_count=4),
-    )
+    ),
 }
 
 
@@ -111,10 +111,8 @@ class MultiObjectSceneCfg(InteractiveSceneCfg):
         rigid_objects={
             f"Object_{label}_Layer{layer}": RigidObjectCfg(
                 prim_path=f"/World/envs/env_.*/Object_{label}_Layer{layer}",
-                init_state=RigidObjectCfg.InitialStateCfg(
-                    pos=(x, y, 0.2 + (layer) * 0.2)
-                ),
-                spawn=GROCERIES.get(f"OBJECT_{label}")
+                init_state=RigidObjectCfg.InitialStateCfg(pos=(x, y, 0.2 + (layer) * 0.2)),
+                spawn=GROCERIES.get(f"OBJECT_{label}"),
             )
             for layer in range(MAX_NUM_OBJECTS // NUM_OBJECTS_PER_LAYER)
             for label, (x, y) in zip(["A", "B", "C", "D"], [(-0.035, -0.1), (-0.035, 0.1), (0.035, 0.1), (0.035, -0.1)])
@@ -180,7 +178,7 @@ def build_grocery_defaults(
     num_objects_per_layer: int = NUM_OBJECTS_PER_LAYER,
     max_objects_per_bin: int = MAX_OBJECTS_PER_BIN,
     max_num_objects: int = MAX_NUM_OBJECTS,
-    cache_height: float = CACHE_HEIGHT
+    cache_height: float = CACHE_HEIGHT,
 ):
     """Create default active/cached spawn poses for all environments.
 
