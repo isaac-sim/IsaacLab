@@ -23,6 +23,7 @@ class LMF2EmptyEnvCfg(StateBasedControlEmptyEnvCfg):
         super().__post_init__()
         # switch robot to lmf2
         self.scene.robot = LMF2_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot.actuators["thrusters"].dt = self.sim.dt
 
 
 @configclass

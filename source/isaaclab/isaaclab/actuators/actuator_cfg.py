@@ -295,7 +295,7 @@ class ThrusterCfg:
     # stiffness = 0.1 # only necessary to make this conform with Isaac
     # damping = 0.1 # only necessary to make this conform with Isaac
 
-    dt: float = 0.01
+    dt: float = MISSING
     """Simulation/integration timestep used by the thruster update [s]."""
 
     num_motors: int = 4
