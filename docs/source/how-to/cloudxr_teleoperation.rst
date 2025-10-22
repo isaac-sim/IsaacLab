@@ -242,7 +242,7 @@ With Isaac Lab and the CloudXR Runtime running:
       * **System OpenXR Runtime**: Use a runtime installed outside of Isaac Lab, such as the
         CloudXR Runtime set up via Docker in this tutorial.
 
-      * **CloudXR Runtime (5.0)**: Use the built-in CloudXR Runtime version that comes bundled with Isaac Lab 2.2.
+      * **CloudXR Runtime (5.0)**: Use the built-in CloudXR Runtime.
 
       * **Custom**: Allow you to specify and run any custom OpenXR Runtime of your choice.
 
