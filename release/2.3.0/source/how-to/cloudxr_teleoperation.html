@@ -837,6 +837,14 @@ stop the containers with:</p>
 <span class="w">    </span>--env-file<span class="w"> </span>.env.cloudxr-runtime
 </pre></div>
 </div>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p class="sd-card-text">If you encounter issues on restart, you can run the following command to clean up orphaned
+containers:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>docker<span class="w"> </span>system<span class="w"> </span>prune<span class="w"> </span>-f
+</pre></div>
+</div>
+</div>
 </li>
 </ol>
 </div>
@@ -874,6 +882,15 @@ the container:</p>
 <p class="admonition-title">Note</p>
 <p class="sd-card-text">If you choose a particular GPU instead of <code class="docutils literal notranslate"><span class="pre">all</span></code>, you need to make sure Isaac Lab also runs
 on that GPU.</p>
+</div>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p class="sd-card-text">If you encounter issues on running cloudxr-runtime container, you can run the following
+command to clean up the orphaned container:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>docker<span class="w"> </span>stop<span class="w"> </span>cloudxr-runtime
+docker<span class="w"> </span>rm<span class="w"> </span>cloudxr-runtime
+</pre></div>
+</div>
 </div>
 </li>
 <li><p class="sd-card-text">In a new terminal where you intend to run Isaac Lab, export the following environment
@@ -958,6 +975,17 @@ Apple Vision Pro, connecting to Isaac Lab, and teleoperating a simulated robot.<
 <span id="teleoperate-apple-vision-pro"></span><h3>Teleoperate an Isaac Lab Robot with Apple Vision Pro<a class="headerlink" href="#teleoperate-an-isaac-lab-robot-with-apple-vision-pro" title="Permalink to this heading">#</a></h3>
 <p>With the Isaac XR Teleop Sample Client installed on your Apple Vision Pro, you are ready to connect
 to Isaac Lab.</p>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p><strong>Before wearing the headset</strong>, you can first verify connectivity from your Mac:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Test signaling port (replace &lt;isaac-lab-ip&gt; with your workstation IP)</span>
+nc<span class="w"> </span>-vz<span class="w"> </span>&lt;isaac-lab-ip&gt;<span class="w"> </span><span class="m">48010</span>
+</pre></div>
+</div>
+<p>Expected output: <code class="docutils literal notranslate"><span class="pre">Connection</span> <span class="pre">to</span> <span class="pre">&lt;ip&gt;</span> <span class="pre">port</span> <span class="pre">48010</span> <span class="pre">[tcp/*]</span> <span class="pre">succeeded!</span></code></p>
+<p>If the connection fails, check that the runtime container is running (<code class="docutils literal notranslate"><span class="pre">docker</span> <span class="pre">ps</span></code>) and no stale
+runtime container is blocking ports.</p>
+</div>
 <p>On your Isaac Lab workstation:</p>
 <ol class="arabic">
 <li><p>Ensure that Isaac Lab and CloudXR are both running as described in

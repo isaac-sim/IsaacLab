@@ -168,6 +168,15 @@ There are two options to run the CloudXR Runtime Docker container:
              --files docker-compose.cloudxr-runtime.patch.yaml \
              --env-file .env.cloudxr-runtime
 
+      .. tip::
+
+         If you encounter issues on restart, you can run the following command to clean up orphaned
+         containers:
+
+         .. code:: bash
+
+            docker system prune -f
+
 .. dropdown:: Option 2: Run Isaac Lab as a local process and CloudXR Runtime container with Docker
 
    Isaac Lab can be run as a local process that connects to the CloudXR Runtime Docker container.
@@ -204,6 +213,16 @@ There are two options to run the CloudXR Runtime Docker container:
       .. note::
          If you choose a particular GPU instead of ``all``, you need to make sure Isaac Lab also runs
          on that GPU.
+
+      .. tip::
+
+         If you encounter issues on running cloudxr-runtime container, you can run the following
+         command to clean up the orphaned container:
+
+         .. code:: bash
+
+            docker stop cloudxr-runtime
+            docker rm cloudxr-runtime
 
    #. In a new terminal where you intend to run Isaac Lab, export the following environment
       variables, which reference the directory created above:
@@ -300,6 +319,20 @@ Teleoperate an Isaac Lab Robot with Apple Vision Pro
 
 With the Isaac XR Teleop Sample Client installed on your Apple Vision Pro, you are ready to connect
 to Isaac Lab.
+
+.. tip::
+
+   **Before wearing the headset**, you can first verify connectivity from your Mac:
+
+   .. code:: bash
+
+      # Test signaling port (replace <isaac-lab-ip> with your workstation IP)
+      nc -vz <isaac-lab-ip> 48010
+
+   Expected output: ``Connection to <ip> port 48010 [tcp/*] succeeded!``
+
+   If the connection fails, check that the runtime container is running (``docker ps``) and no stale
+   runtime container is blocking ports.
 
 On your Isaac Lab workstation:
 
