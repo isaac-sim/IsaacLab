@@ -41,7 +41,7 @@ class ContactSensorData:
     """
 
     friction_forces_w: torch.Tensor | None = None
-    """Average of the friction forces between sensor body and filter prim in world frame.
+    """Sum of the friction forces between sensor body and filter prim in world frame.
 
     Shape is (N, B, M, 3), where N is the number of sensors, B is number of bodies in each sensor
     and M is the number of filtered bodies.

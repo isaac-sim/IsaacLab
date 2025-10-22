@@ -490,16 +490,54 @@ def test_friction_reporting(setup_simulation, grav_dir):
         expected_friction, _, _, _ = scene["contact_sensor"].contact_physx_view.get_friction_data(dt=sim_dt)
         reported_friction = scene["contact_sensor"].data.friction_forces_w[0, 0, :]
 
-        assert torch.allclose(expected_friction.sum(dim=0), reported_friction[0], atol=1e-6)
+        torch.testing.assert_close(expected_friction.sum(dim=0), reported_friction[0], atol=1e-6)
 
+        # check that friction force direction opposes gravity direction
         grav = torch.tensor(grav_dir, device=device)
         norm_reported_friction = reported_friction / reported_friction.norm()
         norm_gravity = grav / grav.norm()
         dot = torch.dot(norm_reported_friction[0], norm_gravity)
 
-        assert torch.isclose(
-            torch.abs(dot), torch.tensor(1.0, device=device), atol=1e-4
-        ), "Friction force should be roughly opposite gravity direction"
+        torch.testing.assert_close(torch.abs(dot), torch.tensor(1.0, device=device), atol=1e-4)
+
+
+@pytest.mark.isaacsim_ci
+def test_invalid_config(setup_simulation):
+    sim_dt, _, _, _, carb_settings_iface = setup_simulation
+    carb_settings_iface.set_bool("/physics/disableContactProcessing", True)
+    device = "cuda:0"
+    sim_cfg = SimulationCfg(dt=sim_dt, device=device)
+    with build_simulation_context(sim_cfg=sim_cfg, add_lighting=False) as sim:
+        sim._app_control_on_stop_handle = None
+
+        scene_cfg = ContactSensorSceneCfg(num_envs=1, env_spacing=1.0, lazy_sensor_update=False)
+        scene_cfg.terrain = FLAT_TERRAIN_CFG
+        scene_cfg.shape = CUBE_CFG
+
+        # filter_prim_paths_expr = [scene_cfg.terrain.prim_path + "/terrain/GroundPlane/CollisionPlane"]
+
+        scene_cfg.contact_sensor = ContactSensorCfg(
+            prim_path=scene_cfg.shape.prim_path,
+            track_pose=True,
+            debug_vis=False,
+            update_period=0.0,
+            track_air_time=True,
+            history_length=3,
+            track_friction_forces=True,
+            filter_prim_paths_expr=[],
+        )
+
+        scene = InteractiveScene(scene_cfg)
+
+        sim.reset()
+
+        scene["contact_sensor"].reset()
+        scene["shape"].write_root_pose_to_sim(
+            root_pose=torch.tensor([0, 0.0, CUBE_CFG.spawn.size[2] / 2.0, 1, 0, 0, 0])
+        )
+
+        # step sim once to compute friction forces
+        _perform_sim_step(sim, scene, sim_dt)
 
 
 """
