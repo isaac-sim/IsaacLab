@@ -156,8 +156,8 @@ class FrankaCubeStackVisuomotorCosmosEnvCfg(stack_ik_rel_visuomotor_env_cfg.Fran
         )
 
         # Set settings for camera rendering
-        self.rerender_on_reset = True
-        self.sim.render.antialiasing_mode = "OFF"  # disable dlss
+        self.num_rerenders_on_reset = 3
+        self.sim.render.antialiasing_mode = "DLAA"  # Use DLAA for higher quality rendering
 
         # List of image observations in policy observations
         self.image_obs_list = ["table_cam", "wrist_cam"]
