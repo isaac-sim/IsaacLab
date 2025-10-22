@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.11.2 (2025-10-22)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Ensured all imports follows the string import style instead of direct import of environment.
+
+
 0.11.1 (2025-09-24)
 ~~~~~~~~~~~~~~~~~~~~
 
