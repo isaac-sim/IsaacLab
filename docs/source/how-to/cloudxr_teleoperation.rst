@@ -237,6 +237,15 @@ With Isaac Lab and the CloudXR Runtime running:
       :figwidth: 50%
       :alt: Isaac Sim UI: AR Panel
 
+   .. note::
+      Isaac Sim lets you to choose from several OpenXR runtime options:
+      * **System OpenXR Runtime**: Use a runtime installed outside of Isaac Lab, such as the
+        CloudXR Runtime set up via Docker in this tutorial.
+
+      * **CloudXR Runtime (5.0)**: Use the built-in CloudXR Runtime version that comes bundled with Isaac Lab 2.2.
+
+      * **Custom**: Allow you to specify and run any custom OpenXR Runtime of your choice.
+
 #. Click **Start AR**.
 
 The Viewport should show two eyes being rendered, and you should see the status "AR profile is
