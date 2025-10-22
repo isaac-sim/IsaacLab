@@ -39,6 +39,7 @@ def distance_to_goal_exp(
     position_error_square = torch.sum(torch.square(target_position_w - current_position), dim=1)
     return torch.exp(-position_error_square / std**2)
 
+
 def upright_posture_reward(
     env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"), std: float = 0.5
 ) -> torch.Tensor:
@@ -71,6 +72,7 @@ def ang_vel_reward(
 
     angular_vel_reward = torch.exp(-ang_vel_squared / std**2)
     return angular_vel_reward
+
 
 def velocity_reward(
     env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"), std: float = 1.0

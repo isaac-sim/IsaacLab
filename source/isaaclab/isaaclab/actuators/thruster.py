@@ -57,9 +57,13 @@ class Thruster:
         """Construct buffers and sample per-motor parameters.
 
         Args:
-            num_envs: Number of vectorized envs.
             cfg: Thruster configuration.
-            device: PyTorch device string.
+            thruster_names: List of thruster names belonging to this group.
+            thruster_ids: Slice or tensor of indices into the articulation thruster array.
+            num_envs: Number of parallel/vectorized environments.
+            device: PyTorch device string or device identifier.
+            init_thruster_rps: Initial per-thruster rotations-per-second tensor used when
+                the configuration uses RPM-based thrust modelling.
         """
         self.cfg = cfg
         self._num_envs = num_envs
@@ -165,7 +169,6 @@ class Thruster:
         self.applied_thrust = torch.clamp(self.computed_thrust, self.min_thrust, self.max_thrust)
 
         control_action.thrusts = self.applied_thrust
-
 
         return control_action
 
