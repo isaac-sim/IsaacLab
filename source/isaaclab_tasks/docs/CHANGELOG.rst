@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.11.5 (2025-10-22)
+~~~~~~~~~~~~~~~~~~
+
+Removed
+^^^^^^^
+
+* Removed scikit-learn dependency because we are no longer using this package.
+
+
 0.11.4 (2025-10-20)
 ~~~~~~~~~~~~~~~~~~~~
 
