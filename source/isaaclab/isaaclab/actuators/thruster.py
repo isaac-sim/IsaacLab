@@ -166,7 +166,6 @@ class Thruster:
 
         control_action.thrusts = self.applied_thrust
 
-        # print("control actions: ", control_action.thrusts)
 
         return control_action
 
