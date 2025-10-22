@@ -442,7 +442,7 @@ class RecorderManager(ManagerBase):
         ep_meta = self._env.cfg.get_ep_meta()
         return ep_meta
 
-    def export_episodes(self, env_ids: Sequence[int] | None = None) -> None:
+    def export_episodes(self, env_ids: Sequence[int] | None = None, demo_id: int | None = None) -> None:
         """Concludes and exports the episodes for the given environment ids.
 
         Args:
@@ -484,7 +484,7 @@ class RecorderManager(ManagerBase):
                     else:
                         target_dataset_file_handler = self._failed_episode_dataset_file_handler
                 if target_dataset_file_handler is not None:
-                    target_dataset_file_handler.write_episode(self._episodes[env_id])
+                    target_dataset_file_handler.write_episode(self._episodes[env_id], demo_id)
                     need_to_flush = True
                 # Update episode count
                 if episode_succeeded:
