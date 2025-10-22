@@ -24,20 +24,26 @@ from isaaclab.utils.assets import retrieve_file_path
 Util Functions
 """
 
-
-def safe_string_to_float(input_string):
+def parse_cuda_version(version_string):
     """
-    Safely converts a string with multiple periods to a float by keeping
-    the first period and removing the others.
+    Parse CUDA version string into comparable tuple of (major, minor, patch).
+    
+    Args:
+        version_string: Version string like "12.8.9" or "11.2"
+    
+    Returns:
+        Tuple of (major, minor, patch) as integers, where patch defaults to 0 iff
+ not present.
+    
+    Example:
+        "12.8.9" -> (12, 8, 9)
+        "11.2" -> (11, 2, 0)
     """
-    # Replace the first period with a unique placeholder
-    temp_string = input_string.replace(".", "___PLACEHOLDER___", 1)
-    # Remove all remaining periods
-    cleaned_string = temp_string.replace(".", "")
-    # Restore the first period from the placeholder
-    final_string = cleaned_string.replace("___PLACEHOLDER___", ".")
-    return float(final_string)
-
+    parts = version_string.split(".")
+    major = int(parts[0])
+    minor = int(parts[1]) if len(parts) > 1 else 0
+    patch = int(parts[2]) if len(parts) > 2 else 0
+    return (major, minor, patch)
 
 def get_cuda_version():
     try:
@@ -48,7 +54,7 @@ def get_cuda_version():
         # Use regex to find the CUDA version (e.g., V11.2.67)
         match = re.search(r"V(\d+\.\d+(\.\d+)?)", output)
         if match:
-            return safe_string_to_float(match.group(1))
+            return parse_cuda_version(match.group(1))
         else:
             print("CUDA version not found in output.")
             return None
