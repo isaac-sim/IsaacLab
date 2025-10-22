@@ -84,3 +84,28 @@ params:
     clip_actions: False
     seq_len: 4
     bounds_loss_coef: 0.0001
+
+pbt:
+  enabled: False
+  policy_idx: 0  # policy index in a population
+  num_policies: 8  # total number of policies in the population
+  directory: .
+  workspace: "pbt_workspace"  # suffix of the workspace dir name inside train_dir
+  objective: episode.Curriculum/adr
+
+  # PBT hyperparams
+  interval_steps: 50000000
+  threshold_std: 0.1
+  threshold_abs: 0.025
+  mutation_rate: 0.25
+  change_range: [1.1, 2.0]
+  mutation:
+
+    agent.params.config.learning_rate: "mutate_float"
+    agent.params.config.grad_norm: "mutate_float"
+    agent.params.config.entropy_coef: "mutate_float"
+    agent.params.config.critic_coef: "mutate_float"
+    agent.params.config.bounds_loss_coef: "mutate_float"
+    agent.params.config.kl_threshold: "mutate_float"
+    agent.params.config.gamma: "mutate_discount"
+    agent.params.config.tau: "mutate_discount"

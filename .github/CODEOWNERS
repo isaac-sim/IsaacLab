@@ -65,6 +65,11 @@
 
 # Mimic
 /source/isaaclab_mimic/isaaclab_mimic @peterd-NV
+/source/isaaclab_mimic/isaaclab_mimic @njawale42
+/source/isaaclab_mimic/isaaclab_mimic @michaellin6
+/source/isaaclab_mimic/isaaclab_mimic @jaybdub
+/source/isaaclab_mimic/isaaclab_mimic @huihuaNvidia2023
+/source/isaaclab_mimic/isaaclab_mimic @xyao-nv
 
 # RL
 /source/isaaclab_rl/isaaclab_rl/rsl_rl @Mayankm96 @ClemensSchwarke

@@ -7,5 +7,4 @@
 Submodules for files IO operations.
 """
 
-from .pkl import dump_pickle, load_pickle
 from .yaml import dump_yaml, load_yaml

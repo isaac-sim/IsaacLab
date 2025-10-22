@@ -232,6 +232,8 @@ Key parameters for SkillGen data generation:
 * ``--device``: Computation device (cpu/cuda). Use cpu for stable physics
 * ``--headless``: Disable visualization for faster generation
 
+.. _task-basic-cube-stacking:
+
 Task 1: Basic Cube Stacking
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -280,15 +282,16 @@ Once satisfied with small-scale results, generate a full training dataset:
    --input_file ./datasets/annotated_dataset_skillgen.hdf5 \
    --output_file ./datasets/generated_dataset_skillgen_cube_stack.hdf5 \
    --task Isaac-Stack-Cube-Franka-IK-Rel-Skillgen-v0 \
-   --use_skillgen \
-   --headless
+   --use_skillgen
 
 .. note::
 
    * Use ``--headless`` to disable visualization for faster generation. Rerun visualization can be enabled by setting ``visualize_plan = True`` in the cuRobo planner configuration with ``--headless`` enabled as well for debugging.
    * Adjust ``--num_envs`` based on your GPU memory (start with 1, increase gradually). The performance gain is not very significant when num_envs is greater than 1. A value of 5 seems to be a sweet spot for most GPUs to balance performance and memory usage between cuRobo instances and simulation environments.
-   * Generation time: ~90 to 120 minutes for one environment for 1000 demonstrations on modern GPUs. Time depends on the GPU, the number of environments, and the success rate of the demonstrations (which depends on quality of the annotated dataset).
+   * Generation time: ~90 to 120 minutes for one environment with ``--headless`` enabled for 1000 demonstrations on a RTX 6000 Ada GPU. Time depends on the GPU, the number of environments, and the success rate of the demonstrations (which depends on quality of the annotated dataset).
    * cuRobo planner interface and configurations are described in :ref:`cuRobo-interface-features`.
+
+.. _task-bin-cube-stacking:
 
 Task 2: Adaptive Cube Stacking in a Bin
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -339,6 +342,10 @@ Generate the complete adaptive stacking dataset:
 
    Adaptive tasks typically have lower success rates and higher data generation time due to increased complexity. The time taken to generate the dataset is also longer due to lower success rates than vanilla cube stacking and difficult planning problems.
 
+.. note::
+
+   If the pre-annotated dataset is used and the data generation command is run with ``--headless`` enabled, the generation time is typically around ~220 minutes for 1000 demonstrations for a single environment on a RTX 6000 Ada GPU.
+
 
 Learning Policies from SkillGen Data
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -357,8 +364,8 @@ Train a state-based policy for the basic cube stacking task:
    --algo bc \
    --dataset ./datasets/generated_dataset_skillgen_cube_stack.hdf5
 
-Adaptive Bin Stacking Policy
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Adaptive Bin Cube Stacking Policy
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Train a policy for the more complex adaptive bin stacking:
 
@@ -374,7 +381,7 @@ Train a policy for the more complex adaptive bin stacking:
    The training script will save the model checkpoints in the model directory under ``IssacLab/logs/robomimic``.
 
 Evaluating Trained Policies
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Test your trained policies:
 
@@ -389,12 +396,23 @@ Test your trained policies:
 
 .. code:: bash
 
-   # Adaptive bin stacking evaluation
+   # Adaptive bin cube stacking evaluation
    ./isaaclab.sh -p scripts/imitation_learning/robomimic/play.py \
    --device cpu \
    --task Isaac-Stack-Cube-Bin-Franka-IK-Rel-Mimic-v0 \
    --num_rollouts 50 \
    --checkpoint /path/to/model_checkpoint.pth
+
+.. note::
+
+   **Expected Success Rates and Recommendations for Cube Stacking and Bin Cube Stacking Tasks**
+
+   * SkillGen data generation and downstream policy success are sensitive to the task and the quality of dataset annotation, and can show high variance.
+   * For cube stacking and bin cube stacking, data generation success is typically 40% to 70% when the dataset is properly annotated per the instructions.
+   * Behavior Cloning (BC) policy success from 1000 generated demonstrations trained for 2000 epochs (default) is typically 40% to 85% for these tasks, depending on data quality.
+   * Training the policy with 1000 demonstrations and for 2000 epochs takes about 30 to 35 minutes on a RTX 6000 Ada GPU. Training time increases with the number of demonstrations and epochs.
+   * For dataset generation time, see :ref:`task-basic-cube-stacking` and :ref:`task-bin-cube-stacking`.
+   * Recommendation: Train for the default 2000 epochs with about 1000 generated demonstrations, and evaluate multiple checkpoints saved after the 1000th epoch to select the best-performing policy.
 
 .. _cuRobo-interface-features:
 
@@ -416,9 +434,9 @@ cuRobo Planner (GPU, collision-aware)
 * Location: ``isaaclab_mimic/motion_planners/curobo``
 * Multi-phase planning:
 
-  * Approach → Contact → Retreat phases per subtask
+  * Retreat → Contact → Approach phases per subtask
   * Configurable collision filtering in contact phases
-  * For SkillGen, approach and retreat phases are collision-free. The transit phase is collision-checked.
+  * For SkillGen, retreat and approach phases are collision-free. The transit phase is collision-checked.
 
 * World synchronization:
 

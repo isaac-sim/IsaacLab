@@ -119,6 +119,5 @@ Part 3: More Resources
 
 - `Omniverse Glossary of Terms <https://docs.isaacsim.omniverse.nvidia.com/latest/reference_material/reference_glossary.html>`__
 - `Omniverse Code Samples <https://docs.omniverse.nvidia.com/dev-guide/latest/programmer_ref.html>`__
-- `PhysX Collider Compatibility <https://docs.omniverse.nvidia.com/extensions/latest/ext_physics/rigid-bodies.html#collidercompatibility>`__
 - `PhysX Limitations <https://docs.isaacsim.omniverse.nvidia.com/latest/physics/physics_resources.html>`__
 - `PhysX Documentation <https://nvidia-omniverse.github.io/PhysX/physx/>`__.
