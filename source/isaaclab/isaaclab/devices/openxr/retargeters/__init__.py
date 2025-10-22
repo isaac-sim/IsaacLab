@@ -10,6 +10,8 @@ from .humanoid.unitree.inspire.g1_upper_body_retargeter import UnitreeG1Retarget
 from .humanoid.unitree.trihand.g1_upper_body_retargeter import (
     G1TriHandUpperBodyRetargeter,
     G1TriHandUpperBodyRetargeterCfg,
+    G1TriHandControllerUpperBodyRetargeter,
+    G1TriHandControllerUpperBodyRetargeterCfg,
 )
 from .manipulator.gripper_retargeter import GripperRetargeter, GripperRetargeterCfg
 from .manipulator.se3_abs_retargeter import Se3AbsRetargeter, Se3AbsRetargeterCfg
