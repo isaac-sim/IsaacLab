@@ -913,10 +913,23 @@ variables, which reference the directory created above:</p>
 </div>
 </details><p>With Isaac Lab and the CloudXR Runtime running:</p>
 <ol class="arabic">
-<li><p>In the Isaac Sim UI: locate the Panel named <strong>AR</strong>.</p>
+<li><p>In the Isaac Sim UI: locate the Panel named <strong>AR</strong> and choose the following options:</p>
+<ul class="simple">
+<li><p>Selected Output Plugin: <strong>OpenXR</strong></p></li>
+<li><p>OpenXR Runtime: <strong>System OpenXR Runtime</strong></p></li>
+</ul>
 <figure class="align-center" style="width: 50%">
 <img alt="Isaac Sim UI: AR Panel" src="../../_images/cloudxr_ar_panel.jpg" />
 </figure>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Isaac Sim lets you choose from several OpenXR runtime options:</p>
+<ul class="simple">
+<li><p><strong>System OpenXR Runtime</strong>: Use a runtime installed outside of Isaac Lab, such as the CloudXR Runtime set up via Docker in this tutorial.</p></li>
+<li><p><strong>CloudXR Runtime (5.0)</strong>: Use the built-in CloudXR Runtime.</p></li>
+<li><p><strong>Custom</strong>: Allow you to specify and run any custom OpenXR Runtime of your choice.</p></li>
+</ul>
+</div>
 </li>
 <li><p>Click <strong>Start AR</strong>.</p></li>
 </ol>
