@@ -6,12 +6,28 @@ To run training, we follow the standard Isaac Lab workflow. If you are new to Is
 The currently supported tasks are as follows:
 
 * Isaac-Cartpole-Direct-v0
+* Isaac-Cartpole-RGB-Camera-Direct-v0 (requires ``--enable_cameras``)
+* Isaac-Cartpole-Depth-Camera-Direct-v0 (requires ``--enable_cameras``)
+* Isaac-Cartpole-v0
 * Isaac-Ant-Direct-v0
+* Isaac-Ant-v0
 * Isaac-Humanoid-Direct-v0
+* Isaac-Humanoid-v0
+* Isaac-Velocity-Flat-Anymal-B-v0
+* Isaac-Velocity-Flat-Anymal-C-v0
 * Isaac-Velocity-Flat-Anymal-D-v0
+* Isaac-Velocity-Flat-Cassie-v0
 * Isaac-Velocity-Flat-G1-v0
 * Isaac-Velocity-Flat-G1-v1 (Sim-to-Real tested)
 * Isaac-Velocity-Flat-H1-v0
+* Isaac-Velocity-Flat-Unitree-A1-v0
+* Isaac-Velocity-Flat-Unitree-Go1-v0
+* Isaac-Velocity-Flat-Unitree-Go2-v0
+* Isaac-Velocity-Flat-Spot-v0
+* Isaac-Reach-Franka-v0
+* Isaac-Reach-UR10-v0
+* Isaac-Repose-Cube-Allegro-Direct-v0
+
 
 To launch an environment and check that it loads as expected, we can start by trying it out with zero actions sent to its actuators.
 This can be done as follows, where ``TASK_NAME`` is the name of the task you’d like to run, and ``NUM_ENVS`` is the number of instances of the task that you’d like to create.

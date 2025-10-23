@@ -38,13 +38,13 @@ def test_add_tensors(device):
 
     # test adding data to a key that does not exist
     episode.add("key", dummy_data_0)
-    key_data = episode.data.get("key")
+    key_data = torch.stack(episode.data.get("key"))
     assert key_data is not None
     assert torch.equal(key_data, dummy_data_0.unsqueeze(0))
 
     # test adding data to a key that exists
     episode.add("key", dummy_data_1)
-    key_data = episode.data.get("key")
+    key_data = torch.stack(episode.data.get("key"))
     assert key_data is not None
     assert torch.equal(key_data, expected_added_data)
 
@@ -52,7 +52,7 @@ def test_add_tensors(device):
     episode.add("first/second", dummy_data_0)
     first_data = episode.data.get("first")
     assert first_data is not None
-    second_data = first_data.get("second")
+    second_data = torch.stack(first_data.get("second"))
     assert second_data is not None
     assert torch.equal(second_data, dummy_data_0.unsqueeze(0))
 
@@ -60,7 +60,7 @@ def test_add_tensors(device):
     episode.add("first/second", dummy_data_1)
     first_data = episode.data.get("first")
     assert first_data is not None
-    second_data = first_data.get("second")
+    second_data = torch.stack(first_data.get("second"))
     assert second_data is not None
     assert torch.equal(second_data, expected_added_data)
 
@@ -83,15 +83,15 @@ def test_add_dict_tensors(device):
     episode.add("key", dummy_dict_data_0)
     key_data = episode.data.get("key")
     assert key_data is not None
-    key_0_data = key_data.get("key_0")
+    key_0_data = torch.stack(key_data.get("key_0"))
     assert key_0_data is not None
     assert torch.equal(key_0_data, torch.tensor([[0]], device=device))
     key_1_data = key_data.get("key_1")
     assert key_1_data is not None
-    key_1_0_data = key_1_data.get("key_1_0")
+    key_1_0_data = torch.stack(key_1_data.get("key_1_0"))
     assert key_1_0_data is not None
     assert torch.equal(key_1_0_data, torch.tensor([[1]], device=device))
-    key_1_1_data = key_1_data.get("key_1_1")
+    key_1_1_data = torch.stack(key_1_data.get("key_1_1"))
     assert key_1_1_data is not None
     assert torch.equal(key_1_1_data, torch.tensor([[2]], device=device))
 
@@ -99,15 +99,15 @@ def test_add_dict_tensors(device):
     episode.add("key", dummy_dict_data_1)
     key_data = episode.data.get("key")
     assert key_data is not None
-    key_0_data = key_data.get("key_0")
+    key_0_data = torch.stack(key_data.get("key_0"))
     assert key_0_data is not None
     assert torch.equal(key_0_data, torch.tensor([[0], [3]], device=device))
     key_1_data = key_data.get("key_1")
     assert key_1_data is not None
-    key_1_0_data = key_1_data.get("key_1_0")
+    key_1_0_data = torch.stack(key_1_data.get("key_1_0"))
     assert key_1_0_data is not None
     assert torch.equal(key_1_0_data, torch.tensor([[1], [4]], device=device))
-    key_1_1_data = key_1_data.get("key_1_1")
+    key_1_1_data = torch.stack(key_1_data.get("key_1_1"))
     assert key_1_1_data is not None
     assert torch.equal(key_1_1_data, torch.tensor([[2], [5]], device=device))
 
@@ -119,7 +119,7 @@ def test_get_initial_state(device):
     episode = EpisodeData()
 
     episode.add("initial_state", dummy_initial_state)
-    initial_state = episode.get_initial_state()
+    initial_state = torch.stack(episode.get_initial_state())
     assert initial_state is not None
     assert torch.equal(initial_state, dummy_initial_state.unsqueeze(0))
 

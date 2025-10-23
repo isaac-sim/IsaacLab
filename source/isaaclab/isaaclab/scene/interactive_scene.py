@@ -421,7 +421,7 @@ class InteractiveScene:
             These are not reset or updated by the scene. They are mainly other prims that are not necessarily
             handled by the interactive scene, but are useful to be accessed by the user.
 
-        .. _XFormPrim: https://docs.omniverse.nvidia.com/py/isaacsim/source/isaacsim.core/docs/index.html#isaacsim.core.prims.XFormPrim
+        .. _XFormPrim: https://docs.isaacsim.omniverse.nvidia.com/latest/py/source/extensions/isaacsim.core.prims/docs/index.html#isaacsim.core.prims.XFormPrim
 
         """
         return self._extras
@@ -554,9 +554,9 @@ class InteractiveScene:
             rigid_object.write_root_pose_to_sim(root_pose, env_ids=env_ids)
             rigid_object.write_root_velocity_to_sim(root_velocity, env_ids=env_ids)
         # surface grippers
-        for asset_name, gripper in self._surface_grippers.items():
+        for asset_name, surface_gripper in self._surface_grippers.items():
             asset_state = state["gripper"][asset_name]
-            gripper.write_gripper_state_to_sim(asset_state, env_ids=env_ids)
+            surface_gripper.set_grippers_command(asset_state)
 
         # write data to simulation to make sure initial state is set
         # this propagates the joint targets to the simulation
@@ -643,6 +643,10 @@ class InteractiveScene:
                 asset_state["root_pose"][:, :3] -= self.env_origins
             asset_state["root_velocity"] = rigid_object.data.root_vel_w.clone()
             state["rigid_object"][asset_name] = asset_state
+        # surface grippers
+        state["gripper"] = dict()
+        for asset_name, gripper in self._surface_grippers.items():
+            state["gripper"][asset_name] = gripper.state.clone()
         return state
 
     """
@@ -749,7 +753,8 @@ class InteractiveScene:
                         asset_paths = sim_utils.find_matching_prim_paths(rigid_object_cfg.prim_path)
                         self._global_prim_paths += asset_paths
             elif isinstance(asset_cfg, SurfaceGripperCfg):
-                pass
+                # add surface grippers to scene
+                self._surface_grippers[asset_name] = asset_cfg.class_type(asset_cfg)
             elif isinstance(asset_cfg, SensorBaseCfg):
                 # Update target frame path(s)' regex name space for FrameTransformer
                 if isinstance(asset_cfg, FrameTransformerCfg):

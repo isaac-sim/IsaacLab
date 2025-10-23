@@ -79,7 +79,7 @@ Installation
 
    .. code:: bash
 
-      helm fetch https://helm.ngc.nvidia.com/nvidia/charts/isaac-lab-teleop-2.2.0.tgz \
+      helm fetch https://helm.ngc.nvidia.com/nvidia/charts/isaac-lab-teleop-2.3.0.tgz \
         --username='$oauthtoken' \
         --password=<your-ngc-api-key>
 
@@ -87,7 +87,7 @@ Installation
 
    .. code:: bash
 
-      helm upgrade --install hello-isaac-teleop isaac-lab-teleop-2.2.0.tgz \
+      helm upgrade --install hello-isaac-teleop isaac-lab-teleop-2.3.0.tgz \
         --set fullnameOverride=hello-isaac-teleop \
         --set hostNetwork="true"
 
@@ -110,7 +110,7 @@ Installation
 
          # command
          helm upgrade --install --values local_values.yml \
-           hello-isaac-teleop isaac-lab-teleop-2.2.0.tgz
+           hello-isaac-teleop isaac-lab-teleop-2.3.0.tgz
 
 #. Verify the deployment is completed:
 

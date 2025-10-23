@@ -259,6 +259,9 @@ def _validate(obj: object, prefix: str = "") -> list[str]:
     """
     missing_fields = []
 
+    if type(obj).__name__ == "MeshConverterCfg":
+        return missing_fields
+
     if type(obj) is type(MISSING):
         missing_fields.append(prefix)
         return missing_fields
@@ -268,7 +271,11 @@ def _validate(obj: object, prefix: str = "") -> list[str]:
             missing_fields.extend(_validate(item, prefix=current_path))
         return missing_fields
     elif isinstance(obj, dict):
-        obj_dict = obj
+        # Convert any non-string keys to strings to allow validation of dict with non-string keys
+        if any(not isinstance(key, str) for key in obj.keys()):
+            obj_dict = {str(key): value for key, value in obj.items()}
+        else:
+            obj_dict = obj
     elif hasattr(obj, "__dict__"):
         obj_dict = obj.__dict__
     else:
@@ -451,10 +458,15 @@ def _skippable_class_member(key: str, value: Any, hints: dict | None = None) -> 
         # check for class methods
         if isinstance(value, types.MethodType):
             return True
+
+        if "CollisionAPI" in value.__name__:
+            return False
+
         # check for instance methods
         signature = inspect.signature(value)
         if "self" in signature.parameters or "cls" in signature.parameters:
             return True
+
     # skip property methods
     if isinstance(value, property):
         return True

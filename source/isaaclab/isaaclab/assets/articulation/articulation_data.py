@@ -151,8 +151,9 @@ class ArticulationData:
     default_inertia: torch.Tensor = None
     """Default inertia for all the bodies in the articulation. Shape is (num_instances, num_bodies, 9).
 
-    The inertia is the inertia tensor relative to the center of mass frame. The values are stored in
-    the order :math:`[I_{xx}, I_{xy}, I_{xz}, I_{yx}, I_{yy}, I_{yz}, I_{zx}, I_{zy}, I_{zz}]`.
+    The inertia tensor should be given with respect to the center of mass, expressed in the articulation links' actor frame.
+    The values are stored in the order :math:`[I_{xx}, I_{yx}, I_{zx}, I_{xy}, I_{yy}, I_{zy}, I_{xz}, I_{yz}, I_{zz}]`.
+    However, due to the symmetry of inertia tensors, row- and column-major orders are equivalent.
 
     This quantity is parsed from the USD schema at the time of initialization.
     """

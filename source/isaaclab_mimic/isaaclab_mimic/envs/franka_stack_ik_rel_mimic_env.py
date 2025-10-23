@@ -80,7 +80,7 @@ class FrankaCubeStackIKRelMimicEnv(ManagerBasedRLMimicEnv):
         # add noise to action
         pose_action = torch.cat([delta_position, delta_rotation], dim=0)
         if action_noise_dict is not None:
-            noise = action_noise_dict["franka"] * torch.randn_like(pose_action)
+            noise = action_noise_dict[eef_name] * torch.randn_like(pose_action)
             pose_action += noise
             pose_action = torch.clamp(pose_action, -1.0, 1.0)
 
@@ -163,3 +163,26 @@ class FrankaCubeStackIKRelMimicEnv(ManagerBasedRLMimicEnv):
         signals["stack_1"] = subtask_terms["stack_1"][env_ids]
         # final subtask is placing cubeC on cubeA (motion relative to cubeA) - but final subtask signal is not needed
         return signals
+
+    def get_expected_attached_object(self, eef_name: str, subtask_index: int, env_cfg) -> str | None:
+        """
+        (SkillGen) Return the expected attached object for the given EEF/subtask.
+
+        Assumes 'stack' subtasks place the object grasped in the preceding 'grasp' subtask.
+        Returns None for 'grasp' (or others) at subtask start.
+        """
+        if eef_name not in env_cfg.subtask_configs:
+            return None
+
+        subtask_configs = env_cfg.subtask_configs[eef_name]
+        if not (0 <= subtask_index < len(subtask_configs)):
+            return None
+
+        current_cfg = subtask_configs[subtask_index]
+        # If stacking, expect we are holding the object grasped in the prior subtask
+        if "stack" in str(current_cfg.subtask_term_signal).lower():
+            if subtask_index > 0:
+                prev_cfg = subtask_configs[subtask_index - 1]
+                if "grasp" in str(prev_cfg.subtask_term_signal).lower():
+                    return prev_cfg.object_ref
+        return None

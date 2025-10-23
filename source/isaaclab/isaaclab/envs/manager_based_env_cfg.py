@@ -131,3 +131,6 @@ class ManagerBasedEnvCfg:
 
     io_descriptors_output_dir: str | None = None
     """The directory to export the IO descriptors to. Defaults to None."""
+
+    log_dir: str | None = None
+    """Directory for logging experiment artifacts. Defaults to None, in which case no specific log directory is set."""

@@ -343,7 +343,7 @@ def get_gpu_node_resources(
         or simply the resource for a single node if requested.
     """
     if not ray.is_initialized():
-        raise Exception("Ray is not initialized. Please initialize Ray before getting node resources.")
+        ray_init()
     nodes = ray.nodes()
     node_resources = []
     total_cpus = 0

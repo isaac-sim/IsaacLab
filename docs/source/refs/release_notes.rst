@@ -1348,7 +1348,7 @@ Welcome to the first official release of Isaac Lab!
 
 Building upon the foundation of the `Orbit <https://isaac-orbit.github.io/>`_ framework, we have integrated
 the RL environment designing workflow from `OmniIsaacGymEnvs <https://github.com/NVIDIA-Omniverse/OmniIsaacGymEnvs>`_.
-This allows users to choose a suitable `task-design approach <https://isaac-sim.github.io/IsaacLab/source/features/task_workflows.html>`_
+This allows users to choose a suitable :ref:`task-design approach <ref_arch>`
 for their applications.
 
 While we maintain backward compatibility with Isaac Sim 2023.1.1, we highly recommend using Isaac Lab with
@@ -1361,12 +1361,12 @@ New Features
 
 * Integrated CI/CD pipeline, which is triggered on pull requests and publishes the results publicly
 * Extended support for Windows OS platforms
-* Added `tiled rendered <https://isaac-sim.github.io/IsaacLab/source/features/tiled_rendering.html>`_ based Camera
+* Added tiled render based Camera
   sensor implementation. This provides optimized RGB-D rendering throughputs of up to 10k frames per second.
 * Added support for multi-GPU and multi-node training for the RL-Games library
 * Integrated APIs for environment designing (direct workflow) without relying on managers
 * Added implementation of delayed PD actuator model
-* `Added various new learning environments <https://isaac-sim.github.io/IsaacLab/main/source/features/environments.html>`_:
+* Added various new learning environments:
   * Cartpole balancing using images
   * Shadow hand cube reorientation
   * Boston Dynamics Spot locomotion

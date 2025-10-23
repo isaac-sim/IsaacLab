@@ -1,0 +1,111 @@
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+params:
+  seed: 42
+
+  # environment wrapper clipping
+  env:
+    clip_observations: 100.0
+    clip_actions: 100.0
+    obs_groups:
+      obs: ["policy", "proprio", "perception"]
+      states: ["policy", "proprio", "perception"]
+    concate_obs_groups: True
+
+  algo:
+    name: a2c_continuous
+
+  model:
+    name: continuous_a2c_logstd
+
+  network:
+    name: actor_critic
+    separate: True
+    space:
+      continuous:
+        mu_activation: None
+        sigma_activation: None
+        mu_init:
+          name: default
+        sigma_init:
+          name: const_initializer
+          val: 0
+        fixed_sigma: True
+    mlp:
+      units: [512, 256, 128]
+      activation: elu
+      d2rl: False
+      initializer:
+        name: default
+      regularizer:
+        name: None
+
+  load_checkpoint: False # flag which sets whether to load the checkpoint
+  load_path: '' # path to the checkpoint to load
+
+  config:
+    name: reorient
+    env_name: rlgpu
+    device: 'cuda:0'
+    device_name: 'cuda:0'
+    multi_gpu: False
+    ppo: True
+    mixed_precision: False
+    normalize_input: True
+    normalize_value: True
+    value_bootstrap: False
+    num_actors: -1
+    reward_shaper:
+      scale_value: 0.01
+    normalize_advantage: True
+    gamma: 0.99
+    tau: 0.95
+    learning_rate: 1e-3
+    lr_schedule: adaptive
+    schedule_type: legacy
+    kl_threshold: 0.01
+    score_to_win: 100000000
+    max_epochs: 750000
+    save_best_after: 100
+    save_frequency: 50
+    print_stats: True
+    grad_norm: 1.0
+    entropy_coef: 0.001
+    truncate_grads: True
+    e_clip: 0.2
+    horizon_length: 36
+    minibatch_size: 36864
+    mini_epochs: 5
+    critic_coef: 4
+    clip_value: True
+    clip_actions: False
+    seq_len: 4
+    bounds_loss_coef: 0.0001
+
+pbt:
+  enabled: False
+  policy_idx: 0  # policy index in a population
+  num_policies: 8  # total number of policies in the population
+  directory: .
+  workspace: "pbt_workspace"  # suffix of the workspace dir name inside train_dir
+  objective: episode.Curriculum/adr
+
+  # PBT hyperparams
+  interval_steps: 50000000
+  threshold_std: 0.1
+  threshold_abs: 0.025
+  mutation_rate: 0.25
+  change_range: [1.1, 2.0]
+  mutation:
+
+    agent.params.config.learning_rate: "mutate_float"
+    agent.params.config.grad_norm: "mutate_float"
+    agent.params.config.entropy_coef: "mutate_float"
+    agent.params.config.critic_coef: "mutate_float"
+    agent.params.config.bounds_loss_coef: "mutate_float"
+    agent.params.config.kl_threshold: "mutate_float"
+    agent.params.config.gamma: "mutate_discount"
+    agent.params.config.tau: "mutate_discount"

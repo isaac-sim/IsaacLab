@@ -1,6 +1,99 @@
 Changelog
 ---------
 
+0.11.5 (2025-10-22)
+~~~~~~~~~~~~~~~~~~
+
+Removed
+^^^^^^^
+
+* Removed scikit-learn dependency because we are no longer using this package.
+
+
+0.11.4 (2025-10-20)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Fixed the anchor position for the XR anchor in the world frame for the G1 robot tasks.
+
+
+0.11.3 (2025-10-15)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed how the Sim rendering settings are modified by the Cosmos-Mimic env cfg.
+
+
+0.11.2 (2025-10-10)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added OpenXRteleoperation devices to the Galbot stack environments.
+
+
+0.11.1 (2025-09-24)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added dextrous lifting pbt configuration example cfg for rl_games.
+
+
+0.11.0 (2025-09-07)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added dextrous lifting and dextrous reorientation manipulation rl environments.
+
+
+0.10.51 (2025-09-08)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added SkillGen-specific cube stacking environments:
+  * :class:`FrankaCubeStackSkillgenEnvCfg`; Gym ID ``Isaac-Stack-Cube-Franka-IK-Rel-Skillgen-v0``.
+* Added bin cube stacking environment for SkillGen/Mimic:
+  * :class:`FrankaBinStackEnvCfg`; Gym ID ``Isaac-Stack-Cube-Bin-Franka-IK-Rel-Mimic-v0``.
+
+
+0.10.50 (2025-09-05)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added stacking environments for Galbot with suction grippers.
+
+
+0.10.49 (2025-09-05)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added suction gripper stacking environments with UR10 that can be used with teleoperation.
+
+
+0.10.48 (2025-09-03)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``Isaac-Deploy-Reach-UR10e-v0`` environment.
+
+
 0.10.47 (2025-07-25)
 ~~~~~~~~~~~~~~~~~~~~
 
