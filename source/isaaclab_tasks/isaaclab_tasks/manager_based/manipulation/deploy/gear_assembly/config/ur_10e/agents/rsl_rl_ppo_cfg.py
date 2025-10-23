@@ -5,7 +5,13 @@
 
 from isaaclab.utils import configclass
 
-from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlPpoActorCriticCfg, RslRlPpoActorCriticRecurrentCfg, RslRlPpoAlgorithmCfg
+from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlPpoActorCriticCfg, RslRlPpoAlgorithmCfg, RslRlPpoActorCriticRecurrentCfg
+
+
+@configclass
+class MyRslRlPpoActorCriticRecurrentCfg(RslRlPpoActorCriticRecurrentCfg):
+    state_dependent_std = True
+
 
 
 @configclass
@@ -14,9 +20,11 @@ class UR10GearAssemblyPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     max_iterations = 1500
     save_interval = 10
     experiment_name = "gear_assembly_ur10e"
-    empirical_normalization = True
+    value_normalization = False
     policy = RslRlPpoActorCriticCfg(
         init_noise_std=1.0,
+        actor_obs_normalization=True,
+        critic_obs_normalization=True,
         actor_hidden_dims=[256, 128, 64],
         critic_hidden_dims=[256, 128, 64],
         activation="elu",
@@ -44,12 +52,17 @@ class UR10GearAssemblyRNNPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     max_iterations = 1500
     save_interval = 50
     experiment_name = "gear_assembly_ur10e"
-    empirical_normalization = True
     clip_actions = 1.0
     resume = False
-    policy = RslRlPpoActorCriticRecurrentCfg(
-        state_dependent_std=True,
+    value_normalization = False
+    obs_groups = {
+        "policy": ["policy"],
+        "critic": ["policy"],
+    }
+    policy = MyRslRlPpoActorCriticRecurrentCfg(
         init_noise_std=1.0,
+        actor_obs_normalization=True,
+        critic_obs_normalization=True,
         actor_hidden_dims=[256, 128, 64],
         critic_hidden_dims=[256, 128, 64],
         noise_std_type="log",
