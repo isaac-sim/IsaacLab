@@ -1966,9 +1966,3 @@ def generate_random_transformation_matrix(pos_boundary: float = 1, rot_boundary:
     T[:3, 3] = translation
 
     return T
-
-
-@torch.jit.script
-def rand_range(lower, upper):
-    # type: (torch.Tensor, torch.Tensor) -> torch.Tensor
-    return (upper - lower) * torch.rand_like(upper) + lower

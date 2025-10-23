@@ -15,7 +15,7 @@ import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-from isaaclab.utils.math import rand_range
+import isaaclab.utils.math as math_utils
 from isaaclab.utils.types import ArticulationThrustActions
 
 if TYPE_CHECKING:
@@ -73,10 +73,10 @@ class Thruster:
         self._init_thruster_rps = init_thruster_rps
 
         # Range tensors, shaped (num_envs, 2, num_motors); [:,0,:]=min, [:,1,:]=max
-        target_size = (self._num_envs, 2, cfg.num_motors)
-        self.thrust_r = torch.tensor(cfg.thrust_range).view(1, 2, 1).expand(target_size).to(self._device)
-        self.tau_inc_r = torch.tensor(cfg.tau_inc_range).view(1, 2, 1).expand(target_size).to(self._device)
-        self.tau_dec_r = torch.tensor(cfg.tau_dec_range).view(1, 2, 1).expand(target_size).to(self._device)
+        self.num_motors = cfg.num_motors
+        self.thrust_r = torch.tensor(cfg.thrust_range).to(self._device)
+        self.tau_inc_r = torch.tensor(cfg.tau_inc_range).to(self._device)
+        self.tau_dec_r = torch.tensor(cfg.tau_dec_range).to(self._device)
 
         self.max_rate = torch.tensor(cfg.max_thrust_rate).expand(self._num_envs, cfg.num_motors).to(self._device)
 
@@ -84,12 +84,14 @@ class Thruster:
         self.min_thrust = self.cfg.thrust_range[0]
 
         # State & randomized per-motor parameters
-        self.tau_inc_s = rand_range(self.tau_inc_r[:, 0], self.tau_inc_r[:, 1])
-        self.tau_dec_s = rand_range(self.tau_dec_r[:, 0], self.tau_dec_r[:, 1])
+        self.tau_inc_s = math_utils.sample_uniform(*self.tau_inc_r, (self._num_envs, cfg.num_motors), self._device)
+        self.tau_dec_s = math_utils.sample_uniform(*self.tau_dec_r, (self._num_envs, cfg.num_motors), self._device)
 
         if cfg.use_rps:
-            self.thrust_const_r = torch.tensor(cfg.thrust_const_range).view(1, 2, 1).expand(target_size).to(device)
-            self.thrust_const = rand_range(self.thrust_const_r[:, 0], self.thrust_const_r[:, 1])
+            self.thrust_const_r = torch.tensor(cfg.thrust_const_range).to(device)
+            self.thrust_const = math_utils.sample_uniform(
+                *self.thrust_const_r, (self._num_envs, cfg.num_motors), self._device
+            )
 
         self.curr_thrust = (
             torch.ones(self._num_envs, cfg.num_motors, device=self._device, dtype=torch.float32)
@@ -152,7 +154,7 @@ class Thruster:
 
         """
         des_thrust = control_action.thrusts
-        des_thrust = torch.clamp(des_thrust, self.thrust_r[:, 0], self.thrust_r[:, 1])
+        des_thrust = torch.clamp(des_thrust, *self.thrust_r)
 
         thrust_decrease_mask = torch.sign(self.curr_thrust) * torch.sign(des_thrust - self.curr_thrust)
         motor_tau = torch.where(thrust_decrease_mask < 0, self.tau_dec_s, self.tau_inc_s)
@@ -180,13 +182,28 @@ class Thruster:
         """
         if env_ids is None:
             env_ids = slice(None)
-
-        self.tau_inc_s[env_ids] = rand_range(self.tau_inc_r[env_ids, 0], self.tau_inc_r[env_ids, 1])
-        self.tau_dec_s[env_ids] = rand_range(self.tau_dec_r[env_ids, 0], self.tau_dec_r[env_ids, 1])
-        self.curr_thrust[env_ids] = rand_range(self.thrust_r[env_ids, 0], self.thrust_r[env_ids, 1])
+        self.tau_inc_s[env_ids] = math_utils.sample_uniform(
+            *self.tau_inc_r,
+            (len(env_ids), self.num_motors),
+            self._device,
+        )
+        self.tau_dec_s[env_ids] = math_utils.sample_uniform(
+            *self.tau_dec_r,
+            (len(env_ids), self.num_motors),
+            self._device,
+        )
+        self.curr_thrust[env_ids] = math_utils.sample_uniform(
+            *self.thrust_r,
+            (len(env_ids), self.num_motors),
+            self._device,
+        )
 
         if self.cfg.use_rps:
-            self.thrust_const[env_ids] = rand_range(self.thrust_const_r[:, 0], self.thrust_const_r[:, 1])[env_ids]
+            self.thrust_const[env_ids] = math_utils.sample_uniform(
+                *self.thrust_const_r,
+                (len(env_ids), self.num_motors),
+                self._device,
+            )
 
     def reset(self, env_ids: Sequence[int]) -> None:
         """Reset all envs."""
