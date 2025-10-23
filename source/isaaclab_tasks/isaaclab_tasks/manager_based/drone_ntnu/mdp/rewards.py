@@ -40,27 +40,7 @@ def distance_to_goal_exp(
     return torch.exp(-position_error_square / std**2)
 
 
-def upright_posture_reward(
-    env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"), std: float = 0.5
-) -> torch.Tensor:
-    # extract the used quantities (to enable type-hinting)
-    asset: RigidObject = env.scene[asset_cfg.name]
-
-    # extract euler angles (in world frame)
-    roll, pitch, _ = math_utils.euler_xyz_from_quat(asset.data.root_quat_w)
-
-    # normalize angles to [-pi, pi]
-    roll = torch.atan2(torch.sin(roll), torch.cos(roll))
-    pitch = torch.atan2(torch.sin(pitch), torch.cos(pitch))
-
-    # compute deviation from upright (roll=0, pitch=0)
-    orientation_error_square = roll**2 + pitch**2
-
-    upright_reward = torch.exp(-orientation_error_square / std**2)
-    return upright_reward
-
-
-def ang_vel_reward(
+def ang_vel_xyz_exp(
     env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"), std: float = 1.0
 ) -> torch.Tensor:
 
@@ -70,11 +50,10 @@ def ang_vel_reward(
     # compute squared magnitude of angular velocity (all axes)
     ang_vel_squared = torch.sum(torch.square(asset.data.root_ang_vel_b), dim=1)
 
-    angular_vel_reward = torch.exp(-ang_vel_squared / std**2)
-    return angular_vel_reward
+    return torch.exp(-ang_vel_squared / std**2)
 
 
-def velocity_reward(
+def lin_vel_xyz_exp(
     env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"), std: float = 1.0
 ) -> torch.Tensor:
 
@@ -84,11 +63,10 @@ def velocity_reward(
     # compute squared magnitude of linear velocity (all axes)
     lin_vel_squared = torch.sum(torch.square(asset.data.root_lin_vel_w), dim=1)
 
-    linear_vel_reward = torch.exp(-lin_vel_squared / std**2)
-    return linear_vel_reward
+    return torch.exp(-lin_vel_squared / std**2)
 
 
-def yaw_reward(
+def yaw_aligned(
     env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"), std: float = 0.5
 ) -> torch.Tensor:
     # extract the used quantities (to enable type-hinting)

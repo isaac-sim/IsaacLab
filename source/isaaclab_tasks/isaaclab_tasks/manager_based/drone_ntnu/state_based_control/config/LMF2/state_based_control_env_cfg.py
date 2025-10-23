@@ -103,14 +103,10 @@ class ObservationsCfg:
         """Observations for policy group."""
 
         # observation terms (order preserved)
-        base_link_position = ObsTerm(
-            func=mdp.generated_drone_commands,
-            params={"command_name": "target_pose", "asset_cfg": SceneEntityCfg("robot")},
-            noise=Unoise(n_min=-0.001, n_max=0.001),
-        )
-        base_roll_pitch = ObsTerm(func=mdp.base_roll_pitch, noise=Unoise(n_min=-0.001, n_max=0.001))
-        base_lin_vel = ObsTerm(func=mdp.base_lin_vel, noise=Unoise(n_min=-0.001, n_max=0.001))
-        base_ang_vel = ObsTerm(func=mdp.base_ang_vel, noise=Unoise(n_min=-0.001, n_max=0.001))
+        base_link_position = ObsTerm(func=mdp.root_pos_w, noise=Unoise(n_min=-0.1, n_max=0.1))
+        base_orientation = ObsTerm(func=mdp.root_quat_w, noise=Unoise(n_min=-0.1, n_max=0.1))
+        base_lin_vel = ObsTerm(func=mdp.base_lin_vel, noise=Unoise(n_min=-0.1, n_max=0.1))
+        base_ang_vel = ObsTerm(func=mdp.base_ang_vel, noise=Unoise(n_min=-0.1, n_max=0.1))
         last_action = ObsTerm(func=mdp.last_action, noise=Unoise(n_min=-0.0, n_max=0.0))
 
         def __post_init__(self):
@@ -155,16 +151,7 @@ class EventCfg:
 class RewardsCfg:
     """Reward terms for the MDP."""
 
-    goal_dist_exp1 = RewTerm(
-        func=mdp.distance_to_goal_exp,
-        weight=10.0,
-        params={
-            "asset_cfg": SceneEntityCfg("robot"),
-            "std": 7.0,
-            "command_name": "target_pose",
-        },
-    )
-    goal_dist_exp2 = RewTerm(
+    distance_to_goal_exp = RewTerm(
         func=mdp.distance_to_goal_exp,
         weight=25.0,
         params={
@@ -173,24 +160,26 @@ class RewardsCfg:
             "command_name": "target_pose",
         },
     )
-    upright_posture = RewTerm(
-        func=mdp.upright_posture_reward, weight=1.0, params={"asset_cfg": SceneEntityCfg("robot"), "std": 5.0}  # 0.5
+    flat_orientation_l2 = RewTerm(
+        func=mdp.flat_orientation_l2,
+        weight=1.0,
+        params={"asset_cfg": SceneEntityCfg("robot")},
     )
-
-    yaw_aligned = RewTerm(func=mdp.yaw_reward, weight=2.0, params={"asset_cfg": SceneEntityCfg("robot"), "std": 1.0})
-
-    velocity_reward = RewTerm(
-        func=mdp.velocity_reward,
+    yaw_aligned = RewTerm(
+        func=mdp.yaw_aligned,
+        weight=2.0,
+        params={"asset_cfg": SceneEntityCfg("robot"), "std": 1.0},
+    )
+    lin_vel_xyz_exp = RewTerm(
+        func=mdp.lin_vel_xyz_exp,
         weight=2.5,
-        params={
-            "asset_cfg": SceneEntityCfg("robot"),
-            "std": 2.0,
-        },
+        params={"asset_cfg": SceneEntityCfg("robot"), "std": 2.0},
     )
-    ang_vel_smooth = RewTerm(
-        func=mdp.ang_vel_reward, weight=10.0, params={"asset_cfg": SceneEntityCfg("robot"), "std": 10.0}  # 1.0
+    ang_vel_xyz_exp = RewTerm(
+        func=mdp.ang_vel_xyz_exp,
+        weight=10.0,
+        params={"asset_cfg": SceneEntityCfg("robot"), "std": 10.0},
     )
-
     action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=-0.05)
     action_magnitude_l2 = RewTerm(func=mdp.action_l2, weight=-0.05)
 
