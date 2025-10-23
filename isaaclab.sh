@@ -563,6 +563,10 @@ while [[ $# -gt 0 ]]; do
             break
             ;;
         -p|--python)
+            # ensures Kit loads Isaac Sim’s icon instead of a generic icon on aarch64
+            if is_arm; then
+                export RESOURCE_NAME="${RESOURCE_NAME:-IsaacSim}"
+            fi
             # run the python provided by isaacsim
             python_exe=$(extract_python_exe)
             echo "[INFO] Using python from: ${python_exe}"
