@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.47.1 (2025-10-22)
+0.47.2 (2025-10-22)
 ~~~~~~~~~~~~~~~~~~~
 
 Changed
@@ -9,6 +9,16 @@ Changed
 
 * Fixed the data type conversion in :class:`~isaaclab.sensors.tiled_camera.TiledCamera` to
   support the correct data type when converting from numpy arrays to warp arrays on the CPU.
+
+
+0.47.1 (2025-10-17)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :meth:`~isaaclab.sim.utils.resolve_prim_pose` to resolve the pose of a prim with respect to another prim.
+* Added :meth:`~isaaclab.sim.utils.resolve_prim_scale` to resolve the scale of a prim in the world frame.
 
 
 0.47.0 (2025-10-14)
