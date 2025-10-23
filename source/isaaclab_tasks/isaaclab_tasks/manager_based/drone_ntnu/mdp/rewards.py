@@ -39,24 +39,23 @@ def distance_to_goal_exp(
     return torch.exp(-position_error_square / std**2)
 
 def distance_to_goal_exp_curriculum(
-        env: ManagerBasedRLEnv,
-        asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
-        std: float = 1.0,
-        command_name: str = "target_pose"
-    ) -> torch.Tensor:
-    """Reward the distance to a goal position using an exponential kernel, with curriculum scaling."""
-    # extract the used quantities (to enable type-hinting)
+    env: ManagerBasedRLEnv,
+    std: float,
+    command_name: str,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+) -> torch.Tensor:
+    """Reward for exponential distance to goal with obstacle curriculum."""
     asset: RigidObject = env.scene[asset_cfg.name]
     command = env.command_manager.get_command(command_name)
-
-    target_position_w = command[:, :3].clone()
-    current_position = asset.data.root_pos_w - env.scene.env_origins
-
-    # compute the error
-    position_error_square = torch.sum(torch.square(target_position_w - current_position), dim=1)
-    # weight based on the current curriculum level
-    weight = 1.0 + env.scene.terrain.terrain_levels.float() / float(env.scene.terrain.max_terrain_level)
-    return weight * torch.exp(-position_error_square / std**2)
+    distance = torch.norm(command[:, :3] - asset.data.root_pos_w, dim=-1)
+    
+    # Use obstacle curriculum if it exists
+    if hasattr(env, '_obstacle_difficulty_levels'):
+        weight = 1.0 + env._obstacle_difficulty_levels.float() / float(env._max_obstacle_difficulty)
+    else:
+        weight = 1.0
+    
+    return weight * torch.exp(-distance / std)
 
 def velocity_to_goal_reward(
     env: ManagerBasedRLEnv,
@@ -94,8 +93,11 @@ def velocity_to_goal_reward_curriculum(
     direction_to_goal = direction_to_goal / (torch.norm(direction_to_goal, dim=1, keepdim=True) + 1e-8)
     # compute the reward as the dot product between the velocity and the direction to the goal
     velocity_towards_goal = torch.sum(asset.data.root_lin_vel_w * direction_to_goal, dim=1)
-    # weight based on the current curriculum level
-    weight = 1.0 + env.scene.terrain.terrain_levels.float() / float(env.scene.terrain.max_terrain_level)
+    # Use obstacle curriculum if it exists
+    if hasattr(env, '_obstacle_difficulty_levels'):
+        weight = 1.0 + env._obstacle_difficulty_levels.float() / float(env._max_obstacle_difficulty)
+    else:
+        weight = 1.0
     return weight * velocity_towards_goal
 
 def upright_posture_reward(

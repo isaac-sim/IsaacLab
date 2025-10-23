@@ -52,3 +52,54 @@ def terrain_levels_vel(
     terrain.update_drone_env_origins(env_ids, move_up, move_down)
     # return the mean terrain level
     return torch.mean(terrain.terrain_levels.float())
+
+def obstacle_density_curriculum(
+    env: ManagerBasedRLEnv, 
+    env_ids: Sequence[int], 
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    max_difficulty: int = 10,
+) -> float:
+    """Curriculum that adjusts obstacle density based on performance."""
+    # Initialize
+    if not hasattr(env, "_obstacle_difficulty_levels"):
+        # TODO: storing this in the env is weird @welfr
+        env._obstacle_difficulty_levels = torch.zeros(env.num_envs, device=env.device)
+        env._max_obstacle_difficulty = max_difficulty
+        env._obstacle_difficulty = 0.0
+    
+    if len(env_ids) == 0:
+        return env._obstacle_difficulty
+    
+    # Extract robot
+    asset: Articulation = env.scene[asset_cfg.name]
+    
+    # Performance metric
+    target_position_w = env.scene.env_origins.clone()
+    target_position_w[:, 0] += 10.0  # 10m ahead
+    position_error = torch.norm(
+        target_position_w[env_ids, :2] - asset.data.root_pos_w[env_ids, :2], dim=1
+    )
+    
+    # Decide difficulty changes
+    crashed = env.termination_manager.terminated[env_ids]
+    move_up = position_error < 1.0  # Success
+    move_down = crashed | (position_error > 5.0)  # Failure
+    move_down *= ~move_up
+    
+    # Update per-env difficulty levels
+    if move_up.any():
+        env._obstacle_difficulty_levels[env_ids[move_up]] = torch.clamp(
+            env._obstacle_difficulty_levels[env_ids[move_up]] + 1,
+            max=max_difficulty
+        )
+    
+    if move_down.any():
+        env._obstacle_difficulty_levels[env_ids[move_down]] = torch.clamp(
+            env._obstacle_difficulty_levels[env_ids[move_down]] - 1,
+            min=0
+        )
+    
+    # Compute mean difficulty for logging
+    env._obstacle_difficulty = env._obstacle_difficulty_levels.float().mean() / max_difficulty
+    
+    return env._obstacle_difficulty
