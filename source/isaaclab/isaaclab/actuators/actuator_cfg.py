@@ -10,6 +10,7 @@ from typing import Literal
 from isaaclab.utils import configclass
 
 from . import actuator_net, actuator_pd
+from . import ControlMode
 
 
 @configclass
@@ -162,8 +163,8 @@ class ActuatorBaseCfg:
     """The viscous friction coefficient of the joints in the group. Defaults to None.
     """
 
-    control_mode: Literal["position", "velocity", "effort"] = "position"
-    """The control mode of the actuator. Defaults to "position".
+    control_mode: ControlMode = ControlMode.POSITION
+    """The control mode of the actuator. Defaults to :obj:`ControlMode.POSITION`.
 
     The control mode can be one of the following:
 

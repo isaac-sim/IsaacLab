@@ -1,5 +1,5 @@
 from .base_rigid_object import BaseRigidObject
-from isaaclab.utils.backend_utils import FactoryBase, Registerable
+from isaaclab.utils.backend_utils import FactoryBase
 
 class RigidObject(FactoryBase):
     """Factory for creating articulation instances."""
@@ -10,10 +10,3 @@ class RigidObject(FactoryBase):
         # an instance of the correct backend-specific articulation class,
         # which is guaranteed to be a subclass of `BaseArticulation` by convention.
         return super().__new__(cls, *args, **kwargs)
-
-
-class RegisterableRigidObject(Registerable):
-    """A mixin to register an articulation with the Articulation factory."""
-    # This class attribute is set here to avoid circular imports.
-    # The BaseArticulation class cannot import the Articulation factory.
-    __factory_class__ = RigidObject

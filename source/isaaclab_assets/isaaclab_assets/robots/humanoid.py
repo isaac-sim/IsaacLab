@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 import isaaclab.sim as sim_utils
-from isaaclab.actuators import ImplicitActuatorCfg
+from isaaclab.actuators import ImplicitActuatorCfg, ControlMode
 from isaaclab.assets import ArticulationCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
@@ -32,7 +32,7 @@ HUMANOID_CFG = ArticulationCfg(
     actuators={
         "body": ImplicitActuatorCfg(
             joint_names_expr=[".*"],
-            control_mode="position",
+            control_mode=ControlMode.POSITION,
             stiffness={
                 ".*_waist.*": 20.0,
                 ".*_upper_arm.*": 10.0,

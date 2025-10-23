@@ -38,10 +38,7 @@ class ArticulationData(BaseArticulationData):
         self.frontend = frontend
 
     def maybe_to_torch(self, data: wp.array) -> wp.array | torch.Tensor:
-        if self.frontend == Frontend.TORCH:
-            return wp.to_torch(data)
-        else:
-            return data
+        return wp.to_torch(data) if self.frontend == Frontend.TORCH else data
 
     @property
     def joint_data(self) -> JointData:
@@ -316,7 +313,7 @@ class ArticulationData(BaseArticulationData):
         return self.maybe_to_torch(self._joint_data.soft_joint_vel_limits)
 
     @property
-    def gear_ratio(self) -> wp.array | torch.Tensor:
+    def gear_ratio(self) -> wp.array | torch.Tensor: #TODO: Mayank got some comments
         """Gear ratio for relating motor torques to applied Joint torques. Shape is (num_instances, num_joints)."""
         return self.maybe_to_torch(self._joint_data.gear_ratio)
 

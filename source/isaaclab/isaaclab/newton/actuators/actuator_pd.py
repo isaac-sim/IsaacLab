@@ -13,9 +13,6 @@ import omni.log
 import warp as wp
 
 from .actuator_base import ActuatorBase
-from isaaclab.actuators.actuator_pd import RegisterableImplicitActuator
-from isaaclab.actuators.actuator_pd import RegisterableIdealPDActuator
-from isaaclab.actuators.actuator_pd import RegisterableDCMotor
 from .kernels import clip_efforts_dc_motor, compute_pd_actuator
 
 # from isaaclab.utils import DelayBuffer, LinearInterpolation
@@ -34,7 +31,7 @@ Implicit Actuator Models.
 """
 
 
-class ImplicitActuator(RegisterableImplicitActuator, ActuatorBase):
+class ImplicitActuator(ActuatorBase):
     """Implicit actuator model that is handled by the simulation.
 
     This performs a similar function as the :class:`IdealPDActuator` class. However, the PD control is handled
@@ -156,7 +153,7 @@ Explicit Actuator Models.
 """
 
 
-class IdealPDActuator(RegisterableIdealPDActuator, ActuatorBase):
+class IdealPDActuator(ActuatorBase):
     r"""Ideal torque-controlled actuator model with a simple saturation model.
 
     It employs the following model for computing torques for the actuated joint :math:`j`:
@@ -212,7 +209,7 @@ class IdealPDActuator(RegisterableIdealPDActuator, ActuatorBase):
         self._clip_effort(self.joint_data.computed_effort, self.joint_data.applied_effort)
 
 
-class DCMotor(RegisterableDCMotor, IdealPDActuator):
+class DCMotor(IdealPDActuator):
     r"""Direct control (DC) motor actuator model with velocity-based saturation model.
 
     It uses the same model as the :class:`IdealActuator` for computing the torques from input commands.

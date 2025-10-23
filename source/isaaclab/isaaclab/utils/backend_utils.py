@@ -1,4 +1,7 @@
 import importlib
+import logging
+
+logger = logging.getLogger(__name__)
 
 class FactoryBase:
     """A generic factory class that dynamically loads backends."""
@@ -22,6 +25,7 @@ class FactoryBase:
         if name in cls._registry and cls._registry[name] is not sub_class:
             raise ValueError(f"Backend {name!r} already registered with a different class for factory {cls.__name__}.")
         cls._registry[name] = sub_class
+        logger.info(f"Registered backend {name!r} for factory {cls.__name__}.")
 
     def __new__(cls, *args, **kwargs):
         """Create a new instance of an implementation based on the backend."""
@@ -31,12 +35,17 @@ class FactoryBase:
         if cls == FactoryBase:
             raise TypeError("FactoryBase cannot be instantiated directly. Please subclass it.")
 
-        # If backend is not in registry, try to import it.
+        # If backend is not in registry, try to import it and register the class.
+        # This is done to only import the module once.
         if backend not in cls._registry:
             # Construct the module name from the backend and the determined subpath.
             module_name = f"isaaclab.{backend}.{cls._module_subpath}"
             try:
-                importlib.import_module(module_name)
+                module = importlib.import_module(module_name)
+                module_class = getattr(module, cls.__name__)
+                # Manually register the class
+                cls.register(backend, module_class)
+
             except ImportError as e:
                 raise ValueError(
                     f"Could not import module for backend {backend!r} for factory {cls.__name__}. "
@@ -49,13 +58,9 @@ class FactoryBase:
             impl = cls._registry[backend]
         except KeyError:
             available = list(cls.get_registry_keys())
-            # Suggest the specialized mixin name by convention (e.g., "RegisterableArticulation").
-            registerable_mixin_name = f"Registerable{cls.__name__}"
             raise ValueError(
                 f"Unknown backend {backend!r} for {cls.__name__}. "
-                f"A module was found at '{module_name}', but it did not register an implementation.\n"
-                f"Ensure the implementation class in that module inherits from the correct registerable mixin "
-                f"(e.g., `{registerable_mixin_name}`) and has a `__backend_name__` attribute set to {backend!r}.\n"
+                f"A module was found at '{module_name}', but it did not contain a class with the name {cls.__name__}.\n"
                 f"Currently available backends: {available}."
             ) from None
         # Return an instance of the chosen class.
@@ -65,18 +70,3 @@ class FactoryBase:
     def get_registry_keys(cls) -> list[str]:
         """Returns a list of registered backend names."""
         return list(cls._registry.keys())
-
-class Registerable:
-    """A mixin class to make an implementation class registerable to a factory.
-
-    The factory must be specified as a class attribute `__factory_class__`.
-    The backend name must be specified as a class attribute `__backend_name__`.
-    """
-    def __init_subclass__(cls, **kwargs):
-        """Register the class in the factory provided."""
-        super().__init_subclass__(**kwargs)
-        if hasattr(cls, "__factory_class__") and hasattr(cls, "__backend_name__"):
-            factory_class = cls.__factory_class__
-            backend_name = cls.__backend_name__
-            print(f"Registering backend '{backend_name}' for factory '{factory_class.__name__}'.")
-            factory_class.register(backend_name, cls)

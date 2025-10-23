@@ -2,58 +2,47 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
-
-from isaaclab.utils.backend_utils import FactoryBase, Registerable
+from __future__ import annotations
+from isaaclab.utils.backend_utils import FactoryBase
+from typing import TYPE_CHECKING
 
 from .actuator_base import ActuatorBase
+
+if TYPE_CHECKING:
+    from isaaclab.newton.actuators.actuator_pd import ImplicitActuator as NewtonImplicitActuator
+    from isaaclab.newton.actuators.actuator_pd import IdealPDActuator as NewtonIdealPDActuator
+    from isaaclab.newton.actuators.actuator_pd import DCMotor as NewtonDCMotor
+    #from isaaclab.newton.actuators.actuator_pd import DelayedPDActuator as NewtonDelayedPDActuator
+    #from isaaclab.newton.actuators.actuator_pd import RemotizedPDActuator as NewtonRemotizedPDActuator
 
 """
 Implicit Actuator Models.
 """
 
-
 class ImplicitActuator(FactoryBase):
     """Factory for creating implicit actuator models."""
 
-    def __new__(cls, *args, **kwargs) -> ActuatorBase:
+    def __new__(cls, *args, **kwargs) -> ActuatorBase | NewtonImplicitActuator:
         """Create a new instance of an implicit actuator model based on the backend."""
         return super().__new__(cls, *args, **kwargs)
-
-class RegisterableImplicitActuator(Registerable):
-    """A mixin to register an implicit actuator with the ImplicitActuator factory."""
-    __factory_class__ = ImplicitActuator
-
 
 """
 Explicit Actuator Models.
 """
 
-
 class IdealPDActuator(FactoryBase):
     """Factory for creating ideal PD actuator models."""
 
-    def __new__(cls, *args, **kwargs) -> ActuatorBase:
+    def __new__(cls, *args, **kwargs) -> ActuatorBase | NewtonIdealPDActuator:
         """Create a new instance of an ideal PD actuator model based on the backend."""
         return super().__new__(cls, *args, **kwargs)
-
-
-class RegisterableIdealPDActuator(Registerable):
-    """A mixin to register an ideal PD actuator with the IdealPDActuator factory."""
-    __factory_class__ = IdealPDActuator
-
 
 class DCMotor(FactoryBase):
     """Factory for creating DC motor actuator models."""
 
-    def __new__(cls, *args, **kwargs) -> ActuatorBase:
+    def __new__(cls, *args, **kwargs) -> ActuatorBase | NewtonDCMotor:
         """Create a new instance of a DC motor actuator model based on the backend."""
         return super().__new__(cls, *args, **kwargs)
-
-
-class RegisterableDCMotor(Registerable):
-    """A mixin to register a DC motor actuator with the DCMotor factory."""
-    __factory_class__ = DCMotor
-
 
 class DelayedPDActuator(FactoryBase):
     """Factory for creating delayed PD actuator models."""
@@ -62,20 +51,9 @@ class DelayedPDActuator(FactoryBase):
         """Create a new instance of a delayed PD actuator model based on the backend."""
         return super().__new__(cls, *args, **kwargs)
 
-
-class RegisterableDelayedPDActuator(Registerable):
-    """A mixin to register a delayed PD actuator with the DelayedPDActuator factory."""
-    __factory_class__ = DelayedPDActuator
-
-
 class RemotizedPDActuator(FactoryBase):
     """Factory for creating remotized PD actuator models."""
 
     def __new__(cls, *args, **kwargs) -> ActuatorBase:
         """Create a new instance of a remotized PD actuator model based on the backend."""
         return super().__new__(cls, *args, **kwargs)
-
-
-class RegisterableRemotizedPDActuator(Registerable):
-    """A mixin to register a remotized PD actuator with the RemotizedPDActuator factory."""
-    __factory_class__ = RemotizedPDActuator

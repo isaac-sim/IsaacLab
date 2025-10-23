@@ -14,7 +14,7 @@ Reference: https://github.com/frankaemika/franka_ros
 """
 
 import isaaclab.sim as sim_utils
-from isaaclab.actuators import ImplicitActuatorCfg
+from isaaclab.actuators import ImplicitActuatorCfg, ControlMode
 from isaaclab.assets.articulation import ArticulationCfg
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
@@ -43,7 +43,7 @@ FRANKA_PANDA_CFG = ArticulationCfg(
     ),
     actuators={
         "panda_shoulder": ImplicitActuatorCfg(
-            control_mode="position",
+            control_mode=ControlMode.POSITION,
             joint_names_expr=["panda_joint[1-4]"],
             effort_limit_sim=87.0,
             stiffness=80.0,
@@ -52,7 +52,7 @@ FRANKA_PANDA_CFG = ArticulationCfg(
             armature=1e-3,
         ),
         "panda_forearm": ImplicitActuatorCfg(
-            control_mode="position",
+            control_mode=ControlMode.POSITION,
             joint_names_expr=["panda_joint[5-7]"],
             effort_limit_sim=12.0,
             stiffness=80.0,
@@ -61,7 +61,7 @@ FRANKA_PANDA_CFG = ArticulationCfg(
             armature=1e-3,
         ),
         "panda_hand": ImplicitActuatorCfg(
-            control_mode="position",
+            control_mode=ControlMode.POSITION,
             joint_names_expr=["panda_finger_joint.*"],
             effort_limit_sim=3.0,
             stiffness=20.0,

@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 import isaaclab.sim as sim_utils
-from isaaclab.actuators import ImplicitActuatorCfg
+from isaaclab.actuators import ImplicitActuatorCfg, ControlMode
 from isaaclab.assets import ArticulationCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
@@ -35,7 +35,7 @@ ANT_CFG = ArticulationCfg(
     actuators={
         "body": ImplicitActuatorCfg(
             joint_names_expr=[".*"],
-            control_mode="none",
+            control_mode=ControlMode.NONE,
             stiffness=0.0,
             damping=0.0,
             effort_limit_sim=30.0,

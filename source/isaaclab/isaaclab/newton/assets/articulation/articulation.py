@@ -23,7 +23,6 @@ import isaaclab.sim as sim_utils
 import isaaclab.utils.string as string_utils
 from isaaclab.sim._impl.newton_manager import NewtonManager
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
-from isaaclab.assets.articulation.articulation import RegisterableArticulation
 
 from isaaclab.newton.actuators import ActuatorBase, ImplicitActuator
 from isaaclab.newton.assets.articulation.articulation_data import ArticulationData
@@ -47,7 +46,7 @@ logger = logging.getLogger(__name__)
 warnings.simplefilter("once", UserWarning)
 logging.captureWarnings(True)
 
-class Articulation(RegisterableArticulation, BaseArticulation):
+class Articulation(BaseArticulation):
     """An articulation asset class.
 
     An articulation is a collection of rigid bodies connected by joints. The joints can be either
