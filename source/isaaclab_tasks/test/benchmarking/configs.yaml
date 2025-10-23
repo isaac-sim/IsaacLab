@@ -196,6 +196,13 @@ full:
       episode_length: 100
     upper_thresholds:
       duration: 1000
+  Isaac-Push-Cube-Franka-v0:
+    max_iterations: 300
+    lower_thresholds:
+      reward: 70
+      episode_length: 100
+    upper_thresholds:
+      duration: 1000
   Isaac-Navigation-Flat-Anymal-C-v0:
     max_iterations: 300
     lower_thresholds:

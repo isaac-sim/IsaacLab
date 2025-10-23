@@ -149,6 +149,7 @@ Guidelines for modifications:
 * Zoe McCarthy
 * David Leon
 * Song Yi
+* Mohamad H. Danesh
 
 ## Acknowledgements
 
