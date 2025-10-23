@@ -7,7 +7,7 @@ Changelog
 Fixed
 ^^^^^
 
-* Suppress yourdfpy warnings when trying to load meshes from hand urdfs in dex_retargeting. These mesh files are not
+* Suppressed yourdfpy warnings when trying to load meshes from hand urdfs in dex_retargeting. These mesh files are not
   used by dex_retargeting, but the parser is incorrectly configured by dex_retargeting to load them anyway which results
   in warning spam.
 
