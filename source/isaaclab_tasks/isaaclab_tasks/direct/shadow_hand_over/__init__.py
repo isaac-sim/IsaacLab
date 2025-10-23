@@ -17,7 +17,7 @@ from . import agents
 
 gym.register(
     id="Isaac-Shadow-Hand-Over-Direct-v0",
-    entry_point=f"{__name__}.shadow_hand_over_env:ShadowHandOverEnv",
+    vector_entry_point=f"{__name__}.shadow_hand_over_env:ShadowHandOverEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.shadow_hand_over_env_cfg:ShadowHandOverEnvCfg",
