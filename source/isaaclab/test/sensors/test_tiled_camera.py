@@ -40,7 +40,7 @@ from isaaclab.utils.timer import Timer
 
 
 @pytest.fixture(scope="function")
-def setup_camera() -> tuple[sim_utils.SimulationContext, TiledCameraCfg, float]:
+def setup_camera(device) -> tuple[sim_utils.SimulationContext, TiledCameraCfg, float]:
     """Fixture to set up and tear down the camera simulation environment."""
     camera_cfg = TiledCameraCfg(
         height=128,
@@ -58,7 +58,7 @@ def setup_camera() -> tuple[sim_utils.SimulationContext, TiledCameraCfg, float]:
     # Simulation time-step
     dt = 0.01
     # Load kit helper
-    sim_cfg = sim_utils.SimulationCfg(dt=dt)
+    sim_cfg = sim_utils.SimulationCfg(dt=dt, device=device)
     sim: sim_utils.SimulationContext = sim_utils.SimulationContext(sim_cfg)
     # populate scene
     _populate_scene()
@@ -72,8 +72,9 @@ def setup_camera() -> tuple[sim_utils.SimulationContext, TiledCameraCfg, float]:
     sim.clear_instance()
 
 
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.isaacsim_ci
-def test_single_camera_init(setup_camera):
+def test_single_camera_init(setup_camera, device):
     """Test single camera initialization."""
     sim, camera_cfg, dt = setup_camera
     # Create camera
@@ -119,8 +120,9 @@ def test_single_camera_init(setup_camera):
     del camera
 
 
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.isaacsim_ci
-def test_depth_clipping_max(setup_camera):
+def test_depth_clipping_max(setup_camera, device):
     """Test depth max clipping."""
     sim, _, dt = setup_camera
     # get camera cfgs
@@ -158,8 +160,9 @@ def test_depth_clipping_max(setup_camera):
     del camera
 
 
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.isaacsim_ci
-def test_depth_clipping_none(setup_camera):
+def test_depth_clipping_none(setup_camera, device):
     """Test depth none clipping."""
     sim, _, dt = setup_camera
     # get camera cfgs
@@ -201,8 +204,9 @@ def test_depth_clipping_none(setup_camera):
     del camera
 
 
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.isaacsim_ci
-def test_depth_clipping_zero(setup_camera):
+def test_depth_clipping_zero(setup_camera, device):
     """Test depth zero clipping."""
     sim, _, dt = setup_camera
     # get camera cfgs
@@ -240,8 +244,9 @@ def test_depth_clipping_zero(setup_camera):
     del camera
 
 
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.isaacsim_ci
-def test_multi_camera_init(setup_camera):
+def test_multi_camera_init(setup_camera, device):
     """Test multi-camera initialization."""
     sim, camera_cfg, dt = setup_camera
 
@@ -296,8 +301,9 @@ def test_multi_camera_init(setup_camera):
     del camera
 
 
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.isaacsim_ci
-def test_rgb_only_camera(setup_camera):
+def test_rgb_only_camera(setup_camera, device):
     """Test initialization with only RGB data type."""
     sim, camera_cfg, dt = setup_camera
     num_cameras = 9
@@ -349,8 +355,9 @@ def test_rgb_only_camera(setup_camera):
     del camera
 
 
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.isaacsim_ci
-def test_data_types(setup_camera):
+def test_data_types(setup_camera, device):
     """Test different data types for camera initialization."""
     sim, camera_cfg, dt = setup_camera
     # Create camera
@@ -396,8 +403,9 @@ def test_data_types(setup_camera):
     del camera_both
 
 
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.isaacsim_ci
-def test_depth_only_camera(setup_camera):
+def test_depth_only_camera(setup_camera, device):
     """Test initialization with only depth."""
     sim, camera_cfg, dt = setup_camera
     num_cameras = 9
@@ -449,8 +457,9 @@ def test_depth_only_camera(setup_camera):
     del camera
 
 
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.isaacsim_ci
-def test_rgba_only_camera(setup_camera):
+def test_rgba_only_camera(setup_camera, device):
     """Test initialization with only RGBA."""
     sim, camera_cfg, dt = setup_camera
     num_cameras = 9
@@ -502,8 +511,9 @@ def test_rgba_only_camera(setup_camera):
     del camera
 
 
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.isaacsim_ci
-def test_distance_to_camera_only_camera(setup_camera):
+def test_distance_to_camera_only_camera(setup_camera, device):
     """Test initialization with only distance_to_camera."""
     sim, camera_cfg, dt = setup_camera
     num_cameras = 9
@@ -555,8 +565,9 @@ def test_distance_to_camera_only_camera(setup_camera):
     del camera
 
 
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.isaacsim_ci
-def test_distance_to_image_plane_only_camera(setup_camera):
+def test_distance_to_image_plane_only_camera(setup_camera, device):
     """Test initialization with only distance_to_image_plane."""
     sim, camera_cfg, dt = setup_camera
     num_cameras = 9
@@ -608,8 +619,9 @@ def test_distance_to_image_plane_only_camera(setup_camera):
     del camera
 
 
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.isaacsim_ci
-def test_normals_only_camera(setup_camera):
+def test_normals_only_camera(setup_camera, device):
     """Test initialization with only normals."""
     sim, camera_cfg, dt = setup_camera
     num_cameras = 9
@@ -661,8 +673,9 @@ def test_normals_only_camera(setup_camera):
     del camera
 
 
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.isaacsim_ci
-def test_motion_vectors_only_camera(setup_camera):
+def test_motion_vectors_only_camera(setup_camera, device):
     """Test initialization with only motion_vectors."""
     sim, camera_cfg, dt = setup_camera
     num_cameras = 9
@@ -714,8 +727,9 @@ def test_motion_vectors_only_camera(setup_camera):
     del camera
 
 
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.isaacsim_ci
-def test_semantic_segmentation_colorize_only_camera(setup_camera):
+def test_semantic_segmentation_colorize_only_camera(setup_camera, device):
     """Test initialization with only semantic_segmentation."""
     sim, camera_cfg, dt = setup_camera
     num_cameras = 9
@@ -768,8 +782,9 @@ def test_semantic_segmentation_colorize_only_camera(setup_camera):
     del camera
 
 
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.isaacsim_ci
-def test_instance_segmentation_fast_colorize_only_camera(setup_camera):
+def test_instance_segmentation_fast_colorize_only_camera(setup_camera, device):
     """Test initialization with only instance_segmentation_fast."""
     sim, camera_cfg, dt = setup_camera
     num_cameras = 9
@@ -822,8 +837,9 @@ def test_instance_segmentation_fast_colorize_only_camera(setup_camera):
     del camera
 
 
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.isaacsim_ci
-def test_instance_id_segmentation_fast_colorize_only_camera(setup_camera):
+def test_instance_id_segmentation_fast_colorize_only_camera(setup_camera, device):
     """Test initialization with only instance_id_segmentation_fast."""
     sim, camera_cfg, dt = setup_camera
     num_cameras = 9
@@ -876,8 +892,9 @@ def test_instance_id_segmentation_fast_colorize_only_camera(setup_camera):
     del camera
 
 
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.isaacsim_ci
-def test_semantic_segmentation_non_colorize_only_camera(setup_camera):
+def test_semantic_segmentation_non_colorize_only_camera(setup_camera, device):
     """Test initialization with only semantic_segmentation."""
     sim, camera_cfg, dt = setup_camera
     num_cameras = 9
@@ -932,8 +949,9 @@ def test_semantic_segmentation_non_colorize_only_camera(setup_camera):
     del camera
 
 
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.isaacsim_ci
-def test_instance_segmentation_fast_non_colorize_only_camera(setup_camera):
+def test_instance_segmentation_fast_non_colorize_only_camera(setup_camera, device):
     """Test initialization with only instance_segmentation_fast."""
     sim, camera_cfg, dt = setup_camera
     num_cameras = 9
@@ -987,7 +1005,8 @@ def test_instance_segmentation_fast_non_colorize_only_camera(setup_camera):
     del camera
 
 
-def test_instance_id_segmentation_fast_non_colorize_only_camera(setup_camera):
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+def test_instance_id_segmentation_fast_non_colorize_only_camera(setup_camera, device):
     """Test initialization with only instance_id_segmentation_fast."""
     sim, camera_cfg, dt = setup_camera
     num_cameras = 9
@@ -1041,8 +1060,9 @@ def test_instance_id_segmentation_fast_non_colorize_only_camera(setup_camera):
     del camera
 
 
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.isaacsim_ci
-def test_all_annotators_camera(setup_camera):
+def test_all_annotators_camera(setup_camera, device):
     """Test initialization with all supported annotators."""
     sim, camera_cfg, dt = setup_camera
     all_annotator_types = [
@@ -1140,8 +1160,9 @@ def test_all_annotators_camera(setup_camera):
     del camera
 
 
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.isaacsim_ci
-def test_all_annotators_low_resolution_camera(setup_camera):
+def test_all_annotators_low_resolution_camera(setup_camera, device):
     """Test initialization with all supported annotators."""
     sim, camera_cfg, dt = setup_camera
     all_annotator_types = [
@@ -1241,8 +1262,9 @@ def test_all_annotators_low_resolution_camera(setup_camera):
     del camera
 
 
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.isaacsim_ci
-def test_all_annotators_non_perfect_square_number_camera(setup_camera):
+def test_all_annotators_non_perfect_square_number_camera(setup_camera, device):
     """Test initialization with all supported annotators."""
     sim, camera_cfg, dt = setup_camera
     all_annotator_types = [
@@ -1340,8 +1362,9 @@ def test_all_annotators_non_perfect_square_number_camera(setup_camera):
     del camera
 
 
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.isaacsim_ci
-def test_all_annotators_instanceable(setup_camera):
+def test_all_annotators_instanceable(setup_camera, device):
     """Test initialization with all supported annotators on instanceable assets."""
     sim, camera_cfg, dt = setup_camera
     all_annotator_types = [
@@ -1470,8 +1493,9 @@ def test_all_annotators_instanceable(setup_camera):
     del camera
 
 
+@pytest.mark.parametrize("device", ["cuda:0"])
 @pytest.mark.isaacsim_ci
-def test_throughput(setup_camera):
+def test_throughput(setup_camera, device):
     """Test tiled camera throughput."""
     sim, camera_cfg, dt = setup_camera
     # create camera
@@ -1507,8 +1531,9 @@ def test_throughput(setup_camera):
     del camera
 
 
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.isaacsim_ci
-def test_output_equal_to_usd_camera_intrinsics(setup_camera):
+def test_output_equal_to_usd_camera_intrinsics(setup_camera, device):
     """
     Test that the output of the ray caster camera and the usd camera are the same when both are
     initialized with the same intrinsic matrix.
@@ -1599,8 +1624,9 @@ def test_output_equal_to_usd_camera_intrinsics(setup_camera):
     del camera_usd
 
 
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.isaacsim_ci
-def test_sensor_print(setup_camera):
+def test_sensor_print(setup_camera, device):
     """Test sensor print is working correctly."""
     sim, camera_cfg, _ = setup_camera
     # Create sensor
@@ -1611,8 +1637,9 @@ def test_sensor_print(setup_camera):
     print(sensor)
 
 
+@pytest.mark.parametrize("device", ["cuda:0"])
 @pytest.mark.isaacsim_ci
-def test_frame_offset_small_resolution(setup_camera):
+def test_frame_offset_small_resolution(setup_camera, device):
     """Test frame offset issue with small resolution camera."""
     sim, camera_cfg, dt = setup_camera
     # Create sensor
@@ -1654,8 +1681,9 @@ def test_frame_offset_small_resolution(setup_camera):
     assert torch.abs(image_after - image_before).mean() > 0.1  # images of same color should be below 0.01
 
 
+@pytest.mark.parametrize("device", ["cuda:0"])
 @pytest.mark.isaacsim_ci
-def test_frame_offset_large_resolution(setup_camera):
+def test_frame_offset_large_resolution(setup_camera, device):
     """Test frame offset issue with large resolution camera."""
     sim, camera_cfg, dt = setup_camera
     # Create sensor

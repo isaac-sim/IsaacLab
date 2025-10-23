@@ -248,7 +248,9 @@ class TiledCamera(Camera):
 
             # convert data buffer to warp array
             if isinstance(tiled_data_buffer, np.ndarray):
-                tiled_data_buffer = wp.array(tiled_data_buffer, device=self.device, dtype=wp.uint8)
+                # Let warp infer the dtype from numpy array instead of hardcoding uint8
+                # Different annotators return different dtypes: RGB(uint8), depth(float32), segmentation(uint32)
+                tiled_data_buffer = wp.array(tiled_data_buffer, device=self.device)
             else:
                 tiled_data_buffer = tiled_data_buffer.to(device=self.device)
 
