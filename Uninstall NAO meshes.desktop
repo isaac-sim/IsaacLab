@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Version=0.9.4
+Name=Uninstall NAO meshes
+Comment=Uninstall
+Icon=
+Exec=/home/lscaglioni/IsaacLab-nomadz/uninstall
+Terminal=false
+Path=/home/lscaglioni/IsaacLab-nomadz

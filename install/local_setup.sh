@@ -85,7 +85,7 @@ if [ -n "$COLCON_PYTHON_EXECUTABLE" ]; then
   _colcon_python_executable="$COLCON_PYTHON_EXECUTABLE"
 else
   # try the Python executable known at configure time
-  _colcon_python_executable="/usr/bin/python3"
+  _colcon_python_executable="/mnt/storage/shared/miniconda/bin/python"
   # if it doesn't exist try a fall back
   if [ ! -f "$_colcon_python_executable" ]; then
     if ! /usr/bin/env python3 --version > /dev/null 2> /dev/null; then
