@@ -36,8 +36,8 @@ def base_roll_pitch(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntit
     # extract euler angles (in world frame)
     roll, pitch, _ = math_utils.euler_xyz_from_quat(asset.data.root_quat_w)
     # normalize angle to [-pi, pi]
-    roll = torch.atan2(torch.sin(roll), torch.cos(roll))
-    pitch = torch.atan2(torch.sin(pitch), torch.cos(pitch))
+    roll = math_utils.wrap_to_pi(roll)
+    pitch = math_utils.wrap_to_pi(pitch)
 
     return torch.cat((roll.unsqueeze(-1), pitch.unsqueeze(-1)), dim=-1)
 

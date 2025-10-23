@@ -95,10 +95,10 @@ def yaw_reward(
     asset: RigidObject = env.scene[asset_cfg.name]
 
     # extract yaw from current orientation
-    _, _, current_yaw = math_utils.euler_xyz_from_quat(asset.data.root_quat_w)
+    _, _, yaw = math_utils.euler_xyz_from_quat(asset.data.root_quat_w)
 
     # normalize yaw to [-pi, pi] (target is 0)
-    yaw_error = torch.atan2(torch.sin(current_yaw), torch.cos(current_yaw))
+    yaw = math_utils.wrap_to_pi(yaw)
 
     # return exponential reward (1 when yaw=0, approaching 0 when rotated)
-    return torch.exp(-(yaw_error**2) / std**2)
+    return torch.exp(-(yaw**2) / std**2)
