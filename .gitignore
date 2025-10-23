@@ -69,3 +69,5 @@ tests/
 
 # Docker history
 .isaac-lab-docker-history
+
+**/tactile_record/*

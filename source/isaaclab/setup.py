@@ -34,6 +34,7 @@ INSTALL_REQUIRES = [
     "transformers",
     "einops",  # needed for transformers, doesn't always auto-install
     "warp-lang",
+    "opencv-python",
     # make sure this is consistent with isaac sim version
     "pillow==11.2.1",
     # livestream
