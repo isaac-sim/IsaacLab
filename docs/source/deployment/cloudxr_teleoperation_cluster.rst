@@ -15,6 +15,9 @@ System Requirements
 * **Minimum requirement**: Kubernetes cluster with a node that has at least 1 NVIDIA RTX PRO 6000 / L40 GPU or equivalent
 * **Recommended requirement**: Kubernetes cluster with a node that has at least 2 RTX PRO 6000 / L40 GPUs or equivalent
 
+.. note::
+   If you are using DGX Spark, check `DGX Spark Limitations <https://isaac-sim.github.io/IsaacLab/release/2.3.0/source/setup/installation/index.html#dgx-spark-details-and-limitations>`_ for compatibility.
+
 Software Dependencies
 ---------------------
 
