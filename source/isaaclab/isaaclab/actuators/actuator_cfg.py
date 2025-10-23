@@ -292,9 +292,6 @@ class ThrusterCfg:
     class_type: type[Thruster] = Thruster
     """Concrete Python class that consumes this config."""
 
-    # stiffness = 0.1 # only necessary to make this conform with Isaac
-    # damping = 0.1 # only necessary to make this conform with Isaac
-
     dt: float = MISSING
     """Simulation/integration timestep used by the thruster update [s]."""
 
