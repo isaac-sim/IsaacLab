@@ -65,7 +65,16 @@ class TerrainImporterCfg:
     """The spacing between environment origins when defined in a grid. Defaults to None.
 
     Note:
-      This parameter is used only when the ``terrain_type`` is "plane" or "usd".
+      This parameter is used only when the ``terrain_type`` is "plane" or "usd" or if
+      :attr:`use_terrain_origins` is False.
+    """
+
+    use_terrain_origins: bool = True
+    """Whether to set the environment origins based on the terrain origins or in a grid
+    according to :attr:`env_spacing`. Defaults to True.
+
+    Note:
+      This parameter is used only when the :attr:`terrain type` is "generator".
     """
 
     visual_material: sim_utils.VisualMaterialCfg | None = sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 0.0))

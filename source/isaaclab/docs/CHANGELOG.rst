@@ -1,6 +1,14 @@
 Changelog
 ---------
 
+0.47.2 (2025-10-20)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added parameter :attr:`~isaaclab.terrains.TerrainImporterCfg.use_terrain_origins` to allow generated sub terrains with grid origins.
+
 0.47.1 (2025-10-17)
 ~~~~~~~~~~~~~~~~~~~
 
