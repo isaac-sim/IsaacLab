@@ -1,6 +1,21 @@
 Changelog
 ---------
 
+0.47.2 (2025-10-23)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``num_rerenders_on_reset`` parameter to ManagerBasedEnvCfg and DirectRLEnvCfg to configure the number
+  of render steps to perform after reset. This enables more control over DLSS rendering behavior after reset.
+
+Changed
+^^^^^^^
+
+* Added deprecation warning for ``rerender_on_reset`` parameter in ManagerBasedEnv and DirectRLEnv.
+
+
 0.47.1 (2025-10-17)
 ~~~~~~~~~~~~~~~~~~~
 
