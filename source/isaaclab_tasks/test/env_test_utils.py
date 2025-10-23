@@ -123,9 +123,11 @@ def _run_environments(
         "Isaac-Stack-Cube-Franka-IK-Rel-Blueprint-v0",
         "Isaac-Stack-Cube-Instance-Randomize-Franka-IK-Rel-v0",
         "Isaac-Stack-Cube-Instance-Randomize-Franka-v0",
-        "Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-v0",
-        "Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos-v0",
     ]:
+        return
+
+    # skip these environments as they cannot be run with 32 environments within reasonable VRAM
+    if "Visuomotor" in task_name and num_envs == 32:
         return
 
     # skip automate environments as they require cuda installation

@@ -206,7 +206,7 @@ class OpenDrawerSm:
         self.des_ee_pose = torch.zeros((self.num_envs, 7), device=self.device)
         self.des_gripper_state = torch.full((self.num_envs,), 0.0, device=self.device)
 
-        # approach infront of the handle
+        # approach in front of the handle
         self.handle_approach_offset = torch.zeros((self.num_envs, 7), device=self.device)
         self.handle_approach_offset[:, 0] = -0.1
         self.handle_approach_offset[:, -1] = 1.0  # warp expects quaternion as (x, y, z, w)

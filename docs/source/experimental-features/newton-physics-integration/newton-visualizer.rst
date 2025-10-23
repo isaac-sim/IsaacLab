@@ -32,4 +32,8 @@ lower number of environments, we can omit the ``--headless`` option while still 
 
 These options are available across all the learning frameworks.
 
-For more information about the Newton Visualizer, please refer to the `Newton documentation <https://newton-physics.github.io/newton/guide/visualization.html>`_ .
+For more information about the Newton Visualizer, please refer to the `Newton documentation <https://newton-physics.github.io/newton/guide/visualization.html>`_.
+
+IsaacLab provides additional customizations to the Newton visualizer with several learning-oriented features. These include the ability to pause rendering during training or pause the training process itself. Pausing rendering accelerates training by skipping rendering frames, which is particularly useful when we want to periodically check the trained policy without the performance overhead of continuous rendering. Pausing the training process is valuable for debugging purposes. Additionally, the visualizer's update frequency can be adjusted using a slider in the visualizer window, making it easy to prioritize rendering quality against training performance and vice-versa.
+
+All IsaacLab-specific customizations are organized under the *IsaacLab Training Controls* tab in the visualizer window.

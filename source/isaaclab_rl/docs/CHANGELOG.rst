@@ -1,6 +1,27 @@
 Changelog
 ---------
 
+0.4.2 (2025-10-15)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Isaac-Ant-v0's sb3_ppo_cfg default value, so it trains under reasonable amount of time.
+
+
+0.4.1 (2025-09-09)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Made PBT a bit nicer by
+* 1. added resume logic to allow wandb to continue on the same run_id
+* 2. corrected broadcasting order in distributed setup
+* 3. made score query general by using dotted keys to access dictionary of arbitrary depth
+
+
 0.4.0 (2025-09-09)
 ~~~~~~~~~~~~~~~~~~
 
