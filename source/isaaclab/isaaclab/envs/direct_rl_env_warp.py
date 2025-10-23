@@ -14,7 +14,7 @@ import torch
 import weakref
 from abc import abstractmethod
 from dataclasses import MISSING
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Sequence
 
 import isaacsim.core.utils.torch as torch_utils
 import omni.kit.app
@@ -25,7 +25,7 @@ from isaacsim.core.simulation_manager import SimulationManager
 from isaacsim.core.version import get_version
 
 from isaaclab.managers import EventManager
-from isaaclab.scene import InteractiveSceneWarp
+from isaaclab.scene import InteractiveScene
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils import attach_stage_to_usd_context, use_stage
 from isaaclab.utils.noise import NoiseModel
@@ -145,7 +145,7 @@ class DirectRLEnvWarp(gym.Env):
         with Timer("[INFO]: Time taken for scene creation", "scene_creation"):
             # set the stage context for scene creation steps which use the stage
             with use_stage(self.sim.get_initial_stage()):
-                self.scene = InteractiveSceneWarp(self.cfg.scene)
+                self.scene = InteractiveScene(self.cfg.scene)
                 self._setup_scene()
                 attach_stage_to_usd_context()
         print("[INFO]: Scene manager: ", self.scene)
@@ -437,7 +437,7 @@ class DirectRLEnvWarp(gym.Env):
         self._get_rewards()
 
         # -- reset envs that terminated/timed-out and log the episode information
-        self._reset_idx(self.reset_buf)
+        self._reset_idx(mask=self.reset_buf)
         # update articulation kinematics
         self.scene.write_data_to_sim()
         # if sensors are added to the scene, make sure we render to reflect changes in reset
@@ -645,16 +645,14 @@ class DirectRLEnvWarp(gym.Env):
         # instantiate actions (needed for tasks for which the observations computation is dependent on the actions)
         self.actions = sample_space(self.single_action_space, self.sim.device, batch_size=self.num_envs, fill_value=0)
 
-    def _reset_idx(self, mask: wp.array | None = None):
+    def _reset_idx(self, mask: wp.array | torch.Tensor | None = None):
         """Reset environments based on specified indices.
 
         Args:
             env_ids: List of environment ids which must be reset
         """
-        if mask is None:
-            mask = self._ALL_ENV_MASK
 
-        self.scene.reset(ids=None, mask=mask)
+        self.scene.reset(env_ids=None, mask=mask)
 
         # apply events such as randomization for environments that need a reset
         # if self.cfg.events:

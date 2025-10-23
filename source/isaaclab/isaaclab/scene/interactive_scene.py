@@ -8,8 +8,9 @@ from collections.abc import Sequence
 from typing import Any
 
 import carb
-import omni.log
-import omni.usd
+import logging
+import warnings
+import warp as wp
 from isaacsim.core.prims import XFormPrim
 from isaacsim.core.utils.stage import get_current_stage
 from isaacsim.core.version import get_version
@@ -25,6 +26,9 @@ from isaaclab.terrains import TerrainImporter, TerrainImporterCfg
 
 from .interactive_scene_cfg import InteractiveSceneCfg
 
+logger = logging.getLogger(__name__)
+warnings.simplefilter("once", UserWarning)
+logging.captureWarnings(True)
 
 class InteractiveScene:
     """A scene that contains entities added to the simulation.
@@ -188,7 +192,7 @@ class InteractiveScene:
         carb_settings_iface = carb.settings.get_settings()
         has_multi_assets = carb_settings_iface.get("/isaaclab/spawn/multi_assets")
         if has_multi_assets and self.cfg.replicate_physics:
-            omni.log.warn(
+            warnings.warn(
                 "Varying assets might have been spawned under different environments."
                 " However, the replicate physics flag is enabled in the 'InteractiveScene' configuration."
                 " This may adversely affect PhysX parsing. We recommend disabling this property."
@@ -226,7 +230,7 @@ class InteractiveScene:
         if (not self.cfg.replicate_physics and self.cfg.filter_collisions) or self.device == "cpu":
             # if scene is specified through cfg, this is already taken care of
             if not self._is_scene_setup_from_cfg():
-                omni.log.warn(
+                warnings.warn(
                     "Collision filtering can only be automatically enabled when replicate_physics=True and using GPU"
                     " simulation. Please call scene.filter_collisions(global_prim_paths) to filter collisions across"
                     " environments."
@@ -290,7 +294,7 @@ class InteractiveScene:
             for prim in self.stage.Traverse():
                 if prim.HasAPI(PhysxSchema.PhysxSceneAPI):
                     self._physics_scene_path = prim.GetPrimPath().pathString
-                    omni.log.info(f"Physics scene prim path: {self._physics_scene_path}")
+                    logger.info(f"Physics scene prim path: {self._physics_scene_path}")
                     break
             if self._physics_scene_path is None:
                 raise RuntimeError("No physics scene found! Please make sure one exists.")
@@ -404,7 +408,7 @@ class InteractiveScene:
     Operations.
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None):
+    def reset(self, env_ids: Sequence[int] | None = None, mask: wp.array | torch.Tensor | None = None):
         """Resets the scene entities.
 
         Args:
@@ -413,10 +417,10 @@ class InteractiveScene:
         """
         # -- assets
         for articulation in self._articulations.values():
-            articulation.reset(env_ids)
+            articulation.reset(ids = env_ids, mask = mask)
         # -- sensors
         for sensor in self._sensors.values():
-            sensor.reset(env_ids)
+            sensor.reset(ids = env_ids, mask = mask)
 
     def write_data_to_sim(self):
         """Writes the data of the scene entities to the simulation."""
