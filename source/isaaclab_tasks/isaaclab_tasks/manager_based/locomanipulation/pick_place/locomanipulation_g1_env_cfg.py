@@ -13,7 +13,7 @@ from isaacsim.core.utils.stage import get_current_stage
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.devices.device_base import DevicesCfg
 from isaaclab.devices.openxr import OpenXRDeviceCfg, XrCfg, XrAnchorRotationMode, OpenXRDeviceMotionControllerCfg
-from isaaclab.devices.openxr.retargeters.humanoid.unitree.g1_lower_body_standing import G1LowerBodyStandingRetargeterCfg
+from isaaclab.devices.openxr.retargeters.humanoid.unitree.g1_lower_body_standing import G1LowerBodyStandingRetargeterCfg, G1LowerBodyStandingControllerRetargeterCfg
 from isaaclab.devices.openxr.retargeters.humanoid.unitree.trihand.g1_upper_body_retargeter import (
     G1TriHandUpperBodyRetargeterCfg,
     G1TriHandControllerUpperBodyRetargeterCfg,
@@ -191,7 +191,7 @@ class LocomanipulationG1EnvCfg(ManagerBasedRLEnvCfg):
 
     # Position of the XR anchor in the world frame
     xr: XrCfg = XrCfg(
-        anchor_pos=(0.0, 0.0, -0.35),
+        anchor_pos=(0.0, 0.0, -0.45),
         anchor_rot=(1.0, 0.0, 0.0, 0.0),
     )
 
@@ -214,8 +214,6 @@ class LocomanipulationG1EnvCfg(ManagerBasedRLEnvCfg):
         self.actions.upper_body_ik.controller.urdf_path = retrieve_file_path(urdf_omniverse_path)
 
         self.xr.anchor_prim_path = "/World/envs/env_0/Robot/pelvis"
-        self.xr.anchor_pos = (0, 0, -1.1)
-        self.xr.anchor_rotation_mode = XrAnchorRotationMode.FOLLOW_PRIM_SMOOTHED
 
         self.teleop_devices = DevicesCfg(
             devices={
@@ -242,7 +240,7 @@ class LocomanipulationG1EnvCfg(ManagerBasedRLEnvCfg):
                             sim_device=self.sim.device,
                             hand_joint_names=self.actions.upper_body_ik.hand_joint_names,
                         ),
-                        G1LowerBodyStandingRetargeterCfg(
+                        G1LowerBodyStandingControllerRetargeterCfg(
                             sim_device=self.sim.device,
                         ),
                     ],
@@ -274,9 +272,8 @@ class LocomanipulationG1EnvCfg(ManagerBasedRLEnvCfg):
         if target:
             UsdGeom.Imageable(target).MakeInvisible()
 
+        # Change the material of the ground plane for comfort when we are using FOLLOW_PRIM.
         if self.xr.anchor_rotation_mode == XrAnchorRotationMode.FOLLOW_PRIM or self.xr.anchor_rotation_mode == XrAnchorRotationMode.FOLLOW_PRIM_SMOOTHED:
-
-            # Change the material of the ground plane for comfort when we are using FOLLOW_PRIM.
             ground_prim = stage.GetPrimAtPath("/World/GroundPlane/Environment/Geometry")
             if ground_prim is not None and ground_prim.IsValid():
                 # Change material to robot's default material, which doesn't have a grid.

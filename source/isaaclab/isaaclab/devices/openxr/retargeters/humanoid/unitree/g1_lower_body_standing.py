@@ -18,6 +18,26 @@ class G1LowerBodyStandingRetargeterCfg(RetargeterCfg):
     hip_height: float = 0.72
     """Height of the G1 robot hip in meters. The value is a fixed height suitable for G1 to do tabletop manipulation."""
 
+
+class G1LowerBodyStandingRetargeter(RetargeterBase):
+    """Provides lower body standing commands for the G1 robot."""
+
+    def __init__(self, cfg: G1LowerBodyStandingRetargeterCfg):
+        """Initialize the retargeter."""
+        self.cfg = cfg
+
+    def retarget(self, data: dict) -> torch.Tensor:
+        return torch.tensor([0.0, 0.0, 0.0, self.cfg.hip_height], device=self.cfg.sim_device)
+
+
+
+@dataclass
+class G1LowerBodyStandingControllerRetargeterCfg(RetargeterCfg):
+    """Configuration for the G1 lower body standing retargeter."""
+
+    hip_height: float = 0.72
+    """Height of the G1 robot hip in meters. The value is a fixed height suitable for G1 to do tabletop manipulation."""
+
     movement_scale: float = 0.45
     """Scale the movement of the robot to the range of [-movement_scale, movement_scale]."""
 
@@ -25,10 +45,10 @@ class G1LowerBodyStandingRetargeterCfg(RetargeterCfg):
     """Scale the rotation of the robot to the range of [-rotation_scale, rotation_scale]."""
 
 
-class G1LowerBodyStandingRetargeter(RetargeterBase):
+class G1LowerBodyStandingControllerRetargeter(RetargeterBase):
     """Provides lower body standing commands for the G1 robot."""
 
-    def __init__(self, cfg: G1LowerBodyStandingRetargeterCfg):
+    def __init__(self, cfg: G1LowerBodyStandingControllerRetargeterCfg):
         """Initialize the retargeter."""
         self.cfg = cfg
         self._hip_height = cfg.hip_height
