@@ -168,14 +168,14 @@ class G1TriHandUpperBodyRetargeter(RetargeterBase):
 
 
 @dataclass
-class G1TriHandControllerUpperBodyRetargeterCfg(RetargeterCfg):
+class G1TriHandUpperBodyMotionControllerRetargeterCfg(RetargeterCfg):
     """Configuration for the G1 Controller Upper Body retargeter."""
 
     enable_visualization: bool = False
     hand_joint_names: list[str] | None = None  # List of robot hand joint names
 
 
-class G1TriHandControllerUpperBodyRetargeter(RetargeterBase):
+class G1TriHandUpperBodyMotionControllerRetargeter(RetargeterBase):
     """Simple retargeter that maps motion controller inputs to G1 hand joints.
 
     Mapping:
@@ -184,7 +184,7 @@ class G1TriHandControllerUpperBodyRetargeter(RetargeterBase):
     - Squeeze (analog 0-1) → Middle finger joints
     """
 
-    def __init__(self, cfg: G1TriHandControllerUpperBodyRetargeterCfg):
+    def __init__(self, cfg: G1TriHandUpperBodyMotionControllerRetargeterCfg):
         """Initialize the retargeter."""
         self._sim_device = cfg.sim_device
         self._hand_joint_names = cfg.hand_joint_names

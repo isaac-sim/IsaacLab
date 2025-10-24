@@ -204,7 +204,7 @@ def main() -> None:
                 )
             else:
                 omni.log.error(f"Unsupported teleop device: {args_cli.teleop_device}")
-                omni.log.error("Supported devices: keyboard, spacemouse, gamepad, handtracking")
+                omni.log.error("Supported devices: keyboard, spacemouse, gamepad, handtracking, motion_controllers")
                 env.close()
                 simulation_app.close()
                 return

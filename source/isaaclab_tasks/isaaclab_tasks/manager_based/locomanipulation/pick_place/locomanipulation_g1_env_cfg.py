@@ -13,10 +13,10 @@ from isaacsim.core.utils.stage import get_current_stage
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.devices.device_base import DevicesCfg
 from isaaclab.devices.openxr import OpenXRDeviceCfg, XrCfg, XrAnchorRotationMode, OpenXRDeviceMotionControllerCfg
-from isaaclab.devices.openxr.retargeters.humanoid.unitree.g1_lower_body_standing import G1LowerBodyStandingRetargeterCfg, G1LowerBodyStandingControllerRetargeterCfg
+from isaaclab.devices.openxr.retargeters.humanoid.unitree.g1_lower_body_standing import G1LowerBodyStandingRetargeterCfg, G1LowerBodyStandingMotionControllerRetargeterCfg
 from isaaclab.devices.openxr.retargeters.humanoid.unitree.trihand.g1_upper_body_retargeter import (
     G1TriHandUpperBodyRetargeterCfg,
-    G1TriHandControllerUpperBodyRetargeterCfg,
+    G1TriHandUpperBodyMotionControllerRetargeterCfg,
 )
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
@@ -235,12 +235,12 @@ class LocomanipulationG1EnvCfg(ManagerBasedRLEnvCfg):
                 ),
                 "motion_controllers": OpenXRDeviceMotionControllerCfg(
                     retargeters=[
-                        G1TriHandControllerUpperBodyRetargeterCfg(
+                        G1TriHandUpperBodyMotionControllerRetargeterCfg(
                             enable_visualization=True,
                             sim_device=self.sim.device,
                             hand_joint_names=self.actions.upper_body_ik.hand_joint_names,
                         ),
-                        G1LowerBodyStandingControllerRetargeterCfg(
+                        G1LowerBodyStandingMotionControllerRetargeterCfg(
                             sim_device=self.sim.device,
                         ),
                     ],
