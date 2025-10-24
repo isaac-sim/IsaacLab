@@ -5,8 +5,6 @@
 
 """OpenXR-powered device for teleoperation and interaction."""
 
-import math
-import time
 import contextlib
 import numpy as np
 from collections.abc import Callable
@@ -15,16 +13,12 @@ from enum import Enum
 from typing import Any
 
 import carb
-import usdrt
-from pxr import Gf as pxrGf
-from usdrt import Rt
 
-import isaaclab.sim as sim_utils
 from isaaclab.devices.openxr.common import HAND_JOINT_NAMES
 from isaaclab.devices.retargeter_base import RetargeterBase
 
 from ..device_base import DeviceBase, DeviceCfg
-from .xr_cfg import XrCfg, XrAnchorRotationMode
+from .xr_cfg import XrCfg
 
 # For testing purposes, we need to mock the XRCore, XRPoseValidityFlags classes
 XRCore = None
@@ -114,29 +108,17 @@ class OpenXRDevice(DeviceBase):
         self._previous_headpose = default_pose.copy()
 
         if self._xr_cfg.anchor_prim_path is not None:
-            self.__xr_anchor_headset_path = f"{self._xr_cfg.anchor_prim_path}/XRAnchor"
+            self._xr_anchor_headset_path = f"{self._xr_cfg.anchor_prim_path}/XRAnchor"
         else:
-            self.__xr_anchor_headset_path = "/World/XRAnchor"
+            self._xr_anchor_headset_path = "/World/XRAnchor"
 
-        self.__anchor_prim_initial_quat = None
-        self.__anchor_prim_initial_height = None
-        self.__smoothed_anchor_quat = None  # For FOLLOW_PRIM_SMOOTHED mode
-        self.__last_smoothing_update_time = None  # For wall clock time tracking
-        self.__last_anchor_quat = None
-        self.__anchor_rotation_enabled = True
-
-        xr_anchor_headset = SingleXFormPrim(
-            self.__xr_anchor_headset_path, position=self._xr_cfg.anchor_pos, orientation=self._xr_cfg.anchor_rot
+        _ = SingleXFormPrim(
+            self._xr_anchor_headset_path, position=self._xr_cfg.anchor_pos, orientation=self._xr_cfg.anchor_rot
         )
-
-        # Get the layer where it was created
-        prim_stack = xr_anchor_headset.prim.GetPrimStack()
-        if prim_stack:
-            self.__anchor_headset_layer_identifier = prim_stack[0].layer.identifier
 
         carb.settings.get_settings().set_float("/persistent/xr/profile/ar/render/nearPlane", self._xr_cfg.near_plane)
         carb.settings.get_settings().set_string("/persistent/xr/profile/ar/anchorMode", "custom anchor")
-        carb.settings.get_settings().set_string("/xrstage/profile/ar/customAnchor", self.__xr_anchor_headset_path )
+        carb.settings.get_settings().set_string("/xrstage/profile/ar/customAnchor", self._xr_anchor_headset_path )
 
     def __del__(self):
         """Clean up resources when the object is destroyed.
@@ -202,19 +184,10 @@ class OpenXRDevice(DeviceBase):
     """
 
     def reset(self):
-        print("Resetting OpenXR device")
         default_pose = np.array([0, 0, 0, 1, 0, 0, 0], dtype=np.float32)
         self._previous_joint_poses_left = {name: default_pose.copy() for name in HAND_JOINT_NAMES}
         self._previous_joint_poses_right = {name: default_pose.copy() for name in HAND_JOINT_NAMES}
         self._previous_headpose = default_pose.copy()
-
-        self.__anchor_prim_initial_quat = None
-        self.__anchor_prim_initial_height = None
-        self.__smoothed_anchor_quat = None
-        self.__last_smoothing_update_time = None
-        self.__anchor_rotation_enabled = True
-        self._sync_headset_to_anchor()
-
 
     def add_callback(self, key: str, func: Callable):
         """Add additional functions to bind to client messages.
@@ -225,11 +198,6 @@ class OpenXRDevice(DeviceBase):
                 take any arguments.
         """
         self._additional_callbacks[key] = func
-
-    def toggle_anchor_rotation(self):
-        """Toggle the anchor rotation.
-        """
-        self.__anchor_rotation_enabled = not self.__anchor_rotation_enabled
 
     def _get_raw_data(self) -> Any:
         """Get the latest tracking data from the OpenXR runtime.
@@ -254,10 +222,6 @@ class OpenXRDevice(DeviceBase):
             ),
             self.TrackingTarget.HEAD: self._calculate_headpose(),
         }
-
-    def on_pre_render(self) -> None:
-        """Sync the headset to the anchor before rendering."""
-        self._sync_headset_to_anchor()
 
     """
     Internal helpers.
@@ -352,122 +316,3 @@ class OpenXRDevice(DeviceBase):
             if "RESET" in self._additional_callbacks:
                 self._additional_callbacks["RESET"]()
             self.reset()
-
-    def _sync_headset_to_anchor(self):
-        """Sync the headset to the anchor.
-        The prim is assumed to be in Fabric/usdrt.
-        The XR system can currently only handle anchors in usd.
-        Therefore, we need to query the anchor_prim's transform from usdrt and set it to the XR anchor in usd.
-        """
-        if self._xr_cfg.anchor_prim_path is None:
-            return
-
-        stage_id = sim_utils.get_current_stage_id()
-        rt_stage = usdrt.Usd.Stage.Attach(stage_id)
-        if rt_stage is None:
-            return
-
-        rt_prim = rt_stage.GetPrimAtPath(self._xr_cfg.anchor_prim_path)
-        if rt_prim is None:
-            return
-
-        rt_xformable = Rt.Xformable(rt_prim)
-        if rt_xformable is None:
-            return
-
-        world_matrix_attr = rt_xformable.GetFabricHierarchyWorldMatrixAttr()
-        if world_matrix_attr is None:
-            return
-
-        rt_matrix = world_matrix_attr.Get()
-        rt_pos = rt_matrix.ExtractTranslation()
-
-        if self.__anchor_prim_initial_quat is None:
-            self.__anchor_prim_initial_quat = rt_matrix.ExtractRotationQuat()
-
-        # For comfort, we keep the anchor at a constant height instead of bobbing up and down when following robot joint.
-        # We will need to update this value when robot crouches/stands.
-        if self.__anchor_prim_initial_height is None:
-            self.__anchor_prim_initial_height = rt_pos[2]
-
-        rt_pos[2] = self.__anchor_prim_initial_height
-
-        pxr_anchor_pos = pxrGf.Vec3d(*rt_pos) + pxrGf.Vec3d(*self._xr_cfg.anchor_pos)
-
-        w, x, y, z = self._xr_cfg.anchor_rot
-        pxr_cfg_quat = pxrGf.Quatd(w, pxrGf.Vec3d(x, y, z))
-
-        # XrAnchorRotationMode.FIXED is implicitly handled by setting pxr_anchor_quat to pxr_cfg_quat and overwritten in other modesZ
-        pxr_anchor_quat = pxr_cfg_quat
-
-
-        # XrAnchorRotationMode.FOLLOW_PRIM or XrAnchorRotationMode.FOLLOW_PRIM_SMOOTHED
-        if self._xr_cfg.anchor_rotation_mode == XrAnchorRotationMode.FOLLOW_PRIM or self._xr_cfg.anchor_rotation_mode == XrAnchorRotationMode.FOLLOW_PRIM_SMOOTHED:
-            # Calculate the delta rotation between the prim and the initial rotation
-            rt_prim_quat = rt_matrix.ExtractRotationQuat()
-            rt_delta_quat = rt_prim_quat * self.__anchor_prim_initial_quat.GetInverse()
-            # Convert from usdrt to pxr quaternion
-            pxr_delta_quat = pxrGf.Quatd(rt_delta_quat.GetReal(), pxrGf.Vec3d(*rt_delta_quat.GetImaginary()))
-
-            # Only keep yaw rotation (assumes Z up axis):
-            w = pxr_delta_quat.GetReal()
-            ix, iy, iz = pxr_delta_quat.GetImaginary()
-
-            # yaw around Z (right-handed, Z-up)
-            yaw = math.atan2(2.0 * (w*iz + ix*iy), 1.0 - 2.0 * (iy*iy + iz*iz))
-
-            # yaw-only quaternion about Z
-            cy = math.cos(yaw * 0.5)
-            sy = math.sin(yaw * 0.5)
-            pxr_delta_yaw_only_quat = pxrGf.Quatd(cy, pxrGf.Vec3d(0.0, 0.0, sy))
-            pxr_anchor_quat = pxr_delta_yaw_only_quat * pxr_cfg_quat
-
-            if self._xr_cfg.anchor_rotation_mode == XrAnchorRotationMode.FOLLOW_PRIM_SMOOTHED:
-                # Initialize smoothed quaternion on first run
-                if self.__smoothed_anchor_quat is None:
-                    self.__smoothed_anchor_quat = pxr_anchor_quat
-                    self.__last_smoothing_update_time = time.time()
-                else:
-                    # Calculate smoothing alpha from wall-clock time delta (not physics dt)
-                    # Exponential smoothing: alpha = 1 - exp(-dt / time_constant)
-                    current_time = time.time()
-                    if self.__last_smoothing_update_time is None:
-                        # Fallback in case reset didn't happen properly
-                        self.__last_smoothing_update_time = current_time
-                    dt = current_time - self.__last_smoothing_update_time
-                    self.__last_smoothing_update_time = current_time
-                    
-                    # Allow very small alpha for strong smoothing; only clamp upper bound
-                    alpha = 1.0 - math.exp(-dt / max(self._xr_cfg.anchor_rotation_smoothing_time, 1e-6))
-                    alpha = min(1.0, max(0.05, alpha)) # small floor avoids lingering
-
-                    # Perform spherical linear interpolation (slerp)
-                    # Use Gf.Slerp(alpha, quat_from, quat_to)
-                    self.__smoothed_anchor_quat = pxrGf.Slerp(alpha, self.__smoothed_anchor_quat, pxr_anchor_quat)
-                    pxr_anchor_quat = self.__smoothed_anchor_quat
-
-        # XrAnchorRotationMode.CUSTOM
-        elif self._xr_cfg.anchor_rotation_mode == XrAnchorRotationMode.CUSTOM:
-            if self._xr_cfg.anchor_rotation_custom_func is not None:
-                rt_prim_quat = rt_matrix.ExtractRotationQuat()
-
-                anchor_prim_pose = np.array([rt_pos[0], rt_pos[1], rt_pos[2], rt_prim_quat.GetReal(), rt_prim_quat.GetImaginary()[0], rt_prim_quat.GetImaginary()[1], rt_prim_quat.GetImaginary()[2]], dtype=np.float64)
-                np_array_quat = self._xr_cfg.anchor_rotation_custom_func(self._previous_headpose, anchor_prim_pose)
-
-                w, x, y, z = np_array_quat
-                pxr_anchor_quat = pxrGf.Quatd(w, pxrGf.Vec3d(x, y, z))
-            else:
-                print("[WARNING]: Anchor rotation custom function is not set. Using default rotation.")
-
-        # Create the final matrix with combined rotation and adjusted position
-        pxr_mat = pxrGf.Matrix4d()
-        pxr_mat.SetTranslateOnly(pxr_anchor_pos)
-
-        if self.__anchor_rotation_enabled:
-            pxr_mat.SetRotateOnly(pxr_anchor_quat)
-            self.__last_anchor_quat = pxr_anchor_quat
-        else:
-            pxr_mat.SetRotateOnly(self.__last_anchor_quat)
-            self.__smoothed_anchor_quat = self.__last_anchor_quat
-
-        XRCore.get_singleton().set_world_transform_matrix(self.__xr_anchor_headset_path, pxr_mat, self.__anchor_headset_layer_identifier)
