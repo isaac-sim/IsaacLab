@@ -195,6 +195,9 @@ class LocomanipulationG1EnvCfg(ManagerBasedRLEnvCfg):
         anchor_rot=(1.0, 0.0, 0.0, 0.0),
     )
 
+    # Flag to indicate if XR is enabled (set by teleop script)
+    xr_enabled: bool = False
+
     def __post_init__(self):
         """Post initialization."""
         # general settings
@@ -250,6 +253,10 @@ class LocomanipulationG1EnvCfg(ManagerBasedRLEnvCfg):
         )
 
     def on_environment_initialized(self):
+        # Only execute XR-specific setup if XR is enabled
+        if not self.xr_enabled:
+            return
+
         stage = get_current_stage()
 
         inst_root_path = "/World/envs/env_0/Robot/torso_link/visuals"

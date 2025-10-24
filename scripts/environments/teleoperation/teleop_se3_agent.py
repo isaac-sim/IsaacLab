@@ -59,6 +59,7 @@ simulation_app = app_launcher.app
 import gymnasium as gym
 import torch
 
+import carb
 import omni.log
 
 from isaaclab.devices import Se3Gamepad, Se3GamepadCfg, Se3Keyboard, Se3KeyboardCfg, Se3SpaceMouse, Se3SpaceMouseCfg
@@ -75,6 +76,69 @@ if args_cli.enable_pinocchio:
     import isaaclab_tasks.manager_based.locomanipulation.pick_place  # noqa: F401
     import isaaclab_tasks.manager_based.manipulation.pick_place  # noqa: F401
 
+def bind_xr_button_press(
+    subscriptions: dict,     # Dictionary to store subscriptions where the key is the device path and button name and the value is a dictionary with the subscriptions.
+    device_path: str,        # Path to the device to bind the event to.
+    button_name: str,        # Name of the button to bind the event to.
+    event_name: str,         # Unique user defined event name to bind.
+    on_button_press: Callable[[carb.events.IEvent], None],    # Callback to call when the button is pressed
+) -> None:
+    try:
+        from omni.kit.xr.core import XRCore
+    except Exception:
+        omni.log.warn("XR core not available; skipping rotation toggle binding")
+        return
+
+    sub_key = device_path + "/" + button_name
+    subscriptions[sub_key] = {}
+
+    # Buttons don't automatically emit events when pressed, we need to bind an event generator to the button.
+    # The device may be a stub until the real controller is connected so this may get called multiple times
+    def try_emit_button_events():
+        # Skip if already bound to avoid churn on repeated inputs_change
+        if subscriptions[sub_key].get("generator"):
+            return
+
+        device = XRCore.get_singleton().get_input_device(device_path)
+        if not device:
+            return
+
+        # Only bind once the real controller exposes the button_name input
+        names = {str(n) for n in (device.get_input_names() or ())}
+        if button_name not in names:
+            return
+
+        gen = device.bind_event_generator(button_name, event_name, ("press",))
+        if gen is not None:
+            print(f"XR: Bound event generator for {sub_key}, {event_name}")
+            subscriptions[sub_key]["generator"] = gen
+
+    def on_inputs_change(_ev: "carb.events.IEvent") -> None:
+        try_emit_button_events()
+
+    def on_disable(_ev: "carb.events.IEvent") -> None:
+        subscriptions[sub_key]["generator"] = None
+
+    message_bus = XRCore.get_singleton().get_message_bus()
+
+    # Convert "/user/hand/right" -> "user_hand_right" for XR input event topics
+    event_suffix = device_path.strip("/").replace("/", "_")
+
+    # Subscribe to emitted button event
+    subscriptions[sub_key]["press_sub"] = message_bus.create_subscription_to_pop_by_type(
+        carb.events.type_from_string(event_name + ".press"), on_button_press
+    )
+
+    # Re-attempt binding when inputs change (real controller arrives)
+    subscriptions[sub_key]["inputs_change_sub"] = message_bus.create_subscription_to_pop_by_type(
+        carb.events.type_from_string("xr_input." + event_suffix + ".inputs_change"), on_inputs_change
+    )
+
+    subscriptions[sub_key]["disable_sub"] = message_bus.create_subscription_to_pop_by_type(
+        carb.events.type_from_string("xr_input." + event_suffix + ".disable"), on_disable
+    )
+
+    try_emit_button_events();
 
 def main() -> None:
     """
@@ -102,6 +166,9 @@ def main() -> None:
         # Check for any camera configs and disable them
         env_cfg = remove_camera_configs(env_cfg)
         env_cfg.sim.render.antialiasing_mode = "DLSS"
+        # Set flag for environment to know XR is enabled (if it supports it)
+        if hasattr(env_cfg, 'xr_enabled'):
+            env_cfg.xr_enabled = True
 
     try:
         # create environment
@@ -231,12 +298,23 @@ def main() -> None:
     env.reset()
     teleop_interface.reset()
 
-    # Attach pre-render callback if supported; safe at runtime
-    if hasattr(env, "set_pre_render_callback"):
-        env_mb = cast(ManagerBasedEnv, env)
-        env_mb.set_pre_render_callback(lambda: teleop_interface.on_pre_render())
-    else:
-        omni.log.warn("Environment does not support pre-render callback; continuing without it.")
+    xr_button_subscriptions = {}
+    if args_cli.xr:
+        # When the right controller"a" button is pressed, toggle the anchor rotation.
+        bind_xr_button_press(
+            xr_button_subscriptions,
+            "/user/hand/right",
+            "a",
+            "isaaclab_right_a",
+            lambda ev: (print("Toggling anchor rotation") or teleop_interface.toggle_anchor_rotation()),
+        )
+
+        # Attach pre-render callback if supported; safe at runtime
+        if hasattr(env, "set_pre_render_callback"):
+            env_mb = cast(ManagerBasedEnv, env)
+            env_mb.set_pre_render_callback(lambda: teleop_interface.on_pre_render())
+        else:
+            omni.log.warn("Environment does not support pre-render callback; continuing without it.")
 
     print("Teleoperation started. Press 'R' to reset the environment.")
 
@@ -259,6 +337,7 @@ def main() -> None:
 
                 if should_reset_recording_instance:
                     env.reset()
+                    teleop_interface.reset()
                     should_reset_recording_instance = False
                     print("Environment reset complete")
         except Exception as e:

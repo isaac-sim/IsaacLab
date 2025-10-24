@@ -69,12 +69,13 @@ class XrCfg:
     - :attr:`XrAnchorRotationMode.CUSTOM`: user provided function to calculate the rotation
     """
 
-    anchor_rotation_smoothing_time: float = 0.1
-    """Time constant for rotation smoothing in seconds when using FOLLOW_PRIM_SMOOTHED mode.
-    
+    anchor_rotation_smoothing_time: float = 1.0
+    """Wall-clock time constant (seconds) for rotation smoothing in FOLLOW_PRIM_SMOOTHED mode.
+
+    This time constant is applied using wall-clock delta time between frames (not physics dt).
     Smaller values (e.g., 0.1) result in faster/snappier response but less smoothing.
-    Larger values (e.g., 0.5) result in slower/smoother response but more lag.
-    Typical range: 0.1 - 0.5 seconds.
+    Larger values (e.g., 0.75–2.0) result in slower/smoother response but more lag.
+    Typical useful range: 0.3 – 1.5 seconds depending on runtime frame-rate and comfort.
     """
 
     anchor_rotation_custom_func: Callable[[np.ndarray, np.ndarray], np.ndarray] = lambda headpose, primpose: np.array([1, 0, 0, 0], dtype=np.float64)

@@ -6,6 +6,7 @@
 """OpenXR-powered device for teleoperation and interaction."""
 
 import math
+import time
 import contextlib
 import numpy as np
 from collections.abc import Callable
@@ -19,7 +20,6 @@ from pxr import Gf as pxrGf
 from usdrt import Rt
 
 import isaaclab.sim as sim_utils
-from isaaclab.sim import SimulationContext
 from isaaclab.devices.openxr.common import HAND_JOINT_NAMES
 from isaaclab.devices.retargeter_base import RetargeterBase
 
@@ -121,6 +121,9 @@ class OpenXRDevice(DeviceBase):
         self.__anchor_prim_initial_quat = None
         self.__anchor_prim_initial_height = None
         self.__smoothed_anchor_quat = None  # For FOLLOW_PRIM_SMOOTHED mode
+        self.__last_smoothing_update_time = None  # For wall clock time tracking
+        self.__last_anchor_quat = None
+        self.__anchor_rotation_enabled = True
 
         xr_anchor_headset = SingleXFormPrim(
             self.__xr_anchor_headset_path, position=self._xr_cfg.anchor_pos, orientation=self._xr_cfg.anchor_rot
@@ -208,6 +211,10 @@ class OpenXRDevice(DeviceBase):
         self.__anchor_prim_initial_quat = None
         self.__anchor_prim_initial_height = None
         self.__smoothed_anchor_quat = None
+        self.__last_smoothing_update_time = None
+        self.__anchor_rotation_enabled = True
+        self._sync_headset_to_anchor()
+
 
     def add_callback(self, key: str, func: Callable):
         """Add additional functions to bind to client messages.
@@ -218,6 +225,11 @@ class OpenXRDevice(DeviceBase):
                 take any arguments.
         """
         self._additional_callbacks[key] = func
+
+    def toggle_anchor_rotation(self):
+        """Toggle the anchor rotation.
+        """
+        self.__anchor_rotation_enabled = not self.__anchor_rotation_enabled
 
     def _get_raw_data(self) -> Any:
         """Get the latest tracking data from the OpenXR runtime.
@@ -339,6 +351,7 @@ class OpenXRDevice(DeviceBase):
         elif "reset" in msg:
             if "RESET" in self._additional_callbacks:
                 self._additional_callbacks["RESET"]()
+            self.reset()
 
     def _sync_headset_to_anchor(self):
         """Sync the headset to the anchor.
@@ -413,13 +426,20 @@ class OpenXRDevice(DeviceBase):
                 # Initialize smoothed quaternion on first run
                 if self.__smoothed_anchor_quat is None:
                     self.__smoothed_anchor_quat = pxr_anchor_quat
+                    self.__last_smoothing_update_time = time.time()
                 else:
-                    # Calculate smoothing alpha from time constant
-                    # alpha = 1 - exp(-dt / time_constant)
-                    # This gives exponential smoothing behavior
-                    dt = SimulationContext.instance().get_physics_dt()
-                    alpha = 1.0 - math.exp(-dt / max(self._xr_cfg.anchor_rotation_smoothing_time, 0.001))
-                    alpha = max(0.01, min(1.0, alpha))  # Minimum 1% blend prevents very slow updates
+                    # Calculate smoothing alpha from wall-clock time delta (not physics dt)
+                    # Exponential smoothing: alpha = 1 - exp(-dt / time_constant)
+                    current_time = time.time()
+                    if self.__last_smoothing_update_time is None:
+                        # Fallback in case reset didn't happen properly
+                        self.__last_smoothing_update_time = current_time
+                    dt = current_time - self.__last_smoothing_update_time
+                    self.__last_smoothing_update_time = current_time
+                    
+                    # Allow very small alpha for strong smoothing; only clamp upper bound
+                    alpha = 1.0 - math.exp(-dt / max(self._xr_cfg.anchor_rotation_smoothing_time, 1e-6))
+                    alpha = min(1.0, max(0.05, alpha)) # small floor avoids lingering
 
                     # Perform spherical linear interpolation (slerp)
                     # Use Gf.Slerp(alpha, quat_from, quat_to)
@@ -441,7 +461,13 @@ class OpenXRDevice(DeviceBase):
 
         # Create the final matrix with combined rotation and adjusted position
         pxr_mat = pxrGf.Matrix4d()
-        pxr_mat.SetRotateOnly(pxr_anchor_quat)
-        pxr_mat.SetTranslateOnly(pxr_anchor_pos)        
+        pxr_mat.SetTranslateOnly(pxr_anchor_pos)
+
+        if self.__anchor_rotation_enabled:
+            pxr_mat.SetRotateOnly(pxr_anchor_quat)
+            self.__last_anchor_quat = pxr_anchor_quat
+        else:
+            pxr_mat.SetRotateOnly(self.__last_anchor_quat)
+            self.__smoothed_anchor_quat = self.__last_anchor_quat
 
         XRCore.get_singleton().set_world_transform_matrix(self.__xr_anchor_headset_path, pxr_mat, self.__anchor_headset_layer_identifier)
