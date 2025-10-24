@@ -234,10 +234,10 @@ def main() -> None:
     teleop_interface.reset()
 
     if args_cli.xr:
-        # Attach pre-render callback if supported; safe at runtime
-        if hasattr(env, "set_pre_render_callback"):
+        # Attach pre-render callback if environment is ManagerBasedEnv
+        if isinstance(env, ManagerBasedEnv):
             env_mb = cast(ManagerBasedEnv, env)
-            env_mb.set_pre_render_callback(lambda: teleop_interface.on_pre_render())
+            env_mb.add_pre_render_callback(lambda: teleop_interface.on_pre_render())
         else:
             omni.log.warn("Environment does not support pre-render callback; continuing without it.")
 

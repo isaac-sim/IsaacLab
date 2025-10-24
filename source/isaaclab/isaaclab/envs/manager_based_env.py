@@ -84,8 +84,8 @@ class ManagerBasedEnv:
         self.cfg = cfg
         # initialize internal variables
         self._is_closed = False
-        # Optional user hook called before rendering within the physics loop
-        self._pre_render_callback: Optional[Callable[[], None]] = None
+        # Optional user hooks called before rendering within the physics loop
+        self._pre_render_callback: list[Callable[[], None]] = []
 
         # set the seed for the environment
         if self.cfg.seed is not None:
@@ -532,22 +532,33 @@ class ManagerBasedEnv:
     Helper functions.
     """
 
-    def set_pre_render_callback(self, callback: Callable[[], None]) -> None:
+    def add_pre_render_callback(self, callback: Callable[[], None]) -> None:
         """Registers a callback invoked just before rendering inside the physics loop.
 
         The callback takes no arguments. Use this to update state that must be reflected
         in the render without advancing physics.
         """
-        self._pre_render_callback = callback
+        self._pre_render_callback.append(callback)
+
+    def remove_pre_render_callback(self, callback: Callable[[], None]) -> None:
+        """Removes a previously registered pre-render callback.
+
+        Args:
+            callback: The callback to remove. Must be the same object that was registered.
+
+        Raises:
+            ValueError: If the callback is not in the list of registered callbacks.
+        """
+        self._pre_render_callback.remove(callback)
 
     def on_pre_render(self) -> None:
         """Hook called right before rendering in the physics decimation loop.
 
-        Subclasses can override this to inject behavior. By default, this calls a
-        user-provided callback if registered via :meth:`set_pre_render_callback`.
+        Subclasses can override this to inject behavior. By default, this calls all
+        user-provided callbacks registered via :meth:`add_pre_render_callback`.
         """
-        if self._pre_render_callback is not None:
-            self._pre_render_callback()
+        for callback in self._pre_render_callback:
+            callback()
 
     def _reset_idx(self, env_ids: Sequence[int]):
         """Reset environments based on specified indices.
