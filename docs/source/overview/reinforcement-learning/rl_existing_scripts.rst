@@ -183,47 +183,20 @@ SKRL
             JAX 0.6.0 or higher (built on CuDNN v9.8) is incompatible with Isaac Lab's PyTorch 2.7 (built on CuDNN v9.7), and therefore not supported.
             To install a compatible version of JAX for CUDA 12 use ``pip install "jax[cuda12]<0.6.0" "flax<0.10.7"``, for example.
 
-         .. tab-set::
-            :sync-group: jax-platform
+         .. code:: bash
 
-            .. tab-item:: :icon:`fa-brands fa-linux` Linux (x86_64)
-               :sync: linux-x86_64
-
-               .. code:: bash
-
-                  # install python module (for skrl)
-                  ./isaaclab.sh -i skrl
-                  # install jax<0.6.0 for torch 2.7 / CUDA 12
-                  ./isaaclab.sh -p -m pip install "jax[cuda12]<0.6.0" "flax<0.10.7"
-                  # install skrl dependencies for JAX
-                  ./isaaclab.sh -p -m pip install skrl["jax"]
-                  # run script for training
-                  ./isaaclab.sh -p scripts/reinforcement_learning/skrl/train.py --task Isaac-Reach-Franka-v0 --headless --ml_framework jax
-                  # run script for playing with 32 environments
-                  ./isaaclab.sh -p scripts/reinforcement_learning/skrl/play.py --task Isaac-Reach-Franka-v0 --num_envs 32 --ml_framework jax --checkpoint /PATH/TO/model.pt
-                  # record a trained agent (requires ffmpeg)
-                  ./isaaclab.sh -p scripts/reinforcement_learning/skrl/play.py --task Isaac-Reach-Franka-v0 --headless --ml_framework jax --video --video_length 200
-
-            .. tab-item:: :icon:`fa-brands fa-linux` Linux (aarch64)
-               :sync: linux-aarch64
-
-               .. note::
-                  For systems running on ARM (aarch64) with CUDA 13 and Torch 2.9.0, JAX must be installed with the matching CUDA 13 wheels.
-
-               .. code:: bash
-
-                  # install python module (for skrl)
-                  ./isaaclab.sh -i skrl
-                  # install jax<0.6.0 for torch 2.9 / CUDA 13
-                  ./isaaclab.sh -p -m pip install "jax[cuda13]<0.6.0" "flax<0.10.7"
-                  # install skrl dependencies for JAX
-                  ./isaaclab.sh -p -m pip install skrl["jax"]
-                  # run script for training
-                  ./isaaclab.sh -p scripts/reinforcement_learning/skrl/train.py --task Isaac-Reach-Franka-v0 --headless --ml_framework jax
-                  # run script for playing with 32 environments
-                  ./isaaclab.sh -p scripts/reinforcement_learning/skrl/play.py --task Isaac-Reach-Franka-v0 --num_envs 32 --ml_framework jax --checkpoint /PATH/TO/model.pt
-                  # record a trained agent (requires ffmpeg)
-                  ./isaaclab.sh -p scripts/reinforcement_learning/skrl/play.py --task Isaac-Reach-Franka-v0 --headless --ml_framework jax --video --video_length 200
+            # install python module (for skrl)
+            ./isaaclab.sh -i skrl
+            # install jax<0.6.0 for torch 2.7
+            ./isaaclab.sh -p -m pip install "jax[cuda12]<0.6.0" "flax<0.10.7"
+            # install skrl dependencies for JAX
+            ./isaaclab.sh -p -m pip install skrl["jax"]
+            # run script for training
+            ./isaaclab.sh -p scripts/reinforcement_learning/skrl/train.py --task Isaac-Reach-Franka-v0 --headless --ml_framework jax
+            # run script for playing with 32 environments
+            ./isaaclab.sh -p scripts/reinforcement_learning/skrl/play.py --task Isaac-Reach-Franka-v0 --num_envs 32  --ml_framework jax --checkpoint /PATH/TO/model.pt
+            # run script for recording video of a trained agent (requires installing `ffmpeg`)
+            ./isaaclab.sh -p scripts/reinforcement_learning/skrl/play.py --task Isaac-Reach-Franka-v0 --headless --ml_framework jax --video --video_length 200
 
    - Training the multi-agent environment ``Isaac-Shadow-Hand-Over-Direct-v0`` with skrl:
 
