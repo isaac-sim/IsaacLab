@@ -104,6 +104,15 @@ class TerrainImporter:
             self.import_ground_plane("terrain")
             # configure the origins in a grid
             self.configure_env_origins()
+        elif self.cfg.terrain_type == "mesh":
+            # check if config is provided
+            if self.cfg.mesh_path is None:
+                raise ValueError("Input terrain type is 'mesh' but no value provided for 'mesh_path'.")
+            # import the terrain
+            mesh = trimesh.load_mesh(self.cfg.mesh_path)
+            self.import_mesh("terrain", mesh)
+            # configure the origins in a grid
+            self.configure_env_origins()
         else:
             raise ValueError(f"Terrain type '{self.cfg.terrain_type}' not available.")
 
@@ -217,7 +226,7 @@ class TerrainImporter:
         ground_plane_cfg = sim_utils.GroundPlaneCfg(physics_material=self.cfg.physics_material, size=size, color=color)
         ground_plane_cfg.func(prim_path, ground_plane_cfg)
 
-    def import_mesh(self, name: str, mesh: trimesh.Trimesh):
+    def import_mesh(self, name: str, mesh: trimesh.Trimesh, **kwargs):
         """Import a mesh into the simulator.
 
         The mesh is imported into the simulator under the prim path ``cfg.prim_path/{key}``. The created path
@@ -243,7 +252,11 @@ class TerrainImporter:
 
         # import the mesh
         create_prim_from_mesh(
-            prim_path, mesh, visual_material=self.cfg.visual_material, physics_material=self.cfg.physics_material
+            prim_path,
+            mesh,
+            visual_material=self.cfg.visual_material,
+            physics_material=self.cfg.physics_material,
+            **kwargs,
         )
 
     def import_usd(self, name: str, usd_path: str):
