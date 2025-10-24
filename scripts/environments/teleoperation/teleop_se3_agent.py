@@ -241,6 +241,12 @@ def main() -> None:
         else:
             omni.log.warn("Environment does not support pre-render callback; continuing without it.")
 
+        # Configure environment based on teleop device type
+        if hasattr(env.unwrapped, "setup_for_teleop_device") and callable(
+            getattr(env.unwrapped, "setup_for_teleop_device")
+        ):
+            env.unwrapped.setup_for_teleop_device(teleop_interface, args_cli)  # type: ignore[attr-defined]
+
     print("Teleoperation started. Press 'R' to reset the environment.")
 
     # simulate environment
