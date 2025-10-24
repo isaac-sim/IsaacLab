@@ -32,7 +32,7 @@ class G1LowerBodyStandingRetargeter(RetargeterBase):
 
 
 @dataclass
-class G1LowerBodyStandingControllerRetargeterCfg(RetargeterCfg):
+class G1LowerBodyStandingMotionControllerRetargeterCfg(RetargeterCfg):
     """Configuration for the G1 lower body standing retargeter."""
 
     hip_height: float = 0.72
@@ -45,10 +45,10 @@ class G1LowerBodyStandingControllerRetargeterCfg(RetargeterCfg):
     """Scale the rotation of the robot to the range of [-rotation_scale, rotation_scale]."""
 
 
-class G1LowerBodyStandingControllerRetargeter(RetargeterBase):
+class G1LowerBodyStandingMotionControllerRetargeter(RetargeterBase):
     """Provides lower body standing commands for the G1 robot."""
 
-    def __init__(self, cfg: G1LowerBodyStandingControllerRetargeterCfg):
+    def __init__(self, cfg: G1LowerBodyStandingMotionControllerRetargeterCfg):
         """Initialize the retargeter."""
         self.cfg = cfg
         self._hip_height = cfg.hip_height
