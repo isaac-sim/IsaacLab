@@ -7,9 +7,10 @@
 # pyright: reportPrivateUsage=none
 
 from __future__ import annotations
+
 import enum
 import numpy as np
-from typing import Callable
+from collections.abc import Callable
 
 from isaaclab.utils import configclass
 
@@ -78,13 +79,15 @@ class XrCfg:
     Typical useful range: 0.3 – 1.5 seconds depending on runtime frame-rate and comfort.
     """
 
-    anchor_rotation_custom_func: Callable[[np.ndarray, np.ndarray], np.ndarray] = lambda headpose, primpose: np.array([1, 0, 0, 0], dtype=np.float64)
+    anchor_rotation_custom_func: Callable[[np.ndarray, np.ndarray], np.ndarray] = lambda headpose, primpose: np.array(
+        [1, 0, 0, 0], dtype=np.float64
+    )
     """Specifies the function to calculate the rotation of the XR anchor when anchor_rotation_mode is CUSTOM.
-    
+
     Args:
         headpose: Previous head pose as numpy array [x, y, z, w, x, y, z] (position + quaternion)
         pose: Anchor prim pose as numpy array [x, y, z, w, x, y, z] (position + quaternion)
-        
+
     Returns:
         np.ndarray: Quaternion as numpy array [w, x, y, z]
     """

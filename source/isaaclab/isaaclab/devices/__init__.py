@@ -22,7 +22,16 @@ the peripheral device.
 from .device_base import DeviceBase, DeviceCfg, DevicesCfg
 from .gamepad import Se2Gamepad, Se2GamepadCfg, Se3Gamepad, Se3GamepadCfg
 from .keyboard import Se2Keyboard, Se2KeyboardCfg, Se3Keyboard, Se3KeyboardCfg
-from .openxr import ManusVive, ManusViveCfg, OpenXRDevice, OpenXRDeviceCfg, OpenXRDeviceMotionController, OpenXRDeviceMotionControllerCfg, MotionControllerDataRowIndex, MotionControllerInputIndex
+from .openxr import (
+    ManusVive,
+    ManusViveCfg,
+    MotionControllerDataRowIndex,
+    MotionControllerInputIndex,
+    OpenXRDevice,
+    OpenXRDeviceCfg,
+    OpenXRDeviceMotionController,
+    OpenXRDeviceMotionControllerCfg,
+)
 from .retargeter_base import RetargeterBase, RetargeterCfg
 from .spacemouse import Se2SpaceMouse, Se2SpaceMouseCfg, Se3SpaceMouse, Se3SpaceMouseCfg
 from .teleop_device_factory import create_teleop_device

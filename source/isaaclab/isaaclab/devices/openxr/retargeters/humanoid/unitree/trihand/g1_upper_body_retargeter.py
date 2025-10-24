@@ -13,7 +13,11 @@ from dataclasses import dataclass
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as PoseUtils
 from isaaclab.devices import OpenXRDevice
-from isaaclab.devices.openxr.openxr_device_controller import MotionControllerTrackingTarget, MotionControllerDataRowIndex, MotionControllerInputIndex
+from isaaclab.devices.openxr.openxr_device_controller import (
+    MotionControllerDataRowIndex,
+    MotionControllerInputIndex,
+    MotionControllerTrackingTarget,
+)
 from isaaclab.devices.retargeter_base import RetargeterBase, RetargeterCfg
 from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
 
@@ -180,7 +184,7 @@ class G1TriHandUpperBodyMotionControllerRetargeter(RetargeterBase):
 
     Mapping:
     - A button (digital 0/1) → Thumb joints
-    - Trigger (analog 0-1) → Index finger joints  
+    - Trigger (analog 0-1) → Index finger joints
     - Squeeze (analog 0-1) → Middle finger joints
     """
 
@@ -192,7 +196,6 @@ class G1TriHandUpperBodyMotionControllerRetargeter(RetargeterBase):
 
         if cfg.hand_joint_names is None:
             raise ValueError("hand_joint_names must be provided")
-
 
         # Initialize visualization if enabled
         if self._enable_visualization:
@@ -219,43 +222,42 @@ class G1TriHandUpperBodyMotionControllerRetargeter(RetargeterBase):
             hand_joints order: [left_proximal(3), right_proximal(3), left_distal(2), left_thumb_middle(1), right_distal(2), right_thumb_middle(1), left_thumb_tip(1), right_thumb_tip(1)]
         """
 
-
         # Get controller data
         left_controller_data = data.get(MotionControllerTrackingTarget.LEFT, np.array([]))
         right_controller_data = data.get(MotionControllerTrackingTarget.RIGHT, np.array([]))
 
         # Default wrist poses (position + quaternion)
         default_wrist = np.array([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0])
-        
+
         # Extract poses from controller data
         left_wrist = self._extract_wrist_pose(left_controller_data, default_wrist)
         right_wrist = self._extract_wrist_pose(right_controller_data, default_wrist)
-        
+
         # Map controller inputs to hand joints
         left_hand_joints = self._map_to_hand_joints(left_controller_data, is_left=True)
         right_hand_joints = self._map_to_hand_joints(right_controller_data, is_left=False)
-        
+
         # Negate left hand joints for proper mirroring
         left_hand_joints = -left_hand_joints
-        
+
         # Combine joints in the expected order: [left_proximal(3), right_proximal(3), left_distal(2), left_thumb_middle(1), right_distal(2), right_thumb_middle(1), left_thumb_tip(1), right_thumb_tip(1)]
         all_hand_joints = np.array([
-            left_hand_joints[3],   # left_index_proximal
-            left_hand_joints[5],   # left_middle_proximal
-            left_hand_joints[0],   # left_thumb_base
+            left_hand_joints[3],  # left_index_proximal
+            left_hand_joints[5],  # left_middle_proximal
+            left_hand_joints[0],  # left_thumb_base
             right_hand_joints[3],  # right_index_proximal
             right_hand_joints[5],  # right_middle_proximal
             right_hand_joints[0],  # right_thumb_base
-            left_hand_joints[4],   # left_index_distal
-            left_hand_joints[6],   # left_middle_distal
-            left_hand_joints[1],   # left_thumb_middle
+            left_hand_joints[4],  # left_index_distal
+            left_hand_joints[6],  # left_middle_distal
+            left_hand_joints[1],  # left_thumb_middle
             right_hand_joints[4],  # right_index_distal
             right_hand_joints[6],  # right_middle_distal
             right_hand_joints[1],  # right_thumb_middle
-            left_hand_joints[2],   # left_thumb_tip
+            left_hand_joints[2],  # left_thumb_tip
             right_hand_joints[2],  # right_thumb_tip
         ])
-        
+
         # Convert to tensors
         left_wrist_tensor = torch.tensor(
             self._retarget_abs(left_wrist, is_left=True), dtype=torch.float32, device=self._sim_device
@@ -291,19 +293,19 @@ class G1TriHandUpperBodyMotionControllerRetargeter(RetargeterBase):
         Returns:
             Hand joint angles (7 joints per hand) in radians
         """
-        
+
         # Initialize all joints to zero
         hand_joints = np.zeros(7)
-        
+
         if len(controller_data) <= MotionControllerDataRowIndex.INPUTS.value:
             return hand_joints
-            
+
         # Extract inputs from second row
         inputs = controller_data[MotionControllerDataRowIndex.INPUTS.value]
-        
+
         if len(inputs) <= MotionControllerInputIndex.BUTTON_0.value:
             return hand_joints
-            
+
         # Extract specific inputs using enum
         trigger = inputs[MotionControllerInputIndex.TRIGGER.value]  # 0.0 to 1.0 (analog)
         squeeze = inputs[MotionControllerInputIndex.SQUEEZE.value]  # 0.0 to 1.0 (analog)
@@ -313,11 +315,11 @@ class G1TriHandUpperBodyMotionControllerRetargeter(RetargeterBase):
         # The thumb rotates towards the direction of the pressing finger. If both are pressed, the thumb stays in the middle.
 
         thumb_button = max(trigger, squeeze)
-        
+
         # Map to G1 hand joints (in radians)
         # Thumb joints (3 joints) - controlled by A button (digital)
         thumb_angle = -thumb_button  # Max 1 radian ≈ 57°
-        
+
         # Thumb rotation: If trigger is pressed, we rotate the thumb toward the index finger. If squeeze is pressed, we rotate the thumb toward the middle finger.
         # If both are pressed, the thumb stays between the index and middle fingers.
         # Trigger pushes toward +0.5, squeeze pushes toward -0.5
@@ -329,19 +331,19 @@ class G1TriHandUpperBodyMotionControllerRetargeter(RetargeterBase):
 
         # These values were found empirically to get a good gripper pose.
 
-        hand_joints[0] = thumb_rotation     # thumb_0_joint (base)
+        hand_joints[0] = thumb_rotation  # thumb_0_joint (base)
         hand_joints[1] = thumb_angle * 0.4  # thumb_1_joint (middle)
         hand_joints[2] = thumb_angle * 0.7  # thumb_2_joint (tip)
-        
+
         # Index finger joints (2 joints) - controlled by trigger (analog)
-        index_angle = trigger * 1.0     # Max 1.0 radians ≈ 57°
-        hand_joints[3] = index_angle    # index_0_joint (proximal)
-        hand_joints[4] = index_angle    # index_1_joint (distal)
-        
+        index_angle = trigger * 1.0  # Max 1.0 radians ≈ 57°
+        hand_joints[3] = index_angle  # index_0_joint (proximal)
+        hand_joints[4] = index_angle  # index_1_joint (distal)
+
         # Middle finger joints (2 joints) - controlled by squeeze (analog)
-        middle_angle = squeeze * 1.0    # Max 1.0 radians ≈ 57°
-        hand_joints[5] = middle_angle   # middle_0_joint (proximal)
-        hand_joints[6] = middle_angle   # middle_1_joint (distal)
+        middle_angle = squeeze * 1.0  # Max 1.0 radians ≈ 57°
+        hand_joints[5] = middle_angle  # middle_0_joint (proximal)
+        hand_joints[6] = middle_angle  # middle_1_joint (distal)
 
         return hand_joints
 

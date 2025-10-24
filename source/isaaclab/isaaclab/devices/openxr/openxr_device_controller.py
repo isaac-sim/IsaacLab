@@ -5,26 +5,26 @@
 
 """OpenXR-powered device for teleoperation and interaction with motion controllers."""
 
-import math
-import time
 import contextlib
+import math
 import numpy as np
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
 import carb
-import usdrt
 import omni.log
+import usdrt
+from isaacsim.core.utils.stage import get_current_stage
 from pxr import Gf as pxrGf
 from usdrt import Rt
 
 import isaaclab.sim as sim_utils
-from isaacsim.core.utils.stage import get_current_stage
 from isaaclab.devices.retargeter_base import RetargeterBase
-from .xr_cfg import XrAnchorRotationMode
 
 from .openxr_device import OpenXRDevice, OpenXRDeviceCfg
+from .xr_cfg import XrAnchorRotationMode
 
 with contextlib.suppress(ModuleNotFoundError):
     from omni.kit.xr.core import XRCore
@@ -32,25 +32,30 @@ with contextlib.suppress(ModuleNotFoundError):
 # Extend TrackingTarget enum for controllers
 from enum import Enum
 
+
 class MotionControllerInputIndex(Enum):
     """Enum for Motion Controller input indices."""
+
     THUMBSTICK_X = 0
     THUMBSTICK_Y = 1
     TRIGGER = 2
     SQUEEZE = 3
     BUTTON_0 = 4  # X for left controller, A for right controller
     BUTTON_1 = 5  # Y for left controller, B for right controller
-    PADDING = 6 # Additional padding to make 7 elements to align with MotionControllerDataRowIndex.POSE
+    PADDING = 6  # Additional padding to make 7 elements to align with MotionControllerDataRowIndex.POSE
 
 
 class MotionControllerDataRowIndex(Enum):
     """Enum for Motion Controller data row indices."""
-    POSE = 0      # [x, y, z, w, x, y, z] - position and quaternion
-    INPUTS = 1    # MotionControllerInputIndex: [thumbstick_x, thumbstick_y, trigger, squeeze, button_0, button_1]
+
+    POSE = 0  # [x, y, z, w, x, y, z] - position and quaternion
+    INPUTS = 1  # MotionControllerInputIndex: [thumbstick_x, thumbstick_y, trigger, squeeze, button_0, button_1]
+
 
 # Create a new enum that includes all TrackingTarget values plus new ones
 class MotionControllerTrackingTarget(Enum):
     """Extended tracking targets for Motion Controllers."""
+
     LEFT = len(OpenXRDevice.TrackingTarget)
     RIGHT = LEFT + 1
 
@@ -58,6 +63,7 @@ class MotionControllerTrackingTarget(Enum):
 @dataclass
 class OpenXRDeviceMotionControllerCfg(OpenXRDeviceCfg):
     """Configuration for Motion Controller OpenXR devices."""
+
     pass
 
 
@@ -117,6 +123,7 @@ class OpenXRDeviceMotionController(OpenXRDevice):
     """
     Operations
     """
+
     def reset(self):
         super().reset()
         self.__anchor_prim_initial_quat = None
@@ -151,12 +158,10 @@ class OpenXRDeviceMotionController(OpenXRDevice):
         """
         return {
             MotionControllerTrackingTarget.LEFT: self._query_controller(
-                MotionControllerTrackingTarget.LEFT,
-                self._xr_core.get_input_device("/user/hand/left")
+                MotionControllerTrackingTarget.LEFT, self._xr_core.get_input_device("/user/hand/left")
             ),
             MotionControllerTrackingTarget.RIGHT: self._query_controller(
-                MotionControllerTrackingTarget.RIGHT,
-                self._xr_core.get_input_device("/user/hand/right")
+                MotionControllerTrackingTarget.RIGHT, self._xr_core.get_input_device("/user/hand/right")
             ),
             OpenXRDevice.TrackingTarget.HEAD: self._calculate_headpose(),
         }
@@ -165,12 +170,8 @@ class OpenXRDeviceMotionController(OpenXRDevice):
     Internal helpers.
     """
 
-    def _query_controller(
-        self, tracking_target : MotionControllerTrackingTarget, input_device
-    ) -> np.array:
-        """Calculate and update input device data
-
-        """
+    def _query_controller(self, tracking_target: MotionControllerTrackingTarget, input_device) -> np.array:
+        """Calculate and update input device data"""
 
         if input_device is None:
             return np.array([])
@@ -178,7 +179,7 @@ class OpenXRDeviceMotionController(OpenXRDevice):
         pose = input_device.get_virtual_world_pose()
         position = pose.ExtractTranslation()
         quat = pose.ExtractRotationQuat()
-        
+
         thumbstick_x = 0.0
         thumbstick_y = 0.0
         trigger = 0.0
@@ -213,21 +214,26 @@ class OpenXRDeviceMotionController(OpenXRDevice):
 
         # First row: position and quaternion (7 values)
         pose_row = [
-            position[0], position[1], position[2],  # x, y, z position
-            quat.GetReal(), quat.GetImaginary()[0], quat.GetImaginary()[1], quat.GetImaginary()[2]  # w, x, y, z quaternion
+            position[0],
+            position[1],
+            position[2],  # x, y, z position
+            quat.GetReal(),
+            quat.GetImaginary()[0],
+            quat.GetImaginary()[1],
+            quat.GetImaginary()[2],  # w, x, y, z quaternion
         ]
-        
+
         # Second row: controller input values (6 values + 1 padding)
         input_row = [
             thumbstick_x,  # MotionControllerInputIndex.THUMBSTICK_X
             thumbstick_y,  # MotionControllerInputIndex.THUMBSTICK_Y
-            trigger,       # MotionControllerInputIndex.TRIGGER
-            squeeze,       # MotionControllerInputIndex.SQUEEZE
-            button_0,      # MotionControllerInputIndex.BUTTON_0
-            button_1,      # MotionControllerInputIndex.BUTTON_1
-            0.0,           # MotionControllerInputIndex.PADDING
+            trigger,  # MotionControllerInputIndex.TRIGGER
+            squeeze,  # MotionControllerInputIndex.SQUEEZE
+            button_0,  # MotionControllerInputIndex.BUTTON_0
+            button_1,  # MotionControllerInputIndex.BUTTON_1
+            0.0,  # MotionControllerInputIndex.PADDING
         ]
-        
+
         # Combine into 2D array: [pose(7), inputs(7)]
         return np.array([pose_row, input_row], dtype=np.float32)
 
@@ -278,9 +284,11 @@ class OpenXRDeviceMotionController(OpenXRDevice):
         # XrAnchorRotationMode.FIXED is implicitly handled by setting pxr_anchor_quat to pxr_cfg_quat and overwritten in other modesZ
         pxr_anchor_quat = pxr_cfg_quat
 
-
         # XrAnchorRotationMode.FOLLOW_PRIM or XrAnchorRotationMode.FOLLOW_PRIM_SMOOTHED
-        if self._xr_cfg.anchor_rotation_mode == XrAnchorRotationMode.FOLLOW_PRIM or self._xr_cfg.anchor_rotation_mode == XrAnchorRotationMode.FOLLOW_PRIM_SMOOTHED:
+        if (
+            self._xr_cfg.anchor_rotation_mode == XrAnchorRotationMode.FOLLOW_PRIM
+            or self._xr_cfg.anchor_rotation_mode == XrAnchorRotationMode.FOLLOW_PRIM_SMOOTHED
+        ):
             # Calculate the delta rotation between the prim and the initial rotation
             rt_prim_quat = rt_matrix.ExtractRotationQuat()
             rt_delta_quat = rt_prim_quat * self.__anchor_prim_initial_quat.GetInverse()
@@ -292,7 +300,7 @@ class OpenXRDeviceMotionController(OpenXRDevice):
             ix, iy, iz = pxr_delta_quat.GetImaginary()
 
             # yaw around Z (right-handed, Z-up)
-            yaw = math.atan2(2.0 * (w*iz + ix*iy), 1.0 - 2.0 * (iy*iy + iz*iz))
+            yaw = math.atan2(2.0 * (w * iz + ix * iy), 1.0 - 2.0 * (iy * iy + iz * iz))
 
             # yaw-only quaternion about Z
             cy = math.cos(yaw * 0.5)
@@ -314,10 +322,10 @@ class OpenXRDeviceMotionController(OpenXRDevice):
                         self.__last_smoothing_update_time = current_time
                     dt = current_time - self.__last_smoothing_update_time
                     self.__last_smoothing_update_time = current_time
-                    
+
                     # Allow very small alpha for strong smoothing; only clamp upper bound
                     alpha = 1.0 - math.exp(-dt / max(self._xr_cfg.anchor_rotation_smoothing_time, 1e-6))
-                    alpha = min(1.0, max(0.05, alpha)) # small floor avoids lingering
+                    alpha = min(1.0, max(0.05, alpha))  # small floor avoids lingering
 
                     # Perform spherical linear interpolation (slerp)
                     # Use Gf.Slerp(alpha, quat_from, quat_to)
@@ -329,7 +337,18 @@ class OpenXRDeviceMotionController(OpenXRDevice):
             if self._xr_cfg.anchor_rotation_custom_func is not None:
                 rt_prim_quat = rt_matrix.ExtractRotationQuat()
 
-                anchor_prim_pose = np.array([rt_pos[0], rt_pos[1], rt_pos[2], rt_prim_quat.GetReal(), rt_prim_quat.GetImaginary()[0], rt_prim_quat.GetImaginary()[1], rt_prim_quat.GetImaginary()[2]], dtype=np.float64)
+                anchor_prim_pose = np.array(
+                    [
+                        rt_pos[0],
+                        rt_pos[1],
+                        rt_pos[2],
+                        rt_prim_quat.GetReal(),
+                        rt_prim_quat.GetImaginary()[0],
+                        rt_prim_quat.GetImaginary()[1],
+                        rt_prim_quat.GetImaginary()[2],
+                    ],
+                    dtype=np.float64,
+                )
                 np_array_quat = self._xr_cfg.anchor_rotation_custom_func(self._previous_headpose, anchor_prim_pose)
 
                 w, x, y, z = np_array_quat
@@ -348,7 +367,9 @@ class OpenXRDeviceMotionController(OpenXRDevice):
             pxr_mat.SetRotateOnly(self.__last_anchor_quat)
             self.__smoothed_anchor_quat = self.__last_anchor_quat
 
-        self._xr_core.set_world_transform_matrix(self._xr_anchor_headset_path, pxr_mat, self.__anchor_headset_layer_identifier)
+        self._xr_core.set_world_transform_matrix(
+            self._xr_anchor_headset_path, pxr_mat, self.__anchor_headset_layer_identifier
+        )
 
     def _bind_button_press(
         self,

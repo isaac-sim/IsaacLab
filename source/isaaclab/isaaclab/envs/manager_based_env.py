@@ -5,8 +5,8 @@
 
 import builtins
 import torch
-from collections.abc import Sequence
-from typing import Any, Callable, Optional
+from collections.abc import Callable, Sequence
+from typing import Any
 
 import isaacsim.core.utils.torch as torch_utils
 import omni.log

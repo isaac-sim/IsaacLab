@@ -7,8 +7,12 @@ import time
 import torch
 from dataclasses import dataclass
 
+from isaaclab.devices.openxr.openxr_device_controller import (
+    MotionControllerDataRowIndex,
+    MotionControllerInputIndex,
+    MotionControllerTrackingTarget,
+)
 from isaaclab.devices.retargeter_base import RetargeterBase, RetargeterCfg
-from isaaclab.devices.openxr.openxr_device_controller import MotionControllerTrackingTarget, MotionControllerDataRowIndex, MotionControllerInputIndex
 
 
 @dataclass
@@ -28,7 +32,6 @@ class G1LowerBodyStandingRetargeter(RetargeterBase):
 
     def retarget(self, data: dict) -> torch.Tensor:
         return torch.tensor([0.0, 0.0, 0.0, self.cfg.hip_height], device=self.cfg.sim_device)
-
 
 
 @dataclass
@@ -80,11 +83,15 @@ class G1LowerBodyStandingMotionControllerRetargeter(RetargeterBase):
         # Thumbstick values are in the range of [-1, 1], so we need to scale them to the range of [-movement_clamp, movement_clamp]
         left_thumbstick_x = left_thumbstick_x * self.cfg.movement_scale
         left_thumbstick_y = left_thumbstick_y * self.cfg.movement_scale
-        
+
         # Use wall clock time for consistent hip height adjustment regardless of simulation speed
         current_time = time.time()
         dt = current_time - self._last_update_time
         self._last_update_time = current_time
         self._hip_height -= right_thumbstick_y * dt * self.cfg.rotation_scale
 
-        return torch.tensor([-left_thumbstick_y, -left_thumbstick_x, -right_thumbstick_x, self._hip_height], device=self.cfg.sim_device, dtype=torch.float32)
+        return torch.tensor(
+            [-left_thumbstick_y, -left_thumbstick_x, -right_thumbstick_x, self._hip_height],
+            device=self.cfg.sim_device,
+            dtype=torch.float32,
+        )

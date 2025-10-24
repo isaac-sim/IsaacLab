@@ -118,7 +118,7 @@ class OpenXRDevice(DeviceBase):
 
         carb.settings.get_settings().set_float("/persistent/xr/profile/ar/render/nearPlane", self._xr_cfg.near_plane)
         carb.settings.get_settings().set_string("/persistent/xr/profile/ar/anchorMode", "custom anchor")
-        carb.settings.get_settings().set_string("/xrstage/profile/ar/customAnchor", self._xr_anchor_headset_path )
+        carb.settings.get_settings().set_string("/xrstage/profile/ar/customAnchor", self._xr_anchor_headset_path)
 
     def __del__(self):
         """Clean up resources when the object is destroyed.
@@ -147,7 +147,7 @@ class OpenXRDevice(DeviceBase):
         if self._xr_cfg.anchor_prim_path is not None:
             msg += f"\tAnchor Prim Path: {self._xr_cfg.anchor_prim_path} (Dynamic Anchoring)\n"
         else:
-            msg += f"\tAnchor Mode: Static (Root Level)\n"
+            msg += "\tAnchor Mode: Static (Root Level)\n"
 
         # Add retargeter information
         if self._retargeters:

@@ -64,8 +64,8 @@ import omni.log
 from isaaclab.devices import Se3Gamepad, Se3GamepadCfg, Se3Keyboard, Se3KeyboardCfg, Se3SpaceMouse, Se3SpaceMouseCfg
 from isaaclab.devices.openxr import remove_camera_configs
 from isaaclab.devices.teleop_device_factory import create_teleop_device
-from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.envs.manager_based_env import ManagerBasedEnv
+from isaaclab.managers import TerminationTermCfg as DoneTerm
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.manager_based.manipulation.lift import mdp
@@ -74,6 +74,7 @@ from isaaclab_tasks.utils import parse_env_cfg
 if args_cli.enable_pinocchio:
     import isaaclab_tasks.manager_based.locomanipulation.pick_place  # noqa: F401
     import isaaclab_tasks.manager_based.manipulation.pick_place  # noqa: F401
+
 
 def main() -> None:
     """
@@ -102,7 +103,7 @@ def main() -> None:
         env_cfg = remove_camera_configs(env_cfg)
         env_cfg.sim.render.antialiasing_mode = "DLSS"
         # Set flag for environment to know XR is enabled (if it supports it)
-        if hasattr(env_cfg, 'xr_enabled'):
+        if hasattr(env_cfg, "xr_enabled"):
             env_cfg.xr_enabled = True
 
     try:
