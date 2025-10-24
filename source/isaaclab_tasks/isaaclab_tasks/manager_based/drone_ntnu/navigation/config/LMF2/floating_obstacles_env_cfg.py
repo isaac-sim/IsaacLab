@@ -37,3 +37,4 @@ class LMF2FloatingObstacleEnvCfg_PLAY(LMF2FloatingObstacleEnvCfg):
         # remove random pushing event
         self.events.base_external_force_torque = None
         self.events.push_robot = None
+        

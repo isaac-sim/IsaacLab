@@ -65,11 +65,11 @@ def image_latents(
     # extract the used quantities (to enable type-hinting)
     sensor: TiledCamera | Camera | RayCasterCamera = env.scene.sensors[sensor_cfg.name]
 
+    # sensor.update(env.physics_dt, force_recompute=True) #TODO @welfr make sure this is necessary
+
     # obtain the input image
     images = sensor.data.output[data_type]
     
-    print("image output: ", images[0])
-
     # depth image conversion
     if (data_type == "distance_to_camera") and convert_perspective_to_orthogonal:
         images = math_utils.orthogonalize_perspective_depth(images, sensor.data.intrinsic_matrices)
@@ -97,25 +97,6 @@ def image_latents(
         _vae_model.eval()
     with torch.no_grad():
         latents = _vae_model(images.squeeze(-1).half())
-    
-    
-    # Validate latents: not None and no None entries inside iterable results
-    if latents is None:
-        raise RuntimeError(f"VAE model returned None for latents. images.shape={tuple(images.shape)}, images.device={images.device}")
-    if isinstance(latents, (list, tuple)):
-        for i, entry in enumerate(latents):
-            if entry is None:
-                raise RuntimeError(
-                    f"VAE model returned None at latents[{i}]. images.shape={tuple(images.shape)}, images.device={images.device}"
-                )
-            if isinstance(entry, torch.Tensor):
-                if torch.isnan(entry).any() or torch.isinf(entry).any():
-                    raise RuntimeError(f"VAE model returned NaN/Inf in latents[{i}].")
-    elif isinstance(latents, torch.Tensor):
-        if torch.isnan(latents).any() or torch.isinf(latents).any():
-            raise RuntimeError("VAE model returned NaN/Inf in latents tensor.")
-    else:
-        raise RuntimeError(f"VAE model returned unexpected type for latents: {type(latents)}")
         
     return latents
 
@@ -179,16 +160,5 @@ def base_roll_pitch(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntit
     # normalize angle to [-pi, pi]
     roll = torch.atan2(torch.sin(roll), torch.cos(roll))
     pitch = torch.atan2(torch.sin(pitch), torch.cos(pitch))
-    
-    if roll is None or pitch is None:
-        raise RuntimeError(f"base_roll_pitch: roll or pitch is None (roll={roll}, pitch={pitch})")
-
-    # If tensors, ensure no NaN/Inf entries
-    for name, tensor in (("roll", roll), ("pitch", pitch)):
-        if isinstance(tensor, torch.Tensor):
-            if torch.isnan(tensor).any():
-                raise RuntimeError(f"base_roll_pitch: {name} contains NaN values")
-            if torch.isinf(tensor).any():
-                raise RuntimeError(f"base_roll_pitch: {name} contains Inf values")
 
     return torch.cat((roll.unsqueeze(-1), pitch.unsqueeze(-1)), dim=-1)

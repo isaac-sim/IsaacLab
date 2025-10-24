@@ -63,20 +63,33 @@ class MySceneCfg(InteractiveSceneCfg):
     
     # robots
     robot: MultirotorCfg = MISSING
+    
     # sensors
     depth_camera = MultiMeshRayCasterCameraCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/base_link",
-        mesh_prim_paths=[MultiMeshRayCasterCameraCfg.RaycastTargetCfg(target_prim_expr=f"{{ENV_REGEX_NS}}/obstacle_{wall_name}") 
-         for wall_name, _ in OBSTACLE_SCENE_CFG.wall_cfgs.items()]+[MultiMeshRayCasterCameraCfg.RaycastTargetCfg(target_prim_expr=f"{{ENV_REGEX_NS}}/obstacle_{i}") 
-         for i in range(OBSTACLE_SCENE_CFG.max_num_obstacles)],
-        offset=MultiMeshRayCasterCameraCfg.OffsetCfg(pos=(0.15, 0.0, 0.04), rot=(1.0, 0.0, 0.0, 0.0)),
-        update_period=0.1,
-        pattern_cfg=PinholeCameraPatternCfg(
-            width=480, height=270, focal_length= 0.193, horizontal_aperture=0.36, vertical_aperture=0.21 # d455 camera params
-        ),
-        data_types=["distance_to_image_plane"],
-        max_distance=10.0,
-        depth_clipping_behavior="max",
+    prim_path="{ENV_REGEX_NS}/Robot/base_link",
+    mesh_prim_paths=[
+        "/World/ground",
+    ] + [
+        MultiMeshRayCasterCameraCfg.RaycastTargetCfg(
+            target_prim_expr=f"{{ENV_REGEX_NS}}/obstacle_{wall_name}", 
+            is_global=False,
+            track_mesh_transforms=True
+        ) for wall_name, _ in OBSTACLE_SCENE_CFG.wall_cfgs.items()
+    ] + [
+        MultiMeshRayCasterCameraCfg.RaycastTargetCfg(
+            target_prim_expr=f"{{ENV_REGEX_NS}}/obstacle_{i}",
+            is_global=False,
+            track_mesh_transforms=True
+        ) for i in range(OBSTACLE_SCENE_CFG.max_num_obstacles)
+    ],
+    offset=MultiMeshRayCasterCameraCfg.OffsetCfg(pos=(0.15, 0.0, 0.04), rot=(1., 0., 0.0, 0.0), convention="world"),
+    update_period=0.1,
+    pattern_cfg=PinholeCameraPatternCfg(
+        width=480, height=270, focal_length=0.193, horizontal_aperture=0.36, vertical_aperture=0.21
+    ),
+    data_types=["distance_to_image_plane"],
+    max_distance=10.0,
+    depth_clipping_behavior="max",
     )
     
     contact_forces = ContactSensorCfg(
@@ -108,8 +121,8 @@ class CommandsCfg:
         resampling_time_range=(10.0, 10.0),
         debug_vis=True,
         ranges=mdp.DroneUniformPoseCommandCfg.Ranges(
-            pos_x=(10.0, 11.0),
-            pos_y=(1.0, 7.0),
+            pos_x=(4.0, 5.0),
+            pos_y=(-3.0, 3.0),
             pos_z=(1.0, 5.0),
             roll=(-0.0, 0.0),
             pitch=(-0.0, 0.0),
@@ -161,6 +174,25 @@ class ObservationsCfg:
 
     # observation groups
     policy: PolicyCfg = PolicyCfg()
+    
+    @configclass
+    class VisualizationCfg(ObsGroup):
+        """Observations for visualization only."""
+        
+        depth_image = ObsTerm(
+            func=mdp.image,
+            params={
+                "sensor_cfg": SceneEntityCfg("depth_camera"),
+                "data_type": "distance_to_image_plane",
+                "normalize": False,
+            }
+        )
+
+        def __post_init__(self):
+            self.enable_corruption = False
+            self.concatenate_terms = False 
+
+    visualization: VisualizationCfg = VisualizationCfg()  # ✅ Add visualization group
 
 
 @configclass
@@ -174,8 +206,8 @@ class EventCfg:
         mode="reset",
         params={
             "pose_range": {
-                "x": (1.0, 1.5),
-                "y": (1.0, 7.0),
+                "x": (-5., -4.5),
+                "y": (-3.0, 3.0),
                 "z": (1.0, 5.0),
                 "yaw": (-math.pi / 6.0, math.pi / 6.0),
             },
@@ -263,7 +295,7 @@ class NavigationVelocityFloatingObstacleEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the locomotion velocity-tracking environment."""
 
     # Scene settings
-    scene: MySceneCfg = MySceneCfg(num_envs=4096, env_spacing=2.5)
+    scene: MySceneCfg = MySceneCfg(num_envs=4096, env_spacing=20.5)
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
@@ -288,7 +320,7 @@ class NavigationVelocityFloatingObstacleEnvCfg(ManagerBasedRLEnvCfg):
             static_friction=1.0,
             dynamic_friction=1.0,
         )
-        self.sim.physx.gpu_max_rigid_patch_count = 10 * 2**15
+        self.sim.physx.gpu_max_rigid_patch_count = 2**19
         # update sensor update periods
         # we tick all the sensors based on the smallest update period (physics update period)
         if self.scene.contact_forces is not None:
