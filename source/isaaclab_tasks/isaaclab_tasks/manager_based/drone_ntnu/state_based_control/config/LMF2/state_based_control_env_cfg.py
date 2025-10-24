@@ -204,7 +204,7 @@ class TerminationsCfg:
 
 @configclass
 class StateBasedControlEmptyEnvCfg(ManagerBasedRLEnvCfg):
-    """Configuration for the locomotion velocity-tracking environment."""
+    """Configuration for the state-based drone pose-control environment."""
 
     # Scene settings
     scene: MySceneCfg = MySceneCfg(num_envs=4096, env_spacing=2.5)

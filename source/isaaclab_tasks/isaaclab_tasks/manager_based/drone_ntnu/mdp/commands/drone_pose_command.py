@@ -14,8 +14,22 @@ from isaaclab.utils.math import combine_frame_transforms, compute_pose_error
 
 
 class DroneUniformPoseCommand(UniformPoseCommand):
-    """
-    Implementation drone specific functions.
+    """Drone-specific UniformPoseCommand extensions.
+
+    This class customizes the generic :class:`UniformPoseCommand` for drone (multirotor)
+    use-cases. Main differences and additions:
+
+    - Transforms pose commands from the drone's base frame to the world frame before use.
+    - Accounts for per-environment origin offsets (``scene.env_origins``) when computing
+        position errors so tasks running on shifted/sub-terrain environments compute
+        meaningful errors.
+    - Computes and exposes simple metrics used by higher-level code: ``position_error``
+        and ``orientation_error`` (stored in ``self.metrics``).
+    - Provides a debug visualization callback that renders the goal pose (with
+        sub-terrain shift) and current body pose using the existing visualizers.
+
+    The implementation overrides :meth:`_update_metrics` and :meth:`_debug_vis_callback`
+    from the base class to implement these drone-specific behaviors.
     """
 
     def _update_metrics(self):
