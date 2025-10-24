@@ -4,6 +4,8 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import numpy as np
+import scipy.linalg.blas as blas
+import scipy.linalg.lapack as lapack
 
 import pinocchio as pin
 from pink.configuration import Configuration
@@ -237,6 +239,32 @@ class NullSpacePostureTask(Task):
         J_combined = np.concatenate(J_frame_tasks, axis=0)
 
         # Compute null space projector: N = I - J^+ * J
-        N_combined = np.eye(J_combined.shape[1]) - np.linalg.pinv(J_combined) @ J_combined
+        # Use fast pseudoinverse computation with direct LAPACK/BLAS calls
+        m, n = J_combined.shape
+
+        # Determine damping factor for numerical stability
+        damping = 1e-9
+
+        # Wide matrix (typical for robotics): use left pseudoinverse
+        # J^+ = J^T @ inv(J @ J^T + λ²I)
+        # This is faster because we invert an m×m matrix instead of n×n
+
+        # Compute J @ J^T using BLAS (faster than numpy)
+        JJT = blas.dgemm(1.0, J_combined, J_combined.T)
+        np.fill_diagonal(JJT, JJT.diagonal() + damping**2)
+
+        # Use LAPACK's Cholesky factorization (dpotrf = Positive definite TRiangular Factorization)
+        L, info = lapack.dpotrf(JJT, lower=1, clean=False, overwrite_a=True)
+
+        if info != 0:
+            # Fallback if not positive definite
+            return np.eye(n)
+
+        # Solve (J @ J^T + λ²I) @ X = J using LAPACK's triangular solver (dpotrs)
+        # This directly solves the system without computing the full inverse
+        X, _ = lapack.dpotrs(L, J_combined, lower=1)
+
+        # Compute null space projector: N = I - J^T @ X
+        N_combined = np.eye(n) - J_combined.T @ X
 
         return N_combined
