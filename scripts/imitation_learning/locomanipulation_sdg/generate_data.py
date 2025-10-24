@@ -34,7 +34,7 @@ parser.add_argument(
         " lifting the object"
     ),
 )
-parser.add_argument("--demo", type=str, default="demo_0", help="The demo in the input dataset to use.")
+parser.add_argument("--demo", type=str, default=None, help="The demo in the input dataset to use.")
 parser.add_argument("--num_runs", type=int, default=1, help="The number of trajectories to generate.")
 parser.add_argument(
     "--draw_visualization", type=bool, default=False, help="Draw the occupancy map and path planning visualization."
@@ -111,6 +111,7 @@ simulation_app = app_launcher.app
 
 import enum
 import gymnasium as gym
+import random
 import torch
 
 import omni.kit
@@ -324,12 +325,13 @@ def handle_grasp_state(
         recording_item.left_hand_pose_target, recording_item.object_pose, env.get_object().get_pose()
     )[0]
     output_data.right_hand_pose_target = transform_relative_pose(
-        recording_item.right_hand_pose_target, recording_item.object_pose, env.get_object().get_pose()
+        recording_item.right_hand_pose_target, recording_item.base_pose, env.get_base().get_pose()
     )[0]
     output_data.left_hand_joint_positions_target = recording_item.left_hand_joint_positions_target
     output_data.right_hand_joint_positions_target = recording_item.right_hand_joint_positions_target
 
     # Update state
+
     next_recording_step = recording_step + 1
     next_state = (
         LocomanipulationSDGDataGenerationState.LIFT_OBJECT
@@ -371,7 +373,7 @@ def handle_lift_state(
         recording_item.left_hand_pose_target, recording_item.base_pose, env.get_base().get_pose()
     )[0]
     output_data.right_hand_pose_target = transform_relative_pose(
-        recording_item.right_hand_pose_target, recording_item.base_pose, env.get_base().get_pose()
+        recording_item.right_hand_pose_target, recording_item.object_pose, env.get_object().get_pose()
     )[0]
     output_data.left_hand_joint_positions_target = recording_item.left_hand_joint_positions_target
     output_data.right_hand_joint_positions_target = recording_item.right_hand_joint_positions_target
@@ -740,9 +742,15 @@ if __name__ == "__main__":
         # Load input data
         input_dataset_file_handler = HDF5DatasetFileHandler()
         input_dataset_file_handler.open(args_cli.dataset)
-        input_episode_data = input_dataset_file_handler.load_episode(args_cli.demo, args_cli.device)
 
         for i in range(args_cli.num_runs):
+
+            if args_cli.demo is None:
+                demo = random.choice(list(input_dataset_file_handler.get_episode_names()))
+            else:
+                demo = args_cli.demo
+
+            input_episode_data = input_dataset_file_handler.load_episode(demo, args_cli.device)
 
             replay(
                 env=env,

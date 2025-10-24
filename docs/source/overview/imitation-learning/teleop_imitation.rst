@@ -676,8 +676,8 @@ To generate the locomanipulation dataset, use the following command:
        --task="Isaac-G1-SteeringWheel-Locomanipulation" \
        --dataset ./datasets/generated_dataset_g1_locomanip.hdf5 \
        --num_runs 1 \
-       --lift_step 70 \
-       --navigate_step 120 \
+       --lift_step 60 \
+       --navigate_step 130 \
        --enable_pinocchio \
        --output_file ./datasets/generated_dataset_g1_locomanipulation_sdg.hdf5 \
        --enable_cameras
