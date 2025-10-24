@@ -15,10 +15,10 @@ from isaaclab.devices import DeviceBase, DeviceCfg
 from isaaclab.devices.gamepad import Se2Gamepad, Se2GamepadCfg, Se3Gamepad, Se3GamepadCfg
 from isaaclab.devices.keyboard import Se2Keyboard, Se2KeyboardCfg, Se3Keyboard, Se3KeyboardCfg
 from isaaclab.devices.openxr.retargeters import (
-    G1LowerBodyStandingRetargeter,
-    G1LowerBodyStandingRetargeterCfg,
     G1LowerBodyStandingMotionControllerRetargeter,
     G1LowerBodyStandingMotionControllerRetargeterCfg,
+    G1LowerBodyStandingRetargeter,
+    G1LowerBodyStandingRetargeterCfg,
     G1TriHandUpperBodyMotionControllerRetargeter,
     G1TriHandUpperBodyMotionControllerRetargeterCfg,
     G1TriHandUpperBodyRetargeter,
@@ -39,7 +39,14 @@ from isaaclab.devices.spacemouse import Se2SpaceMouse, Se2SpaceMouseCfg, Se3Spac
 
 with contextlib.suppress(ModuleNotFoundError):
     # May fail if xr is not in use
-    from isaaclab.devices.openxr import ManusVive, ManusViveCfg, OpenXRDevice, OpenXRDeviceCfg, OpenXRDeviceMotionController, OpenXRDeviceMotionControllerCfg
+    from isaaclab.devices.openxr import (
+        ManusVive,
+        ManusViveCfg,
+        OpenXRDevice,
+        OpenXRDeviceCfg,
+        OpenXRDeviceMotionController,
+        OpenXRDeviceMotionControllerCfg,
+    )
 
 # Map device types to their constructor and expected config type
 DEVICE_MAP: dict[type[DeviceCfg], type[DeviceBase]] = {

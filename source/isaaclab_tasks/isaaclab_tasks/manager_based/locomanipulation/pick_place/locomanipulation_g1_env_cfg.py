@@ -9,11 +9,14 @@ import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.devices.device_base import DevicesCfg
-from isaaclab.devices.openxr import OpenXRDeviceCfg, XrCfg, XrAnchorRotationMode, OpenXRDeviceMotionControllerCfg
-from isaaclab.devices.openxr.retargeters.humanoid.unitree.g1_lower_body_standing import G1LowerBodyStandingRetargeterCfg, G1LowerBodyStandingMotionControllerRetargeterCfg
+from isaaclab.devices.openxr import OpenXRDeviceCfg, OpenXRDeviceMotionControllerCfg, XrCfg
+from isaaclab.devices.openxr.retargeters.humanoid.unitree.g1_lower_body_standing import (
+    G1LowerBodyStandingMotionControllerRetargeterCfg,
+    G1LowerBodyStandingRetargeterCfg,
+)
 from isaaclab.devices.openxr.retargeters.humanoid.unitree.trihand.g1_upper_body_retargeter import (
-    G1TriHandUpperBodyRetargeterCfg,
     G1TriHandUpperBodyMotionControllerRetargeterCfg,
+    G1TriHandUpperBodyRetargeterCfg,
 )
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import ObservationGroupCfg as ObsGroup

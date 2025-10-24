@@ -4,33 +4,35 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import argparse
-from pxr import Sdf, UsdGeom, UsdShade
+
 from isaacsim.core.utils.stage import get_current_stage
+from pxr import Sdf, UsdGeom, UsdShade
 
 from isaaclab.devices.device_base import DeviceBase
 from isaaclab.devices.openxr import OpenXRDeviceMotionController
 from isaaclab.devices.openxr.xr_cfg import XrAnchorRotationMode
 from isaaclab.envs import ManagerBasedRLEnv
+
 from .locomanipulation_g1_env_cfg import LocomanipulationG1EnvCfg
 
 
 class LocomanipulationG1ManagerBasedRLEnv(ManagerBasedRLEnv):
     cfg: LocomanipulationG1EnvCfg
-    
+
     def __init__(self, cfg: LocomanipulationG1EnvCfg, **kwargs):
         super().__init__(cfg, **kwargs)
         print("[INFO]: Completed setting up the LocomanipulationG1ManagerBasedRLEnv...")
 
     def setup_for_teleop_device(self, teleop_device: DeviceBase, args_cli: argparse.Namespace) -> None:
         """Configure environment based on the teleop device type.
-        
+
         Args:
             teleop_device: The teleop device being used.
         """
 
         if not args_cli.xr:
             return
-        
+
         stage = get_current_stage()
 
         # Hide the robot head mesh for XR comfort
@@ -54,7 +56,7 @@ class LocomanipulationG1ManagerBasedRLEnv(ManagerBasedRLEnv):
             return
 
         # Change the material of the ground plane for comfort when we are using FOLLOW_PRIM
-        # Turning while parented to the robot's pelvis could cause nausea in a grid plane ground.
+        # Rotating while parented to the robot's pelvis could cause nausea when viewing a grid plane ground.
         if (
             teleop_device._xr_cfg.anchor_rotation_mode == XrAnchorRotationMode.FOLLOW_PRIM
             or teleop_device._xr_cfg.anchor_rotation_mode == XrAnchorRotationMode.FOLLOW_PRIM_SMOOTHED
