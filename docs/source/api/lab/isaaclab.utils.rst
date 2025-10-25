@@ -36,7 +36,7 @@ Configuration class
    :show-inheritance:
 
 IO operations
-~~~~~~~~~~~~~isaaclab.utils.rst
+~~~~~~~~~~~~~
 
 .. automodule:: isaaclab.utils.io
    :members:
