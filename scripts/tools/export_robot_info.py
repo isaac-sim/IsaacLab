@@ -2,7 +2,6 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
-
 """
 Utility to export robot configuration and properties to JSON format.
 
@@ -38,116 +37,108 @@ def load_config(config_path: str) -> Any:
         module_name, config_name = parts
         module = importlib.import_module(module_name)
         return getattr(module, config_name)
-    except Exception as e:
-        print(f"❌ Error loading config: {e}")
+    except (ImportError, AttributeError) as e:
+        print(f"[ERROR] Error loading config: {e}")
         sys.exit(1)
 
 
-def extract_config_info(config: Any, config_name: str) -> Dict[str, Any]:
-    """Extract robot configuration information into a dictionary.
-    
-    Args:
-        config: Robot configuration object
-        config_name: Name of the configuration
-        
-    Returns:
-        Dictionary containing robot information
-    """
-    info = {
-        'config_name': config_name,
-        'prim_path': getattr(config, 'prim_path', None),
+def extract_actuator_info(actuator_cfg: Any) -> Dict[str, Any]:
+    """Extract actuator configuration details."""
+    actuator_info = {
+        "class": actuator_cfg.__class__.__name__,
     }
     
-    # Extract init_state information
-    if hasattr(config, 'init_state'):
-        init_state = config.init_state
-        info['init_state'] = {
-            'pos': list(init_state.pos) if hasattr(init_state, 'pos') else None,
-            'rot': list(init_state.rot) if hasattr(init_state, 'rot') else None,
-            'lin_vel': list(init_state.lin_vel) if hasattr(init_state, 'lin_vel') else None,
-            'ang_vel': list(init_state.ang_vel) if hasattr(init_state, 'ang_vel') else None,
-        }
+    # Add common actuator properties if they exist
+    if hasattr(actuator_cfg, 'joint_names_expr'):
+        actuator_info['joint_names_expr'] = actuator_cfg.joint_names_expr
+    if hasattr(actuator_cfg, 'effort_limit'):
+        actuator_info['effort_limit'] = actuator_cfg.effort_limit
+    if hasattr(actuator_cfg, 'velocity_limit'):
+        actuator_info['velocity_limit'] = actuator_cfg.velocity_limit
+    if hasattr(actuator_cfg, 'stiffness'):
+        actuator_info['stiffness'] = actuator_cfg.stiffness
+    if hasattr(actuator_cfg, 'damping'):
+        actuator_info['damping'] = actuator_cfg.damping
+    if hasattr(actuator_cfg, 'armature'):
+        actuator_info['armature'] = actuator_cfg.armature
     
-    # Extract spawn configuration
-    if hasattr(config, 'spawn'):
-        spawn = config.spawn
-        spawn_info = {
-            'func_name': str(spawn.func) if hasattr(spawn, 'func') else None,
-        }
-        
-        # Try to extract common spawn parameters
-        for attr in ['usd_path', 'scale', 'visible', 'semantic_tags']:
-            if hasattr(spawn, attr):
-                value = getattr(spawn, attr)
-                # Convert tuples to lists for JSON serialization
-                if isinstance(value, tuple):
-                    value = list(value)
-                spawn_info[attr] = value
-        
-        info['spawn'] = spawn_info
+    return actuator_info
+
+
+def extract_robot_info(robot_cfg: Any) -> Dict[str, Any]:
+    """Extract detailed information from robot configuration."""
+    info = {
+        "config_name": robot_cfg.__class__.__name__,
+        "spawn": {
+            "class": robot_cfg.spawn.__class__.__name__,
+        },
+    }
     
-    # Extract actuator information
-    if hasattr(config, 'actuators'):
-        actuators = config.actuators
-        actuator_info = {}
-        
-        for key in dir(actuators):
+    # Extract spawn configuration details
+    if hasattr(robot_cfg.spawn, 'usd_path'):
+        info['spawn']['usd_path'] = str(robot_cfg.spawn.usd_path)
+    if hasattr(robot_cfg.spawn, 'rigid_props'):
+        if robot_cfg.spawn.rigid_props is not None:
+            info['spawn']['rigid_props'] = {
+                k: v for k, v in vars(robot_cfg.spawn.rigid_props).items() 
+                if not k.startswith('_')
+            }
+    if hasattr(robot_cfg.spawn, 'articulation_props'):
+        if robot_cfg.spawn.articulation_props is not None:
+            info['spawn']['articulation_props'] = {
+                k: v for k, v in vars(robot_cfg.spawn.articulation_props).items()
+                if not k.startswith('_')
+            }
+    
+    # Extract init state if available
+    if hasattr(robot_cfg, 'init_state'):
+        init_state_dict = {}
+        for key, value in vars(robot_cfg.init_state).items():
             if not key.startswith('_'):
-                actuator = getattr(actuators, key)
-                if hasattr(actuator, '__dict__'):
-                    actuator_data = {}
-                    for attr_name in dir(actuator):
-                        if not attr_name.startswith('_'):
-                            try:
-                                attr_value = getattr(actuator, attr_name)
-                                if not callable(attr_value):
-                                    # Convert to JSON-serializable format
-                                    if isinstance(attr_value, (list, tuple)):
-                                        actuator_data[attr_name] = list(attr_value)
-                                    elif isinstance(attr_value, (str, int, float, bool, type(None))):
-                                        actuator_data[attr_name] = attr_value
-                                    else:
-                                        actuator_data[attr_name] = str(attr_value)
-                            except:
-                                pass
-                    
-                    actuator_info[key] = actuator_data
-        
-        if actuator_info:
-            info['actuators'] = actuator_info
+                # Convert numpy arrays or tensors to lists for JSON serialization
+                if hasattr(value, 'tolist'):
+                    init_state_dict[key] = value.tolist()
+                else:
+                    init_state_dict[key] = value
+        info['init_state'] = init_state_dict
     
-    # Extract articulation root properties
-    if hasattr(config, 'articulation_props'):
-        props = config.articulation_props
-        props_info = {}
-        for attr in dir(props):
-            if not attr.startswith('_') and not callable(getattr(props, attr)):
-                try:
-                    value = getattr(props, attr)
-                    if isinstance(value, (str, int, float, bool, type(None))):
-                        props_info[attr] = value
-                    elif isinstance(value, (list, tuple)):
-                        props_info[attr] = list(value)
-                except:
-                    pass
-        
-        if props_info:
-            info['articulation_props'] = props_info
+    # Extract actuators
+    if hasattr(robot_cfg, 'actuators'):
+        actuators_info = {}
+        for name, actuator_cfg in robot_cfg.actuators.items():
+            actuators_info[name] = extract_actuator_info(actuator_cfg)
+        info['actuators'] = actuators_info
+    
+    # Extract soft joint position limits if available
+    if hasattr(robot_cfg, 'soft_joint_pos_limit_factor'):
+        info['soft_joint_pos_limit_factor'] = robot_cfg.soft_joint_pos_limit_factor
     
     return info
 
 
 def main():
-    """Main function."""
+    """Main execution function."""
     parser = argparse.ArgumentParser(
-        description="Export robot configuration information to JSON.",
-        formatter_class=argparse.RawDescriptionHelpFormatter
+        description="Export robot configuration to JSON format.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+    # Export to console
+    python export_robot_info.py --config isaaclab_assets.CRAZYFLIE_CFG
+    
+    # Export to file
+    python export_robot_info.py --config isaaclab_assets.ANYMAL_D_CFG --output robot_info.json
+    
+    # Pretty print
+    python export_robot_info.py --config isaaclab_assets.FRANKA_PANDA_CFG --output franka.json --pretty
+"""
     )
+    
     parser.add_argument(
         "--config",
         type=str,
         required=True,
-        help="Robot configuration to export (e.g., 'isaaclab_assets.CRAZYFLIE_CFG')"
+        help="Robot configuration path (e.g., 'isaaclab_assets.FRANKA_PANDA_CFG')"
     )
     parser.add_argument(
         "--output",
@@ -158,39 +149,31 @@ def main():
     parser.add_argument(
         "--pretty",
         action="store_true",
-        default=False,
         help="Pretty print JSON with indentation"
     )
     
     args = parser.parse_args()
     
-    print(f"Loading configuration: {args.config}")
-    config = load_config(args.config)
+    # Load the robot configuration
+    robot_cfg = load_config(args.config)
     
-    print("Extracting robot information...")
-    robot_info = extract_config_info(config, args.config)
+    # Extract information
+    robot_info = extract_robot_info(robot_cfg)
     
-    # Convert to JSON
+    # Serialize to JSON
     indent = 2 if args.pretty else None
     json_output = json.dumps(robot_info, indent=indent, default=str)
     
     # Output results
     if args.output:
         output_path = Path(args.output)
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        
-        with open(output_path, 'w') as f:
-            f.write(json_output)
-        
-        print(f"✓ Robot information exported to: {output_path}")
+        output_path.write_text(json_output)
+        print(f"[SUCCESS] Robot information exported to: {output_path}")
     else:
-        print("\n" + "="*60)
-        print("Robot Configuration Information")
-        print("="*60)
         print(json_output)
-        print("="*60)
     
-    print(f"\n✓ Successfully extracted information for {args.config}")
+    if not args.output:
+        print(f"\n[SUCCESS] Successfully extracted information for {args.config}")
 
 
 if __name__ == "__main__":
